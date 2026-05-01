@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.4] - 2026-05-01
+
+### Fixed
+- **Real-time price mode does not resume charging after batteries reach max_soc**: `_realtime_price_charging` was not reset when the session completed, so the re-entry guard blocked any new session for the rest of the HA lifetime. Fixed by resetting the flag alongside `grid_charging_active` in the predictive-charging completion path.
+- **Brief discharge during the max_soc transition in real-time and dynamic-pricing modes even when price is below threshold**: `_price_based_discharge_blocked` was only refreshed while `grid_charging_active` was `False`, leaving a one-cycle gap where PD ran with a stale negative `previous_power`. Fixed by removing the `not grid_charging_active` gate in both handlers so the block is evaluated every cycle.
+
 ## [1.7.3] - 2026-04-29
 
 ### Fixed

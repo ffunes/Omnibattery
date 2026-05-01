@@ -1543,6 +1543,9 @@ class ChargeDischargeController:
         if not available_batteries:
             _LOGGER.info("Predictive charging complete: all batteries at max_soc - resuming normal operation")
             self.grid_charging_active = False
+            # Keep RT-mode flag in sync; otherwise the start-charging guard
+            # `not self._realtime_price_charging` blocks re-entry forever after max_soc.
+            self._realtime_price_charging = False
             self._grid_charging_initialized = False
             self.first_execution = True
             return
@@ -3117,7 +3120,9 @@ class ChargeDischargeController:
 
         # Price-based discharge control: block discharge when current price is not above threshold
         # Threshold = daily average price computed at 00:05 evaluation; fallback to max_price_threshold
-        if self.dp_price_discharge_control and not self.grid_charging_active and self.price_sensor:
+        # Always set the flag when control is enabled (no `not grid_charging_active` gate):
+        # see comment in _handle_realtime_price_predictive_charging for the max_soc transition gap.
+        if self.dp_price_discharge_control and self.price_sensor:
             price_state = self.hass.states.get(self.price_sensor)
             if price_state is not None:
                 try:
@@ -3194,7 +3199,10 @@ class ChargeDischargeController:
             current_price, threshold, price_is_cheap, self._realtime_price_charging,
         )
 
-        if self.rt_price_discharge_control and not self.grid_charging_active:
+        # Always set the flag when control is enabled. Gating on `not grid_charging_active`
+        # left a one-cycle gap at the max_soc transition (line 1545 flips it False AFTER
+        # this check), letting PD discharge from the stale negative previous_power.
+        if self.rt_price_discharge_control:
             self._price_based_discharge_blocked = not (current_price > threshold)
             if self._price_based_discharge_blocked:
                 _LOGGER.debug(
