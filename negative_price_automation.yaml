@@ -1,0 +1,269 @@
+# =============================================================================
+# AUTOMATION: Charge battery during negative grid prices
+# =============================================================================
+#
+# WHAT IT DOES:
+#   1. When the price is negative (the grid PAYS you), charge the battery
+#      from the grid to "earn money".
+#   2. Before the most expensive hour of the day, discharge the battery to
+#      sell energy at the highest price.
+#   3. Restores the integration's automatic control when done.
+#
+# HOW IT WORKS:
+#   Uses the integration's "Manual Mode" switch. When activated, the
+#   integration pauses its automatic control loop (~2s) and respects the
+#   manual force_mode and power values.
+#
+#   The daily peak hour is auto-detected by the companion sensor template
+#   (evening_peak_sensor.yaml) which finds the highest-priced hour across
+#   the full day from the day-ahead price curve.
+#
+#   All Marstek Venus entities are auto-discovered by pattern matching
+#   (e.g., "*_force_mode", "*_set_charge_power"). Works with any number
+#   of batteries — commands are sent to all matching entities.
+#
+#   Charge/discharge power is set to the minimum of all batteries'
+#   configured max_charge_power / max_discharge_power, ensuring it works
+#   safely even with mixed battery versions (v2/v3: 2500W, A: 1200W, D: 2200W).
+#
+#   The existing charging/discharging cutoff capacities are NOT modified.
+#   The battery charges/discharges to the limits the user has already
+#   configured in the integration. No save/restore needed.
+#
+# PREREQUISITES:
+#   - The "Manual Mode" switch must be enabled in the integration
+#     (added automatically in supported versions).
+#   - A price sensor in HA with day-ahead price attributes
+#     (Nordpool: raw_today / raw_tomorrow).
+#   - The peak detection sensor template (evening_peak_sensor.yaml)
+#     installed in configuration.yaml.
+#
+# INSTALLATION:
+#   1. Install evening_peak_sensor.yaml template sensors in HA
+#   2. Copy this file to config/automations/ or add to automations.yaml
+#   3. Replace __PRICE_SENSOR__ with your price sensor entity_id
+#   4. Optionally replace __NOTIFY__ or remove the notification actions
+#   5. Reload automations in HA (Settings > Automations > Reload)
+# =============================================================================
+
+alias: "Negative Price - Charge from Grid"
+description: "Auto-detect daily peak. Charge from grid when prices are negative."
+mode: single
+
+trigger:
+  # Price enters negative zone (5 min delay to avoid false positives)
+  - platform: numeric_state
+    entity_id: __PRICE_SENSOR__
+    below: 0
+    for:
+      minutes: 5
+    id: price_negative
+
+  # Price returns to positive
+  - platform: numeric_state
+    entity_id: __PRICE_SENSOR__
+    above: 0
+    for:
+      minutes: 5
+    id: price_positive
+
+  # Tick every minute to check auto-detected peak windows
+  - platform: time_pattern
+    minutes: "/1"
+    id: time_tick
+
+condition: []
+
+variables:
+  # Auto-discover all Marstek Venus entities by pattern matching.
+  # Works with any number of batteries.
+  force_mode_entities: >
+    {{ states.select
+       | selectattr('entity_id', 'search', 'force_mode')
+       | map(attribute='entity_id')
+       | list }}
+
+  charge_power_entities: >
+    {{ states.number
+       | selectattr('entity_id', 'search', 'set_charge_power')
+       | map(attribute='entity_id')
+       | list }}
+
+  discharge_power_entities: >
+    {{ states.number
+       | selectattr('entity_id', 'search', 'set_discharge_power')
+       | map(attribute='entity_id')
+       | list }}
+
+  manual_mode_entity: >
+    {{ states.switch
+       | selectattr('entity_id', 'search', 'manual_mode')
+       | map(attribute='entity_id')
+       | first }}
+
+  # Read each battery's configured max charge/discharge power.
+  # Use the minimum value to stay within limits of all batteries
+  # (handles mixed-version setups safely).
+  charge_power: >
+    {% set values = states.number
+       | selectattr('entity_id', 'search', 'max_charge_power')
+       | map(attribute='state')
+       | map('float', 0)
+       | select('gt', 0)
+       | list %}
+    {{ values | min if values | length > 0 else 2500 }}
+
+  discharge_power: >
+    {% set values = states.number
+       | selectattr('entity_id', 'search', 'max_discharge_power')
+       | map(attribute='state')
+       | map('float', 0)
+       | select('gt', 0)
+       | list %}
+    {{ values | min if values | length > 0 else 2500 }}
+
+  # Auto-detected peak info
+  peak_hour: >
+    {{ states('sensor.daily_peak_hour') | int(12) }}
+
+  peak_price: >
+    {{ states('sensor.daily_peak_price') | float(0) }}
+
+action:
+  - choose:
+
+      # ============================================================
+      # CASE 1: Negative price → Charge from grid (you get paid)
+      # ============================================================
+      - conditions:
+          - condition: trigger
+            id: price_negative
+        sequence:
+          # Enable manual mode: pauses the integration's automatic control
+          # (this also sets all batteries to 0W temporarily)
+          - service: switch.turn_on
+            target:
+              entity_id: "{{ manual_mode_entity }}"
+
+          # Set charge power on all batteries (uses min of all max_charge_power values)
+          - service: number.set_value
+            target:
+              entity_id: "{{ charge_power_entities }}"
+            data:
+              value: "{{ charge_power }}"
+
+          # Force charge mode on all batteries
+          - service: select.select_option
+            target:
+              entity_id: "{{ force_mode_entities }}"
+            data:
+              option: Charge
+
+          # Log
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                "NEGATIVE PRICE: {{ states('__PRICE_SENSOR__') }} EUR/kWh.
+                Manual mode ON. Charging from grid at {{ charge_power }}W."
+
+          # Mobile notification (optional - remove if not needed)
+          - service: __NOTIFY__
+            data:
+              title: "Negative Price - Charging"
+              message: >
+                "Price: {{ states('__PRICE_SENSOR__') }} EUR/kWh.
+                Battery charging from grid at {{ charge_power }}W."
+
+      # ============================================================
+      # CASE 2: Price returns to positive → Restore normal
+      # ============================================================
+      - conditions:
+          - condition: trigger
+            id: price_positive
+        sequence:
+          # Disable manual mode - integration resumes control
+          - service: switch.turn_off
+            target:
+              entity_id: "{{ manual_mode_entity }}"
+
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                "Price positive: {{ states('__PRICE_SENSOR__') }} EUR/kWh.
+                Manual mode OFF. Automatic control resumed."
+
+      # ============================================================
+      # CASE 3: 30 min before auto-detected peak → Discharge to sell
+      # ============================================================
+      - conditions:
+          - condition: trigger
+            id: time_tick
+          # Only if price is positive (don't discharge when grid pays us)
+          - condition: numeric_state
+            entity_id: __PRICE_SENSOR__
+            above: 0
+          - condition: template
+            value_template: >
+              {{ now().hour == peak_hour - 1 and now().minute == 30 }}
+          # Only if the peak price is high enough to be worth it
+          - condition: template
+            value_template: >
+              {{ peak_price > 0.15 }}
+        sequence:
+          # Enable manual mode
+          - service: switch.turn_on
+            target:
+              entity_id: "{{ manual_mode_entity }}"
+
+          # Set discharge power on all batteries
+          - service: number.set_value
+            target:
+              entity_id: "{{ discharge_power_entities }}"
+            data:
+              value: "{{ discharge_power }}"
+
+          # Force discharge mode on all batteries
+          - service: select.select_option
+            target:
+              entity_id: "{{ force_mode_entities }}"
+            data:
+              option: Discharge
+
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                "DAILY PEAK at {{ peak_hour }}:00
+                (price: {{ peak_price }} EUR/kWh).
+                Manual mode ON. Discharging to sell at {{ discharge_power }}W."
+
+          - service: __NOTIFY__
+            data:
+              title: "Daily Peak - Discharging"
+              message: >
+                "Peak at {{ peak_hour }}:00 ({{ peak_price }} EUR/kWh).
+                Discharging battery at {{ discharge_power }}W."
+
+      # ============================================================
+      # CASE 4: 1 hour after auto-detected peak → Restore normal
+      # ============================================================
+      - conditions:
+          - condition: trigger
+            id: time_tick
+          - condition: template
+            value_template: >
+              {{ now().hour == peak_hour + 1 and now().minute == 0 }}
+        sequence:
+          # Disable manual mode
+          - service: switch.turn_off
+            target:
+              entity_id: "{{ manual_mode_entity }}"
+
+          - service: system_log.write
+            data:
+              level: info
+              message: "Daily peak ended. Manual mode OFF. Normal operation restored."
+
+    default: []

@@ -1,0 +1,324 @@
+blueprint:
+  name: "Marstek Venus - Negative Price Grid Charging"
+  description: >
+    Automatically charge your Marstek Venus battery from the grid when prices
+    go negative (you get paid), and discharge before the most expensive hour
+    of the day to sell at the highest price.
+
+    You must select the Marstek Venus entities for each battery you want to
+    control. If you have multiple batteries, select all corresponding entities
+    in each multi-selector. The blueprint reads each battery's configured max
+    limits from the selected max charge/discharge power entities.
+
+    The daily peak hour is computed from your price sensor's day-ahead forecast
+    attributes — no additional sensors needed.
+  domain: automation
+  source_url: "https://github.com/ffunes/Marstek-Venus-Energy-Manager/blob/main/negative_price_blueprint.yaml"
+
+  input:
+    price_sensor:
+      name: "Price Sensor"
+      description: "Sensor providing the current electricity price with day-ahead forecast attributes (e.g. Nordpool: raw_today / raw_tomorrow)."
+      selector:
+        entity:
+          filter:
+            domain: sensor
+
+    manual_mode_switch:
+      name: "Manual Mode Switch"
+      description: "The Manual Mode switch entity from the Marstek Venus integration (system-level)."
+      selector:
+        entity:
+          filter:
+            domain: switch
+
+    force_mode_select:
+      name: "Force Mode Select(s)"
+      description: "The Force Mode select entity/entities from the Marstek Venus integration. Select all batteries you want to control."
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: select
+
+    set_charge_power:
+      name: "Set Charge Power Number(s)"
+      description: "The Set Charge Power number entity/entities. Select all batteries you want to control."
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: number
+
+    set_discharge_power:
+      name: "Set Discharge Power Number(s)"
+      description: "The Set Discharge Power number entity/entities. Select all batteries you want to control."
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: number
+
+    max_charge_power:
+      name: "Max Charge Power Number(s)"
+      description: "Optional: the Max Charge Power number entity/entities to read the configured charge limit. If omitted, defaults to 2500 W."
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: number
+
+    max_discharge_power:
+      name: "Max Discharge Power Number(s)"
+      description: "Optional: the Max Discharge Power number entity/entities to read the configured discharge limit. If omitted, defaults to 2500 W."
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: number
+
+    notify_service:
+      name: "Notification Service"
+      description: "Optional notification service (e.g. notify.mobile_app_your_phone). Leave empty to disable."
+      default: ""
+      selector:
+        text:
+
+variables:
+  price_sensor: !input price_sensor
+  notify_service: !input notify_service
+  force_mode_select: !input force_mode_select
+  max_charge_power_input: !input max_charge_power
+  max_discharge_power_input: !input max_discharge_power
+
+  # Detect correct option strings from the first force_mode entity.
+  # This makes the blueprint work across Ev2/Ev3 (None/Charge/Discharge)
+  # and VA/VD (stop/charge/discharge or standby/charge/discharge).
+  _force_opts: >
+    {{ state_attr(force_mode_select[0], 'options') | default([]) }}
+  charge_option: >
+    {{ _force_opts | select('match', '(?i)^charge$') | list | first | default('Charge') }}
+  discharge_option: >
+    {{ _force_opts | select('match', '(?i)^discharge$') | list | first | default('Discharge') }}
+  stop_option: >
+    {{ _force_opts | select('match', '(?i)^(none|stop|standby)$') | list | first | default('None') }}
+
+  # Read each battery's configured max charge/discharge power.
+  # Use the minimum to stay within limits of all selected batteries.
+  charge_power: >
+    {% set values = expand(max_charge_power_input) | map(attribute='state') | reject('in', ['unavailable','unknown','none']) | map('float', 0) | select('gt', 0) | list %}
+    {{ values | min if values | length > 0 else 2500 }}
+
+  discharge_power: >
+    {% set values = expand(max_discharge_power_input) | map(attribute='state') | reject('in', ['unavailable','unknown','none']) | map('float', 0) | select('gt', 0) | list %}
+    {{ values | min if values | length > 0 else 2500 }}
+
+  # Compute daily peak hour and price directly from the price sensor's
+  # day-ahead forecast attributes (Nordpool-style: raw_today / raw_tomorrow).
+  # Only consider future prices to avoid acting on peaks that have already passed.
+  _raw_today: >
+    {{ state_attr(price_sensor, 'raw_today') | default([]) }}
+
+  _raw_tomorrow: >
+    {{ state_attr(price_sensor, 'raw_tomorrow') | default([]) }}
+
+  _all_prices: >
+    {% set ns = namespace(prices=[]) %}
+    {% set now_local = now() %}
+    {% for item in (_raw_today | default([])) %}
+      {% set start = item.start | as_datetime | as_local %}
+      {% if start >= now_local %}
+        {% set ns.prices = ns.prices + [{'hour': start.hour, 'price': item.value | float(-999)}] %}
+      {% endif %}
+    {% endfor %}
+    {% for item in (_raw_tomorrow | default([])) %}
+      {% set start = item.start | as_datetime | as_local %}
+      {% if start >= now_local %}
+        {% set ns.prices = ns.prices + [{'hour': start.hour, 'price': item.value | float(-999)}] %}
+      {% endif %}
+    {% endfor %}
+    {{ ns.prices }}
+
+  peak_hour: >
+    {% set prices = _all_prices %}
+    {% if prices | length > 0 %}
+      {% set sorted = prices | sort(attribute='price', reverse=True) %}
+      {{ sorted[0].hour }}
+    {% else %}
+      12
+    {% endif %}
+
+  peak_price: >
+    {% set prices = _all_prices %}
+    {% if prices | length > 0 %}
+      {% set sorted = prices | sort(attribute='price', reverse=True) %}
+      {{ sorted[0].price | round(4) }}
+    {% else %}
+      0
+    {% endif %}
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input price_sensor
+    below: 0
+    for:
+      minutes: 5
+    id: price_negative
+
+  - platform: numeric_state
+    entity_id: !input price_sensor
+    above: 0
+    for:
+      minutes: 5
+    id: price_positive
+
+  - platform: time_pattern
+    minutes: "/1"
+    id: time_tick
+
+condition: []
+
+action:
+  - choose:
+
+      # Negative price → charge from grid
+      - conditions:
+          - condition: trigger
+            id: price_negative
+        sequence:
+          - service: switch.turn_on
+            target:
+              entity_id: !input manual_mode_switch
+
+          - service: number.set_value
+            target:
+              entity_id: !input set_charge_power
+            data:
+              value: "{{ charge_power }}"
+
+          - service: select.select_option
+            target:
+              entity_id: !input force_mode_select
+            data:
+              option: "{{ charge_option }}"
+
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                NEGATIVE PRICE: {{ states(price_sensor) }} EUR/kWh.
+                Manual mode ON. Charging from grid at {{ charge_power }}W.
+
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ notify_service | trim | length > 0 }}"
+                sequence:
+                  - service: "{{ notify_service }}"
+                    data:
+                      title: "Negative Price - Charging"
+                      message: >
+                        Price: {{ states(price_sensor) }} EUR/kWh.
+                        Battery charging from grid at {{ charge_power }}W.
+            default: []
+
+      # Price positive → restore normal
+      - conditions:
+          - condition: trigger
+            id: price_positive
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id: !input manual_mode_switch
+
+          - service: select.select_option
+            target:
+              entity_id: !input force_mode_select
+            data:
+              option: "{{ stop_option }}"
+
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                Price positive: {{ states(price_sensor) }} EUR/kWh.
+                Manual mode OFF. Automatic control resumed.
+
+      # 30 min before peak → discharge to sell
+      - conditions:
+          - condition: trigger
+            id: time_tick
+          - condition: numeric_state
+            entity_id: !input price_sensor
+            above: 0
+          - condition: template
+            value_template: >
+              {{ (now().hour + 1) % 24 == peak_hour | int and now().minute == 30 }}
+          - condition: template
+            value_template: >
+              {{ peak_price | float > 0.15 }}
+        sequence:
+          - service: switch.turn_on
+            target:
+              entity_id: !input manual_mode_switch
+
+          - service: number.set_value
+            target:
+              entity_id: !input set_discharge_power
+            data:
+              value: "{{ discharge_power }}"
+
+          - service: select.select_option
+            target:
+              entity_id: !input force_mode_select
+            data:
+              option: "{{ discharge_option }}"
+
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                DAILY PEAK at {{ peak_hour }}:00
+                (price: {{ peak_price }} EUR/kWh).
+                Manual mode ON. Discharging to sell at {{ discharge_power }}W.
+
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ notify_service | trim | length > 0 }}"
+                sequence:
+                  - service: "{{ notify_service }}"
+                    data:
+                      title: "Daily Peak - Discharging"
+                      message: >
+                        Peak at {{ peak_hour }}:00 ({{ peak_price }} EUR/kWh).
+                        Discharging battery at {{ discharge_power }}W.
+            default: []
+
+      # 1 hour after peak → restore normal
+      - conditions:
+          - condition: trigger
+            id: time_tick
+          - condition: template
+            value_template: >
+              {{ (now().hour - 1) % 24 == peak_hour | int and now().minute == 0 }}
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id: !input manual_mode_switch
+
+          - service: select.select_option
+            target:
+              entity_id: !input force_mode_select
+            data:
+              option: "{{ stop_option }}"
+
+          - service: system_log.write
+            data:
+              level: info
+              message: >
+                Daily peak ended. Manual mode OFF. Normal operation restored.
+
+    default: []
