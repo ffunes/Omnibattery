@@ -682,45 +682,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#solar-forecast-sensor-optional" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solar forecast sensor (optional)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#household-consumption-sensor-optional" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Household consumption sensor (optional)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Household consumption sensor (optional)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#creating-a-helper-sensor" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Creating a helper sensor
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1547,45 +1508,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#solar-forecast-sensor-optional" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solar forecast sensor (optional)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#household-consumption-sensor-optional" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Household consumption sensor (optional)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Household consumption sensor (optional)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#creating-a-helper-sensor" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Creating a helper sensor
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1623,33 +1545,49 @@
 <p class="admonition-title">Update frequency</p>
 <p>The sensor should update as fast as possible. The controller runs every <strong>2.5 seconds</strong> and makes decisions based on the most recent reading available — the older the reading, the less accurate the response.</p>
 <p>Home consumption can vary by several kilowatts in fractions of a second (appliance start-ups, oven, washing machine…). A sensor that reports every 10 seconds or more introduces a lag that causes the controller to react to a situation that no longer exists, leading to overshoot or unnecessary corrections.</p>
-<p><strong>Recommended: 1–2 second update interval.</strong> Devices like Shelly EM/EM3 support this natively.</p>
 </div>
+<p>&lt;&lt;&lt;&lt;&lt;&lt;&lt; patch-2</p>
+<p>=======</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>main
+    <strong>Recommended: 1–2 second update interval.</strong> Devices like Shelly EM/EM3 support this natively.</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
 <h3 id="automatic-kw-detection">Automatic kW detection<a class="headerlink" href="#automatic-kw-detection" title="Permanent link">&para;</a></h3>
 <p>If the sensor's <code>unit_of_measurement</code> attribute is <code>kW</code>, the integration multiplies the value by 1000 automatically.</p>
 <h3 id="inverted-sign">Inverted sign<a class="headerlink" href="#inverted-sign" title="Permanent link">&para;</a></h3>
 <p>Enable <strong>"Inverted meter sign"</strong> if your sensor uses the opposite convention:</p>
-<table>
-<thead>
-<tr>
-<th>Convention</th>
-<th>Import</th>
-<th>Export</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Standard (default)</td>
-<td>Positive value</td>
-<td>Negative value</td>
-</tr>
-<tr>
-<td>Inverted</td>
-<td>Negative value</td>
-<td>Positive value</td>
-</tr>
-</tbody>
-</table>
+<h1 id="patch-2">&lt;&lt;&lt;&lt;&lt;&lt;&lt; patch-2<a class="headerlink" href="#patch-2" title="Permanent link">&para;</a></h1>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>main
+| Convention | Import | Export |
+|---|---|---|
+| Standard (default) | Positive value | Negative value |
+| Inverted | Negative value | Positive value |</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
 <p>Leave it disabled if you are unsure.</p>
 <hr />
 <h2 id="solar-forecast-sensor-optional">Solar forecast sensor <em>(optional)</em><a class="headerlink" href="#solar-forecast-sensor-optional" title="Permanent link">&para;</a></h2>
