@@ -10,7 +10,7 @@ Forces a **100% charge once a week** for cell balancing. You only need to select
 
 See [Weekly full charge](../features/weekly-full-charge.md) for how it works.
 
-![Weekly full charge configuration](../assets/screenshots/configuration/advanced-weekly-full-charge.png){ width="650"  style="display: block; margin: 0 auto;"}
+![Weekly full charge configuration](../assets/screenshots/configuration/advanced-weekly-full-charge-config.png){ width="650"  style="display: block; margin: 0 auto;"}
 
 ---
 
@@ -27,7 +27,7 @@ A larger margin (e.g. 180 min) unlocks grid charging earlier in the day; a small
 
 See [Solar charge delay](../features/solar-charge-delay.md) for how it works.
 
-![Solar charge delay configuration](../assets/screenshots/configuration/advanced-charge-delay.png){ width="650"  style="display: block; margin: 0 auto;"}
+![Solar charge delay configuration](../assets/screenshots/configuration/advanced-solar-charge-delay-config.png){ width="650"  style="display: block; margin: 0 auto;"}
 
 ---
 
@@ -42,7 +42,7 @@ Limits discharge when SOC drops below a threshold, covering only consumption pea
 
 See [Peak shaving](../features/peak-shaving.md) for how it works.
 
-![Capacity protection configuration](../assets/screenshots/configuration/advanced-capacity-protection.png){ width="650"  style="display: block; margin: 0 auto;"}
+![Capacity protection configuration](../assets/screenshots/configuration/advanced-capacity-protection-config.png){ width="650"  style="display: block; margin: 0 auto;"}
 
 ---
 
@@ -65,4 +65,4 @@ Allows tuning the internal PD controller parameters. All values can also be adju
 
 The min charge/discharge power parameters are useful to prevent inefficient micro-cycling when grid demand is very low.
 
-![Advanced PD controller configuration](../assets/screenshots/configuration/advanced-pd-controller.png){ width="650"  style="display: block; margin: 0 auto;"}
+![Advanced PD controller configuration](../assets/screenshots/configuration/advanced-pd-controller-config.png){ width="650"  style="display: block; margin: 0 auto;"}
