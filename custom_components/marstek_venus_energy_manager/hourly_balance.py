@@ -18,13 +18,16 @@ from .const import (
     HOURLY_BALANCE_MIN_REMAINING_MIN,
     CONF_HOURLY_BALANCE_TARGET_NET_WH,
     CONF_HOURLY_BALANCE_MAX_OFFSET_W,
-    CONF_HOURLY_BALANCE_HYSTERESIS_W,
-    CONF_HOURLY_BALANCE_RAMP_IN_MIN,
+    CONF_HOURLY_BALANCE_DEADBAND_WH,
     DEFAULT_HOURLY_BALANCE_TARGET_NET_WH,
     DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W,
-    DEFAULT_HOURLY_BALANCE_HYSTERESIS_W,
-    DEFAULT_HOURLY_BALANCE_RAMP_IN_MIN,
+    DEFAULT_HOURLY_BALANCE_DEADBAND_WH,
+    _HOURLY_BALANCE_HYSTERESIS_W,
+    _HOURLY_BALANCE_RAMP_IN_MIN,
+    EXTERNAL_NET_BALANCE_CANDIDATES,
 )
+
+_EXTERNAL_DETECT_MAX_ATTEMPTS = 20  # ~50 s at 2.5 s/cycle
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -66,6 +69,13 @@ class HourlyBalanceManager:
         # Registered sensor entities for push updates
         self._sensors: list[Any] = []
 
+        # External net balance sensor (auto-detected)
+        self._ext_sensor: str | None = None
+        self._ext_mode: str | None = None   # snapshot_kwh | snapshot_wh | direct_kwh | direct_wh | power_w | power_kw
+        self._ext_snapshot: float | None = None
+        self._ext_detected: bool = False
+        self._ext_detect_attempts: int = 0
+
     # ------------------------------------------------------------------
     # Setup / teardown
     # ------------------------------------------------------------------
@@ -104,6 +114,30 @@ class HourlyBalanceManager:
             "HourlyBalance: setup complete, %d history entries loaded",
             len(self._history),
         )
+        await self._detect_external_sensor()
+
+        # If we restored mid-hour data and the external sensor uses snapshots, prime the
+        # snapshot so the first cycle produces the same net as the restored values instead
+        # of resetting to zero.
+        if (
+            self._ext_sensor
+            and self._ext_mode in ("snapshot_kwh", "snapshot_wh")
+            and self._current_hour is not None
+        ):
+            state = self._hass.states.get(self._ext_sensor)
+            if state and state.state not in ("unavailable", "unknown"):
+                try:
+                    raw = float(state.state)
+                    # restored net in ext convention (positive = export to grid)
+                    ext_net_wh = -(self._imp_wh - self._exp_wh)
+                    scale = 1000.0 if self._ext_mode == "snapshot_kwh" else 1.0
+                    self._ext_snapshot = raw - ext_net_wh / scale
+                    _LOGGER.info(
+                        "HourlyBalance: ext snapshot primed to %.4f to preserve %.0fWh restored net",
+                        self._ext_snapshot, self._imp_wh - self._exp_wh,
+                    )
+                except (ValueError, TypeError):
+                    pass
 
     async def async_unload(self) -> None:
         """Persist state to store."""
@@ -119,6 +153,98 @@ class HourlyBalanceManager:
     def _push_sensors(self) -> None:
         for sensor in self._sensors:
             sensor.async_write_ha_state()
+
+    # ------------------------------------------------------------------
+    # External sensor detection
+    # ------------------------------------------------------------------
+
+    async def _detect_external_sensor(self) -> None:
+        """Try to discover an external net balance sensor from the candidates list.
+
+        Called once at setup and lazily on the first few process cycles to
+        handle sensors that aren't in the state machine yet at HA startup.
+        Positive sensor value is assumed to mean net export to grid.
+        """
+        self._ext_detect_attempts += 1
+        found_all_in_states = True
+
+        for candidate in EXTERNAL_NET_BALANCE_CANDIDATES:
+            state = self._hass.states.get(candidate)
+            if state is None:
+                found_all_in_states = False
+                _LOGGER.debug(
+                    "HourlyBalance: candidate %s not in states yet (attempt %d/%d)",
+                    candidate, self._ext_detect_attempts, _EXTERNAL_DETECT_MAX_ATTEMPTS,
+                )
+                continue
+
+            unit = state.attributes.get("unit_of_measurement", "")
+            sc = state.attributes.get("state_class", "")
+            cumulative = sc in ("total", "total_increasing")
+
+            if unit == "kWh":
+                mode = "snapshot_kwh" if cumulative else "direct_kwh"
+            elif unit == "Wh":
+                mode = "snapshot_wh" if cumulative else "direct_wh"
+            elif unit == "W":
+                mode = "power_w"
+            elif unit == "kW":
+                mode = "power_kw"
+            else:
+                _LOGGER.warning(
+                    "HourlyBalance: candidate %s has unsupported unit '%s', skipping",
+                    candidate, unit,
+                )
+                continue
+
+            self._ext_sensor = candidate
+            self._ext_mode = mode
+            self._ext_detected = True
+            _LOGGER.info(
+                "HourlyBalance: using external sensor %s (unit=%s state_class=%s → mode=%s). "
+                "Sign convention: positive = net export to grid.",
+                candidate, unit, sc, mode,
+            )
+            return
+
+        if found_all_in_states or self._ext_detect_attempts >= _EXTERNAL_DETECT_MAX_ATTEMPTS:
+            self._ext_detected = True
+            _LOGGER.info(
+                "HourlyBalance: no external net balance sensor found (tried: %s), "
+                "falling back to trapezoidal integration",
+                EXTERNAL_NET_BALANCE_CANDIDATES,
+            )
+
+    def _read_external_net_wh(self) -> float | None:
+        """Read current-hour net Wh from external sensor (positive = export to grid).
+
+        Returns None when the sensor is unavailable; caller keeps last known values.
+        For snapshot modes the first call in a new hour sets the snapshot and returns 0.
+        """
+        state = self._hass.states.get(self._ext_sensor)
+        if state is None or state.state in ("unavailable", "unknown"):
+            return None
+        try:
+            raw = float(state.state)
+        except (ValueError, TypeError):
+            return None
+
+        if self._ext_mode == "snapshot_kwh":
+            if self._ext_snapshot is None:
+                self._ext_snapshot = raw
+                _LOGGER.debug("HourlyBalance: ext snapshot = %.4f kWh", raw)
+                return 0.0
+            return (raw - self._ext_snapshot) * 1000.0
+        if self._ext_mode == "snapshot_wh":
+            if self._ext_snapshot is None:
+                self._ext_snapshot = raw
+                return 0.0
+            return raw - self._ext_snapshot
+        if self._ext_mode == "direct_kwh":
+            return raw * 1000.0
+        if self._ext_mode == "direct_wh":
+            return raw
+        return None  # power modes handled separately in async_process
 
     # ------------------------------------------------------------------
     # Main processing loop (called every PD cycle)
@@ -146,17 +272,48 @@ class HourlyBalanceManager:
             self._push_sensors()
             return
 
-        # Read grid power directly from the consumption sensor, applying the
-        # same meter transform the PD loop uses. If the sensor is unavailable
-        # we still push sensors so HA's last_updated keeps advancing, but we
-        # skip integration and reset the monotonic anchor.
-        grid_state = self._hass.states.get(self._controller.consumption_sensor)
-        grid_w = self._controller._apply_meter_transform(grid_state)
-        if grid_w is None:
-            self._last_sample_monotonic = None
-            self._last_grid_w = None
-            self._push_sensors()
-            return
+        # Lazy detection for sensors not yet in the state machine at startup
+        if not self._ext_detected and self._ext_detect_attempts < _EXTERNAL_DETECT_MAX_ATTEMPTS:
+            await self._detect_external_sensor()
+
+        # Determine integration source and read the current value.
+        # _use_ext_energy = True  → external energy sensor; bypass trapezoidal, set imp/exp directly.
+        # _use_ext_energy = False → power sensor (ext or consumption_sensor); trapezoidal integration.
+        _use_ext_energy = (
+            self._ext_sensor is not None
+            and self._ext_mode not in ("power_w", "power_kw")
+        )
+
+        if _use_ext_energy:
+            # Validate readability before doing anything; keep last offset if unavailable.
+            ext_state = self._hass.states.get(self._ext_sensor)
+            if ext_state is None or ext_state.state in ("unavailable", "unknown"):
+                self._push_sensors()
+                return
+            grid_w = None  # not used in energy mode
+        else:
+            # Power source: external power sensor or consumption_sensor fallback
+            if self._ext_sensor:
+                ext_state = self._hass.states.get(self._ext_sensor)
+                if ext_state is None or ext_state.state in ("unavailable", "unknown"):
+                    grid_w = None
+                else:
+                    try:
+                        val = float(ext_state.state)
+                        if self._ext_mode == "power_kw":
+                            val *= 1000.0
+                        grid_w = -val  # positive export → negative in our import-positive convention
+                    except (ValueError, TypeError):
+                        grid_w = None
+            else:
+                grid_state = self._hass.states.get(self._controller.consumption_sensor)
+                grid_w = self._controller._apply_meter_transform(grid_state)
+
+            if grid_w is None:
+                self._last_sample_monotonic = None
+                self._last_grid_w = None
+                self._push_sensors()
+                return
 
         now_local = dt_util.now()
         now_mono = monotonic()
@@ -189,38 +346,46 @@ class HourlyBalanceManager:
             self._last_sample_monotonic = None
             self._last_grid_w = None
             self._last_offset_w = 0.0
+            self._ext_snapshot = None  # snapshot modes take a fresh reference at hour start
 
-        # Integrate Wh (trapezoidal rule). When the sign changes between
-        # samples, split the interval at the linearly-interpolated zero
-        # crossing so import and export buckets stay clean.
-        if self._last_sample_monotonic is not None and self._last_grid_w is not None:
-            dt_h = (now_mono - self._last_sample_monotonic) / 3600.0
-            prev_w = self._last_grid_w
-            curr_w = grid_w
-            if (prev_w >= 0) == (curr_w >= 0):
-                wh = (prev_w + curr_w) / 2.0 * dt_h
-                if wh >= 0:
-                    self._imp_wh += wh
+        # Integrate Wh — two paths depending on integration source.
+        if _use_ext_energy:
+            # External energy sensor: read accumulated net directly.
+            # positive = net export; map to imp/exp in our import-positive convention.
+            ext_net_wh = self._read_external_net_wh()
+            if ext_net_wh is not None:
+                self._imp_wh = max(0.0, -ext_net_wh)
+                self._exp_wh = max(0.0, ext_net_wh)
+            # If None (sensor momentarily unavailable), keep last known values.
+        else:
+            # Power source: trapezoidal rule with zero-crossing split.
+            if self._last_sample_monotonic is not None and self._last_grid_w is not None:
+                dt_h = (now_mono - self._last_sample_monotonic) / 3600.0
+                prev_w = self._last_grid_w
+                curr_w = grid_w
+                if (prev_w >= 0) == (curr_w >= 0):
+                    wh = (prev_w + curr_w) / 2.0 * dt_h
+                    if wh >= 0:
+                        self._imp_wh += wh
+                    else:
+                        self._exp_wh += -wh
                 else:
-                    self._exp_wh += -wh
-            else:
-                # Sign change: split at zero crossing
-                frac = abs(prev_w) / (abs(prev_w) + abs(curr_w))
-                dt_first = dt_h * frac
-                dt_second = dt_h - dt_first
-                wh_first = prev_w / 2.0 * dt_first
-                wh_second = curr_w / 2.0 * dt_second
-                if wh_first >= 0:
-                    self._imp_wh += wh_first
-                else:
-                    self._exp_wh += -wh_first
-                if wh_second >= 0:
-                    self._imp_wh += wh_second
-                else:
-                    self._exp_wh += -wh_second
+                    frac = abs(prev_w) / (abs(prev_w) + abs(curr_w))
+                    dt_first = dt_h * frac
+                    dt_second = dt_h - dt_first
+                    wh_first = prev_w / 2.0 * dt_first
+                    wh_second = curr_w / 2.0 * dt_second
+                    if wh_first >= 0:
+                        self._imp_wh += wh_first
+                    else:
+                        self._exp_wh += -wh_first
+                    if wh_second >= 0:
+                        self._imp_wh += wh_second
+                    else:
+                        self._exp_wh += -wh_second
 
-        self._last_sample_monotonic = now_mono
-        self._last_grid_w = grid_w
+            self._last_sample_monotonic = now_mono
+            self._last_grid_w = grid_w
 
         # Calculate offset
         target_net_wh = self._target_net_wh()
@@ -232,28 +397,28 @@ class HourlyBalanceManager:
             offset_w = 0.0
         else:
             deficit_wh = target_net_wh - net_wh  # >0 means we exported too much, need to import
-            needed_avg_w = deficit_wh / (remaining_min / 60.0)
-            offset_w = needed_avg_w  # positive = shift target towards import
+            deadband_wh = float(self._config_entry.data.get(
+                CONF_HOURLY_BALANCE_DEADBAND_WH, DEFAULT_HOURLY_BALANCE_DEADBAND_WH
+            )) * 1000.0
+            if abs(deficit_wh) <= deadband_wh:
+                offset_w = 0.0
+            else:
+                needed_avg_w = deficit_wh / (remaining_min / 60.0)
+                offset_w = needed_avg_w  # positive = shift target towards import
 
-            # Ramp-in: attenuate during the first ramp_in_min minutes
-            ramp_in_min = self._config_entry.data.get(
-                CONF_HOURLY_BALANCE_RAMP_IN_MIN, DEFAULT_HOURLY_BALANCE_RAMP_IN_MIN
-            )
-            if elapsed_min < ramp_in_min and ramp_in_min > 0:
-                offset_w *= elapsed_min / ramp_in_min
+                # Ramp-in: attenuate during the first _HOURLY_BALANCE_RAMP_IN_MIN minutes
+                if elapsed_min < _HOURLY_BALANCE_RAMP_IN_MIN:
+                    offset_w *= elapsed_min / _HOURLY_BALANCE_RAMP_IN_MIN
 
-            # Saturation
-            max_offset_w = self._config_entry.data.get(
-                CONF_HOURLY_BALANCE_MAX_OFFSET_W, DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W
-            )
-            offset_w = max(-max_offset_w, min(max_offset_w, offset_w))
+                # Saturation
+                max_offset_w = self._config_entry.data.get(
+                    CONF_HOURLY_BALANCE_MAX_OFFSET_W, DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W
+                )
+                offset_w = max(-max_offset_w, min(max_offset_w, offset_w))
 
         # Hysteresis (bypass near end of hour)
         if remaining_min >= HOURLY_BALANCE_FORCE_RECALC_REMAINING_MIN:
-            hysteresis_w = self._config_entry.data.get(
-                CONF_HOURLY_BALANCE_HYSTERESIS_W, DEFAULT_HOURLY_BALANCE_HYSTERESIS_W
-            )
-            if abs(offset_w - self._last_offset_w) < hysteresis_w:
+            if abs(offset_w - self._last_offset_w) < _HOURLY_BALANCE_HYSTERESIS_W:
                 offset_w = self._last_offset_w
 
         # If compensation is blocked, zero the offset so the PD controller
@@ -301,7 +466,7 @@ class HourlyBalanceManager:
     def _target_net_wh(self) -> float:
         return float(self._config_entry.data.get(
             CONF_HOURLY_BALANCE_TARGET_NET_WH, DEFAULT_HOURLY_BALANCE_TARGET_NET_WH
-        ))
+        )) * 1000.0
 
     def _is_in_active_slot(self) -> bool:
         """Return True if we should apply hourly balance right now.
@@ -373,7 +538,7 @@ class HourlyBalanceManager:
             remaining_min = max(0.0, 60.0 - elapsed_min)
 
         offset = self._last_offset_w
-        return {
+        d: dict = {
             "net_kwh": round((self._exp_wh - self._imp_wh) / 1000, 3),
             "imp_wh": round(self._imp_wh, 1),
             "exp_wh": round(self._exp_wh, 1),
@@ -385,8 +550,11 @@ class HourlyBalanceManager:
             "in_active_slot": self._is_in_active_slot(),
             "hour_iso": self._hour_started_local.isoformat() if self._hour_started_local else None,
             "charge_block_reason": self._last_block_reason,
-            "history": self._history[-24:],
+            "history": self._history[-10:],
+            "source": self._ext_sensor if self._ext_sensor else "trapezoidal",
+            "source_mode": self._ext_mode if self._ext_mode else "trapezoidal",
         }
+        return d
 
     def get_state_label(self) -> str:
         """Return a string state label for the status sensor."""

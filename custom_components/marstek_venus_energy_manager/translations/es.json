@@ -308,16 +308,14 @@
         "title": "Configuración del Balance Horario",
         "description": "Configura el balance de energía objetivo y los parámetros de control. El sistema ajustará la potencia de la batería para alcanzar el balance Wh objetivo cada hora.",
         "data": {
-          "hourly_balance_target_net_wh": "Balance neto objetivo (Wh)",
+          "hourly_balance_target_net_wh": "Balance neto objetivo (kWh)",
           "hourly_balance_max_offset_w": "Desplazamiento máximo (W)",
-          "hourly_balance_hysteresis_w": "Histeresis (W)",
-          "hourly_balance_ramp_in_min": "Tiempo de rampa (min)"
+          "hourly_balance_deadband_wh": "Tolerancia de balance neto (kWh)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Balance de energía neto objetivo por hora. 0 = balance cero (por defecto). Positivo = permitir importación, negativo = objetivo de exportación.",
-          "hourly_balance_max_offset_w": "Desplazamiento de potencia máximo que el controlador puede aplicar para corregir el desbalance. Valores más altos corrigen más rápido pero pueden causar oscilación.",
-          "hourly_balance_hysteresis_w": "Cambio mínimo requerido antes de actualizar el desplazamiento. Evita ajustes pequeños y rápidos.",
-          "hourly_balance_ramp_in_min": "Tiempo al inicio de cada hora durante el cual el desplazamiento se incrementa gradualmente. Evita cambios bruscos de potencia en los límites de hora."
+          "hourly_balance_max_offset_w": "Desplazamiento de potencia máximo que el controlador puede aplicar. El slider está limitado a la potencia combinada de las baterías.",
+          "hourly_balance_deadband_wh": "Tolerancia alrededor del objetivo. No se aplica corrección si el balance neto está dentro de ±N kWh del objetivo. 0 = corrección exacta."
         }
       }
     },
@@ -658,16 +656,14 @@
         "title": "Configuración del Balance Horario",
         "description": "Configura el balance de energía objetivo y los parámetros de control. El sistema ajustará la potencia de la batería para alcanzar el balance Wh objetivo cada hora.",
         "data": {
-          "hourly_balance_target_net_wh": "Balance neto objetivo (Wh)",
+          "hourly_balance_target_net_wh": "Balance neto objetivo (kWh)",
           "hourly_balance_max_offset_w": "Desplazamiento máximo (W)",
-          "hourly_balance_hysteresis_w": "Histeresis (W)",
-          "hourly_balance_ramp_in_min": "Tiempo de rampa (min)"
+          "hourly_balance_deadband_wh": "Tolerancia de balance neto (kWh)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Balance de energía neto objetivo por hora. 0 = balance cero (por defecto). Positivo = permitir importación, negativo = objetivo de exportación.",
-          "hourly_balance_max_offset_w": "Desplazamiento de potencia máximo que el controlador puede aplicar para corregir el desbalance. Valores más altos corrigen más rápido pero pueden causar oscilación.",
-          "hourly_balance_hysteresis_w": "Cambio mínimo requerido antes de actualizar el desplazamiento. Evita ajustes pequeños y rápidos.",
-          "hourly_balance_ramp_in_min": "Tiempo al inicio de cada hora durante el cual el desplazamiento se incrementa gradualmente. Evita cambios bruscos de potencia en los límites de hora."
+          "hourly_balance_max_offset_w": "Desplazamiento de potencia máximo que el controlador puede aplicar. El slider está limitado a la potencia combinada de las baterías.",
+          "hourly_balance_deadband_wh": "Tolerancia alrededor del objetivo. No se aplica corrección si el balance neto está dentro de ±N kWh del objetivo. 0 = corrección exacta."
         }
       }
     },
@@ -958,14 +954,8 @@
       "delta_avg_4w": {
         "name": "Delta Promedio (4 lecturas)"
       },
-      "hourly_net_energy": {
-        "name": "Energía Neta Horaria"
-      },
-      "hourly_balance_offset": {
-        "name": "Desplazamiento Balance Horario"
-      },
-      "hourly_balance_status": {
-        "name": "Estado Balance Horario",
+      "balance_neto": {
+        "name": "Balance Neto",
         "state": {
           "idle": "Inactivo",
           "out_of_slot": "Fuera de Franja",

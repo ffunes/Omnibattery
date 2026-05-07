@@ -308,16 +308,14 @@
         "title": "Konfiguration der stündlichen Balance",
         "description": "Konfiguriere die Ziel-Energiebalance und Steuerparameter. Das System passt die Batterieleistung an, um jede Stunde die Ziel-Wh-Balance zu erreichen.",
         "data": {
-          "hourly_balance_target_net_wh": "Ziel-Netto-Balance (Wh)",
+          "hourly_balance_target_net_wh": "Ziel-Netto-Balance (kWh)",
           "hourly_balance_max_offset_w": "Maximaler Versatz (W)",
-          "hourly_balance_hysteresis_w": "Hysterese (W)",
-          "hourly_balance_ramp_in_min": "Rampenzeit (Min.)"
+          "hourly_balance_deadband_wh": "Toleranz Nettobilanz (kWh)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Ziel-Netto-Energiebalance pro Stunde. 0 = Netto-Null (Standard). Positiv = Import erlauben, negativ = Export-Ziel.",
-          "hourly_balance_max_offset_w": "Maximaler Leistungsversatz, den der Regler zur Korrektur der Unwucht anwenden kann. Höhere Werte korrigieren schneller, können aber Schwingungen verursachen.",
-          "hourly_balance_hysteresis_w": "Mindeständerung, bevor der Versatz aktualisiert wird. Verhindert schnelle kleine Anpassungen.",
-          "hourly_balance_ramp_in_min": "Zeit zu Beginn jeder Stunde, während der der Versatz schrittweise erhöht wird. Verhindert abrupte Leistungsänderungen an Stundengrenzen."
+          "hourly_balance_max_offset_w": "Maximaler Leistungsversatz des Reglers. Der Schieberegler ist auf die kombinierte Entladeleistung aller Batterien begrenzt.",
+          "hourly_balance_deadband_wh": "Toleranzband um den Zielwert. Keine Korrektur, wenn die Nettobilanz innerhalb von ±N kWh liegt. 0 = exakte Korrektur."
         }
       }
     },
@@ -658,16 +656,14 @@
         "title": "Konfiguration der stündlichen Balance",
         "description": "Konfiguriere die Ziel-Energiebalance und Steuerparameter. Das System passt die Batterieleistung an, um jede Stunde die Ziel-Wh-Balance zu erreichen.",
         "data": {
-          "hourly_balance_target_net_wh": "Ziel-Netto-Balance (Wh)",
+          "hourly_balance_target_net_wh": "Ziel-Netto-Balance (kWh)",
           "hourly_balance_max_offset_w": "Maximaler Versatz (W)",
-          "hourly_balance_hysteresis_w": "Hysterese (W)",
-          "hourly_balance_ramp_in_min": "Rampenzeit (Min.)"
+          "hourly_balance_deadband_wh": "Toleranz Nettobilanz (kWh)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Ziel-Netto-Energiebalance pro Stunde. 0 = Netto-Null (Standard). Positiv = Import erlauben, negativ = Export-Ziel.",
-          "hourly_balance_max_offset_w": "Maximaler Leistungsversatz, den der Regler zur Korrektur der Unwucht anwenden kann. Höhere Werte korrigieren schneller, können aber Schwingungen verursachen.",
-          "hourly_balance_hysteresis_w": "Mindeständerung, bevor der Versatz aktualisiert wird. Verhindert schnelle kleine Anpassungen.",
-          "hourly_balance_ramp_in_min": "Zeit zu Beginn jeder Stunde, während der der Versatz schrittweise erhöht wird. Verhindert abrupte Leistungsänderungen an Stundengrenzen."
+          "hourly_balance_max_offset_w": "Maximaler Leistungsversatz des Reglers. Der Schieberegler ist auf die kombinierte Entladeleistung aller Batterien begrenzt.",
+          "hourly_balance_deadband_wh": "Toleranzband um den Zielwert. Keine Korrektur, wenn die Nettobilanz innerhalb von ±N kWh liegt. 0 = exakte Korrektur."
         }
       }
     },
@@ -958,14 +954,8 @@
       "delta_avg_4w": {
         "name": "Delta-Durchschnitt (4 Messungen)"
       },
-      "hourly_net_energy": {
-        "name": "Stündliche Nettoenergie"
-      },
-      "hourly_balance_offset": {
-        "name": "Stündlicher Balance-Versatz"
-      },
-      "hourly_balance_status": {
-        "name": "Stündlicher Balance-Status",
+      "balance_neto": {
+        "name": "Nettobilanz",
         "state": {
           "idle": "Inaktiv",
           "out_of_slot": "Außerhalb des Zeitfensters",

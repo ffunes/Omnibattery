@@ -1835,19 +1835,25 @@ DEFAULT_DELAY_SOC_SETPOINT = 50  # % — default when the setpoint is enabled
 CONF_ENABLE_HOURLY_BALANCE = "enable_hourly_balance"
 CONF_HOURLY_BALANCE_TARGET_NET_WH = "hourly_balance_target_net_wh"
 CONF_HOURLY_BALANCE_MAX_OFFSET_W = "hourly_balance_max_offset_w"
-CONF_HOURLY_BALANCE_HYSTERESIS_W = "hourly_balance_hysteresis_w"
-CONF_HOURLY_BALANCE_RAMP_IN_MIN = "hourly_balance_ramp_in_min"
+CONF_HOURLY_BALANCE_DEADBAND_WH = "hourly_balance_deadband_wh"
 
-DEFAULT_HOURLY_BALANCE_TARGET_NET_WH = 0
+DEFAULT_HOURLY_BALANCE_TARGET_NET_WH = 0.0
 DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W = 1000
-DEFAULT_HOURLY_BALANCE_HYSTERESIS_W = 30
-DEFAULT_HOURLY_BALANCE_RAMP_IN_MIN = 5
+DEFAULT_HOURLY_BALANCE_DEADBAND_WH = 0.0
+
+# Hardcoded — not user-configurable
+_HOURLY_BALANCE_HYSTERESIS_W = 100
+_HOURLY_BALANCE_RAMP_IN_MIN = 5
 
 HOURLY_BALANCE_STORAGE_KEY = "hourly_balance"
 HOURLY_BALANCE_STORAGE_VERSION = 1
 HOURLY_BALANCE_HISTORY_MAX = 168       # 7 days
 HOURLY_BALANCE_FORCE_RECALC_REMAINING_MIN = 10  # bypass hysteresis near end of hour
 HOURLY_BALANCE_MIN_REMAINING_MIN = 5   # below this, offset = 0
+
+# External net balance sensor candidates (checked in order; first match wins).
+# Positive sensor value = net export to grid. Flip sign in _read_external_net_wh if reversed.
+EXTERNAL_NET_BALANCE_CANDIDATES: list[str] = ["sensor.balance_neto"]
 
 # Weekly Full Charge Delay Constants
 CHARGE_EFFICIENCY = 0.85  # Conservative factor for charge power estimation

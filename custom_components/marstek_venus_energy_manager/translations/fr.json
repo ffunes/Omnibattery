@@ -308,16 +308,14 @@
         "title": "Configuration du Bilan Horaire",
         "description": "Configurez le bilan énergétique cible et les paramètres de contrôle. Le système ajustera la puissance de la batterie pour atteindre le bilan Wh cible chaque heure.",
         "data": {
-          "hourly_balance_target_net_wh": "Bilan net cible (Wh)",
+          "hourly_balance_target_net_wh": "Bilan net cible (kWh)",
           "hourly_balance_max_offset_w": "Décalage maximum (W)",
-          "hourly_balance_hysteresis_w": "Hystérésis (W)",
-          "hourly_balance_ramp_in_min": "Temps de rampe (min)"
+          "hourly_balance_deadband_wh": "Tolérance bilan net (kWh)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Bilan énergétique net cible par heure. 0 = bilan nul (par défaut). Positif = autoriser l importation, négatif = objectif d exportation.",
-          "hourly_balance_max_offset_w": "Décalage de puissance maximal que le contrôleur peut appliquer pour corriger le déséquilibre. Des valeurs plus élevées corrigent plus rapidement mais peuvent provoquer des oscillations.",
-          "hourly_balance_hysteresis_w": "Changement minimum requis avant que le décalage ne soit mis à jour. Évite les petits ajustements rapides.",
-          "hourly_balance_ramp_in_min": "Durée au début de chaque heure pendant laquelle le décalage est augmenté progressivement. Évite les changements brusques de puissance aux limites d heure."
+          "hourly_balance_max_offset_w": "Décalage de puissance maximal du contrôleur. Le curseur est limité à la puissance de décharge combinée des batteries.",
+          "hourly_balance_deadband_wh": "Bande de tolérance autour de l objectif. Aucune correction si le bilan net est dans ±N kWh de l objectif. 0 = correction exacte."
         }
       }
     },
@@ -658,16 +656,14 @@
         "title": "Configuration du Bilan Horaire",
         "description": "Configurez le bilan énergétique cible et les paramètres de contrôle. Le système ajustera la puissance de la batterie pour atteindre le bilan Wh cible chaque heure.",
         "data": {
-          "hourly_balance_target_net_wh": "Bilan net cible (Wh)",
+          "hourly_balance_target_net_wh": "Bilan net cible (kWh)",
           "hourly_balance_max_offset_w": "Décalage maximum (W)",
-          "hourly_balance_hysteresis_w": "Hystérésis (W)",
-          "hourly_balance_ramp_in_min": "Temps de rampe (min)"
+          "hourly_balance_deadband_wh": "Tolérance bilan net (kWh)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Bilan énergétique net cible par heure. 0 = bilan nul (par défaut). Positif = autoriser l importation, négatif = objectif d exportation.",
-          "hourly_balance_max_offset_w": "Décalage de puissance maximal que le contrôleur peut appliquer pour corriger le déséquilibre. Des valeurs plus élevées corrigent plus rapidement mais peuvent provoquer des oscillations.",
-          "hourly_balance_hysteresis_w": "Changement minimum requis avant que le décalage ne soit mis à jour. Évite les petits ajustements rapides.",
-          "hourly_balance_ramp_in_min": "Durée au début de chaque heure pendant laquelle le décalage est augmenté progressivement. Évite les changements brusques de puissance aux limites d heure."
+          "hourly_balance_max_offset_w": "Décalage de puissance maximal du contrôleur. Le curseur est limité à la puissance de décharge combinée des batteries.",
+          "hourly_balance_deadband_wh": "Bande de tolérance autour de l objectif. Aucune correction si le bilan net est dans ±N kWh de l objectif. 0 = correction exacte."
         }
       }
     },
@@ -958,14 +954,8 @@
       "delta_avg_4w": {
         "name": "Delta Moyen (4 lectures)"
       },
-      "hourly_net_energy": {
-        "name": "Énergie Nette Horaire"
-      },
-      "hourly_balance_offset": {
-        "name": "Décalage Bilan Horaire"
-      },
-      "hourly_balance_status": {
-        "name": "État Bilan Horaire",
+      "balance_neto": {
+        "name": "Bilan Net",
         "state": {
           "idle": "Inactif",
           "out_of_slot": "Hors créneau",

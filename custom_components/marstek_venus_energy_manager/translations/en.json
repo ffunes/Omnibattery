@@ -308,16 +308,14 @@
         "title": "Hourly Balance Configuration",
         "description": "Configure the target net energy balance and control parameters. The system will adjust battery power to achieve the target Wh balance each hour.",
         "data": {
-          "hourly_balance_target_net_wh": "Target net balance (Wh)",
+          "hourly_balance_target_net_wh": "Target net balance (kWh)",
           "hourly_balance_max_offset_w": "Maximum offset (W)",
-          "hourly_balance_hysteresis_w": "Hysteresis (W)",
-          "hourly_balance_ramp_in_min": "Ramp-in time (min)"
+          "hourly_balance_deadband_wh": "Net balance tolerance (kWh)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Target net energy balance per hour. 0 = net zero (default). Positive = allow import, negative = target export.",
-          "hourly_balance_max_offset_w": "Maximum power offset the controller can apply to correct imbalance. Higher values correct faster but may cause oscillation.",
-          "hourly_balance_hysteresis_w": "Minimum change required before the offset is updated. Prevents rapid small adjustments.",
-          "hourly_balance_ramp_in_min": "Time at the start of each hour during which the offset is gradually increased. Prevents abrupt power changes at hour boundaries."
+          "hourly_balance_max_offset_w": "Maximum power offset the controller can apply. The slider ceiling is the combined discharge power of all configured batteries.",
+          "hourly_balance_deadband_wh": "Tolerance band around the target. No correction is applied when the net balance is within ±N kWh of the target. 0 = exact correction."
         }
       }
     },
@@ -658,16 +656,14 @@
         "title": "Hourly Balance Configuration",
         "description": "Configure the target net energy balance and control parameters. The system will adjust battery power to achieve the target Wh balance each hour.",
         "data": {
-          "hourly_balance_target_net_wh": "Target net balance (Wh)",
+          "hourly_balance_target_net_wh": "Target net balance (kWh)",
           "hourly_balance_max_offset_w": "Maximum offset (W)",
-          "hourly_balance_hysteresis_w": "Hysteresis (W)",
-          "hourly_balance_ramp_in_min": "Ramp-in time (min)"
+          "hourly_balance_deadband_wh": "Net balance tolerance (kWh)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Target net energy balance per hour. 0 = net zero (default). Positive = allow import, negative = target export.",
-          "hourly_balance_max_offset_w": "Maximum power offset the controller can apply to correct imbalance. Higher values correct faster but may cause oscillation.",
-          "hourly_balance_hysteresis_w": "Minimum change required before the offset is updated. Prevents rapid small adjustments.",
-          "hourly_balance_ramp_in_min": "Time at the start of each hour during which the offset is gradually increased. Prevents abrupt power changes at hour boundaries."
+          "hourly_balance_max_offset_w": "Maximum power offset the controller can apply. The slider ceiling is the combined discharge power of all configured batteries.",
+          "hourly_balance_deadband_wh": "Tolerance band around the target. No correction is applied when the net balance is within ±N kWh of the target. 0 = exact correction."
         }
       }
     },
@@ -957,14 +953,8 @@
       "delta_avg_4w": {
         "name": "Delta Average (4 readings)"
       },
-      "hourly_net_energy": {
-        "name": "Hourly Net Energy"
-      },
-      "hourly_balance_offset": {
-        "name": "Hourly Balance Offset"
-      },
-      "hourly_balance_status": {
-        "name": "Hourly Balance Status",
+      "balance_neto": {
+        "name": "Net Balance",
         "state": {
           "idle": "Idle",
           "out_of_slot": "Out of Slot",

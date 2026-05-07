@@ -308,16 +308,14 @@
         "title": "Configuratie Uurlijks Saldo",
         "description": "Configureer de doel-energiebalans en regelparameters. Het systeem zal het batterijvermogen aanpassen om elk uur de doel-Wh-balans te bereiken.",
         "data": {
-          "hourly_balance_target_net_wh": "Doel netto-saldo (Wh)",
+          "hourly_balance_target_net_wh": "Doel netto-saldo (kWh)",
           "hourly_balance_max_offset_w": "Maximale verschuiving (W)",
-          "hourly_balance_hysteresis_w": "Hysterese (W)",
-          "hourly_balance_ramp_in_min": "Oplooptijd (min)"
+          "hourly_balance_deadband_wh": "Tolerantie nettosaldo (kWh)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Doel netto-energiebalans per uur. 0 = netto nul (standaard). Positief = import toestaan, negatief = export-doel.",
-          "hourly_balance_max_offset_w": "Maximale vermogensverschuiving die de regelaar kan toepassen om onbalans te corrigeren. Hogere waarden corrigeren sneller maar kunnen oscillatie veroorzaken.",
-          "hourly_balance_hysteresis_w": "Minimale wijziging vereist voordat de verschuiving wordt bijgewerkt. Voorkomt snelle kleine aanpassingen.",
-          "hourly_balance_ramp_in_min": "Tijd aan het begin van elk uur waarin de verschuiving geleidelijk wordt verhoogd. Voorkomt abrupte vermogenswijzigingen bij uurgrenzen."
+          "hourly_balance_max_offset_w": "Maximale vermogensverschuiving van de regelaar. Het schuifregelaarmaximum is de gecombineerde ontlaadvermogens van alle batterijen.",
+          "hourly_balance_deadband_wh": "Tolerantieband rondom het doel. Geen correctie als het nettosaldo binnen ±N kWh van het doel valt. 0 = exacte correctie."
         }
       }
     },
@@ -658,16 +656,14 @@
         "title": "Configuratie Uurlijks Saldo",
         "description": "Configureer de doel-energiebalans en regelparameters. Het systeem zal het batterijvermogen aanpassen om elk uur de doel-Wh-balans te bereiken.",
         "data": {
-          "hourly_balance_target_net_wh": "Doel netto-saldo (Wh)",
+          "hourly_balance_target_net_wh": "Doel netto-saldo (kWh)",
           "hourly_balance_max_offset_w": "Maximale verschuiving (W)",
-          "hourly_balance_hysteresis_w": "Hysterese (W)",
-          "hourly_balance_ramp_in_min": "Oplooptijd (min)"
+          "hourly_balance_deadband_wh": "Tolerantie nettosaldo (kWh)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Doel netto-energiebalans per uur. 0 = netto nul (standaard). Positief = import toestaan, negatief = export-doel.",
-          "hourly_balance_max_offset_w": "Maximale vermogensverschuiving die de regelaar kan toepassen om onbalans te corrigeren. Hogere waarden corrigeren sneller maar kunnen oscillatie veroorzaken.",
-          "hourly_balance_hysteresis_w": "Minimale wijziging vereist voordat de verschuiving wordt bijgewerkt. Voorkomt snelle kleine aanpassingen.",
-          "hourly_balance_ramp_in_min": "Tijd aan het begin van elk uur waarin de verschuiving geleidelijk wordt verhoogd. Voorkomt abrupte vermogenswijzigingen bij uurgrenzen."
+          "hourly_balance_max_offset_w": "Maximale vermogensverschuiving van de regelaar. Het schuifregelaarmaximum is de gecombineerde ontlaadvermogens van alle batterijen.",
+          "hourly_balance_deadband_wh": "Tolerantieband rondom het doel. Geen correctie als het nettosaldo binnen ±N kWh van het doel valt. 0 = exacte correctie."
         }
       }
     },
@@ -958,14 +954,8 @@
       "delta_avg_4w": {
         "name": "Delta Gemiddelde (4 metingen)"
       },
-      "hourly_net_energy": {
-        "name": "Uurlijkse Netto-energie"
-      },
-      "hourly_balance_offset": {
-        "name": "Uurlijkse Saldo-verschuiving"
-      },
-      "hourly_balance_status": {
-        "name": "Uurlijkse Saldo-status",
+      "balance_neto": {
+        "name": "Nettosaldo",
         "state": {
           "idle": "Inactief",
           "out_of_slot": "Buiten tijdslot",
