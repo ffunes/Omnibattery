@@ -3385,12 +3385,20 @@ class ChargeDischargeController:
                     mode,
                 )
                 return
-            # Outside selected slots: use max_price_threshold as discharge boundary,
-            # matching the RT price mode semantics — discharge is blocked whenever
-            # the current price is below the user-configured charging threshold.
-            # _dp_daily_avg_price was used before but caused discharge to be allowed
-            # when price < max_price_threshold yet > daily_avg (e.g. mid-range hours).
-            threshold = self.max_price_threshold
+            # Outside selected slots: same threshold logic as RT — use average_price_sensor
+            # if configured, fall back to max_price_threshold.  Both modes should behave
+            # identically here; the only difference between them is HOW they decide when
+            # to grid-charge (DP: pre-scheduled cheap slots; RT: reactive price crossing).
+            threshold = None
+            if self.average_price_sensor:
+                avg_state = self.hass.states.get(self.average_price_sensor)
+                if avg_state is not None:
+                    try:
+                        threshold = float(avg_state.state)
+                    except (ValueError, TypeError):
+                        pass
+            if threshold is None:
+                threshold = self.max_price_threshold
         elif mode == PREDICTIVE_MODE_REALTIME_PRICE:
             if not self.rt_price_discharge_control or not self.price_sensor:
                 return
