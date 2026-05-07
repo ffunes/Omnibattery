@@ -213,6 +213,52 @@
           "capacity_protection_soc_threshold": "Cuando el SOC medio de las baterías baje de este valor, se activa la reducción de picos. La batería dejará de descargar para consumo normal y solo cubrirá picos por encima del límite.",
           "capacity_protection_limit": "Umbral de potencia de importación de red. Cuando el consumo de la casa supere este valor y la reducción de picos esté activa, la batería solo descargará el exceso por encima de este límite."
         }
+      },
+      "load_shedding": {
+        "title": "Load Shedding",
+        "description": "Automatically switch off high-power plugs when grid draw exceeds the peak threshold for too long. Plugs are restored when the situation clears.",
+        "data": {
+          "enable_load_shedding": "Enable load shedding"
+        },
+        "data_description": {
+          "enable_load_shedding": "When enabled, nominated smart plugs will be switched off if sustained grid draw exceeds the threshold."
+        }
+      },
+      "load_shedding_config": {
+        "title": "Load Shedding — Settings",
+        "data": {
+          "load_shedding_threshold": "Peak threshold (W)",
+          "load_shedding_duration_min": "Trigger delay (minutes)",
+          "load_shedding_min_plug_power": "Minimum plug power to shed (W)",
+          "load_shedding_notify_enabled": "Enable notifications",
+          "load_shedding_notify_target": "Notification target (optional)"
+        },
+        "data_description": {
+          "load_shedding_threshold": "Grid draw above this level triggers the countdown. Default: 2500 W.",
+          "load_shedding_duration_min": "Minutes of sustained overload before plugs are switched off. Default: 7 min.",
+          "load_shedding_min_plug_power": "Only shed plugs currently drawing at least this much power. Default: 100 W.",
+          "load_shedding_notify_enabled": "Send a notification when plugs are switched off or restored.",
+          "load_shedding_notify_target": "Optional: select a notify service (e.g. mobile app) to receive push notifications in addition to the HA dashboard notification."
+        }
+      },
+      "add_load_shedding_plug": {
+        "title": "Add Plug #{plug_num}",
+        "description": "Select the switch entity for this plug. Plugs are shed in the order they are added.",
+        "data": {
+          "switch_entity": "Switch entity",
+          "power_sensor": "Power sensor (optional)"
+        },
+        "data_description": {
+          "switch_entity": "The switch entity that controls this plug.",
+          "power_sensor": "Optional power sensor. Used to check if the plug draws enough power to be worth shedding."
+        }
+      },
+      "add_more_load_shedding_plugs": {
+        "title": "Add Another Plug?",
+        "description": "{count} plug(s) configured so far.",
+        "data": {
+          "add_another": "Add another plug"
+        }
       }
     },
     "error": {
@@ -408,6 +454,52 @@
         "data_description": {
           "capacity_protection_soc_threshold": "Cuando el SOC medio de las baterías baje de este valor, se activa la reducción de picos. La batería dejará de descargar para consumo normal y solo cubrirá picos por encima del límite.",
           "capacity_protection_limit": "Umbral de potencia de importación de red. Cuando el consumo de la casa supere este valor y la reducción de picos esté activa, la batería solo descargará el exceso por encima de este límite."
+        }
+      },
+      "load_shedding": {
+        "title": "Load Shedding",
+        "description": "Automatically switch off high-power plugs when grid draw exceeds the peak threshold for too long. Plugs are restored when the situation clears.",
+        "data": {
+          "enable_load_shedding": "Enable load shedding"
+        },
+        "data_description": {
+          "enable_load_shedding": "When enabled, nominated smart plugs will be switched off if sustained grid draw exceeds the threshold."
+        }
+      },
+      "load_shedding_config": {
+        "title": "Load Shedding — Settings",
+        "data": {
+          "load_shedding_threshold": "Peak threshold (W)",
+          "load_shedding_duration_min": "Trigger delay (minutes)",
+          "load_shedding_min_plug_power": "Minimum plug power to shed (W)",
+          "load_shedding_notify_enabled": "Enable notifications",
+          "load_shedding_notify_target": "Notification target (optional)"
+        },
+        "data_description": {
+          "load_shedding_threshold": "Grid draw above this level triggers the countdown. Default: 2500 W.",
+          "load_shedding_duration_min": "Minutes of sustained overload before plugs are switched off. Default: 7 min.",
+          "load_shedding_min_plug_power": "Only shed plugs currently drawing at least this much power. Default: 100 W.",
+          "load_shedding_notify_enabled": "Send a notification when plugs are switched off or restored.",
+          "load_shedding_notify_target": "Optional: select a notify service (e.g. mobile app) to receive push notifications in addition to the HA dashboard notification."
+        }
+      },
+      "add_load_shedding_plug": {
+        "title": "Add Plug #{plug_num}",
+        "description": "Select the switch entity for this plug. Plugs are shed in the order they are added.",
+        "data": {
+          "switch_entity": "Switch entity",
+          "power_sensor": "Power sensor (optional)"
+        },
+        "data_description": {
+          "switch_entity": "The switch entity that controls this plug.",
+          "power_sensor": "Optional power sensor. Used to check if the plug draws enough power to be worth shedding."
+        }
+      },
+      "add_more_load_shedding_plugs": {
+        "title": "Add Another Plug?",
+        "description": "{count} plug(s) configured so far.",
+        "data": {
+          "add_another": "Add another plug"
         }
       }
     },

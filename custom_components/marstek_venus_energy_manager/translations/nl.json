@@ -296,6 +296,52 @@
           "pd_min_discharge_power": "Minimaal vermogen om te ontladen. Onder deze drempel blijft de regelaar inactief in plaats van ontladen op laag vermogen. 0 = uitgeschakeld.",
           "pd_target_grid_power": "Netvermogen-setpoint waarop de regelaar regelt. Negatief = teruglevering, positief = afname, 0 = netto nul. Bereik: -500 tot +500 W, standaard: 0 W."
         }
+      },
+      "load_shedding": {
+        "title": "Belastingafschakeling",
+        "description": "Schakel automatisch krachtige stekkers uit wanneer het netvermogen de piekdrempel te lang overschrijdt. Stekkers worden hersteld zodra de situatie normaliseert.",
+        "data": {
+          "enable_load_shedding": "Belastingafschakeling inschakelen"
+        },
+        "data_description": {
+          "enable_load_shedding": "Wanneer ingeschakeld, worden genomineerde stekkers uitgeschakeld als het netvermogen de drempel aanhoudend overschrijdt."
+        }
+      },
+      "load_shedding_config": {
+        "title": "Belastingafschakeling — Instellingen",
+        "data": {
+          "load_shedding_threshold": "Piekdrempel (W)",
+          "load_shedding_duration_min": "Activeringsvertraging (minuten)",
+          "load_shedding_min_plug_power": "Minimaal verbruik om af te schakelen (W)",
+          "load_shedding_notify_enabled": "Meldingen inschakelen",
+          "load_shedding_notify_target": "Meldingsdoel (optioneel)"
+        },
+        "data_description": {
+          "load_shedding_threshold": "Netvermogen boven dit niveau start de aftelling. Standaard: 2500 W.",
+          "load_shedding_duration_min": "Minuten aanhoudende overbelasting voordat stekkers worden uitgeschakeld. Standaard: 7 min.",
+          "load_shedding_min_plug_power": "Schakel alleen stekkers af die momenteel minstens dit vermogen verbruiken. Standaard: 100 W.",
+          "load_shedding_notify_enabled": "Stuur een melding wanneer stekkers worden uitgeschakeld of hersteld.",
+          "load_shedding_notify_target": "Optioneel: selecteer een meldingsservice (bijv. mobiele app) voor pushmeldingen naast de HA-dashboardmelding."
+        }
+      },
+      "add_load_shedding_plug": {
+        "title": "Stekker #{plug_num} toevoegen",
+        "description": "Selecteer de schakelaar-entiteit voor deze stekker. Stekkers worden afgeschakeld in de volgorde van toevoeging.",
+        "data": {
+          "switch_entity": "Schakelaar-entiteit",
+          "power_sensor": "Vermogenssensor (optioneel)"
+        },
+        "data_description": {
+          "switch_entity": "De schakelaar-entiteit die deze stekker bestuurt.",
+          "power_sensor": "Optionele vermogenssensor. Wordt gebruikt om te controleren of de stekker genoeg verbruikt om af te schakelen."
+        }
+      },
+      "add_more_load_shedding_plugs": {
+        "title": "Nog een stekker toevoegen?",
+        "description": "{count} stekker(s) geconfigureerd.",
+        "data": {
+          "add_another": "Nog een stekker toevoegen"
+        }
       }
     },
     "error": {
@@ -324,7 +370,8 @@
           "weekly_full_charge": "Wekelijkse volledige lading",
           "charge_delay": "Zonne-oplaadvertraging",
           "capacity_protection": "Capaciteitsbescherming",
-          "pd_advanced": "PD-regelaar (geavanceerd)"
+          "pd_advanced": "PD-regelaar (geavanceerd)",
+          "load_shedding": "Belastingafschakeling"
         }
       },
       "sensors": {
@@ -622,6 +669,52 @@
           "pd_min_discharge_power": "Minimaal vermogen om te ontladen. Onder deze drempel blijft de regelaar inactief in plaats van ontladen op laag vermogen. 0 = uitgeschakeld.",
           "pd_target_grid_power": "Netvermogen-setpoint waarop de regelaar regelt. Negatief = teruglevering, positief = afname, 0 = netto nul. Bereik: -500 tot +500 W, standaard: 0 W."
         }
+      },
+      "load_shedding": {
+        "title": "Belastingafschakeling",
+        "description": "Schakel automatisch krachtige stekkers uit wanneer het netvermogen de piekdrempel te lang overschrijdt. Stekkers worden hersteld zodra de situatie normaliseert.",
+        "data": {
+          "enable_load_shedding": "Belastingafschakeling inschakelen"
+        },
+        "data_description": {
+          "enable_load_shedding": "Wanneer ingeschakeld, worden genomineerde stekkers uitgeschakeld als het netvermogen de drempel aanhoudend overschrijdt."
+        }
+      },
+      "load_shedding_config": {
+        "title": "Belastingafschakeling — Instellingen",
+        "data": {
+          "load_shedding_threshold": "Piekdrempel (W)",
+          "load_shedding_duration_min": "Activeringsvertraging (minuten)",
+          "load_shedding_min_plug_power": "Minimaal verbruik om af te schakelen (W)",
+          "load_shedding_notify_enabled": "Meldingen inschakelen",
+          "load_shedding_notify_target": "Meldingsdoel (optioneel)"
+        },
+        "data_description": {
+          "load_shedding_threshold": "Netvermogen boven dit niveau start de aftelling. Standaard: 2500 W.",
+          "load_shedding_duration_min": "Minuten aanhoudende overbelasting voordat stekkers worden uitgeschakeld. Standaard: 7 min.",
+          "load_shedding_min_plug_power": "Schakel alleen stekkers af die momenteel minstens dit vermogen verbruiken. Standaard: 100 W.",
+          "load_shedding_notify_enabled": "Stuur een melding wanneer stekkers worden uitgeschakeld of hersteld.",
+          "load_shedding_notify_target": "Optioneel: selecteer een meldingsservice (bijv. mobiele app) voor pushmeldingen naast de HA-dashboardmelding."
+        }
+      },
+      "add_load_shedding_plug": {
+        "title": "Stekker #{plug_num} toevoegen",
+        "description": "Selecteer de schakelaar-entiteit voor deze stekker. Stekkers worden afgeschakeld in de volgorde van toevoeging.",
+        "data": {
+          "switch_entity": "Schakelaar-entiteit",
+          "power_sensor": "Vermogenssensor (optioneel)"
+        },
+        "data_description": {
+          "switch_entity": "De schakelaar-entiteit die deze stekker bestuurt.",
+          "power_sensor": "Optionele vermogenssensor. Wordt gebruikt om te controleren of de stekker genoeg verbruikt om af te schakelen."
+        }
+      },
+      "add_more_load_shedding_plugs": {
+        "title": "Nog een stekker toevoegen?",
+        "description": "{count} stekker(s) geconfigureerd.",
+        "data": {
+          "add_another": "Nog een stekker toevoegen"
+        }
       }
     },
     "error": {
@@ -662,19 +755,41 @@
   },
   "entity": {
     "switch": {
-      "manual_mode": { "name": "Handmatige Modus" },
-      "predictive_charging": { "name": "Voorspellend Laden" },
-      "charge_delay": { "name": "Laadvertraging" },
-      "capacity_protection": { "name": "Piekbegrenzing" },
-      "backup_function": { "name": "Back-upfunctie" },
-      "rs485_control_mode": { "name": "RS485-besturingsmodus" },
-      "automation_charging_active": { "name": "Laden op Externe Prijs" },
-      "excluded_device_enabled": { "name": "{device} – Actief" },
-      "excluded_device_solar_surplus": { "name": "{device} – Zonne-overschot" },
-      "time_slot": { "name": "Tijdslot {slot_number}" }
+      "manual_mode": {
+        "name": "Handmatige Modus"
+      },
+      "predictive_charging": {
+        "name": "Voorspellend Laden"
+      },
+      "charge_delay": {
+        "name": "Laadvertraging"
+      },
+      "capacity_protection": {
+        "name": "Piekbegrenzing"
+      },
+      "backup_function": {
+        "name": "Back-upfunctie"
+      },
+      "rs485_control_mode": {
+        "name": "RS485-besturingsmodus"
+      },
+      "automation_charging_active": {
+        "name": "Laden op Externe Prijs"
+      },
+      "excluded_device_enabled": {
+        "name": "{device} – Actief"
+      },
+      "excluded_device_solar_surplus": {
+        "name": "{device} – Zonne-overschot"
+      },
+      "time_slot": {
+        "name": "Tijdslot {slot_number}"
+      }
     },
     "time": {
-      "automation_charging_end_time": { "name": "Einde Extern Laden" }
+      "automation_charging_end_time": {
+        "name": "Einde Extern Laden"
+      }
     },
     "sensor": {
       "discharge_window": {
@@ -685,9 +800,15 @@
           "active": "Actief"
         }
       },
-      "active_batteries": { "name": "Actieve Batterijen" },
-      "non_responsive_batteries": { "name": "Niet-reagerende Batterijen" },
-      "configuration_summary": { "name": "Configuratieoverzicht" },
+      "active_batteries": {
+        "name": "Actieve Batterijen"
+      },
+      "non_responsive_batteries": {
+        "name": "Niet-reagerende Batterijen"
+      },
+      "configuration_summary": {
+        "name": "Configuratieoverzicht"
+      },
       "integration_status": {
         "name": "Integratiestatus",
         "state": {
@@ -726,49 +847,135 @@
           "charging_to_setpoint": "Laden tot setpoint"
         }
       },
-      "battery_soc": { "name": "Batterij SOC" },
-      "battery_total_energy": { "name": "Totale Batterijenergie" },
-      "battery_power": { "name": "Batterijvermogen" },
-      "internal_temperature": { "name": "Interne Temperatuur" },
-      "ac_power": { "name": "AC-Vermogen" },
-      "total_charging_energy": { "name": "Totale Laadenergie" },
-      "total_discharging_energy": { "name": "Totale Ontlaadenergie" },
-      "total_daily_charging_energy": { "name": "Dagelijkse Laadenergie" },
-      "total_daily_discharging_energy": { "name": "Dagelijkse Ontlaadenergie" },
-      "inverter_state": { "name": "Omvormerstatus" },
-      "battery_voltage": { "name": "Batterijspanning" },
-      "max_cell_voltage": { "name": "Maximale Celspanning" },
-      "min_cell_voltage": { "name": "Minimale Celspanning" },
-      "fault_status": { "name": "Foutstatus" },
-      "alarm_status": { "name": "Alarmstatus" },
-      "ac_offgrid_power": { "name": "AC Off-grid Vermogen" },
-      "mppt1_power": { "name": "MPPT1-Vermogen" },
-      "mppt2_power": { "name": "MPPT2-Vermogen" },
-      "mppt3_power": { "name": "MPPT3-Vermogen" },
-      "mppt4_power": { "name": "MPPT4-Vermogen" },
-      "round_trip_efficiency_total": { "name": "Totaal Rendement" },
-      "stored_energy": { "name": "Opgeslagen Energie" },
-      "system_soc": { "name": "Systeem SOC" },
-      "system_charge_power": { "name": "Systeem Laadvermogen" },
-      "system_discharge_power": { "name": "Systeem Ontlaadvermogen" },
-      "system_total_energy": { "name": "Systeem Totale Energie" },
-      "system_stored_energy": { "name": "Systeem Opgeslagen Energie" },
-      "system_daily_charging_energy": { "name": "Dagelijkse Systeem Laadenergie" },
-      "system_daily_discharging_energy": { "name": "Dagelijkse Systeem Ontlaadenergie" },
-      "system_daily_grid_at_min_soc_energy": { "name": "Net bij Min. SOC" },
-      "system_alarm_status": { "name": "Systeem Alarmstatus" },
-      "device_name": { "name": "Apparaatnaam" },
-      "sn_code": { "name": "Serienummer" },
-      "software_version": { "name": "Softwareversie" },
-      "bms_version": { "name": "BMS-versie" },
-      "ems_version": { "name": "EMS-versie" },
-      "vms_version": { "name": "VMS-versie" },
-      "comm_module_firmware": { "name": "Firmware Communicatiemodule" },
-      "mac_address": { "name": "MAC-adres" },
-      "wifi_signal_strength": { "name": "WiFi-signaalsterkte" },
-      "battery_cycle_count": { "name": "Batterijcycli" },
-      "battery_cycle_count_calc": { "name": "Batterijcycli (Berekend)" },
-      "cell_delta": { "name": "Celdelta" },
+      "battery_soc": {
+        "name": "Batterij SOC"
+      },
+      "battery_total_energy": {
+        "name": "Totale Batterijenergie"
+      },
+      "battery_power": {
+        "name": "Batterijvermogen"
+      },
+      "internal_temperature": {
+        "name": "Interne Temperatuur"
+      },
+      "ac_power": {
+        "name": "AC-Vermogen"
+      },
+      "total_charging_energy": {
+        "name": "Totale Laadenergie"
+      },
+      "total_discharging_energy": {
+        "name": "Totale Ontlaadenergie"
+      },
+      "total_daily_charging_energy": {
+        "name": "Dagelijkse Laadenergie"
+      },
+      "total_daily_discharging_energy": {
+        "name": "Dagelijkse Ontlaadenergie"
+      },
+      "inverter_state": {
+        "name": "Omvormerstatus"
+      },
+      "battery_voltage": {
+        "name": "Batterijspanning"
+      },
+      "max_cell_voltage": {
+        "name": "Maximale Celspanning"
+      },
+      "min_cell_voltage": {
+        "name": "Minimale Celspanning"
+      },
+      "fault_status": {
+        "name": "Foutstatus"
+      },
+      "alarm_status": {
+        "name": "Alarmstatus"
+      },
+      "ac_offgrid_power": {
+        "name": "AC Off-grid Vermogen"
+      },
+      "mppt1_power": {
+        "name": "MPPT1-Vermogen"
+      },
+      "mppt2_power": {
+        "name": "MPPT2-Vermogen"
+      },
+      "mppt3_power": {
+        "name": "MPPT3-Vermogen"
+      },
+      "mppt4_power": {
+        "name": "MPPT4-Vermogen"
+      },
+      "round_trip_efficiency_total": {
+        "name": "Totaal Rendement"
+      },
+      "stored_energy": {
+        "name": "Opgeslagen Energie"
+      },
+      "system_soc": {
+        "name": "Systeem SOC"
+      },
+      "system_charge_power": {
+        "name": "Systeem Laadvermogen"
+      },
+      "system_discharge_power": {
+        "name": "Systeem Ontlaadvermogen"
+      },
+      "system_total_energy": {
+        "name": "Systeem Totale Energie"
+      },
+      "system_stored_energy": {
+        "name": "Systeem Opgeslagen Energie"
+      },
+      "system_daily_charging_energy": {
+        "name": "Dagelijkse Systeem Laadenergie"
+      },
+      "system_daily_discharging_energy": {
+        "name": "Dagelijkse Systeem Ontlaadenergie"
+      },
+      "system_daily_grid_at_min_soc_energy": {
+        "name": "Net bij Min. SOC"
+      },
+      "system_alarm_status": {
+        "name": "Systeem Alarmstatus"
+      },
+      "device_name": {
+        "name": "Apparaatnaam"
+      },
+      "sn_code": {
+        "name": "Serienummer"
+      },
+      "software_version": {
+        "name": "Softwareversie"
+      },
+      "bms_version": {
+        "name": "BMS-versie"
+      },
+      "ems_version": {
+        "name": "EMS-versie"
+      },
+      "vms_version": {
+        "name": "VMS-versie"
+      },
+      "comm_module_firmware": {
+        "name": "Firmware Communicatiemodule"
+      },
+      "mac_address": {
+        "name": "MAC-adres"
+      },
+      "wifi_signal_strength": {
+        "name": "WiFi-signaalsterkte"
+      },
+      "battery_cycle_count": {
+        "name": "Batterijcycli"
+      },
+      "battery_cycle_count_calc": {
+        "name": "Batterijcycli (Berekend)"
+      },
+      "cell_delta": {
+        "name": "Celdelta"
+      },
       "balance_status": {
         "name": "Balansstatus",
         "state": {
@@ -788,18 +995,34 @@
           "unknown": "Onbekend"
         }
       },
-      "last_balance_read": { "name": "Laatste Balansmeting" },
-      "delta_avg_4w": { "name": "Delta Gemiddelde (4 metingen)" }
+      "last_balance_read": {
+        "name": "Laatste Balansmeting"
+      },
+      "delta_avg_4w": {
+        "name": "Delta Gemiddelde (4 metingen)"
+      }
     },
     "binary_sensor": {
-      "capacity_protection_active": { "name": "Piekbegrenzing Actief" },
-      "predictive_charging_active": { "name": "Voorspellend Laden Actief" },
-      "wifi_status": { "name": "WiFi-status" },
-      "cloud_status": { "name": "Cloudstatus" },
-      "charge_hysteresis": { "name": "Laadhysterese" }
+      "capacity_protection_active": {
+        "name": "Piekbegrenzing Actief"
+      },
+      "predictive_charging_active": {
+        "name": "Voorspellend Laden Actief"
+      },
+      "wifi_status": {
+        "name": "WiFi-status"
+      },
+      "cloud_status": {
+        "name": "Cloudstatus"
+      },
+      "charge_hysteresis": {
+        "name": "Laadhysterese"
+      }
     },
     "select": {
-      "force_mode": { "name": "Geforceerde Modus" },
+      "force_mode": {
+        "name": "Geforceerde Modus"
+      },
       "user_work_mode": {
         "name": "Werkmodus",
         "state": {
@@ -822,32 +1045,80 @@
       }
     },
     "number": {
-      "set_charge_power": { "name": "Laadvermogen" },
-      "set_discharge_power": { "name": "Ontlaadvermogen" },
-      "max_charge_power": { "name": "Max. Laadvermogen" },
-      "max_discharge_power": { "name": "Max. Ontlaadvermogen" },
-      "charging_cutoff_capacity": { "name": "SOC Laadgrens" },
-      "discharging_cutoff_capacity": { "name": "SOC Ontlaadgrens" },
-      "charge_to_soc": { "name": "Laden tot SOC" },
-      "pd_controller_kp": { "name": "PD Kp" },
-      "pd_controller_kd": { "name": "PD Kd" },
-      "pd_controller_deadband": { "name": "PD Dode Zone" },
-      "pd_controller_max_power_change": { "name": "PD Max. Vermogenswijziging" },
-      "pd_controller_direction_hysteresis": { "name": "PD Richtingshysterese" },
-      "pd_min_charge_power": { "name": "PD Min. Laadvermogen" },
-      "pd_min_discharge_power": { "name": "PD Min. Ontlaadvermogen" },
-      "pd_target_grid_power": { "name": "PD Doelnetvermogen" },
-      "max_contracted_power": { "name": "Max. Gecontracteerd Vermogen" },
-      "capacity_protection_soc_threshold": { "name": "Piekbegrenzing – SOC Drempel" },
-      "delay_safety_margin_min": { "name": "Laadvertraging – Marge" },
-      "delay_soc_setpoint": { "name": "Laadvertraging – SOC-drempel" },
-      "capacity_protection_limit": { "name": "Piekbegrenzing Limiet" },
-      "backup_offgrid_threshold": { "name": "Backup Offgrid Drempel" },
-      "charge_hysteresis_percent": { "name": "Laadhysterese Percentage" },
-      "predictive_safety_margin_kwh": { "name": "Veiligheidsmarge Zonneprognose" }
+      "set_charge_power": {
+        "name": "Laadvermogen"
+      },
+      "set_discharge_power": {
+        "name": "Ontlaadvermogen"
+      },
+      "max_charge_power": {
+        "name": "Max. Laadvermogen"
+      },
+      "max_discharge_power": {
+        "name": "Max. Ontlaadvermogen"
+      },
+      "charging_cutoff_capacity": {
+        "name": "SOC Laadgrens"
+      },
+      "discharging_cutoff_capacity": {
+        "name": "SOC Ontlaadgrens"
+      },
+      "charge_to_soc": {
+        "name": "Laden tot SOC"
+      },
+      "pd_controller_kp": {
+        "name": "PD Kp"
+      },
+      "pd_controller_kd": {
+        "name": "PD Kd"
+      },
+      "pd_controller_deadband": {
+        "name": "PD Dode Zone"
+      },
+      "pd_controller_max_power_change": {
+        "name": "PD Max. Vermogenswijziging"
+      },
+      "pd_controller_direction_hysteresis": {
+        "name": "PD Richtingshysterese"
+      },
+      "pd_min_charge_power": {
+        "name": "PD Min. Laadvermogen"
+      },
+      "pd_min_discharge_power": {
+        "name": "PD Min. Ontlaadvermogen"
+      },
+      "pd_target_grid_power": {
+        "name": "PD Doelnetvermogen"
+      },
+      "max_contracted_power": {
+        "name": "Max. Gecontracteerd Vermogen"
+      },
+      "capacity_protection_soc_threshold": {
+        "name": "Piekbegrenzing – SOC Drempel"
+      },
+      "delay_safety_margin_min": {
+        "name": "Laadvertraging – Marge"
+      },
+      "delay_soc_setpoint": {
+        "name": "Laadvertraging – SOC-drempel"
+      },
+      "capacity_protection_limit": {
+        "name": "Piekbegrenzing Limiet"
+      },
+      "backup_offgrid_threshold": {
+        "name": "Backup Offgrid Drempel"
+      },
+      "charge_hysteresis_percent": {
+        "name": "Laadhysterese Percentage"
+      },
+      "predictive_safety_margin_kwh": {
+        "name": "Veiligheidsmarge Zonneprognose"
+      }
     },
     "button": {
-      "reset_device": { "name": "Apparaat Resetten" }
+      "reset_device": {
+        "name": "Apparaat Resetten"
+      }
     }
   }
 }

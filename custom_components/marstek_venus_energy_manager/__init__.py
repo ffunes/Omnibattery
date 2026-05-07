@@ -67,6 +67,7 @@ from .const import (
     CONF_CAPACITY_PROTECTION_LIMIT,
     DEFAULT_CAPACITY_PROTECTION_SOC,
     DEFAULT_CAPACITY_PROTECTION_LIMIT,
+    CONF_LOAD_SHEDDING_ENABLED,
     CONF_MANUAL_MODE_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
     CONF_PREDICTIVE_CHARGING_MODE,
@@ -297,6 +298,7 @@ class ChargeDischargeController:
         self._predictive_safety_margin_kwh: float = config_entry.data.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
         self._charge_delay_unlocked = False       # True when delay has been unlocked today
         self._balance_monitor = None  # Set from async_setup_entry after monitor is created
+        self._load_shed_manager = None  # Set from async_setup_entry after manager is created
         self._charge_delay_last_date = None       # For daily reset
         self._charge_delay_forecast_cache = None  # Last forecast value used for balance check
         self._charge_delay_balance_needs_charge = True  # Cached balance result (conservative default)
@@ -3428,6 +3430,11 @@ class ChargeDischargeController:
             for coordinator in self.coordinators:
                 await self._balance_monitor.async_process(coordinator)
 
+        # === LOAD SHEDDING ===
+        # Run unconditionally so plugs are restored even when manual mode is active.
+        if self._load_shed_manager is not None:
+            await self._load_shed_manager.check()
+
         # === MANUAL MODE CHECK (highest priority) ===
         # If manual mode is enabled, skip all automatic control logic
         if self.manual_mode_enabled:
@@ -4385,12 +4392,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await balance_monitor.async_restore_coordinator(coordinator)
         controller._balance_monitor = balance_monitor
 
+    # Set up load shedding manager if enabled
+    load_shed_manager = None
+    if entry.data.get(CONF_LOAD_SHEDDING_ENABLED, False):
+        from .load_shed_manager import LoadSheddingManager
+        load_shed_manager = LoadSheddingManager(hass, entry)
+        controller._load_shed_manager = load_shed_manager
+        _LOGGER.info("Load Shedding: enabled (threshold=%dW, delay=%d min, plugs=%d)",
+                     entry.data.get("load_shedding_threshold", 2500),
+                     entry.data.get("load_shedding_duration_min", 7),
+                     len(entry.data.get("load_shedding_plugs", [])))
+
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinators": coordinators,
         "controller": controller,
         "unsub_control": unsub_control,
         "unsub_refresh": unsub_refresh,
         "balance_monitor": balance_monitor,
+        "load_shed_manager": load_shed_manager,
     }
 
     # Listen for config entry updates so config entities refresh their state

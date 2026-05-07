@@ -17,6 +17,8 @@ from homeassistant.helpers.selector import (
     NumberSelectorMode,
     EntitySelector,
     EntitySelectorConfig,
+    ServiceSelector,
+    ServiceSelectorConfig,
     TimeSelector,
     SelectSelector,
     SelectSelectorConfig,
@@ -71,6 +73,17 @@ from .const import (
     CONF_CAPACITY_PROTECTION_LIMIT,
     DEFAULT_CAPACITY_PROTECTION_SOC,
     DEFAULT_CAPACITY_PROTECTION_LIMIT,
+    CONF_LOAD_SHEDDING_ENABLED,
+    CONF_LOAD_SHEDDING_THRESHOLD,
+    CONF_LOAD_SHEDDING_DURATION_MIN,
+    CONF_LOAD_SHEDDING_MIN_PLUG_POWER,
+    CONF_LOAD_SHEDDING_PLUGS,
+    CONF_LOAD_SHEDDING_NOTIFY_ENABLED,
+    CONF_LOAD_SHEDDING_NOTIFY_TARGET,
+    DEFAULT_LOAD_SHEDDING_THRESHOLD,
+    DEFAULT_LOAD_SHEDDING_DURATION_MIN,
+    DEFAULT_LOAD_SHEDDING_MIN_PLUG_POWER,
+    DEFAULT_LOAD_SHEDDING_NOTIFY_ENABLED,
     CONF_PREDICTIVE_CHARGING_MODE,
     CONF_PRICE_SENSOR,
     CONF_PRICE_INTEGRATION_TYPE,
@@ -131,6 +144,7 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
         self.battery_index = 0
         self.time_slots = []
         self.excluded_devices = []
+        self.load_shedding_plugs = []
         self._current_battery_data = {}  # Stores connection data between battery steps
 
     async def _test_connection(self, host: str, port: int, version: str = "v2") -> bool:
@@ -1052,9 +1066,7 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.config_data[CONF_PD_MIN_CHARGE_POWER] = DEFAULT_PD_MIN_CHARGE_POWER
                 self.config_data[CONF_PD_MIN_DISCHARGE_POWER] = DEFAULT_PD_MIN_DISCHARGE_POWER
                 self.config_data[CONF_TARGET_GRID_POWER] = DEFAULT_TARGET_GRID_POWER
-                return self.async_create_entry(
-                    title="Marstek Venus Energy Manager", data=self.config_data
-                )
+                return await self.async_step_load_shedding()
 
         return self.async_show_form(
             step_id="pd_advanced",
@@ -1078,9 +1090,7 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
             self.config_data[CONF_PD_MIN_CHARGE_POWER] = user_input["pd_min_charge_power"]
             self.config_data[CONF_PD_MIN_DISCHARGE_POWER] = user_input["pd_min_discharge_power"]
             self.config_data[CONF_TARGET_GRID_POWER] = user_input["pd_target_grid_power"]
-            return self.async_create_entry(
-                title="Marstek Venus Energy Manager", data=self.config_data
-            )
+            return await self.async_step_load_shedding()
 
         return self.async_show_form(
             step_id="pd_advanced_config",
@@ -1144,6 +1154,133 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
         )
 
+    async def async_step_load_shedding(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask if the user wants to enable load shedding."""
+        if user_input is not None:
+            if user_input.get("enable_load_shedding", False):
+                return await self.async_step_load_shedding_config()
+            else:
+                self.config_data[CONF_LOAD_SHEDDING_ENABLED] = False
+                self.config_data[CONF_LOAD_SHEDDING_PLUGS] = []
+                return self.async_create_entry(
+                    title="Marstek Venus Energy Manager", data=self.config_data
+                )
+
+        return self.async_show_form(
+            step_id="load_shedding",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("enable_load_shedding", default=False): BooleanSelector(),
+                }
+            ),
+            description_placeholders={
+                "description": (
+                    "Automatically switch off nominated smart plugs when sustained grid draw "
+                    "exceeds the peak threshold. Plugs are restored when the situation clears."
+                )
+            },
+        )
+
+    async def async_step_load_shedding_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Configure load shedding parameters."""
+        if user_input is not None:
+            self.config_data[CONF_LOAD_SHEDDING_ENABLED] = True
+            self.config_data[CONF_LOAD_SHEDDING_THRESHOLD] = int(user_input["load_shedding_threshold"])
+            self.config_data[CONF_LOAD_SHEDDING_DURATION_MIN] = int(user_input["load_shedding_duration_min"])
+            self.config_data[CONF_LOAD_SHEDDING_MIN_PLUG_POWER] = int(user_input["load_shedding_min_plug_power"])
+            self.config_data[CONF_LOAD_SHEDDING_NOTIFY_ENABLED] = user_input.get("load_shedding_notify_enabled", DEFAULT_LOAD_SHEDDING_NOTIFY_ENABLED)
+            self.config_data[CONF_LOAD_SHEDDING_NOTIFY_TARGET] = user_input.get("load_shedding_notify_target") or ""
+            self.load_shedding_plugs = []
+            return await self.async_step_add_load_shedding_plug()
+
+        return self.async_show_form(
+            step_id="load_shedding_config",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("load_shedding_threshold", default=DEFAULT_LOAD_SHEDDING_THRESHOLD):
+                        NumberSelector(
+                            NumberSelectorConfig(
+                                min=1000, max=15000, step=100,
+                                mode=NumberSelectorMode.SLIDER,
+                                unit_of_measurement="W",
+                            )
+                        ),
+                    vol.Required("load_shedding_duration_min", default=DEFAULT_LOAD_SHEDDING_DURATION_MIN):
+                        NumberSelector(
+                            NumberSelectorConfig(
+                                min=1, max=14, step=1,
+                                mode=NumberSelectorMode.SLIDER,
+                                unit_of_measurement="min",
+                            )
+                        ),
+                    vol.Required("load_shedding_min_plug_power", default=DEFAULT_LOAD_SHEDDING_MIN_PLUG_POWER):
+                        NumberSelector(
+                            NumberSelectorConfig(
+                                min=10, max=1000, step=10,
+                                mode=NumberSelectorMode.SLIDER,
+                                unit_of_measurement="W",
+                            )
+                        ),
+                    vol.Required("load_shedding_notify_enabled", default=DEFAULT_LOAD_SHEDDING_NOTIFY_ENABLED):
+                        BooleanSelector(),
+                    vol.Optional("load_shedding_notify_target"):
+                        ServiceSelector(ServiceSelectorConfig(domain="notify")),
+                }
+            ),
+        )
+
+    async def async_step_add_load_shedding_plug(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Add a smart plug to the load shedding list."""
+        plug_num = len(self.load_shedding_plugs) + 1
+        if user_input is not None:
+            self.load_shedding_plugs.append({
+                "switch_entity": user_input["switch_entity"],
+                "power_sensor": user_input.get("power_sensor") or "",
+            })
+            return await self.async_step_add_more_load_shedding_plugs()
+
+        return self.async_show_form(
+            step_id="add_load_shedding_plug",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("switch_entity"):
+                        EntitySelector(EntitySelectorConfig(domain="switch")),
+                    vol.Optional("power_sensor"):
+                        EntitySelector(EntitySelectorConfig(domain="sensor")),
+                }
+            ),
+            description_placeholders={"plug_num": str(plug_num)},
+        )
+
+    async def async_step_add_more_load_shedding_plugs(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask whether to add another plug."""
+        if user_input is not None:
+            if user_input.get("add_another", False):
+                return await self.async_step_add_load_shedding_plug()
+            else:
+                self.config_data[CONF_LOAD_SHEDDING_PLUGS] = self.load_shedding_plugs
+                return self.async_create_entry(
+                    title="Marstek Venus Energy Manager", data=self.config_data
+                )
+
+        return self.async_show_form(
+            step_id="add_more_load_shedding_plugs",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("add_another", default=False): BooleanSelector(),
+                }
+            ),
+            description_placeholders={"count": str(len(self.load_shedding_plugs))},
+        )
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
@@ -1160,6 +1297,7 @@ class OptionsFlowHandler(OptionsFlow):
         self.battery_index = 0
         self.time_slots = []
         self.excluded_devices = []
+        self.load_shedding_plugs = []
         self._current_battery_data = {}  # Stores connection data between battery steps
         _LOGGER.info("OptionsFlowHandler initialized successfully for entry: %s", config_entry.entry_id)
 
@@ -1267,6 +1405,7 @@ class OptionsFlowHandler(OptionsFlow):
                 "weekly_full_charge",
                 "charge_delay",
                 "capacity_protection",
+                "load_shedding",
                 "pd_advanced",
             ],
         )
@@ -2445,4 +2584,118 @@ class OptionsFlowHandler(OptionsFlow):
                     "**Target Grid Power**: Grid power setpoint (W) the controller regulates to. Negative = export to grid, positive = import from grid, 0 = net zero."
                 )
             },
+        )
+
+    async def async_step_load_shedding(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask if the user wants to enable load shedding."""
+        is_enabled = self.config_entry.data.get(CONF_LOAD_SHEDDING_ENABLED, False)
+
+        if user_input is not None:
+            if user_input.get("enable_load_shedding", False):
+                return await self.async_step_load_shedding_config()
+            else:
+                self.config_data[CONF_LOAD_SHEDDING_ENABLED] = False
+                self.config_data[CONF_LOAD_SHEDDING_PLUGS] = []
+                return await self._save_and_finish()
+
+        return self.async_show_form(
+            step_id="load_shedding",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("enable_load_shedding", default=is_enabled): BooleanSelector(),
+                }
+            ),
+            description_placeholders={
+                "description": (
+                    "Automatically switch off nominated smart plugs when sustained grid draw "
+                    "exceeds the peak threshold. Plugs are restored when the situation clears."
+                )
+            },
+        )
+
+    async def async_step_load_shedding_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Configure load shedding parameters."""
+        existing = self.config_entry.data
+        cur_threshold = existing.get(CONF_LOAD_SHEDDING_THRESHOLD, DEFAULT_LOAD_SHEDDING_THRESHOLD)
+        cur_duration = existing.get(CONF_LOAD_SHEDDING_DURATION_MIN, DEFAULT_LOAD_SHEDDING_DURATION_MIN)
+        cur_min_power = existing.get(CONF_LOAD_SHEDDING_MIN_PLUG_POWER, DEFAULT_LOAD_SHEDDING_MIN_PLUG_POWER)
+        cur_notify = existing.get(CONF_LOAD_SHEDDING_NOTIFY_ENABLED, DEFAULT_LOAD_SHEDDING_NOTIFY_ENABLED)
+        cur_target = existing.get(CONF_LOAD_SHEDDING_NOTIFY_TARGET, "")
+
+        if user_input is not None:
+            self.config_data[CONF_LOAD_SHEDDING_ENABLED] = True
+            self.config_data[CONF_LOAD_SHEDDING_THRESHOLD] = int(user_input["load_shedding_threshold"])
+            self.config_data[CONF_LOAD_SHEDDING_DURATION_MIN] = int(user_input["load_shedding_duration_min"])
+            self.config_data[CONF_LOAD_SHEDDING_MIN_PLUG_POWER] = int(user_input["load_shedding_min_plug_power"])
+            self.config_data[CONF_LOAD_SHEDDING_NOTIFY_ENABLED] = user_input.get("load_shedding_notify_enabled", DEFAULT_LOAD_SHEDDING_NOTIFY_ENABLED)
+            self.config_data[CONF_LOAD_SHEDDING_NOTIFY_TARGET] = user_input.get("load_shedding_notify_target") or ""
+            self.load_shedding_plugs = []
+            return await self.async_step_add_load_shedding_plug()
+
+        schema: dict = {
+            vol.Required("load_shedding_threshold", default=cur_threshold):
+                NumberSelector(NumberSelectorConfig(min=1000, max=15000, step=100, mode=NumberSelectorMode.SLIDER, unit_of_measurement="W")),
+            vol.Required("load_shedding_duration_min", default=cur_duration):
+                NumberSelector(NumberSelectorConfig(min=1, max=14, step=1, mode=NumberSelectorMode.SLIDER, unit_of_measurement="min")),
+            vol.Required("load_shedding_min_plug_power", default=cur_min_power):
+                NumberSelector(NumberSelectorConfig(min=10, max=1000, step=10, mode=NumberSelectorMode.SLIDER, unit_of_measurement="W")),
+            vol.Required("load_shedding_notify_enabled", default=cur_notify):
+                BooleanSelector(),
+            vol.Optional("load_shedding_notify_target", description={"suggested_value": cur_target} if cur_target else {}):
+                ServiceSelector(ServiceSelectorConfig(domain="notify")),
+        }
+
+        return self.async_show_form(
+            step_id="load_shedding_config",
+            data_schema=vol.Schema(schema),
+        )
+
+    async def async_step_add_load_shedding_plug(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Add a smart plug to the load shedding list."""
+        plug_num = len(self.load_shedding_plugs) + 1
+        if user_input is not None:
+            self.load_shedding_plugs.append({
+                "switch_entity": user_input["switch_entity"],
+                "power_sensor": user_input.get("power_sensor") or "",
+            })
+            return await self.async_step_add_more_load_shedding_plugs()
+
+        return self.async_show_form(
+            step_id="add_load_shedding_plug",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("switch_entity"):
+                        EntitySelector(EntitySelectorConfig(domain="switch")),
+                    vol.Optional("power_sensor"):
+                        EntitySelector(EntitySelectorConfig(domain="sensor")),
+                }
+            ),
+            description_placeholders={"plug_num": str(plug_num)},
+        )
+
+    async def async_step_add_more_load_shedding_plugs(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask whether to add another plug."""
+        if user_input is not None:
+            if user_input.get("add_another", False):
+                return await self.async_step_add_load_shedding_plug()
+            else:
+                self.config_data[CONF_LOAD_SHEDDING_PLUGS] = self.load_shedding_plugs
+                return await self._save_and_finish()
+
+        return self.async_show_form(
+            step_id="add_more_load_shedding_plugs",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("add_another", default=False): BooleanSelector(),
+                }
+            ),
+            description_placeholders={"count": str(len(self.load_shedding_plugs))},
         )

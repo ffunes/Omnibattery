@@ -296,6 +296,52 @@
           "pd_min_discharge_power": "Minimum power for discharging. Below this threshold, the controller stays idle instead of discharging at low power. 0 = disabled.",
           "pd_target_grid_power": "Grid power setpoint the controller regulates to. Negative = export to grid, positive = import from grid, 0 = net zero. Range: -500 to +500 W, default: 0 W."
         }
+      },
+      "load_shedding": {
+        "title": "Load Shedding",
+        "description": "Automatically switch off high-power plugs when grid draw exceeds the peak threshold for too long. Plugs are restored when the situation clears.",
+        "data": {
+          "enable_load_shedding": "Enable load shedding"
+        },
+        "data_description": {
+          "enable_load_shedding": "When enabled, nominated smart plugs will be switched off if sustained grid draw exceeds the threshold."
+        }
+      },
+      "load_shedding_config": {
+        "title": "Load Shedding — Settings",
+        "data": {
+          "load_shedding_threshold": "Peak threshold (W)",
+          "load_shedding_duration_min": "Trigger delay (minutes)",
+          "load_shedding_min_plug_power": "Minimum plug power to shed (W)",
+          "load_shedding_notify_enabled": "Enable notifications",
+          "load_shedding_notify_target": "Notification target (optional)"
+        },
+        "data_description": {
+          "load_shedding_threshold": "Grid draw above this level triggers the countdown. Default: 2500 W.",
+          "load_shedding_duration_min": "Minutes of sustained overload before plugs are switched off. Default: 7 min.",
+          "load_shedding_min_plug_power": "Only shed plugs currently drawing at least this much power. Default: 100 W.",
+          "load_shedding_notify_enabled": "Send a notification when plugs are switched off or restored.",
+          "load_shedding_notify_target": "Optional: select a notify service (e.g. mobile app) to receive push notifications in addition to the HA dashboard notification."
+        }
+      },
+      "add_load_shedding_plug": {
+        "title": "Add Plug #{plug_num}",
+        "description": "Select the switch entity for this plug. Plugs are shed in the order they are added.",
+        "data": {
+          "switch_entity": "Switch entity",
+          "power_sensor": "Power sensor (optional)"
+        },
+        "data_description": {
+          "switch_entity": "The switch entity that controls this plug.",
+          "power_sensor": "Optional power sensor. Used to check if the plug draws enough power to be worth shedding."
+        }
+      },
+      "add_more_load_shedding_plugs": {
+        "title": "Add Another Plug?",
+        "description": "{count} plug(s) configured so far.",
+        "data": {
+          "add_another": "Add another plug"
+        }
       }
     },
     "error": {
@@ -324,7 +370,8 @@
           "weekly_full_charge": "Weekly full charge",
           "charge_delay": "Solar charge delay",
           "capacity_protection": "Capacity protection",
-          "pd_advanced": "PD controller (advanced)"
+          "pd_advanced": "PD controller (advanced)",
+          "load_shedding": "Load shedding"
         }
       },
       "sensors": {
@@ -622,6 +669,52 @@
           "pd_min_discharge_power": "Minimum power for discharging. Below this threshold, the controller stays idle instead of discharging at low power. 0 = disabled.",
           "pd_target_grid_power": "Grid power setpoint the controller regulates to. Negative = export to grid, positive = import from grid, 0 = net zero. Range: -500 to +500 W, default: 0 W."
         }
+      },
+      "load_shedding": {
+        "title": "Load Shedding",
+        "description": "Automatically switch off high-power plugs when grid draw exceeds the peak threshold for too long. Plugs are restored when the situation clears.",
+        "data": {
+          "enable_load_shedding": "Enable load shedding"
+        },
+        "data_description": {
+          "enable_load_shedding": "When enabled, nominated smart plugs will be switched off if sustained grid draw exceeds the threshold."
+        }
+      },
+      "load_shedding_config": {
+        "title": "Load Shedding — Settings",
+        "data": {
+          "load_shedding_threshold": "Peak threshold (W)",
+          "load_shedding_duration_min": "Trigger delay (minutes)",
+          "load_shedding_min_plug_power": "Minimum plug power to shed (W)",
+          "load_shedding_notify_enabled": "Enable notifications",
+          "load_shedding_notify_target": "Notification target (optional)"
+        },
+        "data_description": {
+          "load_shedding_threshold": "Grid draw above this level triggers the countdown. Default: 2500 W.",
+          "load_shedding_duration_min": "Minutes of sustained overload before plugs are switched off. Default: 7 min.",
+          "load_shedding_min_plug_power": "Only shed plugs currently drawing at least this much power. Default: 100 W.",
+          "load_shedding_notify_enabled": "Send a notification when plugs are switched off or restored.",
+          "load_shedding_notify_target": "Optional: select a notify service (e.g. mobile app) to receive push notifications in addition to the HA dashboard notification."
+        }
+      },
+      "add_load_shedding_plug": {
+        "title": "Add Plug #{plug_num}",
+        "description": "Select the switch entity for this plug. Plugs are shed in the order they are added.",
+        "data": {
+          "switch_entity": "Switch entity",
+          "power_sensor": "Power sensor (optional)"
+        },
+        "data_description": {
+          "switch_entity": "The switch entity that controls this plug.",
+          "power_sensor": "Optional power sensor. Used to check if the plug draws enough power to be worth shedding."
+        }
+      },
+      "add_more_load_shedding_plugs": {
+        "title": "Add Another Plug?",
+        "description": "{count} plug(s) configured so far.",
+        "data": {
+          "add_another": "Add another plug"
+        }
       }
     },
     "error": {
@@ -661,19 +754,41 @@
   },
   "entity": {
     "switch": {
-      "manual_mode": { "name": "Manual Mode" },
-      "predictive_charging": { "name": "Predictive Charging" },
-      "charge_delay": { "name": "Charge Delay" },
-      "capacity_protection": { "name": "Peak Shaving" },
-      "backup_function": { "name": "Backup Function" },
-      "rs485_control_mode": { "name": "RS485 Control Mode" },
-      "automation_charging_active": { "name": "External Price Charging" },
-      "excluded_device_enabled": { "name": "{device} – Enabled" },
-      "excluded_device_solar_surplus": { "name": "{device} – Solar Surplus" },
-      "time_slot": { "name": "Time Slot {slot_number}" }
+      "manual_mode": {
+        "name": "Manual Mode"
+      },
+      "predictive_charging": {
+        "name": "Predictive Charging"
+      },
+      "charge_delay": {
+        "name": "Charge Delay"
+      },
+      "capacity_protection": {
+        "name": "Peak Shaving"
+      },
+      "backup_function": {
+        "name": "Backup Function"
+      },
+      "rs485_control_mode": {
+        "name": "RS485 Control Mode"
+      },
+      "automation_charging_active": {
+        "name": "External Price Charging"
+      },
+      "excluded_device_enabled": {
+        "name": "{device} – Enabled"
+      },
+      "excluded_device_solar_surplus": {
+        "name": "{device} – Solar Surplus"
+      },
+      "time_slot": {
+        "name": "Time Slot {slot_number}"
+      }
     },
     "time": {
-      "automation_charging_end_time": { "name": "External Charging End Time" }
+      "automation_charging_end_time": {
+        "name": "External Charging End Time"
+      }
     },
     "sensor": {
       "discharge_window": {
@@ -684,9 +799,15 @@
           "active": "Active"
         }
       },
-      "active_batteries": { "name": "Active Batteries" },
-      "non_responsive_batteries": { "name": "Non-Responsive Batteries" },
-      "configuration_summary": { "name": "Configuration Summary" },
+      "active_batteries": {
+        "name": "Active Batteries"
+      },
+      "non_responsive_batteries": {
+        "name": "Non-Responsive Batteries"
+      },
+      "configuration_summary": {
+        "name": "Configuration Summary"
+      },
       "integration_status": {
         "name": "Integration Status",
         "state": {
@@ -725,49 +846,135 @@
           "charging_to_setpoint": "Charging to setpoint"
         }
       },
-      "battery_soc": { "name": "Battery SOC" },
-      "battery_total_energy": { "name": "Battery Total Energy" },
-      "battery_power": { "name": "Battery Power" },
-      "internal_temperature": { "name": "Internal Temperature" },
-      "ac_power": { "name": "AC Power" },
-      "total_charging_energy": { "name": "Total Charging Energy" },
-      "total_discharging_energy": { "name": "Total Discharging Energy" },
-      "total_daily_charging_energy": { "name": "Total Daily Charging Energy" },
-      "total_daily_discharging_energy": { "name": "Total Daily Discharging Energy" },
-      "inverter_state": { "name": "Inverter State" },
-      "battery_voltage": { "name": "Battery Voltage" },
-      "max_cell_voltage": { "name": "Max Cell Voltage" },
-      "min_cell_voltage": { "name": "Min Cell Voltage" },
-      "fault_status": { "name": "Fault Status" },
-      "alarm_status": { "name": "Alarm Status" },
-      "ac_offgrid_power": { "name": "AC Offgrid Power" },
-      "mppt1_power": { "name": "MPPT1 Power" },
-      "mppt2_power": { "name": "MPPT2 Power" },
-      "mppt3_power": { "name": "MPPT3 Power" },
-      "mppt4_power": { "name": "MPPT4 Power" },
-      "round_trip_efficiency_total": { "name": "Round-Trip Efficiency" },
-      "stored_energy": { "name": "Stored Energy" },
-      "system_soc": { "name": "System SOC" },
-      "system_charge_power": { "name": "System Charge Power" },
-      "system_discharge_power": { "name": "System Discharge Power" },
-      "system_total_energy": { "name": "System Total Energy" },
-      "system_stored_energy": { "name": "System Stored Energy" },
-      "system_daily_charging_energy": { "name": "System Daily Charging Energy" },
-      "system_daily_discharging_energy": { "name": "System Daily Discharging Energy" },
-      "system_daily_grid_at_min_soc_energy": { "name": "Grid at Min SOC" },
-      "system_alarm_status": { "name": "System Alarm Status" },
-      "device_name": { "name": "Device Name" },
-      "sn_code": { "name": "Serial Number" },
-      "software_version": { "name": "Software Version" },
-      "bms_version": { "name": "BMS Version" },
-      "ems_version": { "name": "EMS Version" },
-      "vms_version": { "name": "VMS Version" },
-      "comm_module_firmware": { "name": "Comm Module Firmware" },
-      "mac_address": { "name": "MAC Address" },
-      "wifi_signal_strength": { "name": "WiFi Signal Strength" },
-      "battery_cycle_count": { "name": "Battery Cycle Count" },
-      "battery_cycle_count_calc": { "name": "Battery Cycle Count (Calc)" },
-      "cell_delta": { "name": "Cell Delta" },
+      "battery_soc": {
+        "name": "Battery SOC"
+      },
+      "battery_total_energy": {
+        "name": "Battery Total Energy"
+      },
+      "battery_power": {
+        "name": "Battery Power"
+      },
+      "internal_temperature": {
+        "name": "Internal Temperature"
+      },
+      "ac_power": {
+        "name": "AC Power"
+      },
+      "total_charging_energy": {
+        "name": "Total Charging Energy"
+      },
+      "total_discharging_energy": {
+        "name": "Total Discharging Energy"
+      },
+      "total_daily_charging_energy": {
+        "name": "Total Daily Charging Energy"
+      },
+      "total_daily_discharging_energy": {
+        "name": "Total Daily Discharging Energy"
+      },
+      "inverter_state": {
+        "name": "Inverter State"
+      },
+      "battery_voltage": {
+        "name": "Battery Voltage"
+      },
+      "max_cell_voltage": {
+        "name": "Max Cell Voltage"
+      },
+      "min_cell_voltage": {
+        "name": "Min Cell Voltage"
+      },
+      "fault_status": {
+        "name": "Fault Status"
+      },
+      "alarm_status": {
+        "name": "Alarm Status"
+      },
+      "ac_offgrid_power": {
+        "name": "AC Offgrid Power"
+      },
+      "mppt1_power": {
+        "name": "MPPT1 Power"
+      },
+      "mppt2_power": {
+        "name": "MPPT2 Power"
+      },
+      "mppt3_power": {
+        "name": "MPPT3 Power"
+      },
+      "mppt4_power": {
+        "name": "MPPT4 Power"
+      },
+      "round_trip_efficiency_total": {
+        "name": "Round-Trip Efficiency"
+      },
+      "stored_energy": {
+        "name": "Stored Energy"
+      },
+      "system_soc": {
+        "name": "System SOC"
+      },
+      "system_charge_power": {
+        "name": "System Charge Power"
+      },
+      "system_discharge_power": {
+        "name": "System Discharge Power"
+      },
+      "system_total_energy": {
+        "name": "System Total Energy"
+      },
+      "system_stored_energy": {
+        "name": "System Stored Energy"
+      },
+      "system_daily_charging_energy": {
+        "name": "System Daily Charging Energy"
+      },
+      "system_daily_discharging_energy": {
+        "name": "System Daily Discharging Energy"
+      },
+      "system_daily_grid_at_min_soc_energy": {
+        "name": "Grid at Min SOC"
+      },
+      "system_alarm_status": {
+        "name": "System Alarm Status"
+      },
+      "device_name": {
+        "name": "Device Name"
+      },
+      "sn_code": {
+        "name": "Serial Number"
+      },
+      "software_version": {
+        "name": "Software Version"
+      },
+      "bms_version": {
+        "name": "BMS Version"
+      },
+      "ems_version": {
+        "name": "EMS Version"
+      },
+      "vms_version": {
+        "name": "VMS Version"
+      },
+      "comm_module_firmware": {
+        "name": "Comm Module Firmware"
+      },
+      "mac_address": {
+        "name": "MAC Address"
+      },
+      "wifi_signal_strength": {
+        "name": "WiFi Signal Strength"
+      },
+      "battery_cycle_count": {
+        "name": "Battery Cycle Count"
+      },
+      "battery_cycle_count_calc": {
+        "name": "Battery Cycle Count (Calc)"
+      },
+      "cell_delta": {
+        "name": "Cell Delta"
+      },
       "balance_status": {
         "name": "Balance Status",
         "state": {
@@ -787,18 +994,34 @@
           "unknown": "Unknown"
         }
       },
-      "last_balance_read": { "name": "Last Balance Reading" },
-      "delta_avg_4w": { "name": "Delta Average (4 readings)" }
+      "last_balance_read": {
+        "name": "Last Balance Reading"
+      },
+      "delta_avg_4w": {
+        "name": "Delta Average (4 readings)"
+      }
     },
     "binary_sensor": {
-      "capacity_protection_active": { "name": "Peak Shaving Active" },
-      "predictive_charging_active": { "name": "Predictive Charging Active" },
-      "wifi_status": { "name": "WiFi Status" },
-      "cloud_status": { "name": "Cloud Status" },
-      "charge_hysteresis": { "name": "Charge Hysteresis" }
+      "capacity_protection_active": {
+        "name": "Peak Shaving Active"
+      },
+      "predictive_charging_active": {
+        "name": "Predictive Charging Active"
+      },
+      "wifi_status": {
+        "name": "WiFi Status"
+      },
+      "cloud_status": {
+        "name": "Cloud Status"
+      },
+      "charge_hysteresis": {
+        "name": "Charge Hysteresis"
+      }
     },
     "select": {
-      "force_mode": { "name": "Force Mode" },
+      "force_mode": {
+        "name": "Force Mode"
+      },
       "user_work_mode": {
         "name": "User Work Mode",
         "state": {
@@ -821,32 +1044,80 @@
       }
     },
     "number": {
-      "set_charge_power": { "name": "Set Charge Power" },
-      "set_discharge_power": { "name": "Set Discharge Power" },
-      "max_charge_power": { "name": "Max Charge Power" },
-      "max_discharge_power": { "name": "Max Discharge Power" },
-      "charging_cutoff_capacity": { "name": "Charging Cutoff Capacity" },
-      "discharging_cutoff_capacity": { "name": "Discharging Cutoff Capacity" },
-      "charge_to_soc": { "name": "Charge To SOC" },
-      "pd_controller_kp": { "name": "PD Kp" },
-      "pd_controller_kd": { "name": "PD Kd" },
-      "pd_controller_deadband": { "name": "PD Deadband" },
-      "pd_controller_max_power_change": { "name": "PD Max Power Change" },
-      "pd_controller_direction_hysteresis": { "name": "PD Direction Hysteresis" },
-      "pd_min_charge_power": { "name": "PD Min Charge Power" },
-      "pd_min_discharge_power": { "name": "PD Min Discharge Power" },
-      "pd_target_grid_power": { "name": "PD Target Grid Power" },
-      "max_contracted_power": { "name": "Max Contracted Power" },
-      "capacity_protection_soc_threshold": { "name": "Peak Shaving SOC Threshold" },
-      "delay_safety_margin_min": { "name": "Charge Delay Margin" },
-      "delay_soc_setpoint": { "name": "Charge Delay SOC Setpoint" },
-      "capacity_protection_limit": { "name": "Peak Shaving Limit" },
-      "backup_offgrid_threshold": { "name": "Backup Offgrid Threshold" },
-      "charge_hysteresis_percent": { "name": "Charge Hysteresis Percent" },
-      "predictive_safety_margin_kwh": { "name": "Solar Forecast Safety Margin" }
+      "set_charge_power": {
+        "name": "Set Charge Power"
+      },
+      "set_discharge_power": {
+        "name": "Set Discharge Power"
+      },
+      "max_charge_power": {
+        "name": "Max Charge Power"
+      },
+      "max_discharge_power": {
+        "name": "Max Discharge Power"
+      },
+      "charging_cutoff_capacity": {
+        "name": "Charging Cutoff Capacity"
+      },
+      "discharging_cutoff_capacity": {
+        "name": "Discharging Cutoff Capacity"
+      },
+      "charge_to_soc": {
+        "name": "Charge To SOC"
+      },
+      "pd_controller_kp": {
+        "name": "PD Kp"
+      },
+      "pd_controller_kd": {
+        "name": "PD Kd"
+      },
+      "pd_controller_deadband": {
+        "name": "PD Deadband"
+      },
+      "pd_controller_max_power_change": {
+        "name": "PD Max Power Change"
+      },
+      "pd_controller_direction_hysteresis": {
+        "name": "PD Direction Hysteresis"
+      },
+      "pd_min_charge_power": {
+        "name": "PD Min Charge Power"
+      },
+      "pd_min_discharge_power": {
+        "name": "PD Min Discharge Power"
+      },
+      "pd_target_grid_power": {
+        "name": "PD Target Grid Power"
+      },
+      "max_contracted_power": {
+        "name": "Max Contracted Power"
+      },
+      "capacity_protection_soc_threshold": {
+        "name": "Peak Shaving SOC Threshold"
+      },
+      "delay_safety_margin_min": {
+        "name": "Charge Delay Margin"
+      },
+      "delay_soc_setpoint": {
+        "name": "Charge Delay SOC Setpoint"
+      },
+      "capacity_protection_limit": {
+        "name": "Peak Shaving Limit"
+      },
+      "backup_offgrid_threshold": {
+        "name": "Backup Offgrid Threshold"
+      },
+      "charge_hysteresis_percent": {
+        "name": "Charge Hysteresis Percent"
+      },
+      "predictive_safety_margin_kwh": {
+        "name": "Solar Forecast Safety Margin"
+      }
     },
     "button": {
-      "reset_device": { "name": "Reset Device" }
+      "reset_device": {
+        "name": "Reset Device"
+      }
     }
   }
 }

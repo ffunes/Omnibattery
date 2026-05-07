@@ -1856,6 +1856,20 @@ CONF_CAPACITY_PROTECTION_LIMIT = "capacity_protection_limit"
 DEFAULT_CAPACITY_PROTECTION_SOC = 30
 DEFAULT_CAPACITY_PROTECTION_LIMIT = 2500
 
+# Load Shedding Configuration
+CONF_LOAD_SHEDDING_ENABLED = "load_shedding_enabled"
+CONF_LOAD_SHEDDING_THRESHOLD = "load_shedding_threshold"
+CONF_LOAD_SHEDDING_DURATION_MIN = "load_shedding_duration_min"
+CONF_LOAD_SHEDDING_MIN_PLUG_POWER = "load_shedding_min_plug_power"
+CONF_LOAD_SHEDDING_PLUGS = "load_shedding_plugs"
+CONF_LOAD_SHEDDING_NOTIFY_ENABLED = "load_shedding_notify_enabled"
+CONF_LOAD_SHEDDING_NOTIFY_TARGET = "load_shedding_notify_target"
+
+DEFAULT_LOAD_SHEDDING_THRESHOLD = 2500
+DEFAULT_LOAD_SHEDDING_DURATION_MIN = 7
+DEFAULT_LOAD_SHEDDING_MIN_PLUG_POWER = 100
+DEFAULT_LOAD_SHEDDING_NOTIFY_ENABLED = True
+
 # PD Controller Advanced Configuration Keys
 CONF_PD_KP = "pd_controller_kp"
 CONF_PD_KD = "pd_controller_kd"
