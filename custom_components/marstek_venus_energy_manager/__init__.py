@@ -1999,7 +1999,18 @@ class ChargeDischargeController:
                 if discharge_power >= 100 and charge_power == 0:
                     actual_abs = abs(feedback["battery_power"])
                     if actual_abs < 0.10 * discharge_power:
-                        self._non_responsive.record_non_delivery(coordinator, discharge_power, actual_abs)
+                        # Skip non-responsive recording if battery is at/near min-SOC:
+                        # the BMS internally enforces the cutoff even after an ACK, so 0W output
+                        # is expected behaviour, not a fault.
+                        current_soc = coordinator.data.get("battery_soc", 100) if coordinator.data else 100
+                        if current_soc <= coordinator.min_soc + 1:
+                            _LOGGER.debug(
+                                "[%s] No discharge delivered but SOC=%.1f%% is at/near min_soc=%d%% "
+                                "— BMS cutoff, not a fault",
+                                coordinator.name, current_soc, coordinator.min_soc,
+                            )
+                        else:
+                            self._non_responsive.record_non_delivery(coordinator, discharge_power, actual_abs)
                     else:
                         self._non_responsive.clear(coordinator)
                 return True
