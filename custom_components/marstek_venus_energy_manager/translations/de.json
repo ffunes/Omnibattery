@@ -310,12 +310,14 @@
         "data": {
           "hourly_balance_target_net_wh": "Ziel-Netto-Balance (kWh)",
           "hourly_balance_max_offset_w": "Maximaler Versatz (W)",
-          "hourly_balance_deadband_wh": "Toleranz Nettobilanz (kWh)"
+          "hourly_balance_deadband_wh": "Toleranz Nettobilanz (kWh)",
+          "hourly_balance_hysteresis_w": "Hysterese des Versatzes (W)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Ziel-Netto-Energiebalance pro Stunde. 0 = Netto-Null (Standard). Positiv = Import erlauben, negativ = Export-Ziel.",
           "hourly_balance_max_offset_w": "Maximaler Leistungsversatz des Reglers. Der Schieberegler ist auf die kombinierte Entladeleistung aller Batterien begrenzt.",
-          "hourly_balance_deadband_wh": "Toleranzband um den Zielwert. Keine Korrektur, wenn die Nettobilanz innerhalb von ±N kWh liegt. 0 = exakte Korrektur."
+          "hourly_balance_deadband_wh": "Toleranzband um den Zielwert. Keine Korrektur, wenn die Nettobilanz innerhalb von ±N kWh liegt. 0 = exakte Korrektur.",
+          "hourly_balance_hysteresis_w": "Minimale Änderung des Versatzes, bevor eine neue Korrektur angewendet wird. Verhindert Mikro-Anpassungen jeden Zyklus. 0 = immer anwenden. Standard: 15 W."
         }
       }
     },
@@ -658,12 +660,14 @@
         "data": {
           "hourly_balance_target_net_wh": "Ziel-Netto-Balance (kWh)",
           "hourly_balance_max_offset_w": "Maximaler Versatz (W)",
-          "hourly_balance_deadband_wh": "Toleranz Nettobilanz (kWh)"
+          "hourly_balance_deadband_wh": "Toleranz Nettobilanz (kWh)",
+          "hourly_balance_hysteresis_w": "Hysterese des Versatzes (W)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Ziel-Netto-Energiebalance pro Stunde. 0 = Netto-Null (Standard). Positiv = Import erlauben, negativ = Export-Ziel.",
           "hourly_balance_max_offset_w": "Maximaler Leistungsversatz des Reglers. Der Schieberegler ist auf die kombinierte Entladeleistung aller Batterien begrenzt.",
-          "hourly_balance_deadband_wh": "Toleranzband um den Zielwert. Keine Korrektur, wenn die Nettobilanz innerhalb von ±N kWh liegt. 0 = exakte Korrektur."
+          "hourly_balance_deadband_wh": "Toleranzband um den Zielwert. Keine Korrektur, wenn die Nettobilanz innerhalb von ±N kWh liegt. 0 = exakte Korrektur.",
+          "hourly_balance_hysteresis_w": "Minimale Änderung des Versatzes, bevor eine neue Korrektur angewendet wird. Verhindert Mikro-Anpassungen jeden Zyklus. 0 = immer anwenden. Standard: 15 W."
         }
       }
     },

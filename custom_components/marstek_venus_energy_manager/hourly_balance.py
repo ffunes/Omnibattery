@@ -19,10 +19,11 @@ from .const import (
     CONF_HOURLY_BALANCE_TARGET_NET_WH,
     CONF_HOURLY_BALANCE_MAX_OFFSET_W,
     CONF_HOURLY_BALANCE_DEADBAND_WH,
+    CONF_HOURLY_BALANCE_HYSTERESIS_W,
     DEFAULT_HOURLY_BALANCE_TARGET_NET_WH,
     DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W,
     DEFAULT_HOURLY_BALANCE_DEADBAND_WH,
-    _HOURLY_BALANCE_HYSTERESIS_W,
+    DEFAULT_HOURLY_BALANCE_HYSTERESIS_W,
     _HOURLY_BALANCE_RAMP_IN_MIN,
     EXTERNAL_NET_BALANCE_CANDIDATES,
 )
@@ -254,6 +255,14 @@ class HourlyBalanceManager:
         """Process one cycle. Reads grid power directly so it can run before
         the PD's deadband / stale-sensor early-returns gate the rest of the
         control loop."""
+        # Feature disabled via runtime switch — clear offset and idle
+        if not self._controller.hourly_balance_enabled:
+            self._controller.remove_setpoint_offset("hourly_balance")
+            self._last_sample_monotonic = None
+            self._last_grid_w = None
+            self._push_sensors()
+            return
+
         # Edge case: manual mode — clear offset and do nothing
         if self._controller.manual_mode_enabled:
             self._controller.remove_setpoint_offset("hourly_balance")
@@ -418,7 +427,10 @@ class HourlyBalanceManager:
 
         # Hysteresis (bypass near end of hour)
         if remaining_min >= HOURLY_BALANCE_FORCE_RECALC_REMAINING_MIN:
-            if abs(offset_w - self._last_offset_w) < _HOURLY_BALANCE_HYSTERESIS_W:
+            hysteresis_w = self._config_entry.data.get(
+                CONF_HOURLY_BALANCE_HYSTERESIS_W, DEFAULT_HOURLY_BALANCE_HYSTERESIS_W
+            )
+            if abs(offset_w - self._last_offset_w) < hysteresis_w:
                 offset_w = self._last_offset_w
 
         # If compensation is blocked, zero the offset so the PD controller
@@ -501,24 +513,22 @@ class HourlyBalanceManager:
     def _get_compensation_block_reason(self, offset: float) -> str | None:
         """Return a reason string if compensation is currently blocked, else None.
 
-        solar_charge_delay blocks both offset directions: when active the
-        battery can't charge so solar surplus accumulates as export, swinging
-        the offset negative; the balance can't correct either way.
-        Hysteresis and max_soc only prevent charging, so they are checked
-        only for offset > 0.
+        All checks apply only when offset > 0 (charging direction): charge
+        delay, hysteresis, and max_soc all prevent charging but not discharging,
+        so discharge corrections (offset < 0) are never blocked.
         Uses _charge_delay_status (kept current by the PD cycle) to avoid
         calling _is_charge_delayed() which has side-effects.
         """
         ctrl = self._controller
-        if ctrl.charge_delay_enabled:
-            delay_state = ctrl._charge_delay_status.get("state", "")
-            _delay_not_blocking = {
-                "Disabled", "Charging allowed", "Skipped - Full Charge Day",
-                "Charging to setpoint",
-            }
-            if delay_state not in _delay_not_blocking and not delay_state.startswith("Unlocking"):
-                return "solar_charge_delay"
         if offset > 0:
+            if ctrl.charge_delay_enabled:
+                delay_state = ctrl._charge_delay_status.get("state", "")
+                _delay_not_blocking = {
+                    "Disabled", "Charging allowed", "Skipped - Full Charge Day",
+                    "Charging to setpoint",
+                }
+                if delay_state not in _delay_not_blocking and not delay_state.startswith("Unlocking"):
+                    return "solar_charge_delay"
             if any(getattr(c, "_hysteresis_active", False) for c in ctrl.coordinators):
                 return "hysteresis"
             with_data = [c for c in ctrl.coordinators if c.data]

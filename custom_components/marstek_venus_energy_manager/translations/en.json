@@ -310,12 +310,14 @@
         "data": {
           "hourly_balance_target_net_wh": "Target net balance (kWh)",
           "hourly_balance_max_offset_w": "Maximum offset (W)",
-          "hourly_balance_deadband_wh": "Net balance tolerance (kWh)"
+          "hourly_balance_deadband_wh": "Net balance tolerance (kWh)",
+          "hourly_balance_hysteresis_w": "Offset hysteresis (W)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Target net energy balance per hour. 0 = net zero (default). Positive = allow import, negative = target export.",
           "hourly_balance_max_offset_w": "Maximum power offset the controller can apply. The slider ceiling is the combined discharge power of all configured batteries.",
-          "hourly_balance_deadband_wh": "Tolerance band around the target. No correction is applied when the net balance is within ±N kWh of the target. 0 = exact correction."
+          "hourly_balance_deadband_wh": "Tolerance band around the target. No correction is applied when the net balance is within ±N kWh of the target. 0 = exact correction.",
+          "hourly_balance_hysteresis_w": "Minimum change in offset required before a new correction is applied. Prevents micro-adjustments every cycle. 0 = apply every cycle. Default: 15 W."
         }
       }
     },
@@ -658,12 +660,14 @@
         "data": {
           "hourly_balance_target_net_wh": "Target net balance (kWh)",
           "hourly_balance_max_offset_w": "Maximum offset (W)",
-          "hourly_balance_deadband_wh": "Net balance tolerance (kWh)"
+          "hourly_balance_deadband_wh": "Net balance tolerance (kWh)",
+          "hourly_balance_hysteresis_w": "Offset hysteresis (W)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Target net energy balance per hour. 0 = net zero (default). Positive = allow import, negative = target export.",
           "hourly_balance_max_offset_w": "Maximum power offset the controller can apply. The slider ceiling is the combined discharge power of all configured batteries.",
-          "hourly_balance_deadband_wh": "Tolerance band around the target. No correction is applied when the net balance is within ±N kWh of the target. 0 = exact correction."
+          "hourly_balance_deadband_wh": "Tolerance band around the target. No correction is applied when the net balance is within ±N kWh of the target. 0 = exact correction.",
+          "hourly_balance_hysteresis_w": "Minimum change in offset required before a new correction is applied. Prevents micro-adjustments every cycle. 0 = apply every cycle. Default: 15 W."
         }
       }
     },

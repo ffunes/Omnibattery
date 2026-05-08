@@ -310,12 +310,14 @@
         "data": {
           "hourly_balance_target_net_wh": "Balance neto objetivo (kWh)",
           "hourly_balance_max_offset_w": "Desplazamiento máximo (W)",
-          "hourly_balance_deadband_wh": "Tolerancia de balance neto (kWh)"
+          "hourly_balance_deadband_wh": "Tolerancia de balance neto (kWh)",
+          "hourly_balance_hysteresis_w": "Histéresis del desplazamiento (W)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Balance de energía neto objetivo por hora. 0 = balance cero (por defecto). Positivo = permitir importación, negativo = objetivo de exportación.",
           "hourly_balance_max_offset_w": "Desplazamiento de potencia máximo que el controlador puede aplicar. El slider está limitado a la potencia combinada de las baterías.",
-          "hourly_balance_deadband_wh": "Tolerancia alrededor del objetivo. No se aplica corrección si el balance neto está dentro de ±N kWh del objetivo. 0 = corrección exacta."
+          "hourly_balance_deadband_wh": "Tolerancia alrededor del objetivo. No se aplica corrección si el balance neto está dentro de ±N kWh del objetivo. 0 = corrección exacta.",
+          "hourly_balance_hysteresis_w": "Cambio mínimo en el desplazamiento necesario para aplicar una nueva corrección. Evita micro-ajustes cada ciclo. 0 = aplicar siempre. Por defecto: 15 W."
         }
       }
     },
@@ -658,12 +660,14 @@
         "data": {
           "hourly_balance_target_net_wh": "Balance neto objetivo (kWh)",
           "hourly_balance_max_offset_w": "Desplazamiento máximo (W)",
-          "hourly_balance_deadband_wh": "Tolerancia de balance neto (kWh)"
+          "hourly_balance_deadband_wh": "Tolerancia de balance neto (kWh)",
+          "hourly_balance_hysteresis_w": "Histéresis del desplazamiento (W)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Balance de energía neto objetivo por hora. 0 = balance cero (por defecto). Positivo = permitir importación, negativo = objetivo de exportación.",
           "hourly_balance_max_offset_w": "Desplazamiento de potencia máximo que el controlador puede aplicar. El slider está limitado a la potencia combinada de las baterías.",
-          "hourly_balance_deadband_wh": "Tolerancia alrededor del objetivo. No se aplica corrección si el balance neto está dentro de ±N kWh del objetivo. 0 = corrección exacta."
+          "hourly_balance_deadband_wh": "Tolerancia alrededor del objetivo. No se aplica corrección si el balance neto está dentro de ±N kWh del objetivo. 0 = corrección exacta.",
+          "hourly_balance_hysteresis_w": "Cambio mínimo en el desplazamiento necesario para aplicar una nueva corrección. Evita micro-ajustes cada ciclo. 0 = aplicar siempre. Por defecto: 15 W."
         }
       }
     },

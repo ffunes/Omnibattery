@@ -310,12 +310,14 @@
         "data": {
           "hourly_balance_target_net_wh": "Bilan net cible (kWh)",
           "hourly_balance_max_offset_w": "Décalage maximum (W)",
-          "hourly_balance_deadband_wh": "Tolérance bilan net (kWh)"
+          "hourly_balance_deadband_wh": "Tolérance bilan net (kWh)",
+          "hourly_balance_hysteresis_w": "Hystérésis du décalage (W)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Bilan énergétique net cible par heure. 0 = bilan nul (par défaut). Positif = autoriser l importation, négatif = objectif d exportation.",
           "hourly_balance_max_offset_w": "Décalage de puissance maximal du contrôleur. Le curseur est limité à la puissance de décharge combinée des batteries.",
-          "hourly_balance_deadband_wh": "Bande de tolérance autour de l objectif. Aucune correction si le bilan net est dans ±N kWh de l objectif. 0 = correction exacte."
+          "hourly_balance_deadband_wh": "Bande de tolérance autour de l objectif. Aucune correction si le bilan net est dans ±N kWh de l objectif. 0 = correction exacte.",
+          "hourly_balance_hysteresis_w": "Variation minimale du décalage nécessaire pour appliquer une nouvelle correction. Évite les micro-ajustements à chaque cycle. 0 = appliquer toujours. Par défaut : 15 W."
         }
       }
     },
@@ -658,12 +660,14 @@
         "data": {
           "hourly_balance_target_net_wh": "Bilan net cible (kWh)",
           "hourly_balance_max_offset_w": "Décalage maximum (W)",
-          "hourly_balance_deadband_wh": "Tolérance bilan net (kWh)"
+          "hourly_balance_deadband_wh": "Tolérance bilan net (kWh)",
+          "hourly_balance_hysteresis_w": "Hystérésis du décalage (W)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Bilan énergétique net cible par heure. 0 = bilan nul (par défaut). Positif = autoriser l importation, négatif = objectif d exportation.",
           "hourly_balance_max_offset_w": "Décalage de puissance maximal du contrôleur. Le curseur est limité à la puissance de décharge combinée des batteries.",
-          "hourly_balance_deadband_wh": "Bande de tolérance autour de l objectif. Aucune correction si le bilan net est dans ±N kWh de l objectif. 0 = correction exacte."
+          "hourly_balance_deadband_wh": "Bande de tolérance autour de l objectif. Aucune correction si le bilan net est dans ±N kWh de l objectif. 0 = correction exacte.",
+          "hourly_balance_hysteresis_w": "Variation minimale du décalage nécessaire pour appliquer une nouvelle correction. Évite les micro-ajustements à chaque cycle. 0 = appliquer toujours. Par défaut : 15 W."
         }
       }
     },

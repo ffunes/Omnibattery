@@ -11,7 +11,7 @@ Every PD cycle (~2.5 s) the manager:
 3. Derives a power correction: `offset = deficit / remaining_hours`.
 4. Applies a 5-minute ramp-in at the start of each hour to avoid aggressive early corrections.
 5. Clamps the offset to the configured maximum.
-6. Applies a 100 W hysteresis: the offset only updates if it changes by more than 100 W (bypassed during the last 10 minutes of the hour so the hour closes cleanly).
+6. Applies a configurable hysteresis (default 15 W): the offset only updates if it changes by more than this threshold (bypassed during the last 10 minutes of the hour so the hour closes cleanly).
 7. Registers the offset via the setpoint registry so it composes cleanly with other features.
 
 The offset is cleared automatically when:
@@ -79,6 +79,7 @@ Enable and configure from **Settings → Devices & Services → Marstek Venus En
 | Target net balance (kWh) | `0.0` | Target net energy per hour. `0` = net zero. Positive = allow net import. Negative = target net export. |
 | Maximum offset (W) | `1000` | Maximum power correction the controller can apply. |
 | Net balance tolerance (kWh) | `0.0` | Deadband: no correction when the net balance is within ±N kWh of the target. `0` = exact correction. |
+| Offset hysteresis (W) | `15` | Minimum offset change required before a new correction is applied. Prevents micro-adjustments every cycle. `0` = update every cycle. |
 
 ## Persistence
 

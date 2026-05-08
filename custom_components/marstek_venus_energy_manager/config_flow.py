@@ -1049,14 +1049,17 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_HOURLY_BALANCE_TARGET_NET_WH,
                     CONF_HOURLY_BALANCE_MAX_OFFSET_W,
                     CONF_HOURLY_BALANCE_DEADBAND_WH,
+                    CONF_HOURLY_BALANCE_HYSTERESIS_W,
                     DEFAULT_HOURLY_BALANCE_TARGET_NET_WH,
                     DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W,
                     DEFAULT_HOURLY_BALANCE_DEADBAND_WH,
+                    DEFAULT_HOURLY_BALANCE_HYSTERESIS_W,
                 )
                 self.config_data[CONF_ENABLE_HOURLY_BALANCE] = False
                 self.config_data[CONF_HOURLY_BALANCE_TARGET_NET_WH] = DEFAULT_HOURLY_BALANCE_TARGET_NET_WH
                 self.config_data[CONF_HOURLY_BALANCE_MAX_OFFSET_W] = DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W
                 self.config_data[CONF_HOURLY_BALANCE_DEADBAND_WH] = DEFAULT_HOURLY_BALANCE_DEADBAND_WH
+                self.config_data[CONF_HOURLY_BALANCE_HYSTERESIS_W] = DEFAULT_HOURLY_BALANCE_HYSTERESIS_W
                 return await self.async_step_pd_advanced()
 
         return self.async_show_form(
@@ -1077,9 +1080,11 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
             CONF_HOURLY_BALANCE_TARGET_NET_WH,
             CONF_HOURLY_BALANCE_MAX_OFFSET_W,
             CONF_HOURLY_BALANCE_DEADBAND_WH,
+            CONF_HOURLY_BALANCE_HYSTERESIS_W,
             DEFAULT_HOURLY_BALANCE_TARGET_NET_WH,
             DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W,
             DEFAULT_HOURLY_BALANCE_DEADBAND_WH,
+            DEFAULT_HOURLY_BALANCE_HYSTERESIS_W,
         )
         if user_input is not None:
             self.config_data[CONF_ENABLE_HOURLY_BALANCE] = True
@@ -1091,6 +1096,9 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             self.config_data[CONF_HOURLY_BALANCE_DEADBAND_WH] = float(
                 user_input.get(CONF_HOURLY_BALANCE_DEADBAND_WH, DEFAULT_HOURLY_BALANCE_DEADBAND_WH)
+            )
+            self.config_data[CONF_HOURLY_BALANCE_HYSTERESIS_W] = int(
+                user_input.get(CONF_HOURLY_BALANCE_HYSTERESIS_W, DEFAULT_HOURLY_BALANCE_HYSTERESIS_W)
             )
             return await self.async_step_pd_advanced()
 
@@ -1120,6 +1128,14 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
                                 min=0, max=0.5, step=0.1,
                                 mode=NumberSelectorMode.SLIDER,
                                 unit_of_measurement="kWh",
+                            )
+                        ),
+                    vol.Optional(CONF_HOURLY_BALANCE_HYSTERESIS_W, default=DEFAULT_HOURLY_BALANCE_HYSTERESIS_W):
+                        NumberSelector(
+                            NumberSelectorConfig(
+                                min=0, max=200, step=5,
+                                mode=NumberSelectorMode.SLIDER,
+                                unit_of_measurement="W",
                             )
                         ),
                 }
@@ -2408,14 +2424,17 @@ class OptionsFlowHandler(OptionsFlow):
                     CONF_HOURLY_BALANCE_TARGET_NET_WH,
                     CONF_HOURLY_BALANCE_MAX_OFFSET_W,
                     CONF_HOURLY_BALANCE_DEADBAND_WH,
+                    CONF_HOURLY_BALANCE_HYSTERESIS_W,
                     DEFAULT_HOURLY_BALANCE_TARGET_NET_WH,
                     DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W,
                     DEFAULT_HOURLY_BALANCE_DEADBAND_WH,
+                    DEFAULT_HOURLY_BALANCE_HYSTERESIS_W,
                 )
                 self.config_data[CONF_ENABLE_HOURLY_BALANCE] = False
                 self.config_data[CONF_HOURLY_BALANCE_TARGET_NET_WH] = DEFAULT_HOURLY_BALANCE_TARGET_NET_WH
                 self.config_data[CONF_HOURLY_BALANCE_MAX_OFFSET_W] = DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W
                 self.config_data[CONF_HOURLY_BALANCE_DEADBAND_WH] = DEFAULT_HOURLY_BALANCE_DEADBAND_WH
+                self.config_data[CONF_HOURLY_BALANCE_HYSTERESIS_W] = DEFAULT_HOURLY_BALANCE_HYSTERESIS_W
                 return await self._save_and_finish()
 
         is_enabled = self.config_entry.data.get(CONF_ENABLE_HOURLY_BALANCE, False)
@@ -2438,14 +2457,17 @@ class OptionsFlowHandler(OptionsFlow):
             CONF_HOURLY_BALANCE_TARGET_NET_WH,
             CONF_HOURLY_BALANCE_MAX_OFFSET_W,
             CONF_HOURLY_BALANCE_DEADBAND_WH,
+            CONF_HOURLY_BALANCE_HYSTERESIS_W,
             DEFAULT_HOURLY_BALANCE_TARGET_NET_WH,
             DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W,
             DEFAULT_HOURLY_BALANCE_DEADBAND_WH,
+            DEFAULT_HOURLY_BALANCE_HYSTERESIS_W,
         )
         existing = self.config_entry.data
         current_target = existing.get(CONF_HOURLY_BALANCE_TARGET_NET_WH, DEFAULT_HOURLY_BALANCE_TARGET_NET_WH)
         current_max_offset = existing.get(CONF_HOURLY_BALANCE_MAX_OFFSET_W, DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W)
         current_deadband = existing.get(CONF_HOURLY_BALANCE_DEADBAND_WH, DEFAULT_HOURLY_BALANCE_DEADBAND_WH)
+        current_hysteresis = existing.get(CONF_HOURLY_BALANCE_HYSTERESIS_W, DEFAULT_HOURLY_BALANCE_HYSTERESIS_W)
 
         # Derive the slider ceiling from the sum of actual battery discharge powers
         coordinators = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id, {}).get("coordinators", [])
@@ -2461,6 +2483,9 @@ class OptionsFlowHandler(OptionsFlow):
             )
             self.config_data[CONF_HOURLY_BALANCE_DEADBAND_WH] = float(
                 user_input.get(CONF_HOURLY_BALANCE_DEADBAND_WH, current_deadband)
+            )
+            self.config_data[CONF_HOURLY_BALANCE_HYSTERESIS_W] = int(
+                user_input.get(CONF_HOURLY_BALANCE_HYSTERESIS_W, current_hysteresis)
             )
             return await self._save_and_finish()
 
@@ -2490,6 +2515,14 @@ class OptionsFlowHandler(OptionsFlow):
                                 min=0, max=0.5, step=0.1,
                                 mode=NumberSelectorMode.SLIDER,
                                 unit_of_measurement="kWh",
+                            )
+                        ),
+                    vol.Optional(CONF_HOURLY_BALANCE_HYSTERESIS_W, default=current_hysteresis):
+                        NumberSelector(
+                            NumberSelectorConfig(
+                                min=0, max=200, step=5,
+                                mode=NumberSelectorMode.SLIDER,
+                                unit_of_measurement="W",
                             )
                         ),
                 }

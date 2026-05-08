@@ -310,12 +310,14 @@
         "data": {
           "hourly_balance_target_net_wh": "Doel netto-saldo (kWh)",
           "hourly_balance_max_offset_w": "Maximale verschuiving (W)",
-          "hourly_balance_deadband_wh": "Tolerantie nettosaldo (kWh)"
+          "hourly_balance_deadband_wh": "Tolerantie nettosaldo (kWh)",
+          "hourly_balance_hysteresis_w": "Hysterese van de verschuiving (W)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Doel netto-energiebalans per uur. 0 = netto nul (standaard). Positief = import toestaan, negatief = export-doel.",
           "hourly_balance_max_offset_w": "Maximale vermogensverschuiving van de regelaar. Het schuifregelaarmaximum is de gecombineerde ontlaadvermogens van alle batterijen.",
-          "hourly_balance_deadband_wh": "Tolerantieband rondom het doel. Geen correctie als het nettosaldo binnen ±N kWh van het doel valt. 0 = exacte correctie."
+          "hourly_balance_deadband_wh": "Tolerantieband rondom het doel. Geen correctie als het nettosaldo binnen ±N kWh van het doel valt. 0 = exacte correctie.",
+          "hourly_balance_hysteresis_w": "Minimale verandering in de verschuiving vereist voordat een nieuwe correctie wordt toegepast. Voorkomt micro-aanpassingen elke cyclus. 0 = altijd toepassen. Standaard: 15 W."
         }
       }
     },
@@ -658,12 +660,14 @@
         "data": {
           "hourly_balance_target_net_wh": "Doel netto-saldo (kWh)",
           "hourly_balance_max_offset_w": "Maximale verschuiving (W)",
-          "hourly_balance_deadband_wh": "Tolerantie nettosaldo (kWh)"
+          "hourly_balance_deadband_wh": "Tolerantie nettosaldo (kWh)",
+          "hourly_balance_hysteresis_w": "Hysterese van de verschuiving (W)"
         },
         "data_description": {
           "hourly_balance_target_net_wh": "Doel netto-energiebalans per uur. 0 = netto nul (standaard). Positief = import toestaan, negatief = export-doel.",
           "hourly_balance_max_offset_w": "Maximale vermogensverschuiving van de regelaar. Het schuifregelaarmaximum is de gecombineerde ontlaadvermogens van alle batterijen.",
-          "hourly_balance_deadband_wh": "Tolerantieband rondom het doel. Geen correctie als het nettosaldo binnen ±N kWh van het doel valt. 0 = exacte correctie."
+          "hourly_balance_deadband_wh": "Tolerantieband rondom het doel. Geen correctie als het nettosaldo binnen ±N kWh van het doel valt. 0 = exacte correctie.",
+          "hourly_balance_hysteresis_w": "Minimale verandering in de verschuiving vereist voordat een nieuwe correctie wordt toegepast. Voorkomt micro-aanpassingen elke cyclus. 0 = altijd toepassen. Standaard: 15 W."
         }
       }
     },
