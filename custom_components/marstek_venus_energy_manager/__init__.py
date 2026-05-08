@@ -316,7 +316,7 @@ class ChargeDischargeController:
         self.hourly_balance_enabled = config_entry.data.get(CONF_ENABLE_HOURLY_BALANCE, False)
         self._hourly_balance_mgr: HourlyBalanceManager | None = (
             HourlyBalanceManager(hass, config_entry, self)
-            if self.hourly_balance_enabled else None
+            if CONF_ENABLE_HOURLY_BALANCE in config_entry.data else None
         )
         self._charge_delay_last_date = None       # For daily reset
         self._charge_delay_forecast_cache = None  # Last forecast value used for balance check
@@ -434,16 +434,13 @@ class ChargeDischargeController:
         self.capacity_protection_soc_threshold = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_SOC_THRESHOLD, DEFAULT_CAPACITY_PROTECTION_SOC)
         self.capacity_protection_limit = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_LIMIT, DEFAULT_CAPACITY_PROTECTION_LIMIT)
 
-        # Hourly balance: ON→OFF cleans up offset; OFF→ON requires integration reload
+        # Hourly balance: ON→OFF cleans up offset; flag change is enough for async_process to react
         new_hb_enabled = self.config_entry.data.get(CONF_ENABLE_HOURLY_BALANCE, False)
         if self.hourly_balance_enabled and not new_hb_enabled:
             self.remove_setpoint_offset("hourly_balance")
-            self._hourly_balance_mgr = None
             _LOGGER.info("Hourly Net Balance: DISABLED via hot-reload")
         elif not self.hourly_balance_enabled and new_hb_enabled:
-            _LOGGER.warning(
-                "Hourly Net Balance: enabled — integration reload required to activate sensors"
-            )
+            _LOGGER.info("Hourly Net Balance: ENABLED via hot-reload")
         self.hourly_balance_enabled = new_hb_enabled
 
         _LOGGER.info("PD parameters hot-reloaded: Kp=%.2f, Kd=%.2f, deadband=%d, max_change=%d, hysteresis=%d, min_charge=%d, min_discharge=%d",

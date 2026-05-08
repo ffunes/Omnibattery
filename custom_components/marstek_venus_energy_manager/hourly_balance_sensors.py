@@ -19,7 +19,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the hourly net balance sensor."""
-    if not entry.data.get(CONF_ENABLE_HOURLY_BALANCE, False):
+    if CONF_ENABLE_HOURLY_BALANCE not in entry.data:
         return
 
     controller = hass.data[DOMAIN][entry.entry_id].get("controller")
@@ -45,7 +45,7 @@ class NetBalanceSensor(SensorEntity):
     _attr_translation_key = "balance_neto"
     _attr_native_unit_of_measurement = "kWh"
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:scale-balance"
 
     def __init__(self, entry: ConfigEntry, mgr: HourlyBalanceManager) -> None:

@@ -11,7 +11,6 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, CONF_CAPACITY_PROTECTION_ENABLED, CONF_ENABLE_CHARGE_DELAY, CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY, CONF_MANUAL_MODE_ENABLED, CONF_PREDICTIVE_CHARGING_OVERRIDDEN, CONF_ENABLE_HOURLY_BALANCE
-from .hourly_balance import HourlyBalanceManager
 from .coordinator import MarstekVenusDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -649,11 +648,6 @@ class HourlyBalanceSwitch(SwitchEntity):
 
     async def async_turn_on(self, **kwargs) -> None:
         """Enable hourly balance."""
-        if self.controller._hourly_balance_mgr is None:
-            self.controller._hourly_balance_mgr = HourlyBalanceManager(
-                self.hass, self.entry, self.controller
-            )
-            await self.controller._hourly_balance_mgr.async_setup()
         self.controller.hourly_balance_enabled = True
         new_data = dict(self.entry.data)
         new_data[CONF_ENABLE_HOURLY_BALANCE] = True
