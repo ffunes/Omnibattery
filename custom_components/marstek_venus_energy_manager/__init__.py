@@ -3487,55 +3487,27 @@ class ChargeDischargeController:
         if mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
             if not self.dp_price_discharge_control or not self.price_sensor:
                 return
-            # Short-circuit: if we are inside a selected cheap slot, the slot was
-            # already identified as the cheapest window during evaluation.  Block
-            # discharge unconditionally rather than relying on a floating-point
-            # price comparison that can fail when threshold ≈ current_price (e.g.
-            # CKW sensor exposes only end-of-day slots all at the same price, making
-            # _dp_daily_avg_price == sensor state exactly, so tiny precision
-            # differences between the prices attribute and the entity state flip
-            # current_price > threshold to True and leave the flag unset).
-            # Override bypasses slot-based logic, so skip the short-circuit.
-            if (
-                self._dynamic_pricing_schedule is not None
-                and not self.predictive_charging_overridden
-                and self._is_in_dynamic_pricing_slot()
-            ):
-                self._price_based_discharge_blocked = True
-                _LOGGER.debug(
-                    "Price-based discharge BLOCKED (inside selected DP cheap slot, mode=%s)",
-                    mode,
-                )
-                return
-            # Outside selected slots: same threshold logic as RT — use average_price_sensor
-            # if configured, fall back to max_price_threshold.  Both modes should behave
-            # identically here; the only difference between them is HOW they decide when
-            # to grid-charge (DP: pre-scheduled cheap slots; RT: reactive price crossing).
-            threshold = None
-            if self.average_price_sensor:
-                avg_state = self.hass.states.get(self.average_price_sensor)
-                if avg_state is not None:
-                    try:
-                        threshold = float(avg_state.state)
-                    except (ValueError, TypeError):
-                        pass
-            if threshold is None:
-                threshold = self.max_price_threshold
         elif mode == PREDICTIVE_MODE_REALTIME_PRICE:
             if not self.rt_price_discharge_control or not self.price_sensor:
                 return
-            threshold = None
-            if self.average_price_sensor:
-                avg_state = self.hass.states.get(self.average_price_sensor)
-                if avg_state is not None:
-                    try:
-                        threshold = float(avg_state.state)
-                    except (ValueError, TypeError):
-                        pass
-            if threshold is None:
-                threshold = self.max_price_threshold
         else:
             return
+
+        # Reactive per-cycle threshold check, identical for DP and RT.
+        # DP no longer relies on the pre-scheduled selected_slots for the
+        # discharge decision — the slot list governs grid-charging only.
+        # This eliminates the post-restart and post-midnight blind windows
+        # where _dynamic_pricing_schedule is None.
+        threshold = None
+        if self.average_price_sensor:
+            avg_state = self.hass.states.get(self.average_price_sensor)
+            if avg_state is not None:
+                try:
+                    threshold = float(avg_state.state)
+                except (ValueError, TypeError):
+                    pass
+        if threshold is None:
+            threshold = self.max_price_threshold
 
         if threshold is None:
             return

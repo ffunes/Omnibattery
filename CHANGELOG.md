@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.6] - 2026-05-09
+
+### Changed
+- **Dynamic pricing: discharge block evaluated reactively per cycle, like real-time price mode**: `_apply_price_discharge_block()` no longer uses the pre-scheduled `selected_slots` to decide whether to block discharge. The slot list still governs grid charging (when to actively pull energy from the grid), but the discharge decision now compares `current_price` against the threshold (`average_price_sensor` if configured, otherwise `max_price_threshold`) on every control cycle, identical to real-time price mode. This eliminates two blind windows where the previous slot short-circuit could not fire because `_dynamic_pricing_schedule` was `None`: the ~15 s gap after a Home Assistant restart inside a cheap slot (the schedule lives only in memory and is rebuilt by the startup evaluation), and the 5-minute gap each midnight between Phase 3 daily reset and the 00:05 evaluation. In both gaps the slot-based block silently went unset and a transient sensor reading above `max_price_threshold` (slot-boundary lag, float precision) was enough to let the PD controller initiate discharge against an actually-cheap price. With the change, DP and RT now share the exact same per-cycle discharge logic; the only behavioural difference between the two modes is how they decide when to grid-charge (DP: pre-scheduled cheap slots; RT: reactive price crossing).
+
 ## [1.7.5] - 2026-05-08
 
 ### Added
