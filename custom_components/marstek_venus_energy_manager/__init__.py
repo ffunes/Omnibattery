@@ -1227,6 +1227,12 @@ class ChargeDischargeController:
         energy_balance_unlock_h = self._estimate_energy_balance_unlock_h(
             forecast_today, energy_needed_kwh, self._solar_t_start, t_end, now_h
         )
+        if (
+            energy_balance_unlock_h is not None
+            and energy_balance_unlock_h <= now_h
+            and not energy_insufficient
+        ):
+            energy_balance_unlock_h = None
         if energy_balance_unlock_h is not None:
             est_unlock_h = min(time_backup_unlock_h, energy_balance_unlock_h)
         else:
@@ -1282,14 +1288,14 @@ class ChargeDischargeController:
 
         Returns the estimated hour as float, or None if it cannot be estimated.
         """
-        import math
-
         daylight_hours = t_end - t_start
         if daylight_hours <= 0:
             return None
 
+        # Keep this aligned with _should_delay_charge(): avg_consumption is
+        # measured over the configured consumption window, not daylight hours.
         avg_consumption = self._consumption_tracker.get_avg_daily_consumption()
-        k = avg_consumption / daylight_hours  # kWh consumed per hour
+        window_hours_per_day = self._consumption_tracker.get_consumption_window_hours_per_day()
         threshold = energy_needed_kwh * DELAY_SAFETY_FACTOR
 
         def net_solar_at(t: float) -> float:
@@ -1297,7 +1303,14 @@ class ChargeDischargeController:
             progress = max(0.0, min(1.0, (t - t_start) / daylight_hours))
             fraction_done = (1.0 - math.cos(math.pi * progress)) / 2.0
             remaining_solar = forecast_kwh * (1.0 - fraction_done)
-            remaining_consumption = k * max(0.0, t_end - t)
+            remaining_window_hours = self._consumption_tracker.consumption_window_hours_in_range(
+                t, t_end
+            )
+            remaining_consumption = (
+                avg_consumption * (remaining_window_hours / window_hours_per_day)
+                if window_hours_per_day > 0 and remaining_window_hours > 0
+                else 0.0
+            )
             return remaining_solar - remaining_consumption
 
         # If already below threshold now, return now_h
