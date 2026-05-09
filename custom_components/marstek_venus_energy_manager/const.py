@@ -1998,8 +1998,8 @@ CONFIG_NUMBER_DEFINITIONS = [
     {
         "key": CONF_TARGET_GRID_POWER,
         "name": "PD Target Grid Power",
-        "min": -500,
-        "max": 500,
+        "min": -2500,
+        "max": 2500,
         "step": 10,
         "unit": "W",
         "default": DEFAULT_TARGET_GRID_POWER,

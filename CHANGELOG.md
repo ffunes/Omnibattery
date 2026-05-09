@@ -2,6 +2,8 @@
 
 ## [1.7.6] - 2026-05-08
 
+### Changed
+- **PD Target Grid Power range extended to ±2500 W**: The slider in the setup and options flows (Advanced PD Controller) and the number entity limits now accept values from −2500 W to +2500 W (previously −500 W to +500 W).
 ### Fixed
 - **Multi-battery selection oscillates near the activation threshold**: The previous hysteresis logic only guarded deactivation (removing the last added battery if power dropped slightly below threshold), but had no guard on activation. In practice this caused batteries to rapidly turn on and off when load hovered near the crossover point. Replaced with a symmetric deadband: **Case A** (deactivation) — a previously-active battery dropped by the greedy loop is re-added unless power has fallen clearly below `activation_threshold − hysteresis_gap`; **Case B** (activation) — a newly-added battery is removed again unless power has risen clearly above `activation_threshold + hysteresis_gap`. Both cases cover all batteries in `previous_active`, not just the last one selected.
 - **Charge delay SOC setpoint oscillation**: When the SOC setpoint was enabled and the delay was active, any brief drop below the setpoint (due to home consumption) caused the system to immediately re-enable charging back to the setpoint, creating a charge/block oscillation loop. Fixed by adding a 3 % hysteresis band: once the setpoint has been reached and the delay becomes active, charging to the setpoint only resumes if the SOC falls at least 3 % below the configured setpoint threshold (`_delay_setpoint_reached` flag, reset daily).
