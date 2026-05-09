@@ -109,7 +109,7 @@ La integración detecta que la marca de tiempo del sensor no ha cambiado:
 
 ## Reportar un problema — Sensor de Resumen de Configuración
 
-Al abrir un informe de error o pedir ayuda, es muy útil compartir la configuración actual de la integración. El sensor **Resumen de Configuración** expone toda la configuración como atributos de la entidad.
+Al abrir un informe de error o pedir ayuda, es muy útil compartir la configuración actual de la integración. El sensor **Resumen de Configuración** expone la configuración relevante para soporte como atributos de la entidad: sensores, modelos y límites de batería, franjas horarias, carga predictiva, carga semanal, retraso de carga, protección de capacidad, balance horario, parámetros PD y dispositivos excluidos. Las IPs y puertos de las baterías no se exponen intencionadamente.
 
 **Cómo activarlo:**
 

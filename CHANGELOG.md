@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.6] - 2026-05-09
+
+### Changed
+- **Configuration Summary diagnostic sensor refreshed**: The hidden support sensor now omits battery IP addresses and ports, and adds the configuration that matters for issue triage: household consumption sensor, manual/predictive override state, total configured battery power, backup off-grid thresholds, predictive safety margin, balance monitor, charge-delay SOC setpoint, hourly balance parameters, PD target grid power, and EV charger no-telemetry flags on excluded devices.
+
 ## [1.7.5] - 2026-05-08
 
 ### Added

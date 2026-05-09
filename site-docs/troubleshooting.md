@@ -109,7 +109,7 @@ The integration detects that the sensor's timestamp has not changed:
 
 ## Reporting an issue — Configuration Summary sensor
 
-When opening a bug report or asking for help, it is useful to share the current integration configuration. The **Configuration Summary** sensor exposes the complete setup as entity attributes.
+When opening a bug report or asking for help, it is useful to share the current integration configuration. The **Configuration Summary** sensor exposes the support-relevant setup as entity attributes: sensors, battery models and limits, time slots, predictive charging, weekly charge, charge delay, capacity protection, hourly balance, PD parameters, and excluded devices. Battery IP addresses and ports are intentionally not exposed.
 
 **How to enable it:**
 
