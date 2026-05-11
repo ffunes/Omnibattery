@@ -30,6 +30,9 @@ async def async_setup_entry(
     for coordinator in coordinators:
         for definition in coordinator.switch_definitions:
             entities.append(MarstekVenusSwitch(coordinator, definition))
+        if controller:
+            entities.append(BatteryAllowChargeSwitch(hass, entry, controller, coordinator))
+            entities.append(BatteryAllowDischargeSwitch(hass, entry, controller, coordinator))
 
     # Add manual mode switch (system-level, always present)
     if controller:
@@ -121,6 +124,124 @@ class MarstekVenusSwitch(CoordinatorEntity, SwitchEntity):
             "manufacturer": "Marstek",
             "model": "Venus",
         }
+
+
+class BatteryAllowOperationSwitch(SwitchEntity):
+    """Software switch that allows one battery to participate in one direction."""
+
+    _config_key: str
+    _block_source: str
+    _direction: str
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller, coordinator) -> None:
+        """Initialize the per-battery operation switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        self.coordinator = coordinator
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = self._translation_key
+        self._attr_unique_id = f"{coordinator.host}_{coordinator.port}_{self._translation_key}"
+        self._attr_icon = self._icon
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if this battery is allowed to use this direction."""
+        return bool(getattr(self.coordinator, self._config_key, True))
+
+    def _persist_allowed(self, allowed: bool) -> None:
+        """Persist the per-battery allow flag in config_entry.data."""
+        setattr(self.coordinator, self._config_key, allowed)
+        new_data = dict(self.entry.data)
+        batteries = [dict(b) for b in new_data.get("batteries", [])]
+        for battery in batteries:
+            if (
+                battery.get("host") == self.coordinator.host
+                and battery.get("port") == self.coordinator.port
+            ):
+                battery[self._config_key] = allowed
+                break
+        new_data["batteries"] = batteries
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+
+    async def _stop_if_active(self) -> None:
+        """Stop this battery if it is currently active in the disabled direction."""
+        active = (
+            self.coordinator in self.controller._active_charge_batteries
+            if self._direction == "charge"
+            else self.coordinator in self.controller._active_discharge_batteries
+        )
+        if not active:
+            return
+
+        await self.controller._set_battery_power(self.coordinator, 0, 0)
+        if self.coordinator in self.controller._active_charge_batteries:
+            self.controller._active_charge_batteries.remove(self.coordinator)
+        if self.coordinator in self.controller._active_discharge_batteries:
+            self.controller._active_discharge_batteries.remove(self.coordinator)
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Allow this battery to participate in this direction."""
+        self._persist_allowed(True)
+        if self._direction == "charge":
+            self.controller.remove_charge_block(self._block_source, coordinator=self.coordinator)
+        else:
+            self.controller.remove_discharge_block(self._block_source, coordinator=self.coordinator)
+        _LOGGER.info("%s: %s allowed", self.coordinator.name, self._direction)
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Block this battery from participating in this direction."""
+        self._persist_allowed(False)
+        if self._direction == "charge":
+            self.controller.set_charge_block(
+                self._block_source,
+                "user_disabled",
+                {"battery": self.coordinator.name},
+                coordinator=self.coordinator,
+            )
+        else:
+            self.controller.set_discharge_block(
+                self._block_source,
+                "user_disabled",
+                {"battery": self.coordinator.name},
+                coordinator=self.coordinator,
+            )
+        await self._stop_if_active()
+        _LOGGER.info("%s: %s blocked by user switch", self.coordinator.name, self._direction)
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{self.coordinator.host}_{self.coordinator.port}")},
+            "name": self.coordinator.name,
+            "manufacturer": "Marstek",
+            "model": "Venus",
+        }
+
+
+class BatteryAllowChargeSwitch(BatteryAllowOperationSwitch):
+    """Switch allowing a battery to charge under automatic control."""
+
+    _translation_key = "battery_allow_charge"
+    _config_key = "allow_charge"
+    _block_source = "user_battery_charge_disabled"
+    _direction = "charge"
+    _icon = "mdi:battery-arrow-up"
+
+
+class BatteryAllowDischargeSwitch(BatteryAllowOperationSwitch):
+    """Switch allowing a battery to discharge under automatic control."""
+
+    _translation_key = "battery_allow_discharge"
+    _config_key = "allow_discharge"
+    _block_source = "user_battery_discharge_disabled"
+    _direction = "discharge"
+    _icon = "mdi:battery-arrow-down"
 
 
 class PredictiveChargingSwitch(SwitchEntity):

@@ -176,7 +176,7 @@
         "data_description": {
           "price_integration_type": "Selecciona tu integración de precios de electricidad",
           "price_sensor": "Sensor que proporciona precios horarios de electricidad",
-          "max_price_threshold": "Las horas por encima de este precio no serán seleccionadas. Usa la misma unidad que el sensor: ct/kWh para Nordpool, €/kWh para PVPC, Rp/kWh para CKW. Deja vacío para usar todas las horas.",
+          "max_price_threshold": "Las horas por encima de este precio no serán seleccionadas. Usa la misma unidad que el sensor: €/kWh para Nordpool/PVPC, CHF/kWh para CKW. Deja vacío para usar todas las horas.",
           "dp_price_discharge_control": "Si está activado, la batería solo descarga cuando el precio eléctrico actual supera el precio medio del día (calculado automáticamente a partir del sensor de precios). Si aún no se ha ejecutado la evaluación diaria, se usa el precio máximo configurado como umbral. Si hay franjas de descarga configuradas, ambas condiciones deben cumplirse.",
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente.",
           "max_contracted_power": "Potencia total contratada (ICP) en vatios. El sistema no superará este límite al cargar para evitar que salte el diferencial",
@@ -197,7 +197,7 @@
         },
         "data_description": {
           "price_sensor": "Sensor cuyo estado es el precio eléctrico actual (ej: sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Funciona con cualquier sensor que exponga el precio del periodo actual como su estado.",
-          "max_price_threshold": "La carga se activa cuando el precio actual es igual o inferior a este valor. Usa la misma unidad que tu sensor (ej: €/kWh para PVPC, ct/kWh para Nordpool). Déjalo vacío si usas el sensor de precio medio diario.",
+          "max_price_threshold": "La carga se activa cuando el precio actual es igual o inferior a este valor. Usa la misma unidad que tu sensor (ej: €/kWh para Nordpool/PVPC, CHF/kWh para CKW). Déjalo vacío si usas el sensor de precio medio diario.",
           "average_price_sensor": "Si se configura, su valor se usa como umbral en lugar del valor fijo anterior — útil cuando tu integración de precios ya expone un precio medio diario. Déjalo vacío para usar el umbral fijo.",
           "rt_price_discharge_control": "Si está activado, la batería solo descarga cuando el precio eléctrico actual supera el umbral (fijo o precio medio diario). Si hay franjas de descarga configuradas, ambas condiciones deben cumplirse.",
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente.",
@@ -291,7 +291,10 @@
           "pd_direction_hysteresis": "Histéresis de dirección (W)",
           "pd_min_charge_power": "Potencia mínima de carga (W)",
           "pd_min_discharge_power": "Potencia mínima de descarga (W)",
-          "pd_target_grid_power": "Potencia objetivo de red (W)"
+          "pd_target_grid_power": "Potencia objetivo de red (W)",
+          "enable_system_power_limits": "Activar limites de potencia del sistema",
+          "system_max_charge_power": "Potencia maxima de carga del sistema (W)",
+          "system_max_discharge_power": "Potencia maxima de descarga del sistema (W)"
         },
         "data_description": {
           "pd_kp": "Capacidad de respuesta al desequilibrio de red. Valores más altos = respuesta más rápida pero riesgo de sobreoscilación. Rango: 0.1-2.0, predeterminado: 0.65",
@@ -301,7 +304,10 @@
           "pd_direction_hysteresis": "Umbral de potencia requerido para cambiar entre carga y descarga. Previene cambios rápidos de dirección. Rango: 0-200W, predeterminado: 60W",
           "pd_min_charge_power": "Potencia mínima para cargar. Por debajo de este umbral, el controlador queda en reposo en vez de cargar a baja potencia. 0 = desactivado.",
           "pd_min_discharge_power": "Potencia mínima para descargar. Por debajo de este umbral, el controlador queda en reposo en vez de descargar a baja potencia. 0 = desactivado.",
-          "pd_target_grid_power": "Consigna de potencia de red que regula el controlador. Negativo = exportar a red, positivo = importar de red, 0 = balance neto cero. Rango: -500 a +500 W, valor por defecto: 0 W."
+          "pd_target_grid_power": "Consigna de potencia de red que regula el controlador. Negativo = exportar a red, positivo = importar de red, 0 = balance neto cero. Rango: -500 a +500 W, valor por defecto: 0 W.",
+          "enable_system_power_limits": "Al activarlo, los dos sliders inferiores limitan la potencia combinada de carga/descarga de todas las baterias activas.",
+          "system_max_charge_power": "Limite opcional para la potencia de carga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose.",
+          "system_max_discharge_power": "Limite opcional para la potencia de descarga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose."
         }
       },
       "hourly_balance_config": {
@@ -526,7 +532,7 @@
         "data_description": {
           "price_integration_type": "Selecciona tu integración de precios de electricidad",
           "price_sensor": "Sensor que proporciona precios horarios de electricidad",
-          "max_price_threshold": "Las horas por encima de este precio no serán seleccionadas. Usa la misma unidad que el sensor: ct/kWh para Nordpool, €/kWh para PVPC, Rp/kWh para CKW. Deja vacío para usar todas las horas.",
+          "max_price_threshold": "Las horas por encima de este precio no serán seleccionadas. Usa la misma unidad que el sensor: €/kWh para Nordpool/PVPC, CHF/kWh para CKW. Deja vacío para usar todas las horas.",
           "dp_price_discharge_control": "Si está activado, la batería solo descarga cuando el precio eléctrico actual supera el precio medio del día (calculado automáticamente a partir del sensor de precios). Si aún no se ha ejecutado la evaluación diaria, se usa el precio máximo configurado como umbral. Si hay franjas de descarga configuradas, ambas condiciones deben cumplirse.",
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente.",
           "max_contracted_power": "Potencia total contratada (ICP) en vatios. El sistema no superará este límite al cargar para evitar que salte el diferencial",
@@ -547,7 +553,7 @@
         },
         "data_description": {
           "price_sensor": "Sensor cuyo estado es el precio eléctrico actual (ej: sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Funciona con cualquier sensor que exponga el precio del periodo actual como su estado.",
-          "max_price_threshold": "La carga se activa cuando el precio actual es igual o inferior a este valor. Usa la misma unidad que tu sensor (ej: €/kWh para PVPC, ct/kWh para Nordpool). Déjalo vacío si usas el sensor de precio medio diario.",
+          "max_price_threshold": "La carga se activa cuando el precio actual es igual o inferior a este valor. Usa la misma unidad que tu sensor (ej: €/kWh para Nordpool/PVPC, CHF/kWh para CKW). Déjalo vacío si usas el sensor de precio medio diario.",
           "average_price_sensor": "Si se configura, su valor se usa como umbral en lugar del valor fijo anterior — útil cuando tu integración de precios ya expone un precio medio diario. Déjalo vacío para usar el umbral fijo.",
           "rt_price_discharge_control": "Si está activado, la batería solo descarga cuando el precio eléctrico actual supera el umbral (fijo o precio medio diario). Si hay franjas de descarga configuradas, ambas condiciones deben cumplirse.",
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente.",
@@ -634,7 +640,10 @@
           "pd_direction_hysteresis": "Histéresis de dirección (W)",
           "pd_min_charge_power": "Potencia mínima de carga (W)",
           "pd_min_discharge_power": "Potencia mínima de descarga (W)",
-          "pd_target_grid_power": "Potencia objetivo de red (W)"
+          "pd_target_grid_power": "Potencia objetivo de red (W)",
+          "enable_system_power_limits": "Activar limites de potencia del sistema",
+          "system_max_charge_power": "Potencia maxima de carga del sistema (W)",
+          "system_max_discharge_power": "Potencia maxima de descarga del sistema (W)"
         },
         "data_description": {
           "pd_kp": "Capacidad de respuesta al desequilibrio de red. Valores más altos = respuesta más rápida pero riesgo de sobreoscilación. Rango: 0.1-2.0, predeterminado: 0.65",
@@ -644,7 +653,10 @@
           "pd_direction_hysteresis": "Umbral de potencia requerido para cambiar entre carga y descarga. Previene cambios rápidos de dirección. Rango: 0-200W, predeterminado: 60W",
           "pd_min_charge_power": "Potencia mínima para cargar. Por debajo de este umbral, el controlador queda en reposo en vez de cargar a baja potencia. 0 = desactivado.",
           "pd_min_discharge_power": "Potencia mínima para descargar. Por debajo de este umbral, el controlador queda en reposo en vez de descargar a baja potencia. 0 = desactivado.",
-          "pd_target_grid_power": "Consigna de potencia de red que regula el controlador. Negativo = exportar a red, positivo = importar de red, 0 = balance neto cero. Rango: -500 a +500 W, valor por defecto: 0 W."
+          "pd_target_grid_power": "Consigna de potencia de red que regula el controlador. Negativo = exportar a red, positivo = importar de red, 0 = balance neto cero. Rango: -500 a +500 W, valor por defecto: 0 W.",
+          "enable_system_power_limits": "Al activarlo, los dos sliders inferiores limitan la potencia combinada de carga/descarga de todas las baterias activas.",
+          "system_max_charge_power": "Limite opcional para la potencia de carga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose.",
+          "system_max_discharge_power": "Limite opcional para la potencia de descarga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose."
         }
       },
       "hourly_balance": {
@@ -726,6 +738,12 @@
       },
       "rs485_control_mode": {
         "name": "Modo de Control RS485"
+      },
+      "battery_allow_charge": {
+        "name": "Permitir Carga"
+      },
+      "battery_allow_discharge": {
+        "name": "Permitir Descarga"
       },
       "automation_charging_active": {
         "name": "Carga por Precio Externo"
@@ -1069,6 +1087,12 @@
       },
       "pd_target_grid_power": {
         "name": "PD Potencia Objetivo Red"
+      },
+      "system_max_charge_power": {
+        "name": "Potencia maxima de carga del sistema"
+      },
+      "system_max_discharge_power": {
+        "name": "Potencia maxima de descarga del sistema"
       },
       "max_contracted_power": {
         "name": "Potencia Máxima Contratada"

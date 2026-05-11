@@ -93,6 +93,45 @@ Para evitar el "ping-pong" de activación/desactivación, se aplican tres nivele
 
 Una vez seleccionadas las baterías activas, la potencia total calculada por el [controlador PD](pd-controller.md) se reparte entre ellas proporcionalmente, respetando los límites individuales de potencia y SOC de cada una.
 
+Tambien se pueden configurar limites globales opcionales en **Controlador PD avanzado** tras activar **Activar limites de potencia del sistema**:
+
+| Ajuste | Efecto |
+|---|---|
+| `Potencia maxima de carga del sistema` | Limita la potencia de carga combinada de todas las baterias activas |
+| `Potencia maxima de descarga del sistema` | Limita la potencia de descarga combinada de todas las baterias activas |
+
+Pon cualquiera de los valores a `0 W` para desactivar el cap de esa direccion. Estos limites se aplican despues de determinar que baterias son elegibles y antes de repartir la potencia, de modo que una bateria puede seguir usando todo su limite individual cuando es la unica activa. Si hay varias baterias activas, el total combinado se limita al cap configurado. Las entidades slider de runtime correspondientes solo se crean cuando la funcionalidad esta activada.
+
+## Controles de carga/descarga por batería
+
+Cada batería expone dos switches de software:
+
+| Switch | Efecto |
+|--------|--------|
+| `Permitir Carga` | Si está apagado, esta batería queda excluida de la carga automática. Puede seguir descargando si `Permitir Descarga` está encendido. |
+| `Permitir Descarga` | Si está apagado, esta batería queda excluida de la descarga automática. Puede seguir cargando si `Permitir Carga` está encendido. |
+
+Estos switches no escriben directamente registros Modbus de control. Solo afectan al controlador PD automático de la integración. Si una batería está activa en la dirección desactivada, la integración envía esa batería a `0 W` y el siguiente ciclo de control reasigna la potencia entre las baterías elegibles restantes.
+
+El estado se guarda por batería como `allow_charge` y `allow_discharge`. Si esas claves no existen, se interpretan como activadas, por lo que las instalaciones existentes mantienen su comportamiento tras actualizar.
+
+## Registro unificado de bloqueos
+
+Los permisos de carga y descarga se resuelven mediante un registro runtime de bloqueos. Los bloqueos pueden ser globales o estar asociados a una batería concreta. El controlador consulta este registro antes de las salidas tempranas por banda muerta o sensor sin actualizar, por lo que una consigna activa se detiene en cuanto aparece un bloqueo.
+
+Los bloqueos globales incluyen retraso de carga solar, franjas de carga/descarga, control de descarga por precio y pausas por cargador VE sin telemetría. Los bloqueos por batería incluyen los switches `Permitir Carga` y `Permitir Descarga`, SOC máximo, SOC mínimo e histéresis de carga. Otras comprobaciones de disponibilidad, como exclusión por backup/off-grid y exclusión por falta de respuesta, siguen separadas del registro de bloqueos.
+
+Los atributos superiores `charge_blocked` y `discharge_blocked` muestran el estado efectivo del sistema: pasan a `true` cuando hay un bloqueo global activo o cuando todas las baterías conocidas están bloqueadas en esa dirección. El detalle por batería sigue visible en `battery_charge_blockers` y `battery_discharge_blockers`.
+
+El registro se expone en el sensor diagnóstico `Estado de la Integración` mediante estos atributos:
+
+- `charge_blocked`
+- `discharge_blocked`
+- `charge_blockers`
+- `discharge_blockers`
+- `battery_charge_blockers`
+- `battery_discharge_blockers`
+
 ## Exclusión de baterías sin respuesta
 
 Cuando una batería no entrega la potencia solicitada de forma reiterada — por ejemplo, por un fallo de comunicación Modbus o por una autoprotección del firmware — la integración lo detecta y la retira temporalmente del grupo activo.

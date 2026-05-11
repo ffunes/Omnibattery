@@ -109,7 +109,9 @@ The integration detects that the sensor's timestamp has not changed:
 
 ## Reporting an issue — Configuration Summary sensor
 
-When opening a bug report or asking for help, it is useful to share the current integration configuration. The **Configuration Summary** sensor exposes the support-relevant setup as entity attributes: sensors, battery models and limits, time slots, predictive charging, weekly charge, charge delay, capacity protection, hourly balance, PD parameters, and excluded devices. Battery IP addresses and ports are intentionally not exposed.
+When opening a bug report or asking for help, it is useful to share the current integration configuration. The **Configuration Summary** sensor exposes the support-relevant setup as entity attributes: sensors, battery models and limits, time slots, predictive charging, weekly charge, charge delay, capacity protection, hourly balance, PD parameters, system-wide charge/discharge caps, and excluded devices. Battery IP addresses and ports are intentionally not exposed.
+
+For multi-battery power limits it reports whether the feature is enabled (`system_power_limits_enabled`), the configured per-battery totals (`total_max_charge_power_W`, `total_max_discharge_power_W`), and the effective totals after applying optional system caps (`effective_total_max_charge_power_W`, `effective_total_max_discharge_power_W`).
 
 **How to enable it:**
 

@@ -513,14 +513,13 @@ class HourlyBalanceManager:
         """
         ctrl = self._controller
         if offset > 0:
-            if ctrl.charge_delay_enabled:
-                delay_state = ctrl._charge_delay_status.get("state", "")
-                _delay_not_blocking = {
-                    "Disabled", "Charging allowed", "Skipped - Full Charge Day",
-                    "Charging to setpoint",
-                }
-                if delay_state not in _delay_not_blocking and not delay_state.startswith("Unlocking"):
-                    return "solar_charge_delay"
+            charge_blockers = ctrl.get_charge_blockers()
+            if "charge_delay" in charge_blockers:
+                return "solar_charge_delay"
+            if "time_slot_charge" in charge_blockers:
+                return "time_slot"
+            if "ev_pause" in charge_blockers:
+                return "ev_pause"
             if any(getattr(c, "_hysteresis_active", False) for c in ctrl.coordinators):
                 return "hysteresis"
             with_data = [c for c in ctrl.coordinators if c.data]

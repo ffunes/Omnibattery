@@ -3,14 +3,20 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.components.number import NumberEntity
+from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONFIG_NUMBER_DEFINITIONS
+from .const import (
+    CONFIG_NUMBER_DEFINITIONS,
+    CONF_ENABLE_SYSTEM_POWER_LIMITS,
+    CONF_SYSTEM_MAX_CHARGE_POWER,
+    CONF_SYSTEM_MAX_DISCHARGE_POWER,
+    DOMAIN,
+)
 from .coordinator import MarstekVenusDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,7 +52,19 @@ async def async_setup_entry(
     for definition in CONFIG_NUMBER_DEFINITIONS:
         # Skip conditional entities if their feature has never been configured
         condition = definition.get("condition")
-        if condition and condition not in entry.data:
+        if (
+            condition
+            and condition not in entry.data
+            and condition != CONF_ENABLE_SYSTEM_POWER_LIMITS
+        ):
+            continue
+        condition_enabled = entry.data.get(condition, False)
+        if condition == CONF_ENABLE_SYSTEM_POWER_LIMITS and condition not in entry.data:
+            condition_enabled = (
+                (entry.data.get(CONF_SYSTEM_MAX_CHARGE_POWER, 0) or 0) > 0
+                or (entry.data.get(CONF_SYSTEM_MAX_DISCHARGE_POWER, 0) or 0) > 0
+            )
+        if condition and definition.get("condition_enabled") and not condition_enabled:
             continue
         entities.append(MarstekConfigNumberEntity(hass, entry, definition))
 
@@ -170,6 +188,7 @@ class MarstekConfigNumberEntity(NumberEntity):
         self._attr_native_min_value = definition["min"]
         self._attr_native_max_value = definition["max"]
         self._attr_native_step = definition["step"]
+        self._attr_mode = NumberMode.SLIDER
         self._attr_entity_category = EntityCategory.CONFIG
         self._attr_should_poll = False
         self._scale = definition.get("scale", 1)

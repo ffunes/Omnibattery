@@ -35,10 +35,10 @@ See [Solar charge delay](../features/solar-charge-delay.md) for how it works.
 
 Limits discharge when SOC drops below a threshold, covering only consumption peaks that exceed a configurable power limit.
 
-| Field | Description | Default |
-|---|---|---|
-| **SOC threshold** | Protection activates below this % | `30 %` |
-| **Peak power limit** | Maximum consumption the battery covers; the excess falls to the grid | `2500 W` |
+| Field | Description | Default | Range |
+|---|---|---|---|
+| **SOC threshold** | Protection activates below this % | `30 %` | `20-100 %` |
+| **Peak power limit** | Maximum consumption the battery covers; the excess falls to the grid | `2500 W` | `500-10000 W` |
 
 See [Peak shaving](../features/peak-shaving.md) for how it works.
 
@@ -62,7 +62,14 @@ Allows tuning the internal PD controller parameters. All values can also be adju
 | **Direction hysteresis** | `60 W` | 0 – 200 W | Margin required to switch between charging and discharging |
 | **Min charge power** | `0 W` | 0 – 2000 W | If the controller calculates charge below this value, it stays idle. `0` = disabled |
 | **Min discharge power** | `0 W` | 0 – 2000 W | Same as above but for discharge. `0` = disabled |
+| **Enable system power limits** | `off` | on/off | Enables the system-wide charge/discharge cap feature |
+| **System max charge power** | `0 W` | 0 – 15000 W | Optional cap for the combined charge power of all active batteries. `0` = disabled |
+| **System max discharge power** | `0 W` | 0 – 15000 W | Optional cap for the combined discharge power of all active batteries. `0` = disabled |
 
 The min charge/discharge power parameters are useful to prevent inefficient micro-cycling when grid demand is very low.
+
+The system max charge/discharge caps are useful when the installation has a shared hardware or wiring limit. They do not reduce each battery's individual maximum: if only one battery is active, it can still use its own configured limit; when several batteries are active, the controller throttles the combined total to the configured system cap.
+
+When **Enable system power limits** is off, both caps are ignored and their runtime number entities are not created. When enabled, the caps are exposed as slider entities on the Marstek Venus System device.
 
 ![Advanced PD controller configuration](../assets/screenshots/configuration/advanced-pd-controller-config.png){ width="650"  style="display: block; margin: 0 auto;"}

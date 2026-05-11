@@ -176,7 +176,7 @@
         "data_description": {
           "price_integration_type": "Select your electricity price provider integration",
           "price_sensor": "Sensor providing electricity prices (e.g., sensor.nordpool_kwh_es_eur_3_10_0 for Nordpool, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
-          "max_price_threshold": "Slots above this price will not be selected. Use the same unit as the sensor: ct/kWh for Nordpool, €/kWh for PVPC, Rp/kWh for CKW. Leave empty to use all slots.",
+          "max_price_threshold": "Slots above this price will not be selected. Use the same unit as the sensor: €/kWh for Nordpool/PVPC, CHF/kWh for CKW. Leave empty to use all slots.",
           "dp_price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds today's average price (computed automatically from the price sensor). Falls back to the fixed max price threshold if the daily evaluation has not run yet. If discharge time slots are configured, both conditions must be met.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
           "max_contracted_power": "Total contracted power (ICP) in watts. System won't exceed this limit when charging to avoid tripping the breaker",
@@ -197,7 +197,7 @@
         },
         "data_description": {
           "price_sensor": "Sensor whose state is the current electricity price (e.g. sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Any sensor that exposes the current period price as its state works.",
-          "max_price_threshold": "Charging activates when the current price is at or below this value. Use the same unit as your price sensor (e.g. €/kWh for PVPC, ct/kWh for Nordpool). Leave empty if using the daily average sensor below.",
+          "max_price_threshold": "Charging activates when the current price is at or below this value. Use the same unit as your price sensor (e.g. €/kWh for Nordpool/PVPC, CHF/kWh for CKW). Leave empty if using the daily average sensor below.",
           "average_price_sensor": "If provided, this sensor's state is used as the threshold instead of the fixed value above — useful when your price integration already exposes a daily average. Leave empty to use the fixed threshold.",
           "rt_price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the threshold (fixed or daily average). If discharge time slots are configured, both conditions must be met.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
@@ -282,7 +282,10 @@
           "pd_direction_hysteresis": "Direction Hysteresis (W)",
           "pd_min_charge_power": "Minimum Charge Power (W)",
           "pd_min_discharge_power": "Minimum Discharge Power (W)",
-          "pd_target_grid_power": "Target Grid Power (W)"
+          "pd_target_grid_power": "Target Grid Power (W)",
+          "enable_system_power_limits": "Enable system power limits",
+          "system_max_charge_power": "System Max Charge Power (W)",
+          "system_max_discharge_power": "System Max Discharge Power (W)"
         },
         "data_description": {
           "pd_kp": "Responsiveness to grid imbalance. Higher values = faster response but risk of overshoot. Range: 0.1-2.0, default: 0.65",
@@ -292,7 +295,10 @@
           "pd_direction_hysteresis": "Power threshold required to switch between charging and discharging. Prevents rapid direction changes. Range: 0-200W, default: 60W",
           "pd_min_charge_power": "Minimum power for charging. Below this threshold, the controller stays idle instead of charging at low power. 0 = disabled.",
           "pd_min_discharge_power": "Minimum power for discharging. Below this threshold, the controller stays idle instead of discharging at low power. 0 = disabled.",
-          "pd_target_grid_power": "Grid power setpoint the controller regulates to. Negative = export to grid, positive = import from grid, 0 = net zero. Range: -500 to +500 W, default: 0 W."
+          "pd_target_grid_power": "Grid power setpoint the controller regulates to. Negative = export to grid, positive = import from grid, 0 = net zero. Range: -500 to +500 W, default: 0 W.",
+          "enable_system_power_limits": "When enabled, the two sliders below cap the combined charge/discharge power of all active batteries.",
+          "system_max_charge_power": "Optional cap for combined charge power across all active batteries. 0 = disabled; per-battery limits still apply.",
+          "system_max_discharge_power": "Optional cap for combined discharge power across all active batteries. 0 = disabled; per-battery limits still apply."
         }
       },
       "hourly_balance": {
@@ -524,7 +530,7 @@
         "data_description": {
           "price_integration_type": "Select your electricity price provider integration",
           "price_sensor": "Sensor providing electricity prices (e.g., sensor.nordpool_kwh_es_eur_3_10_0 for Nordpool, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
-          "max_price_threshold": "Slots above this price will not be selected. Use the same unit as the sensor: ct/kWh for Nordpool, €/kWh for PVPC, Rp/kWh for CKW. Leave empty to use all slots.",
+          "max_price_threshold": "Slots above this price will not be selected. Use the same unit as the sensor: €/kWh for Nordpool/PVPC, CHF/kWh for CKW. Leave empty to use all slots.",
           "dp_price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds today's average price (computed automatically from the price sensor). Falls back to the fixed max price threshold if the daily evaluation has not run yet. If discharge time slots are configured, both conditions must be met.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
           "max_contracted_power": "Total contracted power (ICP) in watts. System won't exceed this limit when charging to avoid tripping the breaker",
@@ -545,7 +551,7 @@
         },
         "data_description": {
           "price_sensor": "Sensor whose state is the current electricity price (e.g. sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Any sensor that exposes the current period price as its state works.",
-          "max_price_threshold": "Charging activates when the current price is at or below this value. Use the same unit as your price sensor (e.g. €/kWh for PVPC, ct/kWh for Nordpool). Leave empty if using the daily average sensor below.",
+          "max_price_threshold": "Charging activates when the current price is at or below this value. Use the same unit as your price sensor (e.g. €/kWh for Nordpool/PVPC, CHF/kWh for CKW). Leave empty if using the daily average sensor below.",
           "average_price_sensor": "If provided, this sensor's state is used as the threshold instead of the fixed value above — useful when your price integration already exposes a daily average. Leave empty to use the fixed threshold.",
           "rt_price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the threshold (fixed or daily average). If discharge time slots are configured, both conditions must be met.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
@@ -630,7 +636,10 @@
           "pd_direction_hysteresis": "Direction Hysteresis (W)",
           "pd_min_charge_power": "Minimum Charge Power (W)",
           "pd_min_discharge_power": "Minimum Discharge Power (W)",
-          "pd_target_grid_power": "Target Grid Power (W)"
+          "pd_target_grid_power": "Target Grid Power (W)",
+          "enable_system_power_limits": "Enable system power limits",
+          "system_max_charge_power": "System Max Charge Power (W)",
+          "system_max_discharge_power": "System Max Discharge Power (W)"
         },
         "data_description": {
           "pd_kp": "Responsiveness to grid imbalance. Higher values = faster response but risk of overshoot. Range: 0.1-2.0, default: 0.65",
@@ -640,7 +649,10 @@
           "pd_direction_hysteresis": "Power threshold required to switch between charging and discharging. Prevents rapid direction changes. Range: 0-200W, default: 60W",
           "pd_min_charge_power": "Minimum power for charging. Below this threshold, the controller stays idle instead of charging at low power. 0 = disabled.",
           "pd_min_discharge_power": "Minimum power for discharging. Below this threshold, the controller stays idle instead of discharging at low power. 0 = disabled.",
-          "pd_target_grid_power": "Grid power setpoint the controller regulates to. Negative = export to grid, positive = import from grid, 0 = net zero. Range: -500 to +500 W, default: 0 W."
+          "pd_target_grid_power": "Grid power setpoint the controller regulates to. Negative = export to grid, positive = import from grid, 0 = net zero. Range: -500 to +500 W, default: 0 W.",
+          "enable_system_power_limits": "When enabled, the two sliders below cap the combined charge/discharge power of all active batteries.",
+          "system_max_charge_power": "Optional cap for combined charge power across all active batteries. 0 = disabled; per-battery limits still apply.",
+          "system_max_discharge_power": "Optional cap for combined discharge power across all active batteries. 0 = disabled; per-battery limits still apply."
         }
       },
       "hourly_balance": {
@@ -721,6 +733,12 @@
       },
       "rs485_control_mode": {
         "name": "RS485 Control Mode"
+      },
+      "battery_allow_charge": {
+        "name": "Allow Charge"
+      },
+      "battery_allow_discharge": {
+        "name": "Allow Discharge"
       },
       "automation_charging_active": {
         "name": "External Price Charging"
@@ -1064,6 +1082,12 @@
       },
       "pd_target_grid_power": {
         "name": "PD Target Grid Power"
+      },
+      "system_max_charge_power": {
+        "name": "System Max Charge Power"
+      },
+      "system_max_discharge_power": {
+        "name": "System Max Discharge Power"
       },
       "max_contracted_power": {
         "name": "Max Contracted Power"

@@ -39,6 +39,9 @@ from .const import (
     CONF_PD_MIN_CHARGE_POWER,
     CONF_PD_MIN_DISCHARGE_POWER,
     CONF_TARGET_GRID_POWER,
+    CONF_ENABLE_SYSTEM_POWER_LIMITS,
+    CONF_SYSTEM_MAX_CHARGE_POWER,
+    CONF_SYSTEM_MAX_DISCHARGE_POWER,
     DEFAULT_PD_KP,
     DEFAULT_PD_KD,
     DEFAULT_PD_DEADBAND,
@@ -47,6 +50,8 @@ from .const import (
     DEFAULT_PD_MIN_CHARGE_POWER,
     DEFAULT_PD_MIN_DISCHARGE_POWER,
     DEFAULT_TARGET_GRID_POWER,
+    DEFAULT_SYSTEM_MAX_CHARGE_POWER,
+    DEFAULT_SYSTEM_MAX_DISCHARGE_POWER,
     DEFAULT_DELAY_SAFETY_MARGIN_MIN,
     DEFAULT_DELAY_SOC_SETPOINT_ENABLED,
     DEFAULT_DELAY_SOC_SETPOINT,
@@ -585,7 +590,7 @@ class ConfigurationSummarySensor(SensorEntity):
         attrs = {}
 
         # --- General ---
-        attrs["support_summary_version"] = 2
+        attrs["support_summary_version"] = 3
         attrs["grid_sensor"] = data.get("consumption_sensor")
         attrs["meter_inverted"] = data.get(CONF_METER_INVERTED, False)
         attrs["household_consumption_sensor"] = self._entity_or_not_configured(
@@ -600,12 +605,14 @@ class ConfigurationSummarySensor(SensorEntity):
         batteries = data.get("batteries", [])
         attrs["num_batteries"] = len(batteries)
         attrs["battery_versions"] = self._battery_versions_summary(batteries)
-        attrs["total_max_charge_power_W"] = sum(
+        total_max_charge_power = sum(
             bat.get("max_charge_power", 0) or 0 for bat in batteries
         )
-        attrs["total_max_discharge_power_W"] = sum(
+        total_max_discharge_power = sum(
             bat.get("max_discharge_power", 0) or 0 for bat in batteries
         )
+        attrs["total_max_charge_power_W"] = total_max_charge_power
+        attrs["total_max_discharge_power_W"] = total_max_discharge_power
         for i, bat in enumerate(batteries):
             n = i + 1
             attrs[f"battery_{n}_name"] = bat.get("name")
@@ -748,6 +755,29 @@ class ConfigurationSummarySensor(SensorEntity):
         attrs["pd_direction_hysteresis_W"] = data.get(CONF_PD_DIRECTION_HYSTERESIS, DEFAULT_PD_DIRECTION_HYSTERESIS)
         attrs["pd_min_charge_power_W"] = data.get(CONF_PD_MIN_CHARGE_POWER, DEFAULT_PD_MIN_CHARGE_POWER)
         attrs["pd_min_discharge_power_W"] = data.get(CONF_PD_MIN_DISCHARGE_POWER, DEFAULT_PD_MIN_DISCHARGE_POWER)
+        system_max_charge_power = data.get(
+            CONF_SYSTEM_MAX_CHARGE_POWER,
+            DEFAULT_SYSTEM_MAX_CHARGE_POWER,
+        )
+        system_max_discharge_power = data.get(
+            CONF_SYSTEM_MAX_DISCHARGE_POWER,
+            DEFAULT_SYSTEM_MAX_DISCHARGE_POWER,
+        )
+        enable_system_power_limits = data.get(
+            CONF_ENABLE_SYSTEM_POWER_LIMITS,
+            (system_max_charge_power or 0) > 0 or (system_max_discharge_power or 0) > 0,
+        )
+        attrs["system_power_limits_enabled"] = enable_system_power_limits
+        attrs["system_max_charge_power_W"] = system_max_charge_power
+        attrs["system_max_discharge_power_W"] = system_max_discharge_power
+        attrs["effective_total_max_charge_power_W"] = (
+            min(total_max_charge_power, system_max_charge_power)
+            if enable_system_power_limits and system_max_charge_power else total_max_charge_power
+        )
+        attrs["effective_total_max_discharge_power_W"] = (
+            min(total_max_discharge_power, system_max_discharge_power)
+            if enable_system_power_limits and system_max_discharge_power else total_max_discharge_power
+        )
 
         # --- Excluded devices ---
         excluded = data.get("excluded_devices", [])
@@ -850,13 +880,12 @@ class IntegrationStatusSensor(SensorEntity):
 
     def _ev_charger_state_key(self) -> str | None:
         """Return the integration-status key for no-telemetry EV charger handling."""
-        from homeassistant.util import dt as dt_util
-
         c = self._controller
-        now = dt_util.utcnow()
-        if any(pause_until and now < pause_until for pause_until in c._ev_pause_until.values()):
+        charge_blockers = c.get_charge_blockers()
+        discharge_blockers = c.get_discharge_blockers()
+        if "ev_pause" in charge_blockers or "ev_pause" in discharge_blockers:
             return "ev_charger_pause"
-        if any(c._ev_charging_states.values()):
+        if "ev_charging" in discharge_blockers:
             return "ev_discharge_blocked"
         return None
 
@@ -922,7 +951,8 @@ class IntegrationStatusSensor(SensorEntity):
         if capacity_state:
             return capacity_state
 
-        if c._price_based_discharge_blocked:
+        discharge_blockers = c.get_discharge_blockers()
+        if "price_discharge" in discharge_blockers:
             return "price_discharge_blocked"
 
         hourly_state = self._hourly_balance_state_key()
@@ -933,7 +963,7 @@ class IntegrationStatusSensor(SensorEntity):
             return "backup_mode"
 
         # Priority 6: Outside all configured discharge windows
-        if self._is_outside_discharge_window():
+        if "time_slot_discharge" in discharge_blockers:
             return "no_discharge_slot"
 
         # Priority 7: PD control state from last command
@@ -958,7 +988,21 @@ class IntegrationStatusSensor(SensorEntity):
             "manual_mode_enabled": c.manual_mode_enabled,
             "grid_charging_active": c.grid_charging_active,
             "price_based_discharge_blocked": c._price_based_discharge_blocked,
+            "charge_blocked": c.is_charge_effectively_blocked(),
+            "discharge_blocked": c.is_discharge_effectively_blocked(),
         }
+        charge_blockers = c.get_charge_blockers()
+        if charge_blockers:
+            attrs["charge_blockers"] = charge_blockers
+        discharge_blockers = c.get_discharge_blockers()
+        if discharge_blockers:
+            attrs["discharge_blockers"] = discharge_blockers
+        battery_charge_blockers = c.get_battery_charge_blockers()
+        if battery_charge_blockers:
+            attrs["battery_charge_blockers"] = battery_charge_blockers
+        battery_discharge_blockers = c.get_battery_discharge_blockers()
+        if battery_discharge_blockers:
+            attrs["battery_discharge_blockers"] = battery_discharge_blockers
         offsets = dict(c._setpoint_offsets)
         if offsets:
             attrs["setpoint_offsets"] = offsets

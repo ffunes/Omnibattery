@@ -176,7 +176,7 @@
         "data_description": {
           "price_integration_type": "Selecteer de domoticaintegratie die stroomprijs gegevens levert",
           "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
-          "max_price_threshold": "Tijdsloten boven deze prijs worden niet geselecteerd. Gebruik dezelfde eenheid als de sensor: ct/kWh voor Nordpool, €/kWh voor PVPC, Rp/kWh voor CKW. Leeg laten om alle slots te gebruiken.",
+          "max_price_threshold": "Tijdsloten boven deze prijs worden niet geselecteerd. Gebruik dezelfde eenheid als de sensor: €/kWh voor Nordpool/PVPC, CHF/kWh voor CKW. Leeg laten om alle slots te gebruiken.",
           "dp_price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteits prijs de daggemiddelde prijs overschrijdt (automatisch berekend uit de prijssensor). Valt terug op de vaste maximale prijsdrempel als de dagelijkse evaluatie nog niet is uitgevoerd. Als ontladingstijdsloten zijn geconfigureerd, moeten aan beide voorwaarden worden voldaan.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt.",
           "max_contracted_power": "Totaal gecontracteerd vermogen (ICP) in watt. Het systeem overschrijdt deze limiet niet bij het laden om het uitvallen van de zekering te voorkomen",
@@ -284,7 +284,10 @@
           "pd_direction_hysteresis": "Richting hysterese (W)",
           "pd_min_charge_power": "Minimaal laadvermogen (W)",
           "pd_min_discharge_power": "Minimaal ontlaadvermogen (W)",
-          "pd_target_grid_power": "Doelnetvermogen (W)"
+          "pd_target_grid_power": "Doelnetvermogen (W)",
+          "enable_system_power_limits": "Systeemvermogenslimieten inschakelen",
+          "system_max_charge_power": "Maximaal systeemlaadvermogen (W)",
+          "system_max_discharge_power": "Maximaal systeemontlaadvermogen (W)"
         },
         "data_description": {
           "pd_kp": "Responsiviteit op netwerk onbalans. Hogere waarden = snellere respons maar risico op overshoot. Bereik: 0.1-2.0, standaard: 0.65",
@@ -294,7 +297,10 @@
           "pd_direction_hysteresis": "Vermogensdrempel vereist om te schakelen tussen laden en ontladen. Voorkomt snelle richtingsveranderingen. Bereik: 0-200W, standaard: 60W",
           "pd_min_charge_power": "Minimaal vermogen om te laden. Onder deze drempel blijft de regelaar inactief in plaats van laden op laag vermogen. 0 = uitgeschakeld.",
           "pd_min_discharge_power": "Minimaal vermogen om te ontladen. Onder deze drempel blijft de regelaar inactief in plaats van ontladen op laag vermogen. 0 = uitgeschakeld.",
-          "pd_target_grid_power": "Netvermogen-setpoint waarop de regelaar regelt. Negatief = teruglevering, positief = afname, 0 = netto nul. Bereik: -500 tot +500 W, standaard: 0 W."
+          "pd_target_grid_power": "Netvermogen-setpoint waarop de regelaar regelt. Negatief = teruglevering, positief = afname, 0 = netto nul. Bereik: -500 tot +500 W, standaard: 0 W.",
+          "enable_system_power_limits": "Wanneer ingeschakeld beperken de twee sliders hieronder het gecombineerde laad-/ontlaadvermogen van alle actieve batterijen.",
+          "system_max_charge_power": "Optionele limiet voor gecombineerd laadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden.",
+          "system_max_discharge_power": "Optionele limiet voor gecombineerd ontlaadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden."
         }
       },
       "hourly_balance": {
@@ -526,7 +532,7 @@
         "data_description": {
           "price_integration_type": "Selecteer de domoticaintegratie die stroomprijs gegevens levert",
           "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
-          "max_price_threshold": "Tijdsloten boven deze prijs worden niet geselecteerd. Gebruik dezelfde eenheid als de sensor: ct/kWh voor Nordpool, €/kWh voor PVPC, Rp/kWh voor CKW. Leeg laten om alle slots te gebruiken.",
+          "max_price_threshold": "Tijdsloten boven deze prijs worden niet geselecteerd. Gebruik dezelfde eenheid als de sensor: €/kWh voor Nordpool/PVPC, CHF/kWh voor CKW. Leeg laten om alle slots te gebruiken.",
           "dp_price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteits prijs de daggemiddelde prijs overschrijdt (automatisch berekend uit de prijssensor). Valt terug op de vaste maximale prijsdrempel als de dagelijkse evaluatie nog niet is uitgevoerd. Als ontladingstijdsloten zijn geconfigureerd, moeten aan beide voorwaarden worden voldaan.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt.",
           "max_contracted_power": "Totaal gecontracteerd vermogen (ICP) in watt. Het systeem overschrijdt deze limiet niet bij het laden om het uitvallen van de zekering te voorkomen",
@@ -634,7 +640,10 @@
           "pd_direction_hysteresis": "Richting hysterese (W)",
           "pd_min_charge_power": "Minimaal laadvermogen (W)",
           "pd_min_discharge_power": "Minimaal ontlaadvermogen (W)",
-          "pd_target_grid_power": "Doelnetvermogen (W)"
+          "pd_target_grid_power": "Doelnetvermogen (W)",
+          "enable_system_power_limits": "Systeemvermogenslimieten inschakelen",
+          "system_max_charge_power": "Maximaal systeemlaadvermogen (W)",
+          "system_max_discharge_power": "Maximaal systeemontlaadvermogen (W)"
         },
         "data_description": {
           "pd_kp": "Responsiviteit op netwerk onbalans. Hogere waarden = snellere respons maar risico op overshoot. Bereik: 0.1-2.0, standaard: 0.65",
@@ -644,7 +653,10 @@
           "pd_direction_hysteresis": "Vermogensdrempel vereist om te schakelen tussen laden en ontladen. Voorkomt snelle richtingsveranderingen. Bereik: 0-200W, standaard: 60W",
           "pd_min_charge_power": "Minimaal vermogen om te laden. Onder deze drempel blijft de regelaar inactief in plaats van laden op laag vermogen. 0 = uitgeschakeld.",
           "pd_min_discharge_power": "Minimaal vermogen om te ontladen. Onder deze drempel blijft de regelaar inactief in plaats van ontladen op laag vermogen. 0 = uitgeschakeld.",
-          "pd_target_grid_power": "Netvermogen-setpoint waarop de regelaar regelt. Negatief = teruglevering, positief = afname, 0 = netto nul. Bereik: -500 tot +500 W, standaard: 0 W."
+          "pd_target_grid_power": "Netvermogen-setpoint waarop de regelaar regelt. Negatief = teruglevering, positief = afname, 0 = netto nul. Bereik: -500 tot +500 W, standaard: 0 W.",
+          "enable_system_power_limits": "Wanneer ingeschakeld beperken de twee sliders hieronder het gecombineerde laad-/ontlaadvermogen van alle actieve batterijen.",
+          "system_max_charge_power": "Optionele limiet voor gecombineerd laadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden.",
+          "system_max_discharge_power": "Optionele limiet voor gecombineerd ontlaadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden."
         }
       },
       "hourly_balance": {
@@ -726,6 +738,12 @@
       },
       "rs485_control_mode": {
         "name": "RS485-besturingsmodus"
+      },
+      "battery_allow_charge": {
+        "name": "Laden Toestaan"
+      },
+      "battery_allow_discharge": {
+        "name": "Ontladen Toestaan"
       },
       "automation_charging_active": {
         "name": "Laden op Externe Prijs"
@@ -1069,6 +1087,12 @@
       },
       "pd_target_grid_power": {
         "name": "PD Doelnetvermogen"
+      },
+      "system_max_charge_power": {
+        "name": "Maximaal systeemlaadvermogen"
+      },
+      "system_max_discharge_power": {
+        "name": "Maximaal systeemontlaadvermogen"
       },
       "max_contracted_power": {
         "name": "Max. Gecontracteerd Vermogen"

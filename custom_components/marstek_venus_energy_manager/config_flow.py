@@ -58,6 +58,9 @@ from .const import (
     CONF_PD_MIN_CHARGE_POWER,
     CONF_PD_MIN_DISCHARGE_POWER,
     CONF_TARGET_GRID_POWER,
+    CONF_ENABLE_SYSTEM_POWER_LIMITS,
+    CONF_SYSTEM_MAX_CHARGE_POWER,
+    CONF_SYSTEM_MAX_DISCHARGE_POWER,
     DEFAULT_PD_KP,
     DEFAULT_PD_KD,
     DEFAULT_PD_DEADBAND,
@@ -66,6 +69,9 @@ from .const import (
     DEFAULT_PD_MIN_CHARGE_POWER,
     DEFAULT_PD_MIN_DISCHARGE_POWER,
     DEFAULT_TARGET_GRID_POWER,
+    DEFAULT_ENABLE_SYSTEM_POWER_LIMITS,
+    DEFAULT_SYSTEM_MAX_CHARGE_POWER,
+    DEFAULT_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_CAPACITY_PROTECTION_ENABLED,
     CONF_CAPACITY_PROTECTION_SOC_THRESHOLD,
     CONF_CAPACITY_PROTECTION_LIMIT,
@@ -1027,7 +1033,7 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required("capacity_protection_limit", default=DEFAULT_CAPACITY_PROTECTION_LIMIT):
                         NumberSelector(
                             NumberSelectorConfig(
-                                min=2500, max=8000, step=100,
+                                min=500, max=10000, step=100,
                                 mode=NumberSelectorMode.SLIDER,
                                 unit_of_measurement="W",
                             )
@@ -1158,6 +1164,9 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
                 self.config_data[CONF_PD_MIN_CHARGE_POWER] = DEFAULT_PD_MIN_CHARGE_POWER
                 self.config_data[CONF_PD_MIN_DISCHARGE_POWER] = DEFAULT_PD_MIN_DISCHARGE_POWER
                 self.config_data[CONF_TARGET_GRID_POWER] = DEFAULT_TARGET_GRID_POWER
+                self.config_data[CONF_ENABLE_SYSTEM_POWER_LIMITS] = DEFAULT_ENABLE_SYSTEM_POWER_LIMITS
+                self.config_data[CONF_SYSTEM_MAX_CHARGE_POWER] = DEFAULT_SYSTEM_MAX_CHARGE_POWER
+                self.config_data[CONF_SYSTEM_MAX_DISCHARGE_POWER] = DEFAULT_SYSTEM_MAX_DISCHARGE_POWER
                 return self.async_create_entry(
                     title="Marstek Venus Energy Manager", data=self.config_data
                 )
@@ -1184,6 +1193,16 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
             self.config_data[CONF_PD_MIN_CHARGE_POWER] = user_input["pd_min_charge_power"]
             self.config_data[CONF_PD_MIN_DISCHARGE_POWER] = user_input["pd_min_discharge_power"]
             self.config_data[CONF_TARGET_GRID_POWER] = user_input["pd_target_grid_power"]
+            enable_system_limits = user_input.get("enable_system_power_limits", False)
+            self.config_data[CONF_ENABLE_SYSTEM_POWER_LIMITS] = enable_system_limits
+            self.config_data[CONF_SYSTEM_MAX_CHARGE_POWER] = (
+                user_input["system_max_charge_power"] if enable_system_limits
+                else DEFAULT_SYSTEM_MAX_CHARGE_POWER
+            )
+            self.config_data[CONF_SYSTEM_MAX_DISCHARGE_POWER] = (
+                user_input["system_max_discharge_power"] if enable_system_limits
+                else DEFAULT_SYSTEM_MAX_DISCHARGE_POWER
+            )
             return self.async_create_entry(
                 title="Marstek Venus Energy Manager", data=self.config_data
             )
@@ -1242,6 +1261,23 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
                         NumberSelector(
                             NumberSelectorConfig(
                                 min=-2500, max=2500, step=10,
+                                mode=NumberSelectorMode.SLIDER,
+                                unit_of_measurement="W",
+                            )
+                        ),
+                    vol.Optional("enable_system_power_limits", default=DEFAULT_ENABLE_SYSTEM_POWER_LIMITS): bool,
+                    vol.Optional("system_max_charge_power", default=DEFAULT_SYSTEM_MAX_CHARGE_POWER):
+                        NumberSelector(
+                            NumberSelectorConfig(
+                                min=0, max=15000, step=50,
+                                mode=NumberSelectorMode.SLIDER,
+                                unit_of_measurement="W",
+                            )
+                        ),
+                    vol.Optional("system_max_discharge_power", default=DEFAULT_SYSTEM_MAX_DISCHARGE_POWER):
+                        NumberSelector(
+                            NumberSelectorConfig(
+                                min=0, max=15000, step=50,
                                 mode=NumberSelectorMode.SLIDER,
                                 unit_of_measurement="W",
                             )
@@ -2400,7 +2436,7 @@ class OptionsFlowHandler(OptionsFlow):
                     vol.Required("capacity_protection_limit", default=current_limit):
                         NumberSelector(
                             NumberSelectorConfig(
-                                min=2500, max=8000, step=100,
+                                min=500, max=10000, step=100,
                                 mode=NumberSelectorMode.SLIDER,
                                 unit_of_measurement="W",
                             )
@@ -2545,6 +2581,20 @@ class OptionsFlowHandler(OptionsFlow):
                 self.config_data[CONF_PD_MIN_CHARGE_POWER] = DEFAULT_PD_MIN_CHARGE_POWER
                 self.config_data[CONF_PD_MIN_DISCHARGE_POWER] = DEFAULT_PD_MIN_DISCHARGE_POWER
                 self.config_data[CONF_TARGET_GRID_POWER] = self.config_entry.data.get(CONF_TARGET_GRID_POWER, DEFAULT_TARGET_GRID_POWER)
+                self.config_data[CONF_ENABLE_SYSTEM_POWER_LIMITS] = self.config_entry.data.get(
+                    CONF_ENABLE_SYSTEM_POWER_LIMITS,
+                    DEFAULT_ENABLE_SYSTEM_POWER_LIMITS,
+                )
+                self.config_data[CONF_SYSTEM_MAX_CHARGE_POWER] = (
+                    self.config_entry.data.get(CONF_SYSTEM_MAX_CHARGE_POWER, DEFAULT_SYSTEM_MAX_CHARGE_POWER)
+                    if self.config_data[CONF_ENABLE_SYSTEM_POWER_LIMITS]
+                    else DEFAULT_SYSTEM_MAX_CHARGE_POWER
+                )
+                self.config_data[CONF_SYSTEM_MAX_DISCHARGE_POWER] = (
+                    self.config_entry.data.get(CONF_SYSTEM_MAX_DISCHARGE_POWER, DEFAULT_SYSTEM_MAX_DISCHARGE_POWER)
+                    if self.config_data[CONF_ENABLE_SYSTEM_POWER_LIMITS]
+                    else DEFAULT_SYSTEM_MAX_DISCHARGE_POWER
+                )
                 return await self._save_and_finish()
 
         # Check if PD parameters were previously configured (non-default values)
@@ -2556,7 +2606,10 @@ class OptionsFlowHandler(OptionsFlow):
             self.config_entry.data.get(CONF_PD_DIRECTION_HYSTERESIS, DEFAULT_PD_DIRECTION_HYSTERESIS) != DEFAULT_PD_DIRECTION_HYSTERESIS or
             self.config_entry.data.get(CONF_PD_MIN_CHARGE_POWER, DEFAULT_PD_MIN_CHARGE_POWER) != DEFAULT_PD_MIN_CHARGE_POWER or
             self.config_entry.data.get(CONF_PD_MIN_DISCHARGE_POWER, DEFAULT_PD_MIN_DISCHARGE_POWER) != DEFAULT_PD_MIN_DISCHARGE_POWER or
-            self.config_entry.data.get(CONF_TARGET_GRID_POWER, DEFAULT_TARGET_GRID_POWER) != DEFAULT_TARGET_GRID_POWER
+            self.config_entry.data.get(CONF_TARGET_GRID_POWER, DEFAULT_TARGET_GRID_POWER) != DEFAULT_TARGET_GRID_POWER or
+            self.config_entry.data.get(CONF_ENABLE_SYSTEM_POWER_LIMITS, DEFAULT_ENABLE_SYSTEM_POWER_LIMITS) != DEFAULT_ENABLE_SYSTEM_POWER_LIMITS or
+            self.config_entry.data.get(CONF_SYSTEM_MAX_CHARGE_POWER, DEFAULT_SYSTEM_MAX_CHARGE_POWER) != DEFAULT_SYSTEM_MAX_CHARGE_POWER or
+            self.config_entry.data.get(CONF_SYSTEM_MAX_DISCHARGE_POWER, DEFAULT_SYSTEM_MAX_DISCHARGE_POWER) != DEFAULT_SYSTEM_MAX_DISCHARGE_POWER
         )
 
         return self.async_show_form(
@@ -2586,6 +2639,16 @@ class OptionsFlowHandler(OptionsFlow):
             self.config_data[CONF_PD_MIN_CHARGE_POWER] = user_input["pd_min_charge_power"]
             self.config_data[CONF_PD_MIN_DISCHARGE_POWER] = user_input["pd_min_discharge_power"]
             self.config_data[CONF_TARGET_GRID_POWER] = user_input["pd_target_grid_power"]
+            enable_system_limits = user_input.get("enable_system_power_limits", False)
+            self.config_data[CONF_ENABLE_SYSTEM_POWER_LIMITS] = enable_system_limits
+            self.config_data[CONF_SYSTEM_MAX_CHARGE_POWER] = (
+                user_input["system_max_charge_power"] if enable_system_limits
+                else DEFAULT_SYSTEM_MAX_CHARGE_POWER
+            )
+            self.config_data[CONF_SYSTEM_MAX_DISCHARGE_POWER] = (
+                user_input["system_max_discharge_power"] if enable_system_limits
+                else DEFAULT_SYSTEM_MAX_DISCHARGE_POWER
+            )
             return await self._save_and_finish()
 
         # Load existing configuration with defaults
@@ -2598,6 +2661,12 @@ class OptionsFlowHandler(OptionsFlow):
         current_min_charge = existing_config.get(CONF_PD_MIN_CHARGE_POWER, DEFAULT_PD_MIN_CHARGE_POWER)
         current_min_discharge = existing_config.get(CONF_PD_MIN_DISCHARGE_POWER, DEFAULT_PD_MIN_DISCHARGE_POWER)
         current_target_grid_power = existing_config.get(CONF_TARGET_GRID_POWER, DEFAULT_TARGET_GRID_POWER)
+        current_system_max_charge = existing_config.get(CONF_SYSTEM_MAX_CHARGE_POWER, DEFAULT_SYSTEM_MAX_CHARGE_POWER)
+        current_system_max_discharge = existing_config.get(CONF_SYSTEM_MAX_DISCHARGE_POWER, DEFAULT_SYSTEM_MAX_DISCHARGE_POWER)
+        current_enable_system_limits = existing_config.get(
+            CONF_ENABLE_SYSTEM_POWER_LIMITS,
+            (current_system_max_charge or 0) > 0 or (current_system_max_discharge or 0) > 0,
+        )
 
         # Show form
         return self.async_show_form(
@@ -2658,6 +2727,23 @@ class OptionsFlowHandler(OptionsFlow):
                                 unit_of_measurement="W",
                             )
                         ),
+                    vol.Optional("enable_system_power_limits", default=current_enable_system_limits): bool,
+                    vol.Optional("system_max_charge_power", default=current_system_max_charge):
+                        NumberSelector(
+                            NumberSelectorConfig(
+                                min=0, max=15000, step=50,
+                                mode=NumberSelectorMode.SLIDER,
+                                unit_of_measurement="W",
+                            )
+                        ),
+                    vol.Optional("system_max_discharge_power", default=current_system_max_discharge):
+                        NumberSelector(
+                            NumberSelectorConfig(
+                                min=0, max=15000, step=50,
+                                mode=NumberSelectorMode.SLIDER,
+                                unit_of_measurement="W",
+                            )
+                        ),
                 }
             ),
             description_placeholders={
@@ -2669,7 +2755,8 @@ class OptionsFlowHandler(OptionsFlow):
                     "**Direction Hysteresis**: Power threshold (W) required to switch between charging and discharging. Prevents rapid direction changes.\n\n"
                     "**Min Charge Power**: Minimum power for charging. Below this, the controller stays idle. 0 = disabled.\n\n"
                     "**Min Discharge Power**: Minimum power for discharging. Below this, the controller stays idle. 0 = disabled.\n\n"
-                    "**Target Grid Power**: Grid power setpoint (W) the controller regulates to. Negative = export to grid, positive = import from grid, 0 = net zero."
+                    "**Target Grid Power**: Grid power setpoint (W) the controller regulates to. Negative = export to grid, positive = import from grid, 0 = net zero.\n\n"
+                    "**System Max Charge/Discharge Power**: Optional combined battery power caps. 0 = disabled; per-battery limits still apply."
                 )
             },
         )

@@ -58,6 +58,8 @@ Solo presentes cuando el [monitor de equilibrio de celdas](../features/cell-bala
 | `number.*_min_soc` | SOC mínimo | 0–100 % |
 | `number.*_max_charge_power` | Potencia máx. de carga | W |
 | `number.*_max_discharge_power` | Potencia máx. de descarga | W |
+| `number.marstek_venus_system_system_max_charge_power` | Limite opcional de carga combinada para todo el sistema (`0 W` = desactivado). Solo se crea cuando los limites de sistema estan activados. | 0–15000 W |
+| `number.marstek_venus_system_system_max_discharge_power` | Limite opcional de descarga combinada para todo el sistema (`0 W` = desactivado). Solo se crea cuando los limites de sistema estan activados. | 0–15000 W |
 
 ## Selectores
 
@@ -70,6 +72,8 @@ Solo presentes cuando el [monitor de equilibrio de celdas](../features/cell-bala
 | Entidad | Descripción |
 |---|---|
 | `switch.*_rs485_control` | Modo control RS485 |
+| `switch.*_allow_charge` | Control de software que permite que esta batería participe en la carga automática |
+| `switch.*_allow_discharge` | Control de software que permite que esta batería participe en la descarga automática |
 | `switch.*_backup_function` | Función de reserva — cuando está activo **y** la potencia AC offgrid ≠ 0 W, la batería queda excluida del control PD (no se envían comandos de escritura) |
 | `switch.marstek_venus_system_override_predictive_charging` | Cancelar carga predictiva |
 
@@ -100,6 +104,17 @@ Solo presentes cuando el [monitor de equilibrio de celdas](../features/cell-bala
 | `Manual Mode` | Modo manual activo — la integración no envía comandos automáticos |
 | `Initializing` | Primer ciclo del controlador aún no completado |
 
+El sensor también expone diagnósticos del registro de bloqueos como atributos:
+
+| Atributo | Descripción |
+|---|---|
+| `charge_blocked` | `true` cuando la carga está bloqueada de forma efectiva en todo el sistema, por un bloqueo global o porque todas las baterías conocidas tienen la carga bloqueada |
+| `discharge_blocked` | `true` cuando la descarga está bloqueada de forma efectiva en todo el sistema, por un bloqueo global o porque todas las baterías conocidas tienen la descarga bloqueada |
+| `charge_blockers` | Bloqueos globales de carga activos con motivo, detalles y marca temporal |
+| `discharge_blockers` | Bloqueos globales de descarga activos con motivo, detalles y marca temporal |
+| `battery_charge_blockers` | Bloqueos de carga activos por batería, agrupados por batería, incluyendo permitir carga, SOC máximo e histéresis de carga |
+| `battery_discharge_blockers` | Bloqueos de descarga activos por batería, agrupados por batería, incluyendo permitir descarga y SOC mínimo |
+
 ### Sensores agregados
 
 Disponibles bajo el prefijo `sensor.marstek_venus_system_*`, suman los valores de todas las baterías:
@@ -111,5 +126,21 @@ Disponibles bajo el prefijo `sensor.marstek_venus_system_*`, suman los valores d
 - `grid_at_min_soc` — Importación de red durante periodos en SOC mínimo (kWh)
 - `system_alarm_status` — Estado de alarma agregado de todas las baterías (`OK` / `Warning` / `Fault`); los atributos listan las condiciones activas por batería
 - `household_energy_today` — Consumo energético del hogar acumulado hoy a partir del sensor de potencia opcional, durante la franja solar+batería (kWh). Solo presente cuando hay un sensor de consumo del hogar configurado. Se reinicia a medianoche.
+
+### Resumen de Configuracion
+
+`sensor.marstek_venus_system_configuration_summary` es un sensor diagnostico oculto pensado para informes de soporte. Expone atributos de configuracion sin direcciones IP ni puertos de las baterias.
+
+Los atributos relevantes para limites de potencia son:
+
+| Atributo | Descripcion |
+|---|---|
+| `total_max_charge_power_W` | Suma de los limites de carga configurados por bateria |
+| `total_max_discharge_power_W` | Suma de los limites de descarga configurados por bateria |
+| `system_power_limits_enabled` | Indica si los caps globales de potencia estan activados |
+| `system_max_charge_power_W` | Limite global de carga configurado (`0` = desactivado) |
+| `system_max_discharge_power_W` | Limite global de descarga configurado (`0` = desactivado) |
+| `effective_total_max_charge_power_W` | Capacidad total de carga tras aplicar el limite global |
+| `effective_total_max_discharge_power_W` | Capacidad total de descarga tras aplicar el limite global |
 
 ![Lista de entidades en Home Assistant](../assets/screenshots/reference/entities-list.png){ width="700"  style="display: block; margin: 0 auto;"}

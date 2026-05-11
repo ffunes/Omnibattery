@@ -109,7 +109,9 @@ La integración detecta que la marca de tiempo del sensor no ha cambiado:
 
 ## Reportar un problema — Sensor de Resumen de Configuración
 
-Al abrir un informe de error o pedir ayuda, es muy útil compartir la configuración actual de la integración. El sensor **Resumen de Configuración** expone la configuración relevante para soporte como atributos de la entidad: sensores, modelos y límites de batería, franjas horarias, carga predictiva, carga semanal, retraso de carga, protección de capacidad, balance horario, parámetros PD y dispositivos excluidos. Las IPs y puertos de las baterías no se exponen intencionadamente.
+Al abrir un informe de error o pedir ayuda, es muy útil compartir la configuración actual de la integración. El sensor **Resumen de Configuración** expone la configuración relevante para soporte como atributos de la entidad: sensores, modelos y límites de batería, franjas horarias, carga predictiva, carga semanal, retraso de carga, protección de capacidad, balance horario, parámetros PD, limites globales de carga/descarga y dispositivos excluidos. Las IPs y puertos de las baterías no se exponen intencionadamente.
+
+Para limites de potencia multi-bateria informa si la funcionalidad esta activada (`system_power_limits_enabled`), los totales configurados por bateria (`total_max_charge_power_W`, `total_max_discharge_power_W`) y los totales efectivos tras aplicar caps opcionales de sistema (`effective_total_max_charge_power_W`, `effective_total_max_discharge_power_W`).
 
 **Cómo activarlo:**
 

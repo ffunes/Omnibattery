@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.0] - 2026-05-10
+
+### Added
+- **Unified charge/discharge blocker registry**: The PD controller now uses explicit runtime blocker registries for charge and discharge decisions. Blockers can be global (system-wide) or scoped to an individual battery, and are exposed on the **Integration Status** diagnostic sensor via `charge_blockers`, `discharge_blockers`, `battery_charge_blockers`, and `battery_discharge_blockers`. Existing restrictions such as charge delay, time slots, price-based discharge control, EV charger no-telemetry handling, and per-battery user blocks now share the same decision path.
+- **Per-battery Allow Charge / Allow Discharge switches**: Each battery now exposes two software controls to include or exclude it from automatic PD charging or discharging independently. The switches persist in the config entry as `allow_charge` and `allow_discharge`, default to enabled for existing installations, and do not write Modbus registers directly. Disabling a direction stops that battery if it is currently active and lets the next PD cycle reallocate power to the remaining eligible batteries.
+- **System-wide charge/discharge power caps**: Advanced PD Controller settings now include an `Enable system power limits` checkbox plus optional `System Max Charge Power` and `System Max Discharge Power` sliders. With the checkbox off, the previous behavior is kept and the runtime slider entities are not created; with it on, any positive cap limits the combined power across active batteries while still allowing an individual battery to use its own full limit when the rest of the system is idle. The Configuration Summary sensor reports whether the feature is enabled plus both configured totals and effective capped totals for support diagnostics.
+
+### Changed
+- **Peak shaving peak limit range extended**: The peak limit selector in setup/options and the runtime number entity now accepts `500 W` to `10000 W` in `100 W` steps.
+- **PD blocker enforcement before deadband and stale-sensor early returns**: Active charge/discharge commands are now stopped immediately when a matching global or per-battery blocker appears, even if the grid sensor is inside deadband or has not updated. This prevents stale commands from continuing after a feature or user switch has blocked that direction.
+- **SOC limits and charge hysteresis are now visible in the blocker registry**: Per-battery charge blocking caused by configured maximum SOC or active charge hysteresis is now recorded in `battery_charge_blockers`, and discharge blocking caused by minimum SOC is recorded in `battery_discharge_blockers`. The top-level `charge_blocked` and `discharge_blocked` attributes on Integration Status report the effective system state, so they become `true` when every known battery is blocked in that direction, even if the reason is per-battery rather than global.
+- **Hourly net balance uses the charge blocker registry for block reasons**: Positive hourly-balance compensation now reads the unified charge blockers for reasons such as solar charge delay, charge time-slot restriction, or EV pause, while keeping its existing local checks for charge hysteresis and max SOC.
+
+### Fixed
+- **Peak shaving conserving mode no longer sends discharge commands below the peak limit**: When SOC is below the peak-shaving threshold but the estimated house load is still below the configured peak limit, the controller now targets the current grid level and immediately stops any existing discharge command. This prevents the battery from trying to discharge during normal consumption and being incorrectly marked as non-responsive.
+- **Dynamic-price unit guidance and CKW parser compatibility**: Setup/options help text now asks for thresholds in the real sensor scale (`€/kWh` for Nordpool/PVPC, `CHF/kWh` for CKW), avoiding the old cent/Rappen guidance. The CKW slot parser also accepts CKW-derived entries that expose the total price as `value` or `integrated` in addition to `price`, without converting from Rappen.
+- **CKW price-based discharge block in Dynamic Pricing**: The discharge blocker no longer reads CKW's all-prices sensor state as the current price. That sensor may expose the number of slots (for example `96`) as its state and the real 15-minute prices in the `prices` attribute, so the blocker now derives the active slot price from `prices`. Dynamic Pricing also uses the daily slot average as the discharge threshold when no explicit average-price sensor is configured.
+
 ## [1.7.6] - 2026-05-09
 
 ### Changed

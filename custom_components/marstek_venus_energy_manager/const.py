@@ -1893,6 +1893,9 @@ CONF_PD_DIRECTION_HYSTERESIS = "pd_controller_direction_hysteresis"
 CONF_PD_MIN_CHARGE_POWER = "pd_min_charge_power"
 CONF_PD_MIN_DISCHARGE_POWER = "pd_min_discharge_power"
 CONF_TARGET_GRID_POWER = "pd_target_grid_power"
+CONF_ENABLE_SYSTEM_POWER_LIMITS = "enable_system_power_limits"
+CONF_SYSTEM_MAX_CHARGE_POWER = "system_max_charge_power"
+CONF_SYSTEM_MAX_DISCHARGE_POWER = "system_max_discharge_power"
 
 # Default PD Controller Parameters
 DEFAULT_PD_KP = 0.65
@@ -1903,6 +1906,9 @@ DEFAULT_PD_DIRECTION_HYSTERESIS = 60
 DEFAULT_PD_MIN_CHARGE_POWER = 0       # Minimum charge power (0 = disabled)
 DEFAULT_PD_MIN_DISCHARGE_POWER = 0    # Minimum discharge power (0 = disabled)
 DEFAULT_TARGET_GRID_POWER = 0
+DEFAULT_ENABLE_SYSTEM_POWER_LIMITS = False
+DEFAULT_SYSTEM_MAX_CHARGE_POWER = 0       # 0 = disabled
+DEFAULT_SYSTEM_MAX_DISCHARGE_POWER = 0    # 0 = disabled
 
 # Legacy alias so existing __init__.py imports don't break during transition
 DEFAULT_SLOT_TARGET_GRID_POWER = DEFAULT_TARGET_GRID_POWER
@@ -2008,6 +2014,30 @@ CONFIG_NUMBER_DEFINITIONS = [
         "icon": "mdi:transmission-tower-export",
     },
     {
+        "key": CONF_SYSTEM_MAX_CHARGE_POWER,
+        "name": "System Max Charge Power",
+        "min": 0,
+        "max": 15000,
+        "step": 50,
+        "unit": "W",
+        "default": DEFAULT_SYSTEM_MAX_CHARGE_POWER,
+        "icon": "mdi:battery-arrow-up-outline",
+        "condition": CONF_ENABLE_SYSTEM_POWER_LIMITS,
+        "condition_enabled": True,
+    },
+    {
+        "key": CONF_SYSTEM_MAX_DISCHARGE_POWER,
+        "name": "System Max Discharge Power",
+        "min": 0,
+        "max": 15000,
+        "step": 50,
+        "unit": "W",
+        "default": DEFAULT_SYSTEM_MAX_DISCHARGE_POWER,
+        "icon": "mdi:battery-arrow-down-outline",
+        "condition": CONF_ENABLE_SYSTEM_POWER_LIMITS,
+        "condition_enabled": True,
+    },
+    {
         "key": CONF_MAX_CONTRACTED_POWER,
         "name": "Max Contracted Power",
         "min": 1000,
@@ -2055,8 +2085,8 @@ CONFIG_NUMBER_DEFINITIONS = [
     {
         "key": CONF_CAPACITY_PROTECTION_LIMIT,
         "name": "Capacity Protection Peak Limit",
-        "min": 2500,
-        "max": 8000,
+        "min": 500,
+        "max": 10000,
         "step": 100,
         "unit": "W",
         "default": DEFAULT_CAPACITY_PROTECTION_LIMIT,
