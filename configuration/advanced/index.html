@@ -1614,6 +1614,7 @@
 <th>Field</th>
 <th>Description</th>
 <th>Default</th>
+<th>Range</th>
 </tr>
 </thead>
 <tbody>
@@ -1621,11 +1622,13 @@
 <td><strong>SOC threshold</strong></td>
 <td>Protection activates below this %</td>
 <td><code>30 %</code></td>
+<td><code>20-100 %</code></td>
 </tr>
 <tr>
 <td><strong>Peak power limit</strong></td>
 <td>Maximum consumption the battery covers; the excess falls to the grid</td>
 <td><code>2500 W</code></td>
+<td><code>500-10000 W</code></td>
 </tr>
 </tbody>
 </table>
@@ -1690,9 +1693,29 @@
 <td>0 – 2000 W</td>
 <td>Same as above but for discharge. <code>0</code> = disabled</td>
 </tr>
+<tr>
+<td><strong>Enable system power limits</strong></td>
+<td><code>off</code></td>
+<td>on/off</td>
+<td>Enables the system-wide charge/discharge cap feature</td>
+</tr>
+<tr>
+<td><strong>System max charge power</strong></td>
+<td><code>0 W</code></td>
+<td>0 – 15000 W</td>
+<td>Optional cap for the combined charge power of all active batteries. <code>0</code> = disabled</td>
+</tr>
+<tr>
+<td><strong>System max discharge power</strong></td>
+<td><code>0 W</code></td>
+<td>0 – 15000 W</td>
+<td>Optional cap for the combined discharge power of all active batteries. <code>0</code> = disabled</td>
+</tr>
 </tbody>
 </table>
 <p>The min charge/discharge power parameters are useful to prevent inefficient micro-cycling when grid demand is very low.</p>
+<p>The system max charge/discharge caps are useful when the installation has a shared hardware or wiring limit. They do not reduce each battery's individual maximum: if only one battery is active, it can still use its own configured limit; when several batteries are active, the controller throttles the combined total to the configured system cap.</p>
+<p>When <strong>Enable system power limits</strong> is off, both caps are ignored and their runtime number entities are not created. When enabled, the caps are exposed as slider entities on the Marstek Venus System device.</p>
 <p><img alt="Advanced PD controller configuration" src="../../assets/screenshots/configuration/advanced-pd-controller-config.png" style="display: block; margin: 0 auto;" width="650" /></p>
 
 

@@ -1119,6 +1119,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#controles-de-cargadescarga-por-bateria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Controles de carga/descarga por batería
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registro-unificado-de-bloqueos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registro unificado de bloqueos
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#exclusion-de-baterias-sin-respuesta" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1615,6 +1637,28 @@
     <span class="md-ellipsis">
       
         Distribución de potencia
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#controles-de-cargadescarga-por-bateria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Controles de carga/descarga por batería
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#registro-unificado-de-bloqueos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registro unificado de bloqueos
       
     </span>
   </a>
@@ -2141,6 +2185,61 @@
 </table>
 <h2 id="distribucion-de-potencia">Distribución de potencia<a class="headerlink" href="#distribucion-de-potencia" title="Permanent link">&para;</a></h2>
 <p>Una vez seleccionadas las baterías activas, la potencia total calculada por el <a href="../pd-controller/">controlador PD</a> se reparte entre ellas proporcionalmente, respetando los límites individuales de potencia y SOC de cada una.</p>
+<p>Tambien se pueden configurar limites globales opcionales en <strong>Controlador PD avanzado</strong> tras activar <strong>Activar limites de potencia del sistema</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Ajuste</th>
+<th>Efecto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Potencia maxima de carga del sistema</code></td>
+<td>Limita la potencia de carga combinada de todas las baterias activas</td>
+</tr>
+<tr>
+<td><code>Potencia maxima de descarga del sistema</code></td>
+<td>Limita la potencia de descarga combinada de todas las baterias activas</td>
+</tr>
+</tbody>
+</table>
+<p>Pon cualquiera de los valores a <code>0 W</code> para desactivar el cap de esa direccion. Estos limites se aplican despues de determinar que baterias son elegibles y antes de repartir la potencia, de modo que una bateria puede seguir usando todo su limite individual cuando es la unica activa. Si hay varias baterias activas, el total combinado se limita al cap configurado. Las entidades slider de runtime correspondientes solo se crean cuando la funcionalidad esta activada.</p>
+<h2 id="controles-de-cargadescarga-por-bateria">Controles de carga/descarga por batería<a class="headerlink" href="#controles-de-cargadescarga-por-bateria" title="Permanent link">&para;</a></h2>
+<p>Cada batería expone dos switches de software:</p>
+<table>
+<thead>
+<tr>
+<th>Switch</th>
+<th>Efecto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Permitir Carga</code></td>
+<td>Si está apagado, esta batería queda excluida de la carga automática. Puede seguir descargando si <code>Permitir Descarga</code> está encendido.</td>
+</tr>
+<tr>
+<td><code>Permitir Descarga</code></td>
+<td>Si está apagado, esta batería queda excluida de la descarga automática. Puede seguir cargando si <code>Permitir Carga</code> está encendido.</td>
+</tr>
+</tbody>
+</table>
+<p>Estos switches no escriben directamente registros Modbus de control. Solo afectan al controlador PD automático de la integración. Si una batería está activa en la dirección desactivada, la integración envía esa batería a <code>0 W</code> y el siguiente ciclo de control reasigna la potencia entre las baterías elegibles restantes.</p>
+<p>El estado se guarda por batería como <code>allow_charge</code> y <code>allow_discharge</code>. Si esas claves no existen, se interpretan como activadas, por lo que las instalaciones existentes mantienen su comportamiento tras actualizar.</p>
+<h2 id="registro-unificado-de-bloqueos">Registro unificado de bloqueos<a class="headerlink" href="#registro-unificado-de-bloqueos" title="Permanent link">&para;</a></h2>
+<p>Los permisos de carga y descarga se resuelven mediante un registro runtime de bloqueos. Los bloqueos pueden ser globales o estar asociados a una batería concreta. El controlador consulta este registro antes de las salidas tempranas por banda muerta o sensor sin actualizar, por lo que una consigna activa se detiene en cuanto aparece un bloqueo.</p>
+<p>Los bloqueos globales incluyen retraso de carga solar, franjas de carga/descarga, control de descarga por precio y pausas por cargador VE sin telemetría. Los bloqueos por batería incluyen los switches <code>Permitir Carga</code> y <code>Permitir Descarga</code>, SOC máximo, SOC mínimo e histéresis de carga. Otras comprobaciones de disponibilidad, como exclusión por backup/off-grid y exclusión por falta de respuesta, siguen separadas del registro de bloqueos.</p>
+<p>Los atributos superiores <code>charge_blocked</code> y <code>discharge_blocked</code> muestran el estado efectivo del sistema: pasan a <code>true</code> cuando hay un bloqueo global activo o cuando todas las baterías conocidas están bloqueadas en esa dirección. El detalle por batería sigue visible en <code>battery_charge_blockers</code> y <code>battery_discharge_blockers</code>.</p>
+<p>El registro se expone en el sensor diagnóstico <code>Estado de la Integración</code> mediante estos atributos:</p>
+<ul>
+<li><code>charge_blocked</code></li>
+<li><code>discharge_blocked</code></li>
+<li><code>charge_blockers</code></li>
+<li><code>discharge_blockers</code></li>
+<li><code>battery_charge_blockers</code></li>
+<li><code>battery_discharge_blockers</code></li>
+</ul>
 <h2 id="exclusion-de-baterias-sin-respuesta">Exclusión de baterías sin respuesta<a class="headerlink" href="#exclusion-de-baterias-sin-respuesta" title="Permanent link">&para;</a></h2>
 <p>Cuando una batería no entrega la potencia solicitada de forma reiterada — por ejemplo, por un fallo de comunicación Modbus o por una autoprotección del firmware — la integración lo detecta y la retira temporalmente del grupo activo.</p>
 <p>Una batería se marca como sin respuesta cuando su potencia entregada es inferior al 5 % de la consigna durante <strong>3 ciclos de control consecutivos</strong>. Una vez marcada, entra en una <strong>ventana de exclusión de 5 minutos</strong> durante la cual no recibe nuevas consignas y las baterías restantes absorben su parte de la carga. Al expirar la ventana, el contador de fallos se reinicia y la batería vuelve a ser elegible.</p>

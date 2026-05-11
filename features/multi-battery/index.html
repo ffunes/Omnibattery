@@ -1119,6 +1119,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#per-battery-chargedischarge-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-battery charge/discharge controls
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unified-blocker-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unified blocker registry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#non-responsive-battery-exclusion" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1615,6 +1637,28 @@
     <span class="md-ellipsis">
       
         Power distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-battery-chargedischarge-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-battery charge/discharge controls
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unified-blocker-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unified blocker registry
       
     </span>
   </a>
@@ -2141,6 +2185,61 @@
 </table>
 <h2 id="power-distribution">Power distribution<a class="headerlink" href="#power-distribution" title="Permanent link">&para;</a></h2>
 <p>Once active batteries are selected, the total power calculated by the <a href="../pd-controller/">PD controller</a> is distributed among them proportionally, respecting each battery's individual power and SOC limits.</p>
+<p>Optional system-wide caps can also be configured in <strong>Advanced PD controller</strong> after enabling <strong>Enable system power limits</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>System Max Charge Power</code></td>
+<td>Caps the combined charge power across all active batteries</td>
+</tr>
+<tr>
+<td><code>System Max Discharge Power</code></td>
+<td>Caps the combined discharge power across all active batteries</td>
+</tr>
+</tbody>
+</table>
+<p>Set either value to <code>0 W</code> to disable that direction's cap. These limits are applied after per-battery eligibility is determined and before power is distributed, so one battery can still use its full individual limit when it is the only active battery. If several batteries are active, the combined total is throttled to the configured system cap. The corresponding runtime slider entities are only created when the feature is enabled.</p>
+<h2 id="per-battery-chargedischarge-controls">Per-battery charge/discharge controls<a class="headerlink" href="#per-battery-chargedischarge-controls" title="Permanent link">&para;</a></h2>
+<p>Each battery exposes two software switches:</p>
+<table>
+<thead>
+<tr>
+<th>Switch</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Allow Charge</code></td>
+<td>When turned off, this battery is excluded from automatic charging. It may still discharge if <code>Allow Discharge</code> is turned on.</td>
+</tr>
+<tr>
+<td><code>Allow Discharge</code></td>
+<td>When turned off, this battery is excluded from automatic discharging. It may still charge if <code>Allow Charge</code> is turned on.</td>
+</tr>
+</tbody>
+</table>
+<p>These switches do not write Modbus control registers directly. They only affect the integration's automatic PD controller. If a battery is active in the disabled direction, the integration sends that battery to <code>0 W</code> and the next control cycle reallocates power to the remaining eligible batteries.</p>
+<p>The state is stored per battery as <code>allow_charge</code> and <code>allow_discharge</code>. Missing values default to enabled, so existing installations keep their previous behavior after updating.</p>
+<h2 id="unified-blocker-registry">Unified blocker registry<a class="headerlink" href="#unified-blocker-registry" title="Permanent link">&para;</a></h2>
+<p>Charge and discharge permissions are resolved through a runtime blocker registry. Blockers can be system-wide or scoped to one battery. The controller checks this registry before deadband and stale-sensor early returns, so an active command is stopped as soon as a blocker appears.</p>
+<p>Global blockers include solar charge delay, charge/discharge time slots, price-based discharge control, and EV charger no-telemetry pauses. Per-battery blockers include the <code>Allow Charge</code> and <code>Allow Discharge</code> switches, maximum SOC, minimum SOC, and charge hysteresis. Other availability checks such as backup/off-grid exclusion and non-responsive exclusion remain separate from the blocker registry.</p>
+<p>The top-level <code>charge_blocked</code> and <code>discharge_blocked</code> attributes report the effective system state: they become <code>true</code> when a global blocker is active or when every known battery is blocked in that direction. Per-battery details remain visible in <code>battery_charge_blockers</code> and <code>battery_discharge_blockers</code>.</p>
+<p>The registry is exposed on the <code>Integration Status</code> diagnostic sensor through these attributes:</p>
+<ul>
+<li><code>charge_blocked</code></li>
+<li><code>discharge_blocked</code></li>
+<li><code>charge_blockers</code></li>
+<li><code>discharge_blockers</code></li>
+<li><code>battery_charge_blockers</code></li>
+<li><code>battery_discharge_blockers</code></li>
+</ul>
 <h2 id="non-responsive-battery-exclusion">Non-responsive battery exclusion<a class="headerlink" href="#non-responsive-battery-exclusion" title="Permanent link">&para;</a></h2>
 <p>When a battery consistently fails to deliver the commanded power — for example due to a Modbus communication glitch or a firmware self-protection response — the integration detects this and temporarily removes it from the active pool.</p>
 <p>A battery is flagged as non-responsive when its measured output is below 5% of the commanded setpoint for <strong>3 consecutive control cycles</strong>. Once flagged, it enters a <strong>5-minute exclusion window</strong> during which it receives no new commands and the remaining batteries absorb its share of the load. After the window expires the fail counter resets and the battery becomes eligible again.</p>

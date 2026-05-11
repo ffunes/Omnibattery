@@ -1481,6 +1481,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#configuration-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration Summary
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1698,6 +1709,17 @@
     <span class="md-ellipsis">
       
         Aggregate sensors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration Summary
       
     </span>
   </a>
@@ -1968,6 +1990,16 @@
 <td>W</td>
 </tr>
 <tr>
+<td><code>number.marstek_venus_system_system_max_charge_power</code></td>
+<td>Optional combined charge cap for the whole system (<code>0 W</code> = disabled). Only created when system power limits are enabled.</td>
+<td>0–15000 W</td>
+</tr>
+<tr>
+<td><code>number.marstek_venus_system_system_max_discharge_power</code></td>
+<td>Optional combined discharge cap for the whole system (<code>0 W</code> = disabled). Only created when system power limits are enabled.</td>
+<td>0–15000 W</td>
+</tr>
+<tr>
 <td><code>number.*_max_soc</code></td>
 <td>Maximum SOC</td>
 <td>0–100 %</td>
@@ -2016,6 +2048,14 @@
 <tr>
 <td><code>switch.*_rs485_control</code></td>
 <td>RS485 control mode</td>
+</tr>
+<tr>
+<td><code>switch.*_allow_charge</code></td>
+<td>Software control that allows this battery to participate in automatic charging</td>
+</tr>
+<tr>
+<td><code>switch.*_allow_discharge</code></td>
+<td>Software control that allows this battery to participate in automatic discharging</td>
 </tr>
 <tr>
 <td><code>switch.*_backup_function</code></td>
@@ -2103,6 +2143,41 @@
 </tr>
 </tbody>
 </table>
+<p>The sensor also exposes blocker diagnostics as attributes:</p>
+<table>
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>charge_blocked</code></td>
+<td><code>true</code> when charge is effectively blocked system-wide, either by a global blocker or because every known battery is charge-blocked</td>
+</tr>
+<tr>
+<td><code>discharge_blocked</code></td>
+<td><code>true</code> when discharge is effectively blocked system-wide, either by a global blocker or because every known battery is discharge-blocked</td>
+</tr>
+<tr>
+<td><code>charge_blockers</code></td>
+<td>Active system-wide charge blockers with reason, details, and timestamp</td>
+</tr>
+<tr>
+<td><code>discharge_blockers</code></td>
+<td>Active system-wide discharge blockers with reason, details, and timestamp</td>
+</tr>
+<tr>
+<td><code>battery_charge_blockers</code></td>
+<td>Active per-battery charge blockers grouped by battery, including manual allow-charge, maximum SOC, and charge hysteresis</td>
+</tr>
+<tr>
+<td><code>battery_discharge_blockers</code></td>
+<td>Active per-battery discharge blockers grouped by battery, including manual allow-discharge and minimum SOC</td>
+</tr>
+</tbody>
+</table>
 <h3 id="aggregate-sensors">Aggregate sensors<a class="headerlink" href="#aggregate-sensors" title="Permanent link">&para;</a></h3>
 <p>Available under the <code>sensor.marstek_venus_system_*</code> prefix, summing values across all batteries:</p>
 <ul>
@@ -2121,6 +2196,47 @@
 <li><code>system_alarm_status</code> — Aggregated alarm state across all batteries (<code>OK</code> / <code>Warning</code> / <code>Fault</code>); attributes list active conditions per battery</li>
 <li><code>household_energy_today</code> — Today's household energy consumption accumulated from the optional household power sensor, during the solar+battery window (kWh). Only present when a household consumption sensor is configured. Resets at midnight.</li>
 </ul>
+<h3 id="configuration-summary">Configuration Summary<a class="headerlink" href="#configuration-summary" title="Permanent link">&para;</a></h3>
+<p><code>sensor.marstek_venus_system_configuration_summary</code> is a hidden diagnostic sensor intended for support reports. It exposes configuration attributes without battery IP addresses or ports.</p>
+<p>Relevant power-limit attributes include:</p>
+<table>
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>total_max_charge_power_W</code></td>
+<td>Sum of configured per-battery charge limits</td>
+</tr>
+<tr>
+<td><code>total_max_discharge_power_W</code></td>
+<td>Sum of configured per-battery discharge limits</td>
+</tr>
+<tr>
+<td><code>system_power_limits_enabled</code></td>
+<td>Whether system-wide power caps are enabled</td>
+</tr>
+<tr>
+<td><code>system_max_charge_power_W</code></td>
+<td>Configured system-wide charge cap (<code>0</code> = disabled)</td>
+</tr>
+<tr>
+<td><code>system_max_discharge_power_W</code></td>
+<td>Configured system-wide discharge cap (<code>0</code> = disabled)</td>
+</tr>
+<tr>
+<td><code>effective_total_max_charge_power_W</code></td>
+<td>Total charge capacity after applying the system cap</td>
+</tr>
+<tr>
+<td><code>effective_total_max_discharge_power_W</code></td>
+<td>Total discharge capacity after applying the system cap</td>
+</tr>
+</tbody>
+</table>
 <p><img alt="Entity list in Home Assistant" src="../assets/screenshots/reference/entities-list.png" style="display: block; margin: 0 auto;" width="700" /></p>
 
 

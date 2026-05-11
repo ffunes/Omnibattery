@@ -1614,6 +1614,7 @@
 <th>Campo</th>
 <th>Descripción</th>
 <th>Por defecto</th>
+<th>Rango</th>
 </tr>
 </thead>
 <tbody>
@@ -1621,11 +1622,13 @@
 <td><strong>Umbral de SOC</strong></td>
 <td>Por debajo de este % la protección se activa</td>
 <td><code>30 %</code></td>
+<td><code>20-100 %</code></td>
 </tr>
 <tr>
 <td><strong>Límite de potencia de pico</strong></td>
 <td>Consumo máximo que la batería cubre; el exceso va a la red</td>
 <td><code>2500 W</code></td>
+<td><code>500-10000 W</code></td>
 </tr>
 </tbody>
 </table>
@@ -1690,9 +1693,29 @@
 <td>0 – 2000 W</td>
 <td>Igual que el anterior pero para descarga. <code>0</code> = desactivado</td>
 </tr>
+<tr>
+<td><strong>Activar limites de potencia del sistema</strong></td>
+<td>desactivado</td>
+<td>activado/desactivado</td>
+<td>Activa la funcionalidad de limite global de carga/descarga</td>
+</tr>
+<tr>
+<td><strong>Potencia maxima de carga del sistema</strong></td>
+<td><code>0 W</code></td>
+<td>0 – 15000 W</td>
+<td>Limite opcional para la potencia de carga combinada de todas las baterias activas. <code>0</code> = desactivado</td>
+</tr>
+<tr>
+<td><strong>Potencia maxima de descarga del sistema</strong></td>
+<td><code>0 W</code></td>
+<td>0 – 15000 W</td>
+<td>Limite opcional para la potencia de descarga combinada de todas las baterias activas. <code>0</code> = desactivado</td>
+</tr>
 </tbody>
 </table>
 <p>Los parámetros de potencia mínima de carga/descarga son útiles para evitar microciclos ineficientes cuando la demanda de la red es muy baja.</p>
+<p>Los limites maximos del sistema son utiles cuando la instalacion tiene un limite compartido de hardware o cableado. No reducen el maximo individual de cada bateria: si solo una bateria esta activa, puede seguir usando su limite configurado; cuando hay varias baterias activas, el controlador limita el total combinado al cap configurado.</p>
+<p>Cuando <strong>Activar limites de potencia del sistema</strong> esta desactivado, ambos caps se ignoran y no se crean sus entidades <code>number</code> de runtime. Cuando esta activado, los caps se exponen como sliders en el dispositivo Marstek Venus System.</p>
 <p><img alt="Configuración avanzada del controlador PD" src="../../../assets/screenshots/configuration/advanced-pd-controller-config.png" style="display: block; margin: 0 auto;" width="650" /></p>
 
 

@@ -1481,6 +1481,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#resumen-de-configuracion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resumen de Configuracion
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1698,6 +1709,17 @@
     <span class="md-ellipsis">
       
         Sensores agregados
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resumen-de-configuracion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resumen de Configuracion
       
     </span>
   </a>
@@ -1935,6 +1957,16 @@
 <td>Potencia máx. de descarga</td>
 <td>W</td>
 </tr>
+<tr>
+<td><code>number.marstek_venus_system_system_max_charge_power</code></td>
+<td>Limite opcional de carga combinada para todo el sistema (<code>0 W</code> = desactivado). Solo se crea cuando los limites de sistema estan activados.</td>
+<td>0–15000 W</td>
+</tr>
+<tr>
+<td><code>number.marstek_venus_system_system_max_discharge_power</code></td>
+<td>Limite opcional de descarga combinada para todo el sistema (<code>0 W</code> = desactivado). Solo se crea cuando los limites de sistema estan activados.</td>
+<td>0–15000 W</td>
+</tr>
 </tbody>
 </table>
 <h2 id="selectores">Selectores<a class="headerlink" href="#selectores" title="Permanent link">&para;</a></h2>
@@ -1964,6 +1996,14 @@
 <tr>
 <td><code>switch.*_rs485_control</code></td>
 <td>Modo control RS485</td>
+</tr>
+<tr>
+<td><code>switch.*_allow_charge</code></td>
+<td>Control de software que permite que esta batería participe en la carga automática</td>
+</tr>
+<tr>
+<td><code>switch.*_allow_discharge</code></td>
+<td>Control de software que permite que esta batería participe en la descarga automática</td>
 </tr>
 <tr>
 <td><code>switch.*_backup_function</code></td>
@@ -2051,6 +2091,41 @@
 </tr>
 </tbody>
 </table>
+<p>El sensor también expone diagnósticos del registro de bloqueos como atributos:</p>
+<table>
+<thead>
+<tr>
+<th>Atributo</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>charge_blocked</code></td>
+<td><code>true</code> cuando la carga está bloqueada de forma efectiva en todo el sistema, por un bloqueo global o porque todas las baterías conocidas tienen la carga bloqueada</td>
+</tr>
+<tr>
+<td><code>discharge_blocked</code></td>
+<td><code>true</code> cuando la descarga está bloqueada de forma efectiva en todo el sistema, por un bloqueo global o porque todas las baterías conocidas tienen la descarga bloqueada</td>
+</tr>
+<tr>
+<td><code>charge_blockers</code></td>
+<td>Bloqueos globales de carga activos con motivo, detalles y marca temporal</td>
+</tr>
+<tr>
+<td><code>discharge_blockers</code></td>
+<td>Bloqueos globales de descarga activos con motivo, detalles y marca temporal</td>
+</tr>
+<tr>
+<td><code>battery_charge_blockers</code></td>
+<td>Bloqueos de carga activos por batería, agrupados por batería, incluyendo permitir carga, SOC máximo e histéresis de carga</td>
+</tr>
+<tr>
+<td><code>battery_discharge_blockers</code></td>
+<td>Bloqueos de descarga activos por batería, agrupados por batería, incluyendo permitir descarga y SOC mínimo</td>
+</tr>
+</tbody>
+</table>
 <h3 id="sensores-agregados">Sensores agregados<a class="headerlink" href="#sensores-agregados" title="Permanent link">&para;</a></h3>
 <p>Disponibles bajo el prefijo <code>sensor.marstek_venus_system_*</code>, suman los valores de todas las baterías:</p>
 <ul>
@@ -2062,6 +2137,47 @@
 <li><code>system_alarm_status</code> — Estado de alarma agregado de todas las baterías (<code>OK</code> / <code>Warning</code> / <code>Fault</code>); los atributos listan las condiciones activas por batería</li>
 <li><code>household_energy_today</code> — Consumo energético del hogar acumulado hoy a partir del sensor de potencia opcional, durante la franja solar+batería (kWh). Solo presente cuando hay un sensor de consumo del hogar configurado. Se reinicia a medianoche.</li>
 </ul>
+<h3 id="resumen-de-configuracion">Resumen de Configuracion<a class="headerlink" href="#resumen-de-configuracion" title="Permanent link">&para;</a></h3>
+<p><code>sensor.marstek_venus_system_configuration_summary</code> es un sensor diagnostico oculto pensado para informes de soporte. Expone atributos de configuracion sin direcciones IP ni puertos de las baterias.</p>
+<p>Los atributos relevantes para limites de potencia son:</p>
+<table>
+<thead>
+<tr>
+<th>Atributo</th>
+<th>Descripcion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>total_max_charge_power_W</code></td>
+<td>Suma de los limites de carga configurados por bateria</td>
+</tr>
+<tr>
+<td><code>total_max_discharge_power_W</code></td>
+<td>Suma de los limites de descarga configurados por bateria</td>
+</tr>
+<tr>
+<td><code>system_power_limits_enabled</code></td>
+<td>Indica si los caps globales de potencia estan activados</td>
+</tr>
+<tr>
+<td><code>system_max_charge_power_W</code></td>
+<td>Limite global de carga configurado (<code>0</code> = desactivado)</td>
+</tr>
+<tr>
+<td><code>system_max_discharge_power_W</code></td>
+<td>Limite global de descarga configurado (<code>0</code> = desactivado)</td>
+</tr>
+<tr>
+<td><code>effective_total_max_charge_power_W</code></td>
+<td>Capacidad total de carga tras aplicar el limite global</td>
+</tr>
+<tr>
+<td><code>effective_total_max_discharge_power_W</code></td>
+<td>Capacidad total de descarga tras aplicar el limite global</td>
+</tr>
+</tbody>
+</table>
 <p><img alt="Lista de entidades en Home Assistant" src="../assets/screenshots/reference/entities-list.png" style="display: block; margin: 0 auto;" width="700" /></p>
 
 
