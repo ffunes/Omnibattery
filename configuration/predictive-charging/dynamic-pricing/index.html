@@ -942,17 +942,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fallback-threshold" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Fallback threshold
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#interaction-with-time-slots" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1654,17 +1643,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fallback-threshold" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Fallback threshold
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#interaction-with-time-slots" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1754,14 +1732,14 @@
 </tr>
 <tr>
 <td><strong>Max price threshold</strong></td>
-<td>(Optional) Price ceiling; does not charge even during "cheap" hours if the price exceeds this value</td>
+<td>(Optional) Price ceiling; does not charge even during "cheap" hours if the price exceeds this value. Also used as the discharge threshold when price-based discharge control is enabled</td>
 </tr>
 <tr>
 <td><strong>Contracted grid power (ICP)</strong></td>
 <td>Grid limit used to calculate required charging duration</td>
 </tr>
 <tr>
-<td><strong>Only discharge when price exceeds daily average</strong></td>
+<td><strong>Only discharge when price is above threshold</strong></td>
 <td>(Optional) Price-gated discharge — see below</td>
 </tr>
 </tbody>
@@ -1782,23 +1760,26 @@
 <p>If HA restarts after the 00:05 window without a prior evaluation, the controller runs an automatic evaluation at startup (after 15 seconds) considering only the remaining slots of the current day.</p>
 <hr />
 <h2 id="price-based-discharge-control">Price-based discharge control<a class="headerlink" href="#price-based-discharge-control" title="Permanent link">&para;</a></h2>
-<p>The <strong>"Only discharge when price exceeds daily average"</strong> option adds an extra condition to discharge behaviour.</p>
+<p>The <strong>"Only discharge when price is above threshold"</strong> option adds an extra condition to discharge behaviour.</p>
 <p>When active, <strong>every controller cycle (~2.5 s)</strong> checks whether the current price allows discharge:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>If current_price &gt; daily_average_price:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>If current_price &gt; threshold:
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    → Discharge allowed (PD controller operates normally)
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>If current_price ≤ daily_average_price:
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>If current_price &lt;= threshold:
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    → Discharge BLOCKED (battery holds)
 </code></pre></div>
-<p>The daily average price is calculated automatically during the 00:05 evaluation from the hourly price profile. The goal is to preserve battery energy for the most expensive hours of the day.</p>
-<h3 id="fallback-threshold">Fallback threshold<a class="headerlink" href="#fallback-threshold" title="Permanent link">&para;</a></h3>
-<p>If the 00:05 evaluation has not yet run (e.g. HA just restarted before midnight), the threshold automatically falls back to the configured <strong>max price threshold</strong>. If no fixed threshold is configured either, discharge control does not act.</p>
+<p>The threshold is resolved as follows:</p>
+<ol>
+<li>If <strong>Max price threshold</strong> is configured, that value is used.</li>
+<li>If <strong>Max price threshold</strong> is empty, the daily average price is used.</li>
+</ol>
+<p>The daily average price is calculated automatically during the 00:05 evaluation from the hourly price profile. The goal is to preserve battery energy for the most expensive hours of the day. If no fixed threshold is configured and the daily average is not available yet, discharge control does not act.</p>
 <h3 id="interaction-with-time-slots">Interaction with time slots<a class="headerlink" href="#interaction-with-time-slots" title="Permanent link">&para;</a></h3>
 <p>If discharge time slots are configured, <strong>both conditions must be met</strong> for the battery to discharge:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Discharge allowed = within_time_slot AND current_price &gt; daily_average
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Discharge allowed = within_time_slot AND current_price &gt; threshold
 </code></pre></div>
 <p>Outside the slot the battery never discharges. Inside the slot, it only discharges when the price is high enough.</p>
 <h3 id="effect-on-the-pd-controller">Effect on the PD controller<a class="headerlink" href="#effect-on-the-pd-controller" title="Permanent link">&para;</a></h3>
-<p>When discharge is blocked by price, the controller completely freezes its state (power to 0, no derivative term update), the same as during a time slot restriction. The battery resumes smoothly as soon as the price exceeds the average again.</p>
+<p>When discharge is blocked by price, the controller completely freezes its state (power to 0, no derivative term update), the same as during a time slot restriction. The battery resumes smoothly as soon as the price exceeds the active threshold again.</p>
 <hr />
 <h2 id="diagnostic-attributes">Diagnostic attributes<a class="headerlink" href="#diagnostic-attributes" title="Permanent link">&para;</a></h2>
 <p>The <code>predictive_charging_active</code> binary sensor exposes:</p>
