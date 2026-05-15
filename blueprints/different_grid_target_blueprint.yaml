@@ -19,7 +19,7 @@ blueprint:
       selector:
         entity:
           filter:
-            domain: sensor
+            domain: number
 
     discharge_power_sensor:
       name: "System Discharge Power Sensor"
@@ -28,7 +28,7 @@ blueprint:
       selector:
         entity:
           filter:
-            domain: sensor
+            domain: number
 
     target_grid_power_number:
       name: "PD Target Grid Power Number"
