@@ -1674,12 +1674,12 @@
 </thead>
 <tbody>
 <tr>
-<td><strong>Price sensor</strong></td>
+<td><strong>Electricity price sensor</strong></td>
 <td>Any HA sensor with the current period price (PVPC, Nordpool, CKW…)</td>
 </tr>
 <tr>
-<td><strong>Fixed price threshold</strong></td>
-<td>Price below which grid charging activates</td>
+<td><strong>Maximum price threshold (€)</strong></td>
+<td>(Optional) Price below which grid charging activates</td>
 </tr>
 <tr>
 <td><strong>Daily average price sensor</strong></td>
@@ -1688,6 +1688,14 @@
 <tr>
 <td><strong>Only discharge when price exceeds threshold</strong></td>
 <td>(Optional) Price-gated discharge — see below</td>
+</tr>
+<tr>
+<td><strong>Maximum contracted power ICP (W)</strong></td>
+<td>Maximum power when charging to avoid tripping the breaker (default 7000 W)</td>
+</tr>
+<tr>
+<td><strong>Solar forecast safety margin (kWh)</strong></td>
+<td>Extra energy buffer added to the consumption forecast before deciding whether to charge (default 0 kWh)</td>
 </tr>
 </tbody>
 </table>
@@ -1705,7 +1713,7 @@
 <p>The threshold is resolved in this priority order:</p>
 <ol>
 <li><strong>Daily average price sensor</strong> — if configured and available, its value is the dynamic threshold.</li>
-<li><strong>Fixed price threshold</strong> — static numeric value configured in the setup flow.</li>
+<li><strong>Maximum price threshold</strong> — static numeric value configured in the setup flow.</li>
 </ol>
 <p>If neither is available, the mode does not act.</p>
 <hr />

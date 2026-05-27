@@ -1598,6 +1598,27 @@
 <hr />
 <h2 id="weekly-full-charge">Weekly full charge<a class="headerlink" href="#weekly-full-charge" title="Permanent link">&para;</a></h2>
 <p>Forces a <strong>100% charge once a week</strong> for cell balancing. You only need to select the day of the week.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Day of the week</strong></td>
+<td>On this day the battery will charge to 100% for cell balancing</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Enable cell balance monitor</strong></td>
+<td>If checked active cell balancing will be activated (this can be <em>slow</em>)</td>
+<td>Disabled</td>
+</tr>
+</tbody>
+</table>
 <p>See <a href="../../features/weekly-full-charge/">Weekly full charge</a> for how it works.</p>
 <p><img alt="Weekly full charge configuration" src="../../assets/screenshots/configuration/advanced-weekly-full-charge-config.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <hr />
@@ -1613,13 +1634,23 @@
 </thead>
 <tbody>
 <tr>
-<td><strong>Safety margin</strong></td>
-<td>Minutes before sunset by which charging must be complete</td>
-<td>60 min</td>
+<td><strong>Safety margin (h)</strong></td>
+<td>Hours before sunset by which charging must be complete</td>
+<td>1 h</td>
 </tr>
 <tr>
 <td><strong>Solar forecast sensor</strong></td>
 <td>Only if not configured in the initial setup step</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Enable minimum SOC before delay</strong></td>
+<td>if enabled battery will charge to configured SOC before solar charge delay</td>
+<td>Disabled</td>
+</tr>
+<tr>
+<td><strong>Minimum SOC (%)</strong></td>
+<td>Battery SOC to reach before solar charge delay kicks in</td>
 <td>—</td>
 </tr>
 </tbody>
@@ -1641,13 +1672,13 @@
 </thead>
 <tbody>
 <tr>
-<td><strong>SOC threshold</strong></td>
+<td><strong>SOC threshold (%)</strong></td>
 <td>Protection activates below this %</td>
 <td><code>30 %</code></td>
 <td><code>20-100 %</code></td>
 </tr>
 <tr>
-<td><strong>Peak power limit</strong></td>
+<td><strong>Peak limit (W)</strong></td>
 <td>Maximum consumption the battery covers; the excess falls to the grid</td>
 <td><code>2500 W</code></td>
 <td><code>500-10000 W</code></td>

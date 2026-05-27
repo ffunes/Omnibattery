@@ -1712,6 +1712,8 @@
 <li><strong>Nordpool</strong></li>
 <li><strong>PVPC</strong> (ESIOS REE, Spain)</li>
 <li><strong>CKW</strong> (Switzerland)</li>
+<li><strong>EPEX Spot</strong> (e.g. aWATTar)</li>
+<li><strong>ENTSO-e</strong> (Trnasparency Platform)</li>
 </ul>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <table>
@@ -1724,23 +1726,27 @@
 <tbody>
 <tr>
 <td><strong>Price integration type</strong></td>
-<td>Nordpool / PVPC / CKW</td>
+<td>Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e</td>
 </tr>
 <tr>
-<td><strong>Price sensor</strong></td>
+<td><strong>Electricity price sensor</strong></td>
 <td>HA entity with the current price (and hourly forecast attributes)</td>
 </tr>
 <tr>
-<td><strong>Max price threshold</strong></td>
+<td><strong>Max price threshold (€)</strong></td>
 <td>(Optional) Price ceiling; does not charge even during "cheap" hours if the price exceeds this value. Also used as the discharge threshold when price-based discharge control is enabled</td>
 </tr>
 <tr>
-<td><strong>Contracted grid power (ICP)</strong></td>
+<td><strong>Maximum contracted grid power ICP (W)</strong></td>
 <td>Grid limit used to calculate required charging duration</td>
 </tr>
 <tr>
 <td><strong>Only discharge when price is above threshold</strong></td>
 <td>(Optional) Price-gated discharge — see below</td>
+</tr>
+<tr>
+<td><strong>Solar forecast safety margin (kWh)</strong></td>
+<td>(Optional) Extra energy buffer added to consumption forecast before deciding whether to charge (default 0 kWh)</td>
 </tr>
 </tbody>
 </table>
