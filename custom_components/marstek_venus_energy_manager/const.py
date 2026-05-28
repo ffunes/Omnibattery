@@ -1857,6 +1857,7 @@ BALANCE_THRESHOLD_RED = 150      # mV — above this: red
 BALANCE_HISTORY_MAX = 52         # ~1 year of weekly readings
 BALANCE_RED_CONSECUTIVE_ALERT = 2
 BALANCE_TREND_ALERT_AVG_MV = 75.0   # avg must exceed this to fire a rising-trend alert
+BALANCE_NOTIFY_COOLDOWN_DAYS = 7    # min days between cell-imbalance notifications per battery
 
 # Optional normal full-charge protection.
 # When enabled per battery, slow charging only while the target is 100% and
