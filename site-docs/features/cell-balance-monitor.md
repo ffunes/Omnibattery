@@ -57,6 +57,20 @@ The weekly full charge does not use a different balance profile. It only changes
 
 ### Charge profile
 
+```mermaid
+flowchart TD
+    A([Normal charging]) --> B(Charge with configured charge limit)
+    B --> C{max_cell_voltage < 3.48 V}
+    C -->|Yes| A
+    C -->|No| D([Limited charging])
+    D --> E(Charge with 95 W)
+    E --> F{max_cell_voltage < 3.58 V}
+    F -->|Yes| D
+    F -->|No| G(Stop charging and wait 60 s)
+    G --> H("Record cell_delta = (cell_Vmax - cell_Vmin) * 1000")
+    H --> I([Normal SOC charge/discharge logic])
+```
+    
 | Condition for one battery | Action |
 |---|---:|
 | `max_cell_voltage` below 3.48 V | Normal configured charge limit |
