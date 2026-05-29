@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.0] - 2026-05-27
+## [2.0.0b1] - 2026-05-29
 
 ### ⚠️ Breaking Change — Config entry version bumped to 3 (automatic migration)
 Time slots ([`no_discharge_time_slots`](custom_components/marstek_venus_energy_manager/const.py)) gained a richer per-direction schema. `async_migrate_entry` converts every existing slot on first start, preserving the legacy whitelist behavior — no manual action required. Legacy `apply_to_charge=False` slots map to `allow_discharge=True, allow_charge=False`; `apply_to_charge=True` slots map to both directions enabled. Scope defaults to `all`, mode to `pd`, no SOC/power overrides.
