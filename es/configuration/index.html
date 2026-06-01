@@ -1541,8 +1541,23 @@
     F -- No --&gt; H
     G --&gt; H{¿Carga predictiva?}
     H -- Sí --&gt; I[6. Modo de carga predictiva]
-    H -- No --&gt; J[Fin]
-    I --&gt; J</code></pre>
+    H -- No --&gt; J
+    I --&gt; J{¿Carga semanal completa?}
+    J -- Sí --&gt; K[7. Día de carga semanal completa]
+    J -- No --&gt; L
+    K --&gt; L{¿Retraso de carga solar?}
+    L -- Sí --&gt; M[8. Config. retraso de carga solar]
+    L -- No --&gt; N
+    M --&gt; N{¿Protección de capacidad?}
+    N -- Sí --&gt; O[9. Config. protección de capacidad]
+    N -- No --&gt; P
+    O --&gt; P{¿Balance neto horario?}
+    P -- Sí --&gt; Q[10. Config. balance neto horario]
+    P -- No --&gt; R
+    Q --&gt; R{¿Controlador PD avanzado?}
+    R -- Sí --&gt; S[11. Config. controlador PD avanzado]
+    R -- No --&gt; T[Fin]
+    S --&gt; T</code></pre>
 <table>
 <thead>
 <tr>
@@ -1554,22 +1569,22 @@
 <tbody>
 <tr>
 <td><a href="main-sensor/">Sensor principal</a></td>
-<td>Sensor de consumo de red y sensor solar</td>
+<td>Sensor de consumo de red, sensor solar y sensor de consumo del hogar</td>
 <td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td>Baterías</td>
-<td>Número de unidades y configuración por batería</td>
+<td>Número de unidades</td>
 <td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td><a href="batteries/">Baterías</a></td>
-<td>IP, puerto, versión, límites de potencia y SOC</td>
+<td>Config. por batería: nombre, IP, puerto, versión, límites de potencia y SOC</td>
 <td style="text-align: center;">✅</td>
 </tr>
 <tr>
 <td><a href="time-slots/">Franjas horarias</a></td>
-<td>Ventanas de descarga con parámetros por franja</td>
+<td>Ventanas de descarga/carga con parámetros por franja</td>
 <td style="text-align: center;">❌</td>
 </tr>
 <tr>
@@ -1583,8 +1598,28 @@
 <td style="text-align: center;">❌</td>
 </tr>
 <tr>
-<td><a href="advanced/">Opciones avanzadas</a></td>
-<td>Carga semanal, retraso solar, peak shaving</td>
+<td><a href="advanced/">Carga semanal completa</a></td>
+<td>Carga las baterías al 100% una vez a la semana para equilibrar las celdas</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td><a href="advanced/">Retraso de carga solar</a></td>
+<td>Evita cargar las baterías por la mañana si la producción solar prevista será suficiente</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td><a href="advanced/">Protección de capacidad</a></td>
+<td>Reserva una parte de la capacidad de batería para picos de demanda (peak shaving)</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td><a href="advanced/">Balance neto horario</a></td>
+<td>Establece el balance neto de importación/exportación horario a un objetivo específico (por defecto 0 Wh)</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td><a href="advanced/">Controlador PD (avanzado)</a></td>
+<td>Ajuste fino del controlador PD para mantener el flujo de red en el objetivo configurado</td>
 <td style="text-align: center;">❌</td>
 </tr>
 </tbody>

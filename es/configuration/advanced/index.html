@@ -966,6 +966,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#balance-neto-horario" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Balance neto horario
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#controlador-pd-avanzado" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1536,6 +1547,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#balance-neto-horario" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Balance neto horario
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#controlador-pd-avanzado" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1572,10 +1594,31 @@
 
 
 <h1 id="opciones-avanzadas">Opciones avanzadas<a class="headerlink" href="#opciones-avanzadas" title="Permanent link">&para;</a></h1>
-<p>Tras configurar la carga predictiva, el asistente ofrece cuatro pasos opcionales adicionales que ajustan el comportamiento de la integración en situaciones específicas.</p>
+<p>Tras configurar la carga predictiva, el asistente ofrece cinco pasos opcionales adicionales que ajustan el comportamiento de la integración en situaciones específicas.</p>
 <hr />
 <h2 id="carga-semanal-completa">Carga semanal completa<a class="headerlink" href="#carga-semanal-completa" title="Permanent link">&para;</a></h2>
 <p>Fuerza una carga al <strong>100 % una vez por semana</strong> para equilibrar las celdas de la batería (cell balancing). Solo es necesario configurar el día de la semana.</p>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Descripción</th>
+<th>Por defecto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Día de la semana</strong></td>
+<td>En este día la batería cargará al 100% para equilibrar las celdas</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Activar monitor de equilibrio de celdas</strong></td>
+<td>Si está marcado, se activa el balanceo activo de celdas (puede ser <em>lento</em>)</td>
+<td>Desactivado</td>
+</tr>
+</tbody>
+</table>
 <p>Ver <a href="../../features/weekly-full-charge/">Carga semanal completa</a> para el detalle de funcionamiento.</p>
 <p><img alt="Configuración de carga semanal completa" src="../../../assets/screenshots/configuration/advanced-weekly-full-charge-config.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <hr />
@@ -1591,13 +1634,23 @@
 </thead>
 <tbody>
 <tr>
-<td><strong>Margen de seguridad</strong></td>
-<td>Minutos antes del atardecer en los que la carga debe haber terminado</td>
-<td>60 min</td>
+<td><strong>Margen de seguridad (h)</strong></td>
+<td>Horas antes del atardecer en las que la carga debe haber terminado</td>
+<td>1 h</td>
 </tr>
 <tr>
 <td><strong>Sensor de previsión solar</strong></td>
 <td>Solo si no se configuró en el paso inicial</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Activar SOC mínimo antes del retraso</strong></td>
+<td>Si está activado, la batería cargará hasta el SOC configurado antes de aplicar el retraso solar</td>
+<td>Desactivado</td>
+</tr>
+<tr>
+<td><strong>SOC mínimo (%)</strong></td>
+<td>SOC de la batería a alcanzar antes de que se active el retraso de carga solar</td>
 <td>—</td>
 </tr>
 </tbody>
@@ -1634,6 +1687,43 @@
 </table>
 <p>Ver <a href="../../features/peak-shaving/">Peak shaving</a> para el detalle de funcionamiento.</p>
 <p><img alt="Configuración de protección de capacidad" src="../../../assets/screenshots/configuration/advanced-capacity-protection-config.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<hr />
+<h2 id="balance-neto-horario">Balance neto horario<a class="headerlink" href="#balance-neto-horario" title="Permanent link">&para;</a></h2>
+<p>Registra la importación y exportación de red dentro de cada hora civil y ajusta el setpoint del controlador PD en tiempo real para llevar la energía neta hacia un objetivo configurable. El objetivo por defecto es 0 Wh — balance neto cero cada hora — pero puede desplazarse para permitir una importación fija o apuntar a una exportación fija.</p>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Descripción</th>
+<th>Por defecto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Objetivo de balance neto (kWh)</strong></td>
+<td>Balance neto de energía objetivo (0=neto cero, positivo=importación neta, negativo=exportación neta)</td>
+<td><code>0 kWh</code></td>
+</tr>
+<tr>
+<td><strong>Offset máximo (W)</strong></td>
+<td>Offset máximo de potencia que puede aplicar el controlador (suma de todas las baterías)</td>
+<td><code>1000 W</code></td>
+</tr>
+<tr>
+<td><strong>Tolerancia de balance neto (kWh)</strong></td>
+<td>Banda de tolerancia alrededor del objetivo (0=sin corrección)</td>
+<td><code>0 kWh</code></td>
+</tr>
+<tr>
+<td><strong>Histéresis de offset (W)</strong></td>
+<td>Cambio mínimo de offset antes de aplicar correcciones (0=aplicar cada ciclo)</td>
+<td><code>15 W</code></td>
+</tr>
+</tbody>
+</table>
+<p>Ver <a href="../../features/hourly-net-balance/">Balance neto horario</a> para el detalle de funcionamiento.</p>
+<p><img alt="Aviso de balance neto horario" src="../../../assets/screenshots/configuration/hourly_net_balance_warning.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<p><img alt="Configuración de balance neto horario" src="../../../assets/screenshots/configuration/hourly_net_balance_config.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <hr />
 <h2 id="controlador-pd-avanzado">Controlador PD avanzado<a class="headerlink" href="#controlador-pd-avanzado" title="Permanent link">&para;</a></h2>
 <div class="admonition warning">

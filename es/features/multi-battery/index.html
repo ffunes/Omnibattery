@@ -2185,7 +2185,7 @@
 </table>
 <h2 id="distribucion-de-potencia">Distribución de potencia<a class="headerlink" href="#distribucion-de-potencia" title="Permanent link">&para;</a></h2>
 <p>Una vez seleccionadas las baterías activas, la potencia total calculada por el <a href="../pd-controller/">controlador PD</a> se reparte entre ellas proporcionalmente, respetando los límites individuales de potencia y SOC de cada una.</p>
-<p>Tambien se pueden configurar limites globales opcionales en <strong>Controlador PD avanzado</strong> tras activar <strong>Activar limites de potencia del sistema</strong>:</p>
+<p>También se pueden configurar límites globales opcionales en <strong>Controlador PD avanzado</strong> tras activar <strong>Activar límites de potencia del sistema</strong>:</p>
 <table>
 <thead>
 <tr>
@@ -2195,16 +2195,16 @@
 </thead>
 <tbody>
 <tr>
-<td><code>Potencia maxima de carga del sistema</code></td>
-<td>Limita la potencia de carga combinada de todas las baterias activas</td>
+<td><code>Potencia máxima de carga del sistema</code></td>
+<td>Limita la potencia de carga combinada de todas las baterías activas</td>
 </tr>
 <tr>
-<td><code>Potencia maxima de descarga del sistema</code></td>
-<td>Limita la potencia de descarga combinada de todas las baterias activas</td>
+<td><code>Potencia máxima de descarga del sistema</code></td>
+<td>Limita la potencia de descarga combinada de todas las baterías activas</td>
 </tr>
 </tbody>
 </table>
-<p>Pon cualquiera de los valores a <code>0 W</code> para desactivar el cap de esa direccion. Estos limites se aplican despues de determinar que baterias son elegibles y antes de repartir la potencia, de modo que una bateria puede seguir usando todo su limite individual cuando es la unica activa. Si hay varias baterias activas, el total combinado se limita al cap configurado. Las entidades slider de runtime correspondientes solo se crean cuando la funcionalidad esta activada.</p>
+<p>Pon cualquiera de los valores a <code>0 W</code> para desactivar el límite de esa dirección. Estos límites se aplican después de determinar qué baterías son elegibles y antes de repartir la potencia, de modo que una batería puede seguir usando todo su límite individual cuando es la única activa. Si hay varias baterías activas, el total combinado se limita al límite configurado. Las entidades slider de runtime correspondientes solo se crean cuando la funcionalidad está activada.</p>
 <h2 id="controles-de-cargadescarga-por-bateria">Controles de carga/descarga por batería<a class="headerlink" href="#controles-de-cargadescarga-por-bateria" title="Permanent link">&para;</a></h2>
 <p>Cada batería expone dos switches de software:</p>
 <table>

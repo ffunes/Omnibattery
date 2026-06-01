@@ -1485,7 +1485,7 @@
   <a href="#resumen-de-configuracion" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Resumen de Configuracion
+        Resumen de Configuración
       
     </span>
   </a>
@@ -1719,7 +1719,7 @@
   <a href="#resumen-de-configuracion" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Resumen de Configuracion
+        Resumen de Configuración
       
     </span>
   </a>
@@ -1959,12 +1959,12 @@
 </tr>
 <tr>
 <td><code>number.marstek_venus_system_system_max_charge_power</code></td>
-<td>Limite opcional de carga combinada para todo el sistema (<code>0 W</code> = desactivado). Solo se crea cuando los limites de sistema estan activados.</td>
+<td>Límite opcional de carga combinada para todo el sistema (<code>0 W</code> = desactivado). Solo se crea cuando los límites del sistema están activados.</td>
 <td>0–15000 W</td>
 </tr>
 <tr>
 <td><code>number.marstek_venus_system_system_max_discharge_power</code></td>
-<td>Limite opcional de descarga combinada para todo el sistema (<code>0 W</code> = desactivado). Solo se crea cuando los limites de sistema estan activados.</td>
+<td>Límite opcional de descarga combinada para todo el sistema (<code>0 W</code> = desactivado). Solo se crea cuando los límites del sistema están activados.</td>
 <td>0–15000 W</td>
 </tr>
 </tbody>
@@ -2137,44 +2137,44 @@
 <li><code>system_alarm_status</code> — Estado de alarma agregado de todas las baterías (<code>OK</code> / <code>Warning</code> / <code>Fault</code>); los atributos listan las condiciones activas por batería</li>
 <li><code>household_energy_today</code> — Consumo energético del hogar acumulado hoy a partir del sensor de potencia opcional, durante la franja solar+batería (kWh). Solo presente cuando hay un sensor de consumo del hogar configurado. Se reinicia a medianoche.</li>
 </ul>
-<h3 id="resumen-de-configuracion">Resumen de Configuracion<a class="headerlink" href="#resumen-de-configuracion" title="Permanent link">&para;</a></h3>
-<p><code>sensor.marstek_venus_system_configuration_summary</code> es un sensor diagnostico oculto pensado para informes de soporte. Expone atributos de configuracion sin direcciones IP ni puertos de las baterias.</p>
-<p>Los atributos relevantes para limites de potencia son:</p>
+<h3 id="resumen-de-configuracion">Resumen de Configuración<a class="headerlink" href="#resumen-de-configuracion" title="Permanent link">&para;</a></h3>
+<p><code>sensor.marstek_venus_system_configuration_summary</code> es un sensor diagnóstico oculto pensado para informes de soporte. Expone atributos de configuración sin direcciones IP ni puertos de las baterías.</p>
+<p>Los atributos relevantes para límites de potencia son:</p>
 <table>
 <thead>
 <tr>
 <th>Atributo</th>
-<th>Descripcion</th>
+<th>Descripción</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>total_max_charge_power_W</code></td>
-<td>Suma de los limites de carga configurados por bateria</td>
+<td>Suma de los límites de carga configurados por batería</td>
 </tr>
 <tr>
 <td><code>total_max_discharge_power_W</code></td>
-<td>Suma de los limites de descarga configurados por bateria</td>
+<td>Suma de los límites de descarga configurados por batería</td>
 </tr>
 <tr>
 <td><code>system_power_limits_enabled</code></td>
-<td>Indica si los caps globales de potencia estan activados</td>
+<td>Indica si los límites globales de potencia están activados</td>
 </tr>
 <tr>
 <td><code>system_max_charge_power_W</code></td>
-<td>Limite global de carga configurado (<code>0</code> = desactivado)</td>
+<td>Límite global de carga configurado (<code>0</code> = desactivado)</td>
 </tr>
 <tr>
 <td><code>system_max_discharge_power_W</code></td>
-<td>Limite global de descarga configurado (<code>0</code> = desactivado)</td>
+<td>Límite global de descarga configurado (<code>0</code> = desactivado)</td>
 </tr>
 <tr>
 <td><code>effective_total_max_charge_power_W</code></td>
-<td>Capacidad total de carga tras aplicar el limite global</td>
+<td>Capacidad total de carga tras aplicar el límite global</td>
 </tr>
 <tr>
 <td><code>effective_total_max_discharge_power_W</code></td>
-<td>Capacidad total de descarga tras aplicar el limite global</td>
+<td>Capacidad total de descarga tras aplicar el límite global</td>
 </tr>
 </tbody>
 </table>

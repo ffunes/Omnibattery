@@ -1712,6 +1712,8 @@
 <li><strong>Nordpool</strong></li>
 <li><strong>PVPC</strong> (ESIOS REE, España)</li>
 <li><strong>CKW</strong> (Suiza)</li>
+<li><strong>EPEX Spot</strong> (p. ej. aWATTar)</li>
+<li><strong>ENTSO-e</strong> (Plataforma de Transparencia)</li>
 </ul>
 <h2 id="configuracion">Configuración<a class="headerlink" href="#configuracion" title="Permanent link">&para;</a></h2>
 <table>
@@ -1724,7 +1726,7 @@
 <tbody>
 <tr>
 <td><strong>Tipo de integración de precios</strong></td>
-<td>Nordpool / PVPC / CKW</td>
+<td>Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e</td>
 </tr>
 <tr>
 <td><strong>Sensor de precio</strong></td>
@@ -1741,6 +1743,10 @@
 <tr>
 <td><strong>Descargar solo cuando el precio supere el umbral</strong></td>
 <td>(Opcional) Descarga condicionada al precio actual — ver abajo</td>
+</tr>
+<tr>
+<td><strong>Margen de seguridad de previsión solar (kWh)</strong></td>
+<td>(Opcional) Buffer de energía adicional añadido a la previsión de consumo antes de decidir si cargar (por defecto 0 kWh)</td>
 </tr>
 </tbody>
 </table>

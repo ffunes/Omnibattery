@@ -700,10 +700,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#when-to-use-them" class="md-nav__link">
+  <a href="#model-per-direction-whitelist" class="md-nav__link">
     <span class="md-ellipsis">
       
-        When to use them
+        Model: per-direction whitelist
       
     </span>
   </a>
@@ -711,38 +711,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuring-a-time-slot" class="md-nav__link">
+  <a href="#slot-fields" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Configuring a time slot
+        Slot fields
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Configuring a time slot">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#target-grid-power" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Target grid power
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#time-slots-and-predictive-charging" class="md-nav__link">
+  <a href="#mode-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Time slots and predictive charging
+        Mode behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#battery-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Battery scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migration-from-earlier-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migration from earlier versions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#diagnostics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnostics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits
       
     </span>
   </a>
@@ -1509,10 +1536,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#when-to-use-them" class="md-nav__link">
+  <a href="#model-per-direction-whitelist" class="md-nav__link">
     <span class="md-ellipsis">
       
-        When to use them
+        Model: per-direction whitelist
       
     </span>
   </a>
@@ -1520,38 +1547,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuring-a-time-slot" class="md-nav__link">
+  <a href="#slot-fields" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Configuring a time slot
+        Slot fields
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Configuring a time slot">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#target-grid-power" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Target grid power
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#time-slots-and-predictive-charging" class="md-nav__link">
+  <a href="#mode-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Time slots and predictive charging
+        Mode behavior
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#battery-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Battery scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migration-from-earlier-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migration from earlier versions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#diagnostics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnostics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits
       
     </span>
   </a>
@@ -1584,15 +1638,15 @@
 
 
 <h1 id="time-slots">Time slots<a class="headerlink" href="#time-slots" title="Permanent link">&para;</a></h1>
-<p>Time slots define windows during which the battery is <strong>allowed to discharge</strong>. Outside these windows, the battery only charges (or remains idle).</p>
-<h2 id="when-to-use-them">When to use them<a class="headerlink" href="#when-to-use-them" title="Permanent link">&para;</a></h2>
+<p>Time slots define windows that control how each battery is allowed to operate. From version 2.0.0 every slot exposes independent ticks for charge and discharge, optional SOC and power overrides, a manual-power mode, and a per-battery scope. Up to 8 slots can be defined.</p>
+<h2 id="model-per-direction-whitelist">Model: per-direction whitelist<a class="headerlink" href="#model-per-direction-whitelist" title="Permanent link">&para;</a></h2>
+<p>Each direction (charge, discharge) is evaluated independently:</p>
 <ul>
-<li>Reserve energy for evening or overnight consumption peaks.</li>
-<li>Optimise tariff arbitrage (discharge during expensive hours, charge during cheap hours).</li>
-<li>Control discharge by day of the week.</li>
+<li>If <strong>no slot allows direction X</strong> for a given battery, direction X is unrestricted (the rest of the controller, min/max SOC, EV pause, etc. still apply).</li>
+<li>If <strong>at least one slot allows direction X</strong>, then direction X is only permitted inside an active slot whose <code>allow_X=True</code>, day matches, and scope applies. Outside any such slot the direction is blocked.</li>
 </ul>
-<hr />
-<h2 id="configuring-a-time-slot">Configuring a time slot<a class="headerlink" href="#configuring-a-time-slot" title="Permanent link">&para;</a></h2>
+<p>This preserves the legacy behavior: the existing "no-discharge time slots" remain a discharge whitelist after migration, and the legacy <code>apply_to_charge</code> flag maps to <code>allow_charge=True</code>.</p>
+<h2 id="slot-fields">Slot fields<a class="headerlink" href="#slot-fields" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -1603,50 +1657,78 @@
 <tbody>
 <tr>
 <td><strong>Start / end time</strong></td>
-<td>Slot window (e.g. <code>14:00</code> – <code>18:00</code>)</td>
+<td>Window (e.g. <code>14:00</code> – <code>18:00</code>). Midnight crossing supported (<code>start &gt; end</code> ⇒ window spans midnight).</td>
 </tr>
 <tr>
 <td><strong>Days</strong></td>
-<td>Days of the week the slot applies to</td>
+<td>Days of the week the slot applies to.</td>
 </tr>
 <tr>
-<td><strong>Apply to charging</strong></td>
-<td>If enabled, the <em>charging</em> and <em>discharging</em> is restricted to the slot (outside the slot the battery will remain idle)</td>
+<td><strong>Battery scope</strong></td>
+<td><code>all</code> to apply to every battery, or <code>battery_N</code> to target one specifically.</td>
 </tr>
 <tr>
-<td><strong>Target grid power</strong></td>
-<td>Grid level the controller regulates toward during the slot</td>
+<td><strong>Allow charge</strong></td>
+<td>Tick: charge is permitted inside the slot. Activates the charge whitelist if any slot in the system uses it.</td>
+</tr>
+<tr>
+<td><strong>Allow discharge</strong></td>
+<td>Tick: discharge is permitted inside the slot. Activates the discharge whitelist if any slot in the system uses it.</td>
+</tr>
+<tr>
+<td><strong>SOC override (tick + <code>soc_min</code> / <code>soc_max</code>)</strong></td>
+<td>When the tick is enabled the slot replaces the battery's max/min SOC inside the window. Clamped to <code>[12, 100]</code>.</td>
+</tr>
+<tr>
+<td><strong>Power override (tick + <code>max_charge_power_w</code> / <code>max_discharge_power_w</code>)</strong></td>
+<td>When the tick is enabled the slot caps the PD dynamic power or sets the exact manual power.</td>
+</tr>
+<tr>
+<td><strong>Mode</strong></td>
+<td><code>pd</code>: the predictive algorithm regulates within the slot's caps. <code>manual</code>: the battery is forced to the configured power (one direction only).</td>
 </tr>
 </tbody>
 </table>
-<h3 id="target-grid-power">Target grid power<a class="headerlink" href="#target-grid-power" title="Permanent link">&para;</a></h3>
-<p>Default <code>0 W</code> (zero grid flow). Range: <code>-500 W</code> to <code>+500 W</code>.</p>
+<h2 id="mode-behavior">Mode behavior<a class="headerlink" href="#mode-behavior" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>PD mode (default)</strong>: the slot acts as a constraint. SOC and power overrides apply on top of the normal PD loop; the controller still reacts to grid/load.</li>
+<li><strong>Manual mode</strong>: requires the power tick to be on and exactly one of <code>allow_charge</code> / <code>allow_discharge</code> enabled. The battery is forced to that exact power (force charge or force discharge) and is removed from PD allocation for the cycle. Safety blockers (min SOC, max SOC, EV pause, active balance) still stop the manual write.</li>
+</ul>
+<h2 id="battery-scope">Battery scope<a class="headerlink" href="#battery-scope" title="Permanent link">&para;</a></h2>
+<p>When more than one battery is configured each slot picks a target via <code>battery_scope</code>. Multiple slots with different scopes can overlap in time without conflict — they only conflict when both target the same physical battery (<code>battery_N</code> vs <code>battery_N</code>, or either set to <code>all</code>).</p>
+<h2 id="migration-from-earlier-versions">Migration from earlier versions<a class="headerlink" href="#migration-from-earlier-versions" title="Permanent link">&para;</a></h2>
+<p>Slots created before 2.0.0 (<code>{start_time, end_time, days, apply_to_charge}</code>) are converted automatically on first start:</p>
 <table>
 <thead>
 <tr>
-<th>Value</th>
-<th>Effect</th>
+<th>Legacy field</th>
+<th>Migrated to</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>0 W</code></td>
-<td>Maximum self-consumption, no export</td>
+<td><code>apply_to_charge = False</code></td>
+<td><code>allow_discharge = True</code>, <code>allow_charge = False</code>, scope <code>all</code>, mode <code>pd</code>, no overrides</td>
 </tr>
 <tr>
-<td><code>&lt; 0</code> (e.g. <code>-150 W</code>)</td>
-<td>Maintains slight export (useful when feed-in tariff is profitable)</td>
-</tr>
-<tr>
-<td><code>&gt; 0</code> (e.g. <code>+200 W</code>)</td>
-<td>Allows slight import (reduces battery cycling)</td>
+<td><code>apply_to_charge = True</code></td>
+<td><code>allow_discharge = True</code>, <code>allow_charge = True</code>, scope <code>all</code>, mode <code>pd</code>, no overrides</td>
 </tr>
 </tbody>
 </table>
-<p><img alt="Time slot configuration form" src="../../assets/screenshots/configuration/time-slot-form.png" style="display: block; margin: 0 auto;" width="650" /></p>
-<hr />
-<h2 id="time-slots-and-predictive-charging">Time slots and predictive charging<a class="headerlink" href="#time-slots-and-predictive-charging" title="Permanent link">&para;</a></h2>
-<p>When predictive charging is active, the controller can use time slots as grid charging windows. See <a href="../predictive-charging/time-slot/">Predictive charging – Time Slot mode</a> for details.</p>
+<p>Existing installations keep the exact previous behavior with no manual action required.</p>
+<h2 id="diagnostics">Diagnostics<a class="headerlink" href="#diagnostics" title="Permanent link">&para;</a></h2>
+<p>The <code>binary_sensor.predictive_charging_active</code> entity exposes two attributes that reflect the current cycle:</p>
+<ul>
+<li><code>active_slot_per_battery</code>: dict (per battery name) with the currently active slot's start/end, scope, ticks, mode and override values.</li>
+<li><code>manual_slot_owned</code>: list of battery names that a manual slot took over this cycle.</li>
+</ul>
+<h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Maximum 8 slots per integration.</li>
+<li>SOC override is enforced by software; expect 1–3 control cycles of latency (~3–9 s) before charge or discharge stops at the new limit.</li>
+<li>Slots that target a <code>battery_N</code> that no longer exists (e.g. the user reduced the battery count) become inert; remove or edit them from the options flow.</li>
+</ul>
 
 
 

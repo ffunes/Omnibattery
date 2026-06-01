@@ -700,10 +700,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#cuando-usarlas" class="md-nav__link">
+  <a href="#modelo-whitelist-por-direccion" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cuándo usarlas
+        Modelo: whitelist por dirección
       
     </span>
   </a>
@@ -711,38 +711,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuracion-de-una-franja" class="md-nav__link">
+  <a href="#campos-de-la-franja" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Configuración de una franja
+        Campos de la franja
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Configuración de una franja">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#potencia-objetivo-de-red" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Potencia objetivo de red
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#franjas-y-carga-predictiva" class="md-nav__link">
+  <a href="#comportamiento-por-modo" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Franjas y carga predictiva
+        Comportamiento por modo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alcance-por-bateria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alcance por batería
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migracion-desde-versiones-anteriores" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migración desde versiones anteriores
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#diagnostico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnóstico
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Límites
       
     </span>
   </a>
@@ -1509,10 +1536,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#cuando-usarlas" class="md-nav__link">
+  <a href="#modelo-whitelist-por-direccion" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cuándo usarlas
+        Modelo: whitelist por dirección
       
     </span>
   </a>
@@ -1520,38 +1547,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuracion-de-una-franja" class="md-nav__link">
+  <a href="#campos-de-la-franja" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Configuración de una franja
+        Campos de la franja
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Configuración de una franja">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#potencia-objetivo-de-red" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Potencia objetivo de red
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#franjas-y-carga-predictiva" class="md-nav__link">
+  <a href="#comportamiento-por-modo" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Franjas y carga predictiva
+        Comportamiento por modo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alcance-por-bateria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alcance por batería
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migracion-desde-versiones-anteriores" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migración desde versiones anteriores
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#diagnostico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnóstico
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Límites
       
     </span>
   </a>
@@ -1584,15 +1638,15 @@
 
 
 <h1 id="franjas-horarias">Franjas horarias<a class="headerlink" href="#franjas-horarias" title="Permanent link">&para;</a></h1>
-<p>Las franjas horarias definen ventanas de tiempo en las que la batería <strong>está autorizada a descargar</strong>. Fuera de estas ventanas, la batería solo carga (o permanece en espera).</p>
-<h2 id="cuando-usarlas">Cuándo usarlas<a class="headerlink" href="#cuando-usarlas" title="Permanent link">&para;</a></h2>
+<p>Las franjas horarias definen ventanas que controlan cómo se permite operar a cada batería. Desde la versión 2.0.0 cada franja expone ticks independientes para carga y descarga, overrides opcionales de SOC y de potencia, un modo manual y un alcance por batería. Se admiten hasta 8 franjas.</p>
+<h2 id="modelo-whitelist-por-direccion">Modelo: whitelist por dirección<a class="headerlink" href="#modelo-whitelist-por-direccion" title="Permanent link">&para;</a></h2>
+<p>Cada dirección (carga, descarga) se evalúa de forma independiente:</p>
 <ul>
-<li>Reservar energía para los picos de consumo vespertinos o nocturnos.</li>
-<li>Optimizar el arbitraje tarifario (descarga en horas caras, carga en horas baratas).</li>
-<li>Controlar la descarga en función de los días de la semana.</li>
+<li>Si <strong>ninguna franja permite la dirección X</strong> para una batería dada, la dirección X queda sin restricciones (el resto del controlador — SOC máx/mín, pausa por VE, etc. — sigue aplicándose).</li>
+<li>Si <strong>al menos una franja permite la dirección X</strong>, esa dirección sólo está autorizada dentro de una franja activa con <code>allow_X=True</code>, día coincidente y alcance aplicable. Fuera de cualquier franja activa la dirección queda bloqueada.</li>
 </ul>
-<hr />
-<h2 id="configuracion-de-una-franja">Configuración de una franja<a class="headerlink" href="#configuracion-de-una-franja" title="Permanent link">&para;</a></h2>
+<p>Esto preserva el comportamiento anterior: las "franjas de no-descarga" existentes siguen siendo un whitelist de descarga tras la migración, y el flag legado <code>apply_to_charge</code> se mapea a <code>allow_charge=True</code>.</p>
+<h2 id="campos-de-la-franja">Campos de la franja<a class="headerlink" href="#campos-de-la-franja" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -1603,50 +1657,78 @@
 <tbody>
 <tr>
 <td><strong>Hora inicio / fin</strong></td>
-<td>Ventana de la franja (p. ej. <code>14:00</code> – <code>18:00</code>)</td>
+<td>Ventana (p. ej. <code>14:00</code> – <code>18:00</code>). Se admite cruce de medianoche (<code>start &gt; end</code> ⇒ ventana atraviesa las 00:00).</td>
 </tr>
 <tr>
 <td><strong>Días</strong></td>
-<td>Días de la semana en los que aplica</td>
+<td>Días de la semana en los que aplica.</td>
 </tr>
 <tr>
-<td><strong>Aplicar a carga</strong></td>
-<td>Si está activo, la franja también restringe la carga</td>
+<td><strong>Alcance de batería</strong></td>
+<td><code>all</code> para aplicar a todas, o <code>battery_N</code> para una concreta.</td>
 </tr>
 <tr>
-<td><strong>Potencia objetivo de red</strong></td>
-<td>Nivel de red al que el controlador regula durante la franja</td>
+<td><strong>Permitir carga</strong></td>
+<td>Tick: la carga está permitida dentro de la franja. Activa el whitelist de carga si alguna franja lo usa.</td>
+</tr>
+<tr>
+<td><strong>Permitir descarga</strong></td>
+<td>Tick: la descarga está permitida dentro de la franja. Activa el whitelist de descarga si alguna franja lo usa.</td>
+</tr>
+<tr>
+<td><strong>Override SOC (tick + <code>soc_min</code> / <code>soc_max</code>)</strong></td>
+<td>Si el tick está activado, la franja sustituye al SOC máx/mín de la batería dentro de la ventana. Limitado a <code>[12, 100]</code>.</td>
+</tr>
+<tr>
+<td><strong>Override potencia (tick + <code>max_charge_power_w</code> / <code>max_discharge_power_w</code>)</strong></td>
+<td>Si el tick está activado, la franja limita la potencia dinámica PD o fija la potencia exacta manual.</td>
+</tr>
+<tr>
+<td><strong>Modo</strong></td>
+<td><code>pd</code>: el algoritmo predictivo regula dentro de los topes de la franja. <code>manual</code>: la batería se fuerza a la potencia configurada (una sola dirección).</td>
 </tr>
 </tbody>
 </table>
-<h3 id="potencia-objetivo-de-red">Potencia objetivo de red<a class="headerlink" href="#potencia-objetivo-de-red" title="Permanent link">&para;</a></h3>
-<p>Por defecto <code>0 W</code> (flujo de red cero). Rango: <code>-500 W</code> a <code>+500 W</code>.</p>
+<h2 id="comportamiento-por-modo">Comportamiento por modo<a class="headerlink" href="#comportamiento-por-modo" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Modo PD (por defecto)</strong>: la franja actúa como restricción. Los overrides de SOC y potencia se aplican sobre el lazo PD normal; el controlador sigue respondiendo a red y consumo.</li>
+<li><strong>Modo Manual</strong>: requiere el tick de potencia activo y exactamente una de <code>allow_charge</code> / <code>allow_discharge</code> activada. La batería se fuerza a esa potencia exacta (force charge o force discharge) y se excluye de la asignación PD durante el ciclo. Los blockers de seguridad (SOC mín, SOC máx, pausa VE, balance activo) siguen deteniendo la escritura manual.</li>
+</ul>
+<h2 id="alcance-por-bateria">Alcance por batería<a class="headerlink" href="#alcance-por-bateria" title="Permanent link">&para;</a></h2>
+<p>Con varias baterías cada franja elige su destinatario con <code>battery_scope</code>. Franjas con alcances distintos pueden solaparse en tiempo sin conflicto — sólo entran en conflicto si ambas apuntan a la misma batería física (<code>battery_N</code> vs <code>battery_N</code>, o cualquiera de las dos a <code>all</code>).</p>
+<h2 id="migracion-desde-versiones-anteriores">Migración desde versiones anteriores<a class="headerlink" href="#migracion-desde-versiones-anteriores" title="Permanent link">&para;</a></h2>
+<p>Las franjas creadas antes de 2.0.0 (<code>{start_time, end_time, days, apply_to_charge}</code>) se convierten automáticamente al arrancar:</p>
 <table>
 <thead>
 <tr>
-<th>Valor</th>
-<th>Efecto</th>
+<th>Campo legado</th>
+<th>Migrado a</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>0 W</code></td>
-<td>Autoconsumo máximo, sin exportación</td>
+<td><code>apply_to_charge = False</code></td>
+<td><code>allow_discharge = True</code>, <code>allow_charge = False</code>, scope <code>all</code>, modo <code>pd</code>, sin overrides</td>
 </tr>
 <tr>
-<td><code>&lt; 0</code> (p. ej. <code>-150 W</code>)</td>
-<td>Mantiene exportación ligera (útil si la compensación es rentable)</td>
-</tr>
-<tr>
-<td><code>&gt; 0</code> (p. ej. <code>+200 W</code>)</td>
-<td>Permite importación ligera (reduce ciclado de la batería)</td>
+<td><code>apply_to_charge = True</code></td>
+<td><code>allow_discharge = True</code>, <code>allow_charge = True</code>, scope <code>all</code>, modo <code>pd</code>, sin overrides</td>
 </tr>
 </tbody>
 </table>
-<p><img alt="Formulario de configuración de franja horaria" src="../../../assets/screenshots/configuration/time-slot-form.png" style="display: block; margin: 0 auto;" width="650" /></p>
-<hr />
-<h2 id="franjas-y-carga-predictiva">Franjas y carga predictiva<a class="headerlink" href="#franjas-y-carga-predictiva" title="Permanent link">&para;</a></h2>
-<p>Cuando la carga predictiva está activa, el controlador puede usar las franjas como ventanas de carga desde la red. Consulta <a href="../predictive-charging/time-slot/">Carga predictiva – Modo Franja Horaria</a> para más detalles.</p>
+<p>Las instalaciones existentes conservan exactamente el comportamiento anterior sin acción manual.</p>
+<h2 id="diagnostico">Diagnóstico<a class="headerlink" href="#diagnostico" title="Permanent link">&para;</a></h2>
+<p>La entidad <code>binary_sensor.predictive_charging_active</code> expone dos atributos del ciclo actual:</p>
+<ul>
+<li><code>active_slot_per_battery</code>: dict (por nombre de batería) con la franja activa: inicio/fin, alcance, ticks, modo y valores de override.</li>
+<li><code>manual_slot_owned</code>: lista de baterías cuyo control ha tomado una franja manual en el ciclo.</li>
+</ul>
+<h2 id="limites">Límites<a class="headerlink" href="#limites" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Máximo 8 franjas por integración.</li>
+<li>El override de SOC se aplica por software; espera 1–3 ciclos de control (~3–9 s) hasta que la carga o descarga se detenga al límite del slot.</li>
+<li>Las franjas que apuntan a un <code>battery_N</code> inexistente (p. ej. tras reducir el número de baterías) quedan inertes; edítalas o bórralas desde el menú de opciones.</li>
+</ul>
 
 
 
