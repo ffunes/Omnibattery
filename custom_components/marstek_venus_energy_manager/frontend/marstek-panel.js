@@ -44,6 +44,7 @@ const I18N = {
     tabResumen: "Overview", tabBaterias: "Batteries", tabControl: "Control",
     moreInfo: "Show history",
     zoomReset: "All",
+    infoSoftware: "Software", infoSerial: "Serial",
     placeholderMsg: "This view is coming in a future phase. For now, use the Overview view.",
     cardFlow: "Energy flow", cardSoc: "System status", cardDaily: "Energy today",
     cardWeekly: "Weekly energy", cardPower: "Power", cardSocToday: "SOC · today",
@@ -101,6 +102,7 @@ const I18N = {
     tabResumen: "Resumen", tabBaterias: "Baterías", tabControl: "Control",
     moreInfo: "Ver histórico",
     zoomReset: "Todo",
+    infoSoftware: "Software", infoSerial: "N.º serie",
     placeholderMsg: "Esta vista llegará en una próxima fase. Por ahora, usa la vista Resumen.",
     cardFlow: "Flujo de energía", cardSoc: "Estado del sistema", cardDaily: "Energía hoy",
     cardWeekly: "Energía semanal", cardPower: "Potencias", cardSocToday: "SOC · hoy",
@@ -158,6 +160,7 @@ const I18N = {
     tabResumen: "Übersicht", tabBaterias: "Batterien", tabControl: "Steuerung",
     moreInfo: "Verlauf anzeigen",
     zoomReset: "Alles",
+    infoSoftware: "Software", infoSerial: "Seriennr.",
     placeholderMsg: "Diese Ansicht kommt in einer späteren Phase. Nutze vorerst die Übersicht.",
     cardFlow: "Energiefluss", cardSoc: "Systemstatus", cardDaily: "Energie heute",
     cardWeekly: "Wochenenergie", cardPower: "Leistung", cardSocToday: "SOC · heute",
@@ -215,6 +218,7 @@ const I18N = {
     tabResumen: "Résumé", tabBaterias: "Batteries", tabControl: "Contrôle",
     moreInfo: "Voir l'historique",
     zoomReset: "Tout",
+    infoSoftware: "Logiciel", infoSerial: "N° série",
     placeholderMsg: "Cette vue arrivera dans une phase ultérieure. Pour l'instant, utilisez la vue Résumé.",
     cardFlow: "Flux d'énergie", cardSoc: "État du système", cardDaily: "Énergie aujourd'hui",
     cardWeekly: "Énergie hebdomadaire", cardPower: "Puissances", cardSocToday: "SOC · aujourd'hui",
@@ -272,6 +276,7 @@ const I18N = {
     tabResumen: "Overzicht", tabBaterias: "Batterijen", tabControl: "Bediening",
     moreInfo: "Geschiedenis tonen",
     zoomReset: "Alles",
+    infoSoftware: "Software", infoSerial: "Serienr.",
     placeholderMsg: "Deze weergave komt in een latere fase. Gebruik voorlopig het Overzicht.",
     cardFlow: "Energiestroom", cardSoc: "Systeemstatus", cardDaily: "Energie vandaag",
     cardWeekly: "Energie per week", cardPower: "Vermogen", cardSocToday: "SOC · vandaag",
@@ -346,6 +351,7 @@ const K = {
   cycles: "battery_cycle_count",
   cyclesCalc: "battery_cycle_count_calc",
   rte: "round_trip_efficiency_total",
+  softwareVersion: "software_version",
   bmsVersion: "bms_version",
   vmsVersion: "vms_version",
   emsVersion: "ems_version",
@@ -394,15 +400,15 @@ const MPPT_KEYS = ["mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"];
 // Values are localized at render time via hass.formatEntityState.
 const DIAG_ROWS = [
   { key: K.integration, lk: "diagIntegration" },
-  { key: K.netBalance, lk: "diagNetBalance" },
   { key: K.sysAlarm, lk: "diagAlarm" },
   { key: K.activeBatteries, lk: "diagActiveBatteries" },
   { key: K.nonResponsive, lk: "diagNonResponsive" },
   { key: K.dischargeWindow, lk: "diagDischargeWindow" },
   { key: K.predictiveActive, lk: "diagPredictive" },
-  { key: K.capacityActive, lk: "diagPeak" },
-  { key: K.weeklyFullCharge, lk: "diagWeeklyCharge" },
   { key: K.chargeDelay, lk: "diagChargeDelay" },
+  { key: K.weeklyFullCharge, lk: "diagWeeklyCharge" },
+  { key: K.capacityActive, lk: "diagPeak" },
+  { key: K.netBalance, lk: "diagNetBalance" },
 ];
 
 // Cell-imbalance color thresholds (raw delta, mV). Mirror const.py
@@ -2527,6 +2533,8 @@ class MarstekVenusPanel extends HTMLElement {
         hasMppt: mppt.some((v) => v != null),
         entIds: idByTk,
         info: {
+          sw: this._sval(byTk[K.softwareVersion]),
+          serial: (devReg && devReg.serial_number) || null,
           bms: this._sval(byTk[K.bmsVersion]),
           vms: this._sval(byTk[K.vmsVersion]),
           ems: this._sval(byTk[K.emsVersion]),
@@ -2603,6 +2611,7 @@ class MarstekVenusPanel extends HTMLElement {
       `<div class="bat-pwr"><span class="num bat-pwr-val">—</span><span class="bat-pwr-unit dim"></span></div>` +
       `<div class="muted bat-pwr-lbl">—</div>` +
       `<div class="socbar bat-pwr-track" style="height:6px;margin-top:8px"><span class="bat-pwr-bar"></span></div>` +
+      `<div class="dim bat-pwr-avail">—</div>` +
       `<div class="dim bat-cap">— / — kWh</div>` +
       // off-grid power, pinned to the right edge at the AC-power line; shown only
       // when the backup function switch is on (see _patchBatteryCard).
@@ -2696,6 +2705,7 @@ class MarstekVenusPanel extends HTMLElement {
       pwrUnit: pw.querySelector(".bat-pwr-unit"),
       pwrLbl: pw.querySelector(".bat-pwr-lbl"),
       pwrBar: pw.querySelector(".bat-pwr-bar"),
+      pwrAvail: pw.querySelector(".bat-pwr-avail"),
       cap: pw.querySelector(".bat-cap"),
       ogWrap: pw.querySelector(".bat-offgrid"),
       ogVal: pw.querySelector(".bat-og-val"),
@@ -2788,6 +2798,8 @@ class MarstekVenusPanel extends HTMLElement {
     if (!tcap) tcap = 2500;
     r.pwrBar.style.width = this._clamp((Math.abs(w || 0) / tcap) * 100, 0, 100) + "%";
     r.pwrBar.style.background = discharging ? "var(--grid)" : "var(--battery)";
+    const ftc = this._fmtPower(tcap);
+    r.pwrAvail.textContent = this._t("availOf", { value: `${ftc.v} ${ftc.u}` });
     r.cap.textContent = `${this._nf(b.stored, 2)} / ${this._nf(b.capacity, 2)} kWh`;
 
     // off-grid power — only while the backup function switch is on
@@ -2860,6 +2872,7 @@ class MarstekVenusPanel extends HTMLElement {
       if (val != null && val !== "")
         rows.push(`<div class="info-row"><span class="muted">${label}</span><span>${val}</span></div>`);
     };
+    addRow(this._t("infoSoftware"), b.info.sw);
     addRow("BMS", b.info.bms);
     addRow("VMS", b.info.vms);
     addRow("EMS", b.info.ems);
@@ -2875,6 +2888,7 @@ class MarstekVenusPanel extends HTMLElement {
     }
     addRow("WiFi", wifi);
     addRow("MAC", b.info.mac);
+    addRow(this._t("infoSerial"), b.info.serial);
     r.infoGrid.innerHTML = rows.length ? rows.join("") : `<div class="dim">${this._t("noData")}</div>`;
 
     // controls (rebuilt when the available-control set changes; else value-patched)
@@ -3576,6 +3590,8 @@ class MarstekVenusPanel extends HTMLElement {
       }
       @media (max-width: 560px) { .diag-grid { grid-template-columns: 1fr; } }
       .ring { position: relative; }
+      /* let the SOC-color glow (drop-shadow) paint outside the svg box instead of being clipped */
+      .ring svg { overflow: visible; }
       .ring .ring-fg { transition: stroke-dashoffset 0.8s cubic-bezier(.4,0,.2,1), stroke 0.6s ease; }
       .ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px; }
       .ring-val { font-size: 50px; font-weight: 600; line-height: 1; }
@@ -3624,6 +3640,7 @@ class MarstekVenusPanel extends HTMLElement {
       .bat-pwr-unit { font-size: 13px; }
       .bat-pwr-lbl { font-size: 12px; margin-top: 3px; }
       .bat-pwr-track { width: 100%; }
+      .bat-pwr-avail { font-size: 11px; margin-top: 4px; }
       .bat-cap { font-size: 12px; margin-top: 6px; }
       /* off-grid power: right edge, aligned with the AC-power line */
       .bat-offgrid { position: absolute; top: 0; right: 0; text-align: right; }
