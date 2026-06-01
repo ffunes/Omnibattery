@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.1] - 2026-06-01
+
+### Fixed
+- **Dashboard control sliders showed a value that disagreed with the integration (e.g. 62% vs 60%)**: A native `<input type=range>` snaps to a `min + k·step` grid, so with min 12 / step 5 the slider grid was 12, 17, 22, …, 62 — an off-grid state like 60 snapped to 62, and the numeric label was read back from the snapped slider value instead of the real state. The panel now floors each slider's `min` to a step boundary so the grid is absolute multiples of step (12, 15, 20, …, 90), matching HA's own number slider, and clamps committed/displayed values to the entity's real `[min, max]`. Applies to all number sliders in the Batteries and Control tabs.
+
 ## [2.0.0] - 2026-05-29
 
 ### ⚠️ Breaking Change — Config entry version bumped to 3 (automatic migration)

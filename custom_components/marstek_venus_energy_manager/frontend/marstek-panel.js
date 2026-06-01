@@ -2991,12 +2991,12 @@ class MarstekVenusPanel extends HTMLElement {
       const a = (state && state.attributes) || {};
       const unit = a.unit_of_measurement || "";
       range.addEventListener("input", () => {
-        valEl.textContent = `${Math.round(Number(range.value))}${unit ? " " + unit : ""}`;
+        valEl.textContent = `${Math.round(this._clampToEntity(id, range.value))}${unit ? " " + unit : ""}`;
       });
       range.addEventListener("change", () =>
         this._hass.callService("number", "set_value", {
           entity_id: id,
-          value: Number(range.value),
+          value: this._clampToEntity(id, range.value),
         })
       );
       wrap.appendChild(range);
@@ -3024,17 +3024,22 @@ class MarstekVenusPanel extends HTMLElement {
       if (!focused) w.el.value = state.state;
     } else if (w.type === "number") {
       const a = state.attributes || {};
-      if (a.min != null) w.el.min = a.min;
-      if (a.max != null) w.el.max = a.max;
       if (a.step != null) w.el.step = a.step;
+      // Floor min to a step boundary so the grid is absolute multiples of step
+      // (matches HA's number slider, e.g. 12,15,20,…); commits clamp to real min.
+      if (a.min != null) w.el.min = this._sliderMin(a.min, a.step != null ? a.step : 1);
+      if (a.max != null) w.el.max = a.max;
       const unit = a.unit_of_measurement || "";
       if (!focused) {
         const v = Number(state.state);
         if (!Number.isNaN(v)) w.el.value = v;
+        // Show the real state value, not w.el.value: a native range input snaps
+        // its value to the min+k*step grid, so an off-grid state (e.g. 60 with
+        // min 12 / step 5) would otherwise display as the snapped 62.
         w.val.textContent =
           state.state == null || state.state === "unknown" || state.state === "unavailable"
             ? "—"
-            : `${Math.round(Number(w.el.value))}${unit ? " " + unit : ""}`;
+            : `${Math.round(v)}${unit ? " " + unit : ""}`;
       }
     }
   }
@@ -3169,6 +3174,24 @@ class MarstekVenusPanel extends HTMLElement {
     }
   }
 
+  /** Slider grid floor: a native <input type=range> snaps to min+k*step, but HA
+   *  number sliders snap to absolute multiples of step (e.g. min 12 / step 5 →
+   *  12,15,20,…,90). Flooring the element's min to a step boundary reproduces
+   *  that grid; commits/display are clamped back to the real min. */
+  _sliderMin(min, step) {
+    const m = Number(min), s = Number(step);
+    if (Number.isNaN(m) || Number.isNaN(s) || s <= 0) return min;
+    return Math.floor(m / s) * s;
+  }
+  /** Clamp a slider value to the entity's real [min,max] (live attributes). */
+  _clampToEntity(id, value) {
+    const a = ((this._hass.states[id] || {}).attributes) || {};
+    let v = Number(value);
+    if (a.min != null) v = Math.max(Number(a.min), v);
+    if (a.max != null) v = Math.min(Number(a.max), v);
+    return v;
+  }
+
   /** Decimals implied by a number's step ("0.05" -> 2), capped at 3. */
   _stepDecimals(step) {
     const s = String(step);
@@ -3258,10 +3281,10 @@ class MarstekVenusPanel extends HTMLElement {
       const unit = a.unit_of_measurement || "";
       const step = Number(a.step) || 1;
       range.addEventListener("input", () => {
-        valEl.textContent = this._fmtCtlNum(range.value, step, unit);
+        valEl.textContent = this._fmtCtlNum(this._clampToEntity(id, range.value), step, unit);
       });
       range.addEventListener("change", () =>
-        hass.callService("number", "set_value", { entity_id: id, value: Number(range.value) })
+        hass.callService("number", "set_value", { entity_id: id, value: this._clampToEntity(id, range.value) })
       );
       wrap.appendChild(range);
       wrap.appendChild(valEl);
@@ -3294,18 +3317,23 @@ class MarstekVenusPanel extends HTMLElement {
       if (!focused) w.el.value = state.state;
     } else if (w.type === "number") {
       const a = state.attributes || {};
-      if (a.min != null) w.el.min = a.min;
-      if (a.max != null) w.el.max = a.max;
-      if (a.step != null) w.el.step = a.step;
       const step = Number(a.step) || w.step || 1;
+      if (a.step != null) w.el.step = a.step;
+      // Floor min to a step boundary so the grid is absolute multiples of step
+      // (matches HA's number slider, e.g. 12,15,20,…); commits clamp to real min.
+      if (a.min != null) w.el.min = this._sliderMin(a.min, step);
+      if (a.max != null) w.el.max = a.max;
       const unit = a.unit_of_measurement || w.unit || "";
       if (!focused) {
         const v = Number(state.state);
         if (!Number.isNaN(v)) w.el.value = v;
+        // Format the real state value, not w.el.value: a native range input snaps
+        // its value to the min+k*step grid, so an off-grid state (e.g. 60 with
+        // min 12 / step 5) would otherwise display as the snapped 62.
         w.val.textContent =
           state.state == null || state.state === "unknown" || state.state === "unavailable"
             ? "—"
-            : this._fmtCtlNum(w.el.value, step, unit);
+            : this._fmtCtlNum(state.state, step, unit);
       }
     }
   }
