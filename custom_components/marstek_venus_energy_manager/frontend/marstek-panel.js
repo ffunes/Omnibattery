@@ -1744,7 +1744,7 @@ class MarstekVenusPanel extends HTMLElement {
       yMin,
       yMax,
       unit: "kW",
-      decimals: this._axisDecimals(yMin, yMax),
+      decimals: 2,
       xLabel: (i) => (times ? this._fmtClock(times[i]) : ""),
     };
     this._updatePowerXaxis(z, startS);
@@ -1797,7 +1797,7 @@ class MarstekVenusPanel extends HTMLElement {
       count: wk.days.length,
       groups,
       unit: "kWh",
-      decimals: this._axisDecimals(0, yMax),
+      decimals: 2,
       xLabel: (i) => wk.days[i] || "",
     };
     if (this._r.weeklyXaxis) this._r.weeklyXaxis.innerHTML = wk.days.map((d) => `<span>${d}</span>`).join("");
