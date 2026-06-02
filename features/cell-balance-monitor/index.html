@@ -1660,49 +1660,72 @@
 <p>The weekly full charge does not use a different balance profile. It only changes the target SOC to 100%; voltage thresholds, charge power and measurement logic are the same.</p>
 <h3 id="charge-profile">Charge profile<a class="headerlink" href="#charge-profile" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>flowchart TD
-    A([Normal charging]) --&gt; B(Charge with configured charge limit)
+    A([100% charge voltage taper start]) --&gt; B(Charge with configured charge limit)
     B --&gt; C{max_cell_voltage &lt; 3.48 V}
     C --&gt;|Yes| A
-    C --&gt;|No| D([Limited charging])
+    C --&gt;|No| D([Limit charging])
     D --&gt; E(Charge with 95 W)
     E --&gt; F{max_cell_voltage &lt; 3.58 V}
     F --&gt;|Yes| D
-    F --&gt;|No| G(Stop charging and wait 60 s)
-    G --&gt; H("Record cell_delta = (cell_Vmax - cell_Vmin) * 1000")
-    H --&gt; I([Normal SOC charge/discharge logic])</code></pre>
+    F --&gt;|No| G([100% charge voltage taper stop])
+    G --&gt; H(Resume normal SOC charge/discharge logic)
+    G --&gt; I(Wait 60s)
+    I --&gt; J("Record cell_delta = (cell_Vmax - cell_Vmin) * 1000")</code></pre>
 <table>
 <thead>
 <tr>
 <th>Condition for one battery</th>
-<th style="text-align: right;">Action</th>
+<th>Action</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>max_cell_voltage</code> below 3.48 V</td>
-<td style="text-align: right;">Normal configured charge limit</td>
+<td>Normal configured charge limit</td>
 </tr>
 <tr>
 <td><code>max_cell_voltage</code> at or above 3.48 V</td>
-<td style="text-align: right;">Limit charge to 95 W</td>
+<td>Limit charge to 95 W</td>
 </tr>
 <tr>
 <td><code>max_cell_voltage</code> at or above 3.58 V</td>
-<td style="text-align: right;">Stop charging and wait 60 s</td>
+<td>Resume normal SOC charge/discharge logic</td>
 </tr>
 <tr>
 <td>After the 60 s wait</td>
-<td style="text-align: right;">Record <code>delta_mV = (Vmax - Vmin) * 1000</code></td>
+<td>Record <code>delta_mV = (Vmax - Vmin) * 1000</code></td>
 </tr>
 </tbody>
 </table>
-<p>The logic is voltage based. SOC is deliberately not used to decide when the top-voltage taper starts or stops, because SOC can be less reliable near the top than the cell-voltage registers.</p>
-<p>There is no extra voltage hysteresis in this path. Once the battery reaches 3.58 V and the reading has been taken, the integration does not force a discharge. It leaves charging stopped at that voltage and lets the normal SOC/charge logic decide when future charging is allowed again.</p>
+<p>The logic is voltage based. SOC is deliberately not used to decide when the top-voltage taper starts or stops, because SOC can be less reliable near the top than the cell-voltage registers. There is no extra voltage hysteresis in this path. </p>
+<p>Once the battery reaches 3.58 V, the normal SOC charge/discharge logic with hysteresis is resumed. The 60-second delta-V measurement still runs as a best-effort diagnostic; if it did not finish before completion, a one-shot snapshot is captured at completion time under phase <code>top_charge_taper_complete</code>.</p>
 <p>In a multi-battery system, this is evaluated per battery. One battery can be limited or paused while another continues charging normally.</p>
 <h2 id="active-balance-mode">Active balance mode<a class="headerlink" href="#active-balance-mode" title="Permanent link">&para;</a></h2>
 <p>Active balance mode is a stronger per-battery recovery mode for packs that need more time in the balancing window.</p>
 <p>When the switch is enabled, that battery is excluded from normal PD control. The rest of the batteries can continue to operate normally. The integration temporarily raises the battery charge target to 100% and commands charge directly for that battery.</p>
 <h3 id="active-balance-profile">Active balance profile<a class="headerlink" href="#active-balance-profile" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart TD
+    A([Active balance start]) --&gt; B(Charge with configured charge limit)
+    B --&gt; C{max_cell_voltage &lt; 3.49 V}
+    C --&gt;|Yes| A
+    C --&gt;|No| D([Regulated top charge])
+    D --&gt; E(Charge with 95 W)
+    E --&gt; F{max_cell_voltage &lt; 3.58 V}
+    F --&gt;|Yes| D
+    F --&gt;|No| G([Measurement wait])
+    G --&gt; H(Stop charge/discharge)
+    H --&gt; I(Wait 60s)
+    I --&gt; J("Measure cell_delta = (cell_Vmax - cell_Vmin) * 1000")
+    J --&gt; K{cell_delta &gt; 0.03 V}
+    K --&gt;|Yes| L(Discharge with 25 W)
+    L --&gt; M{max_cell_voltage &lt;= 3.49 V}
+    M --&gt; |Yes| D
+    M --&gt; |No| L
+    K --&gt; |No| N([Final discharge])
+    N --&gt; O(Discharge with 25 W)
+    O --&gt; P{max_cell_voltage &lt;= 3.48 V}
+    P --&gt; |No| N
+    P --&gt; |Yes| Q([Active balance stop]) </code></pre>
 <table>
 <thead>
 <tr>

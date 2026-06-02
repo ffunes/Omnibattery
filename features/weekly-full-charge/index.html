@@ -1103,10 +1103,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#behaviour" class="md-nav__link">
+  <a href="#charge-profiles" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Behaviour
+        Charge profiles
       
     </span>
   </a>
@@ -1500,10 +1500,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#behaviour" class="md-nav__link">
+  <a href="#charge-profiles" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Behaviour
+        Charge profiles
       
     </span>
   </a>
@@ -1570,19 +1570,36 @@
 
 <h1 id="weekly-full-charge">Weekly full charge<a class="headerlink" href="#weekly-full-charge" title="Permanent link">&para;</a></h1>
 <p>Charges batteries to <strong>100% once a week</strong> so the pack reaches the LFP top-balancing window and the integration can measure cell imbalance under repeatable conditions.</p>
-<h2 id="behaviour">Behaviour<a class="headerlink" href="#behaviour" title="Permanent link">&para;</a></h2>
-<ol>
-<li>On the configured day of the week, if the usual max SOC is below 100%, the integration temporarily raises the battery charge cutoff to 100%.</li>
-<li>The battery charges until the top-voltage taper takes over.</li>
-<li>From <code>max_cell_voltage &gt;= 3.48 V</code>, charge is limited to 95 W.</li>
-<li>At <code>max_cell_voltage &gt;= 3.58 V</code>, charging stops and the integration waits 60 seconds.</li>
-<li>After the wait, the cell balance monitor records <code>delta_mV = (Vmax - Vmin) * 1000</code>.</li>
-<li>After completion, the max SOC limit automatically reverts to the user's configured value.</li>
-</ol>
-<p>The weekly full charge uses the same voltage profile as a normal battery configured with <code>max_soc = 100</code>. The weekly feature only raises the target to 100%; it does not use a separate balancing algorithm.</p>
+<h2 id="charge-profiles">Charge profiles<a class="headerlink" href="#charge-profiles" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Profile</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>100% charge voltage taper</strong></td>
+<td>Slows charge near top voltage window to allow some minor cell balancing</td>
+<td>On</td>
+</tr>
+<tr>
+<td><strong>Active cell balancing</strong></td>
+<td>Full cell balancing - repeated slow charge/discharge near top voltage window until <code>cell_delta_V</code> drops below 0.03 V or switched off</td>
+<td>Off</td>
+</tr>
+</tbody>
+</table>
+<p>!!! note These profiles can be switched on/off for each battery</p>
+<p>The 100% charge voltage taper uses the same voltage profile as a normal battery configured with <code>max_soc = 100</code>. The weekly feature only raises the target to 100%; it does not use a separate balancing algorithm.</p>
+<p>Active cell balancing repeatedly cycles slow charge or discharge near the top voltage window until the measured top-voltage delta is at or below 0.03 V, or until the user turns the switch off.</p>
+<p>!!! warning Active cell balancing is <strong>very slow</strong>. Reducing the top-of-charge cell delta by roughly 5 mV typically takes around 24 hours of cumulative time at the top of the balance window.</p>
+<p>See <a href="../cell-balance-monitor/">Cell balancing</a> for full details.</p>
 <h2 id="cell-balance-monitor">Cell balance monitor<a class="headerlink" href="#cell-balance-monitor" title="Permanent link">&para;</a></h2>
-<p>The <strong>cell balance monitor</strong> is always active. It records the voltage spread between the highest and lowest cell after each top-voltage measurement and keeps the sensor history, trend and alerts updated.</p>
-<p>See <a href="../cell-balance-monitor/">Cell balance monitor</a> for full details.</p>
+<p>The <strong>cell balance monitor</strong> is only active when checked in the Weekly Full Charge Configuration. It records the voltage spread between the highest and lowest cell after each top-voltage measurement and keeps the sensor history, trend and alerts updated.</p>
+<p>See <a href="configuration/advanced.md">Advanced options</a> for full details.</p>
 <h2 id="interaction-with-solar-charge-delay">Interaction with solar charge delay<a class="headerlink" href="#interaction-with-solar-charge-delay" title="Permanent link">&para;</a></h2>
 <p>If <a href="../solar-charge-delay/">solar charge delay</a> is active, the weekly charge can be postponed while the forecast solar production is sufficient to reach 100%.</p>
 <p>When the weekly full charge is active, the integration can bypass the delay so the battery reaches the top-voltage measurement point and the balance reading is not skipped.</p>
