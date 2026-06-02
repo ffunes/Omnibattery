@@ -107,4 +107,10 @@ Set the **unit of measurement** to `W` and the **device class** to `power`.
     {% set solar_power = states('sensor.SOLAR_STRING_1') | float(0) + states('sensor.SOLAR_STRING_2') | float(0) %}
     ```
 
+---
+
+## Solar production sensor *(optional)*
+
+This is the real-time PV production power sensor (W or kW) from an external invertor not wired through the battery MPPT inputs. It is used to show the Solar node in the dashboard energy-flow diagram. Leave empty if your solar panels feed the battery MPPT directly.
+
 ![Main sensor configuration](../assets/screenshots/configuration/main-sensor.png){ width="600"  style="display: block; margin: 0 auto;"}
