@@ -319,10 +319,14 @@ class ConsumptionTracker:
         panel can show both totals.
         """
         ctrl = self._controller
-        power_kw = self._read_power_kw(ctrl.consumption_sensor)
-        if power_kw is None:
+        # Use the same meter transform as the PD loop so a user-inverted meter
+        # (meter_inverted) keeps the +import / -export convention; otherwise the
+        # import and export totals would be swapped.
+        grid_w = ctrl._apply_meter_transform(self._hass.states.get(ctrl.consumption_sensor))
+        if grid_w is None:
             self._daily_grid_last_time = None
             return
+        power_kw = grid_w / 1000.0
         now = monotonic()
         if self._daily_grid_last_time is not None:
             dt_hours = (now - self._daily_grid_last_time) / 3600.0

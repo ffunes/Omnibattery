@@ -904,12 +904,14 @@ class MarstekVenusPanel extends HTMLElement {
     const solar = solarW != null ? Math.max(0, solarW / 1000) : 0;
     const hasSolar = solarW != null;
 
-    // grid from the configured net meter (+import / -export)
+    // grid from the configured net meter (+import / -export). Negate when the
+    // meter is user-inverted so the panel matches the integration's convention.
     const gridObj = this._panelConfig.grid_entity
       ? hass.states[this._panelConfig.grid_entity]
       : null;
     const gridW = this._watts(gridObj);
-    const grid = gridW != null ? gridW / 1000 : null;
+    const gridSign = this._panelConfig.grid_inverted ? -1 : 1;
+    const grid = gridW != null ? (gridW * gridSign) / 1000 : null;
 
     // home: explicit sensor, else derive  home = grid - battery + solar
     const homeObj = this._panelConfig.home_entity
@@ -2349,12 +2351,11 @@ class MarstekVenusPanel extends HTMLElement {
     const battSoc = (byKey.get(K.batterySoc) || [])[0];
     const socId = sysSoc || battSoc;
     if (!socId) return;
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+    const { grid, startISO } = this._historyGrid();
     try {
       const res = await this._hass.callWS({
         type: "history/history_during_period",
-        start_time: start.toISOString(),
+        start_time: startISO,
         end_time: new Date().toISOString(),
         entity_ids: [socId],
         minimal_response: true,
@@ -2362,15 +2363,31 @@ class MarstekVenusPanel extends HTMLElement {
       });
       const arr = res && res[socId];
       if (!Array.isArray(arr) || !arr.length) return;
-      const series = [];
+      // Parse (timestamp, %) pairs and step-hold sample onto the uniform
+      // midnight→now grid, so the sparkline's index→clock mapping is real time.
+      // minimal_response returns one entry per state CHANGE, so a flat SOC
+      // plateau yields few samples; plotting those by index alone would compress
+      // the plateau to the right edge and make a hours-old peak look like "now".
+      const pts = [];
       for (const it of arr) {
-        const n = Number(it.s != null ? it.s : it.state);
-        if (!Number.isNaN(n)) series.push(n);
+        const v = Number(it.s != null ? it.s : it.state);
+        const t =
+          it.lu != null ? it.lu
+            : it.last_updated ? Date.parse(it.last_updated) / 1000
+              : it.last_changed ? Date.parse(it.last_changed) / 1000
+                : null;
+        if (t == null || Number.isNaN(v)) continue;
+        pts.push([t, v]);
       }
-      if (!series.length) return;
-      // downsample to ~60 points
-      const step = Math.max(1, Math.ceil(series.length / 60));
-      this._socSeries = series.filter((_, i) => i % step === 0 || i === series.length - 1);
+      if (!pts.length) return;
+      pts.sort((a, b) => a[0] - b[0]);
+      const series = [];
+      let j = 0, cur = pts[0][1];
+      for (const gt of grid) {
+        while (j < pts.length && pts[j][0] <= gt) { cur = pts[j][1]; j++; }
+        series.push(cur);
+      }
+      this._socSeries = series;
       this._socLastPush = Date.now() / 1000;
       this._drawSpark();
     } catch (e) {
@@ -2456,7 +2473,9 @@ class MarstekVenusPanel extends HTMLElement {
     if (!res) return;
     const solar = cfg.solar_entity ? this._sampleToGrid(res, cfg.solar_entity, grid) : null;
     const home = cfg.home_entity ? this._sampleToGrid(res, cfg.home_entity, grid) : null;
-    const gridS = cfg.grid_entity ? this._sampleToGrid(res, cfg.grid_entity, grid) : null;
+    let gridS = cfg.grid_entity ? this._sampleToGrid(res, cfg.grid_entity, grid) : null;
+    // Match the integration's +import / -export convention for an inverted meter.
+    if (gridS && cfg.grid_inverted) gridS = gridS.map((v) => (v == null ? v : -v));
     let battery = null;
     if (sysCh || sysDis) {
       const ch = sysCh ? this._sampleToGrid(res, sysCh, grid) : null;

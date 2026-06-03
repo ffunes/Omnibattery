@@ -219,6 +219,11 @@ async def _async_register_frontend_panel(hass: HomeAssistant, entry: ConfigEntry
             # loop regulates — it is the Grid node of the flow diagram.
             if data.get("consumption_sensor"):
                 panel_config["grid_entity"] = data["consumption_sensor"]
+                # PD convention is +import / -export; if the user's meter is wired
+                # the other way the integration negates it (meter_inverted). Forward
+                # the flag so the panel applies the same sign to the Grid node and
+                # the power-history chart.
+                panel_config["grid_inverted"] = bool(data.get(CONF_METER_INVERTED, False))
             if data.get(CONF_HOUSEHOLD_CONSUMPTION_SENSOR):
                 panel_config["home_entity"] = data[CONF_HOUSEHOLD_CONSUMPTION_SENSOR]
             if data.get(CONF_SOLAR_FORECAST_SENSOR):
