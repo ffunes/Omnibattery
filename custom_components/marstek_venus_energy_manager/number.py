@@ -193,6 +193,19 @@ class MarstekConfigNumberEntity(NumberEntity):
         self._attr_should_poll = False
         self._scale = definition.get("scale", 1)
 
+    async def async_added_to_hass(self) -> None:
+        """Refresh the slider when config_entry.data changes.
+
+        Selecting a PD tuning profile rewrites Kp/Kd/deadband/max-change in
+        config_entry.data; without this the slider would keep showing its old
+        value until HA reloads. Mirrors the profile select's own listener.
+        """
+        self.async_on_remove(self.entry.add_update_listener(self._handle_entry_update))
+
+    async def _handle_entry_update(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Re-render the slider value after a config entry update."""
+        self.async_write_ha_state()
+
     @property
     def native_value(self):
         """Return the current value from config_entry.data, converted to display units."""

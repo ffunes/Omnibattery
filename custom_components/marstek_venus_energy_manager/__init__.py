@@ -338,6 +338,12 @@ class ChargeDischargeController:
         self._pd_quality_rms_ema = None  # EMA of error^2 (W^2); sqrt -> RMS error
         self._pd_quality_osc_ema = 0.0   # EMA of error-sign changes per minute
         self._pd_quality_last_ts = None  # monotonic ts of last metric update
+        # Ignore the tracking transient after any setpoint/target step (hourly
+        # balance, capacity protection, user target change, ...) so it doesn't
+        # inflate RMS/oscillation. Source-agnostic: keys on active_target moving.
+        self._pd_quality_step_grace_s = 10.0  # skip the metric this long after a step
+        self._pd_quality_settle_until = 0.0   # monotonic deadline; skip while now < this
+        self._pd_quality_prev_target = None   # previous active_target for step detection
 
         # Measured-power anti-windup (back-calculation): re-anchor the incremental
         # base to the battery's real AC output when commanded power is not being
@@ -1279,14 +1285,32 @@ class ChargeDischargeController:
             self.system_max_charge_power, self.system_max_discharge_power,
         )
 
-    def _update_pd_quality_metrics(self, error: float, sign_changed: bool) -> None:
+    def _update_pd_quality_metrics(self, error: float, sign_changed: bool, active_target: float) -> None:
         """Update control-quality EMAs (grid-error RMS and oscillation rate).
 
         Called once per active PD cycle (skipped when the controller is paused by
         restrictions). Uses real monotonic elapsed time so the averaging window is
         constant under the variable event-driven cadence.
+
+        A setpoint/target step (hourly balance, capacity protection, a user target
+        change, ...) makes the error spike while the battery ramps to the new target;
+        that transient is skipped through a short grace window so it doesn't inflate
+        the metric. Detection is source-agnostic: it keys on active_target moving.
         """
         now = time.monotonic()
+        if (
+            self._pd_quality_prev_target is not None
+            and abs(active_target - self._pd_quality_prev_target) > max(self.deadband, 20.0)
+        ):
+            self._pd_quality_settle_until = now + self._pd_quality_step_grace_s
+        self._pd_quality_prev_target = active_target
+
+        if now < self._pd_quality_settle_until:
+            # Keep the timestamp fresh so the EMA resumes smoothly (small dt) instead
+            # of seeing one huge gap that would snap it to the post-step value.
+            self._pd_quality_last_ts = now
+            return
+
         if self._pd_quality_last_ts is None:
             self._pd_quality_last_ts = now
             self._pd_quality_rms_ema = error * error
@@ -6535,7 +6559,7 @@ class ChargeDischargeController:
                     self.sign_changes = 0
                 # Note: last_error_sign is NOT updated when inside deadband
                 # This ensures we only track sign changes that matter (outside deadband)
-            self._update_pd_quality_metrics(error, sign_changed)
+            self._update_pd_quality_metrics(error, sign_changed, active_target)
             self.previous_error = error
             self.last_output_sign = current_output_sign
             if DEBUG_CONTROL_LOOP_DETAIL:
