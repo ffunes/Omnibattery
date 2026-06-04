@@ -1,8 +1,11 @@
 # Changelog
 
-## [2.0.1] - 2026-06-01
+## [2.0.1b1] - 2026-06-04
+
+> **Note:** This release changes the dashboard panel. After updating, hard-refresh the browser (**Ctrl+F5**, or Cmd+Shift+R on macOS) to load the new version — a cached panel may otherwise persist.
 
 ### Added
+- **Control tab help tooltips**: Each Control-tab section header (ⓘ button) and slider/switch (dotted label) now shows its options-flow explanation on hover and tap. [`marstek-panel.js`](custom_components/marstek_venus_energy_manager/frontend/marstek-panel.js).
 - **Catalan translation**: Added `translations/ca.json` with full UI translation to Catalan.
 - **Solar Power sensor (Venus D/A)**: New per-battery `sensor.*_solar_power` summing MPPT inputs into one DC-coupled PV figure (W). vA/vD only, enabled by default. [`const.py`](custom_components/marstek_venus_energy_manager/const.py), [`calculated_sensors.py`](custom_components/marstek_venus_energy_manager/calculated_sensors.py).
 - **Battery Cell Power sensor (Venus D/A)**: New per-battery `sensor.*_battery_cell_power` = `battery_power + solar`, the real cell flow after adding back DC PV. vA/vD only, enabled by default.
@@ -12,7 +15,7 @@
 - **SOC "today" sparkline had a wrong time axis**: History samples are now step-hold resampled onto a uniform midnight→now grid using real timestamps, so a flat plateau (few recorder samples) no longer compresses to the right edge and makes an hours-old peak look like "now". [`marstek-panel.js`](custom_components/marstek_venus_energy_manager/frontend/marstek-panel.js).
 - **Inverted grid meter showed import as export (and vice versa)**: The `meter_inverted` flag is now applied to the daily grid import/export accumulator and forwarded to the dashboard, so the energy-flow Grid node, the power-history chart, and the imported/exported energy totals all follow the integration's +import / −export convention. [`consumption_tracker.py`](custom_components/marstek_venus_energy_manager/consumption_tracker.py), [`__init__.py`](custom_components/marstek_venus_energy_manager/__init__.py), [`marstek-panel.js`](custom_components/marstek_venus_energy_manager/frontend/marstek-panel.js).
 - **Energy-flow diagram battery line animated backwards while charging**: Flow now animates *into* the battery image when charging, outward when discharging. [`marstek-panel.js`](custom_components/marstek_venus_energy_manager/frontend/marstek-panel.js).
-- **Energy-flow diagram double-counted DC solar on Venus D/A**: Battery node now derived from `battery_power + mppt` and the Solar node sums external solar plus all units' MPPT, so DC PV charging no longer renders as battery discharge with inflated home load. [`marstek-panel.js`](custom_components/marstek_venus_energy_manager/frontend/marstek-panel.js).
+- **Energy-flow diagram double-counted DC solar on Venus D/A**: Battery node now derived from `-ac_power - ac_offgrid_power + mppt` (the `battery_power` register is unreliable; the off-grid/backup port counts too) and the Solar node sums external solar plus all units' MPPT, so DC PV charging no longer renders as battery discharge with inflated home load. [`marstek-panel.js`](custom_components/marstek_venus_energy_manager/frontend/marstek-panel.js).
 - **Non-printable characters in Modbus string registers broke the recorder (issue #282)**: Decoded char/string values are now filtered with `str.isprintable()`, so embedded NUL/control chars no longer reach HA state and break PostgreSQL recorders. [`modbus_client.py`](custom_components/marstek_venus_energy_manager/modbus_client.py).
 - **Energy-flow diagram "Excluded devices" leader line crowded its label**: Line now routes over the top and ends above the power value (wider gap), and its origin sits at the car's centre. [`marstek-panel.js`](custom_components/marstek_venus_energy_manager/frontend/marstek-panel.js).
 - **"Active batteries" chip showed only the direction word**: Chip now appends the active battery name(s), e.g. "Discharging: Battery 1" (long lists ellipsize).

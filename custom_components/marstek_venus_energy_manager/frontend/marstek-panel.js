@@ -341,7 +341,7 @@ const K = {
   // per battery
   batterySoc: "battery_soc",
   acPower: "ac_power", // AC-side power. HA sign: - charge / + discharge (W)
-  batteryPower: "battery_power", // DC terminal power. HA sign: + charge / - discharge (W)
+  acOffgridPower: "ac_offgrid_power", // off-grid/backup AC output. HA sign: + discharge (W)
   storedEnergy: "stored_energy", // kWh
   batteryTotalEnergy: "battery_total_energy", // capacity kWh
   inverterState: "inverter_state",
@@ -603,6 +603,74 @@ const SYS_LAYOUT = [
   { col: ["secPd"] },
 ];
 
+// Control-tab help text, sourced verbatim from the options-flow data_description
+// (strings.json / translations). Keyed by section tk or entity translation_key.
+// Shown as a hover title + tap popover. English is the fallback (see _help).
+const SYS_HELP = {
+  en: {
+    secManual: "When ON, automatic control (PD, predictive charging, time slots, peak shaving…) is paused and every battery is set to 0 W (idle). Turn it OFF to resume automatic control.",
+    secWeeklyFull: "Select the day of the week when batteries should charge to 100% for cell balancing. After reaching 100%, the system reverts to your configured maximum charge limit.",
+    secSlots: "Define when and how the batteries are allowed to operate. The ticks control each direction, SOC and power. Manual mode forces an exact power, bypassing the PD algorithm.",
+    secExcluded: "Configure devices with special management: you can EXCLUDE devices that should NOT be powered by battery, or ADD devices that SHOULD be powered by battery even if they're not in the home consumption sensor.",
+    secPd: "Configure advanced PD controller parameters for expert tuning of battery charge/discharge behavior. Only modify these if you understand PID control theory. Default values work well for most installations.",
+    diagPredictive: "Charges batteries from the grid during off-peak hours when today's solar forecast is insufficient.",
+    diagChargeDelay: "Delays battery charging until the solar energy balance indicates it's needed, exporting excess solar to grid in the meantime.",
+    secHourly: "Tracks grid import/export per hour and automatically adjusts the battery setpoint to achieve a target net energy balance.\n\n⚠️ Important: This feature is only useful if your electricity contract includes a smart meter that performs hourly net balance calculation. If your meter does not calculate hourly net balance, the battery setpoint adjustments will not translate to cost savings and the feature provides no benefit.",
+    diagPeak: "When enabled, if battery SOC drops below a threshold, the system conserves energy by only discharging to offset consumption above a peak limit.",
+    secSysLimits: "When enabled, the two sliders below cap the combined charge/discharge power of all active batteries.",
+    excluded_device_enabled: "✓ CHECKED = Home sensor ALREADY includes this device → Battery will NOT power it (excluded). ✗ UNCHECKED = Home sensor doesn't see it → Battery WILL power it (additional)",
+    excluded_device_solar_surplus: "If checked, the device will be able to consume energy directly from solar panels (surplus) without the battery trying to compensate. Recommended for high consumption devices like EV chargers.",
+    weekly_full_charge_day: "Day when batteries will charge to 100% regardless of configured max SOC. This helps balance battery cells.",
+    pd_controller_kp: "Responsiveness to grid imbalance. Higher values = faster response but risk of overshoot. Range: 0.1-2.0, default: 0.65",
+    pd_controller_kd: "Damping to prevent oscillation. Higher values = smoother transitions but slower settling. Range: 0.0-2.0, default: 0.5",
+    pd_controller_deadband: "Grid power tolerance around zero. Prevents micro-adjustments to minor fluctuations. Higher values reduce sensitivity. Range: 0-200W, default: 40W",
+    pd_controller_max_power_change: "Maximum battery power change per control cycle (2.5s). Prevents abrupt commands. Lower values = smoother but slower. Range: 100-2000W, default: 800W",
+    pd_controller_direction_hysteresis: "Power threshold required to switch between charging and discharging. Prevents rapid direction changes. Range: 0-200W, default: 60W",
+    pd_min_charge_power: "Minimum power for charging. Below this threshold, the controller stays idle instead of charging at low power. 0 = disabled.",
+    pd_min_discharge_power: "Minimum power for discharging. Below this threshold, the controller stays idle instead of discharging at low power. 0 = disabled.",
+    pd_target_grid_power: "Grid power setpoint the controller regulates to. Negative = export to grid, positive = import from grid, 0 = net zero. Range: -500 to +500 W, default: 0 W.",
+    system_max_charge_power: "Optional cap for combined charge power across all active batteries. 0 = disabled; per-battery limits still apply.",
+    system_max_discharge_power: "Optional cap for combined discharge power across all active batteries. 0 = disabled; per-battery limits still apply.",
+    max_contracted_power: "Total contracted power (ICP) in watts. System won't exceed this limit when charging to avoid tripping the breaker",
+    predictive_safety_margin_kwh: "Extra energy buffer added to the consumption forecast before deciding whether to charge. Useful when your solar forecast tends to be optimistic. Set to 0 to disable (default). Capped at total battery capacity.",
+    delay_safety_margin_min: "Hours before sunset by which charging must be complete. Higher values unlock charging earlier.",
+    delay_soc_setpoint: "The SOC the battery must reach before the solar delay kicks in. Minimum is 12 % — the Venus battery minimum discharge SOC.",
+    capacity_protection_soc_threshold: "When average battery SOC drops below this value, capacity protection activates. The battery will stop discharging for normal consumption and only cover peaks above the limit.",
+    capacity_protection_limit: "Grid import power threshold. When house consumption exceeds this value and protection is active, the battery discharges only the excess above this limit.",
+  },
+  es: {
+    secManual: "Cuando está ACTIVADO, el control automático (PD, carga predictiva, franjas horarias, reducción de picos…) se pausa y todas las baterías se ponen a 0 W (en reposo). DESACTÍVALO para reanudar el control automático.",
+    secWeeklyFull: "Selecciona el día de la semana en el que las baterías deben cargarse al 100% para el balanceo de celdas. Una vez alcanzado el 100%, el sistema revertirá al límite de carga máximo configurado.",
+    secSlots: "Define cuándo y cómo se permite operar a las baterías. Los ticks permiten controlar cada dirección, el SOC y la potencia. El modo manual fuerza una potencia exacta ignorando el algoritmo PD.",
+    secExcluded: "Configura dispositivos con gestión especial: puedes EXCLUIR dispositivos que NO deben alimentarse por batería, o AÑADIR dispositivos que SÍ debe alimentar la batería aunque no estén en el sensor de consumo del hogar.",
+    secPd: "Configura parámetros avanzados del controlador PD para ajustar el comportamiento de carga/descarga de las baterías. Solo modifica estos valores si comprendes la teoría de control PID. Los valores predeterminados funcionan bien para la mayoría de instalaciones.",
+    diagPredictive: "Carga las baterías desde red durante horas valle cuando la predicción solar del día de hoy es insuficiente.",
+    diagChargeDelay: "Retrasa la carga de las baterías hasta que el balance energético solar indique que es necesario, exportando el excedente a red mientras tanto.",
+    secHourly: "Registra la importación/exportación de red por hora y ajusta automáticamente el setpoint de la batería para alcanzar un balance de energía objetivo.\n\n⚠️ Importante: Esta función solo tiene sentido si tu contrato eléctrico incluye un contador inteligente (smart meter) que realice cálculo del balance neto horario. Si tu contador no calcula el balance neto por hora, los ajustes al setpoint de la batería no se traducirán en ahorro de costes y la función no proporciona beneficio.",
+    diagPeak: "Si se activa, cuando el SOC de la batería baje de un umbral, el sistema conservará energía descargando solo para cubrir consumo que supere un límite pico.",
+    secSysLimits: "Al activarlo, los dos sliders inferiores limitan la potencia combinada de carga/descarga de todas las baterias activas.",
+    excluded_device_enabled: "✓ MARCADO = El sensor de consumo del hogar YA incluye este dispositivo → La batería NO lo alimentará (excluido). ✗ DESMARCADO = El sensor del hogar NO lo ve → La batería SÍ lo alimentará (adicional)",
+    excluded_device_solar_surplus: "Si se marca, el dispositivo podrá consumir energía directamente de los paneles solares (excedente) sin que la batería intente compensarlo. Se recomienda marcar para dispositivos de gran consumo como cargadores de VE.",
+    weekly_full_charge_day: "Día en el que las baterías se cargarán al 100% independientemente del SOC máximo configurado. Esto ayuda a equilibrar las celdas de la batería.",
+    pd_controller_kp: "Capacidad de respuesta al desequilibrio de red. Valores más altos = respuesta más rápida pero riesgo de sobreoscilación. Rango: 0.1-2.0, predeterminado: 0.65",
+    pd_controller_kd: "Amortiguación para prevenir oscilaciones. Valores más altos = transiciones más suaves pero asentamiento más lento. Rango: 0.0-2.0, predeterminado: 0.5",
+    pd_controller_deadband: "Tolerancia de potencia de red alrededor de cero. Previene microajustes ante fluctuaciones menores. Valores más altos reducen la sensibilidad. Rango: 0-200W, predeterminado: 40W",
+    pd_controller_max_power_change: "Cambio máximo de potencia de batería por ciclo de control (2.5s). Previene comandos abruptos. Valores más bajos = más suave pero más lento. Rango: 100-2000W, predeterminado: 800W",
+    pd_controller_direction_hysteresis: "Umbral de potencia requerido para cambiar entre carga y descarga. Previene cambios rápidos de dirección. Rango: 0-200W, predeterminado: 60W",
+    pd_min_charge_power: "Potencia mínima para cargar. Por debajo de este umbral, el controlador queda en reposo en vez de cargar a baja potencia. 0 = desactivado.",
+    pd_min_discharge_power: "Potencia mínima para descargar. Por debajo de este umbral, el controlador queda en reposo en vez de descargar a baja potencia. 0 = desactivado.",
+    pd_target_grid_power: "Consigna de potencia de red que regula el controlador. Negativo = exportar a red, positivo = importar de red, 0 = balance neto cero. Rango: -500 a +500 W, valor por defecto: 0 W.",
+    system_max_charge_power: "Limite opcional para la potencia de carga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose.",
+    system_max_discharge_power: "Limite opcional para la potencia de descarga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose.",
+    max_contracted_power: "Potencia total contratada (ICP) en vatios. El sistema no superará este límite al cargar para evitar que salte el diferencial",
+    predictive_safety_margin_kwh: "Energía adicional añadida a la previsión de consumo antes de decidir si cargar. Útil cuando tu previsión solar tiende a ser optimista. Pon 0 para desactivar (por defecto). Limitado a la capacidad total de la batería.",
+    delay_safety_margin_min: "Horas antes de la puesta de sol en las que se garantiza que la carga habrá terminado. Valores más altos desbloquean la carga antes.",
+    delay_soc_setpoint: "SOC mínimo que debe alcanzar la batería antes de que el retraso solar entre en funcionamiento. El valor mínimo es el 12 % (SOC mínimo de descarga de las baterías Venus).",
+    capacity_protection_soc_threshold: "Cuando el SOC medio de las baterías baje de este valor, se activa la reducción de picos. La batería dejará de descargar para consumo normal y solo cubrirá picos por encima del límite.",
+    capacity_protection_limit: "Umbral de potencia de importación de red. Cuando el consumo de la casa supere este valor y la reducción de picos esté activa, la batería solo descargará el exceso por encima de este límite.",
+  },
+};
+
 class MarstekVenusPanel extends HTMLElement {
   constructor() {
     super();
@@ -668,6 +736,13 @@ class MarstekVenusPanel extends HTMLElement {
     let s = dict[key] != null ? dict[key] : I18N.en[key] != null ? I18N.en[key] : key;
     if (vars) for (const k in vars) s = s.replace("{" + k + "}", vars[k]);
     return s;
+  }
+  /** Options-flow help text for a section tk or entity key. UI language, es/.. ->
+   *  en fallback. "" when none. Bold markdown (**) stripped for plain tooltips. */
+  _help(key) {
+    const dict = SYS_HELP[this._lang2()] || SYS_HELP.en;
+    const s = dict[key] != null ? dict[key] : SYS_HELP.en[key];
+    return s != null ? String(s).replace(/\*\*/g, "") : "";
   }
   _applyTheme() {
     const dark = !this._hass || !this._hass.themes || this._hass.themes.darkMode !== false;
@@ -791,28 +866,21 @@ class MarstekVenusPanel extends HTMLElement {
         return id ? hass.states[id] : null;
       };
       const acW = this._watts(get(K.acPower));
+      // Off-grid/backup AC output port (+ discharge). Battery can also discharge
+      // through it to backup loads that the grid meter never sees.
+      const acoW = this._watts(get(K.acOffgridPower));
       // DC-coupled PV on Venus D/A: sum this unit's own MPPT inputs (W, >=0).
       let mpptW = null;
       for (const mk of MPPT_KEYS) {
         const s = this._watts(get(mk));
         if (s != null) mpptW = (mpptW || 0) + s;
       }
-      // Venus D/A (MPPT present): battery_power mirrors the AC side with inverted
-      // sign (+ charge / - discharge) and excludes the DC PV, which charges the
-      // cells without crossing the AC port. Add this unit's MPPT to recover the
-      // true cell power. Uses the battery sensor instead of ac_power and is
-      // independent of the ac_power sign. Other versions have no DC PV: derive
-      // from ac_power as before (- charge / + discharge, negated to panel's
-      // + charge / - discharge).
-      const battW = this._watts(get(K.batteryPower));
-      const powerW =
-        mpptW != null
-          ? battW == null
-            ? null
-            : battW + mpptW
-          : acW == null
-            ? null
-            : -acW;
+      // Derive cell power from both AC ports (- charge / + discharge), negated to
+      // the panel's + charge / - discharge convention. On Venus D/A the DC PV
+      // charges the cells without crossing the AC port, so add this unit's MPPT to
+      // recover the true cell power. ac_power is used instead of the battery_power
+      // sensor, whose reported value is unreliable.
+      const powerW = acW == null ? null : -acW - (acoW || 0) + (mpptW || 0);
       batteries.push({
         dev,
         soc: this._num(socObj),
@@ -927,6 +995,11 @@ class MarstekVenusPanel extends HTMLElement {
     const excludedW = this._excludedPowerW();
     const excluded = excludedW != null ? excludedW / 1000 : null;
     const hasExcluded = excludedW != null;
+
+    // The home sensor already includes the excluded devices that the flow chart
+    // draws as their own node. Subtract them so the household node shows only the
+    // remaining house load (avoids double-counting the excluded consumption).
+    if (hasExcluded) home = Math.max(0, home - excluded);
 
     const netBalance = this._num(this._stateFor(byKey, K.netBalance));
 
@@ -3215,7 +3288,8 @@ class MarstekVenusPanel extends HTMLElement {
     // Build one card per live section, keyed by tk.
     const cardByTk = {};
     for (const { sec, rows } of sections) {
-      const { card } = this._card(this._t(sec.tk), sec.icon || "mdi:cog-outline");
+      const { card, head } = this._card(this._t(sec.tk), sec.icon || "mdi:cog-outline");
+      this._attachHelp(head, this._help(sec.tk));
       const grid = document.createElement("div");
       grid.className = "bat-ctl-grid sys-grid";
       for (const r of rows) grid.appendChild(this._buildSysControl(r.item, r.id, store, r.multi));
@@ -3365,6 +3439,17 @@ class MarstekVenusPanel extends HTMLElement {
         const st = (this._hass && this._hass.states && this._hass.states[id]) || state;
         this._showInfoPopover(k, item.titleFn(st, this._t.bind(this)));
       });
+    } else {
+      // static options-flow help (desktop hover title + tap popover for touch)
+      const help = this._help(item.key);
+      if (help) {
+        k.classList.add("ctl-k-info");
+        k.title = help;
+        k.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this._showInfoPopover(k, help);
+        });
+      }
     }
     frag.appendChild(k);
 
@@ -3494,6 +3579,23 @@ class MarstekVenusPanel extends HTMLElement {
     pop.style.top = top + "px";
     // defer so the opening click doesn't immediately dismiss it
     setTimeout(() => window.addEventListener("click", this._infoPopDismiss, true), 0);
+  }
+
+  /** Append an info (ⓘ) button to a section card header carrying options-flow
+   *  help: native title for desktop hover + tap popover for touch. No-op without
+   *  text (sections lacking an options-flow description get no button). */
+  _attachHelp(head, text) {
+    if (!head || !text) return;
+    const b = document.createElement("button");
+    b.className = "card-info";
+    b.setAttribute("aria-label", "info");
+    b.title = text;
+    b.innerHTML = `<ha-icon icon="mdi:information-outline"></ha-icon>`;
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this._showInfoPopover(b, text);
+    });
+    head.appendChild(b);
   }
 
   _hideInfoPopover() {
@@ -3859,6 +3961,10 @@ class MarstekVenusPanel extends HTMLElement {
       .sys-pair-spacer { min-width: 0; }
       .sys-stack > .placeholder { flex: 1 1 100%; }
       .sys-stack .card-head { margin-bottom: 0; }
+      /* options-flow help affordance pinned to the right of a section header */
+      .card-info { margin-left: auto; padding: 0; border: 0; background: none; cursor: pointer;
+        color: var(--ink-dim); display: grid; place-items: center; --mdc-icon-size: 16px; }
+      .card-info:hover { color: var(--ink); }
       .sys-grid { margin-top: 14px; }
       /* label with a tap/hover detail popover (e.g. time-slot details) */
       .ctl-k-info { cursor: pointer; }
