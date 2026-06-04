@@ -916,6 +916,16 @@
       "system_daily_home_energy": {
         "name": "Consommation Domestique Quotidienne"
       },
+      "system_pd_control_quality": {
+        "name": "Qualité du Contrôle PD",
+        "state": {
+          "stable": "Stable",
+          "oscillating": "Oscillant",
+          "sluggish": "Lent",
+          "battery_limited": "Limité par batterie",
+          "collecting_data": "Collecte de données"
+        }
+      },
       "system_home_consumption": {
         "name": "Consommation Domestique"
       },
@@ -1198,6 +1208,16 @@
           "friday": "Vendredi",
           "saturday": "Samedi",
           "sunday": "Dimanche"
+        }
+      },
+      "pd_tuning_profile": {
+        "name": "Profil de Réglage PD",
+        "state": {
+          "very_smooth": "Très doux",
+          "smooth": "Doux",
+          "balanced": "Équilibré",
+          "aggressive": "Agressif",
+          "custom": "Personnalisé"
         }
       }
     },

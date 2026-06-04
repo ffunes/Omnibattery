@@ -916,6 +916,16 @@
       "system_daily_home_energy": {
         "name": "Dagelijks Huishoudverbruik"
       },
+      "system_pd_control_quality": {
+        "name": "PD-Regelkwaliteit",
+        "state": {
+          "stable": "Stabiel",
+          "oscillating": "Oscillerend",
+          "sluggish": "Traag",
+          "battery_limited": "Batterijbegrensd",
+          "collecting_data": "Gegevens verzamelen"
+        }
+      },
       "system_home_consumption": {
         "name": "Huishoudverbruik"
       },
@@ -1198,6 +1208,16 @@
           "friday": "Vrijdag",
           "saturday": "Zaterdag",
           "sunday": "Zondag"
+        }
+      },
+      "pd_tuning_profile": {
+        "name": "PD-Afstemprofiel",
+        "state": {
+          "very_smooth": "Zeer zacht",
+          "smooth": "Zacht",
+          "balanced": "Gebalanceerd",
+          "aggressive": "Agressief",
+          "custom": "Aangepast"
         }
       }
     },

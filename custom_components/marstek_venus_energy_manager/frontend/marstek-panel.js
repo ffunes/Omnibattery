@@ -89,6 +89,7 @@ const I18N = {
     secExcluded: "Excluded devices", itemExcludedDevice: "Excluded device", itemSolarSurplus: "Solar surplus",
     secSysLimits: "System power limits", itemSysMaxCharge: "System max charge", itemSysMaxDischarge: "System max discharge",
     secPd: "PD controller (advanced)",
+    itemPdProfile: "Tuning profile", itemPdQuality: "Control quality",
     itemPdKp: "Proportional gain (Kp)", itemPdKd: "Derivative gain (Kd)", itemPdDeadband: "Deadband",
     itemPdMaxChange: "Max power change", itemPdDirHyst: "Direction hysteresis",
     itemPdMinCharge: "Min charge power", itemPdMinDischarge: "Min discharge power", itemPdTargetGrid: "Target grid power",
@@ -148,6 +149,7 @@ const I18N = {
     secExcluded: "Dispositivos excluidos", itemExcludedDevice: "Dispositivo excluido", itemSolarSurplus: "Excedente solar",
     secSysLimits: "Límites de potencia del sistema", itemSysMaxCharge: "Máx. carga del sistema", itemSysMaxDischarge: "Máx. descarga del sistema",
     secPd: "Controlador PD (avanzado)",
+    itemPdProfile: "Perfil de ajuste", itemPdQuality: "Calidad de control",
     itemPdKp: "Ganancia proporcional (Kp)", itemPdKd: "Ganancia derivativa (Kd)", itemPdDeadband: "Banda muerta",
     itemPdMaxChange: "Cambio máx. de potencia", itemPdDirHyst: "Histéresis de dirección",
     itemPdMinCharge: "Potencia mín. de carga", itemPdMinDischarge: "Potencia mín. de descarga", itemPdTargetGrid: "Potencia objetivo de red",
@@ -207,6 +209,7 @@ const I18N = {
     secExcluded: "Ausgeschlossene Geräte", itemExcludedDevice: "Ausgeschlossenes Gerät", itemSolarSurplus: "Solarüberschuss",
     secSysLimits: "System-Leistungsgrenzen", itemSysMaxCharge: "System-Max.-Ladeleistung", itemSysMaxDischarge: "System-Max.-Entladeleistung",
     secPd: "PD-Regler (erweitert)",
+    itemPdProfile: "Tuning-Profil", itemPdQuality: "Regelqualität",
     itemPdKp: "Proportionalverstärkung (Kp)", itemPdKd: "Differenzialverstärkung (Kd)", itemPdDeadband: "Totband",
     itemPdMaxChange: "Max. Leistungsänderung", itemPdDirHyst: "Richtungshysterese",
     itemPdMinCharge: "Min. Ladeleistung", itemPdMinDischarge: "Min. Entladeleistung", itemPdTargetGrid: "Ziel-Netzleistung",
@@ -266,6 +269,7 @@ const I18N = {
     secExcluded: "Appareils exclus", itemExcludedDevice: "Appareil exclu", itemSolarSurplus: "Surplus solaire",
     secSysLimits: "Limites de puissance du système", itemSysMaxCharge: "Charge max. système", itemSysMaxDischarge: "Décharge max. système",
     secPd: "Régulateur PD (avancé)",
+    itemPdProfile: "Profil de réglage", itemPdQuality: "Qualité de contrôle",
     itemPdKp: "Gain proportionnel (Kp)", itemPdKd: "Gain dérivé (Kd)", itemPdDeadband: "Bande morte",
     itemPdMaxChange: "Changement de puissance max.", itemPdDirHyst: "Hystérésis de direction",
     itemPdMinCharge: "Puissance min. de charge", itemPdMinDischarge: "Puissance min. de décharge", itemPdTargetGrid: "Puissance cible réseau",
@@ -325,6 +329,7 @@ const I18N = {
     secExcluded: "Uitgesloten apparaten", itemExcludedDevice: "Uitgesloten apparaat", itemSolarSurplus: "Zonne-overschot",
     secSysLimits: "Systeemvermogenslimieten", itemSysMaxCharge: "Max. systeemladen", itemSysMaxDischarge: "Max. systeemontladen",
     secPd: "PD-regelaar (geavanceerd)",
+    itemPdProfile: "Afstemprofiel", itemPdQuality: "Regelkwaliteit",
     itemPdKp: "Proportionele versterking (Kp)", itemPdKd: "Differentiële versterking (Kd)", itemPdDeadband: "Dode zone",
     itemPdMaxChange: "Max. vermogenswijziging", itemPdDirHyst: "Richtingshysterese",
     itemPdMinCharge: "Min. laadvermogen", itemPdMinDischarge: "Min. ontlaadvermogen", itemPdTargetGrid: "Doelnetvermogen",
@@ -529,6 +534,8 @@ const SYS_SECTIONS = [
     tk: "secPd",
     icon: "mdi:tune",
     items: [
+      { key: "pd_tuning_profile", domain: "select", lk: "itemPdProfile", icon: "mdi:tune-variant" },
+      { key: "system_pd_control_quality", domain: "sensor", lk: "itemPdQuality", icon: "mdi:gauge" },
       { key: "pd_controller_kp", lk: "itemPdKp", icon: "mdi:tune" },
       { key: "pd_controller_kd", lk: "itemPdKd", icon: "mdi:tune" },
       { key: "pd_controller_deadband", lk: "itemPdDeadband", icon: "mdi:arrow-collapse-horizontal" },
@@ -621,8 +628,10 @@ const SYS_HELP = {
     excluded_device_enabled: "✓ CHECKED = Home sensor ALREADY includes this device → Battery will NOT power it (excluded). ✗ UNCHECKED = Home sensor doesn't see it → Battery WILL power it (additional)",
     excluded_device_solar_surplus: "If checked, the device will be able to consume energy directly from solar panels (surplus) without the battery trying to compensate. Recommended for high consumption devices like EV chargers.",
     weekly_full_charge_day: "Day when batteries will charge to 100% regardless of configured max SOC. This helps balance battery cells.",
-    pd_controller_kp: "Responsiveness to grid imbalance. Higher values = faster response but risk of overshoot. Range: 0.1-2.0, default: 0.65",
-    pd_controller_kd: "Damping to prevent oscillation. Higher values = smoother transitions but slower settling. Range: 0.0-2.0, default: 0.5",
+    pd_tuning_profile: "One-click PD presets, smoothest → fastest. Sets Kp, Kd and max power change together (deadband stays separate). Moving any of those sliders switches to Custom. Smoother = calmer but slower; more aggressive = faster but can overshoot.",
+    system_pd_control_quality: "How well the PD holds the grid target. Stable = good; Oscillating = hunting (try a smoother profile or a wider deadband); Sluggish = too slow (try a more aggressive profile); Battery limited = battery full/empty, not a tuning problem. Allow 1-2 min after a change.",
+    pd_controller_kp: "Responsiveness to grid imbalance. Higher values = faster response but risk of overshoot. Range: 0.1-2.0, default: 0.35",
+    pd_controller_kd: "Damping to prevent oscillation. Higher values = smoother transitions but slower settling. Range: 0.0-2.0, default: 0.3",
     pd_controller_deadband: "Grid power tolerance around zero. Prevents micro-adjustments to minor fluctuations. Higher values reduce sensitivity. Range: 0-200W, default: 40W",
     pd_controller_max_power_change: "Maximum battery power change per control cycle (2.5s). Prevents abrupt commands. Lower values = smoother but slower. Range: 100-2000W, default: 800W",
     pd_controller_direction_hysteresis: "Power threshold required to switch between charging and discharging. Prevents rapid direction changes. Range: 0-200W, default: 60W",
@@ -652,8 +661,10 @@ const SYS_HELP = {
     excluded_device_enabled: "✓ MARCADO = El sensor de consumo del hogar YA incluye este dispositivo → La batería NO lo alimentará (excluido). ✗ DESMARCADO = El sensor del hogar NO lo ve → La batería SÍ lo alimentará (adicional)",
     excluded_device_solar_surplus: "Si se marca, el dispositivo podrá consumir energía directamente de los paneles solares (excedente) sin que la batería intente compensarlo. Se recomienda marcar para dispositivos de gran consumo como cargadores de VE.",
     weekly_full_charge_day: "Día en el que las baterías se cargarán al 100% independientemente del SOC máximo configurado. Esto ayuda a equilibrar las celdas de la batería.",
-    pd_controller_kp: "Capacidad de respuesta al desequilibrio de red. Valores más altos = respuesta más rápida pero riesgo de sobreoscilación. Rango: 0.1-2.0, predeterminado: 0.65",
-    pd_controller_kd: "Amortiguación para prevenir oscilaciones. Valores más altos = transiciones más suaves pero asentamiento más lento. Rango: 0.0-2.0, predeterminado: 0.5",
+    pd_tuning_profile: "Presets de PD en un clic, de más suave a más rápido. Ajusta Kp, Kd y el cambio máx. de potencia a la vez (el deadband va aparte). Mover cualquiera de esos sliders pasa a Personalizado. Más suave = más calmado pero lento; más agresivo = más rápido pero puede sobreoscilar.",
+    system_pd_control_quality: "Cómo de bien mantiene el PD el objetivo de red. Estable = bien; Oscilando = cabeceo (usa un perfil más suave o sube el deadband); Lento = demasiado lento (usa un perfil más agresivo); Limitado por batería = batería llena/vacía, no es problema de ajuste. Espera 1-2 min tras un cambio.",
+    pd_controller_kp: "Capacidad de respuesta al desequilibrio de red. Valores más altos = respuesta más rápida pero riesgo de sobreoscilación. Rango: 0.1-2.0, predeterminado: 0.35",
+    pd_controller_kd: "Amortiguación para prevenir oscilaciones. Valores más altos = transiciones más suaves pero asentamiento más lento. Rango: 0.0-2.0, predeterminado: 0.3",
     pd_controller_deadband: "Tolerancia de potencia de red alrededor de cero. Previene microajustes ante fluctuaciones menores. Valores más altos reducen la sensibilidad. Rango: 0-200W, predeterminado: 40W",
     pd_controller_max_power_change: "Cambio máximo de potencia de batería por ciclo de control (2.5s). Previene comandos abruptos. Valores más bajos = más suave pero más lento. Rango: 100-2000W, predeterminado: 800W",
     pd_controller_direction_hysteresis: "Umbral de potencia requerido para cambiar entre carga y descarga. Previene cambios rápidos de dirección. Rango: 0-200W, predeterminado: 60W",
@@ -3468,6 +3479,12 @@ class MarstekVenusPanel extends HTMLElement {
       );
       frag.appendChild(sel);
       store[id] = { type: "select", el: sel };
+    } else if (domain === "sensor") {
+      // read-only verdict (e.g. PD control quality) — localized state, no input
+      const valEl = document.createElement("span");
+      valEl.className = "ctl-val ctl-sensor";
+      frag.appendChild(valEl);
+      store[id] = { type: "sensor", val: valEl };
     } else {
       const wrap = document.createElement("div");
       wrap.className = "ctl-num";
@@ -3513,6 +3530,17 @@ class MarstekVenusPanel extends HTMLElement {
           .join("");
       }
       if (!focused) w.el.value = state.state;
+    } else if (w.type === "sensor") {
+      const bad = state.state == null || state.state === "unknown" || state.state === "unavailable";
+      w.val.textContent = bad
+        ? "—"
+        : (typeof this._hass.formatEntityState === "function"
+            ? this._hass.formatEntityState(state)
+            : state.state);
+      const a = state.attributes || {};
+      if (a.rms_error_w != null) {
+        w.val.title = `RMS ${a.rms_error_w} W · ${a.oscillation_per_min ?? 0}/min`;
+      }
     } else if (w.type === "number") {
       const a = state.attributes || {};
       const step = Number(a.step) || w.step || 1;
