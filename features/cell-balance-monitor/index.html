@@ -2011,12 +2011,12 @@
     H --&gt; I(Wait 60s)
     I --&gt; J("Measure cell_delta = (cell_Vmax - cell_Vmin) * 1000")
     J --&gt; K{cell_delta &gt; 0.03 V}
-    K --&gt;|Yes| L(Discharge with 25 W)
+    K --&gt;|Yes| L(Discharge with 200 W)
     L --&gt; M{max_cell_voltage &lt;= 3.49 V}
     M --&gt; |Yes| D
     M --&gt; |No| L
     K --&gt; |No| N([Final discharge])
-    N --&gt; O(Discharge with 25 W)
+    N --&gt; O(Discharge with 200 W)
     O --&gt; P{max_cell_voltage &lt;= 3.48 V}
     P --&gt; |No| N
     P --&gt; |Yes| Q([Active balance stop]) </code></pre>
