@@ -118,6 +118,7 @@ from .const import (
     NORMAL_BALANCE_PAUSE_CELL_VOLTAGE,
     NORMAL_BALANCE_CHARGE_POWER_W,
     NORMAL_BALANCE_MEASURE_WAIT_SECONDS,
+    NORMAL_BALANCE_RESUME_SOC_DROP,
     NORMAL_BALANCE_RECAL_SOC_THRESHOLD,
     NORMAL_BALANCE_RECAL_CUTOFF_POWER_W,
     NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
@@ -401,6 +402,10 @@ class ChargeDischargeController:
         self._normal_balance_measure_started: dict[MarstekVenusDataUpdateCoordinator, datetime] = {}
         self._normal_balance_last_delta_v: dict[MarstekVenusDataUpdateCoordinator, float] = {}
         self._normal_balance_top_voltage_seen: dict[MarstekVenusDataUpdateCoordinator, bool] = {}
+        # SOC at which the taper pause latched. While set, charge stays stopped
+        # (no re-trickle); the latch clears once SOC falls NORMAL_BALANCE_RESUME_SOC_DROP
+        # below this value, i.e. the battery has actually been discharged.
+        self._normal_balance_pause_latch_soc: dict[MarstekVenusDataUpdateCoordinator, float] = {}
         # SOC recalibration override: keep charging past the tapper pause when the
         # BMS reports a low SOC at the top voltage, until the BMS itself cuts off.
         self._normal_balance_recal_override: dict[MarstekVenusDataUpdateCoordinator, bool] = {}
@@ -762,6 +767,7 @@ class ChargeDischargeController:
         self._normal_balance_measure_started.clear()
         self._normal_balance_last_delta_v.clear()
         self._normal_balance_top_voltage_seen.clear()
+        self._normal_balance_pause_latch_soc.clear()
         self._normal_balance_recal_override.clear()
         self._normal_balance_recal_cutoff_count.clear()
         self._normal_balance_recal_latched.clear()
@@ -893,6 +899,7 @@ class ChargeDischargeController:
             if not self._full_charge_voltage_taper_applies(coordinator):
                 self._normal_balance_charge_paused.pop(coordinator, None)
                 self._normal_balance_voltage_tapered.pop(coordinator, None)
+                self._normal_balance_pause_latch_soc.pop(coordinator, None)
                 self._clear_recal_state(coordinator)
                 self.remove_charge_block("normal_balance_pause", coordinator=coordinator)
                 continue
@@ -912,28 +919,54 @@ class ChargeDischargeController:
                 self._clear_recal_state(coordinator)
 
             vmax = data.get("max_cell_voltage")
-            paused = False
-            if vmax is None:
-                paused = False
-            else:
-                try:
-                    vmax_f = float(vmax)
-                except (TypeError, ValueError):
-                    paused = False
-                else:
-                    if in_zone and vmax_f >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE:
-                        self._normal_balance_voltage_tapered[coordinator] = True
-                    if in_zone and vmax_f >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE:
-                        self._normal_balance_top_voltage_seen[coordinator] = True
-                    if vmax_f >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE:
-                        paused = True
+            current_soc = data.get("battery_soc")
+            try:
+                vmax_f = float(vmax) if vmax is not None else None
+            except (TypeError, ValueError):
+                vmax_f = None
+            try:
+                soc_f = float(current_soc) if current_soc is not None else None
+            except (TypeError, ValueError):
+                soc_f = None
 
-            # SOC recalibration: if the pause would trigger but the BMS reports a
-            # low SOC at the top voltage, keep charging until the BMS cuts off.
+            if vmax_f is not None:
+                if in_zone and vmax_f >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE:
+                    self._normal_balance_voltage_tapered[coordinator] = True
+                # Latch the pause the first time the top voltage is reached this
+                # charge session, recording the SOC at that moment. The taper then
+                # stops charging and stays stopped — it must NOT re-trickle when
+                # the cell relaxes, which would pin the cell at the top voltage.
+                if in_zone and vmax_f >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE:
+                    self._normal_balance_top_voltage_seen[coordinator] = True
+                    if coordinator not in self._normal_balance_pause_latch_soc:
+                        self._normal_balance_pause_latch_soc[coordinator] = (
+                            soc_f if soc_f is not None else 100.0
+                        )
+
+            # The pause is latched: charge stays stopped until SOC has dropped by
+            # the resume margin (the battery was actually discharged), not merely
+            # until the cell voltage relaxes. Then the latch clears so a later
+            # top-up tapers again.
+            latch_soc = self._normal_balance_pause_latch_soc.get(coordinator)
+            paused = latch_soc is not None
+            if (
+                paused
+                and soc_f is not None
+                and soc_f <= latch_soc - NORMAL_BALANCE_RESUME_SOC_DROP
+            ):
+                self._normal_balance_pause_latch_soc.pop(coordinator, None)
+                paused = False
+
+            # SOC recalibration: while actually at the top voltage, if the BMS
+            # reports a low SOC keep charging until the BMS cuts off (recalibrates).
             override = False
-            if paused:
+            if (
+                paused
+                and vmax_f is not None
+                and vmax_f >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
+            ):
                 override = self._compute_recal_override(
-                    coordinator, vmax_f, data.get("battery_soc")
+                    coordinator, vmax_f, current_soc
                 )
                 if override:
                     paused = False
@@ -972,6 +1005,7 @@ class ChargeDischargeController:
                 "voltage_taper_latched": getattr(
                     self, "_normal_balance_voltage_tapered", {}
                 ).get(coordinator, False),
+                "pause_latched_soc": self._normal_balance_pause_latch_soc.get(coordinator),
                 "active_balance_phase": getattr(
                     self, "_normal_active_balance_phases", {}
                 ).get(coordinator),

@@ -61,12 +61,13 @@ La carga semanal completa no usa un perfil de balanceo distinto. Solo cambia el 
 |---|---:|
 | `max_cell_voltage` por debajo de 3.48 V | Límite de carga configurado normal |
 | `max_cell_voltage` igual o superior a 3.48 V | Limita la carga a 95 W |
-| `max_cell_voltage` igual o superior a 3.58 V | Para la carga y espera 60 s |
+| `max_cell_voltage` llega a 3.58 V | Para la carga y **enclava**; no vuelve a cargar a goteo cuando la celda se relaja |
+| El SOC baja el margen de reanudación (3%) por debajo del SOC de enclavamiento | Libera el enclavamiento; vuelve a aplicar la lógica de carga normal |
 | Tras la espera de 60 s | Registra `delta_mV = (Vmax - Vmin) * 1000` |
 
-La lógica se basa en tensión de celda. El SOC no se usa para decidir cuándo empieza o termina la reducción por voltaje, porque cerca del final de carga los registros de tensión de celda son más fiables que el SOC reportado.
+El inicio de la reducción se basa en tensión de celda: el SOC no se usa para decidir cuándo empieza, porque cerca del final de carga los registros de tensión de celda son más fiables que el SOC reportado.
 
-No hay histéresis adicional de voltaje en esta ruta. Cuando la batería llega a 3.58 V y se toma la lectura, la integración no fuerza una descarga. Deja la carga parada en esa tensión y permite que la lógica normal de SOC/carga decida cuándo se podrá volver a cargar.
+Cuando la batería llega a 3.58 V, la reducción para la carga y **se enclava**. No vuelve a cargar a goteo cuando la tensión de celda se relaja — re-pausar cada ciclo dejaría la celda clavada en la tensión alta y puede impedir que algunos BMS v3 salgan de standby para descargar. El enclavamiento se libera —dejando que una recarga posterior vuelva a reducir— solo cuando el SOC ha bajado un pequeño margen (por defecto 3%, `NORMAL_BALANCE_RESUME_SOC_DROP`) por debajo del SOC al que se enclavó, es decir, la batería se ha descargado de verdad.
 
 En sistemas con varias baterías, la lógica se evalúa por batería. Una batería puede estar limitada o pausada mientras otra sigue cargando con normalidad.
 
@@ -211,6 +212,7 @@ El sensor **Integration Status** expone un atributo `normal_balance_protection` 
 | `enabled` | Si la reducción por voltaje al 100 % está activada para esa batería |
 | `in_zone` | Si `max_cell_voltage` está en la ventana de balanceo superior |
 | `paused` | Si la carga está parada por tensión alta de celda |
+| `pause_latched_soc` | SOC al que se enclavó la pausa; la carga sigue parada hasta que el SOC baja el margen de reanudación por debajo de este valor (vacío si no está enclavada) |
 | `max_cell_voltage` / `min_cell_voltage` | Tensiones máxima y mínima actuales |
 | `delta_V` | Diferencia actual de tensión en voltios |
 | `voltage_taper_latched` | Si la reducción a 95 W está activa |

@@ -66,8 +66,8 @@ flowchart TD
     D --> E(Charge with 95 W)
     E --> F{max_cell_voltage < 3.58 V}
     F -->|Yes| D
-    F -->|No| G([100% charge voltage taper stop])
-    G --> H(Resume normal SOC charge/discharge logic)
+    F -->|No| G([Stop charge and latch])
+    G --> H(Stay stopped until SOC drops the resume margin)
     G --> I(Wait 60s)
     I --> J("Record cell_delta = (cell_Vmax - cell_Vmin) * 1000")
 ```
@@ -76,12 +76,13 @@ flowchart TD
 |---|---|
 | `max_cell_voltage` below 3.48 V | Normal configured charge limit |
 | `max_cell_voltage` at or above 3.48 V | Limit charge to 95 W |
-| `max_cell_voltage` at or above 3.58 V | Resume normal SOC charge/discharge logic |
+| `max_cell_voltage` reaches 3.58 V | Stop charging and **latch**; do not re-trickle when the cell relaxes |
+| SOC falls the resume margin (3%) below the latch SOC | Release the latch; normal charge logic applies again |
 | After the 60 s wait | Record `delta_mV = (Vmax - Vmin) * 1000` |
 
-The logic is voltage based. SOC is deliberately not used to decide when the top-voltage taper starts or stops, because SOC can be less reliable near the top than the cell-voltage registers. There is no extra voltage hysteresis in this path. 
+Starting the taper is voltage based: SOC is deliberately not used to decide when tapering begins, because SOC can be less reliable near the top than the cell-voltage registers.
 
-Once the battery reaches 3.58 V, the normal SOC charge/discharge logic with hysteresis is resumed. The 60-second delta-V measurement still runs as a best-effort diagnostic; if it did not finish before completion, a one-shot snapshot is captured at completion time under phase `top_charge_taper_complete`.
+Once the battery reaches 3.58 V the taper stops charging and **latches off**. It does *not* re-trickle when the cell voltage relaxes — re-pausing every cycle would pin the cell at the top voltage and can keep some v3 BMSs from leaving standby to discharge. The latch releases — letting a later top-up taper again — only after SOC has dropped a small margin (default 3%, `NORMAL_BALANCE_RESUME_SOC_DROP`) below the SOC at which it latched, i.e. the battery was actually discharged. The 60-second delta-V measurement still runs as a best-effort diagnostic; if it did not finish before completion, a one-shot snapshot is captured at completion time under phase `top_charge_taper_complete`.
 
 In a multi-battery system, this is evaluated per battery. One battery can be limited or paused while another continues charging normally.
 
@@ -252,6 +253,7 @@ The **Integration Status** sensor exposes a `normal_balance_protection` attribut
 | `enabled` | Whether 100% voltage taper is enabled for that battery |
 | `in_zone` | Whether `max_cell_voltage` is in the top-balance window |
 | `paused` | Whether charging is currently stopped by high cell voltage |
+| `pause_latched_soc` | SOC at which the pause latched; charging stays stopped until SOC drops the resume margin below this (empty when not latched) |
 | `max_cell_voltage` / `min_cell_voltage` | Current cell voltage extremes |
 | `delta_V` | Current voltage spread in volts |
 | `voltage_taper_latched` | Whether the 95 W taper is currently active |

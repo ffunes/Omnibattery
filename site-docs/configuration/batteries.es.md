@@ -43,7 +43,7 @@ Selecciona cuántas unidades Marstek Venus tienes (1–6). La integración te pe
 
 Los valores de SOC máximo/mínimo y potencia máxima de carga/descarga se pueden ajustar en cualquier momento desde los sliders de la integración sin necesidad de reconfigurar. Los cambios se persisten y se restauran en cada reinicio de Home Assistant.
 
-Si elevas el **SOC máximo** de una batería al `100 %`, esa batería usa protección superior por tensión: throttle de carga a 95 W desde `max_cell_voltage >= 3,48 V`, luego la carga se detiene a 3,58 V y la integración espera 60 s para registrar la medición de balance. La carga queda parada en esa tensión sin descarga forzada — la lógica normal de SOC/carga decide cuándo reanudar. Consulta [Monitor de equilibrio de celdas](../features/cell-balance-monitor.md#reduccion-por-voltaje-al-100) para las condiciones exactas de entrada y salida.
+Si elevas el **SOC máximo** de una batería al `100 %`, esa batería usa protección superior por tensión: throttle de carga a 95 W desde `max_cell_voltage >= 3,48 V`, luego la carga se detiene a 3,58 V y la integración espera 60 s para registrar la medición de balance. La carga queda entonces parada (no vuelve a cargar a goteo ni fuerza descarga) hasta que el SOC baja un pequeño margen — así la celda se relaja desde la parte alta en vez de quedar clavada ahí. Consulta [Monitor de equilibrio de celdas](../features/cell-balance-monitor.md#reduccion-por-voltaje-al-100) para las condiciones exactas de entrada y salida.
 
 ![Sliders de SOC y potencia](../assets/screenshots/configuration/battery-runtime-sliders.png){ width="650"  style="display: block; margin: 0 auto;"}
 

@@ -1,15 +1,22 @@
 """Calculated sensors for the Marstek Venus Energy Manager integration."""
 from __future__ import annotations
 
+import time
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, EFFICIENCY_SENSOR_DEFINITIONS, STORED_ENERGY_SENSOR_DEFINITIONS, CYCLE_SENSOR_DEFINITIONS
 from .coordinator import MarstekVenusDataUpdateCoordinator
+
+# Skip integration across gaps larger than this (stalled coordinator / sensor
+# offline) so a resumed update can't dump one giant energy block.
+_MAX_INTEGRATION_GAP_S = 600.0
 
 
 async def async_setup_entry(
@@ -30,7 +37,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class MarstekVenusEfficiencySensor(CoordinatorEntity, SensorEntity):
+class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
     """Representation of a Marstek Venus efficiency sensor."""
 
     def __init__(
@@ -50,24 +57,94 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, SensorEntity):
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_should_poll = False
         self._dependency_keys = definition["dependency_keys"]
+        # On Venus D/A the AC-side charge counter (reg 33000) can't see DC-coupled
+        # PV charging the cells, while the discharge counter (reg 33002) sees
+        # everything, so the hardware round-trip ratio runs >100%. For those units
+        # integrate the true terminal power (battery_cell_power = battery_power +
+        # MPPT) by sign instead. AC-only models have no MPPT and keep the accurate
+        # hardware counters.
+        self._integrate_mode = coordinator.battery_version in ("vA", "vD")
+        self._mppt_keys = ["mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"]
+        self._charge_energy_kwh = 0.0
+        self._discharge_energy_kwh = 0.0
+        self._last_mono: float | None = None
 
     @property
     def native_value(self):
-        """Return the state of the efficiency sensor."""
+        """Return round-trip efficiency (%)."""
+        if self._integrate_mode:
+            if self._charge_energy_kwh <= 0:
+                return None
+            return round(self._discharge_energy_kwh / self._charge_energy_kwh * 100, 2)
+
         if self.coordinator.data is None:
             return None
 
-        charge_key = self._dependency_keys["charge"]
-        discharge_key = self._dependency_keys["discharge"]
-
-        charge_energy = self.coordinator.data.get(charge_key, 0)
-        discharge_energy = self.coordinator.data.get(discharge_key, 0)
+        charge_energy = self.coordinator.data.get(self._dependency_keys["charge"], 0)
+        discharge_energy = self.coordinator.data.get(self._dependency_keys["discharge"], 0)
 
         if charge_energy <= 0:
             return None
 
-        efficiency = (discharge_energy / charge_energy) * 100
-        return round(efficiency, 2)
+        return round((discharge_energy / charge_energy) * 100, 2)
+
+    @property
+    def extra_state_attributes(self):
+        """Expose integrated energy so it survives restarts (vA/vD only)."""
+        if not self._integrate_mode:
+            return None
+        return {
+            "charge_energy_kwh": round(self._charge_energy_kwh, 4),
+            "discharge_energy_kwh": round(self._discharge_energy_kwh, 4),
+        }
+
+    async def async_added_to_hass(self) -> None:
+        """Restore integrated energy counters on startup."""
+        await super().async_added_to_hass()
+        if not self._integrate_mode:
+            return
+        last = await self.async_get_last_state()
+        if last is not None:
+            try:
+                self._charge_energy_kwh = float(last.attributes.get("charge_energy_kwh") or 0.0)
+                self._discharge_energy_kwh = float(last.attributes.get("discharge_energy_kwh") or 0.0)
+            except (TypeError, ValueError):
+                pass
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Integrate terminal power on each coordinator update, then write state."""
+        self._accumulate()
+        super()._handle_coordinator_update()
+
+    def _accumulate(self) -> None:
+        """Add the energy moved since the last update to the charge/discharge totals."""
+        if not self._integrate_mode:
+            return
+        data = self.coordinator.data
+        if not data:
+            return
+        battery = data.get("battery_power")
+        if battery is None:
+            return
+        solar = sum(v for k in self._mppt_keys if (v := data.get(k)) is not None)
+        cell_power = battery + solar  # W, + charge / - discharge
+
+        now = time.monotonic()
+        last = self._last_mono
+        self._last_mono = now
+        # First sample (fresh start or post-restart): seed the timer, accumulate
+        # nothing — monotonic resets across restarts, so this also skips downtime.
+        if last is None:
+            return
+        dt = now - last
+        if dt <= 0 or dt > _MAX_INTEGRATION_GAP_S:
+            return
+        energy_kwh = cell_power * (dt / 3600.0) / 1000.0
+        if energy_kwh > 0:
+            self._charge_energy_kwh += energy_kwh
+        else:
+            self._discharge_energy_kwh += -energy_kwh
 
     @property
     def device_info(self):

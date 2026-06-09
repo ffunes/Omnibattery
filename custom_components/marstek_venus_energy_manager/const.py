@@ -1948,6 +1948,12 @@ NORMAL_BALANCE_TAPER_CELL_VOLTAGE = 3.48
 NORMAL_BALANCE_PAUSE_CELL_VOLTAGE = 3.58
 NORMAL_BALANCE_CHARGE_POWER_W = 95
 NORMAL_BALANCE_MEASURE_WAIT_SECONDS = 60
+# Once the top voltage is reached the taper stops charging and latches. It does
+# NOT re-trickle when the cell relaxes (that would pin the cell at the top
+# voltage and keep some v3 BMSs from leaving standby to discharge). The latch
+# releases — allowing a later top-up to taper again — only after the battery has
+# actually been discharged by this SOC margin from where it latched.
+NORMAL_BALANCE_RESUME_SOC_DROP = 3             # %: SOC must fall this far below the latch SOC before charging may resume
 
 # SOC recalibration on a stuck top voltage.
 # Some packs hit the top cell voltage (pause point) while the BMS still reports a

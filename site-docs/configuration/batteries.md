@@ -45,7 +45,7 @@ Select how many Marstek Venus units you have (1–6). The integration will ask y
 
 Max/min SOC and max charge/discharge power values can be adjusted at any time using the integration's sliders without reconfiguring. Changes are persisted and restored on every Home Assistant restart.
 
-If you raise a battery's **Max SOC** to `100 %`, that battery uses voltage-based top protection: 95 W charge throttle from `max_cell_voltage >= 3.48 V`, then charging stops at 3.58 V and the integration waits 60 s to record the balance measurement. Charging is left stopped at that voltage with no forced discharge — the normal SOC/charge logic decides when to resume. See [Cell balance monitor](../features/cell-balance-monitor.md#100-charge-voltage-taper) for the exact entry and exit conditions.
+If you raise a battery's **Max SOC** to `100 %`, that battery uses voltage-based top protection: 95 W charge throttle from `max_cell_voltage >= 3.48 V`, then charging stops at 3.58 V and the integration waits 60 s to record the balance measurement. Charging then stays stopped (it does not re-trickle and there is no forced discharge) until SOC drops a small margin — so the cell relaxes off the top instead of being held there. See [Cell balance monitor](../features/cell-balance-monitor.md#100-charge-voltage-taper) for the exact entry and exit conditions.
 
 ![SOC and power sliders](../assets/screenshots/configuration/battery-runtime-sliders.png){ width="650"  style="display: block; margin: 0 auto;"}
 
