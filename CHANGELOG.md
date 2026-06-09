@@ -2,6 +2,9 @@
 
 ## [2.0.2] - 2026-06-09
 
+### Changed
+- **Venus D charge/discharge limit raised to 2500 W** (was 2200): firmware 149 supports the higher rating. The power sliders, setup/options flow, and dashboard panel now allow up to 2500 W. Existing Venus D configs keep their saved value — re-set the slider to use the new ceiling. [`const.py`](custom_components/marstek_venus_energy_manager/const.py).
+
 ### Fixed
 - **Spurious active-balance cell-delta readings below the top voltage**: the BMS charge-rejection test fired on transient ~0 W reads (charge ramp-up, current taper near 3.58 V) even when the BMS was not cutting, logging low-vmax deltas that distorted the balance history. Rejection now must persist 3 cycles before recording a measurement. [`active_balance_mode.py`](custom_components/marstek_venus_energy_manager/active_balance_mode.py).
 - **Control-tab cards overflowed at ~1080p**: sliders collapsed to the knob and values/buttons spilled outside the card box on narrow screens. The settings blocks now wrap to multiple rows instead of crushing into one, and section labels can wrap. [`marstek-panel.js`](custom_components/marstek_venus_energy_manager/frontend/marstek-panel.js).
