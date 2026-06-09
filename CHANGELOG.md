@@ -3,6 +3,7 @@
 ## [2.0.2] - 2026-06-09
 
 ### Fixed
+- **Spurious active-balance cell-delta readings below the top voltage**: the BMS charge-rejection test fired on transient ~0 W reads (charge ramp-up, current taper near 3.58 V) even when the BMS was not cutting, logging low-vmax deltas that distorted the balance history. Rejection now must persist 3 cycles before recording a measurement. [`active_balance_mode.py`](custom_components/marstek_venus_energy_manager/active_balance_mode.py).
 - **Control-tab cards overflowed at ~1080p**: sliders collapsed to the knob and values/buttons spilled outside the card box on narrow screens. The settings blocks now wrap to multiple rows instead of crushing into one, and section labels can wrap. [`marstek-panel.js`](custom_components/marstek_venus_energy_manager/frontend/marstek-panel.js).
 
 ## [2.0.1] - 2026-06-08

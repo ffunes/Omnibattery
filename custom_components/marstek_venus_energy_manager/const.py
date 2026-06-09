@@ -1977,6 +1977,13 @@ ACTIVE_BALANCE_FINAL_DISCHARGE_STOP_CELL_VOLTAGE = 3.48
 ACTIVE_BALANCE_MEASURE_WAIT_SECONDS = 60
 ACTIVE_BALANCE_ADAPTIVE_RESUME_STEP_V = 0.01
 ACTIVE_BALANCE_ADAPTIVE_MIN_RESUME_CELL_VOLTAGE = 3.40
+# Consecutive ~0 W charge-rejection detections required before treating a charge
+# below the stop voltage as a real BMS cut. The control loop runs every ~2 s, so
+# a single transient (charge ramp-up after escape discharge, or natural current
+# taper approaching the stop voltage) clears within 1-2 cycles and must not be
+# logged as a real cutoff measurement. 3 cycles (~6 s) means the cells are truly
+# at rest before recording a delta and ratcheting the retry voltage down.
+ACTIVE_BALANCE_CHARGE_REJECT_DEBOUNCE_CYCLES = 3
 ACTIVE_BALANCE_CHARGE_POWER_W = 95
 ACTIVE_BALANCE_DISCHARGE_POWER_W = 200
 ACTIVE_BALANCE_MODE_TARGET_DELTA_V = 0.03

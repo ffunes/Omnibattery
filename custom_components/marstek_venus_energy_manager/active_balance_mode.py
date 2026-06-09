@@ -26,6 +26,7 @@ from .const import (
     ACTIVE_BALANCE_ADAPTIVE_MIN_RESUME_CELL_VOLTAGE,
     ACTIVE_BALANCE_ADAPTIVE_RESUME_STEP_V,
     ACTIVE_BALANCE_CHARGE_POWER_W,
+    ACTIVE_BALANCE_CHARGE_REJECT_DEBOUNCE_CYCLES,
     ACTIVE_BALANCE_CHARGE_RESUME_CELL_VOLTAGE,
     ACTIVE_BALANCE_CHARGE_STOP_CELL_VOLTAGE,
     ACTIVE_BALANCE_DISCHARGE_POWER_W,
@@ -50,6 +51,7 @@ class ActiveBalanceModeManager:
         self._controller = controller
         self._active_balance_mode_phases: dict = {}
         self._active_balance_charge_resume_targets: dict = {}
+        self._active_balance_charge_reject_counts: dict = {}
         self._active_balance_mode_status: dict[str, dict] = {}
         # Restore in-memory phase from persisted coordinator attrs.
         for coordinator in controller.coordinators:
@@ -609,6 +611,7 @@ class ActiveBalanceModeManager:
             await self._dismiss_legacy_active_balance_notifications(coordinator)
 
         self._active_balance_mode_phases.pop(coordinator, None)
+        self._active_balance_charge_reject_counts.pop(coordinator, None)
         self._reset_active_balance_charge_resume_target(coordinator)
         await self._restore_active_balance_mode_cutoff(coordinator)
         coordinator.active_balance_mode_started_ts = None
@@ -866,15 +869,29 @@ class ActiveBalanceModeManager:
                 coordinator,
                 "CHARGE" if phase in {"CHARGE", "WAIT_MEASURE"} else phase,
             )
+            # Debounce the single-sample rejection test. A transient ~0 W read
+            # (charge ramp-up after an escape discharge, or natural current taper
+            # approaching the stop voltage) trips the detector for one or two
+            # cycles even though the BMS is still charging. Recording a delta on
+            # such a blip injects a low-vmax reading that is not comparable to a
+            # true 3.58 V top measurement and distorts the balance history.
+            # Require the rejection to persist before acting on it.
+            below_stop = vmax_f < ACTIVE_BALANCE_CHARGE_STOP_CELL_VOLTAGE
+            if charge_rejected and below_stop:
+                reject_count = self._active_balance_charge_reject_counts.get(coordinator, 0) + 1
+            else:
+                reject_count = 0
+            self._active_balance_charge_reject_counts[coordinator] = reject_count
             # Only treat as a real BMS rejection when we are still below the
             # configured stop voltage. At/above it the cutoff is the expected
             # end-of-charge signal and must transition us into WAIT_MEASURE,
             # not into DISCHARGE (which would skip the delta evaluation).
-            if charge_rejected and vmax_f < ACTIVE_BALANCE_CHARGE_STOP_CELL_VOLTAGE:
-                # BMS cut charge before the 3.58 V top. Rejection detection
-                # requires ~0 W, so cells are already at rest: record the
+            if reject_count >= ACTIVE_BALANCE_CHARGE_REJECT_DEBOUNCE_CYCLES:
+                # BMS cut charge before the 3.58 V top and has stayed at ~0 W for
+                # several cycles, so cells are genuinely at rest: record the
                 # achieved delta as a real measurement before stepping the retry
                 # point down and dropping into the escape discharge.
+                self._active_balance_charge_reject_counts[coordinator] = 0
                 await self._record_active_balance_mode_measurement(
                     coordinator,
                     {
