@@ -8,8 +8,8 @@ Charges from the grid during a **fixed time window** (typically cheap overnight 
 |---|---|
 | **Time window** | Start and end of the charging slot (e.g. `02:00` – `05:00`) |
 | **Solar forecast sensor** | Current-day production sensor in kWh (optional) |
-| **Solar forecast safety margin (kWh)** | Extra energy buffer added to consumption forecast before deciding whether to charge |
-| **Predictive grid charge margin (%)** | Extra % charged from the grid on top of the solar deficit, to compensate against optimistic solar forecast |
+| **Solar forecast safety margin (kWh)** | (Optional) Extra energy buffer added to consumption forecast before deciding whether to charge (default 0 kWh) |
+| **Predictive grid charge margin (%)** | (Optional) Tops up the grid-charge amount to hedge optimistic solar forecasts — e.g. a 2 kWh grid need at 50 % charges 3 kWh. Capped at the gap to max SOC (default 0 %) |
 
 !!! danger "Breaking change in v1.6.0"
     The solar forecast sensor field must now point to the **today** sensor (e.g. `sensor.solcast_pv_forecast_forecast_today`), not the tomorrow sensor.
