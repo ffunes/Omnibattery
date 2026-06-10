@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3] - 2026-06-10
+
+### Fixed
+- **v3 reconnect storm**: failed reads/writes no longer tear down and reopen the TCP connection (v3 firmware holds a single connection slot); reconnection is owned by the coordinator's health gate, and a fresh connect waits 1 s after closing so v3 can release its slot.
+- **Inter-message delay was never applied**: `message_wait_milliseconds` is not a pymodbus feature, so the configured spacing (150 ms for v3/vA/vD) was silently ignored and registers were read back-to-back. The client now sleeps the configured delay after every Modbus request.
+- **Battery charged/discharged at max power with slow grid sensors (~30 s)**: the PD loop scales its incremental P term by elapsed/dt, which multiplied the gain ~15× for a 30 s sensor (vs ~1× at 2 s) — an open-loop step far past the stability bound, overshooting and reversing each update into rail-to-rail oscillation. P scaling is now capped to the discrete stability bound (`kp·ratio ≤ 1`), and the stale-sensor safety recalc no longer integrates P on already-acted-on data (windup on sensors slower than the ~30 s watchdog). [`__init__.py`](custom_components/marstek_venus_energy_manager/__init__.py).
+
 ## [2.0.2] - 2026-06-09
 
 ### Added

@@ -3550,8 +3550,13 @@ class ChargeDischargeController:
         self.derivative_filtered += d_alpha * (error_derivative_raw - self.derivative_filtered)
 
         # PD terms. P is applied incrementally (integral action), so scale it by elapsed
-        # time normalized to the nominal dt to keep tuning cadence-independent.
-        P = self.kp * error * (scale_dt / self.dt)
+        # time normalized to the nominal dt to keep tuning cadence-independent. Cap the
+        # multiplier to the discrete stability bound (kp * ratio <= 1) so a slow sensor's
+        # large elapsed value can't apply an open-loop step that oscillates rail-to-rail.
+        p_scale = scale_dt / self.dt
+        if self.kp > 0:
+            p_scale = min(p_scale, max(1.0, 1.0 / self.kp))
+        P = self.kp * error * p_scale
         D = self.kd * self.derivative_filtered
         pd_adjustment = P + D
         
@@ -6171,6 +6176,11 @@ class ChargeDischargeController:
             if previous_update_time is not None else None
         )
 
+        # Generic safety recalc on a silent sensor must re-evaluate structural state
+        # (SOC/limits/blockers) but must NOT integrate the P term: the grid error is
+        # already-acted-on stale data, so a factor-1 P push every 2s tick winds up and
+        # ramps the command rail-to-rail on sensors slower than the watchdog (~30s).
+        stale_safety_recalc = False
         if is_stale:
             self._stale_cycles += 1
             capacity_protection_must_recheck = (
@@ -6194,6 +6204,7 @@ class ChargeDischargeController:
                     self.previous_power,
                 )
             else:
+                stale_safety_recalc = True
                 _LOGGER.debug(
                     "ChargeDischargeController: Sensor stale for %d cycles (~%.0fs). Safety recalculation.",
                     self._stale_cycles, self._stale_cycles * 2.0
@@ -6531,7 +6542,17 @@ class ChargeDischargeController:
         # is now event-driven (variable cadence, ~1 s) rather than a fixed 2 s timer, so
         # scale by real elapsed time normalized to the nominal dt — this keeps the
         # per-second correction, and therefore the tuning, independent of cadence.
-        P = self.kp * error * (scale_dt / self.dt)
+        # Cap the cadence multiplier on the incremental (integral-like) P term so the
+        # effective per-update gain (kp * ratio) stays within the discrete stability
+        # bound. Scaling P up by elapsed/dt is only valid while the loop closes between
+        # samples; for a slow sensor the sample interval IS the feedback dead time, so an
+        # uncapped step is applied open-loop and oscillates rail-to-rail (Keff > 1).
+        p_scale = scale_dt / self.dt
+        if self.kp > 0:
+            p_scale = min(p_scale, max(1.0, 1.0 / self.kp))
+        if stale_safety_recalc:
+            p_scale = 0.0  # hold command; no fresh grid data to integrate (see above)
+        P = self.kp * error * p_scale
         I = self.ki * self.error_integral
         D = self.kd * error_derivative
         

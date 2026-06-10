@@ -64,10 +64,10 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         _LOGGER.info("[%s] Initialized as %s battery", name, self.battery_version)
 
-        # Create Modbus client with version-specific timing and packet correction
+        # Create Modbus client with version-specific timing and packet correction.
         wait_ms = MESSAGE_WAIT_MS.get(self.battery_version, 50)
         is_v3 = self.battery_version in ("v3", "vA", "vD")
-        self.client = MarstekModbusClient(host, port, message_wait_ms=wait_ms, is_v3=is_v3, slave_id=slave_id)
+        self.client = MarstekModbusClient(host, port, message_wait_ms=wait_ms, timeout=10, is_v3=is_v3, slave_id=slave_id)
 
         self.max_charge_power = max_charge_power
         self.max_discharge_power = max_discharge_power
@@ -739,14 +739,12 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 self._last_write_failure_reason = "missing_registers"
                 return None
 
-            inter_write_delay = MESSAGE_WAIT_MS.get(self.battery_version, 50) / 1000.0
-
             try:
-                # Write all 3 registers without releasing lock
+                # Write all 3 registers without releasing lock. The client itself
+                # sleeps MESSAGE_WAIT_MS after every request, so no extra
+                # inter-write delay is needed here.
                 ok1 = await self.client.async_write_register(discharge_reg, discharge_power)
-                await asyncio.sleep(inter_write_delay)
                 ok2 = await self.client.async_write_register(charge_reg, charge_power)
-                await asyncio.sleep(inter_write_delay)
                 ok3 = await self.client.async_write_register(force_reg, force_mode)
 
                 if not (ok1 and ok2 and ok3):

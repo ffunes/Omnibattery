@@ -75,7 +75,10 @@ class MarstekModbusClient:
         self._port = port
         self._timeout = timeout
         self._is_v3 = is_v3
-        self._message_wait_ms = message_wait_ms
+        # pymodbus has no inter-message delay for TCP (message_wait_milliseconds
+        # is a Home Assistant modbus-integration concept that pymodbus never
+        # implemented), so we enforce the spacing ourselves after every request.
+        self._message_wait_sec = max(0.0, message_wait_ms / 1000.0)
 
         # Create pymodbus async TCP client instance with auto-reconnect disabled.
         # We manage reconnection ourselves by creating fresh client instances,
@@ -92,7 +95,6 @@ class MarstekModbusClient:
         if is_v3:
             self.client.trace_packet = _marstek_v3_packet_correction
 
-        self.client.message_wait_milliseconds = message_wait_ms
         self.unit_id = slave_id  # Modbus slave/unit id for this battery
         self._slave_kwarg = _detect_slave_kwarg(self.client)  # "slave" or "device_id"
         self._is_shutting_down = False  # Flag to suppress errors during shutdown
@@ -134,6 +136,13 @@ class MarstekModbusClient:
                 except Exception:
                     pass
 
+                # v3 firmware exposes a single TCP slot and does not free it
+                # instantly on close. Reopening immediately gets refused, so the
+                # battery never recovers. Give it time to release the old socket
+                # before we open a new one.
+                if self._is_v3:
+                    await asyncio.sleep(1.0)
+
             # Create a fresh client instance (no corrupted state, no backoff)
             self.client = AsyncModbusTcpClient(
                 host=self._host,
@@ -143,10 +152,9 @@ class MarstekModbusClient:
                 reconnect_delay_max=0,
             )
 
-            # Restore v3 packet correction and timing
+            # Restore v3 packet correction
             if self._is_v3:
                 self.client.trace_packet = _marstek_v3_packet_correction
-            self.client.message_wait_milliseconds = self._message_wait_ms
 
             connected = await self.client.connect()
 
@@ -247,10 +255,16 @@ class MarstekModbusClient:
             # This avoids problems with incorrect connection state reporting
 
             try:
-                result = await asyncio.wait_for(
-                    self.client.read_holding_registers(address=register, count=count, **{self._slave_kwarg: self.unit_id}),
-                    timeout=self._timeout,
-                )
+                try:
+                    result = await asyncio.wait_for(
+                        self.client.read_holding_registers(address=register, count=count, **{self._slave_kwarg: self.unit_id}),
+                        timeout=self._timeout,
+                    )
+                finally:
+                    # Inter-message spacing: v3 firmware needs time between
+                    # frames (MESSAGE_WAIT_MS) or it stops responding.
+                    if self._message_wait_sec and not self._is_shutting_down:
+                        await asyncio.sleep(self._message_wait_sec)
                 if result.isError():
                     if not self._is_shutting_down:
                         _LOGGER.error(
@@ -354,16 +368,13 @@ class MarstekModbusClient:
             except (ConnectionException, ModbusIOException, asyncio.TimeoutError):
                 if self._is_shutting_down:
                     return None
-                # Connection is dead or unresponsive — try to create a fresh connection
-                _LOGGER.debug("Connection lost during read of register %d (0x%04X), attempting reconnect", register)
-                reconnected = await self.async_connect()
-                if not reconnected:
-                    _LOGGER.debug("Reconnect failed for register %d (0x%04X) read - aborting", register, register)
-                    return None
-                # Fresh connection established — retry the read once more
-                _LOGGER.info("Reconnected successfully, retrying read of register %d (0x%04X)", register, register)
-                attempt += 1  # Count reconnect as an attempt to prevent infinite loops
-                continue
+                # Do NOT reconnect from here. The battery (v3 firmware especially)
+                # holds a single TCP slot and refuses new connections until it has
+                # released the old one. Tearing down and reopening on every failed
+                # read creates a reconnect storm the battery never recovers from.
+                # Fail this read and fall through to the same-connection retry; the
+                # coordinator's health monitor owns reconnection after N failed cycles.
+                _LOGGER.debug("Connection error reading register %d (0x%04X)", register, register)
 
             except Exception as e:
                 if not self._is_shutting_down:
@@ -409,25 +420,25 @@ class MarstekModbusClient:
             try:
                 if DEBUG_RAW_MODBUS_READS:
                     _LOGGER.debug("Modbus write: register=%d/0x%04X value=%s", register, register, value)
-                result = await asyncio.wait_for(
-                    self.client.write_register(address=register, value=value, **{self._slave_kwarg: self.unit_id}),
-                    timeout=self._timeout,
-                )
+                try:
+                    result = await asyncio.wait_for(
+                        self.client.write_register(address=register, value=value, **{self._slave_kwarg: self.unit_id}),
+                        timeout=self._timeout,
+                    )
+                finally:
+                    # Inter-message spacing (see async_read_register).
+                    if self._message_wait_sec and not self._is_shutting_down:
+                        await asyncio.sleep(self._message_wait_sec)
                 return not result.isError()
 
             except (ConnectionException, ModbusIOException, asyncio.TimeoutError):
                 if self._is_shutting_down:
                     return False
-                # Connection is dead or unresponsive — try to create a fresh connection
-                _LOGGER.debug("Connection lost during write to register %d (0x%04X), attempting reconnect", register)
-                reconnected = await self.async_connect()
-                if not reconnected:
-                    _LOGGER.debug("Reconnect failed for register %d (0x%04X) write - aborting", register, register)
-                    return False
-                # Fresh connection established — retry the write once more
-                _LOGGER.info("Reconnected successfully, retrying write to register %d (0x%04X)", register, register)
-                attempt += 1  # Count reconnect as an attempt to prevent infinite loops
-                continue
+                # Do NOT reconnect from here (see async_read_register). A fresh TCP
+                # connection per failed write is what makes the v3 single-slot
+                # firmware go permanently unresponsive. Fall through to the
+                # same-connection retry; the coordinator owns reconnection.
+                _LOGGER.debug("Connection error writing register %d (0x%04X)", register, register)
 
             except Exception as e:
                 if not self._is_shutting_down:
