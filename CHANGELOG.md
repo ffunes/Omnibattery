@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.4] - Unreleased
+## [2.0.4b1] - 2026-06-11
 
 ### Internal
 - **Automated test suite + CI**: first `pytest` coverage (consumption model, excluded-device and EV-charger logic), run on every PR. No user-facing change. [`tests/`](tests/), [`tests.yml`](.github/workflows/tests.yml).
