@@ -611,6 +611,8 @@ class ConsumptionTracker:
         #   included_in_consumption=False → device not in home sensor but battery covers it → add
         excluded_devices = self._config_entry.data.get("excluded_devices", [])
         for device in excluded_devices:
+            if not device.get("enabled", True):
+                continue
             if device.get("ev_charger_no_telemetry", False):
                 continue
             power_sensor = device.get("power_sensor")
