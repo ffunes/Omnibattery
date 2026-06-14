@@ -1156,7 +1156,7 @@ class IntegrationStatusSensor(SensorEntity):
                 if pause_until is not None
             }
 
-        normal_balance = c.get_normal_balance_status()
+        normal_balance = c.get_max_soc_charge_status()
         if normal_balance:
             attrs["normal_balance_protection"] = normal_balance
 

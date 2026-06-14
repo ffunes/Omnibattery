@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.4b4] - 2026-06-14
+
+### Internal
+- **`max_soc_charge` module extracted**: top-of-charge management for a normal 100% charge (power taper near the top cell voltage, charge pause/hysteresis, SOC recalibration on coulomb drift, passive cell-delta measurement) moved out of `__init__.py` into [`max_soc_charge.py`](custom_components/marstek_venus_energy_manager/max_soc_charge.py) as `MaxSocChargeManager`. The misleading "normal balance" name (it does not drive active cell balancing) is dropped; behavior unchanged, guarded by new characterization tests. [`__init__.py`](custom_components/marstek_venus_energy_manager/__init__.py).
+
 ## [2.0.4b3] - 2026-06-12
 
 ### Internal
