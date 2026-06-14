@@ -2,6 +2,10 @@
 
 ## [2.0.4b4] - 2026-06-14
 
+### Changed
+- **English entity_ids for new installs**: entity_ids are now built from the English translation key (e.g. `sensor.marstek_venus_1_ac_power`) instead of the localized display name, so they no longer vary by UI language. Friendly (display) names stay localized. Existing entities keep their current ids — the registry matches on unique_id — so only newly created entities are affected. [`entity_naming.py`](custom_components/marstek_venus_energy_manager/entity_naming.py). Battery binary sensors (WiFi/Cloud/Balancing status) also moved off the legacy hard-coded name to `translation_key`, so they now localize like the rest; added the missing `balancing_mode` binary-sensor translation in all languages.
+  - ⚠️ **Heads-up**: existing entity_ids are kept untouched. But if you rebuild them (delete the entities/device so they re-register, or remove and re-add the integration), the new ids will be generated in **English** instead of your install language — update any dashboards, automations, or scripts that reference the old localized ids.
+
 ### Internal
 - **`max_soc_charge` module extracted**: top-of-charge management for a normal 100% charge (power taper near the top cell voltage, charge pause/hysteresis, SOC recalibration on coulomb drift, passive cell-delta measurement) moved out of `__init__.py` into [`max_soc_charge.py`](custom_components/marstek_venus_energy_manager/max_soc_charge.py) as `MaxSocChargeManager`. The misleading "normal balance" name (it does not drive active cell balancing) is dropped; behavior unchanged, guarded by new characterization tests. [`__init__.py`](custom_components/marstek_venus_energy_manager/__init__.py).
 

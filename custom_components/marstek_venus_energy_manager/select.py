@@ -20,6 +20,7 @@ from .const import (
     pd_profile_from_params,
 )
 from .coordinator import MarstekVenusDataUpdateCoordinator
+from .entity_naming import english_entity_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ class MarstekVenusSelect(CoordinatorEntity, SelectEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = definition["key"]
         self._attr_unique_id = f"{coordinator.device_key}_{definition['key']}"
+        self.entity_id = english_entity_id("select", coordinator.name, definition["key"])
         self._attr_options = list(definition["options"].keys())
         self._attr_entity_registry_enabled_default = definition.get("enabled_by_default", True)
         self._attr_should_poll = False
@@ -122,6 +124,7 @@ class WeeklyFullChargeDaySelect(SelectEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "weekly_full_charge_day"
         self._attr_unique_id = f"{entry.entry_id}_weekly_full_charge_day"
+        self.entity_id = english_entity_id("select", "Marstek Venus System", "weekly_full_charge_day")
         self._attr_icon = "mdi:calendar-week"
         self._attr_options = WEEKDAY_OPTIONS
         self._attr_should_poll = False
@@ -171,6 +174,7 @@ class PdTuningProfileSelect(SelectEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "pd_tuning_profile"
         self._attr_unique_id = f"{entry.entry_id}_pd_tuning_profile"
+        self.entity_id = english_entity_id("select", "Marstek Venus System", "pd_tuning_profile")
         self._attr_icon = "mdi:tune-variant"
         self._attr_options = list(PD_TUNING_PROFILE_OPTIONS)
         self._attr_should_poll = False

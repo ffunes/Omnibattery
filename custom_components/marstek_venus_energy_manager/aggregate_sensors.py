@@ -105,6 +105,7 @@ class DailyGridAtMinSocSensor(SensorEntity):
 
         self._attr_has_entity_name = True
         self._attr_unique_id = "marstek_venus_system_daily_grid_at_min_soc_energy"
+        self.entity_id = f"sensor.{self._attr_unique_id}"
         self._attr_translation_key = "system_daily_grid_at_min_soc_energy"
         self._attr_native_unit_of_measurement = "kWh"
         self._attr_device_class = SensorDeviceClass.ENERGY
@@ -158,6 +159,7 @@ class PdControlQualitySensor(SensorEntity):
 
         self._attr_has_entity_name = True
         self._attr_unique_id = "marstek_venus_system_pd_control_quality"
+        self.entity_id = f"sensor.{self._attr_unique_id}"
         self._attr_translation_key = "system_pd_control_quality"
         self._attr_device_class = SensorDeviceClass.ENUM
         self._attr_options = list(self._STATES)
@@ -227,6 +229,7 @@ class MarstekVenusAggregateSensor(SensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = definition["key"]
         self._attr_unique_id = f"marstek_venus_system_{definition['key']}"
+        self.entity_id = f"sensor.{self._attr_unique_id}"
         self._attr_device_class = definition.get("device_class")
         self._attr_state_class = definition.get("state_class")
         self._attr_native_unit_of_measurement = definition.get("unit")
@@ -507,6 +510,7 @@ class SystemAlarmSensor(SensorEntity):
     def __init__(self, coordinators: list[MarstekVenusDataUpdateCoordinator]) -> None:
         """Initialize the system alarm sensor."""
         self.coordinators = coordinators
+        self.entity_id = f"sensor.{self._attr_unique_id}"
 
         for coordinator in coordinators:
             coordinator.async_add_listener(self._handle_coordinator_update)
