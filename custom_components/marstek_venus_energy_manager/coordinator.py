@@ -927,3 +927,19 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             elif not self._is_shutting_down:
                 _LOGGER.warning("[%s] One or more battery config writes failed", self.name)
             return ok
+
+    async def standby(self) -> bool:
+        """Idle the battery for teardown via the driver, holding self.lock.
+
+        Used on integration unload. The driver owns the zero set-points + the
+        shutdown-time inter-write pacing; this wrapper only adds the lock so a
+        stray poll cannot interleave. No health bookkeeping (the connection is
+        about to close) and no refresh.
+        """
+        async with self.lock:
+            try:
+                return await self.driver.standby()
+            except Exception as e:
+                if not self._is_shutting_down:
+                    _LOGGER.error("[%s] Exception setting standby: %s", self.name, e)
+                return False

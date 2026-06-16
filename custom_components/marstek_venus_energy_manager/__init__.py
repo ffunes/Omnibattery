@@ -4683,9 +4683,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                 rs485_reg = coordinator.get_register("rs485_control")
 
-                # Set all power commands to 0 (idle) via the driver.
+                # Set all power commands to 0 (idle) via the driver. standby()
+                # paces its own writes — the client's inter-message pacing is
+                # suppressed during shutdown.
                 _LOGGER.info("Setting %s to standby mode", coordinator.name)
-                await coordinator.apply_power(0, read_back=False)
+                await coordinator.standby()
 
                 # Disable RS485 Control Mode (return control to battery's internal logic)
                 _LOGGER.info("Disabling RS485 control mode for %s", coordinator.name)

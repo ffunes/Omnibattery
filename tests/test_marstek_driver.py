@@ -355,3 +355,38 @@ async def test_apply_config_propagates_write_failure():
     )
 
     assert ok is False
+
+
+# ----------------------------------------------------------------------
+# standby (teardown)
+# ----------------------------------------------------------------------
+async def test_standby_zeros_setpoints_and_force_mode():
+    client = _fake_client()
+    drv = _driver("v3", client=client)
+
+    ok = await drv.standby()
+
+    assert ok is True
+    reg = REGISTER_MAP["v3"]
+    writes = {c.args[0]: c.args[1] for c in client.async_write_register.call_args_list}
+    assert writes[reg["set_discharge_power"]] == 0
+    assert writes[reg["set_charge_power"]] == 0
+    assert writes[reg["force_mode"]] == 0
+    assert client.async_write_register.await_count == 3
+
+
+async def test_standby_addresses_configured_slave():
+    client = _fake_client()
+    drv = _driver("v3", slave_id=7, client=client)
+
+    await drv.standby()
+
+    assert client.unit_id == 7
+
+
+async def test_standby_propagates_write_failure():
+    client = _fake_client()
+    client.async_write_register = AsyncMock(return_value=False)
+    drv = _driver("v3", client=client)
+
+    assert await drv.standby() is False

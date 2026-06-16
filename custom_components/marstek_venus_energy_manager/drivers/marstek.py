@@ -292,6 +292,32 @@ class MarstekModbusDriver(BatteryDriver):
             ok &= await self._client.async_write_register(max_discharge_reg, max_discharge_power_w)
         return bool(ok)
 
+    async def standby(self) -> bool:
+        """Idle the battery (zero set-points, no force mode) for teardown.
+
+        Distinct from ``apply_setpoint(0)``: this runs during integration unload,
+        when the client's inter-message pacing is suppressed (so the connection
+        can be released quickly). It therefore paces the three writes itself —
+        the same ~50 ms gap the shutdown path used before the driver move — to
+        keep the v3 single TCP slot from being hit back-to-back. No readback and
+        no telemetry echo: the connection closes immediately after. Returns True
+        if every write was accepted, False if a required register is missing.
+        """
+        discharge_reg = self.get_register("set_discharge_power")
+        charge_reg = self.get_register("set_charge_power")
+        force_reg = self.get_register("force_mode")
+        if None in (discharge_reg, charge_reg, force_reg):
+            return False
+        self._client.unit_id = self._slave_id
+        ok = True
+        ok &= await self._client.async_write_register(discharge_reg, 0)
+        await asyncio.sleep(0.05)
+        ok &= await self._client.async_write_register(charge_reg, 0)
+        await asyncio.sleep(0.05)
+        ok &= await self._client.async_write_register(force_reg, _FORCE_NONE)
+        await asyncio.sleep(0.05)
+        return bool(ok)
+
     async def set_rs485_control(self, enable: bool) -> bool:
         """Enable or disable RS485 (external Modbus) control mode.
 
