@@ -616,7 +616,8 @@ class MarstekModbusDriver(BatteryDriver):
                 return False
             value = await client.async_read_register(soc_register, "uint16")
             return value is not None
-        except Exception:
+        except Exception as e:
+            _LOGGER.debug("Probe of %s:%s (%s) failed: %s", host, port, version, e)
             return False
         finally:
             try:
