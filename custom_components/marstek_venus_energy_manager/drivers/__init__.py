@@ -13,12 +13,19 @@ Drivers:
 See ``docs/plans/driver_abstraction.md`` for the phased extraction plan.
 """
 
-from .base import BatteryDriver, DriverCapabilities, SetpointResult, TelemetrySnapshot
+from .base import (
+    BatteryDriver,
+    DriverCapabilities,
+    ReadGroup,
+    SetpointResult,
+    TelemetrySnapshot,
+)
 from .marstek import MarstekModbusDriver
 
 __all__ = [
     "BatteryDriver",
     "DriverCapabilities",
+    "ReadGroup",
     "SetpointResult",
     "TelemetrySnapshot",
     "MarstekModbusDriver",

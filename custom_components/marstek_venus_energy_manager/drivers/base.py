@@ -108,6 +108,25 @@ class SetpointResult:
 TelemetrySnapshot = dict
 
 
+@dataclass(frozen=True)
+class ReadGroup:
+    """A schedulable unit of telemetry the coordinator polls as one request.
+
+    The driver groups its telemetry keys so the coordinator can schedule, gate and
+    lock *per group* without knowing the register layout: a Modbus driver collapses
+    a contiguous register span into one block group (read in a single request) and
+    exposes every other key as its own singleton group; a push driver can expose a
+    single group of everything it caches. ``scan_interval`` is the poll-cadence
+    name the coordinator maps to seconds (None means the group is misconfigured and
+    is skipped with a warning); ``keys`` are the logical telemetry keys read
+    together — passed verbatim to :meth:`BatteryDriver.read_telemetry` — and double
+    as the group's stable identity for per-group poll scheduling.
+    """
+
+    scan_interval: Optional[str]
+    keys: tuple[str, ...]
+
+
 class BatteryDriver(ABC):
     """Abstract hardware driver for a single physical battery.
 
@@ -144,6 +163,18 @@ class BatteryDriver(ABC):
         """Suppress error logging during integration unload / HA shutdown."""
 
     # --- telemetry (read) ---------------------------------------------------
+
+    @property
+    @abstractmethod
+    def read_groups(self) -> list[ReadGroup]:
+        """Telemetry keys grouped into schedulable poll units (see :class:`ReadGroup`).
+
+        The coordinator iterates these to schedule, gate and lock per group rather
+        than branching on register layout. A polled Modbus driver returns one group
+        per contiguous register block (read in a single request) plus a singleton
+        group per remaining key; a push driver may return a single group of its
+        cached state.
+        """
 
     @abstractmethod
     async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:

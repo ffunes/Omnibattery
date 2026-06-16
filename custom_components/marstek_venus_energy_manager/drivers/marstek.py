@@ -22,8 +22,14 @@ import logging
 from typing import Optional
 
 from ..const import MESSAGE_WAIT_MS, READ_TIMEOUT_S, REGISTER_MAP
-from ..modbus_client import MarstekModbusClient
-from .base import BatteryDriver, DriverCapabilities, SetpointResult, TelemetrySnapshot
+from ..modbus_client import MarstekModbusClient, decode_registers
+from .base import (
+    BatteryDriver,
+    DriverCapabilities,
+    ReadGroup,
+    SetpointResult,
+    TelemetrySnapshot,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,6 +119,24 @@ def _load_definitions(version: str) -> dict[str, list[dict]]:
     }
 
 
+def _load_register_blocks(version: str) -> list[dict]:
+    """Return this Marstek version's contiguous register-block table (issue #361).
+
+    Block reads collapse already-adjacent registers into a single Modbus request so
+    the weak v3 MCU sees fewer frames. v3/vA/vD share the v3 register map and reuse
+    the v3 blocks; v2 has its own table. Which registers are contiguous is brand/
+    register detail, so this table — like the entity definitions — belongs in the
+    driver, not the coordinator.
+    """
+    if version in _V3_FAMILY:
+        from ..const import REGISTER_BLOCKS_V3
+        return REGISTER_BLOCKS_V3
+    if version == "v2":
+        from ..const import REGISTER_BLOCKS_V2
+        return REGISTER_BLOCKS_V2
+    return []
+
+
 class MarstekModbusDriver(BatteryDriver):
     """Modbus-TCP driver for a single Marstek battery."""
 
@@ -180,6 +204,17 @@ class MarstekModbusDriver(BatteryDriver):
                 defn.get("data_type", "uint16"),
                 defn.get("count"),
             )
+
+        # Contiguous register-block table for the production path; the injected-
+        # definition test path polls every key individually (no blocks). Block
+        # batching is an internal read optimisation — see :meth:`read_telemetry`.
+        self._register_blocks = _load_register_blocks(version) if definitions is None else []
+
+        # Telemetry grouped into schedulable poll units (see :class:`ReadGroup`):
+        # one group per block (read in a single request) plus a singleton group per
+        # remaining indexed key. The coordinator iterates these to schedule, gate
+        # and lock per group without seeing the register layout.
+        self._read_groups = self._build_read_groups()
 
         # Static capabilities, derived from the register map + the seeded entity
         # definitions so the control layer never branches on the version string.
@@ -267,16 +302,69 @@ class MarstekModbusDriver(BatteryDriver):
 
     # --- telemetry (read) ---------------------------------------------------
 
+    def _build_read_groups(self) -> list[ReadGroup]:
+        """Group the polled keys into schedulable read units (see :class:`ReadGroup`).
+
+        Each contiguous register block becomes one group (collapsed to a single
+        request by :meth:`read_telemetry`); every other indexed key becomes its own
+        singleton group, in definition order. The group's ``scan_interval`` comes
+        from the block table or, for singletons, the entity definition.
+        """
+        groups: list[ReadGroup] = []
+        grouped: set[str] = set()
+        for block in self._register_blocks:
+            member_keys = tuple(m["key"] for m in block["members"])
+            groups.append(ReadGroup(scan_interval=block.get("scan_interval"), keys=member_keys))
+            grouped.update(member_keys)
+        for defn in self._definitions["all"]:
+            key = defn["key"]
+            if key in grouped or key not in self._telemetry_index:
+                continue
+            groups.append(ReadGroup(scan_interval=defn.get("scan_interval"), keys=(key,)))
+        return groups
+
+    @property
+    def read_groups(self) -> list[ReadGroup]:
+        return self._read_groups
+
     async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:
         """Read the requested logical keys and return raw decoded values.
 
         Values are *unscaled* — the coordinator applies scale/precision and the
         backward-jump guard, exactly as it does today. Keys not in this version's
         index, or whose read fails, are omitted.
+
+        When the requested keys fully cover a contiguous register block, that block
+        is fetched in a single Modbus request (issue #361) and the members decoded
+        from the response; the rest are read one register at a time. The coordinator
+        passes one :class:`ReadGroup`'s keys per call, so a block group resolves to
+        a single block read and a singleton group to one register read.
         """
-        wanted = keys if keys is not None else list(self._telemetry_index)
+        wanted = list(keys) if keys is not None else list(self._telemetry_index)
+        pending = set(wanted)
         snapshot: TelemetrySnapshot = {}
+
+        # Collapse any fully-requested contiguous block into one request.
+        for block in self._register_blocks:
+            member_keys = [m["key"] for m in block["members"]]
+            if not all(k in pending for k in member_keys):
+                continue
+            pending.difference_update(member_keys)
+            regs = await self._client.async_read_block(
+                block["start"], block["count"], block_key=f"block_{block['start']}",
+            )
+            if regs is None:
+                continue
+            for member in block["members"]:
+                words = regs[member["offset"]:member["offset"] + member["count"]]
+                value = decode_registers(words, member["data_type"])
+                if value is not None:
+                    snapshot[member["key"]] = value
+
+        # Per-register reads for everything not served by a block (preserve order).
         for key in wanted:
+            if key not in pending:
+                continue
             spec = self._telemetry_index.get(key)
             if spec is None:
                 continue

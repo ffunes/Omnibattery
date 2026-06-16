@@ -16,7 +16,6 @@ from .const import (
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
 )
-from .modbus_client import decode_registers
 from .drivers.marstek import MarstekModbusDriver
 from .drivers.base import SetpointResult
 from .alarm_notifier import AlarmNotifier
@@ -118,9 +117,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # packet correction; the coordinator and platform setups read the
         # per-platform definition lists back from it (see the passthrough
         # properties below) instead of branching on the version string.
-        # ``self.client`` is kept as a transitional alias because the write paths
-        # and block reads still use the register-level client directly until
-        # later phases migrate them.
+        # ``self.client`` is kept as a transitional alias because the generic
+        # entity-write path (``write_register``, used by number/select/switch/
+        # button entities) still uses the register-level client directly until a
+        # later phase migrates it. Telemetry reads (incl. block reads) and power/
+        # config writes already route through the driver.
         self.driver = MarstekModbusDriver(
             self.host, self.port, self.battery_version, self.slave_id,
             max_charge_power_w=self.max_charge_power,
@@ -128,27 +129,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         )
         self.client = self.driver.client
 
-        # Block-read groups: contiguous register spans read in a single Modbus
-        # request instead of one request per register (issue #361). v3/vA/vD share
-        # the same register map and reuse the v3 groups; v2 has its own table.
-        if self.battery_version in ("v3", "vA", "vD"):
-            from .const import REGISTER_BLOCKS_V3
-            self._register_blocks = REGISTER_BLOCKS_V3
-        elif self.battery_version == "v2":
-            from .const import REGISTER_BLOCKS_V2
-            self._register_blocks = REGISTER_BLOCKS_V2
-        else:
-            self._register_blocks = []
-
-        # Fast key -> definition lookup so block decoding can reuse each member's
-        # scale/precision/state_class without duplicating it in the block table.
+        # Fast key -> definition lookup so the poll loop can scale each raw value by
+        # its definition's scale/precision/state_class. The driver returns raw
+        # decoded telemetry and owns the register layout / block grouping (see
+        # ``driver.read_groups``); presentation metadata stays coordinator-side.
         self._def_by_key = {d["key"]: d for d in self._all_definitions}
-        # Keys served by a block read are skipped in the per-register loop.
-        self._blocked_keys = {
-            m["key"] for blk in self._register_blocks for m in blk["members"]
-        }
-        # Per-block last-poll timestamps (mirrors self._last_update_times).
-        self._last_block_update_times = {}
 
         # Log sensor count for debugging
         _LOGGER.info("[%s] Total sensors to poll: %d", self.name, len(self._all_definitions))
@@ -316,25 +301,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         """Return the last-written value for a shadowed select, or None."""
         return self._shadow_selects.get(key)
 
-    def get_register(self, key: str) -> int | None:
-        """Get register address for this battery's version.
-
-        Args:
-            key: Logical register name (e.g., 'battery_soc', 'force_mode')
-
-        Returns:
-            Register address or None if not available for this version
-        """
-        from .const import REGISTER_MAP
-
-        register = REGISTER_MAP.get(self.battery_version, {}).get(key)
-        if register is None:
-            _LOGGER.debug(
-                "[%s] Register '%s' not available for %s",
-                self.name, key, self.battery_version
-            )
-        return register
-
     async def _async_update_data(self) -> dict:
         """Update all sensors asynchronously with per-sensor interval skipping.
 
@@ -402,149 +368,131 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         sensors_skipped_disabled = 0
         disabled_dependencies_fetched = 0
 
-        # Block reads first: collapse contiguous registers into single requests
-        # so the weak v3 MCU sees fewer frames (issue #361). The members of these
-        # blocks are skipped by the per-register loop below.
-        block_attempted, block_succeeded, block_decoded = await self._poll_register_blocks(now)
-        sensors_attempted += block_attempted
-        sensors_succeeded += block_succeeded
-        updated_data.update(block_decoded)
-
-        # Iterate over each sensor definition to poll if due
-        for sensor in self._all_definitions:
-            key = sensor["key"]
-
-            # Served by a block read above; skip the per-register read.
-            if key in self._blocked_keys:
+        # Poll the driver's read groups. Each group is one schedulable unit — a
+        # contiguous register block read in a single request (issue #361) or a
+        # single register — and the driver owns the register layout. The
+        # coordinator only schedules per group, gates disabled entities, locks per
+        # group and scales the raw result. The lock is released between groups (with
+        # a yield) so a control-loop writer waiting on it is not starved during a
+        # poll cycle.
+        for group in self.driver.read_groups:
+            interval = SCAN_INTERVAL.get(group.scan_interval)
+            if interval is None:
+                for key in group.keys:
+                    _LOGGER.warning(
+                        "[%s] '%s' has no scan_interval defined, skipping this poll",
+                        self.name, key,
+                    )
                 continue
 
-            # Determine entity type for registry lookup
-            entity_type = self._get_entity_type(sensor)
-            unique_id_formats = [
-                f"{self.device_key}_{sensor['key']}",  # current format (post-migration)
-                f"{self.host}_{sensor['key']}",               # legacy format (pre-migration)
-                f"{self.name}_{sensor['key']}",               # historical legacy
-            ]
-            
-            registry_entry = None
-            for unique_id in unique_id_formats:
-                registry_entry = self._entity_registry.async_get_entity_id(
-                    entity_type, DOMAIN, unique_id
-                )
-                if registry_entry:
-                    break
+            # Drop disabled, non-dependency keys. Block members are all dependency
+            # keys, so a block group is always read in full.
+            fetch_keys = []
+            for key in group.keys:
+                sensor = self._def_by_key.get(key, {})
+                entity_type = self._get_entity_type(sensor)
+                registry_entry = None
+                for unique_id in (
+                    f"{self.device_key}_{key}",   # current format (post-migration)
+                    f"{self.host}_{key}",         # legacy format (pre-migration)
+                    f"{self.name}_{key}",         # historical legacy
+                ):
+                    registry_entry = self._entity_registry.async_get_entity_id(
+                        entity_type, DOMAIN, unique_id
+                    )
+                    if registry_entry:
+                        break
 
-            # Determine if the entity is disabled in Home Assistant
-            is_disabled = False
-            entry = self._entity_registry.entities.get(registry_entry) if registry_entry else None
-            if entry:
-                is_disabled = entry.disabled or entry.disabled_by is not None
+                entry = self._entity_registry.entities.get(registry_entry) if registry_entry else None
+                is_disabled = bool(entry and (entry.disabled or entry.disabled_by is not None))
+                is_dependency = key in dependency_keys_set
 
-            # Check if this key is a dependency key for any calculated sensor
-            is_dependency = key in dependency_keys_set
-
-            # Skip polling if entity is disabled unless it is a dependency key
-            if is_disabled:
-                if is_dependency:
-                    disabled_dependencies_fetched += 1
-                    if DEBUG_POLL_SENSOR_SKIPS:
-                        _LOGGER.debug("[%s] Fetching disabled dependency key '%s'", self.name, key)
-                else:
+                if is_disabled and not is_dependency:
                     sensors_skipped_disabled += 1
                     if DEBUG_POLL_SENSOR_SKIPS:
                         _LOGGER.debug("[%s] Skipping disabled entity '%s'", self.name, sensor.get("name", key))
                     continue
+                if is_disabled:
+                    disabled_dependencies_fetched += 1
+                    if DEBUG_POLL_SENSOR_SKIPS:
+                        _LOGGER.debug("[%s] Fetching disabled dependency key '%s'", self.name, key)
+                fetch_keys.append(key)
 
-            # Determine polling interval for this sensor
-            interval_name = sensor.get("scan_interval")
-            interval = SCAN_INTERVAL.get(interval_name)
-
-            if interval is None:
-                _LOGGER.warning(
-                    "[%s] %s '%s' has no scan_interval defined, skipping this poll",
-                    self.name,
-                    entity_type,
-                    key,
-                )
+            if not fetch_keys:
                 continue
 
-            # Check when this sensor was last updated and skip if within interval
-            last_update = self._last_update_times.get(key)
+            # Skip the group if it was read within its interval (the group's key
+            # tuple is its stable identity for scheduling).
+            last_update = self._last_update_times.get(group.keys)
             elapsed = (now - last_update).total_seconds() if last_update else None
-
             if elapsed is not None and elapsed < interval:
                 sensors_skipped_interval += 1
-                if DEBUG_POLL_SENSOR_SKIPS:
-                    _LOGGER.debug(
-                        "[%s] Skipping %s '%s', last update %.1fs ago (%ds)",
-                        self.name,
-                        entity_type,
-                        key,
-                        elapsed,
-                        interval,
-                    )
                 continue
 
-            # Attempt to read the sensor value from Modbus
-            # Lock ensures reads don't interleave with control loop writes
+            # Lock ensures reads don't interleave with control loop writes.
             sensors_attempted += 1
             try:
                 async with self.lock:
-                    # The driver resolves the logical key to its register/dtype/
-                    # count from the definitions it was seeded with and returns the
-                    # raw decoded value (omitted from the snapshot on read failure).
-                    snapshot = await self.driver.read_telemetry([key])
-                value = snapshot.get(key)
-
-                # Yield to the event loop so the PD control writer waiting on
-                # self.lock can acquire it before this loop re-enters async with.
-                # Without this yield, asyncio never gets a tick to hand the lock
-                # to the waiter — the tight for-loop starves apply_power.
+                    # The driver resolves the logical keys to their registers (using
+                    # a block read where the keys cover a contiguous span) and
+                    # returns raw decoded values; failed/unknown keys are omitted.
+                    snapshot = await self.driver.read_telemetry(fetch_keys)
+                # Yield so a control writer waiting on self.lock can acquire it
+                # before the loop re-enters `async with` (otherwise the tight loop
+                # starves apply_power).
                 await asyncio.sleep(0)
-
-                if value is not None:
-                    sensors_succeeded += 1
-                    # Apply scaling and rounding (not applicable to char/string sensors)
-                    if sensor.get("data_type") != "char":
-                        if "scale" in sensor:
-                            value *= sensor["scale"]
-                        if "precision" in sensor:
-                            value = round(value, sensor["precision"])
-
-                    # Guard against firmware noise on lifetime energy counters.
-                    # The battery occasionally returns a partial 32-bit read mid-update,
-                    # yielding a value far below the real counter (e.g. 50 kWh instead of
-                    # 491 kWh).  A value that is non-zero but less than 90% of the last
-                    # known value is physically impossible for total_increasing sensors
-                    # and must be discarded.  Drops to exactly 0 (daily counter reset,
-                    # factory reset) are still accepted.
-                    if (
-                        sensor.get("state_class") == "total_increasing"
-                        and isinstance(value, (int, float))
-                        and value > 0
-                    ):
-                        prev = self.data.get(key) if self.data else None
-                        if isinstance(prev, (int, float)) and prev > 0 and value < prev * 0.9:
-                            _LOGGER.debug(
-                                "[%s] Discarding implausible backward jump for '%s': "
-                                "%.2f -> %.2f (< 90%% of previous). Likely firmware noise.",
-                                self.name, key, prev, value,
-                            )
-                            continue
-
-                    updated_data[key] = value
-                    self._last_update_times[key] = now
-                    
-                    if DEBUG_POLL_SENSOR_VALUES and interval_name == "high":
-                        _LOGGER.debug("[%s] Updated %s: %s", self.name, key, value)
-                else:
-                    if not self._is_shutting_down:
-                        _LOGGER.warning("[%s] Failed to read %s (register %d)", self.name, key, sensor["register"])
-
             except Exception as e:
                 if not self._is_shutting_down:
-                    _LOGGER.error("[%s] Error reading register %d for %s: %s",
-                                 self.name, sensor["register"], key, e)
+                    _LOGGER.error("[%s] Error reading %s: %s", self.name, list(fetch_keys), e)
+                continue
+
+            if not snapshot:
+                if not self._is_shutting_down:
+                    _LOGGER.warning("[%s] Failed to read %s", self.name, list(fetch_keys))
+                continue
+
+            sensors_succeeded += 1
+            stored = 0
+            for key, value in snapshot.items():
+                sensor = self._def_by_key.get(key, {})
+                # Apply scaling and rounding (not applicable to char/string sensors).
+                if sensor.get("data_type") != "char":
+                    if "scale" in sensor:
+                        value *= sensor["scale"]
+                    if "precision" in sensor:
+                        value = round(value, sensor["precision"])
+
+                # Guard against firmware noise on lifetime energy counters.
+                # The battery occasionally returns a partial 32-bit read mid-update,
+                # yielding a value far below the real counter (e.g. 50 kWh instead of
+                # 491 kWh).  A value that is non-zero but less than 90% of the last
+                # known value is physically impossible for total_increasing sensors
+                # and must be discarded.  Drops to exactly 0 (daily counter reset,
+                # factory reset) are still accepted.
+                if (
+                    sensor.get("state_class") == "total_increasing"
+                    and isinstance(value, (int, float))
+                    and value > 0
+                ):
+                    prev = self.data.get(key) if self.data else None
+                    if isinstance(prev, (int, float)) and prev > 0 and value < prev * 0.9:
+                        _LOGGER.debug(
+                            "[%s] Discarding implausible backward jump for '%s': "
+                            "%.2f -> %.2f (< 90%% of previous). Likely firmware noise.",
+                            self.name, key, prev, value,
+                        )
+                        continue
+
+                updated_data[key] = value
+                stored += 1
+                if DEBUG_POLL_SENSOR_VALUES and group.scan_interval == "high":
+                    _LOGGER.debug("[%s] Updated %s: %s", self.name, key, value)
+
+            # Only advance the group's poll clock when something was actually
+            # stored, so a value rejected by the backward-jump guard is retried on
+            # the next cycle rather than waiting out the interval.
+            if stored:
+                self._last_update_times[group.keys] = now
 
         # === CONNECTION HEALTH TRACKING ===
         # Only track failures when we actually attempted reads (not when all sensors
@@ -631,73 +579,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         return self.data
 
-    async def _poll_register_blocks(self, now) -> tuple[int, int, dict]:
-        """Read due contiguous-register blocks in single requests (issue #361).
-
-        Returns ``(attempted, succeeded, decoded)`` where ``decoded`` maps each
-        member key to its scaled value. Every member of the configured blocks is
-        a dependency key (always needed), so blocks are read whenever due without
-        per-member disabled gating.
-        """
-        attempted = 0
-        succeeded = 0
-        decoded: dict = {}
-
-        for block in self._register_blocks:
-            interval = SCAN_INTERVAL.get(block["scan_interval"])
-            if interval is None:
-                continue
-
-            last = self._last_block_update_times.get(block["start"])
-            elapsed = (now - last).total_seconds() if last else None
-            if elapsed is not None and elapsed < interval:
-                continue
-
-            attempted += 1
-            try:
-                # Lock keeps block reads from interleaving with control writes.
-                async with self.lock:
-                    regs = await self.client.async_read_block(
-                        block["start"],
-                        block["count"],
-                        block_key=f"block_{block['start']}",
-                    )
-                # Yield so a control writer waiting on the lock can acquire it.
-                await asyncio.sleep(0)
-            except Exception as e:
-                if not self._is_shutting_down:
-                    _LOGGER.error("[%s] Error reading block at register %d: %s", self.name, block["start"], e)
-                continue
-
-            if regs is None:
-                if not self._is_shutting_down:
-                    _LOGGER.warning("[%s] Failed to read block at register %d", self.name, block["start"])
-                continue
-
-            succeeded += 1
-            self._last_block_update_times[block["start"]] = now
-
-            for member in block["members"]:
-                words = regs[member["offset"]:member["offset"] + member["count"]]
-                value = decode_registers(words, member["data_type"])
-                if value is None:
-                    continue
-
-                # Reuse the entity definition for scale/precision so the block
-                # table stays free of duplicated metadata. (Block members are not
-                # total_increasing, so the backward-jump guard does not apply.)
-                defn = self._def_by_key.get(member["key"], {})
-                if defn.get("data_type") != "char":
-                    if "scale" in defn:
-                        value *= defn["scale"]
-                    if "precision" in defn:
-                        value = round(value, defn["precision"])
-
-                decoded[member["key"]] = value
-                self._last_update_times[member["key"]] = now
-
-        return attempted, succeeded, decoded
-
     def _get_entity_type(self, sensor_definition: dict) -> str:
         """Determine entity type based on sensor definition."""
         key = sensor_definition["key"]
@@ -742,58 +623,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             await self.async_request_refresh()
 
         return success
-
-    async def async_read_power_feedback(self) -> dict | None:
-        """Read power-related registers for immediate feedback after control loop write.
-
-        Returns dict with: force_mode, set_charge_power, set_discharge_power, battery_power
-        Or None if read fails.
-        """
-        async with self.lock:
-            self.client.unit_id = self.slave_id
-            try:
-                # Get version-specific registers
-                force_mode_reg = self.get_register("force_mode")
-                set_charge_reg = self.get_register("set_charge_power")
-                set_discharge_reg = self.get_register("set_discharge_power")
-                battery_power_reg = self.get_register("battery_power")
-
-                if None in [force_mode_reg, set_charge_reg, set_discharge_reg, battery_power_reg]:
-                    if not self._is_shutting_down:
-                        _LOGGER.error("[%s] Missing required registers for power feedback", self.name)
-                    return None
-
-                # Use version-specific data type for battery power
-                power_dtype = "int16" if self.battery_version in ("v3", "vA", "vD") else "int32"
-
-                # Read the registers we just wrote + actual power
-                force_mode = await self.client.async_read_register(force_mode_reg, "uint16")
-                set_charge = await self.client.async_read_register(set_charge_reg, "uint16")
-                set_discharge = await self.client.async_read_register(set_discharge_reg, "uint16")
-                battery_power = await self.client.async_read_register(battery_power_reg, power_dtype)
-
-                if None in (force_mode, set_charge, set_discharge, battery_power):
-                    if not self._is_shutting_down:
-                        _LOGGER.error("[%s] Failed to read one or more feedback registers", self.name)
-                    return None
-
-                # Update coordinator.data with fresh values
-                if self.data:
-                    self.data["force_mode"] = force_mode
-                    self.data["set_charge_power"] = set_charge
-                    self.data["set_discharge_power"] = set_discharge
-                    self.data["battery_power"] = battery_power
-
-                return {
-                    "force_mode": force_mode,
-                    "set_charge_power": set_charge,
-                    "set_discharge_power": set_discharge,
-                    "battery_power": battery_power,
-                }
-            except Exception as e:
-                if not self._is_shutting_down:
-                    _LOGGER.warning("[%s] Failed to read power feedback: %s", self.name, e)
-                return None
 
     async def apply_power(self, net_power_w: int, read_back: bool = True) -> SetpointResult:
         """Command a signed net power (+charge / -discharge) via the driver.

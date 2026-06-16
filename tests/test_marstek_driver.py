@@ -186,6 +186,87 @@ async def test_read_telemetry_defaults_to_all_indexed_keys():
 
 
 # ----------------------------------------------------------------------
+# read_groups + block-read internalisation (Phase 4d)
+# ----------------------------------------------------------------------
+def test_read_groups_partition_telemetry_into_blocks_and_singletons():
+    # Production path (no injected definitions): the driver loads the version's
+    # register blocks and exposes them as multi-key groups, every other polled key
+    # as its own singleton group, with no key appearing twice.
+    drv = MarstekModbusDriver("1.2.3.4", 502, "v3", client=_fake_client())
+    groups = drv.read_groups
+
+    multi_key = {g.keys for g in groups if len(g.keys) > 1}
+    assert ("max_cell_voltage", "min_cell_voltage") in multi_key
+    assert ("set_charge_power", "set_discharge_power") in multi_key
+    assert ("max_charge_power", "max_discharge_power") in multi_key
+
+    all_keys = [k for g in groups for k in g.keys]
+    assert len(all_keys) == len(set(all_keys))  # blocks not also polled as singletons
+    assert ("battery_soc",) in {g.keys for g in groups}  # ordinary key -> singleton
+    assert all(g.scan_interval for g in groups)  # every group carries a cadence
+
+
+def test_injected_definitions_have_no_block_groups():
+    # The test/override path polls every key individually (no block table loaded).
+    drv = _driver("v3", definitions=_DEFS)
+    assert all(len(g.keys) == 1 for g in drv.read_groups)
+    assert {g.keys for g in drv.read_groups} == {("battery_soc",), ("battery_power",)}
+
+
+async def test_read_telemetry_collapses_full_block_into_single_request():
+    client = _fake_client()
+    client.async_read_block = AsyncMock(return_value=[3580, 3479])  # raw words
+    drv = MarstekModbusDriver("1.2.3.4", 502, "v3", client=client)
+
+    snap = await drv.read_telemetry(["max_cell_voltage", "min_cell_voltage"])
+
+    client.async_read_block.assert_awaited_once()
+    assert client.async_read_register.await_count == 0  # served by the block read
+    # raw decoded values, unscaled (the coordinator applies scale/precision)
+    assert snap == {"max_cell_voltage": 3580, "min_cell_voltage": 3479}
+
+
+async def test_read_telemetry_partial_block_falls_back_to_per_register():
+    client = _fake_client()
+    client.async_read_register = AsyncMock(return_value=3580)
+    drv = MarstekModbusDriver("1.2.3.4", 502, "v3", client=client)
+
+    # Only one of the block's two members requested -> cannot block-read it.
+    snap = await drv.read_telemetry(["max_cell_voltage"])
+
+    client.async_read_block.assert_not_awaited()
+    assert client.async_read_register.await_count == 1
+    assert snap == {"max_cell_voltage": 3580}
+
+
+async def test_read_telemetry_mixes_block_and_singleton():
+    client = _fake_client()
+    client.async_read_block = AsyncMock(return_value=[100, 200])
+    client.async_read_register = AsyncMock(return_value=55)
+    drv = MarstekModbusDriver("1.2.3.4", 502, "v3", client=client)
+
+    snap = await drv.read_telemetry(
+        ["set_charge_power", "set_discharge_power", "battery_soc"]
+    )
+
+    client.async_read_block.assert_awaited_once()       # the set-point block
+    assert client.async_read_register.await_count == 1  # battery_soc singleton
+    assert snap == {"set_charge_power": 100, "set_discharge_power": 200, "battery_soc": 55}
+
+
+async def test_read_telemetry_omits_block_members_when_block_read_fails():
+    client = _fake_client()
+    client.async_read_block = AsyncMock(return_value=None)  # block request failed
+    drv = MarstekModbusDriver("1.2.3.4", 502, "v3", client=client)
+
+    snap = await drv.read_telemetry(["max_cell_voltage", "min_cell_voltage"])
+
+    client.async_read_block.assert_awaited_once()
+    assert client.async_read_register.await_count == 0  # no per-register retry
+    assert snap == {}  # failed block -> members omitted, not None
+
+
+# ----------------------------------------------------------------------
 # apply_setpoint
 # ----------------------------------------------------------------------
 async def test_apply_setpoint_charge_sets_force_mode_1():
