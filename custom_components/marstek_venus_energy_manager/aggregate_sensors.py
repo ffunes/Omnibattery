@@ -11,7 +11,7 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
-from .const import DOMAIN, ALARM_BIT_DESCRIPTIONS, FAULT_BIT_DESCRIPTIONS, DEBUG_POLL_SENSOR_VALUES, CONF_HOUSEHOLD_CONSUMPTION_SENSOR, CONF_SOLAR_PRODUCTION_SENSOR, pd_profile_from_params, should_use_household_sensor
+from .const import DOMAIN, ALARM_BIT_DESCRIPTIONS, FAULT_BIT_DESCRIPTIONS, DEBUG_POLL_SENSOR_VALUES, CONF_SOLAR_PRODUCTION_SENSOR, pd_profile_from_params
 from .coordinator import MarstekVenusDataUpdateCoordinator
 
 
@@ -105,6 +105,7 @@ class DailyGridAtMinSocSensor(SensorEntity):
 
         self._attr_has_entity_name = True
         self._attr_unique_id = "marstek_venus_system_daily_grid_at_min_soc_energy"
+        self.entity_id = f"sensor.{self._attr_unique_id}"
         self._attr_translation_key = "system_daily_grid_at_min_soc_energy"
         self._attr_native_unit_of_measurement = "kWh"
         self._attr_device_class = SensorDeviceClass.ENERGY
@@ -158,6 +159,7 @@ class PdControlQualitySensor(SensorEntity):
 
         self._attr_has_entity_name = True
         self._attr_unique_id = "marstek_venus_system_pd_control_quality"
+        self.entity_id = f"sensor.{self._attr_unique_id}"
         self._attr_translation_key = "system_pd_control_quality"
         self._attr_device_class = SensorDeviceClass.ENUM
         self._attr_options = list(self._STATES)
@@ -227,6 +229,7 @@ class MarstekVenusAggregateSensor(SensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = definition["key"]
         self._attr_unique_id = f"marstek_venus_system_{definition['key']}"
+        self.entity_id = f"sensor.{self._attr_unique_id}"
         self._attr_device_class = definition.get("device_class")
         self._attr_state_class = definition.get("state_class")
         self._attr_native_unit_of_measurement = definition.get("unit")
@@ -239,6 +242,11 @@ class MarstekVenusAggregateSensor(SensorEntity):
     
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from any coordinator."""
+        # The listener is registered in __init__, so it also fires for a
+        # disabled entity (never added to hass). Writing state then raises
+        # RuntimeError and breaks the coordinator's listener-notify loop.
+        if self.hass is None:
+            return
         self.async_write_ha_state()
 
     @property
@@ -298,7 +306,8 @@ class MarstekVenusAggregateSensor(SensorEntity):
         has_data = False
 
         for coordinator in self.coordinators:
-            if coordinator.data:
+            # Disconnected units keep a stale ac_power (merged dict, never expired).
+            if coordinator.is_available and coordinator.data:
                 power = coordinator.data.get("ac_power")
                 if power is not None:
                     # Only count negative values (charging)
@@ -321,7 +330,8 @@ class MarstekVenusAggregateSensor(SensorEntity):
         ac_powers = []  # For debug logging
 
         for coordinator in self.coordinators:
-            if coordinator.data:
+            # Disconnected units keep a stale ac_power (merged dict, never expired).
+            if coordinator.is_available and coordinator.data:
                 power = coordinator.data.get("ac_power")
                 if power is not None:
                     ac_powers.append(f"{coordinator.name}={power}W")
@@ -431,18 +441,12 @@ class MarstekVenusAggregateSensor(SensorEntity):
     def _calculate_home_consumption(self) -> float | None:
         """Calculate instantaneous household consumption (W).
 
-        Prefers the user's configured household sensor. Otherwise derives it from
-        the energy balance at the AC bus:
+        Derived from the energy balance at the AC bus:
             home = grid + sum(ac_power) + external_solar
         DC-coupled PV (MPPT) does not appear here: it is already netted into each
         battery's ac_power at the inverter. Mirrors the panel's flow derivation.
         """
         data = self.entry.data
-
-        if should_use_household_sensor(data):
-            home_eid = data.get(CONF_HOUSEHOLD_CONSUMPTION_SENSOR)
-            w = self._read_power_w(home_eid)
-            return None if w is None else round(w)
 
         grid_eid = data.get("consumption_sensor")
         grid_w = self._read_power_w(grid_eid) if grid_eid else None
@@ -451,7 +455,11 @@ class MarstekVenusAggregateSensor(SensorEntity):
 
         total = grid_w
         for coordinator in self.coordinators:
-            if coordinator.data:
+            # Skip a disconnected battery: its ac_power stays frozen at the last
+            # poll (coordinator.data is merged, never expired), so a unit that
+            # dropped mid-discharge would keep adding a phantom contribution while
+            # the grid meter already shows its load — double-counting it here.
+            if coordinator.is_available and coordinator.data:
                 ac = coordinator.data.get("ac_power")
                 if ac is not None:
                     total += ac
@@ -502,11 +510,16 @@ class SystemAlarmSensor(SensorEntity):
     def __init__(self, coordinators: list[MarstekVenusDataUpdateCoordinator]) -> None:
         """Initialize the system alarm sensor."""
         self.coordinators = coordinators
+        self.entity_id = f"sensor.{self._attr_unique_id}"
 
         for coordinator in coordinators:
             coordinator.async_add_listener(self._handle_coordinator_update)
 
     def _handle_coordinator_update(self) -> None:
+        # See MarstekVenusAggregateSensor: guard the disabled-entity case where
+        # hass is None to avoid breaking the coordinator listener-notify loop.
+        if self.hass is None:
+            return
         self.async_write_ha_state()
 
     @staticmethod

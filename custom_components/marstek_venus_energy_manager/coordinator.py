@@ -17,13 +17,14 @@ from .const import (
     BINARY_SENSOR_DEFINITIONS,
     BUTTON_DEFINITIONS,
     MESSAGE_WAIT_MS,
+    READ_TIMEOUT_S,
     DEBUG_POLL_SENSOR_SKIPS,
     DEBUG_POLL_SENSOR_VALUES,
     CONF_ACTIVE_BALANCE_MODE_ENABLED,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
 )
-from .modbus_client import MarstekModbusClient
+from .modbus_client import MarstekModbusClient, decode_registers
 from .alarm_notifier import AlarmNotifier
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,8 +67,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Create Modbus client with version-specific timing and packet correction.
         wait_ms = MESSAGE_WAIT_MS.get(self.battery_version, 50)
+        timeout_s = READ_TIMEOUT_S.get(self.battery_version, 10)
         is_v3 = self.battery_version in ("v3", "vA", "vD")
-        self.client = MarstekModbusClient(host, port, message_wait_ms=wait_ms, timeout=10, is_v3=is_v3, slave_id=slave_id)
+        self.client = MarstekModbusClient(host, port, message_wait_ms=wait_ms, timeout=timeout_s, is_v3=is_v3, slave_id=slave_id)
 
         self.max_charge_power = max_charge_power
         self.max_discharge_power = max_discharge_power
@@ -187,6 +189,28 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 SWITCH_DEFINITIONS +
                 BINARY_SENSOR_DEFINITIONS
             )
+
+        # Block-read groups: contiguous register spans read in a single Modbus
+        # request instead of one request per register (issue #361). v3/vA/vD share
+        # the same register map and reuse the v3 groups; v2 has its own table.
+        if self.battery_version in ("v3", "vA", "vD"):
+            from .const import REGISTER_BLOCKS_V3
+            self._register_blocks = REGISTER_BLOCKS_V3
+        elif self.battery_version == "v2":
+            from .const import REGISTER_BLOCKS_V2
+            self._register_blocks = REGISTER_BLOCKS_V2
+        else:
+            self._register_blocks = []
+
+        # Fast key -> definition lookup so block decoding can reuse each member's
+        # scale/precision/state_class without duplicating it in the block table.
+        self._def_by_key = {d["key"]: d for d in self._all_definitions}
+        # Keys served by a block read are skipped in the per-register loop.
+        self._blocked_keys = {
+            m["key"] for blk in self._register_blocks for m in blk["members"]
+        }
+        # Per-block last-poll timestamps (mirrors self._last_update_times).
+        self._last_block_update_times = {}
 
         # Log sensor count for debugging
         _LOGGER.info("[%s] Total sensors to poll: %d", self.name, len(self._all_definitions))
@@ -400,10 +424,22 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         sensors_skipped_disabled = 0
         disabled_dependencies_fetched = 0
 
+        # Block reads first: collapse contiguous registers into single requests
+        # so the weak v3 MCU sees fewer frames (issue #361). The members of these
+        # blocks are skipped by the per-register loop below.
+        block_attempted, block_succeeded, block_decoded = await self._poll_register_blocks(now)
+        sensors_attempted += block_attempted
+        sensors_succeeded += block_succeeded
+        updated_data.update(block_decoded)
+
         # Iterate over each sensor definition to poll if due
         for sensor in self._all_definitions:
             key = sensor["key"]
-            
+
+            # Served by a block read above; skip the per-register read.
+            if key in self._blocked_keys:
+                continue
+
             # Determine entity type for registry lookup
             entity_type = self._get_entity_type(sensor)
             unique_id_formats = [
@@ -618,6 +654,73 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         return self.data
 
+    async def _poll_register_blocks(self, now) -> tuple[int, int, dict]:
+        """Read due contiguous-register blocks in single requests (issue #361).
+
+        Returns ``(attempted, succeeded, decoded)`` where ``decoded`` maps each
+        member key to its scaled value. Every member of the configured blocks is
+        a dependency key (always needed), so blocks are read whenever due without
+        per-member disabled gating.
+        """
+        attempted = 0
+        succeeded = 0
+        decoded: dict = {}
+
+        for block in self._register_blocks:
+            interval = SCAN_INTERVAL.get(block["scan_interval"])
+            if interval is None:
+                continue
+
+            last = self._last_block_update_times.get(block["start"])
+            elapsed = (now - last).total_seconds() if last else None
+            if elapsed is not None and elapsed < interval:
+                continue
+
+            attempted += 1
+            try:
+                # Lock keeps block reads from interleaving with control writes.
+                async with self.lock:
+                    regs = await self.client.async_read_block(
+                        block["start"],
+                        block["count"],
+                        block_key=f"block_{block['start']}",
+                    )
+                # Yield so a control writer waiting on the lock can acquire it.
+                await asyncio.sleep(0)
+            except Exception as e:
+                if not self._is_shutting_down:
+                    _LOGGER.error("[%s] Error reading block at register %d: %s", self.name, block["start"], e)
+                continue
+
+            if regs is None:
+                if not self._is_shutting_down:
+                    _LOGGER.warning("[%s] Failed to read block at register %d", self.name, block["start"])
+                continue
+
+            succeeded += 1
+            self._last_block_update_times[block["start"]] = now
+
+            for member in block["members"]:
+                words = regs[member["offset"]:member["offset"] + member["count"]]
+                value = decode_registers(words, member["data_type"])
+                if value is None:
+                    continue
+
+                # Reuse the entity definition for scale/precision so the block
+                # table stays free of duplicated metadata. (Block members are not
+                # total_increasing, so the backward-jump guard does not apply.)
+                defn = self._def_by_key.get(member["key"], {})
+                if defn.get("data_type") != "char":
+                    if "scale" in defn:
+                        value *= defn["scale"]
+                    if "precision" in defn:
+                        value = round(value, defn["precision"])
+
+                decoded[member["key"]] = value
+                self._last_update_times[member["key"]] = now
+
+        return attempted, succeeded, decoded
+
     def _get_entity_type(self, sensor_definition: dict) -> str:
         """Determine entity type based on sensor definition."""
         key = sensor_definition["key"]
@@ -716,14 +819,21 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 return None
 
     async def write_power_atomic(
-        self, discharge_power: int, charge_power: int, force_mode: int
+        self, discharge_power: int, charge_power: int, force_mode: int,
+        read_back: bool = True,
     ) -> dict | None:
         """Write all power registers and read feedback atomically under a single lock.
 
         This prevents coordinator polling reads from interleaving with control loop
         writes, which causes the v3 firmware to miss or corrupt commands.
 
-        Returns feedback dict or None if any operation fails.
+        When ``read_back`` is False the three registers are written but not read
+        back (and the post-write settle delay is skipped) to cut bus traffic — the
+        regular poll keeps coordinator.data fresh. The written set-points are still
+        applied to coordinator.data optimistically so the control loop and
+        diagnostics see the command. Returns a dict on success or None on failure;
+        on a write-only success the dict carries only the written set-points (no
+        ``battery_power`` key, since nothing was read).
         """
         async with self.lock:
             self.client.unit_id = self.slave_id
@@ -755,6 +865,23 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                         )
                     self._last_write_failure_reason = "modbus_write_failed"
                     return None
+
+                # Write-only cycle: skip the readback (and its settle delay) to cut
+                # bus traffic. Apply the written set-points to data optimistically;
+                # battery_power is left to the regular poll.
+                if not read_back:
+                    if self.data:
+                        self.data["force_mode"] = force_mode
+                        self.data["set_charge_power"] = charge_power
+                        self.data["set_discharge_power"] = discharge_power
+                    self._consecutive_failures = 0
+                    self._is_connected = True
+                    self._last_write_failure_reason = None
+                    return {
+                        "force_mode": force_mode,
+                        "set_charge_power": charge_power,
+                        "set_discharge_power": discharge_power,
+                    }
 
                 # Wait for battery to process commands
                 await asyncio.sleep(0.2)

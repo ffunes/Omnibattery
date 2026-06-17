@@ -1175,6 +1175,9 @@
       "cloud_status": {
         "name": "Cloud Status"
       },
+      "balancing_mode": {
+        "name": "Balancing Mode"
+      },
       "charge_hysteresis": {
         "name": "Charge Hysteresis"
       }

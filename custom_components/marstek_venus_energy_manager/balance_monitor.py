@@ -410,6 +410,11 @@ class BalanceMonitor:
         if not group:
             return
         for entity in group._entities:
+            # A disabled entity is never added to the state machine, so hass
+            # stays None and on_reading()'s async_write_ha_state() would raise
+            # RuntimeError and abort the measurement-recording path. Skip it.
+            if entity.hass is None:
+                continue
             entity.on_reading(delta_mv, status, trend["trend"], trend.get("avg_4w"), last_ts)
 
     def get_initial_state(self, host: str) -> dict:

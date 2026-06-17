@@ -487,3 +487,44 @@ STORED_ENERGY_SENSOR_DEFINITIONS_V3 = [
         },
     }
 ]
+
+# Contiguous register spans read in a single Modbus request instead of one
+# request per register. Fewer requests give the weak v3 MCU breathing room and
+# cut the chance of a timed-out request poisoning the read buffer (issue #361).
+#
+# Only registers that are already adjacent are grouped here (no gap padding), so
+# there is no risk of an unmapped address making the whole block error. Each
+# member maps a polled key to its offset within the block. Per-key metadata
+# (scale, precision, ...) is still taken from the entity definition above.
+#
+# A block is polled at its declared scan_interval; the coordinator skips the
+# per-register reads for every key listed here and decodes them from the block.
+REGISTER_BLOCKS_V3 = [
+    {
+        "start": 37007,
+        "count": 2,
+        "scan_interval": "high",
+        "members": [
+            {"key": "max_cell_voltage", "offset": 0, "count": 1, "data_type": "int16"},
+            {"key": "min_cell_voltage", "offset": 1, "count": 1, "data_type": "int16"},
+        ],
+    },
+    {
+        "start": 42020,
+        "count": 2,
+        "scan_interval": "high",
+        "members": [
+            {"key": "set_charge_power", "offset": 0, "count": 1, "data_type": "uint16"},
+            {"key": "set_discharge_power", "offset": 1, "count": 1, "data_type": "uint16"},
+        ],
+    },
+    {
+        "start": 44002,
+        "count": 2,
+        "scan_interval": "high",
+        "members": [
+            {"key": "max_charge_power", "offset": 0, "count": 1, "data_type": "uint16"},
+            {"key": "max_discharge_power", "offset": 1, "count": 1, "data_type": "uint16"},
+        ],
+    },
+]

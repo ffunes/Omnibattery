@@ -69,6 +69,19 @@ MESSAGE_WAIT_MS = {
     "vD": 150,
 }
 
+# Version-specific per-read timeout (seconds).
+# The v3 weak MCU answers in well under a second at the 150ms cadence. A long
+# timeout lets a request that already timed out get answered late, leaving a
+# stale frame in the socket buffer that poisons the next read (pymodbus
+# "transaction_id mismatch", issue #361). Fail fast on v3 so a slow reply is
+# discarded promptly instead of cascading.
+READ_TIMEOUT_S = {
+    "v2": 10,
+    "v3": 3,
+    "vA": 3,
+    "vD": 3,
+}
+
 # Standalone bit-description maps — used by both sensor definitions and the
 # alarm notification / SystemAlarmSensor logic so we avoid duplicating them.
 FAULT_BIT_DESCRIPTIONS: dict[int, str] = {

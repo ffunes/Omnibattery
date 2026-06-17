@@ -25,31 +25,28 @@ from types import SimpleNamespace
 from custom_components.marstek_venus_energy_manager.power_distribution import (
     PowerDistribution,
 )
+from tests.conftest import FakeCoordinator
 
 
 # ----------------------------------------------------------------------
 # Test doubles
 # ----------------------------------------------------------------------
 
-class _Coord:
-    """A coordinator stand-in. Identity-hashable (used as dict keys), unlike
-    SimpleNamespace which defines __eq__ and is therefore unhashable.
-    max_soc<100 keeps the charge limit at identity (taper not applicable)."""
-
-    def __init__(self, name, limit, soc, charge_energy, discharge_energy):
-        self.name = name
-        self.max_charge_power = limit
-        self.max_discharge_power = limit
-        self.max_soc = 80
-        self.data = {
+def _coord(name, limit, *, soc=50, charge_energy=0.0, discharge_energy=0.0):
+    """Coordinator stand-in. FakeCoordinator is identity-hashable (used as dict
+    keys) and slot-guarded against attribute drift. max_soc<100 keeps the charge
+    limit at identity (taper not applicable)."""
+    return FakeCoordinator(
+        name=name,
+        max_charge_power=limit,
+        max_discharge_power=limit,
+        max_soc=80,
+        data={
             "battery_soc": soc,
             "total_charging_energy": charge_energy,
             "total_discharging_energy": discharge_energy,
-        }
-
-
-def _coord(name, limit, *, soc=50, charge_energy=0.0, discharge_energy=0.0):
-    return _Coord(name, limit, soc, charge_energy, discharge_energy)
+        },
+    )
 
 
 def _build(coords, *, active_charge=None, active_discharge=None,

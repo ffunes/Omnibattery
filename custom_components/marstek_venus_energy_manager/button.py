@@ -10,6 +10,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import MarstekVenusDataUpdateCoordinator
+from .entity_naming import english_entity_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class MarstekVenusButton(ButtonEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = definition["key"]
         self._attr_unique_id = f"{coordinator.device_key}_{definition['key']}"
+        self.entity_id = english_entity_id("button", coordinator.name, definition["key"])
         self._attr_icon = definition.get("icon")
         self._attr_device_class = definition.get("device_class")
         self._attr_entity_registry_enabled_default = definition.get("enabled_by_default", True)

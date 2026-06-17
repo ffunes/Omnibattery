@@ -16,6 +16,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
+from .entity_naming import english_entity_id
 from .const import (
     DOMAIN,
     EFFICIENCY_SENSOR_DEFINITIONS,
@@ -28,7 +29,7 @@ from .const import (
     CONF_ENABLE_PREDICTIVE_CHARGING,
     CONF_CHARGING_TIME_SLOT,
     CONF_SOLAR_FORECAST_SENSOR,
-    CONF_HOUSEHOLD_CONSUMPTION_SENSOR,
+    CONF_SOLAR_PRODUCTION_SENSOR,
     CONF_MAX_CONTRACTED_POWER,
     CONF_ENABLE_WEEKLY_FULL_CHARGE,
     CONF_WEEKLY_FULL_CHARGE_DAY,
@@ -191,15 +192,15 @@ async def async_setup_entry(
 
     # Exact daily energy totals from the real power sensors (panel "Energía hoy").
     # Each is added only when its source sensor is configured.
-    if controller and getattr(controller, "solar_production_sensor", None):
+    # Daily solar = external solar sensor + Venus DC-coupled PV (MPPT on vA/vD),
+    # so it is added when either source exists (decoupled from external config so
+    # removing that sensor no longer makes the entity unavailable).
+    has_mppt_pv = any(c.battery_version in ("vA", "vD") for c in coordinators)
+    if controller and (getattr(controller, "solar_production_sensor", None) or has_mppt_pv):
         entities.append(DailySolarEnergySensor(controller))
-    # Added when a dedicated household sensor OR the (always-present) net grid
-    # meter is configured: with no household sensor the daily total is derived
-    # from grid + battery AC + solar, matching the power-flow Home Consumption sensor.
-    if controller and (
-        getattr(controller, "household_consumption_sensor", None)
-        or getattr(controller, "consumption_sensor", None)
-    ):
+    # The daily home total is derived from the (always-present) net grid meter:
+    # grid + battery AC + solar, matching the power-flow Home Consumption sensor.
+    if controller and getattr(controller, "consumption_sensor", None):
         entities.append(DailyHomeEnergySensor(controller))
     # Grid import/export are sign-split from the net consumption meter, which is
     # always configured, so these are always added.
@@ -237,6 +238,7 @@ class MarstekVenusSensor(CoordinatorEntity, SensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = definition["key"]
         self._attr_unique_id = f"{coordinator.device_key}_{definition['key']}"
+        self.entity_id = english_entity_id("sensor", coordinator.name, definition["key"])
         self._attr_device_class = definition.get("device_class")
         self._attr_state_class = definition.get("state_class")
         self._attr_native_unit_of_measurement = definition.get("unit")
@@ -303,6 +305,7 @@ class DischargeWindowSensor(SensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "discharge_window"
         self._attr_unique_id = f"{entry.entry_id}_discharge_window"
+        self.entity_id = english_entity_id("sensor", "Marstek Venus System", "discharge_window")
         self._attr_icon = "mdi:clock-check-outline"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_should_poll = True
@@ -414,6 +417,7 @@ class ActiveBatteriesSensor(SensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "active_batteries"
         self._attr_unique_id = f"{entry.entry_id}_active_batteries"
+        self.entity_id = english_entity_id("sensor", "Marstek Venus System", "active_batteries")
         self._attr_icon = "mdi:battery-sync"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_should_poll = True
@@ -482,6 +486,7 @@ class WeeklyFullChargeSensor(SensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "weekly_full_charge"
         self._attr_unique_id = f"{entry.entry_id}_weekly_full_charge_status"
+        self.entity_id = english_entity_id("sensor", "Marstek Venus System", "weekly_full_charge_status")
         self._attr_icon = "mdi:battery-clock"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_should_poll = True
@@ -535,6 +540,7 @@ class ChargeDelaySensor(RestoreEntity, SensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "charge_delay_status"
         self._attr_unique_id = f"{entry.entry_id}_charge_delay_status"
+        self.entity_id = english_entity_id("sensor", "Marstek Venus System", "charge_delay_status")
         self._attr_icon = "mdi:clock-alert-outline"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_should_poll = True
@@ -637,6 +643,7 @@ class ConfigurationSummarySensor(SensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "configuration_summary"
         self._attr_unique_id = f"{entry.entry_id}_configuration_summary"
+        self.entity_id = english_entity_id("sensor", "Marstek Venus System", "configuration_summary")
         self._attr_icon = "mdi:cog-outline"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_entity_registry_enabled_default = False
@@ -676,11 +683,11 @@ class ConfigurationSummarySensor(SensorEntity):
         attrs["support_summary_version"] = 3
         attrs["grid_sensor"] = data.get("consumption_sensor")
         attrs["meter_inverted"] = data.get(CONF_METER_INVERTED, False)
-        attrs["household_consumption_sensor"] = self._entity_or_not_configured(
-            data.get(CONF_HOUSEHOLD_CONSUMPTION_SENSOR)
-        )
         attrs["solar_forecast_sensor"] = self._entity_or_not_configured(
             data.get(CONF_SOLAR_FORECAST_SENSOR)
+        )
+        attrs["solar_production_sensor"] = self._entity_or_not_configured(
+            data.get(CONF_SOLAR_PRODUCTION_SENSOR)
         )
         attrs["manual_mode_enabled"] = data.get(CONF_MANUAL_MODE_ENABLED, False)
 
@@ -911,6 +918,7 @@ class IntegrationStatusSensor(SensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "integration_status"
         self._attr_unique_id = f"{entry.entry_id}_integration_status"
+        self.entity_id = english_entity_id("sensor", "Marstek Venus System", "integration_status")
         self._attr_icon = "mdi:home-battery"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_should_poll = True
@@ -1148,7 +1156,7 @@ class IntegrationStatusSensor(SensorEntity):
                 if pause_until is not None
             }
 
-        normal_balance = c.get_normal_balance_status()
+        normal_balance = c.get_max_soc_charge_status()
         if normal_balance:
             attrs["normal_balance_protection"] = normal_balance
 
@@ -1187,6 +1195,7 @@ class NonResponsiveBatteriesSensor(SensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "non_responsive_batteries"
         self._attr_unique_id = f"{entry.entry_id}_non_responsive_batteries"
+        self.entity_id = english_entity_id("sensor", "Marstek Venus System", "non_responsive_batteries")
         self._attr_icon = "mdi:battery-alert"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_should_poll = True
@@ -1247,9 +1256,10 @@ class NonResponsiveBatteriesSensor(SensorEntity):
 
 
 class DailySolarEnergySensor(SensorEntity):
-    """Exact daily solar production (kWh), integrated from the real solar power sensor.
+    """Exact daily solar production (kWh), integrated from the real solar power.
 
-    The controller integrates the configured solar_production_sensor at control-loop
+    The controller integrates total solar — the configured solar_production_sensor
+    plus each Venus vA/vD unit's DC-coupled PV (MPPT inputs) — at control-loop
     cadence and resets at local midnight (see ConsumptionTracker); this entity just
     surfaces that running total. total_increasing so HA handles the daily reset.
     """
@@ -1267,6 +1277,7 @@ class DailySolarEnergySensor(SensorEntity):
     def __init__(self, controller) -> None:
         """Initialize the daily solar energy sensor."""
         self._controller = controller
+        self.entity_id = f"sensor.{self._attr_unique_id}"
 
     @property
     def native_value(self) -> float:
@@ -1285,12 +1296,11 @@ class DailySolarEnergySensor(SensorEntity):
 
 
 class DailyHomeEnergySensor(SensorEntity):
-    """Exact daily home consumption (kWh), integrated from the household power.
+    """Exact daily home consumption (kWh), integrated from the home power.
 
-    Uses the dedicated household_consumption_sensor when configured; otherwise the
-    value is derived from grid + battery AC + solar, matching the power-flow Home
-    Consumption sensor. Unlike the predictive-charging windowed accumulator, this
-    integrates the full 24 h.
+    The value is derived from grid + battery AC + solar, matching the power-flow
+    Home Consumption sensor. Unlike the predictive-charging windowed accumulator,
+    this integrates the full 24 h.
     """
 
     _attr_has_entity_name = True
@@ -1306,6 +1316,7 @@ class DailyHomeEnergySensor(SensorEntity):
     def __init__(self, controller) -> None:
         """Initialize the daily home energy sensor."""
         self._controller = controller
+        self.entity_id = f"sensor.{self._attr_unique_id}"
 
     @property
     def native_value(self) -> float:
@@ -1344,6 +1355,7 @@ class DailyGridImportEnergySensor(SensorEntity):
     def __init__(self, controller) -> None:
         """Initialize the daily grid import energy sensor."""
         self._controller = controller
+        self.entity_id = f"sensor.{self._attr_unique_id}"
 
     @property
     def native_value(self) -> float:
@@ -1381,6 +1393,7 @@ class DailyGridExportEnergySensor(SensorEntity):
     def __init__(self, controller) -> None:
         """Initialize the daily grid export energy sensor."""
         self._controller = controller
+        self.entity_id = f"sensor.{self._attr_unique_id}"
 
     @property
     def native_value(self) -> float:

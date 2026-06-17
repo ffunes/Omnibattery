@@ -145,6 +145,12 @@ class HourlyBalanceManager:
 
     def _push_sensors(self) -> None:
         for sensor in self._sensors:
+            # Disabled entities are never added to the state machine, so hass
+            # stays None and async_write_ha_state() raises RuntimeError. That
+            # exception would propagate out of the control cycle and stall the
+            # PD loop, so skip any sensor that isn't attached.
+            if sensor.hass is None:
+                continue
             sensor.async_write_ha_state()
 
     def clear_offset(self, reset_sampling: bool = True) -> None:

@@ -414,7 +414,7 @@ def _finalize_slot(step_a: dict, step_b: dict | None) -> dict:
 class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Marstek Venus Energy Manager."""
 
-    VERSION = 5
+    VERSION = 6
 
     def __init__(self):
         """Initialize the config flow."""

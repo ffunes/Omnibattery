@@ -13,3 +13,50 @@ To opt a future test into loading the integration, request the
 ``enable_custom_integrations`` fixture provided by the plugin.
 """
 from __future__ import annotations
+
+
+class FakeCoordinator:
+    """Test double pinned to the real coordinator's public surface.
+
+    Every key in ``_DEFAULTS`` mirrors a real ``MarstekVenusDataUpdateCoordinator``
+    attribute or property (``is_available`` and ``device_key`` are properties
+    there, the rest are instance attributes). The constructor rejects any keyword
+    outside that set, so a test cannot invent ``available=`` to match a production
+    typo — the real attribute is ``is_available``. That was the interface-drift
+    hole: ``SimpleNamespace`` happily *wrote* the bogus name, so the later read
+    succeeded and the test went green while production crashed.
+
+    Reading an attribute that was never set raises ``AttributeError`` for free
+    (ordinary class), so a production read of a wrong name fails the test too.
+    This is intentionally *not* ``__slots__``: production attaches private runtime
+    state onto the live coordinator (``_pd_write_count``, ``_hysteresis_active``,
+    …) by assignment, and the fake must allow that exactly as the real object does.
+    """
+
+    _DEFAULTS = {
+        "name": "test",
+        "host": "1.2.3.4",
+        "port": 502,
+        "slave_id": 1,
+        "battery_version": "v2",
+        "data": None,
+        "is_available": True,
+        "device_key": "1.2.3.4_502",
+        "max_charge_power": 0,
+        "max_discharge_power": 0,
+        "max_soc": 80,
+        "min_soc": 10,
+        "rs485_user_disabled": False,
+        "balance_hold": False,
+        "write_power_atomic": None,
+    }
+
+    def __init__(self, **kw):
+        unknown = set(kw) - set(self._DEFAULTS)
+        if unknown:
+            raise AttributeError(
+                f"FakeCoordinator: unknown coordinator attribute(s) {sorted(unknown)}; "
+                "the real coordinator does not expose them (interface drift guard)"
+            )
+        for key, default in self._DEFAULTS.items():
+            setattr(self, key, kw.get(key, default))

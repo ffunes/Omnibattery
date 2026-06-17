@@ -12,6 +12,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .balance_monitor import BalanceMonitor, BalanceSensorGroup
 from .const import DOMAIN
+from .entity_naming import english_entity_id
 
 
 async def async_setup_entry(
@@ -104,6 +105,7 @@ class CellDeltaSensor(_BalanceBaseSensor):
 
     def __init__(self, coordinator: Any, init: dict, monitor: BalanceMonitor) -> None:
         self._attr_unique_id = f"{coordinator.device_key}_cell_delta"
+        self.entity_id = english_entity_id("sensor", coordinator.name, "cell_delta")
         self._attr_native_value: float | None = None
         self._monitor = monitor
         super().__init__(coordinator, init)
@@ -133,6 +135,7 @@ class BalanceStatusSensor(_BalanceBaseSensor):
 
     def __init__(self, coordinator: Any, init: dict) -> None:
         self._attr_unique_id = f"{coordinator.device_key}_balance_status"
+        self.entity_id = english_entity_id("sensor", coordinator.name, "balance_status")
         self._status: str = "unknown"
         super().__init__(coordinator, init)
 
@@ -153,6 +156,7 @@ class DeltaTrendSensor(_BalanceBaseSensor):
 
     def __init__(self, coordinator: Any, init: dict) -> None:
         self._attr_unique_id = f"{coordinator.device_key}_delta_trend"
+        self.entity_id = english_entity_id("sensor", coordinator.name, "delta_trend")
         self._trend: str = "unknown"
         super().__init__(coordinator, init)
 
@@ -174,6 +178,7 @@ class LastBalanceReadSensor(_BalanceBaseSensor):
 
     def __init__(self, coordinator: Any, init: dict) -> None:
         self._attr_unique_id = f"{coordinator.device_key}_last_balance_read"
+        self.entity_id = english_entity_id("sensor", coordinator.name, "last_balance_read")
         self._ts: datetime | None = None
         super().__init__(coordinator, init)
 
@@ -207,6 +212,7 @@ class DeltaAvg4wSensor(_BalanceBaseSensor):
 
     def __init__(self, coordinator: Any, init: dict) -> None:
         self._attr_unique_id = f"{coordinator.device_key}_delta_avg_4w"
+        self.entity_id = english_entity_id("sensor", coordinator.name, "delta_avg_4w")
         self._avg: float | None = None
         super().__init__(coordinator, init)
 

@@ -381,7 +381,7 @@ SELECT_DEFINITIONS = [
         "name": "Force Mode",
         "register": 42010,
         "key": "force_mode",
-        "enabled_by_default": True,
+        "enabled_by_default": False,
         "data_type": "uint16",
         "scan_interval": "high",
         "options": {
@@ -441,7 +441,7 @@ NUMBER_DEFINITIONS = [
         "name": "Set Forcible Charge Power",
         "register": 42020,
         "key": "set_charge_power",
-        "enabled_by_default": True,
+        "enabled_by_default": False,
         "icon": "mdi:battery-arrow-up-outline",
         "min": 0,
         "max": 2500,
@@ -455,7 +455,7 @@ NUMBER_DEFINITIONS = [
         "name": "Set Forcible Discharge Power",
         "register": 42021,
         "key": "set_discharge_power",
-        "enabled_by_default": True,
+        "enabled_by_default": False,
         "icon": "mdi:battery-arrow-down-outline",
         "min": 0,
         "max": 2500,
@@ -537,6 +537,46 @@ BUTTON_DEFINITIONS = [
         "enabled_by_default": False,
         "data_type": "uint16"
     }
+]
+
+# Contiguous register spans read in a single Modbus request instead of one
+# request per register, cutting the frame count per poll cycle (issue #361).
+#
+# Same rules as REGISTER_BLOCKS_V3: only already-adjacent registers are grouped
+# (no gap padding, so no unmapped address can error the whole block), every
+# member shares the block's scan_interval, and per-key scale/precision is still
+# taken from the entity definition above. total_increasing energy counters are
+# deliberately left out so they keep the per-register backward-jump guard.
+REGISTER_BLOCKS_V2 = [
+    {
+        "start": 37007,
+        "count": 2,
+        "scan_interval": "high",
+        "members": [
+            {"key": "max_cell_voltage", "offset": 0, "count": 1, "data_type": "int16"},
+            {"key": "min_cell_voltage", "offset": 1, "count": 1, "data_type": "int16"},
+        ],
+    },
+    {
+        "start": 42020,
+        "count": 2,
+        "scan_interval": "high",
+        "members": [
+            {"key": "set_charge_power", "offset": 0, "count": 1, "data_type": "uint16"},
+            {"key": "set_discharge_power", "offset": 1, "count": 1, "data_type": "uint16"},
+        ],
+    },
+    {
+        "start": 44000,
+        "count": 4,
+        "scan_interval": "medium",
+        "members": [
+            {"key": "charging_cutoff_capacity", "offset": 0, "count": 1, "data_type": "uint16"},
+            {"key": "discharging_cutoff_capacity", "offset": 1, "count": 1, "data_type": "uint16"},
+            {"key": "max_charge_power", "offset": 2, "count": 1, "data_type": "uint16"},
+            {"key": "max_discharge_power", "offset": 3, "count": 1, "data_type": "uint16"},
+        ],
+    },
 ]
 
 # Definitions for efficiency sensors

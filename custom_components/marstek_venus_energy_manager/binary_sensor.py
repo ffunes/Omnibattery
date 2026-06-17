@@ -13,6 +13,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN, CONF_CAPACITY_PROTECTION_ENABLED
 from .coordinator import MarstekVenusDataUpdateCoordinator
+from .entity_naming import english_entity_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,8 +58,10 @@ class MarstekVenusBinarySensor(CoordinatorEntity, BinarySensorEntity):
         super().__init__(coordinator)
         self.definition = definition
         
-        self._attr_name = f"{coordinator.name} {definition['name']}"
+        self._attr_has_entity_name = True
+        self._attr_translation_key = definition["key"]
         self._attr_unique_id = f"{coordinator.device_key}_{definition['key']}"
+        self.entity_id = english_entity_id("binary_sensor", coordinator.name, definition["key"])
         self._attr_device_class = definition.get("device_class")
         self._attr_icon = definition.get("icon")
         self._attr_entity_registry_enabled_default = definition.get("enabled_by_default", True)
@@ -99,6 +102,7 @@ class ChargeHysteresisActiveSensor(RestoreEntity, BinarySensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "charge_hysteresis"
         self._attr_unique_id = f"{coordinator.device_key}_charge_hysteresis_active"
+        self.entity_id = english_entity_id("binary_sensor", coordinator.name, "charge_hysteresis_active")
         self._attr_icon = "mdi:battery-lock"
         self._attr_should_poll = True
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -170,6 +174,7 @@ class CapacityProtectionStatusSensor(BinarySensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "capacity_protection_active"
         self._attr_unique_id = f"{entry.entry_id}_capacity_protection_active"
+        self.entity_id = english_entity_id("binary_sensor", "Marstek Venus System", "capacity_protection_active")
         self._attr_device_class = "running"
         self._attr_icon = "mdi:shield-alert"
         self._attr_should_poll = True
@@ -218,6 +223,7 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "predictive_charging_active"
         self._attr_unique_id = f"{entry.entry_id}_predictive_charging_active"
+        self.entity_id = english_entity_id("binary_sensor", "Marstek Venus System", "predictive_charging_active")
         self._attr_device_class = "running"
         self._attr_icon = "mdi:battery-charging-wireless"
         self._attr_should_poll = True  # Poll to update state
@@ -274,19 +280,16 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
 
         attrs["max_contracted_power"] = self.controller.max_contracted_power
 
-        # Household consumption sensor diagnostics + accumulator persistence
-        if self.controller.household_consumption_sensor:
-            attrs["consumption_source"] = "household_sensor"
-            attrs["household_consumption_sensor"] = self.controller.household_consumption_sensor
-            attrs["household_consumption_battery_window_kwh"] = round(self.controller._household_energy_accumulator, 2)
-            if self.controller._household_accumulator_date is not None:
-                attrs["household_accumulator_date"] = self.controller._household_accumulator_date.isoformat()
-            # Solar production accumulator persistence
-            attrs["solar_production_today_kwh"] = round(self.controller._solar_production_accumulator, 2)
-            if self.controller._solar_accumulator_date is not None:
-                attrs["solar_accumulator_date"] = self.controller._solar_accumulator_date.isoformat()
-        else:
-            attrs["consumption_source"] = "battery_discharge"
+        # Home consumption diagnostics: home power is always derived
+        # (grid + battery AC + solar); the household sensor was removed.
+        attrs["consumption_source"] = "derived (grid + battery AC + solar)"
+        attrs["household_consumption_battery_window_kwh"] = round(self.controller._household_energy_accumulator, 2)
+        if self.controller._household_accumulator_date is not None:
+            attrs["household_accumulator_date"] = self.controller._household_accumulator_date.isoformat()
+        # Measured solar produced today (real solar sensor + Venus MPPT)
+        attrs["solar_production_today_kwh"] = round(self.controller._daily_solar_energy_kwh, 2)
+        if self.controller._daily_solar_energy_date is not None:
+            attrs["solar_accumulator_date"] = self.controller._daily_solar_energy_date.isoformat()
 
         # Persist daily consumption history for restoration after restarts
         if hasattr(self.controller, '_daily_consumption_history') and self.controller._daily_consumption_history:

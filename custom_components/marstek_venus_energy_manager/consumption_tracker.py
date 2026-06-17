@@ -2,16 +2,15 @@
 
 Owns:
 - Persistent stores for consumption history, household/solar accumulators and solar T_start
-- Daily 23:55 (local) capture of home consumption (household sensor or derived)
+- Daily 23:55 (local) capture of derived home consumption
 - Startup backfill from recorder history
-- Real-time accumulation of household consumption and solar production
+- Real-time accumulation of home consumption
 - Solar T_start detection plus astronomical sunrise/T_end estimation
 
 Reads/writes the controller's existing public attributes for backward
 compatibility with sensors and binary_sensors that read those attrs directly:
     _daily_consumption_history, _daily_grid_at_min_soc_kwh, _grid_at_min_soc_sensor,
-    _household_energy_accumulator, _household_accumulator_date,
-    _solar_production_accumulator, _solar_accumulator_date, _solar_t_start.
+    _household_energy_accumulator, _household_accumulator_date, _solar_t_start.
 """
 from __future__ import annotations
 
@@ -63,7 +62,6 @@ class ConsumptionTracker:
 
         # Transient state (not exposed to sensors)
         self._household_last_accumulation_time: Optional[float] = None
-        self._solar_last_accumulation_time: Optional[float] = None
         self._daily_solar_last_time: Optional[float] = None
         self._daily_home_last_time: Optional[float] = None
         self._daily_grid_last_time: Optional[float] = None
@@ -151,23 +149,22 @@ class ConsumptionTracker:
         asyncio.create_task(self.async_save_accumulators())
 
     async def async_save_accumulators(self) -> None:
-        """Await-able persist of household and solar accumulators (used on unload).
+        """Await-able persist of the home-consumption accumulator (used on unload).
 
-        Saved whether or not a dedicated household sensor exists: with none, the
-        household accumulator holds the derived home-consumption total.
+        The accumulator holds the derived home-consumption total over the
+        solar+battery window.
         """
         ctrl = self._controller
         try:
             await self._accumulator_store.async_save({
                 "date": ctrl._household_accumulator_date.isoformat() if ctrl._household_accumulator_date else None,
                 "household_kwh": round(ctrl._household_energy_accumulator, 4),
-                "solar_kwh": round(ctrl._solar_production_accumulator, 4),
             })
         except Exception as e:
             _LOGGER.error("Failed to save accumulators: %s", e)
 
     async def load_accumulators(self) -> None:
-        """Restore household and solar accumulators from storage (today's values only)."""
+        """Restore the home-consumption accumulator from storage (today's value only)."""
         try:
             data = await self._accumulator_store.async_load()
             if not data:
@@ -179,11 +176,9 @@ class ConsumptionTracker:
             ctrl = self._controller
             ctrl._household_energy_accumulator = float(data.get("household_kwh", 0.0))
             ctrl._household_accumulator_date = today
-            ctrl._solar_production_accumulator = float(data.get("solar_kwh", 0.0))
-            ctrl._solar_accumulator_date = today
             _LOGGER.info(
-                "Restored accumulators from storage: household=%.2f kWh, solar=%.2f kWh",
-                ctrl._household_energy_accumulator, ctrl._solar_production_accumulator,
+                "Restored home-consumption accumulator from storage: %.2f kWh",
+                ctrl._household_energy_accumulator,
             )
         except Exception as e:
             _LOGGER.warning("Failed to load accumulators from storage: %s", e)
@@ -286,16 +281,50 @@ class ConsumptionTracker:
         unit = state.attributes.get("unit_of_measurement", "W")
         return value if unit == "kW" else value / 1000.0
 
-    async def accumulate_daily_solar_energy(self) -> None:
-        """Integrate the real solar production power sensor → exact daily kWh.
+    def _read_total_solar_power_kw(self) -> Optional[float]:
+        """Total instantaneous solar production (kW): external sensor + Venus PV.
 
+        Sums the configured external solar_production_sensor (e.g. an APS/ECU
+        feed) and the DC-coupled PV on every Venus vA/vD unit (its MPPT inputs),
+        so a battery with panels on its own MPPT ports is counted even when no
+        external sensor is configured. Returns None only when no source has a
+        usable reading.
+        """
+        ctrl = self._controller
+        total_kw = 0.0
+        have_reading = False
+        if ctrl.solar_production_sensor:
+            ext_kw = self._read_power_kw(ctrl.solar_production_sensor)
+            if ext_kw is not None:
+                total_kw += max(0.0, ext_kw)
+                have_reading = True
+        for coordinator in ctrl.coordinators:
+            # Skip disconnected units: their MPPT readings go stale (merged dict,
+            # never expired) and would inflate the integrated daily solar total.
+            if coordinator.battery_version not in ("vA", "vD"):
+                continue
+            if not coordinator.is_available or not coordinator.data:
+                continue
+            mppt_w = 0.0
+            seen = False
+            for key in ("mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"):
+                value = coordinator.data.get(key)
+                if value is not None:
+                    mppt_w += value
+                    seen = True
+            if seen:
+                total_kw += max(0.0, mppt_w) / 1000.0
+                have_reading = True
+        return total_kw if have_reading else None
+
+    async def accumulate_daily_solar_energy(self) -> None:
+        """Integrate total solar production power → exact daily kWh.
+
+        Total = external solar sensor + Venus DC-coupled PV (MPPT on vA/vD).
         Trapezoidal rule: averages the previous and current sample so a ramping
         production curve is not systematically miscounted (left-Riemann bias).
         """
-        ctrl = self._controller
-        if not ctrl.solar_production_sensor:
-            return
-        power_kw = self._read_power_kw(ctrl.solar_production_sensor)
+        power_kw = self._read_total_solar_power_kw()
         if power_kw is None:
             self._daily_solar_last_time = None
             self._daily_solar_last_power_kw = None
@@ -306,7 +335,7 @@ class ConsumptionTracker:
             dt_hours = (now - self._daily_solar_last_time) / 3600.0
             if dt_hours > 0:
                 avg_kw = (self._daily_solar_last_power_kw + power_kw) / 2.0
-                ctrl._daily_solar_energy_kwh += avg_kw * dt_hours
+                self._controller._daily_solar_energy_kwh += avg_kw * dt_hours
         self._daily_solar_last_time = now
         self._daily_solar_last_power_kw = power_kw
 
@@ -315,8 +344,7 @@ class ConsumptionTracker:
 
         Mirrors the aggregate Home Consumption power sensor (home = grid +
         sum(ac_power) + external_solar) so the daily energy total integrates
-        exactly what the dashboard power flow shows. Used when no dedicated
-        household_consumption_sensor is configured.
+        exactly what the dashboard power flow shows.
         """
         ctrl = self._controller
         if not ctrl.consumption_sensor:
@@ -326,7 +354,12 @@ class ConsumptionTracker:
             return None
         total_kw = grid_kw
         for coordinator in ctrl.coordinators:
-            if coordinator.data:
+            # Skip a disconnected battery: coordinator.data keeps its last
+            # ac_power (the dict is merged, never expired), so a unit that dies
+            # mid-discharge would keep adding a phantom AC contribution while the
+            # grid meter already carries its shifted load — double-counting it
+            # into home consumption and the integrated daily total.
+            if coordinator.is_available and coordinator.data:
                 ac = coordinator.data.get("ac_power")
                 if ac is not None:
                     total_kw += ac / 1000.0
@@ -337,19 +370,14 @@ class ConsumptionTracker:
         return max(0.0, total_kw)
 
     async def accumulate_daily_home_energy(self) -> None:
-        """Integrate household consumption power → exact daily kWh.
+        """Integrate home consumption power → exact daily kWh.
 
-        Prefers the user's dedicated household_consumption_sensor; when none is
-        configured, derives the same value the power-flow dashboard shows from
-        grid + battery AC + solar. Trapezoidal rule averages the previous and
-        current sample so a ramping load curve is not systematically miscounted
-        (left-Riemann bias).
+        Derives the same value the power-flow dashboard shows from grid + battery
+        AC + solar. Trapezoidal rule averages the previous and current sample so a
+        ramping load curve is not systematically miscounted (left-Riemann bias).
         """
         ctrl = self._controller
-        if ctrl.use_household_consumption_sensor:
-            power_kw = self._read_power_kw(ctrl.household_consumption_sensor)
-        else:
-            power_kw = self._derive_home_power_kw()
+        power_kw = self._derive_home_power_kw()
         if power_kw is None:
             self._daily_home_last_time = None
             self._daily_home_last_power_kw = None
@@ -480,7 +508,7 @@ class ConsumptionTracker:
         real_count = sum(
             1 for _, c in ctrl._daily_consumption_history if c != DEFAULT_BASE_CONSUMPTION_KWH
         )
-        source = "household sensor" if ctrl.household_consumption_sensor else "battery discharge + grid"
+        source = "grid + battery AC + solar"
         _LOGGER.info(
             "Dynamic base consumption: %.1f kWh (avg of %d days, %d real + %d defaults, source: %s)",
             average, len(ctrl._daily_consumption_history),
@@ -611,6 +639,8 @@ class ConsumptionTracker:
         #   included_in_consumption=False → device not in home sensor but battery covers it → add
         excluded_devices = self._config_entry.data.get("excluded_devices", [])
         for device in excluded_devices:
+            if not device.get("enabled", True):
+                continue
             if device.get("ev_charger_no_telemetry", False):
                 continue
             power_sensor = device.get("power_sensor")
@@ -1039,11 +1069,11 @@ class ConsumptionTracker:
     # ------------------------------------------------------------------
 
     def handle_accumulator_daily_reset(self) -> None:
-        """Reset household and solar accumulators on day rollover.
+        """Reset the home-consumption accumulator on day rollover.
 
-        Compares each accumulator date against today; if changed, resets the
-        accumulator value and clears the corresponding last-accumulation
-        timestamp so the next sample doesn't integrate over the reset gap.
+        Compares the accumulator date against today; if changed, resets the
+        accumulator value and clears the last-accumulation timestamp so the next
+        sample doesn't integrate over the reset gap.
         """
         ctrl = self._controller
 
@@ -1058,16 +1088,6 @@ class ConsumptionTracker:
             ctrl._household_energy_accumulator = 0.0
             self._household_last_accumulation_time = None
             ctrl._household_accumulator_date = today
-        if ctrl._solar_accumulator_date != today:
-            if ctrl._solar_accumulator_date is not None:
-                _LOGGER.info(
-                    "Solar production accumulator daily reset (was %.2f kWh for %s)",
-                    ctrl._solar_production_accumulator,
-                    ctrl._solar_accumulator_date,
-                )
-            ctrl._solar_production_accumulator = 0.0
-            self._solar_last_accumulation_time = None
-            ctrl._solar_accumulator_date = today
 
     def is_in_consumption_window(self) -> bool:
         """Return True when we are OUTSIDE the charging_time_slot (solar+battery window).
@@ -1137,12 +1157,10 @@ class ConsumptionTracker:
     async def accumulate_household_consumption(self) -> None:
         """Integrate home power → kWh accumulator (called every control cycle).
 
-        Prefers the dedicated household_consumption_sensor; when none is configured,
-        derives the same home power the dashboard shows (grid + battery AC + solar)
-        so installs without a household sensor still get an accurate consumption
-        estimate for predictive charging. Only accumulates during the solar+battery
-        window (outside charging_time_slot). Uses monotonic time to avoid issues
-        with system clock changes.
+        Derives the home power the dashboard shows (grid + battery AC + solar) so
+        predictive charging gets an accurate consumption estimate. Only accumulates
+        during the solar+battery window (outside charging_time_slot). Uses monotonic
+        time to avoid issues with system clock changes.
         """
         ctrl = self._controller
 
@@ -1151,10 +1169,7 @@ class ConsumptionTracker:
             self._household_last_accumulation_time = None
             return
 
-        if ctrl.use_household_consumption_sensor:
-            power_kw = self._read_power_kw(ctrl.household_consumption_sensor)
-        else:
-            power_kw = self._derive_home_power_kw()
+        power_kw = self._derive_home_power_kw()
         if power_kw is None:
             return
 
@@ -1167,54 +1182,6 @@ class ConsumptionTracker:
             dt_hours = (now - self._household_last_accumulation_time) / 3600.0
             ctrl._household_energy_accumulator += max(0.0, power_kw) * dt_hours
         self._household_last_accumulation_time = now
-
-    async def accumulate_solar_production(self) -> None:
-        """Integrate real-time solar production → kWh accumulator (called every control cycle).
-
-        Solar_W = House_W + Battery_Net_W - Grid_W
-
-        Requires household_consumption_sensor. Grid power comes from consumption_sensor.
-        Battery net power (positive = charging) is read from coordinator data.
-        Uses monotonic time to avoid issues with system clock changes.
-        """
-        ctrl = self._controller
-
-        if not ctrl.household_consumption_sensor:
-            return
-
-        # Read house power
-        house_state = self._hass.states.get(ctrl.household_consumption_sensor)
-        if house_state is None or house_state.state in ("unknown", "unavailable"):
-            self._solar_last_accumulation_time = None
-            return
-        try:
-            house_w = float(house_state.state)
-        except (ValueError, TypeError):
-            self._solar_last_accumulation_time = None
-            return
-        if house_state.attributes.get("unit_of_measurement", "W") == "kW":
-            house_w *= 1000.0
-
-        # Read grid power (positive = import, negative = export)
-        grid_state = self._hass.states.get(ctrl.consumption_sensor)
-        grid_w = ctrl._apply_meter_transform(grid_state)
-        if grid_w is None:
-            self._solar_last_accumulation_time = None
-            return
-
-        # Battery net power (positive = charging)
-        battery_net_w = sum(
-            (c.data.get("battery_power", 0) or 0)
-            for c in ctrl.coordinators if c.data
-        )
-
-        solar_w = max(0.0, house_w + battery_net_w - grid_w)
-
-        now = monotonic()
-        if self._solar_last_accumulation_time is not None:
-            dt_hours = (now - self._solar_last_accumulation_time) / 3600.0
-            ctrl._solar_production_accumulator += (solar_w / 1000.0) * dt_hours
-        self._solar_last_accumulation_time = now
 
     # ------------------------------------------------------------------
     # Throttle helpers used by the control loop

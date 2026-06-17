@@ -18,6 +18,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import MarstekVenusDataUpdateCoordinator
+from .entity_naming import english_entity_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,6 +85,7 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = definition["key"]
         self._attr_unique_id = f"{coordinator.device_key}_{definition['key']}"
+        self.entity_id = english_entity_id("number", coordinator.name, definition["key"])
         self._attr_icon = definition.get("icon")
         self._attr_native_unit_of_measurement = definition.get("unit")
         self._attr_native_min_value = definition["min"]
@@ -183,6 +185,7 @@ class MarstekConfigNumberEntity(NumberEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = definition["key"]
         self._attr_unique_id = f"{entry.entry_id}_{definition['key']}"
+        self.entity_id = english_entity_id("number", "Marstek Venus System", definition["key"])
         self._attr_icon = definition.get("icon")
         self._attr_native_unit_of_measurement = definition.get("unit")
         self._attr_native_min_value = definition["min"]
@@ -265,6 +268,7 @@ class MarstekSoftSocLimitNumber(CoordinatorEntity, NumberEntity):
             self._attr_icon = "mdi:battery-arrow-down"
             self._attr_native_min_value = 5
             self._attr_native_max_value = 50
+        self.entity_id = english_entity_id("number", coordinator.name, self._attr_translation_key)
 
     @property
     def native_value(self) -> float:
@@ -321,6 +325,7 @@ class MarstekBackupThresholdNumber(CoordinatorEntity, NumberEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "backup_offgrid_threshold"
         self._attr_unique_id = f"{coordinator.device_key}_backup_offgrid_threshold"
+        self.entity_id = english_entity_id("number", coordinator.name, "backup_offgrid_threshold")
         self._attr_icon = "mdi:transmission-tower-off"
         self._attr_native_unit_of_measurement = "W"
         self._attr_native_min_value = 0
@@ -366,6 +371,7 @@ class MarstekChargeHysteresisNumber(CoordinatorEntity, NumberEntity):
         self._attr_has_entity_name = True
         self._attr_translation_key = "charge_hysteresis_percent"
         self._attr_unique_id = f"{coordinator.device_key}_charge_hysteresis_percent"
+        self.entity_id = english_entity_id("number", coordinator.name, "charge_hysteresis_percent")
         self._attr_icon = "mdi:battery-sync"
         self._attr_native_unit_of_measurement = "%"
         self._attr_native_min_value = 5

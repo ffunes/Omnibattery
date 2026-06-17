@@ -366,7 +366,7 @@ class WeeklyFullChargeManager:
 
         # Completion: when every battery has reached the taper zone (top voltage
         # seen latch) or has a hardware/BMS full signal.  The 60-second delta-V
-        # measurement in _handle_normal_max_soc_active_balancing continues as a
+        # measurement in MaxSocChargeManager.handle_measurement continues as a
         # diagnostic but no longer gates completion.
         batteries_with_data = [
             c

@@ -60,21 +60,8 @@ CONF_ENABLE_PREDICTIVE_CHARGING = "enable_predictive_charging"
 CONF_CHARGING_TIME_SLOT = "charging_time_slot"
 CONF_SOLAR_FORECAST_SENSOR = "solar_forecast_sensor"
 CONF_SOLAR_PRODUCTION_SENSOR = "solar_production_sensor"
-CONF_HOUSEHOLD_CONSUMPTION_SENSOR = "household_consumption_sensor"
+CONF_HOUSEHOLD_CONSUMPTION_SENSOR = "household_consumption_sensor"  # legacy; migrated out in v6
 CONF_MAX_CONTRACTED_POWER = "max_contracted_power"
-
-
-def should_use_household_sensor(data) -> bool:
-    """Whether to read the dedicated household sensor instead of deriving home power.
-
-    The household sensor is honoured only when configured AND no solar production
-    sensor exists. With a solar sensor the derived value (grid + battery AC + solar)
-    is fully accurate and preferred, so the household sensor (a legacy precision
-    override, no longer offered in the config flow) is ignored.
-    """
-    return bool(data.get(CONF_HOUSEHOLD_CONSUMPTION_SENSOR)) and not bool(
-        data.get(CONF_SOLAR_PRODUCTION_SENSOR)
-    )
 
 # Time slots (operation slots) — v3 schema keys
 CONF_TIME_SLOTS = "no_discharge_time_slots"  # legacy key, kept for compat
@@ -169,11 +156,14 @@ NORMAL_BALANCE_MEASURE_WAIT_SECONDS = 60
 NORMAL_BALANCE_RESUME_SOC_DROP = 3             # %: SOC must fall this far below the latch SOC before charging may resume
 
 # SOC recalibration on a stuck top voltage.
-# Some packs hit the top cell voltage (pause point) while the BMS still reports a
-# SOC far below full — a sign the BMS coulomb counter has drifted. In that case,
-# instead of holding at the pause voltage, keep charging at the tapered power
-# until the BMS itself cuts off, which forces it to recalibrate SOC to 100%.
-NORMAL_BALANCE_RECAL_SOC_THRESHOLD = 90        # %: reported SOC below this at the pause voltage = miscalibration
+# A pack that hits the top cell voltage (pause point) while the BMS reports a SOC
+# below full is miscalibrated: these BMSs do not correct the coulomb counter until
+# they perform the charge cutoff themselves (users see e.g. 70% — or 96% — with a
+# cell already at 3.58 V). In that case, instead of holding at the pause voltage,
+# keep charging at the tapered power until the BMS itself cuts off, which forces it
+# to recalibrate SOC to 100%. Threshold is just below full so the whole drifted
+# range (not only "far below full") gets one recalibrating cutoff.
+NORMAL_BALANCE_RECAL_SOC_THRESHOLD = 99        # %: reported SOC below this at the pause voltage = miscalibration
 NORMAL_BALANCE_RECAL_CUTOFF_POWER_W = 10       # W: charge collapsed (BMS terminated)
 NORMAL_BALANCE_RECAL_CUTOFF_CYCLES = 5         # consecutive cycles to confirm the BMS cutoff
 NORMAL_BALANCE_RECAL_INVERTER_STANDBY = 1      # inverter_state raw value for Standby
@@ -185,6 +175,14 @@ NORMAL_BALANCE_RECAL_INVERTER_STANDBY = 1      # inverter_state raw value for St
 # delivers ~0W. Treat that as an expected BMS cutoff instead of a non-responsive
 # fault, so the battery stays in the PD pool.
 BMS_DISCHARGE_CUTOFF_SOC = 20                  # %: below this, refused discharge = BMS cutoff, not a fault
+
+# Bus-load reduction: the PD loop normally reads 4 registers back after every
+# power write (ACK verify + non-delivery detection). Those reads are the bulk of
+# the write-path traffic. To cut bus load, only read back every Nth *real* write
+# (option-B skips don't count); the others are write-only (no readback, no
+# post-write settle delay). Trade-off: ACK mismatches and a battery that stops
+# delivering are caught up to N writes later instead of immediately.
+PD_READBACK_EVERY_N_WRITES = 5
 
 # Active balance mode.
 # Once the battery has reached the top, keep the cells in the balancing window
