@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.5] - 2026-06-17
+
+### Fixed
+- **Home Consumption wrong with inverted grid meter**: when `meter_inverted` is enabled, Home Consumption was calculated with the raw (wrong-sign) grid value instead of the negated one, causing inflated or negative readings. [`aggregate_sensors.py`](custom_components/marstek_venus_energy_manager/aggregate_sensors.py).
+
 ## [2.0.4] - 2026-06-17
 
 > ⚠️ **Heads-up — entity IDs on new installs**: entity IDs are now built from the English translation key (e.g. `sensor.marstek_venus_1_ac_power`) instead of the localized display name. **Existing entity IDs are kept untouched.** If you rebuild the device (delete entities/device and re-add the integration), new IDs will be in English — update any dashboards, automations, or scripts that referenced the old localized IDs.
