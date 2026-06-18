@@ -16,8 +16,12 @@ Control mapping (net_power_w sign: +charge / -discharge, same as Marstek convent
   net < 0  → acMode=2 (discharge to home), outputLimit=|power|, smartMode=1
   net == 0 → acMode=2, outputLimit=0, smartMode=1
 
-smartMode=1 keeps real-time writes off flash; omit it for config writes that should
-survive a reboot (apply_config, write_control).
+smartMode=1 on a write keeps the setpoint in RAM instead of flash, so the per-cycle
+real-time PD writes don't wear the flash. It obeys the commanded acMode and holds the
+setpoint as long as HEMS is DISABLED (required for this integration). With HEMS enabled
+the device's smart-matching loop ignores acMode and reverts manual control after ~10-14 s
+(the "charge 2 s then back to 0" symptom). Config writes (apply_config, write_control)
+omit smartMode so they persist to flash across reboots.
 
 battery_power is synthesised: outputPackPower − packInputPower
   (+charge: outputPackPower > 0; −discharge: packInputPower > 0)
@@ -64,6 +68,11 @@ _PROP_TO_KEY: dict[str, str] = {
     "socSet":           "soc_set",
     "minSoc":           "min_soc",
     "inverseMaxPower":  "inverse_max_power",
+    # Device's real AC charge ceiling (distinct from inverseMaxPower, which caps
+    # discharge/inverter output). Mapped to the control-layer max_charge_power so
+    # the coordinator syncs it and PD stops allocating charge the device cannot
+    # accept (it hard-clamps charge to this, e.g. 800 W on a 2400 AC+).
+    "chargeMaxLimit":   "max_charge_power",
 }
 
 # Reverse map for write_control: logical key → API property name.
@@ -71,6 +80,12 @@ _KEY_TO_PROP: dict[str, str] = {v: k for k, v in _PROP_TO_KEY.items()}
 
 _AC_MODE_CHARGE = 1
 _AC_MODE_DISCHARGE = 2
+
+# socSet / minSoc are deci-percent on the device (1000 = 100.0%), unlike the
+# whole-percent entity definitions and the rest of the integration. Converted on
+# read (÷10) and write (×10). Confirmed on a 2400 AC+: writing socSet=100 set the
+# device target to 10%, so it refused to charge a battery already above 10%.
+_DECIPERCENT_KEYS = frozenset({"soc_set", "min_soc"})
 
 
 # ---------------------------------------------------------------------------
@@ -292,21 +307,40 @@ class ZendureLocalDriver(BatteryDriver):
         if self._sn is None:
             self._sn = data.get("sn")
 
-        props = data.get("properties", {})
-        snapshot: TelemetrySnapshot = {}
+        snapshot = self._snapshot_from_props(data.get("properties", {}))
 
+        if keys is not None:
+            # max_charge_power is a control attribute (it drives PD allocation),
+            # not an entity, so it is never in the requested key list — keep it
+            # regardless so the coordinator syncs the device's real charge cap.
+            snapshot = {
+                k: v for k, v in snapshot.items()
+                if k in keys or k == "max_charge_power"
+            }
+
+        return snapshot
+
+    def _snapshot_from_props(self, props: dict) -> TelemetrySnapshot:
+        """Map raw device properties to a logical-key snapshot.
+
+        Shared by read_telemetry and the apply_setpoint readback echo so the
+        property→key mapping, deci-percent conversion and synthesised
+        battery_power stay in one place.
+        """
+        snapshot: TelemetrySnapshot = {}
         for prop, key in _PROP_TO_KEY.items():
             if prop in props:
                 snapshot[key] = props[prop]
+
+        # socSet/minSoc arrive in deci-percent; expose as whole percent.
+        for key in _DECIPERCENT_KEYS:
+            if snapshot.get(key) is not None:
+                snapshot[key] = snapshot[key] / 10
 
         # Synthesise signed battery_power: +charge / −discharge.
         pack_in = props.get("packInputPower", 0)
         out_pack = props.get("outputPackPower", 0)
         snapshot["battery_power"] = out_pack - pack_in
-
-        if keys is not None:
-            snapshot = {k: v for k, v in snapshot.items() if k in keys}
-
         return snapshot
 
     # --- control (write) ----------------------------------------------------
@@ -320,9 +354,15 @@ class ZendureLocalDriver(BatteryDriver):
     ) -> SetpointResult:
         """Translate a signed net power into Zendure's acMode + limit properties.
 
-        smartMode=1 is included in every setpoint write so the device does not
-        wear its flash during real-time control.  The coordinator calls this on
-        every PD cycle when the setpoint changes.
+        smartMode=1 is included in every setpoint write so the real-time PD
+        writes land in RAM rather than flash — the controller rewrites the
+        setpoint frequently, and wearing the flash on every cycle would shorten
+        device life. With HEMS DISABLED (a prerequisite for this integration)
+        smartMode=1 still obeys the commanded acMode and holds the setpoint
+        indefinitely (verified on a 2400 AC+). The acMode-ignoring "auto /
+        smart-matching" behavior only appears when HEMS is enabled, where its
+        loop reverts manual control after ~10-14 s. Config writes (apply_config,
+        write_control) omit smartMode so they persist to flash across reboots.
         """
         if net_power_w > 0:
             power = min(net_power_w, self._capabilities.max_charge_power_w)
@@ -350,7 +390,13 @@ class ZendureLocalDriver(BatteryDriver):
         if not read_back:
             return SetpointResult(ok=True, net_power_w=applied_net, confirmed=False, applied=applied)
 
-        await asyncio.sleep(0.5)
+        # The device does not apply a write to its reported properties
+        # immediately: measured on a 2400 AC+, acMode/inputLimit/outputLimit
+        # still echo the *previous* command at 0.5–1.0 s and only reflect the
+        # new one at ~2 s. Reading back too early compares the just-sent
+        # setpoint against stale values and falsely reports ack_mismatch every
+        # cycle. Settle past the observed apply latency before reading back.
+        await asyncio.sleep(2.5)
 
         data = await self._get_report()
         if data is None:
@@ -360,23 +406,24 @@ class ZendureLocalDriver(BatteryDriver):
             )
 
         props = data.get("properties", {})
-        pack_in = props.get("packInputPower", 0)
-        out_pack = props.get("outputPackPower", 0)
-        battery_power = out_pack - pack_in
 
+        # The device clamps inputLimit/outputLimit to its own charge/discharge
+        # caps (chargeMaxLimit / inverseMaxPower), so an exact == against the
+        # commanded power reports ack_mismatch whenever the setpoint exceeds the
+        # cap — even though the write was accepted. Confirm against the clamped
+        # value the device will actually honour.
         if net_power_w > 0:
-            confirmed = props.get("inputLimit") == power
+            cap = props.get("chargeMaxLimit", power)
+            confirmed = props.get("inputLimit") == min(power, cap)
         elif net_power_w < 0:
-            confirmed = props.get("outputLimit") == power
+            cap = props.get("inverseMaxPower", power)
+            confirmed = props.get("outputLimit") == min(power, cap)
         else:
             confirmed = props.get("outputLimit") == 0
 
         # Full snapshot echo so the coordinator cache reflects the readback.
-        echo: dict[str, Any] = {}
-        for prop, key in _PROP_TO_KEY.items():
-            if prop in props:
-                echo[key] = props[prop]
-        echo["battery_power"] = battery_power
+        echo = self._snapshot_from_props(props)
+        battery_power = echo["battery_power"]
 
         return SetpointResult(
             ok=True,
@@ -396,6 +443,8 @@ class ZendureLocalDriver(BatteryDriver):
         if prop is None:
             _LOGGER.debug("ZendureLocalDriver: no property mapping for key %r", key)
             return False
+        if key in _DECIPERCENT_KEYS:
+            value = int(round(value * 10))  # whole percent → device deci-percent
         return await self._post_write({prop: value})
 
     def net_power_from_data(self, data: dict):
@@ -411,7 +460,13 @@ class ZendureLocalDriver(BatteryDriver):
 
     @property
     def control_dependency_keys(self) -> frozenset:
-        return frozenset()
+        # ac_mode + input/output_limit feed net_power_from_data, which the
+        # skip-if-unchanged guard uses to avoid rewriting an unchanged setpoint.
+        # Their entities are disabled by default, so without declaring them as
+        # control dependencies they would never be polled, net_power_from_data
+        # would always return None, the skip would never fire, and the device
+        # would be rewritten every PD cycle for nothing.
+        return frozenset({"ac_mode", "input_limit", "output_limit"})
 
     # --- concrete methods (not on BatteryDriver ABC) ------------------------
     # These mirror the Marstek-side concrete API so the coordinator can call
@@ -429,10 +484,12 @@ class ZendureLocalDriver(BatteryDriver):
 
         Zendure uses socSet (70-100 %) and minSoc (0-50 %).  The power caps
         are not written here; use the inverseMaxPower number entity instead.
+        The device stores both in deci-percent (1000 = 100.0%), so values are
+        scaled ×10 on the wire.
         """
         soc_set = max(70, min(100, int(max_soc_pct)))
         min_soc = max(0, min(50, int(min_soc_pct)))
-        return await self._post_write({"socSet": soc_set, "minSoc": min_soc})
+        return await self._post_write({"socSet": soc_set * 10, "minSoc": min_soc * 10})
 
     async def standby(self) -> bool:
         """Stop discharge for teardown (smartMode=1, does not persist)."""

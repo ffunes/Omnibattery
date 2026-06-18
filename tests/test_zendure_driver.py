@@ -159,6 +159,14 @@ def test_single_read_group_covers_all_keys():
     assert groups[0].keys == tuple(d["key"] for d in drv.all_definitions)
 
 
+def test_control_dependency_keys_cover_net_power_inputs():
+    # net_power_from_data reads these; they must stay polled though their
+    # entities are disabled, so the skip-if-unchanged guard can fire.
+    assert _driver().control_dependency_keys == frozenset(
+        {"ac_mode", "input_limit", "output_limit"}
+    )
+
+
 # ---------------------------------------------------------------------------
 # read_telemetry
 # ---------------------------------------------------------------------------
@@ -182,9 +190,24 @@ async def test_read_telemetry_synthesises_battery_power_discharging():
     assert snap["battery_power"] == -450  # −discharge
 
 
+async def test_read_telemetry_converts_soc_set_min_soc_from_deci_percent():
+    # _REPORT has socSet=100, minSoc=10 (deci-percent) → 10 %, 1 %.
+    snap = await _driver(session=_session(get_data=_REPORT)).read_telemetry()
+    assert snap["soc_set"] == 10
+    assert snap["min_soc"] == 1
+
+
 async def test_read_telemetry_key_filter():
     snap = await _driver(session=_session(get_data=_REPORT)).read_telemetry(["battery_soc", "battery_power"])
     assert set(snap) == {"battery_soc", "battery_power"}
+
+
+async def test_read_telemetry_keeps_max_charge_power_through_filter():
+    # chargeMaxLimit → max_charge_power is a control attribute (drives PD
+    # allocation), so it must survive the key filter even when not requested.
+    data = {"sn": "ZB1", "properties": {"electricLevel": 50, "chargeMaxLimit": 800}}
+    snap = await _driver(session=_session(get_data=data)).read_telemetry(["battery_soc"])
+    assert snap["max_charge_power"] == 800
 
 
 async def test_read_telemetry_http_failure_returns_empty():
@@ -211,7 +234,7 @@ async def test_apply_setpoint_charge_posts_ac_mode_1():
     props = sess.post.call_args.kwargs["json"]["properties"]
     assert props["acMode"] == 1
     assert props["inputLimit"] == 600
-    assert props["smartMode"] == 1
+    assert props["smartMode"] == 1  # RAM write (off flash); obeys acMode with HEMS off
     assert "outputLimit" not in props
 
 
@@ -224,7 +247,7 @@ async def test_apply_setpoint_discharge_posts_ac_mode_2():
     props = sess.post.call_args.kwargs["json"]["properties"]
     assert props["acMode"] == 2
     assert props["outputLimit"] == 450
-    assert props["smartMode"] == 1
+    assert props["smartMode"] == 1  # RAM write (off flash); obeys acMode with HEMS off
     assert "inputLimit" not in props
 
 
@@ -237,6 +260,7 @@ async def test_apply_setpoint_zero_posts_output_limit_0():
     props = sess.post.call_args.kwargs["json"]["properties"]
     assert props["acMode"] == 2
     assert props["outputLimit"] == 0
+    assert props["smartMode"] == 1  # RAM write (off flash); obeys acMode with HEMS off
 
 
 async def test_apply_setpoint_clamps_charge_to_max():
@@ -294,6 +318,44 @@ async def test_apply_setpoint_unconfirmed_on_mismatched_readback():
     assert res.confirmed is False
 
 
+async def test_apply_setpoint_confirmed_when_charge_clamped_to_device_cap():
+    # Device clamps inputLimit to chargeMaxLimit below the commanded power.
+    # Confirmation must accept the clamped value, not flag ack_mismatch.
+    readback = {
+        "sn": "ZB123456",
+        "properties": {
+            "acMode": 1, "inputLimit": 800, "chargeMaxLimit": 800,
+            "packInputPower": 0, "outputPackPower": 790,
+        },
+    }
+    sess = MagicMock()
+    sess.closed = False
+    sess.post = MagicMock(return_value=_cm(_resp(200)))
+    sess.get = MagicMock(return_value=_cm(_resp(200, readback)))
+
+    res = await _driver(session=sess).apply_setpoint(1500, read_back=True)
+
+    assert res.confirmed is True
+
+
+async def test_apply_setpoint_confirmed_when_discharge_clamped_to_device_cap():
+    readback = {
+        "sn": "ZB123456",
+        "properties": {
+            "acMode": 2, "outputLimit": 800, "inverseMaxPower": 800,
+            "packInputPower": 790, "outputPackPower": 0,
+        },
+    }
+    sess = MagicMock()
+    sess.closed = False
+    sess.post = MagicMock(return_value=_cm(_resp(200)))
+    sess.get = MagicMock(return_value=_cm(_resp(200, readback)))
+
+    res = await _driver(session=sess).apply_setpoint(-1500, read_back=True)
+
+    assert res.confirmed is True
+
+
 async def test_apply_setpoint_feedback_timeout_when_readback_fails():
     sess = MagicMock()
     sess.closed = False
@@ -316,9 +378,10 @@ async def test_write_control_maps_key_to_property():
     ok = await _driver(session=sess).write_control("soc_set", 90)
 
     assert ok is True
-    # config write: must NOT include smartMode so the value survives a reboot
+    # config write: must NOT include smartMode so the value survives a reboot.
+    # soc_set is deci-percent on the device, so 90 % → 900.
     props = sess.post.call_args.kwargs["json"]["properties"]
-    assert props == {"socSet": 90}
+    assert props == {"socSet": 900}
 
 
 async def test_write_control_unknown_key_returns_false():
@@ -346,15 +409,15 @@ async def test_apply_config_writes_soc_set_and_min_soc():
 
     assert ok is True
     props = sess.post.call_args.kwargs["json"]["properties"]
-    assert props["socSet"] == 90
-    assert props["minSoc"] == 20
+    assert props["socSet"] == 900   # 90 % in deci-percent
+    assert props["minSoc"] == 200   # 20 % in deci-percent
     assert "smartMode" not in props  # config write must persist across reboots
 
 
 @pytest.mark.parametrize("raw,expected", [
-    (110, 100),  # clamped to max 100
-    (60,  70),   # clamped to min 70
-    (85,  85),   # in range
+    (110, 1000),  # clamped to max 100 % → 1000 deci-percent
+    (60,  700),   # clamped to min 70 % → 700
+    (85,  850),   # in range → 850
 ])
 async def test_apply_config_clamps_soc_set(raw, expected):
     sess = _session()
@@ -366,9 +429,9 @@ async def test_apply_config_clamps_soc_set(raw, expected):
 
 
 @pytest.mark.parametrize("raw,expected", [
-    (-5, 0),   # clamped to min 0
-    (60, 50),  # clamped to max 50
-    (30, 30),  # in range
+    (-5, 0),    # clamped to min 0 % → 0
+    (60, 500),  # clamped to max 50 % → 500
+    (30, 300),  # in range → 300
 ])
 async def test_apply_config_clamps_min_soc(raw, expected):
     sess = _session()

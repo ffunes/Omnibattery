@@ -107,21 +107,12 @@ async def async_setup_entry(
     coordinators: list[MarstekVenusDataUpdateCoordinator] = hass.data[DOMAIN][entry.entry_id]["coordinators"]
     entities = []
 
-    # Add individual battery sensors - use version-specific definitions from coordinator
+    # Add individual battery sensors. The driver owns the per-platform split, so
+    # use its sensor_definitions directly (same pattern as number.py). The old
+    # _all_definitions filter required a "register" field, which silently dropped
+    # property-based drivers (Zendure) whose sensor defs carry no register.
     for coordinator in coordinators:
-        # Get sensor definitions from coordinator's version-specific _all_definitions
-        # Exclude control entities (number, switch, select) that have their own platforms
-        sensor_defs = [
-            d for d in coordinator._all_definitions
-            if "register" in d
-            and "key" in d
-            and "min" not in d           # Exclude NUMBER_DEFINITIONS
-            and "command_on" not in d    # Exclude SWITCH_DEFINITIONS
-            and "options" not in d       # Exclude SELECT_DEFINITIONS
-            and d not in coordinator.binary_sensor_definitions  # Exclude BINARY_SENSOR_DEFINITIONS
-        ]
-
-        for definition in sensor_defs:
+        for definition in coordinator.sensor_definitions:
             entities.append(MarstekVenusSensor(coordinator, definition))
 
     # Add aggregate sensors. Created even for a single-battery system so the
