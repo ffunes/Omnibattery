@@ -352,6 +352,14 @@ class ChargeDischargeController:
         self.saturation_backcalc_threshold = 150.0  # W shortfall to count as saturation
         self.saturation_backcalc_cycles = 3          # sustained cycles before re-anchoring
         self._saturation_cycles = 0
+        # Re-anchoring is gated on a REAL limit being active (SOC/taper/blocker/cap):
+        # a slow MQTT/HTTP actuator (e.g. Zendure) takes seconds to ramp, and that
+        # ramp lag must NOT be mistaken for saturation or the base is yanked down to
+        # the lagging measurement every few cycles and the command never reaches the
+        # cap. The long fallback below still re-anchors on a sustained shortfall with
+        # no known cause (e.g. unmodelled thermal derate), so windup stays bounded.
+        self.saturation_backcalc_fallback_s = 15.0   # re-anchor after sustained unexplained shortfall
+        self._saturation_shortfall_since = None
 
         # Oscillation detection for auto-reset
         self.sign_changes = 0           # Count of consecutive sign changes in error
@@ -3179,25 +3187,83 @@ class ChargeDischargeController:
                 stopped = True
         return stopped
 
-    def _measured_battery_power(self):
-        """Aggregate measured AC power across batteries, in controller convention.
+    @staticmethod
+    def _coordinator_delivered_power(coordinator):
+        """Measured delivery for one battery in controller convention (+charge/-discharge).
 
-        The ac_power register is + discharge / - charge (see aggregate_sensors), the
-        opposite of the controller's + charge / - discharge, so it is negated. Uses
-        the AC-side power (what the grid meter sees, excludes DC PV on vA/vD). Returns
-        None if no battery reports a value (e.g. right after a restart).
+        Marstek exposes ``ac_power`` (+discharge/-charge), so it is negated.
+        Registerless drivers (e.g. Zendure) never populate ``ac_power`` — they only
+        synthesise ``battery_power`` (already +charge/-discharge), so fall back to it.
+        Without this fallback the controller reads the Zendure as delivering 0 W and
+        the anti-windup re-anchors the command to ~0 on every cycle. Returns None
+        when neither value is reported (e.g. right after a restart).
+        """
+        data = coordinator.data
+        if not data:
+            return None
+        ac = data.get("ac_power")
+        if ac is not None:
+            try:
+                return -float(ac)
+            except (TypeError, ValueError):
+                return None
+        battery_power = data.get("battery_power")
+        if battery_power is not None:
+            try:
+                return float(battery_power)
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _measured_battery_power(self):
+        """Aggregate measured battery power across batteries, in controller convention.
+
+        Controller convention is + charge / - discharge. Uses the AC-side power (what
+        the grid meter sees, excludes DC PV on vA/vD) where available. Returns None if
+        no battery reports a value (e.g. right after a restart).
         """
         total = 0.0
         seen = False
         for coordinator in self.coordinators:
-            if not coordinator.data:
+            delivered = self._coordinator_delivered_power(coordinator)
+            if delivered is None:
                 continue
-            value = coordinator.data.get("ac_power")
-            if value is None:
-                continue
-            total += -float(value)
+            total += delivered
             seen = True
         return total if seen else None
+
+    def _backcalc_is_saturated(self, is_charging: bool) -> bool:
+        """Return True when the command shortfall is explained by real limits.
+
+        Re-anchoring the incremental base to measured power is only correct when
+        the batteries genuinely cannot deliver more — every active battery is
+        blocked, at its power cap, or not reporting. If any active battery is
+        unblocked and still has headroom below its own limit, the shortfall is
+        most likely actuator ramp lag (slow MQTT/HTTP drivers ramp over seconds),
+        and re-anchoring would starve the command before the device finishes
+        ramping.
+        """
+        for coordinator in self.coordinators:
+            if not coordinator.data:
+                continue
+            blocked = (
+                self.is_charge_blocked(coordinator)
+                if is_charging
+                else self.is_discharge_blocked(coordinator)
+            )
+            if blocked:
+                continue
+            limit = self._battery_power_limit(coordinator, is_charging)
+            if limit <= 0:
+                continue
+            delivered_signed = self._coordinator_delivered_power(coordinator)
+            if delivered_signed is None:
+                # Unknown delivery: cannot prove saturation — assume ramp lag.
+                return False
+            delivered = delivered_signed if is_charging else -delivered_signed
+            if delivered < limit - self.saturation_backcalc_threshold:
+                return False
+        return True
 
     def _filter_grid_sample(self, sensor_raw, elapsed_s):
         """Time-constant EMA on the grid sample (replaces the fixed 2-sample average).
@@ -3660,22 +3726,43 @@ class ChargeDischargeController:
         # transient near-zero reading from flipping direction, and we only ever clamp
         # the base DOWN toward reality, never inflate it.
         measured_power = self._measured_battery_power()
-        if (
+        shortfall_active = (
             measured_power is not None
             and self.previous_power != 0
             and (self.previous_power > 0) == (measured_power >= 0)
             and abs(self.previous_power) - abs(measured_power) > self.saturation_backcalc_threshold
-        ):
-            self._saturation_cycles += 1
-            if self._saturation_cycles >= self.saturation_backcalc_cycles:
+        )
+        if shortfall_active:
+            saturated = self._backcalc_is_saturated(self.previous_power > 0)
+            if self._saturation_shortfall_since is None:
+                self._saturation_shortfall_since = dt_util.utcnow()
+            sustained_s = (
+                dt_util.utcnow() - self._saturation_shortfall_since
+            ).total_seconds()
+            # Fast path: a real limit is active, so the shortfall is genuine
+            # saturation — re-anchor after a few cycles. Slow path: no known
+            # limit (likely actuator ramp lag), so only re-anchor after a long
+            # sustained shortfall as a windup safety net for unmodelled derate.
+            if saturated:
+                self._saturation_cycles += 1
+            else:
+                self._saturation_cycles = 0
+            if (
+                saturated and self._saturation_cycles >= self.saturation_backcalc_cycles
+            ) or sustained_s >= self.saturation_backcalc_fallback_s:
                 _LOGGER.debug(
-                    "PD anti-windup: re-anchoring base %.0fW -> measured %.0fW (shortfall %.0fW)",
+                    "PD anti-windup: re-anchoring base %.0fW -> measured %.0fW "
+                    "(shortfall %.0fW, saturated=%s, sustained %.0fs)",
                     self.previous_power, measured_power,
                     abs(self.previous_power) - abs(measured_power),
+                    saturated, sustained_s,
                 )
                 self.previous_power = measured_power
+                self._saturation_cycles = 0
+                self._saturation_shortfall_since = None
         else:
             self._saturation_cycles = 0
+            self._saturation_shortfall_since = None
 
         # Note: Oscillation detection moved to end of method (after checking restrictions)
         # This prevents false positives when controller is paused by time slot restrictions
