@@ -3178,12 +3178,14 @@ class ChargeDischargeController:
         for coordinator in list(self._active_charge_batteries):
             if self.is_charge_blocked(coordinator):
                 await self._set_battery_power(coordinator, 0, 0)
-                self._active_charge_batteries.remove(coordinator)
+                if coordinator in self._active_charge_batteries:
+                    self._active_charge_batteries.remove(coordinator)
                 stopped = True
         for coordinator in list(self._active_discharge_batteries):
             if self.is_discharge_blocked(coordinator):
                 await self._set_battery_power(coordinator, 0, 0)
-                self._active_discharge_batteries.remove(coordinator)
+                if coordinator in self._active_discharge_batteries:
+                    self._active_discharge_batteries.remove(coordinator)
                 stopped = True
         return stopped
 
