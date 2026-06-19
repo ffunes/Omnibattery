@@ -512,6 +512,9 @@ class WeeklyFullChargeSensor(SensorEntity):
         completion_reason = self._controller._weekly_charge_status.get("completion_reason")
         if completion_reason:
             attrs["completion_reason"] = completion_reason
+        batteries = self._controller._weekly_charge_status.get("batteries")
+        if batteries:
+            attrs["batteries"] = batteries
         return attrs
 
     @property
