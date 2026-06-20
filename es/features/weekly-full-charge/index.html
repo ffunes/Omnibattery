@@ -1602,15 +1602,16 @@
 <ol>
 <li>El día configurado de la semana, si el SOC máximo habitual es inferior al 100 %, la integración eleva temporalmente el límite de corte de carga de la batería al 100 %.</li>
 <li>La batería carga hasta que entra la reducción por voltaje en la parte alta.</li>
-<li>Desde <code>max_cell_voltage &gt;= 3.48 V</code>, la carga se limita a 95 W.</li>
-<li>En <code>max_cell_voltage &gt;= 3.58 V</code>, la carga se detiene y la integración espera 60 segundos.</li>
-<li>Tras la espera, el monitor de equilibrio registra <code>delta_mV = (Vmax - Vmin) * 1000</code>.</li>
-<li>Tras finalizar, el límite de SOC máximo vuelve automáticamente al valor configurado por el usuario.</li>
+<li>Desde <code>max_cell_voltage &gt;= 3.48 V</code>, la carga se limita a 95 W (si la reducción por voltaje está activada).</li>
+<li>Durante la carga semanal <strong>no</strong> se aplica la pausa de 3.58 V: la carga continúa a 95 W hasta el corte del BMS. La medición de 60 s del delta de celdas sigue ejecutándose como diagnóstico, pero ya no determina la finalización.</li>
+<li>La carga se marca como completada solo cuando la batería está realmente llena: SOC reportado al <strong>100 %</strong>, o un <strong>corte del BMS</strong> confirmado (carga ≤10 W en Standby durante 5 ciclos ~10 s, reconocido en la zona de reducción ≥ 3.48 V aunque el SOC esté mal reportado).</li>
+<li>Tras finalizar, el límite de SOC máximo (y el registro de corte hardware en v2) vuelve automáticamente al valor configurado por el usuario, y se reactiva la histéresis.</li>
 </ol>
 <p>La carga semanal completa usa el mismo perfil de voltaje que una batería configurada normalmente con <code>max_soc = 100</code>. La función semanal solo eleva el objetivo a 100 %; no usa un algoritmo de balanceo distinto.</p>
+<p>El sensor <strong>Carga semanal completa</strong> expone diagnósticos por batería en su atributo <code>batteries</code>: SOC en vivo y contador de ciclos de corte del BMS durante la carga, y una instantánea al completar (<code>soc_at_completion</code>, <code>max_cell_voltage_at_completion</code>, <code>completion_reason</code>, <code>bms_cutoff_cycles</code>).</p>
 <div class="admonition note">
 <p class="admonition-title">SOC desviado</p>
-<p>Si un pack llega a 3.58 V mientras el BMS sigue reportando un SOC por debajo del 90 %, la carga <em>no</em> se pausa en el paso 4: la integración sigue cargando a 95 W hasta que el BMS corta, <em>intentando</em> que recalibre el SOC al 100 % para que la carga semanal pueda completarse. Es de mejor esfuerzo y depende del firmware del BMS — no está garantizado. Ver <a href="../cell-balance-monitor/#recalibracion-de-soc-con-tension-alta-atascada">Recalibración de SOC con tensión alta atascada</a>.</p>
+<p>Durante la carga semanal la pausa de 3.58 V <strong>no</strong> se aplica: la carga sigue a 95 W hasta que el BMS corta. Si el contador culombimétrico del BMS se ha desviado (celdas realmente llenas pero SOC reportado por debajo del 100 %), la finalización igual se detecta: la firma de corte del BMS (carga ≤10 W con el inversor en Standby durante 5 ciclos) se reconoce siempre que el pack esté en la zona de reducción (≥ 3.48 V), sin importar el SOC reportado. Así la carga semanal puede terminar aunque el pack nunca llegue a leer 100 %, e <em>intenta</em> recalibrar el SOC — depende del firmware del BMS. Ver <a href="../cell-balance-monitor/#recalibracion-de-soc-con-tension-alta-atascada">Recalibración de SOC con tensión alta atascada</a>.</p>
 </div>
 <h2 id="monitor-de-equilibrio-de-celdas">Monitor de equilibrio de celdas<a class="headerlink" href="#monitor-de-equilibrio-de-celdas" title="Permanent link">&para;</a></h2>
 <p>El <strong>monitor de equilibrio de celdas</strong> está siempre activo. Registra la diferencia de tensión entre la celda más alta y la más baja tras cada medición en tensión alta, y mantiene actualizados los sensores, la tendencia y las alertas.</p>

@@ -1924,10 +1924,11 @@
 </ul>
 <p>La carga semanal completa puede fijar temporalmente el SOC máximo de la batería al 100 %. Cuando lo hace, se usan exactamente las mismas reglas de reducción por voltaje al 100 %.</p>
 <h2 id="reduccion-por-voltaje-al-100">Reducción por voltaje al 100 %<a class="headerlink" href="#reduccion-por-voltaje-al-100" title="Permanent link">&para;</a></h2>
-<p>Esta ruta se usa cuando una batería tiene objetivo de carga al 100 %:</p>
+<p>Esta ruta se usa siempre que la opción <strong>Reducción por voltaje al 100 %</strong> está activada para una batería (y el modo de balanceo activo no está en marcha). Se basa en tensión: se activa en cuanto <code>max_cell_voltage</code> alcanza los umbrales de abajo, sin importar el <code>max_soc</code> configurado. En la práctica ocurre cuando:</p>
 <ul>
 <li>el usuario ha configurado esa batería con <code>max_soc = 100</code>, o</li>
-<li>la carga semanal completa ha elevado temporalmente esa batería al 100 %.</li>
+<li>la carga semanal completa ha elevado temporalmente esa batería al 100 %, o</li>
+<li>un <code>max_soc</code> alto por debajo del 100 % deja igualmente que las celdas lleguen a 3.48 V.</li>
 </ul>
 <p>La carga semanal completa no usa un perfil de balanceo distinto. Solo cambia el objetivo de SOC a 100 %; los voltajes, la potencia y la medición son los mismos.</p>
 <h3 id="perfil-de-carga">Perfil de carga<a class="headerlink" href="#perfil-de-carga" title="Permanent link">&para;</a></h3>
@@ -1970,18 +1971,18 @@
 <p>Es un intento de mejor esfuerzo, no una solución garantizada. Que un corte en la parte alta de la curva realmente reinicie el SOC reportado depende del firmware del BMS: algunos packs saltan al 100 % con un corte por sobretensión, otros no. La integración solo crea las condiciones para una recalibración — no puede obligar al BMS a aplicarla.</p>
 <p>El override se activa automáticamente cuando se cumple <strong>todo</strong> lo siguiente:</p>
 <ul>
-<li>el objetivo de carga es 100 % (la reducción aplica), y</li>
+<li>la reducción por voltaje al 100 % está activa (<code>max_cell_voltage</code> en la zona alta), y</li>
 <li><code>max_cell_voltage</code> ha alcanzado el punto de pausa de 3.58 V, y</li>
-<li>el BMS sigue reportando un SOC por debajo del 90 %.</li>
+<li>el BMS sigue reportando un SOC por debajo del 99 %.</li>
 </ul>
 <p>Es autolimitado:</p>
 <ul>
 <li>la carga continúa solo a 95 W (la potencia suave de reducción), no a plena potencia;</li>
 <li>el corte del BMS se detecta cuando la potencia de la batería cae a ≤ 10 W y el inversor reporta Standby durante 5 ciclos consecutivos (~10 s). En ese momento el override se enclava y se reanuda la pausa normal de 3.58 V, dejando que el SOC se recalibre;</li>
-<li>una vez que el SOC marca 90 % o más (tras recalibrar), la condición ya no se cumple, así que el override no se vuelve a disparar;</li>
+<li>una vez que el SOC marca 99 % o más (tras recalibrar), la condición ya no se cumple, así que el override no se vuelve a disparar;</li>
 <li>el enclavamiento solo se rearma cuando la batería sale de la zona alta (<code>max_cell_voltage</code> por debajo de 3.48 V), para que una carga completa posterior pueda recalibrar de nuevo si hace falta.</li>
 </ul>
-<p>Como depende de un objetivo de carga del 100 %, nunca afecta al ciclado diario normal con un <code>max_soc</code> más bajo. Tampoco se ejecuta mientras el <a href="#modo-de-balanceo-activo">modo de balanceo activo</a> controla la batería — ese modo tiene prioridad.</p>
+<p>Llegar al punto de pausa de 3.58 V normalmente solo ocurre en una carga al 100 %, así que esto rara vez afecta al ciclado diario con un <code>max_soc</code> más bajo. <strong>No</strong> se ejecuta durante la <a href="../weekly-full-charge/">carga semanal completa</a> — allí la pausa de 3.58 V se suprime por completo y el corte del BMS por sí solo finaliza el ciclo (ver esa página). Tampoco se ejecuta mientras el <a href="#modo-de-balanceo-activo">modo de balanceo activo</a> controla la batería — ese modo tiene prioridad.</p>
 <div class="admonition note">
 <p class="admonition-title">Desbalance de celdas</p>
 <p>El override no comprueba primero la dispersión entre celdas. En un pack muy desbalanceado, la celda más alta puede llegar al corte por sobretensión del BMS antes de que el pack esté lleno, así que la recalibración es correcta pero el balanceo queda para ciclos posteriores. El BMS sigue protegiendo cada celda de forma individual.</p>
