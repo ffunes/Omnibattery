@@ -395,7 +395,7 @@ class WeeklyFullChargeManager:
         }
 
         if all_batteries_full and not ctrl.weekly_full_charge_complete:
-            await self._complete_weekly_charge("top_voltage_reached")
+            await self._complete_weekly_charge("all_batteries_full")
 
     async def _complete_weekly_charge(self, reason: str) -> None:
         """Mark weekly full charge complete and restore configured limits."""

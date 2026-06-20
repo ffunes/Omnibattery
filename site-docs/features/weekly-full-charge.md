@@ -19,7 +19,18 @@ Active cell balancing repeatedly cycles slow charge or discharge near the top vo
 See [Cell balancing](cell-balance-monitor.md) for full details.
 
 !!! note "Drifted SOC"
-    If a pack reaches 3.58 V while the BMS still reports SOC below 90%, charging is *not* paused at step 4: the integration keeps charging at 95 W until the BMS cuts off, *attempting* to make it recalibrate SOC to 100% so the weekly charge can complete. This is best-effort and depends on the BMS firmware — it is not guaranteed. See [SOC recalibration on a stuck top voltage](cell-balance-monitor.md#soc-recalibration-on-a-stuck-top-voltage).
+    During the weekly charge the 3.58 V pause is **not** applied — charging keeps going at the tapered 95 W until the BMS itself cuts off. If the BMS coulomb counter has drifted (cells genuinely full but reported SOC below 100%), completion is still detected: the BMS-cutoff signature (charge ≤10 W with the inverter in Standby for 5 consecutive cycles) is recognised whenever the pack is in the top taper zone (≥ 3.48 V), regardless of the reported SOC. This lets the weekly cycle finish even when the pack never reads 100%, and best-effort attempts to recalibrate the SOC — depending on BMS firmware. See [SOC recalibration on a stuck top voltage](cell-balance-monitor.md#soc-recalibration-on-a-stuck-top-voltage).
+
+## When the cycle completes
+
+The weekly charge is marked **Complete** only when every battery is genuinely full — not merely when a cell touches the 3.58 V top voltage. A battery counts as full when either:
+
+- its reported SOC reaches **100%**, or
+- a **BMS cutoff** is confirmed: charge collapses to ≤10 W with the inverter in Standby for 5 consecutive cycles (~10 s). During the weekly charge this is recognised whenever the pack is in the top taper zone (≥ 3.48 V), so a pack with a drifted SOC still completes.
+
+The 60-second cell-delta measurement still runs as a diagnostic, but it no longer gates completion. On completion the configured max SOC (and the hardware cutoff register on v2) is restored, and charge hysteresis is re-enabled.
+
+The **Weekly Full Charge** sensor exposes per-battery diagnostics under its `batteries` attribute: live SOC and BMS-cutoff cycle count while charging, and a completion snapshot (`soc_at_completion`, `max_cell_voltage_at_completion`, `completion_reason`, `bms_cutoff_cycles`).
 
 ## Cell balance monitor
 

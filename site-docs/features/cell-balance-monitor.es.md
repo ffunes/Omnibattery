@@ -48,10 +48,11 @@ La carga semanal completa puede fijar temporalmente el SOC máximo de la baterí
 
 ## Reducción por voltaje al 100 %
 
-Esta ruta se usa cuando una batería tiene objetivo de carga al 100 %:
+Esta ruta se usa siempre que la opción **Reducción por voltaje al 100 %** está activada para una batería (y el modo de balanceo activo no está en marcha). Se basa en tensión: se activa en cuanto `max_cell_voltage` alcanza los umbrales de abajo, sin importar el `max_soc` configurado. En la práctica ocurre cuando:
 
 - el usuario ha configurado esa batería con `max_soc = 100`, o
-- la carga semanal completa ha elevado temporalmente esa batería al 100 %.
+- la carga semanal completa ha elevado temporalmente esa batería al 100 %, o
+- un `max_soc` alto por debajo del 100 % deja igualmente que las celdas lleguen a 3.48 V.
 
 La carga semanal completa no usa un perfil de balanceo distinto. Solo cambia el objetivo de SOC a 100 %; los voltajes, la potencia y la medición son los mismos.
 
@@ -81,18 +82,18 @@ Es un intento de mejor esfuerzo, no una solución garantizada. Que un corte en l
 
 El override se activa automáticamente cuando se cumple **todo** lo siguiente:
 
-- el objetivo de carga es 100 % (la reducción aplica), y
+- la reducción por voltaje al 100 % está activa (`max_cell_voltage` en la zona alta), y
 - `max_cell_voltage` ha alcanzado el punto de pausa de 3.58 V, y
-- el BMS sigue reportando un SOC por debajo del 90 %.
+- el BMS sigue reportando un SOC por debajo del 99 %.
 
 Es autolimitado:
 
 - la carga continúa solo a 95 W (la potencia suave de reducción), no a plena potencia;
 - el corte del BMS se detecta cuando la potencia de la batería cae a ≤ 10 W y el inversor reporta Standby durante 5 ciclos consecutivos (~10 s). En ese momento el override se enclava y se reanuda la pausa normal de 3.58 V, dejando que el SOC se recalibre;
-- una vez que el SOC marca 90 % o más (tras recalibrar), la condición ya no se cumple, así que el override no se vuelve a disparar;
+- una vez que el SOC marca 99 % o más (tras recalibrar), la condición ya no se cumple, así que el override no se vuelve a disparar;
 - el enclavamiento solo se rearma cuando la batería sale de la zona alta (`max_cell_voltage` por debajo de 3.48 V), para que una carga completa posterior pueda recalibrar de nuevo si hace falta.
 
-Como depende de un objetivo de carga del 100 %, nunca afecta al ciclado diario normal con un `max_soc` más bajo. Tampoco se ejecuta mientras el [modo de balanceo activo](#modo-de-balanceo-activo) controla la batería — ese modo tiene prioridad.
+Llegar al punto de pausa de 3.58 V normalmente solo ocurre en una carga al 100 %, así que esto rara vez afecta al ciclado diario con un `max_soc` más bajo. **No** se ejecuta durante la [carga semanal completa](weekly-full-charge.md) — allí la pausa de 3.58 V se suprime por completo y el corte del BMS por sí solo finaliza el ciclo (ver esa página). Tampoco se ejecuta mientras el [modo de balanceo activo](#modo-de-balanceo-activo) controla la batería — ese modo tiene prioridad.
 
 !!! note "Desbalance de celdas"
     El override no comprueba primero la dispersión entre celdas. En un pack muy desbalanceado, la celda más alta puede llegar al corte por sobretensión del BMS antes de que el pack esté lleno, así que la recalibración es correcta pero el balanceo queda para ciclos posteriores. El BMS sigue protegiendo cada celda de forma individual.
