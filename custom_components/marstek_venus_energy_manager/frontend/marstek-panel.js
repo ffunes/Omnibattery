@@ -79,7 +79,7 @@ const I18N = {
     bcSocMax: "Max SOC", bcSocMin: "Min SOC", bcForceMode: "Force mode",
     bcChargePower: "Charge power", bcDischargePower: "Discharge power",
     bcMaxCharge: "Max charge", bcMaxDischarge: "Max discharge",
-    bcChargeToSoc: "Charge to SOC", bcChargeHysteresis: "Charge hysteresis", bcBackup: "Backup function",
+    bcChargeToSoc: "Charge to SOC", bcChargeHysteresis: "Charge hysteresis", bcBackup: "Backup function", bcOffgridMode: "Off-grid mode",
     secManual: "Manual mode", itemEnable: "Enable",
     itemMaxContracted: "Max contracted power", itemSolarSafety: "Solar safety margin", itemGridChargeMargin: "Grid charge margin",
     itemSocThreshold: "SOC threshold", itemPeakLimit: "Peak limit",
@@ -139,7 +139,7 @@ const I18N = {
     bcSocMax: "SOC máximo", bcSocMin: "SOC mínimo", bcForceMode: "Modo forzado",
     bcChargePower: "Potencia de carga", bcDischargePower: "Potencia de descarga",
     bcMaxCharge: "Máx. carga", bcMaxDischarge: "Máx. descarga",
-    bcChargeToSoc: "Cargar hasta SOC", bcChargeHysteresis: "Histéresis de carga", bcBackup: "Función de respaldo",
+    bcChargeToSoc: "Cargar hasta SOC", bcChargeHysteresis: "Histéresis de carga", bcBackup: "Función de respaldo", bcOffgridMode: "Modo off-grid",
     secManual: "Modo manual", itemEnable: "Activar",
     itemMaxContracted: "Potencia contratada máx.", itemSolarSafety: "Margen de seguridad solar", itemGridChargeMargin: "Margen de carga de red",
     itemSocThreshold: "Umbral de SOC", itemPeakLimit: "Límite de pico",
@@ -199,7 +199,7 @@ const I18N = {
     bcSocMax: "SOC màxim", bcSocMin: "SOC mínim", bcForceMode: "Mode forçat",
     bcChargePower: "Potència de càrrega", bcDischargePower: "Potència de descàrrega",
     bcMaxCharge: "Màx. càrrega", bcMaxDischarge: "Màx. descàrrega",
-    bcChargeToSoc: "Carregar fins a SOC", bcChargeHysteresis: "Histèresi de càrrega", bcBackup: "Funció de reserva",
+    bcChargeToSoc: "Carregar fins a SOC", bcChargeHysteresis: "Histèresi de càrrega", bcBackup: "Funció de reserva", bcOffgridMode: "Mode fora de xarxa",
     secManual: "Mode manual", itemEnable: "Activar",
     itemMaxContracted: "Potència contractada màx.", itemSolarSafety: "Marge de seguretat solar", itemGridChargeMargin: "Marge de càrrega de xarxa",
     itemSocThreshold: "Llindar de SOC", itemPeakLimit: "Límit de pic",
@@ -259,7 +259,7 @@ const I18N = {
     bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcForceMode: "Betriebsmodus erzwingen",
     bcChargePower: "Ladeleistung", bcDischargePower: "Entladeleistung",
     bcMaxCharge: "Max. Ladeleistung", bcMaxDischarge: "Max. Entladeleistung",
-    bcChargeToSoc: "Laden bis SOC", bcChargeHysteresis: "Ladehysterese", bcBackup: "Backup-Funktion",
+    bcChargeToSoc: "Laden bis SOC", bcChargeHysteresis: "Ladehysterese", bcBackup: "Backup-Funktion", bcOffgridMode: "Inselnetz-Modus",
     secManual: "Manueller Modus", itemEnable: "Aktivieren",
     itemMaxContracted: "Max. Vertragsleistung", itemSolarSafety: "Sicherheitspuffer Solar", itemGridChargeMargin: "Netzladungs-Marge",
     itemSocThreshold: "SOC-Schwelle", itemPeakLimit: "Spitzenlimit",
@@ -319,7 +319,7 @@ const I18N = {
     bcSocMax: "SOC max.", bcSocMin: "SOC min.", bcForceMode: "Mode forcé",
     bcChargePower: "Puissance de charge", bcDischargePower: "Puissance de décharge",
     bcMaxCharge: "Charge max.", bcMaxDischarge: "Décharge max.",
-    bcChargeToSoc: "Charger jusqu'à SOC", bcChargeHysteresis: "Hystérésis de charge", bcBackup: "Fonction de secours",
+    bcChargeToSoc: "Charger jusqu'à SOC", bcChargeHysteresis: "Hystérésis de charge", bcBackup: "Fonction de secours", bcOffgridMode: "Mode hors-réseau",
     secManual: "Mode manuel", itemEnable: "Activer",
     itemMaxContracted: "Puissance contractuelle max.", itemSolarSafety: "Marge de sécurité solaire", itemGridChargeMargin: "Marge de charge réseau",
     itemSocThreshold: "Seuil SOC", itemPeakLimit: "Limite de pointe",
@@ -379,7 +379,7 @@ const I18N = {
     bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcForceMode: "Geforceerde modus",
     bcChargePower: "Laadvermogen", bcDischargePower: "Ontlaadvermogen",
     bcMaxCharge: "Max. laden", bcMaxDischarge: "Max. ontladen",
-    bcChargeToSoc: "Laden tot SOC", bcChargeHysteresis: "Laadhysterese", bcBackup: "Back-upfunctie",
+    bcChargeToSoc: "Laden tot SOC", bcChargeHysteresis: "Laadhysterese", bcBackup: "Back-upfunctie", bcOffgridMode: "Off-grid-modus",
     secManual: "Handmatige modus", itemEnable: "Inschakelen",
     itemMaxContracted: "Max. gecontracteerd vermogen", itemSolarSafety: "Veiligheidsmarge zon", itemGridChargeMargin: "Netladingsmarge",
     itemSocThreshold: "SOC-drempel", itemPeakLimit: "Pieklimiet",
@@ -518,6 +518,9 @@ const BAT_CONTROLS = [
   { key: "charge_to_soc", domain: "number", lk: "bcChargeToSoc", icon: "mdi:battery-sync-outline" },
   { key: "charge_hysteresis_percent", domain: "number", lk: "bcChargeHysteresis", icon: "mdi:battery-sync" },
   { key: "backup_function", domain: "switch", lk: "bcBackup", icon: "mdi:home-battery-outline" },
+  // Zendure off-grid output port mode (select: normal/economy/off). Distinct from
+  // the Marstek backup_function switch; only one exists per device.
+  { key: "grid_off_mode", domain: "select", lk: "bcOffgridMode", icon: "mdi:transmission-tower-off" },
 ];
 
 // Unified Control tab: system-level entities grouped BY FEATURE — each section

@@ -1282,6 +1282,14 @@
       "force_mode": {
         "name": "Modo Forzado"
       },
+      "grid_off_mode": {
+        "name": "Modo Off-Grid",
+        "state": {
+          "normal": "Normal",
+          "economy": "Económico",
+          "off": "Apagado"
+        }
+      },
       "user_work_mode": {
         "name": "Modo de Trabajo",
         "state": {

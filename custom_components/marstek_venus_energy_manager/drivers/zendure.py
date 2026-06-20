@@ -69,6 +69,10 @@ _PROP_TO_KEY: dict[str, str] = {
     "socSet":           "soc_set",
     "minSoc":           "min_soc",
     "inverseMaxPower":  "inverse_max_power",
+    # Off-grid output port mode (3-state enum, confirmed on a 2400 AC+):
+    # 0=normal, 1=economy, 2=off. Exposed as a select; write persists to flash
+    # (write_control omits smartMode) so the user's choice survives reboots.
+    "gridOffMode":      "grid_off_mode",
     # Device's real AC charge ceiling (distinct from inverseMaxPower, which caps
     # discharge/inverter output). Mapped to the control-layer max_charge_power so
     # the coordinator syncs it and PD stops allocating charge the device cannot
@@ -215,6 +219,15 @@ NUMBER_DEFINITIONS: list[dict] = [
      "scale": 1, "precision": 0, "scan_interval": "low",  "enabled_by_default": True},
 ]
 
+SELECT_DEFINITIONS: list[dict] = [
+    # Off-grid output port mode. "options" maps the canonical option key (localised
+    # via translations) to the device's gridOffMode wire value. No "scale" — the
+    # coordinator stores the raw enum value, which current_option matches back.
+    {"key": "grid_off_mode", "name": "Off-Grid Mode",
+     "options": {"normal": 0, "economy": 1, "off": 2},
+     "scan_interval": "low", "enabled_by_default": True},
+]
+
 
 # ---------------------------------------------------------------------------
 # Driver
@@ -263,11 +276,11 @@ class ZendureLocalDriver(BatteryDriver):
         self._definitions: dict[str, list[dict]] = {
             "sensor":        SENSOR_DEFINITIONS,
             "number":        NUMBER_DEFINITIONS,
-            "select":        [],
+            "select":        SELECT_DEFINITIONS,
             "switch":        [],
             "binary_sensor": [],
             "button":        [],
-            "all":           SENSOR_DEFINITIONS + NUMBER_DEFINITIONS,
+            "all":           SENSOR_DEFINITIONS + NUMBER_DEFINITIONS + SELECT_DEFINITIONS,
         }
 
         # Single read group: one HTTP GET returns all properties, so there is

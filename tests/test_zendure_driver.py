@@ -12,6 +12,7 @@ import pytest
 
 from custom_components.marstek_venus_energy_manager.drivers.zendure import (
     NUMBER_DEFINITIONS,
+    SELECT_DEFINITIONS,
     SENSOR_DEFINITIONS,
     ZendureLocalDriver,
 )
@@ -77,6 +78,7 @@ _REPORT = {
         "BatVolt": 5010,          # centi-volt → 50.10 V
         "rssi": -58,
         "gridOffPower": 0,
+        "gridOffMode": 1,         # off-grid port mode enum (1 = economy)
     },
     "packData": [
         {"maxVol": 334, "minVol": 333},
@@ -161,16 +163,24 @@ def test_number_definitions_include_soc_and_power_controls():
     assert {"soc_set", "min_soc", "inverse_max_power"} <= keys
 
 
-def test_select_switch_binary_sensor_button_empty():
+def test_switch_binary_sensor_button_empty():
     drv = _driver()
-    assert drv.select_definitions == []
     assert drv.switch_definitions == []
     assert drv.binary_sensor_definitions == []
     assert drv.button_definitions == []
 
 
-def test_all_definitions_is_sensor_plus_number():
-    assert _driver().all_definitions == SENSOR_DEFINITIONS + NUMBER_DEFINITIONS
+def test_select_definitions_include_grid_off_mode():
+    by_key = {d["key"]: d for d in _driver().select_definitions}
+    assert "grid_off_mode" in by_key
+    # Confirmed on a 2400 AC+: 0=normal, 1=economy, 2=off.
+    assert by_key["grid_off_mode"]["options"] == {"normal": 0, "economy": 1, "off": 2}
+
+
+def test_all_definitions_is_sensor_plus_number_plus_select():
+    assert _driver().all_definitions == (
+        SENSOR_DEFINITIONS + NUMBER_DEFINITIONS + SELECT_DEFINITIONS
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +228,13 @@ def test_centi_scaled_keys_carry_scale_for_coordinator():
     for k in ("internal_temperature", "battery_voltage",
               "max_cell_voltage", "min_cell_voltage"):
         assert by_key[k]["scale"] == 0.01
+
+
+async def test_read_telemetry_maps_grid_off_mode():
+    # Off-grid port mode enum passes through unscaled (no "scale" on the select def);
+    # the select entity matches the raw value back to its option.
+    snap = await _driver(session=_session(get_data=_REPORT)).read_telemetry()
+    assert snap["grid_off_mode"] == 1
 
 
 async def test_read_telemetry_maps_mppt_rssi_and_offgrid():
@@ -485,6 +502,17 @@ async def test_write_control_maps_key_to_property():
     # soc_set is deci-percent on the device, so 90 % → 900.
     props = sess.post.call_args.kwargs["json"]["properties"]
     assert props == {"socSet": 900}
+
+
+async def test_write_control_grid_off_mode_posts_raw_enum():
+    sess = _session()
+    ok = await _driver(session=sess).write_control("grid_off_mode", 2)
+
+    assert ok is True
+    # Raw enum value, no deci-percent scaling, and no smartMode so the off-grid
+    # port mode persists to flash across reboots.
+    props = sess.post.call_args.kwargs["json"]["properties"]
+    assert props == {"gridOffMode": 2}
 
 
 async def test_write_control_unknown_key_returns_false():
