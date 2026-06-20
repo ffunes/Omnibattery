@@ -197,6 +197,7 @@ async def _async_register_frontend_panel(hass: HomeAssistant, entry: ConfigEntry
         panel_config = {"domain": DOMAIN, "title": PANEL_TITLE}
         if entry is not None:
             from .const import (
+                CONF_BATTERY_VERSION,
                 CONF_SOLAR_FORECAST_SENSOR,
                 CONF_SOLAR_PRODUCTION_SENSOR,
             )
@@ -214,12 +215,19 @@ async def _async_register_frontend_panel(hass: HomeAssistant, entry: ConfigEntry
             # Home node = the integration's derived Home Consumption aggregate sensor
             # (grid + battery AC + solar). The dedicated household sensor was removed
             # from the config flow, so the derived sensor is the single home source.
-            panel_config["home_entity"] = "sensor.marstek_venus_system_system_home_consumption"
+            panel_config["home_entity"] = "sensor.marstek_venus_system_home_consumption"
             if data.get(CONF_SOLAR_FORECAST_SENSOR):
                 panel_config["solar_forecast_entity"] = data[CONF_SOLAR_FORECAST_SENSOR]
-            # Real-time PV production for the Solar node when panels are not wired
-            # through the battery MPPT inputs (external inverter).
-            if data.get(CONF_SOLAR_PRODUCTION_SENSOR):
+            # Solar node click target. When any battery has DC-coupled PV (vA/vD)
+            # the node shows external + MPPT, so link the live total-solar sensor
+            # (sensor.marstek_venus_system_solar_power, gated on MPPT in sensor.py)
+            # which sums both — otherwise clicking would open only the external
+            # inverter and mismatch the displayed total (#391). Non-MPPT systems
+            # never get that sensor, so they keep the external-only link (or none).
+            versions = {b.get(CONF_BATTERY_VERSION) for b in data.get("batteries", [])}
+            if versions & {"vA", "vD"}:
+                panel_config["solar_entity"] = "sensor.marstek_venus_system_solar_power"
+            elif data.get(CONF_SOLAR_PRODUCTION_SENSOR):
                 panel_config["solar_entity"] = data[CONF_SOLAR_PRODUCTION_SENSOR]
 
         # Remove any previous registration so the module URL / config refresh.
@@ -3150,12 +3158,14 @@ class ChargeDischargeController:
         for coordinator in list(self._active_charge_batteries):
             if self.is_charge_blocked(coordinator):
                 await self._set_battery_power(coordinator, 0, 0)
-                self._active_charge_batteries.remove(coordinator)
+                if coordinator in self._active_charge_batteries:
+                    self._active_charge_batteries.remove(coordinator)
                 stopped = True
         for coordinator in list(self._active_discharge_batteries):
             if self.is_discharge_blocked(coordinator):
                 await self._set_battery_power(coordinator, 0, 0)
-                self._active_discharge_batteries.remove(coordinator)
+                if coordinator in self._active_discharge_batteries:
+                    self._active_discharge_batteries.remove(coordinator)
                 stopped = True
         return stopped
 
@@ -4218,8 +4228,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
               the config flow; home consumption is now always derived (grid +
               battery AC + solar). Leaving it in data let it keep driving consumption
               calculations on old installs.
+    v6 -> v7: fix the Home Consumption aggregate sensor from the incorrect
+              marstek_venus_system_system_home_consumption (double "system") to
+              marstek_venus_system_home_consumption. Renames both the unique_id
+              and the registry entity_id (the entity_id is not derived from the
+              unique_id, so it must be renamed explicitly).
     """
-    if entry.version >= 6:
+    if entry.version >= 7:
         return True
 
     new_data = dict(entry.data)
@@ -4320,7 +4335,33 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "now always derived from grid + battery AC + solar)"
             )
 
-    hass.config_entries.async_update_entry(entry, data=new_data, version=6)
+    if entry.version < 7:
+        from homeassistant.helpers import entity_registry as er
+
+        @callback
+        def _fix_home_consumption_uid(entity_entry):
+            if entity_entry.unique_id == "marstek_venus_system_system_home_consumption":
+                return {"new_unique_id": "marstek_venus_system_home_consumption"}
+            return None
+
+        await er.async_migrate_entries(hass, entry.entry_id, _fix_home_consumption_uid)
+
+        # Renaming the unique_id does not change the registry entity_id (HA keeps
+        # them separate), so rename it explicitly too — otherwise the entity keeps
+        # the double-"system" id and the dashboard Home node stays unavailable.
+        # Skip if the target id is already taken (e.g. the user renamed it by hand).
+        ent_reg = er.async_get(hass)
+        old_eid = "sensor.marstek_venus_system_system_home_consumption"
+        new_eid = "sensor.marstek_venus_system_home_consumption"
+        if ent_reg.async_get(old_eid) is not None and ent_reg.async_get(new_eid) is None:
+            ent_reg.async_update_entity(old_eid, new_entity_id=new_eid)
+
+        _LOGGER.info(
+            "Marstek: migrated config entry to version 7 "
+            "(fixed Home Consumption sensor unique_id + entity_id: removed duplicate 'system' prefix)"
+        )
+
+    hass.config_entries.async_update_entry(entry, data=new_data, version=7)
     return True
 
 
@@ -4649,11 +4690,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             _LOGGER.info("Startup consumption backfill scheduled for after HA fully started")
 
-    # Dynamic pricing: evaluate at startup if restarted after the 00:05 window
+    # Dynamic pricing: schedule daily evaluation at 00:05 and run startup catch-up
     if (
         controller.predictive_charging_enabled
         and controller.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING
     ):
+        async def _daily_pricing_evaluation(_now):
+            await controller._pricing_mgr._evaluate_dynamic_pricing()
+
+        entry.async_on_unload(
+            async_track_time_change(
+                hass, _daily_pricing_evaluation, hour=0, minute=5, second=0
+            )
+        )
+        _LOGGER.info("Dynamic pricing: daily evaluation scheduled at 00:05 local time")
         hass.async_create_task(controller._startup_dynamic_pricing_evaluation())
         _LOGGER.info("Dynamic pricing: startup evaluation task scheduled")
 

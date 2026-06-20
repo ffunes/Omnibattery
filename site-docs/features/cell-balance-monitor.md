@@ -48,10 +48,11 @@ The weekly full charge feature can temporarily set the battery max SOC to 100%. 
 
 ## 100% charge voltage taper
 
-This path is used when a battery has a 100% charge target:
+This path is used whenever the **100% charge voltage taper** option is enabled for a battery (and active balance mode is not running). It is voltage-driven: it engages once `max_cell_voltage` reaches the thresholds below, regardless of the configured `max_soc`. In practice that happens when:
 
 - the user configured that battery with `max_soc = 100`, or
-- the weekly full charge temporarily raised the battery to 100%.
+- the weekly full charge temporarily raised the battery to 100%, or
+- a high `max_soc` below 100% still lets the cells reach 3.48 V.
 
 The weekly full charge does not use a different balance profile. It only changes the target SOC to 100%; voltage thresholds, charge power and measurement logic are the same.
 
@@ -96,18 +97,18 @@ This is a best-effort attempt, not a guaranteed fix. Whether a top-of-curve cuto
 
 The override triggers automatically whenever **all** of these are true:
 
-- the charge target is 100% (the taper applies), and
+- the 100% voltage taper is active (so `max_cell_voltage` is in the top zone), and
 - `max_cell_voltage` has reached the 3.58 V pause point, and
-- the BMS still reports SOC below 90%.
+- the BMS still reports SOC below 99%.
 
 It is self-limiting:
 
 - charging continues at 95 W only (the gentle taper power), not full power;
 - a BMS cutoff is detected when battery power collapses to ≤ 10 W and the inverter reports Standby for 5 consecutive cycles (~10 s). At that point the override latches off and the normal 3.58 V pause resumes, letting the SOC recalibrate;
-- once the SOC reads 90% or more (after recalibration), the condition no longer matches, so the override does not fire again;
+- once the SOC reads 99% or more (after recalibration), the condition no longer matches, so the override does not fire again;
 - the latch only re-arms after the battery leaves the top zone (`max_cell_voltage` below 3.48 V), so a later full charge can recalibrate again if needed.
 
-Because this is gated on a 100% charge target, it never affects normal daily cycling at a lower `max_soc`. It also does not run while [active balance mode](#active-balance-mode) owns the battery — that mode takes priority.
+Reaching the 3.58 V pause point normally only happens on a 100% charge, so this rarely affects daily cycling at a lower `max_soc`. It does **not** run during the [weekly full charge](weekly-full-charge.md) — there the 3.58 V pause is suppressed entirely and the BMS cutoff alone ends the cycle (see that page). It also does not run while [active balance mode](#active-balance-mode) owns the battery — that mode takes priority.
 
 !!! note "Cell imbalance"
     The override does not check the cell spread first. On a badly imbalanced pack the highest cell can hit the BMS over-voltage cutoff before the pack is full, so the recalibration is correct but balancing is left to later cycles. The BMS still protects each cell individually.

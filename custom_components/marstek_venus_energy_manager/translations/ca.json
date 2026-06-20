@@ -916,6 +916,12 @@
       "active_batteries": {
         "name": "Bateries Actives"
       },
+      "system_battery_cell_power": {
+        "name": "Potència de Cel·la del Sistema"
+      },
+      "system_solar_power": {
+        "name": "Potència Solar Total"
+      },
       "system_daily_solar_energy": {
         "name": "Producció Solar Diària"
       },
@@ -932,7 +938,7 @@
           "collecting_data": "Recollint dades"
         }
       },
-      "system_home_consumption": {
+      "home_consumption": {
         "name": "Consum de la Casa"
       },
       "system_daily_grid_import_energy": {

@@ -529,7 +529,7 @@ class ConsumptionTracker:
 
         ent_reg = er.async_get(self._hass)
         return ent_reg.async_get_entity_id(
-            "sensor", DOMAIN, "marstek_venus_system_system_home_consumption"
+            "sensor", DOMAIN, "marstek_venus_system_home_consumption"
         )
 
     async def backfill_home_from_history(self, target_date: date) -> Optional[float]:

@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.storage import Store
 
-from .const import DOMAIN, WEEKDAY_MAP
+from .const import DOMAIN, NORMAL_BALANCE_TAPER_CELL_VOLTAGE, WEEKDAY_MAP
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -70,12 +70,23 @@ class WeeklyFullChargeManager:
         is_battery_full() as a read-only state check.
         """
         ctrl = self._controller
+        weekly_active = self.is_active()
         for c in ctrl.coordinators:
             if not c.data:
                 self._bms_cutoff_counts[c.name] = 0
                 continue
             soc = c.data.get("battery_soc", 0)
-            if soc >= 99:
+            # During weekly charge, also arm the counter when cells are in the
+            # top taper zone regardless of SOC — handles BMS coulomb drift where
+            # the BMS cuts at ~3.65 V but reports e.g. 95% SOC.
+            in_taper_zone = False
+            if weekly_active:
+                vmax = c.data.get("max_cell_voltage")
+                try:
+                    in_taper_zone = vmax is not None and float(vmax) >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
+                except (TypeError, ValueError):
+                    pass
+            if soc >= 99 or in_taper_zone:
                 power = c.data.get("battery_power", None)
                 inv_state = c.data.get("inverter_state", None)
                 cutoff = (
@@ -121,9 +132,10 @@ class WeeklyFullChargeManager:
         soc = coordinator.data.get("battery_soc", 0)
         if soc >= 100:
             return True
-        if soc >= 99:
-            return self._bms_cutoff_counts.get(coordinator.name, 0) >= _BMS_CUTOFF_REQUIRED_CYCLES
-        return False
+        # BMS cutoff confirmed — safe without SOC gate because tick_bms_cutoff
+        # only increments the counter when soc >= 99 OR (weekly active AND cells
+        # in taper zone), so the count is 0 outside those conditions.
+        return self._bms_cutoff_counts.get(coordinator.name, 0) >= _BMS_CUTOFF_REQUIRED_CYCLES
 
     def is_active(self) -> bool:
         """Check if weekly full charge is currently active.
@@ -373,14 +385,23 @@ class WeeklyFullChargeManager:
             for c in ctrl.coordinators
             if c.data and not ctrl._is_active_balance_mode_running(c)
         ]
-        top_voltage_seen = getattr(ctrl, "_normal_balance_top_voltage_seen", {})
         all_batteries_full = bool(batteries_with_data) and all(
-            top_voltage_seen.get(c, False) or self.is_battery_full(c)
+            self.is_battery_full(c)
             for c in batteries_with_data
         )
 
+        ctrl._weekly_charge_status["batteries"] = {
+            c.name: {
+                "soc": (c.data or {}).get("battery_soc"),
+                "bms_cutoff_cycles": self._bms_cutoff_counts.get(c.name, 0),
+                "is_full": self.is_battery_full(c),
+            }
+            for c in ctrl.coordinators
+            if c.data and not ctrl._is_active_balance_mode_running(c)
+        }
+
         if all_batteries_full and not ctrl.weekly_full_charge_complete:
-            await self._complete_weekly_charge("top_voltage_reached")
+            await self._complete_weekly_charge("all_batteries_full")
 
     async def _complete_weekly_charge(self, reason: str) -> None:
         """Mark weekly full charge complete and restore configured limits."""
@@ -389,6 +410,26 @@ class WeeklyFullChargeManager:
         ctrl.weekly_full_charge_complete = True
         ctrl._weekly_charge_status["state"] = "Complete"
         ctrl._weekly_charge_status["completion_reason"] = reason
+        completion_batteries: dict = {}
+        for coordinator in ctrl.coordinators:
+            if ctrl._is_active_balance_mode_running(coordinator):
+                continue
+            data = coordinator.data or {}
+            soc = data.get("battery_soc")
+            bms_cutoff_confirmed = self.is_battery_full(coordinator)
+            if soc is not None and soc >= 100:
+                per_battery_reason = "soc_100"
+            elif bms_cutoff_confirmed:
+                per_battery_reason = "bms_cutoff"
+            else:
+                per_battery_reason = "not_confirmed"
+            completion_batteries[coordinator.name] = {
+                "soc_at_completion": soc,
+                "max_cell_voltage_at_completion": data.get("max_cell_voltage"),
+                "completion_reason": per_battery_reason,
+                "bms_cutoff_cycles": self._bms_cutoff_counts.get(coordinator.name, 0),
+            }
+        ctrl._weekly_charge_status["batteries"] = completion_batteries
         self._bms_cutoff_counts.clear()
 
         # Restore register 44000 to original max_soc values (v2 only).
@@ -422,6 +463,10 @@ class WeeklyFullChargeManager:
         # Clear the top-voltage latch so next week starts fresh.
         if hasattr(ctrl, "_normal_balance_top_voltage_seen"):
             ctrl._normal_balance_top_voltage_seen.clear()
+        if hasattr(ctrl, "_normal_balance_pause_latch_soc"):
+            ctrl._normal_balance_pause_latch_soc.clear()
+        for coordinator in ctrl.coordinators:
+            ctrl.remove_charge_block("normal_balance_pause", coordinator=coordinator)
 
         # Fire a one-shot delta-V capture for batteries that did not complete
         # the 60-second diagnostic measurement (measurement is best-effort).

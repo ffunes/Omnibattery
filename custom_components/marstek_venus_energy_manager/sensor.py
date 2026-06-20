@@ -92,7 +92,7 @@ from .const import (
     DEFAULT_SLOT_ALLOW_DISCHARGE,
 )
 from .coordinator import MarstekVenusDataUpdateCoordinator
-from .aggregate_sensors import AGGREGATE_SENSOR_DEFINITIONS, MarstekVenusAggregateSensor, DailyGridAtMinSocSensor, SystemAlarmSensor, PdControlQualitySensor
+from .aggregate_sensors import AGGREGATE_SENSOR_DEFINITIONS, SYSTEM_BATTERY_CELL_POWER_DEFINITION, MarstekVenusAggregateSensor, DailyGridAtMinSocSensor, SystemAlarmSensor, PdControlQualitySensor
 from .calculated_sensors import MarstekVenusEfficiencySensor, MarstekVenusStoredEnergySensor, MarstekVenusCycleSensor, MarstekVenusSolarPowerSensor, MarstekVenusBatteryCellPowerSensor
 
 _LOGGER = logging.getLogger(__name__)
@@ -198,6 +198,16 @@ async def async_setup_entry(
     has_mppt_pv = any(c.battery_version in ("vA", "vD") for c in coordinators)
     if controller and (getattr(controller, "solar_production_sensor", None) or has_mppt_pv):
         entities.append(DailySolarEnergySensor(controller))
+    # Live total solar power (external sensor + Venus MPPT). Only useful when a
+    # battery actually has DC-coupled PV (vA/vD); without MPPT it would just mirror
+    # the external sensor, so gate on has_mppt_pv to avoid redundant noise.
+    if controller and has_mppt_pv:
+        entities.append(SystemSolarPowerSensor(controller))
+    # Signed system cell power (AC + MPPT), the value the SOC card's Charge/Discharge
+    # blocks display. Added only for DC-coupled PV systems (vA/vD) so those blocks can
+    # link to a matching sensor instead of the AC-only system_charge_power (#347).
+    if has_mppt_pv:
+        entities.append(MarstekVenusAggregateSensor(coordinators, SYSTEM_BATTERY_CELL_POWER_DEFINITION, entry, hass))
     # The daily home total is derived from the (always-present) net grid meter:
     # grid + battery AC + solar, matching the power-flow Home Consumption sensor.
     if controller and getattr(controller, "consumption_sensor", None):
@@ -512,6 +522,9 @@ class WeeklyFullChargeSensor(SensorEntity):
         completion_reason = self._controller._weekly_charge_status.get("completion_reason")
         if completion_reason:
             attrs["completion_reason"] = completion_reason
+        batteries = self._controller._weekly_charge_status.get("batteries")
+        if batteries:
+            attrs["batteries"] = batteries
         return attrs
 
     @property
@@ -1283,6 +1296,54 @@ class DailySolarEnergySensor(SensorEntity):
     def native_value(self) -> float:
         """Return today's accumulated solar production in kWh."""
         return round(self._controller._daily_solar_energy_kwh, 2)
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Marstek Venus System",
+            "manufacturer": "Marstek",
+            "model": "Venus Multi-Battery System",
+        }
+
+
+class SystemSolarPowerSensor(SensorEntity):
+    """Instantaneous total solar production (W): external solar sensor + Venus DC-coupled PV.
+
+    Sums the configured solar_production_sensor and every Venus vA/vD unit's MPPT
+    inputs — the same total the ConsumptionTracker integrates into daily solar
+    energy, just surfaced live. Lets the dashboard Solar node link to a value that
+    matches what it displays, and gives HA's Energy dashboard a single solar source.
+    Added only when at least one battery has MPPT (vA/vD); on systems without
+    DC-coupled PV it would duplicate the external sensor and is omitted as noise.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "system_solar_power"
+    _attr_unique_id = "marstek_venus_system_solar_power"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "W"
+    _attr_suggested_display_precision = 0
+    _attr_icon = "mdi:solar-power"
+    _attr_should_poll = True
+
+    def __init__(self, controller) -> None:
+        """Initialize the system solar power sensor."""
+        self._controller = controller
+        self.entity_id = f"sensor.{self._attr_unique_id}"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return total instantaneous solar production in W (None if no source readable)."""
+        tracker = self._controller._consumption_tracker
+        if tracker is None:
+            return None
+        power_kw = tracker._read_total_solar_power_kw()
+        if power_kw is None:
+            return None
+        return round(power_kw * 1000.0)
 
     @property
     def device_info(self):

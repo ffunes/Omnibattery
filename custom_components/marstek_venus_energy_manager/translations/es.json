@@ -916,13 +916,19 @@
       "active_batteries": {
         "name": "Baterías Activas"
       },
+      "system_battery_cell_power": {
+        "name": "Potencia de Celda del Sistema"
+      },
+      "system_solar_power": {
+        "name": "Potencia Solar Total"
+      },
       "system_daily_solar_energy": {
         "name": "Producción Solar Diaria"
       },
       "system_daily_home_energy": {
         "name": "Consumo Diario de la Casa"
       },
-      "system_home_consumption": {
+      "home_consumption": {
         "name": "Consumo de la Casa"
       },
       "system_pd_control_quality": {

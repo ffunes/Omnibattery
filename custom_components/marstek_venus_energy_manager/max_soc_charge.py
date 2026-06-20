@@ -96,7 +96,7 @@ class MaxSocChargeManager:
         )
 
     def _taper_applies(self, coordinator) -> bool:
-        """Return True when the current charge target is 100%, excluding active balance ownership."""
+        """Return True when taper is enabled for this coordinator, excluding active balance ownership."""
         c = self._controller
         if not self._taper_enabled(coordinator):
             return False
@@ -104,11 +104,7 @@ class MaxSocChargeManager:
             return False
         if getattr(coordinator, "active_balance_mode_enabled", False):
             return False
-        if coordinator.max_soc >= 100:
-            return True
-        if hasattr(c, "_weekly_charge_mgr") and c._weekly_full_charge_unlocked():
-            return True
-        return False
+        return True
 
     def _zone_active(self, coordinator) -> bool:
         """Return True when the battery is in the normal top-balancing zone."""
@@ -222,6 +218,7 @@ class MaxSocChargeManager:
                 soc_f = float(current_soc) if current_soc is not None else None
             except (TypeError, ValueError):
                 soc_f = None
+            weekly_active = hasattr(c, "_weekly_charge_mgr") and c._weekly_full_charge_unlocked()
 
             if vmax_f is not None:
                 if in_zone and vmax_f >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE:
@@ -249,7 +246,7 @@ class MaxSocChargeManager:
                     )
                 except (TypeError, ValueError):
                     bms_cut_signature = False
-                if in_zone and (
+                if not weekly_active and in_zone and (
                     vmax_f >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE or bms_cut_signature
                 ):
                     c._normal_balance_top_voltage_seen[coordinator] = True
@@ -262,33 +259,36 @@ class MaxSocChargeManager:
             # the resume margin (the battery was actually discharged), not merely
             # until the cell voltage relaxes. Then the latch clears so a later
             # top-up tapers again.
-            latch_soc = c._normal_balance_pause_latch_soc.get(coordinator)
-            paused = latch_soc is not None
-            if (
-                paused
-                and soc_f is not None
-                and soc_f <= latch_soc - NORMAL_BALANCE_RESUME_SOC_DROP
-            ):
-                c._normal_balance_pause_latch_soc.pop(coordinator, None)
-                paused = False
-
-            # SOC recalibration: while in the top zone, if the BMS reports a low
-            # SOC keep charging until the BMS cuts off (recalibrates). The window
-            # extends down to the taper voltage, not just the pause voltage: the
-            # cell relaxes below 3.58 V within a poll or two of the BMS cut, so
-            # gating the cutoff counter on vmax >= pause would freeze it before it
-            # reaches the required consecutive cycles and recal would never latch.
+            # During weekly charge, skip pause/latch entirely — BMS cutoff is the only exit.
+            paused = False
             override = False
-            if (
-                paused
-                and vmax_f is not None
-                and vmax_f >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
-            ):
-                override = self._compute_recal_override(
-                    coordinator, vmax_f, current_soc
-                )
-                if override:
+            if not weekly_active:
+                latch_soc = c._normal_balance_pause_latch_soc.get(coordinator)
+                paused = latch_soc is not None
+                if (
+                    paused
+                    and soc_f is not None
+                    and soc_f <= latch_soc - NORMAL_BALANCE_RESUME_SOC_DROP
+                ):
+                    c._normal_balance_pause_latch_soc.pop(coordinator, None)
                     paused = False
+
+                # SOC recalibration: while in the top zone, if the BMS reports a low
+                # SOC keep charging until the BMS cuts off (recalibrates). The window
+                # extends down to the taper voltage, not just the pause voltage: the
+                # cell relaxes below 3.58 V within a poll or two of the BMS cut, so
+                # gating the cutoff counter on vmax >= pause would freeze it before it
+                # reaches the required consecutive cycles and recal would never latch.
+                if (
+                    paused
+                    and vmax_f is not None
+                    and vmax_f >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
+                ):
+                    override = self._compute_recal_override(
+                        coordinator, vmax_f, current_soc
+                    )
+                    if override:
+                        paused = False
             c._normal_balance_recal_override[coordinator] = override
 
             if paused:

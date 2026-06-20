@@ -862,17 +862,19 @@ class ManualModeSwitch(SwitchEntity):
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disable manual mode to resume automatic control."""
-        self.controller.manual_mode_enabled = False
         new_data = dict(self.entry.data)
         new_data[CONF_MANUAL_MODE_ENABLED] = False
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
 
-        # Reset PD controller state for clean transition
-        self.controller.error_integral = 0.0
-        self.controller.previous_error = 0.0
-        self.controller.sign_changes = 0
-        self.controller._active_discharge_batteries = []
-        self.controller._active_charge_batteries = []
+        # Reset PD controller state under the control lock so a running control
+        # cycle never observes a partially-reset state.
+        async with self.controller._control_lock:
+            self.controller.manual_mode_enabled = False
+            self.controller.error_integral = 0.0
+            self.controller.previous_error = 0.0
+            self.controller.sign_changes = 0
+            self.controller._active_discharge_batteries = []
+            self.controller._active_charge_batteries = []
 
         _LOGGER.info("Manual Mode DISABLED - resuming automatic control")
 

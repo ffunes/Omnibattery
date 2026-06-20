@@ -910,6 +910,12 @@
       "active_batteries": {
         "name": "Actieve Batterijen"
       },
+      "system_battery_cell_power": {
+        "name": "Systeem Batterijcelvermogen"
+      },
+      "system_solar_power": {
+        "name": "Totaal Zonnevermogen"
+      },
       "system_daily_solar_energy": {
         "name": "Dagelijkse Zonneproductie"
       },
@@ -926,7 +932,7 @@
           "collecting_data": "Gegevens verzamelen"
         }
       },
-      "system_home_consumption": {
+      "home_consumption": {
         "name": "Huishoudverbruik"
       },
       "system_daily_grid_import_energy": {

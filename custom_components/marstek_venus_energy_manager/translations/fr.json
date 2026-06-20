@@ -910,6 +910,12 @@
       "active_batteries": {
         "name": "Batteries Actives"
       },
+      "system_battery_cell_power": {
+        "name": "Puissance de cellule batterie du système"
+      },
+      "system_solar_power": {
+        "name": "Puissance Solaire Totale"
+      },
       "system_daily_solar_energy": {
         "name": "Production Solaire Quotidienne"
       },
@@ -926,7 +932,7 @@
           "collecting_data": "Collecte de données"
         }
       },
-      "system_home_consumption": {
+      "home_consumption": {
         "name": "Consommation Domestique"
       },
       "system_daily_grid_import_energy": {

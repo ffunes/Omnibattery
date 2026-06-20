@@ -145,9 +145,11 @@ def test_taper_applies_true_below_100_when_weekly_unlocked():
     assert _mgr(ctrl)._taper_applies(c) is True
 
 
-def test_taper_applies_false_below_100_without_weekly_unlock():
+def test_taper_applies_true_below_100_without_weekly_unlock():
+    # #394: taper now engages purely on the option being enabled, regardless of
+    # max_soc or weekly (scenario 4: taper ON, no weekly, max_soc < 100).
     c = _Coord(max_soc=80)
-    assert _mgr(_controller([c]))._taper_applies(c) is False
+    assert _mgr(_controller([c]))._taper_applies(c) is True
 
 
 # ----------------------------------------------------------------------
@@ -169,7 +171,7 @@ def test_zone_active_false_below_taper_voltage():
 # ----------------------------------------------------------------------
 
 def test_apply_charge_taper_unchanged_when_not_applicable():
-    c = _Coord(max_soc=80, data={"max_cell_voltage": 3.60})  # taper not applicable
+    c = _Coord(taper_enabled=False, data={"max_cell_voltage": 3.60})  # taper disabled
     assert _mgr(_controller([c])).apply_charge_taper(c, 800) == 800
 
 
@@ -226,7 +228,7 @@ def test_reset_if_new_day_clears_state_and_blocks_on_rollover():
 # ----------------------------------------------------------------------
 
 def test_refresh_blocks_clears_when_taper_not_applicable():
-    c = _Coord(max_soc=80, data={"max_cell_voltage": 3.60})
+    c = _Coord(taper_enabled=False, data={"max_cell_voltage": 3.60})
     ctrl = _controller([c])
     ctrl._normal_balance_charge_paused[c] = True
     ctrl._blocks.setdefault(c, set()).add("normal_balance_pause")

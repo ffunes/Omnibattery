@@ -861,13 +861,19 @@
       "active_batteries": {
         "name": "Active Batteries"
       },
+      "system_battery_cell_power": {
+        "name": "System Battery Cell Power"
+      },
+      "system_solar_power": {
+        "name": "Total Solar Power"
+      },
       "system_daily_solar_energy": {
         "name": "Daily Solar Production"
       },
       "system_daily_home_energy": {
         "name": "Daily Home Consumption"
       },
-      "system_home_consumption": {
+      "home_consumption": {
         "name": "Home Consumption"
       },
       "system_daily_grid_import_energy": {

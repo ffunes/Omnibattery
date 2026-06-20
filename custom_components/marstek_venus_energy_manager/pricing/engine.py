@@ -194,18 +194,6 @@ class PricingManager:
         now = datetime.now()
         return any(s.start <= now < s.end for s in self._controller._dynamic_pricing_schedule.selected_slots)
 
-    def _is_dynamic_pricing_evaluation_time(self) -> bool:
-        """Return True if it's 00:05 ±5 min and we haven't evaluated today."""
-        now = datetime.now()
-        today = now.date()
-
-        if self._controller._dynamic_pricing_evaluated_date == today:
-            return False
-
-        eval_time = now.replace(hour=0, minute=5, second=0, microsecond=0)
-        time_diff = abs((now - eval_time).total_seconds())
-        return time_diff <= 5 * 60  # ±5 minutes tolerance
-
     # =========================================================================
     # DYNAMIC PRICING: Evaluation and notification methods
     # =========================================================================
@@ -620,11 +608,6 @@ class PricingManager:
     async def handle_dynamic_pricing_predictive_charging(self) -> None:
         """Handle predictive charging in dynamic pricing mode (called every 2.5s)."""
         now = datetime.now()
-
-        # Phase 1: Evaluation at 23:00
-        if self._is_dynamic_pricing_evaluation_time():
-            await self._evaluate_dynamic_pricing()
-            return
 
         # Phase 2: Retry if prices weren't available at 00:05 (e.g. sensor update delay)
         if (

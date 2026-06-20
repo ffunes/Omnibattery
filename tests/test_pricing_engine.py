@@ -113,11 +113,6 @@ def test_in_slot_false_when_slot_in_the_past():
 # evaluation-time guards (deterministic "already done today" branch)
 # ----------------------------------------------------------------------
 
-def test_eval_time_false_when_already_evaluated_today():
-    ctrl = _controller(_dynamic_pricing_evaluated_date=datetime.now().date())
-    assert _mgr(ctrl)._is_dynamic_pricing_evaluation_time() is False
-
-
 def test_evening_reeval_false_when_already_done_today():
     ctrl = _controller(_dp_evening_reevaluated_date=datetime.now().date())
     assert _mgr(ctrl)._is_evening_reevaluation_time() is False
