@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.5] - 2026-06-17
+## [2.0.5] - 2026-06-20
 
 ### Added
 - **Total Solar Power sensor** (#391): a system-level `sensor.marstek_venus_system_solar_power` (W) summing the external solar sensor and every Venus vA/vD unit's MPPT inputs — the live counterpart of Daily Solar Production, usable in HA's Energy dashboard. Added only on systems with DC-coupled PV (vA/vD). [`sensor.py`](custom_components/marstek_venus_energy_manager/sensor.py).
