@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.marstek_venus_energy_manager.modbus_client import decode_registers
+from custom_components.marstek_venus_energy_manager.infra.modbus_client import decode_registers
 from custom_components.marstek_venus_energy_manager.const import (
     REGISTER_BLOCKS_V3,
     REGISTER_BLOCKS_V2,

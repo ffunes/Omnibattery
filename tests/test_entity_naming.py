@@ -6,7 +6,7 @@ regardless of the UI language. No hardware, no ``hass`` fixture.
 """
 from __future__ import annotations
 
-from custom_components.marstek_venus_energy_manager.entity_naming import (
+from custom_components.marstek_venus_energy_manager.infra.entity_naming import (
     english_entity_id,
 )
 

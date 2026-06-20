@@ -17,7 +17,7 @@ import pytest
 
 from homeassistant.util import dt as dt_util
 
-from custom_components.marstek_venus_energy_manager.external_loads import ExternalLoads
+from custom_components.marstek_venus_energy_manager.infra.external_loads import ExternalLoads
 
 
 # ----------------------------------------------------------------------

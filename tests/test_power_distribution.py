@@ -22,7 +22,7 @@ from __future__ import annotations
 import time
 from types import SimpleNamespace
 
-from custom_components.marstek_venus_energy_manager.power_distribution import (
+from custom_components.marstek_venus_energy_manager.control.power_distribution import (
     PowerDistribution,
 )
 from tests.conftest import FakeCoordinator

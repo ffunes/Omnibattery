@@ -13,7 +13,7 @@ coordinator needs hass/pymodbus and is out of scope for the Windows unit suite.
 """
 from __future__ import annotations
 
-from custom_components.marstek_venus_energy_manager.coordinator import (
+from custom_components.marstek_venus_energy_manager.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
 )
 from tests.conftest import FakeCoordinator
