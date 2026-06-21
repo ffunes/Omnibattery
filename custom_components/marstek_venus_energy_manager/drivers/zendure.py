@@ -213,7 +213,7 @@ NUMBER_DEFINITIONS: list[dict] = [
      "device_class": "battery", "min": 70,   "max": 100, "step": 1,
      "scale": 1, "precision": 0, "scan_interval": "low",  "enabled_by_default": True},
     {"key": "min_soc",          "name": "Minimum SOC",          "unit": "%",
-     "device_class": "battery", "min": 0,    "max": 50,  "step": 1,
+     "device_class": "battery", "min": 5,    "max": 50,  "step": 1,
      "scale": 1, "precision": 0, "scan_interval": "low",  "enabled_by_default": True},
     {"key": "inverse_max_power","name": "Max Inverter Output",  "unit": "W",
      "device_class": "power",   "min": 100,  "max": 2400,"step": 10,

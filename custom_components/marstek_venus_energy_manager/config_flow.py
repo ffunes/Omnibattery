@@ -659,6 +659,8 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
         else:
             battery_version = self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
             max_power = MAX_POWER_BY_VERSION.get(battery_version, 2500)
+        # Zendure's minSoc accepts 5–50 %; Marstek's discharge floor is 12–30 %.
+        soc_min_lo, soc_min_hi = (5, 50) if brand == "zendure" else (12, 30)
 
         if user_input is not None:
             merged = dict(self._current_battery_data)
@@ -692,7 +694,7 @@ class MarstekVenusConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required("max_soc", default=100):
                         NumberSelector(NumberSelectorConfig(min=80, max=100, step=1, mode=NumberSelectorMode.SLIDER)),
                     vol.Required("min_soc", default=12):
-                        NumberSelector(NumberSelectorConfig(min=12, max=30, step=1, mode=NumberSelectorMode.SLIDER)),
+                        NumberSelector(NumberSelectorConfig(min=soc_min_lo, max=soc_min_hi, step=1, mode=NumberSelectorMode.SLIDER)),
                     vol.Required("enable_charge_hysteresis", default=False): bool,
                     vol.Optional("charge_hysteresis_percent", default=5):
                         NumberSelector(NumberSelectorConfig(min=5, max=50, step=1, mode=NumberSelectorMode.SLIDER)),
@@ -2245,6 +2247,8 @@ class OptionsFlowHandler(OptionsFlow):
             else:
                 battery_version = self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
                 max_power = MAX_POWER_BY_VERSION.get(battery_version, 2500)
+            # Zendure's minSoc accepts 5–50 %; Marstek's discharge floor is 12–30 %.
+            soc_min_lo, soc_min_hi = (5, 50) if brand == "zendure" else (12, 30)
             current_batteries = self.config_entry.data.get("batteries", [])
 
             if user_input is not None:
@@ -2309,8 +2313,8 @@ class OptionsFlowHandler(OptionsFlow):
                         NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
                     vol.Required("max_soc", default=defaults["max_soc"]):
                         NumberSelector(NumberSelectorConfig(min=80, max=100, step=1, mode=NumberSelectorMode.SLIDER)),
-                    vol.Required("min_soc", default=defaults["min_soc"]):
-                        NumberSelector(NumberSelectorConfig(min=12, max=30, step=1, mode=NumberSelectorMode.SLIDER)),
+                    vol.Required("min_soc", default=max(soc_min_lo, min(soc_min_hi, defaults["min_soc"]))):
+                        NumberSelector(NumberSelectorConfig(min=soc_min_lo, max=soc_min_hi, step=1, mode=NumberSelectorMode.SLIDER)),
                     vol.Required("enable_charge_hysteresis", default=defaults["enable_charge_hysteresis"]): bool,
                     vol.Optional("charge_hysteresis_percent", default=defaults["charge_hysteresis_percent"]):
                         NumberSelector(NumberSelectorConfig(min=5, max=50, step=1, mode=NumberSelectorMode.SLIDER)),
