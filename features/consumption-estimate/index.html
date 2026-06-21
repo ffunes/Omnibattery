@@ -1789,7 +1789,7 @@
 <p>A <code>household_consumption_sensor</code> saved on an older install is read directly <strong>instead</strong> of deriving, but <strong>only when no solar production sensor is configured</strong> — with a solar sensor the derived value is exact and preferred. The field is no longer offered in setup.</p>
 </div>
 <h3 id="excluded-additional-devices">Excluded / additional devices<a class="headerlink" href="#excluded-additional-devices" title="Permanent link">&para;</a></h3>
-<p>If you have configured <a href="excluded-devices.md">excluded or additional devices</a>, the home power is corrected before accumulation:</p>
+<p>If you have configured <a href="../../configuration/excluded-devices/">excluded or additional devices</a>, the home power is corrected before accumulation:</p>
 <ul>
 <li><strong>Excluded</strong> (<code>included_in_consumption = true</code>): the device is already in the home/grid reading but the battery should not cover it → its power is <strong>subtracted</strong>.</li>
 <li><strong>Additional</strong> (<code>included_in_consumption = false</code>): the device is not visible to the home reading but the battery should cover it → its power is <strong>added</strong>.</li>

@@ -1665,8 +1665,7 @@
 <p>The 60-second cell-delta measurement still runs as a diagnostic, but it no longer gates completion. On completion the configured max SOC (and the hardware cutoff register on v2) is restored, and charge hysteresis is re-enabled.</p>
 <p>The <strong>Weekly Full Charge</strong> sensor exposes per-battery diagnostics under its <code>batteries</code> attribute: live SOC and BMS-cutoff cycle count while charging, and a completion snapshot (<code>soc_at_completion</code>, <code>max_cell_voltage_at_completion</code>, <code>completion_reason</code>, <code>bms_cutoff_cycles</code>).</p>
 <h2 id="cell-balance-monitor">Cell balance monitor<a class="headerlink" href="#cell-balance-monitor" title="Permanent link">&para;</a></h2>
-<p>The <strong>cell balance monitor</strong> is only active when checked in the Weekly Full Charge Configuration. It records the voltage spread between the highest and lowest cell after each top-voltage measurement and keeps the sensor history, trend and alerts updated.</p>
-<p>See <a href="/configuration/advanced.md">Advanced options</a> for full details.</p>
+<p>The <strong>cell balance monitor</strong> is always active. It records the voltage spread between the highest and lowest cell after each top-voltage measurement and keeps the sensor history, trend and alerts updated.</p>
 <h2 id="interaction-with-solar-charge-delay">Interaction with solar charge delay<a class="headerlink" href="#interaction-with-solar-charge-delay" title="Permanent link">&para;</a></h2>
 <p>If <a href="../solar-charge-delay/">solar charge delay</a> is active, the weekly charge can be postponed while the forecast solar production is sufficient to reach 100%.</p>
 <p>When the weekly full charge is active, the integration can bypass the delay so the battery reaches the top-voltage measurement point and the balance reading is not skipped.</p>
