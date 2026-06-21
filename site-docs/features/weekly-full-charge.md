@@ -34,9 +34,7 @@ The **Weekly Full Charge** sensor exposes per-battery diagnostics under its `bat
 
 ## Cell balance monitor
 
-The **cell balance monitor** is only active when checked in the Weekly Full Charge Configuration. It records the voltage spread between the highest and lowest cell after each top-voltage measurement and keeps the sensor history, trend and alerts updated.
-
-See [Advanced options](/configuration/advanced.md) for full details.
+The **cell balance monitor** is always active. It records the voltage spread between the highest and lowest cell after each top-voltage measurement and keeps the sensor history, trend and alerts updated.
 
 ## Interaction with solar charge delay
 

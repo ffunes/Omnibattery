@@ -11,7 +11,6 @@ Forces a **100% charge once a week** for cell balancing. You only need to select
 | Field | Description | Default |
 |---|---|---|
 | **Day of the week** | On this day the battery will charge to 100% for cell balancing | — |
-| **Enable cell balance monitor** | If checked active cell balancing will be activated (this can be *slow*) | Disabled |
 
 See [Weekly full charge](../features/weekly-full-charge.md) for how it works.
 
