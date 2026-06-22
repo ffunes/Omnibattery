@@ -1002,6 +1002,7 @@
       "system_pd_control_quality": {
         "name": "Qualité du Contrôle PD",
         "state": {
+          "disabled": "Désactivé",
           "stable": "Stable",
           "oscillating": "Oscillant",
           "sluggish": "Lent",

@@ -1002,6 +1002,7 @@
       "system_pd_control_quality": {
         "name": "PD-Regelqualität",
         "state": {
+          "disabled": "Deaktiviert",
           "stable": "Stabil",
           "oscillating": "Schwingend",
           "sluggish": "Träge",

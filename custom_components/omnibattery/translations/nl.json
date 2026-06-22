@@ -1002,6 +1002,7 @@
       "system_pd_control_quality": {
         "name": "PD-Regelkwaliteit",
         "state": {
+          "disabled": "Uitgeschakeld",
           "stable": "Stabiel",
           "oscillating": "Oscillerend",
           "sluggish": "Traag",

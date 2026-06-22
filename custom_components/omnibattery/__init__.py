@@ -3488,6 +3488,29 @@ class ChargeDischargeController:
             self._no_pd_debounce_unsub()
             self._no_pd_debounce_unsub = None
 
+    def _compute_no_pd_new_power(self, error):
+        """No-PD direct-tracking control law: deadbeat 1:1 load tracking.
+
+        The grid meter reading already includes the battery's ACTUAL output, so
+        reconstruct the home load from measured power and command it directly:
+        home = grid - measured = sensor_actual - measured, new = target - home,
+        which collapses to new = measured - error. No integral, derivative,
+        smoothing, rate limiter or hysteresis.
+
+        Anchoring to MEASURED power (not the last command) is what makes the
+        deadbeat stable across the inverter ramp + meter latency. A previous_power
+        anchor assumes the battery is already at the last command; during the
+        multi-second ramp it isn't, so every mid-ramp sample attributes the
+        still-uncovered error to the load, doubles the correction, overshoots, and
+        the loop oscillates rail-to-rail. Measured power is co-incident with the
+        grid reading (both physical AC measurements), so the reconstruction holds
+        at any point in the ramp. Falls back to previous_power only when no battery
+        reports delivered power yet (e.g. just after a restart).
+        """
+        measured = self._measured_battery_power()
+        base = measured if measured is not None else self.previous_power
+        return base - error
+
     def _compute_pd_new_power(self, error, sensor_elapsed_s, stale_safety_recalc):
         """Incremental PD control law: anti-windup re-anchor, optional integral,
         filtered derivative, P/I/D terms, rate limiter and directional hysteresis.
@@ -4159,11 +4182,7 @@ class ChargeDischargeController:
         error = sensor_actual - active_target
 
         if self.no_pd_mode_enabled:
-            # No-PD direct tracking: drive the grid to target in a single cycle
-            # (gain 1; no integral, derivative, smoothing, rate limiter or
-            # hysteresis). The grid sensor already includes the battery's current
-            # output, so the correction is incremental: new = previous - error.
-            new_power = self.previous_power - error
+            new_power = self._compute_no_pd_new_power(error)
             if DEBUG_CONTROL_LOOP_DETAIL:
                 _LOGGER.debug(
                     "No-PD direct tracking: error=%.1fW, previous=%.1fW, new=%.1fW",
@@ -4362,7 +4381,7 @@ class ChargeDischargeController:
         power_allocation = self._power_distribution._distribute_power_by_limits(abs(new_power), selected_batteries, is_charging)
 
         self._log_power_command_plan(
-            phase="pd",
+            phase="track" if self.no_pd_mode_enabled else "pd",
             grid_w=sensor_actual,
             target_w=active_target,
             previous_power_w=self.previous_power,

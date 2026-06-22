@@ -88,6 +88,7 @@ const I18N = {
     secSlots: "Configured slots", itemSlot: "Slot",
     secExcluded: "Excluded devices", itemExcludedDevice: "Excluded device", itemSolarSurplus: "Solar surplus",
     secSysLimits: "System power limits", itemSysMaxCharge: "System max charge", itemSysMaxDischarge: "System max discharge",
+    secCommon: "Common control (PD + No-PD)",
     secPd: "PD controller (advanced)",
     secNoPd: "No-PD direct tracking", itemNoPdDelay: "Command delay",
     itemPdProfile: "Tuning profile", itemPdQuality: "Control quality",
@@ -149,6 +150,7 @@ const I18N = {
     secSlots: "Franjas configuradas", itemSlot: "Franja",
     secExcluded: "Dispositivos excluidos", itemExcludedDevice: "Dispositivo excluido", itemSolarSurplus: "Excedente solar",
     secSysLimits: "Límites de potencia del sistema", itemSysMaxCharge: "Máx. carga del sistema", itemSysMaxDischarge: "Máx. descarga del sistema",
+    secCommon: "Control común (PD + No-PD)",
     secPd: "Controlador PD (avanzado)",
     secNoPd: "Seguimiento directo sin PD", itemNoPdDelay: "Retardo de orden",
     itemPdProfile: "Perfil de ajuste", itemPdQuality: "Calidad de control",
@@ -210,6 +212,7 @@ const I18N = {
     secSlots: "Franges configurades", itemSlot: "Franja",
     secExcluded: "Dispositius exclosos", itemExcludedDevice: "Dispositiu exclòs", itemSolarSurplus: "Excedent solar",
     secSysLimits: "Límits de potència del sistema", itemSysMaxCharge: "Màx. càrrega del sistema", itemSysMaxDischarge: "Màx. descàrrega del sistema",
+    secCommon: "Control comú (PD + No-PD)",
     secPd: "Controlador PD (avançat)",
     secNoPd: "Seguiment directe sense PD", itemNoPdDelay: "Retard d'ordre",
     itemPdProfile: "Perfil d'ajust", itemPdQuality: "Qualitat de control",
@@ -271,6 +274,7 @@ const I18N = {
     secSlots: "Konfigurierte Zeitfenster", itemSlot: "Zeitfenster",
     secExcluded: "Ausgeschlossene Geräte", itemExcludedDevice: "Ausgeschlossenes Gerät", itemSolarSurplus: "Solarüberschuss",
     secSysLimits: "System-Leistungsgrenzen", itemSysMaxCharge: "System-Max.-Ladeleistung", itemSysMaxDischarge: "System-Max.-Entladeleistung",
+    secCommon: "Gemeinsame Regelung (PD + No-PD)",
     secPd: "PD-Regler (erweitert)",
     secNoPd: "Direkte Nachführung ohne PD", itemNoPdDelay: "Befehlsverzögerung",
     itemPdProfile: "Tuning-Profil", itemPdQuality: "Regelqualität",
@@ -332,6 +336,7 @@ const I18N = {
     secSlots: "Créneaux configurés", itemSlot: "Créneau",
     secExcluded: "Appareils exclus", itemExcludedDevice: "Appareil exclu", itemSolarSurplus: "Surplus solaire",
     secSysLimits: "Limites de puissance du système", itemSysMaxCharge: "Charge max. système", itemSysMaxDischarge: "Décharge max. système",
+    secCommon: "Contrôle commun (PD + No-PD)",
     secPd: "Régulateur PD (avancé)",
     secNoPd: "Suivi direct sans PD", itemNoPdDelay: "Délai de commande",
     itemPdProfile: "Profil de réglage", itemPdQuality: "Qualité de contrôle",
@@ -393,6 +398,7 @@ const I18N = {
     secSlots: "Geconfigureerde tijdvakken", itemSlot: "Tijdvak",
     secExcluded: "Uitgesloten apparaten", itemExcludedDevice: "Uitgesloten apparaat", itemSolarSurplus: "Zonne-overschot",
     secSysLimits: "Systeemvermogenslimieten", itemSysMaxCharge: "Max. systeemladen", itemSysMaxDischarge: "Max. systeemontladen",
+    secCommon: "Gemeenschappelijke regeling (PD + No-PD)",
     secPd: "PD-regelaar (geavanceerd)",
     secNoPd: "Directe tracking zonder PD", itemNoPdDelay: "Commandovertraging",
     itemPdProfile: "Afstemprofiel", itemPdQuality: "Regelkwaliteit",
@@ -421,6 +427,7 @@ const K = {
   dailyDischarge: "total_daily_discharging_energy",
   maxChargePower: "max_charge_power",
   maxDischargePower: "max_discharge_power",
+  inverseMaxPower: "inverse_max_power", // Zendure discharge cap (shares the bcMaxDischarge label)
   batteryVoltage: "battery_voltage",
   internalTemp: "internal_temperature",
   cellMax: "max_cell_voltage",
@@ -612,6 +619,19 @@ const SYS_SECTIONS = [
     ],
   },
   {
+    // Knobs shared by both PD and No-PD direct tracking (kept out of the PD
+    // section so it's clear they apply regardless of the active control mode).
+    tk: "secCommon",
+    icon: "mdi:tune-vertical",
+    items: [
+      { key: "pd_controller_deadband", lk: "itemPdDeadband", icon: "mdi:arrow-collapse-horizontal" },
+      { key: "pd_min_charge_power", lk: "itemPdMinCharge", icon: "mdi:battery-charging-low" },
+      { key: "pd_min_discharge_power", lk: "itemPdMinDischarge", icon: "mdi:battery-low" },
+      { key: "pd_relay_cooldown", lk: "itemPdRelayCooldown", icon: "mdi:timer-cog-outline" },
+      { key: "pd_target_grid_power", lk: "itemPdTargetGrid", icon: "mdi:transmission-tower-export" },
+    ],
+  },
+  {
     tk: "secPd",
     icon: "mdi:tune",
     items: [
@@ -619,14 +639,9 @@ const SYS_SECTIONS = [
       { key: "system_pd_control_quality", domain: "sensor", lk: "itemPdQuality", icon: "mdi:gauge" },
       { key: "pd_controller_kp", lk: "itemPdKp", icon: "mdi:tune" },
       { key: "pd_controller_kd", lk: "itemPdKd", icon: "mdi:tune" },
-      { key: "pd_controller_deadband", lk: "itemPdDeadband", icon: "mdi:arrow-collapse-horizontal" },
       { key: "pd_controller_max_power_change", lk: "itemPdMaxChange", icon: "mdi:delta" },
       { key: "pd_controller_direction_hysteresis", lk: "itemPdDirHyst", icon: "mdi:swap-horizontal" },
-      { key: "pd_min_charge_power", lk: "itemPdMinCharge", icon: "mdi:battery-charging-low" },
-      { key: "pd_min_discharge_power", lk: "itemPdMinDischarge", icon: "mdi:battery-low" },
-      { key: "pd_relay_cooldown", lk: "itemPdRelayCooldown", icon: "mdi:timer-cog-outline" },
       { key: "pd_min_cycle_interval", lk: "itemPdMinCycle", icon: "mdi:timer-pause-outline" },
-      { key: "pd_target_grid_power", lk: "itemPdTargetGrid", icon: "mdi:transmission-tower-export" },
     ],
   },
   {
@@ -699,7 +714,7 @@ const SYS_LAYOUT = [
   },
   { col: ["secSlots"] },
   { col: ["secExcluded"] },
-  { col: ["secPd", "secNoPd"] },
+  { col: ["secCommon", "secPd", "secNoPd"] },
 ];
 
 // Control-tab help text, sourced verbatim from the options-flow data_description
@@ -711,6 +726,7 @@ const SYS_HELP = {
     secWeeklyFull: "Select the day of the week when batteries should charge to 100% for cell balancing. After reaching 100%, the system reverts to your configured maximum charge limit.",
     secSlots: "Define when and how the batteries are allowed to operate. The ticks control each direction, SOC and power. Manual mode forces an exact power, bypassing the PD algorithm.",
     secExcluded: "Configure devices with special management: you can EXCLUDE devices that should NOT be powered by battery, or ADD devices that SHOULD be powered by battery even if they're not in the home consumption sensor.",
+    secCommon: "Control knobs shared by both the PD controller and No-PD direct tracking: deadband, min charge/discharge power, relay min-ON cooldown and target grid power. Changing them affects whichever control mode is currently active.",
     secPd: "Configure advanced PD controller parameters for expert tuning of battery charge/discharge behavior. Only modify these if you understand PID control theory. Default values work well for most installations.",
     secNoPd: "When ON, the PD controller is bypassed and each battery tracks the grid setpoint 1:1 (raw, kp=1, no integral/derivative/smoothing/rate-limit). It still reuses the deadband, min charge/discharge power, relay cooldown and target-grid-power knobs above. Use only if PD tuning can't tame your meter; PD is the safer default.",
     no_pd_command_delay: "Collapse-debounce window for No-PD mode. Grid-sensor updates arriving within this window collapse into a single command issued on the latest value, so a fast meter can't flood the bus. 0 = act on every event (paced only by PD min cycle interval). Range: 0–3 s, step 0.1, default: 0 s.",
@@ -749,6 +765,7 @@ const SYS_HELP = {
     secWeeklyFull: "Selecciona el día de la semana en el que las baterías deben cargarse al 100% para el balanceo de celdas. Una vez alcanzado el 100%, el sistema revertirá al límite de carga máximo configurado.",
     secSlots: "Define cuándo y cómo se permite operar a las baterías. Los ticks permiten controlar cada dirección, el SOC y la potencia. El modo manual fuerza una potencia exacta ignorando el algoritmo PD.",
     secExcluded: "Configura dispositivos con gestión especial: puedes EXCLUIR dispositivos que NO deben alimentarse por batería, o AÑADIR dispositivos que SÍ debe alimentar la batería aunque no estén en el sensor de consumo del hogar.",
+    secCommon: "Parámetros de control compartidos por el controlador PD y el seguimiento directo sin PD: banda muerta, potencia mín. de carga/descarga, tiempo mín. de relé y potencia objetivo de red. Cambiarlos afecta al modo de control que esté activo.",
     secPd: "Configura parámetros avanzados del controlador PD para ajustar el comportamiento de carga/descarga de las baterías. Solo modifica estos valores si comprendes la teoría de control PID. Los valores predeterminados funcionan bien para la mayoría de instalaciones.",
     secNoPd: "Cuando está ACTIVADO, se omite el controlador PD y cada batería sigue la consigna de red 1:1 (en bruto, kp=1, sin integral/derivativo/suavizado/límite de variación). Sigue reutilizando la banda muerta, las potencias mín. de carga/descarga, el tiempo de relé y la potencia objetivo de red de arriba. Úsalo solo si el ajuste PD no puede domar tu medidor; PD es el valor por defecto más seguro.",
     no_pd_command_delay: "Ventana de agrupación (debounce) para el modo sin PD. Las actualizaciones del sensor de red que llegan dentro de esta ventana se agrupan en una sola orden emitida con el último valor, para que un medidor rápido no sature el bus. 0 = actuar en cada evento (acotado solo por el intervalo mín. de ciclo PD). Rango: 0–3 s, paso 0,1, por defecto: 0 s.",
@@ -787,6 +804,7 @@ const SYS_HELP = {
     secWeeklyFull: "Selecciona el dia de la setmana en què les bateries s'han de carregar al 100% per a l'equilibratge de cel·les. Un cop assolit el 100%, el sistema tornarà al límit de càrrega màxim configurat.",
     secSlots: "Defineix quan i com es permet operar a les bateries. Els ticks permeten controlar cada direcció, el SOC i la potència. El mode manual força una potència exacta ignorant l'algorisme PD.",
     secExcluded: "Configura dispositius amb gestió especial: pots EXCLOURE dispositius que NO s'han d'alimentar per bateria, o AFEGIR dispositius que SÍ ha d'alimentar la bateria encara que no estiguin al sensor de consum de la llar.",
+    secCommon: "Paràmetres de control compartits pel controlador PD i el seguiment directe sense PD: banda morta, potència mín. de càrrega/descàrrega, temps mín. de relé i potència objectiu de xarxa. Canviar-los afecta el mode de control que estigui actiu.",
     secPd: "Configura paràmetres avançats del controlador PD per ajustar el comportament de càrrega/descàrrega de les bateries. Només modifica aquests valors si comprens la teoria de control PID. Els valors per defecte funcionen bé per a la majoria d'instal·lacions.",
     secNoPd: "Quan està ACTIVAT, s'omet el controlador PD i cada bateria segueix la consigna de xarxa 1:1 (en brut, kp=1, sense integral/derivatiu/suavitzat/límit de variació). Continua reutilitzant la banda morta, les potències mín. de càrrega/descàrrega, el temps de relé i la potència objectiu de xarxa de dalt. Usa'l només si l'ajust PD no pot domar el teu mesurador; PD és el valor per defecte més segur.",
     no_pd_command_delay: "Finestra d'agrupació (debounce) per al mode sense PD. Les actualitzacions del sensor de xarxa que arriben dins d'aquesta finestra s'agrupen en una sola ordre emesa amb l'últim valor, perquè un mesurador ràpid no saturi el bus. 0 = actuar en cada esdeveniment (acotat només per l'interval mín. de cicle PD). Rang: 0–3 s, pas 0,1, per defecte: 0 s.",
@@ -825,6 +843,7 @@ const SYS_HELP = {
     secWeeklyFull: "Wähle den Wochentag, an dem die Batterien zum Zellausgleich auf 100% geladen werden. Nach Erreichen von 100% kehrt das System zum konfigurierten maximalen Ladelimit zurück.",
     secSlots: "Lege fest, wann und wie die Batterien arbeiten dürfen. Die Häkchen steuern jede Richtung, SOC und Leistung. Der manuelle Modus erzwingt eine exakte Leistung und umgeht den PD-Algorithmus.",
     secExcluded: "Geräte mit spezieller Verwaltung konfigurieren: Du kannst Geräte AUSSCHLIESSEN, die NICHT von der Batterie versorgt werden sollen, oder Geräte HINZUFÜGEN, die von der Batterie versorgt werden SOLLEN, auch wenn sie nicht im Hausverbrauchssensor erfasst sind.",
+    secCommon: "Regelparameter, die sowohl der PD-Regler als auch die direkte Nachführung ohne PD nutzen: Totzone, min. Lade-/Entladeleistung, Relais-Mindestlaufzeit und Ziel-Netzleistung. Änderungen wirken auf den jeweils aktiven Regelmodus.",
     secPd: "Erweiterte PD-Reglerparameter für die Experten-Abstimmung des Lade-/Entladeverhaltens konfigurieren. Ändere diese nur, wenn du die PID-Regelungstheorie verstehst. Die Standardwerte funktionieren für die meisten Installationen gut.",
     secNoPd: "Wenn EIN, wird der PD-Regler umgangen und jede Batterie folgt dem Netz-Sollwert 1:1 (roh, kp=1, ohne Integral/Differential/Glättung/Änderungsbegrenzung). Totzone, min. Lade-/Entladeleistung, Relais-Mindestlaufzeit und Ziel-Netzleistung von oben werden weiterhin genutzt. Nur verwenden, wenn die PD-Abstimmung deinen Zähler nicht bändigen kann; PD ist der sicherere Standard.",
     no_pd_command_delay: "Debounce-Fenster für den No-PD-Modus. Netz-Sensor-Updates innerhalb dieses Fensters werden zu einem einzigen Befehl mit dem neuesten Wert zusammengefasst, damit ein schneller Zähler den Bus nicht überflutet. 0 = bei jedem Ereignis handeln (nur durch das PD-Min.-Zyklusintervall begrenzt). Bereich: 0–3 s, Schritt 0,1, Standard: 0 s.",
@@ -863,6 +882,7 @@ const SYS_HELP = {
     secWeeklyFull: "Sélectionne le jour de la semaine où les batteries doivent se charger à 100% pour l'équilibrage des cellules. Une fois 100% atteint, le système revient à la limite de charge maximale configurée.",
     secSlots: "Définis quand et comment les batteries sont autorisées à fonctionner. Les cases contrôlent chaque direction, le SOC et la puissance. Le mode manuel force une puissance exacte en contournant l'algorithme PD.",
     secExcluded: "Configure des appareils avec une gestion spéciale : tu peux EXCLURE des appareils qui ne doivent PAS être alimentés par la batterie, ou AJOUTER des appareils qui DOIVENT être alimentés par la batterie même s'ils ne sont pas dans le capteur de consommation domestique.",
+    secCommon: "Paramètres de contrôle partagés par le régulateur PD et le suivi direct sans PD : bande morte, puissances min. de charge/décharge, temporisation relais et puissance cible réseau. Les modifier affecte le mode de contrôle actif.",
     secPd: "Configure les paramètres avancés du contrôleur PD pour un réglage expert du comportement de charge/décharge des batteries. Ne modifie ces valeurs que si tu comprends la théorie du contrôle PID. Les valeurs par défaut conviennent à la plupart des installations.",
     secNoPd: "Quand ACTIVÉ, le régulateur PD est contourné et chaque batterie suit la consigne réseau 1:1 (brut, kp=1, sans intégral/dérivé/lissage/limite de variation). La bande morte, les puissances min. de charge/décharge, la temporisation relais et la puissance cible réseau ci-dessus restent utilisées. À n'utiliser que si le réglage PD ne parvient pas à dompter ton compteur ; PD est la valeur par défaut la plus sûre.",
     no_pd_command_delay: "Fenêtre de regroupement (debounce) pour le mode sans PD. Les mises à jour du capteur réseau arrivant dans cette fenêtre sont regroupées en une seule commande émise avec la dernière valeur, pour qu'un compteur rapide n'inonde pas le bus. 0 = agir à chaque événement (limité uniquement par l'intervalle min. de cycle PD). Plage : 0–3 s, pas 0,1, défaut : 0 s.",
@@ -901,6 +921,7 @@ const SYS_HELP = {
     secWeeklyFull: "Selecteer de dag van de week waarop de batterijen tot 100% moeten laden voor celbalancering. Na het bereiken van 100% keert het systeem terug naar de geconfigureerde maximale laadlimiet.",
     secSlots: "Bepaal wanneer en hoe de batterijen mogen werken. De vinkjes regelen elke richting, SOC en vermogen. De handmatige modus forceert een exact vermogen en omzeilt het PD-algoritme.",
     secExcluded: "Configureer apparaten met speciaal beheer: je kunt apparaten UITSLUITEN die NIET door de batterij gevoed mogen worden, of apparaten TOEVOEGEN die WEL door de batterij gevoed moeten worden, ook al staan ze niet in de huisverbruikssensor.",
+    secCommon: "Regelparameters die zowel de PD-regelaar als directe tracking zonder PD gebruiken: dode band, min. laad-/ontlaadvermogen, relais-wachttijd en doelnetvermogen. Wijzigen beïnvloedt de momenteel actieve regelmodus.",
     secPd: "Configureer geavanceerde PD-regelaarparameters voor het expert-afstemmen van het laad-/ontlaadgedrag. Wijzig deze alleen als je de PID-regeltheorie begrijpt. De standaardwaarden werken goed voor de meeste installaties.",
     secNoPd: "Wanneer AAN wordt de PD-regelaar omzeild en volgt elke batterij het net-setpoint 1:1 (ruw, kp=1, zonder integraal/afgeleide/afvlakking/snelheidslimiet). De dode band, min. laad-/ontlaadvermogen, relais-wachttijd en doelnetvermogen hierboven blijven in gebruik. Gebruik dit alleen als PD-afstemming je meter niet kan temmen; PD is de veiligere standaard.",
     no_pd_command_delay: "Debounce-venster voor de No-PD-modus. Net-sensorupdates die binnen dit venster binnenkomen worden samengevoegd tot één commando met de laatste waarde, zodat een snelle meter de bus niet overspoelt. 0 = bij elke gebeurtenis handelen (alleen begrensd door het PD-min.-cyclusinterval). Bereik: 0–3 s, stap 0,1, standaard: 0 s.",
@@ -1289,7 +1310,11 @@ class MarstekVenusPanel extends HTMLElement {
 
     // total available power for the bar (sum of per-unit max limits, else heuristic)
     const maxCh = this._sum(byKey, K.maxChargePower);
-    const maxDis = this._sum(byKey, K.maxDischargePower);
+    // Marstek exposes max_discharge_power; Zendure exposes inverse_max_power.
+    // Each unit has only one of the two, so summing both keys is safe.
+    const maxDis =
+      (this._sum(byKey, K.maxDischargePower) || 0) +
+        (this._sum(byKey, K.inverseMaxPower) || 0) || null;
 
     // ----- diagnostics -----
     // raw state object per diagnostic row, localized later via formatEntityState

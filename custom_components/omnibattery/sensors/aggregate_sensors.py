@@ -167,7 +167,7 @@ class PdControlQualitySensor(SensorEntity):
     _RMS_HIGH_W = 150.0
     _OSC_LOW_PER_MIN = 1.0
 
-    _STATES = ["stable", "oscillating", "sluggish", "battery_limited", "collecting_data"]
+    _STATES = ["disabled", "stable", "oscillating", "sluggish", "battery_limited", "collecting_data"]
 
     def __init__(self, controller) -> None:
         """Initialize the sensor."""
@@ -187,6 +187,8 @@ class PdControlQualitySensor(SensorEntity):
     def native_value(self):
         """Return the tuning verdict."""
         c = self._controller
+        if getattr(c, "no_pd_mode_enabled", False):
+            return "disabled"  # No-PD direct-tracking mode: PD loop not running
         if getattr(c, "_pd_limited", False):
             return "battery_limited"
         rms = c.pd_quality_rms_error
