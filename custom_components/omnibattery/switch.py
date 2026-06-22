@@ -428,8 +428,8 @@ class PredictiveChargingSwitch(SwitchEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -515,8 +515,8 @@ class TimeSlotSwitch(SwitchEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -567,8 +567,8 @@ class CapacityProtectionSwitch(SwitchEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -626,8 +626,8 @@ class ChargeDelaySwitch(SwitchEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -707,8 +707,8 @@ class ExcludedDeviceEnabledSwitch(SwitchEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -790,8 +790,8 @@ class ExcludedDeviceSolarSurplusSwitch(SwitchEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -881,8 +881,8 @@ class ManualModeSwitch(SwitchEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -935,8 +935,8 @@ class HourlyBalanceSwitch(SwitchEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 

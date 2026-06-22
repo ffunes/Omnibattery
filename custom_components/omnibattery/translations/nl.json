@@ -1,8 +1,12 @@
 {
   "config": {
     "step": {
+      "migrate_legacy": {
+        "title": "Migreren vanuit Marstek Venus",
+        "description": "Er zijn {count} bestaande Marstek Venus-configuratie(s) gevonden. Migreren naar Omnibattery behoudt al uw entiteiten, geschiedenis en instellingen. Doorgaan?"
+      },
       "user": {
-        "title": "Marstek Venus Energy Manager configureren",
+        "title": "Omnibattery configureren",
         "description": "Selecteer de sensor die het netimport/-exportvermogen meet. Optioneel kunt u de zonne-voorspellingssensor configureren voor geavanceerde functies.",
         "data": {
           "consumption_sensor": "Netverbruikssensor",
@@ -21,7 +25,7 @@
       },
       "batteries": {
         "title": "Aantal batterijen",
-        "description": "Hoeveel Marstek Venus batterijen heeft u geïnstalleerd?",
+        "description": "Hoeveel batterijen heeft u geïnstalleerd?",
         "data": {
           "num_batteries": "Aantal batterijen"
         }
@@ -443,13 +447,15 @@
     },
     "abort": {
       "already_configured": "Deze integratie is al geconfigureerd.",
-      "reconfigure_successful": "Verbindingsinstellingen van de batterij succesvol bijgewerkt."
+      "reconfigure_successful": "Verbindingsinstellingen van de batterij succesvol bijgewerkt.",
+      "no_legacy_entries": "Er is geen bestaande Marstek Venus-configuratie gevonden om te migreren.",
+      "migration_successful": "{count} configuratie(s) zijn gemigreerd naar Omnibattery. Uw entiteiten, geschiedenis en instellingen zijn behouden."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Marstek Venus Energy Manager opnieuw configureren",
+        "title": "Omnibattery opnieuw configureren",
         "description": "Selecteer de sectie die u wilt configureren.",
         "menu_options": {
           "sensors": "Sensoren",

@@ -638,6 +638,11 @@ class ZendureLocalDriver(BatteryDriver):
         min_soc = max(0, min(50, int(min_soc_pct)))
         return await self._post_write({"socSet": soc_set * 10, "minSoc": min_soc * 10, "smartMode": 0})
 
+    async def set_charge_cutoff(self, soc_pct: float) -> bool:
+        """Write socSet only (weekly-full-charge / active-balance ceiling)."""
+        soc_set = max(70, min(100, int(soc_pct)))
+        return await self._post_write({"socSet": soc_set * 10, "smartMode": 0})
+
     async def standby(self) -> bool:
         """Stop discharge for teardown (smartMode=1, does not persist)."""
         return await self._post_write(

@@ -248,8 +248,8 @@ class MarstekConfigNumberEntity(NumberEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 

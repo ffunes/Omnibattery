@@ -1,8 +1,12 @@
 {
   "config": {
     "step": {
+      "migrate_legacy": {
+        "title": "Von Marstek Venus migrieren",
+        "description": "Es wurden {count} bestehende Marstek Venus-Konfiguration(en) gefunden. Die Migration zu Omnibattery behält alle Entitäten, den Verlauf und die Einstellungen. Fortfahren?"
+      },
       "user": {
-        "title": "Marstek Venus Energy Manager konfigurieren",
+        "title": "Omnibattery konfigurieren",
         "description": "Wählen Sie den Sensor aus, der die Netzimport-/Exportleistung misst. Optional können Sie den Solarprognose-Sensor für erweiterte Funktionen konfigurieren.",
         "data": {
           "consumption_sensor": "Netzverbrauchssensor",
@@ -21,7 +25,7 @@
       },
       "batteries": {
         "title": "Anzahl der Batterien",
-        "description": "Wie viele Marstek Venus Batterien haben Sie installiert?",
+        "description": "Wie viele Batterien haben Sie installiert?",
         "data": {
           "num_batteries": "Anzahl der Batterien"
         }
@@ -443,13 +447,15 @@
     },
     "abort": {
       "already_configured": "Diese Integration ist bereits konfiguriert.",
-      "reconfigure_successful": "Verbindungseinstellungen der Batterie erfolgreich aktualisiert."
+      "reconfigure_successful": "Verbindungseinstellungen der Batterie erfolgreich aktualisiert.",
+      "no_legacy_entries": "Es wurde keine ältere Marstek Venus-Konfiguration zum Migrieren gefunden.",
+      "migration_successful": "Es wurden {count} Konfiguration(en) zu Omnibattery migriert. Ihre Entitäten, der Verlauf und die Einstellungen wurden beibehalten."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Marstek Venus Energy Manager neu konfigurieren",
+        "title": "Omnibattery neu konfigurieren",
         "description": "Wählen Sie den Abschnitt aus, den Sie konfigurieren möchten.",
         "menu_options": {
           "sensors": "Sensoren",

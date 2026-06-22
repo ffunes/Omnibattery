@@ -6,7 +6,7 @@
         "description": "Found {count} existing Marstek Venus configuration(s). Migrating to Omnibattery keeps all your entities, history and settings intact. Continue?"
       },
       "user": {
-        "title": "Configure Marstek Venus Energy Manager",
+        "title": "Configure Omnibattery",
         "description": "Select the sensor that measures grid import/export power. Optionally, configure the solar forecast sensor for advanced features.",
         "data": {
           "consumption_sensor": "Grid consumption sensor",
@@ -25,7 +25,7 @@
       },
       "batteries": {
         "title": "Number of batteries",
-        "description": "How many Marstek Venus batteries do you have installed?",
+        "description": "How many batteries do you have installed?",
         "data": {
           "num_batteries": "Number of batteries"
         }
@@ -455,7 +455,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Reconfigure Marstek Venus Energy Manager",
+        "title": "Reconfigure Omnibattery",
         "description": "Select which section you want to configure.",
         "menu_options": {
           "sensors": "Sensors",

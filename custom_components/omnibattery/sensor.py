@@ -436,8 +436,8 @@ class DischargeWindowSensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -508,8 +508,8 @@ class ActiveBatteriesSensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -562,8 +562,8 @@ class WeeklyFullChargeSensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -665,8 +665,8 @@ class ChargeDelaySensor(RestoreEntity, SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -939,8 +939,8 @@ class ConfigurationSummarySensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -1217,8 +1217,8 @@ class IntegrationStatusSensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -1292,8 +1292,8 @@ class NonResponsiveBatteriesSensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -1332,8 +1332,8 @@ class DailySolarEnergySensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -1380,8 +1380,8 @@ class SystemSolarPowerSensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -1419,8 +1419,8 @@ class DailyHomeEnergySensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -1458,8 +1458,8 @@ class DailyGridImportEnergySensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -1496,6 +1496,6 @@ class DailyGridExportEnergySensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }

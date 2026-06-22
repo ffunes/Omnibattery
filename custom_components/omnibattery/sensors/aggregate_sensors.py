@@ -145,8 +145,8 @@ class DailyGridAtMinSocSensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -224,8 +224,8 @@ class PdControlQualitySensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
 
@@ -551,8 +551,8 @@ class MarstekVenusAggregateSensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
 
     @property
@@ -641,6 +641,6 @@ class SystemAlarmSensor(SensorEntity):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
-            "manufacturer": "Marstek",
-            "model": "Venus Multi-Battery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
         }
