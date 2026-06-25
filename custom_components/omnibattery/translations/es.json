@@ -1451,6 +1451,9 @@
     "button": {
       "reset_device": {
         "name": "Reiniciar Dispositivo"
+      },
+      "reevaluate_dynamic_pricing": {
+        "name": "Reevaluar Precios Dinámicos"
       }
     }
   }

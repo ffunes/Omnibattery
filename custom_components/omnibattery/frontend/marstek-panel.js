@@ -1164,15 +1164,11 @@ class MarstekVenusPanel extends HTMLElement {
       // Only devices the home sensor already includes (included_in_consumption
       // !== false) may be subtracted from the Home node. "Additional" devices
       // are not in the home sensor, so subtracting them would wrongly drive
-      // Home toward 0. Scale by the exclusion % slider: only the excluded
-      // fraction leaves Home — the rest is load the battery now covers, so it
-      // stays in the Home node. (The excluded-devices node still shows the
-      // device's full draw via `total`.)
-      if (a[`excluded_device_${i}_included_in_consumption`] !== false) {
-        const pct = Number(a[`excluded_device_${i}_exclusion_pct`]);
-        const factor = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) / 100 : 1;
-        included += w * factor;
-      }
+      // Home toward 0. Subtract the FULL draw: the excluded-devices node shows
+      // the device's full demand, so Home must be total − D for the flow to
+      // balance. The exclusion % only changes the supply mix (battery covers
+      // more, shown as a larger Battery flow) — not the demand-node magnitudes.
+      if (a[`excluded_device_${i}_included_in_consumption`] !== false) included += w;
     }
     return total == null ? null : { total, included };
   }
