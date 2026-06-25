@@ -87,6 +87,21 @@ def test_capabilities_carry_power_envelope_and_force_mode():
     assert caps.push_telemetry is False
 
 
+def test_capability_envelope_uses_hardware_ceiling_not_user_limit():
+    """With real definitions, the apply-path clamp is the model's hardware
+    register max, not the per-battery user limit — otherwise raising
+    max_charge_power at runtime can't lift charging above the value configured at
+    setup (the controller already enforces the user limit upstream)."""
+    drv = MarstekModbusDriver(
+        "1.2.3.4", 502, "v2",
+        max_charge_power_w=800,       # low user setting must NOT cap the envelope
+        max_discharge_power_w=800,
+        client=_fake_client(),        # definitions=None -> real v2 defs load
+    )
+    assert drv.capabilities.max_charge_power_w == 2500
+    assert drv.capabilities.max_discharge_power_w == 2500
+
+
 def test_mppt_pv_capability_derived_from_definitions():
     # MPPT/PV presence comes from the seeded entity definitions (Venus D/A),
     # not the version string.

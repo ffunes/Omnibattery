@@ -216,6 +216,18 @@ class MarstekModbusDriver(BatteryDriver):
         # and lock per group without seeing the register layout.
         self._read_groups = self._build_read_groups()
 
+        # The apply-path clamp (apply_setpoint) must be this model's *hardware*
+        # ceiling — the writable power register's max — not the user's per-battery
+        # limit. The user limit is enforced live via coordinator.max_charge_power,
+        # which every apply caller (PD, slots, balance) clamps to first; freezing
+        # the user value here trapped charging at whatever was configured at setup
+        # even after the user raised the limit. (Same rule the coordinator already
+        # documents for Zendure.) Tests inject a flat definition list with no
+        # number defs, so fall back to the constructor arg there.
+        number_defs = {d.get("key"): d for d in self._definitions["number"]}
+        hw_charge_ceiling = int(number_defs.get("max_charge_power", {}).get("max", max_charge_power_w))
+        hw_discharge_ceiling = int(number_defs.get("max_discharge_power", {}).get("max", max_discharge_power_w))
+
         # Static capabilities, derived from the register map + the seeded entity
         # definitions so the control layer never branches on the version string.
         # Hardware SOC cut-off registers only exist on v2 (v3/vA/vD enforce in
@@ -225,8 +237,8 @@ class MarstekModbusDriver(BatteryDriver):
             hardware_soc_cutoff=REGISTER_MAP.get(version, {}).get("charging_cutoff_capacity") is not None,
             has_force_mode=REGISTER_MAP.get(version, {}).get("force_mode") is not None,
             push_telemetry=False,
-            max_charge_power_w=max_charge_power_w,
-            max_discharge_power_w=max_discharge_power_w,
+            max_charge_power_w=hw_charge_ceiling,
+            max_discharge_power_w=hw_discharge_ceiling,
             has_mppt_pv="mppt1_power" in self._telemetry_index,
             has_alarm_registers="alarm_status" in self._telemetry_index,
             has_rs485_control=REGISTER_MAP.get(version, {}).get("rs485_control") is not None,
