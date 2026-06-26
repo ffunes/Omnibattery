@@ -1293,21 +1293,22 @@ class MarstekVenusPanel extends HTMLElement {
     }
     const battery = battW != null ? battW / 1000 : 0;
 
-    // solar: external AC-coupled production sensor (extra inverter) PLUS the
-    // DC-coupled MPPT panels on Venus D/A units — both feed the Solar node. The
-    // MPPT share was already removed from each battery's powerW above so it is
-    // not double-counted as discharge.
+    // solar: solar_entity is already the complete production figure — the
+    // system_solar_power aggregate (external + Σ MPPT) on Venus D/A, or the
+    // external-only sensor on non-MPPT systems. So use it directly; ΣMPPT is only
+    // a fallback for before that aggregate sensor is readable, NOT an addition,
+    // otherwise the DC-coupled share is double-counted on vA/vD (#407).
     let solarW = null;
     const solarObj = this._panelConfig.solar_entity
       ? hass.states[this._panelConfig.solar_entity]
       : null;
     const explicitSolarW = this._watts(solarObj);
-    if (explicitSolarW != null) solarW = explicitSolarW;
     const mpptTotalW = batteries.reduce(
       (a, b) => (b.mpptW != null ? (a || 0) + b.mpptW : a),
       null
     );
-    if (mpptTotalW != null) solarW = (solarW || 0) + mpptTotalW;
+    if (explicitSolarW != null) solarW = explicitSolarW;
+    else if (mpptTotalW != null) solarW = mpptTotalW;
     const solar = solarW != null ? Math.max(0, solarW / 1000) : 0;
     const hasSolar = solarW != null;
 
