@@ -40,6 +40,14 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# Unlock reasons that are fail-safe responses to missing/transient data, not a
+# real "charging is legitimately allowed" decision. These must NOT latch the
+# permanent daily unlock: otherwise a momentary gap (e.g. the solar-forecast
+# sensor going unavailable at the midnight rollover) silently disables the
+# charge delay for the rest of the day. Keeping them re-evaluable lets the delay
+# re-arm as soon as the data comes back.
+_TRANSIENT_UNLOCK_REASONS = frozenset({"no_forecast"})
+
 
 class ChargeDelayManager:
     """Manages the unified charge-delay gate, persistence and projection."""
@@ -203,7 +211,14 @@ class ChargeDelayManager:
         if self._should_delay_charge(target_soc):
             return True  # Keep delay active (block charging)
 
-        # Delay conditions no longer met - unlock permanently for today
+        # A fail-safe unlock from missing/transient data (e.g. the forecast
+        # sensor briefly unavailable at the midnight rollover) must stay
+        # re-evaluable so the delay re-arms once the data returns. Allow
+        # charging for this cycle, but do not latch the permanent daily unlock.
+        if ctrl._charge_delay_status.get("unlock_reason") in _TRANSIENT_UNLOCK_REASONS:
+            return False
+
+        # Delay conditions genuinely no longer met - unlock permanently for today
         ctrl._charge_delay_unlocked = True
         self.schedule_save()
         _LOGGER.info("Charge Delay: Unlocked (target_soc=%d%%) - charging now allowed", target_soc)

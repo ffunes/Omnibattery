@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 from custom_components.marstek_venus_energy_manager.charge_delay import (
     ChargeDelayManager,
+    _TRANSIENT_UNLOCK_REASONS,
 )
 from custom_components.marstek_venus_energy_manager.const import (
     DELAY_SOC_SETPOINT_HYSTERESIS,
@@ -151,6 +152,50 @@ def test_keep_delay_when_should_delay_true():
     mgr._should_delay_charge = lambda target: True
     assert mgr.is_charge_delayed() is True
     assert ctrl._charge_delay_unlocked is False
+
+
+def test_transient_no_forecast_does_not_latch():
+    # A fail-safe unlock (no forecast available) allows charging this cycle but
+    # must NOT latch the permanent daily unlock, so it can re-arm later.
+    assert "no_forecast" in _TRANSIENT_UNLOCK_REASONS
+    ctrl = _controller(solar_forecast_sensor=None)
+    mgr = _make_mgr(ctrl)
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_status["unlock_reason"] == "no_forecast"
+    assert ctrl._charge_delay_unlocked is False
+    assert mgr.saves == 0  # nothing latched, nothing persisted
+
+
+def test_delay_rearms_after_forecast_recovers():
+    # First cycle: forecast unavailable past grace -> no_forecast unlock (not latched).
+    from time import monotonic
+    ctrl = _controller(
+        _forecast_unavailable_since=monotonic() - 10_000,
+        _forecast_grace_s=300,
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state("unavailable")})
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_unlocked is False
+    # Next cycle the forecast is healthy again and the day is covered -> the
+    # delay re-arms instead of staying disabled for the rest of the day.
+    mgr._should_delay_charge = lambda target: True
+    assert mgr.is_charge_delayed() is True
+    assert ctrl._charge_delay_unlocked is False
+
+
+def test_genuine_unlock_still_latches():
+    # A real "conditions met" unlock (e.g. time_backup) keeps latching as before.
+    ctrl = _controller()
+    mgr = _make_mgr(ctrl)
+
+    def _stub(target):
+        ctrl._charge_delay_status["unlock_reason"] = "time_backup"
+        return False
+
+    mgr._should_delay_charge = _stub
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_unlocked is True
+    assert mgr.saves == 1
 
 
 # ----------------------------------------------------------------------
