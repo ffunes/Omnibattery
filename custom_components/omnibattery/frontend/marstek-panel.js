@@ -39,7 +39,7 @@ const FALLBACK_TITLE = "Omnibattery";
 // names in translations/*.json so the panel reads consistently with HA.
 const I18N = {
   en: {
-    subtitle: "Energy Manager",
+    subtitle: "Control Panel",
     live: "Live",
     tabResumen: "Overview", tabBaterias: "Batteries", tabControl: "Control",
     moreInfo: "Show history",
@@ -103,7 +103,7 @@ const I18N = {
     slotStateLabel: "State", slotActiveWord: "active", slotInactiveWord: "inactive",
   },
   es: {
-    subtitle: "Energy Manager",
+    subtitle: "Panel de Control",
     live: "En vivo",
     tabResumen: "Resumen", tabBaterias: "Baterías", tabControl: "Control",
     moreInfo: "Ver histórico",
@@ -167,7 +167,7 @@ const I18N = {
     slotStateLabel: "Estado", slotActiveWord: "activa", slotInactiveWord: "inactiva",
   },
   ca: {
-    subtitle: "Energy Manager",
+    subtitle: "Tauler de control",
     live: "En directe",
     tabResumen: "Resum", tabBaterias: "Bateries", tabControl: "Control",
     moreInfo: "Veure històric",
@@ -229,7 +229,7 @@ const I18N = {
     slotStateLabel: "Estat", slotActiveWord: "activa", slotInactiveWord: "inactiva",
   },
   de: {
-    subtitle: "Energy Manager",
+    subtitle: "Bedienfeld",
     live: "Live",
     tabResumen: "Übersicht", tabBaterias: "Batterien", tabControl: "Steuerung",
     moreInfo: "Verlauf anzeigen",
@@ -291,7 +291,7 @@ const I18N = {
     slotStateLabel: "Status", slotActiveWord: "aktiv", slotInactiveWord: "inaktiv",
   },
   fr: {
-    subtitle: "Energy Manager",
+    subtitle: "Panneau de contrôle",
     live: "En direct",
     tabResumen: "Résumé", tabBaterias: "Batteries", tabControl: "Contrôle",
     moreInfo: "Voir l'historique",
@@ -353,7 +353,7 @@ const I18N = {
     slotStateLabel: "État", slotActiveWord: "actif", slotInactiveWord: "inactif",
   },
   nl: {
-    subtitle: "Energy Manager",
+    subtitle: "Bedieningspaneel",
     live: "Live",
     tabResumen: "Overzicht", tabBaterias: "Batterijen", tabControl: "Bediening",
     moreInfo: "Geschiedenis tonen",
@@ -1351,7 +1351,7 @@ class MarstekVenusPanel extends HTMLElement {
     // Each unit has only one of the two, so summing both keys is safe.
     const maxDis =
       (this._sum(byKey, K.maxDischargePower) || 0) +
-        (this._sum(byKey, K.inverseMaxPower) || 0) || null;
+      (this._sum(byKey, K.inverseMaxPower) || 0) || null;
 
     // ----- diagnostics -----
     // raw state object per diagnostic row, localized later via formatEntityState
@@ -1447,7 +1447,7 @@ class MarstekVenusPanel extends HTMLElement {
     const brand = document.createElement("div");
     brand.className = "brand";
     brand.innerHTML = `
-      <div class="logo">M</div>
+      <div class="logo">O</div>
       <div class="btext">
         <div class="bt-name">${this._title()}</div>
         <div class="bt-sub">${this._t("subtitle")}</div>
@@ -4180,8 +4180,8 @@ class MarstekVenusPanel extends HTMLElement {
       w.val.textContent = bad
         ? "—"
         : (typeof this._hass.formatEntityState === "function"
-            ? this._hass.formatEntityState(state)
-            : state.state);
+          ? this._hass.formatEntityState(state)
+          : state.state);
       const a = state.attributes || {};
       if (a.rms_error_w != null) {
         w.val.title = `RMS ${a.rms_error_w} W · ${a.oscillation_per_min ?? 0}/min`;
