@@ -1664,49 +1664,34 @@
 <td><code>502</code></td>
 </tr>
 <tr>
-<td><strong>Modbus Slave ID</strong></td>
-<td>Map several batteries to one IP:port using distinct slave ids</td>
-<td>1</td>
-</tr>
-<tr>
 <td><strong>Version</strong></td>
 <td>Battery model</td>
 <td>—</td>
 </tr>
 <tr>
-<td><strong>Max charge/discharge power (W)</strong></td>
-<td>Rated charge/discharge power of your setup</td>
+<td><strong>Max charge/discharge power</strong></td>
+<td>Rated power of your setup</td>
 <td>—</td>
 </tr>
 <tr>
-<td><strong>Max SOC (%)</strong></td>
+<td><strong>Max SOC</strong></td>
 <td>Stop charging at this percentage</td>
 <td><code>100 %</code></td>
 </tr>
 <tr>
-<td><strong>Min SOC (%)</strong></td>
+<td><strong>Min SOC</strong></td>
 <td>Stop discharging at this percentage</td>
 <td><code>12 %</code></td>
 </tr>
 <tr>
-<td><strong>Enable Charge Hysteresis</strong></td>
-<td>Prevents battery from charging when SOC is near maximum</td>
-<td>Off</td>
+<td><strong>Charge hysteresis</strong></td>
+<td>Always on (minimum 2 %). After the battery reaches the top it won't charge again until SOC drops by this margin — avoids rapid cycling and absorbs SOC-reading drift</td>
+<td><code>2 %</code></td>
 </tr>
 <tr>
-<td><strong>Hysteresis Percentage (%)</strong></td>
-<td>Margin to avoid rapid cycling near the charge limit</td>
-<td>—</td>
-</tr>
-<tr>
-<td><strong>Backup offgrid threshold (W)</strong></td>
+<td><strong>Backup offgrid threshold</strong></td>
 <td>Minimum offgrid load (W) to be considered an active backup event</td>
 <td><code>50 W</code></td>
-</tr>
-<tr>
-<td><strong>Enable 100% charge voltage taper</strong></td>
-<td>For 100% SOC limit charge to 95W at 3.48V max cell and stop at 3.58V to measure cell imbalance after 60 seconds</td>
-<td>On</td>
 </tr>
 </tbody>
 </table>
