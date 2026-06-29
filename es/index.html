@@ -82,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#marstek-venus-energy-manager" class="md-skip">
+        <a href="#omnibattery" class="md-skip">
           Saltar a contenido
         </a>
       
@@ -1569,8 +1569,8 @@
   
 
 
-<h1 id="marstek-venus-energy-manager">Marstek Venus Energy Manager<a class="headerlink" href="#marstek-venus-energy-manager" title="Permanent link">&para;</a></h1>
-<p><strong>Marstek Venus Energy Manager</strong> es una integración personalizada para Home Assistant que monitoriza y controla baterías Marstek Venus (series E v2/v3, Venus A y Venus D) mediante Modbus TCP.</p>
+<h1 id="omnibattery">Omnibattery<a class="headerlink" href="#omnibattery" title="Permanent link">&para;</a></h1>
+<p><strong>Omnibattery</strong> es una integración personalizada para Home Assistant que monitoriza y controla baterías solares enchufables — Marstek Venus (series E v2/v3, Venus A y Venus D) y Zendure SolarFlow (2400 AC+ / AC Pro) — mediante Modbus TCP o HTTP local.</p>
 <div class="grid cards">
 <ul>
 <li>
@@ -1594,7 +1594,8 @@
 <h2 id="caracteristicas-principales">Características principales<a class="headerlink" href="#caracteristicas-principales" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Controlador PD (Zero Export/Import)</strong>: ajusta en tiempo real la potencia de la batería para mantener el intercambio con la red próximo a cero.</li>
-<li><strong>Carga predictiva</strong>: tres modos (franja horaria, precio dinámico, precio en tiempo real) que cargan desde la red solo cuando el balance energético lo requiere. Utiliza una media móvil de 7 días del consumo real del hogar para decidir si es necesario cargar desde la red.</li>
+<li><strong>Modo de seguimiento directo sin PD</strong> (opt-in): la batería sigue el sensor de consumo 1:1 en cada ciclo — sin integral, derivada, suavizado ni limitador de rampa — para instalaciones que prefieren seguimiento directo al controlador PD.</li>
+<li><strong>Carga predictiva</strong>: tres modos (franja horaria, precio dinámico, precio en tiempo real — incluyendo Tibber) que cargan desde la red solo cuando el balance energético lo requiere. Utiliza una media móvil de 7 días del consumo real del hogar para decidir si es necesario cargar desde la red.</li>
 <li><strong>Gestión multi-batería</strong>: selección inteligente con prioridades de SOC, histéresis de energía y eficiencia por zona de operación.</li>
 <li><strong>Franjas de descarga</strong>: define ventanas horarias y niveles objetivo de red por franja.</li>
 <li><strong>Peak shaving</strong>: reserva capacidad de la batería para satisfacer picos de demanda que superen un umbral de potencia configurable.</li>
@@ -1602,8 +1603,8 @@
 <li><strong>Monitor de equilibrio de celdas</strong>: mide la diferencia de tensión entre la celda más y menos cargada después de cada carga completa; hace seguimiento de la tendencia de desequilibrio a lo largo del tiempo, envía alertas ante desequilibrios moderados o altos y bloquea la descarga durante el periodo de reposo en circuito abierto.</li>
 <li><strong>Retraso de carga solar</strong>: pospone la carga matutina de la batería (solar y desde la red) mientras la producción solar prevista es suficiente para cubrir la energía restante necesaria.</li>
 <li><strong>Balance neto horario</strong>: ajusta el punto de trabajo del controlador PD de forma continua para mantener la energía neta de red en un objetivo configurable (por defecto: balance neto cero por hora). Compatible con sensores externos de balance neto y se combina limpiamente con el resto de funcionalidades mediante el registro de puntos de trabajo.</li>
-<li><strong>Exclusión de cargas</strong>: excluye dispositivos de alta potencia (p. ej. cargadores de VE) para que el controlador no intente compensar su consumo.</li>
-<li><strong>Notificaciones proactivas de alarmas (solo baterías v2)</strong>: monitoriza los registros de fallos y alarmas de la batería cada 5 segundos y envía una notificación de Home Assistant en el momento en que se detecta una nueva condición, con el nombre exacto del fallo o alarma. El sensor de sistema <code>System Alarm Status</code> (<code>OK</code> / <code>Warning</code> / <code>Fault</code>) ofrece una vista rápida del estado de todas las baterías.</li>
+<li><strong>Exclusión de cargas</strong>: excluye dispositivos de alta potencia (p. ej. cargadores de VE) para que el controlador no intente compensar su consumo. Cada dispositivo excluido tiene un slider de porcentaje de exclusión individual (0–100%).</li>
+<li><strong>Notificaciones proactivas de alarmas (solo baterías Marstek v2)</strong>: monitoriza los registros de fallos y alarmas de la batería cada 5 segundos y envía una notificación de Home Assistant en el momento en que se detecta una nueva condición, con el nombre exacto del fallo o alarma. El sensor de sistema <code>System Alarm Status</code> (<code>OK</code> / <code>Warning</code> / <code>Fault</code>) ofrece una vista rápida del estado de todas las baterías.</li>
 </ul>
 <h2 id="aviso-de-responsabilidad">Aviso de responsabilidad<a class="headerlink" href="#aviso-de-responsabilidad" title="Permanent link">&para;</a></h2>
 <div class="admonition danger">

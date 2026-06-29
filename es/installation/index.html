@@ -1762,11 +1762,15 @@
 <tbody>
 <tr>
 <td>Batería</td>
-<td>Marstek Venus E v2/v3, Venus A o Venus D</td>
+<td>Marstek Venus E v2/v3, Venus A, Venus D <strong>o</strong> Zendure SolarFlow 2400 AC+ / AC Pro</td>
 </tr>
 <tr>
 <td>Conversor Modbus</td>
-<td>Dispositivo RS485 → Modbus TCP (p. ej. Elfin-EW11) — <strong>solo necesario para Venus E v2</strong>. Las Venus E v3, Venus A y Venus D se conectan por Ethernet y soportan Modbus TCP de forma nativa.</td>
+<td>Dispositivo RS485 → Modbus TCP (p. ej. Elfin-EW11) — <strong>solo necesario para Marstek Venus E v2</strong>. Las Venus E v3, Venus A y Venus D se conectan por Ethernet y soportan Modbus TCP de forma nativa. No necesario para Zendure (HTTP local).</td>
+</tr>
+<tr>
+<td>Adaptador serie <em>(opcional)</em></td>
+<td>Adaptador USB–RS485 para conexión serie directa (Modbus RTU) a baterías Marstek.</td>
 </tr>
 <tr>
 <td>Sensor de red</td>
@@ -1786,10 +1790,10 @@
 <ol>
 <li>
 <p>Haz clic en el botón para añadir el repositorio a HACS:</p>
-<p><a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=ffunes&amp;repository=Marstek-Venus-Energy-Manager&amp;category=integration"><img alt="Añadir a HACS" src="https://my.home-assistant.io/badges/hacs_repository.svg" /></a></p>
+<p><a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=ffunes&amp;repository=Omnibattery&amp;category=integration"><img alt="Añadir a HACS" src="https://my.home-assistant.io/badges/hacs_repository.svg" /></a></p>
 </li>
 <li>
-<p>Busca <strong>"Marstek Venus Energy Manager"</strong> e instala.</p>
+<p>Busca <strong>"Omnibattery"</strong> e instala.</p>
 </li>
 <li>Reinicia Home Assistant.</li>
 </ol>
@@ -1797,8 +1801,8 @@
 <hr />
 <h2 id="instalacion-manual">Instalación manual<a class="headerlink" href="#instalacion-manual" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Descarga el zip de la última release desde <a href="https://github.com/ffunes/Marstek-Venus-Energy-Manager/releases">GitHub Releases</a>.</li>
-<li>Extrae la carpeta <code>marstek_venus_energy_manager</code>.</li>
+<li>Descarga el zip de la última release desde <a href="https://github.com/ffunes/Omnibattery/releases">GitHub Releases</a>.</li>
+<li>Extrae la carpeta <code>omnibattery</code>.</li>
 <li>Cópiala en el directorio <code>custom_components/</code> de Home Assistant.</li>
 <li>Reinicia Home Assistant.</li>
 </ol>
@@ -1806,10 +1810,10 @@
 <h2 id="instalacion-de-blueprints">Instalación de blueprints<a class="headerlink" href="#instalacion-de-blueprints" title="Permanent link">&para;</a></h2>
 <p>Los blueprints son opcionales y se instalan en la carpeta de configuración de Home Assistant, no dentro de <code>custom_components/</code>.</p>
 <p>La carpeta de blueprints de tu Home Assistant es:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/config/blueprints/automation/marstek_venus_energy_manager/
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/config/blueprints/automation/omnibattery/
 </code></pre></div>
 <p>Si accedes a Home Assistant mediante Samba, Studio Code Server o File Editor, la misma ruta suele verse como:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>config/blueprints/automation/marstek_venus_energy_manager/
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>config/blueprints/automation/omnibattery/
 </code></pre></div>
 <h3 id="instalacion-desde-la-interfaz-de-home-assistant">Instalación desde la interfaz de Home Assistant<a class="headerlink" href="#instalacion-desde-la-interfaz-de-home-assistant" title="Permanent link">&para;</a></h3>
 <ol>
@@ -1817,7 +1821,7 @@
 <li>Pulsa <strong>Importar blueprint</strong>.</li>
 <li>
 <p>Pega la URL del blueprint que quieras importar, por ejemplo:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>https://raw.githubusercontent.com/ffunes/Marstek-Venus-Energy-Manager/main/blueprints/different_grid_target_blueprint.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/different_grid_target_blueprint.yaml
 </code></pre></div>
 </li>
 <li>
@@ -1827,7 +1831,7 @@
 </ol>
 <h3 id="instalacion-manual_1">Instalación manual<a class="headerlink" href="#instalacion-manual_1" title="Permanent link">&para;</a></h3>
 <ol>
-<li>Crea la carpeta <code>/config/blueprints/automation/marstek_venus_energy_manager/</code> si no existe.</li>
+<li>Crea la carpeta <code>/config/blueprints/automation/omnibattery/</code> si no existe.</li>
 <li>Copia dentro los archivos <code>.yaml</code> de la carpeta <code>blueprints/</code> de este repositorio.</li>
 <li>En Home Assistant, ve a <strong>Ajustes</strong> → <strong>Automatizaciones y escenas</strong> → <strong>Blueprints</strong> y pulsa <strong>Recargar blueprints</strong>. Si no aparece la opción, reinicia Home Assistant.</li>
 <li>Crea una automatización nueva desde el blueprint instalado.</li>
@@ -1838,7 +1842,7 @@
 <ol>
 <li>Ve a <strong>Ajustes</strong> → <strong>Dispositivos y servicios</strong>.</li>
 <li>Pulsa <strong>+ AÑADIR INTEGRACIÓN</strong>.</li>
-<li>Busca <strong>Marstek Venus Energy Manager</strong>.</li>
+<li>Busca <strong>Omnibattery</strong>.</li>
 <li>Sigue el <a href="../configuration/">asistente de configuración</a>.</li>
 </ol>
 <p><img alt="Añadir integración en HA" src="../../assets/screenshots/installation/add-integration.png" style="display: block; margin: 0 auto;" width="600" /></p>
