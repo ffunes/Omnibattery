@@ -969,6 +969,9 @@
       "no_pd_mode": {
         "name": "Seguimiento Directo sin PD"
       },
+      "min_soc_floor_enabled": {
+        "name": "SOC Mínimo Garantizado"
+      },
       "system_power_limits": {
         "name": "Límites de Potencia del Sistema"
       },

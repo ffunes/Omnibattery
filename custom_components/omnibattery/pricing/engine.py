@@ -33,6 +33,7 @@ from ..const import (
     EVENING_REEVAL_HOURS_BEFORE_TEND,
     EVENING_REEVAL_FALLBACK_HOUR,
     EVENING_DEFICIT_THRESHOLD_KWH,
+    FLOOR_HYSTERESIS_PCT,
 )
 from . import PriceSlot, DynamicPricingSchedule, calculations, notifications
 
@@ -1040,14 +1041,45 @@ class PricingManager:
                     )
                     return
 
+            # Guaranteed-minimum-SOC floor: the 30% re-eval threshold can't fire
+            # once last_evaluation_soc drifts below (floor - margin), so the battery
+            # would drain past the hysteresis band unprotected.
+            # floor_crossed: force a re-eval when SOC drops below (floor - margin).
+            # floor_recovered: force a re-eval when SOC climbs back to the floor while
+            # grid charging is active — stops charging on solar-positive days where
+            # floor_crossed was the only reason to charge.
+            floor = (
+                self._controller._predictive_min_soc_floor
+                if self._controller._predictive_min_soc_floor_enabled
+                else 0.0
+            )
+            floor_crossed = (
+                not is_initial_eval and
+                floor > 0 and
+                not self._controller.grid_charging_active and
+                current_avg_soc < floor - FLOOR_HYSTERESIS_PCT
+            )
+            floor_recovered = (
+                not is_initial_eval and
+                floor > 0 and
+                self._controller.grid_charging_active and
+                current_avg_soc >= floor and
+                self._controller.last_evaluation_soc < floor
+            )
+
             should_reevaluate = (
                 is_initial_eval or
+                floor_crossed or
+                floor_recovered or
                 abs(current_avg_soc - self._controller.last_evaluation_soc) >= SOC_REEVALUATION_THRESHOLD
             )
 
             if should_reevaluate:
                 if is_initial_eval:
                     _LOGGER.info("INITIAL evaluation of predictive grid charging (SOC: %.1f%%)", current_avg_soc)
+                elif floor_recovered:
+                    _LOGGER.info("RE-EVALUATING predictive grid charging: SOC recovered to floor (%.1f%% -> %.1f%%)",
+                                self._controller.last_evaluation_soc, current_avg_soc)
                 else:
                     _LOGGER.info("RE-EVALUATING predictive grid charging due to SOC drop (%.1f%% -> %.1f%%)",
                                 self._controller.last_evaluation_soc, current_avg_soc)

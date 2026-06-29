@@ -948,6 +948,9 @@
       "no_pd_mode": {
         "name": "No-PD Direct Tracking"
       },
+      "min_soc_floor_enabled": {
+        "name": "Guaranteed Minimum SOC"
+      },
       "system_power_limits": {
         "name": "System Power Limits"
       },

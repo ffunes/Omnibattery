@@ -131,10 +131,16 @@ DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT = 0.0
 # ramps up. This forces a charge sized to reach the floor SOC regardless of the
 # daily balance. 0 = disabled.
 CONF_PREDICTIVE_MIN_SOC_FLOOR = "predictive_min_soc_floor"
-DEFAULT_PREDICTIVE_MIN_SOC_FLOOR = 0.0
+DEFAULT_PREDICTIVE_MIN_SOC_FLOOR = 20.0
+CONF_ENABLE_MIN_SOC_FLOOR = "enable_min_soc_floor"
 
 # Re-evaluation thresholds
 SOC_REEVALUATION_THRESHOLD = 30  # Re-evaluate every 30% SOC drop
+
+# Guaranteed-minimum-SOC floor: only re-trigger when SOC drops this many % *below*
+# the floor, so tiny dips at the boundary don't re-fire every cycle (relay churn).
+# Band: soc < (floor - margin) triggers; charges up to floor.
+FLOOR_HYSTERESIS_PCT = 5
 
 # Weekly Full Charge Configuration
 CONF_ENABLE_WEEKLY_FULL_CHARGE = "enable_weekly_full_charge"
@@ -692,7 +698,7 @@ CONFIG_NUMBER_DEFINITIONS = [
     {
         "key": CONF_PREDICTIVE_MIN_SOC_FLOOR,
         "name": "Guaranteed Minimum SOC",
-        "min": 0.0,
+        "min": 20.0,
         "max": 90.0,
         "step": 5.0,
         "unit": "%",
