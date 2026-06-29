@@ -30,6 +30,7 @@ from .const import (
     CONF_MAX_CONTRACTED_POWER,
     DEFAULT_BASE_CONSUMPTION_KWH,
     SOC_REEVALUATION_THRESHOLD,
+    FLOOR_HYSTERESIS_PCT,
     CONF_ENABLE_WEEKLY_FULL_CHARGE,
     CONF_WEEKLY_FULL_CHARGE_DAY,
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
@@ -110,6 +111,7 @@ from .const import (
     DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
     CONF_PREDICTIVE_MIN_SOC_FLOOR,
     DEFAULT_PREDICTIVE_MIN_SOC_FLOOR,
+    CONF_ENABLE_MIN_SOC_FLOOR,
     CONF_ENABLE_HOURLY_BALANCE,
     CONF_HOURLY_BALANCE_TARGET_NET_WH,
     CONF_HOURLY_BALANCE_MAX_OFFSET_W,
@@ -629,6 +631,11 @@ class ChargeDischargeController:
         self._predictive_safety_margin_kwh: float = config_entry.data.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
         self._predictive_grid_charge_margin_pct: float = config_entry.data.get(CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT, DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT)
         self._predictive_min_soc_floor: float = config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
+        # Backward-compat default: if the key is absent but floor > 0 was stored, keep it active.
+        self._predictive_min_soc_floor_enabled: bool = config_entry.data.get(
+            CONF_ENABLE_MIN_SOC_FLOOR,
+            CONF_PREDICTIVE_MIN_SOC_FLOOR in config_entry.data and config_entry.data[CONF_PREDICTIVE_MIN_SOC_FLOOR] > 0,
+        )
         self._charge_delay_unlocked = False       # True when delay has been unlocked today
         self._delay_setpoint_reached = False      # True once SOC first reached the setpoint
         self._charge_delay_mgr = ChargeDelayManager(hass, config_entry, self)
@@ -1054,6 +1061,7 @@ class ChargeDischargeController:
         self._predictive_safety_margin_kwh = self.config_entry.data.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
         self._predictive_grid_charge_margin_pct = self.config_entry.data.get(CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT, DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT)
         self._predictive_min_soc_floor = self.config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
+        self._predictive_min_soc_floor_enabled = self.config_entry.data.get(CONF_ENABLE_MIN_SOC_FLOOR, self._predictive_min_soc_floor_enabled)
         self._charge_delay_status["soc_setpoint"] = self._delay_soc_setpoint if self._delay_soc_setpoint_enabled else None
         self.charge_delay_enabled = self.config_entry.data.get(
             CONF_ENABLE_CHARGE_DELAY,
@@ -2447,8 +2455,11 @@ class ChargeDischargeController:
         # scheduler charges regardless of the daily balance. Applied via max()
         # at each deficit branch below; flows through to the per-battery target
         # SOC and the dynamic-pricing slot sizing unchanged. 0 = disabled.
+        # Trigger only when SOC drops (floor - margin) below the floor, so tiny dips
+        # at the boundary don't re-fire every cycle (relay churn).
+        # Band: soc < (floor - margin) triggers; charges up to floor.
         floor_deficit_kwh = 0.0
-        if self._predictive_min_soc_floor > 0 and avg_soc < self._predictive_min_soc_floor:
+        if self._predictive_min_soc_floor_enabled and self._predictive_min_soc_floor > 0 and avg_soc < self._predictive_min_soc_floor - FLOOR_HYSTERESIS_PCT:
             floor_deficit_kwh = (self._predictive_min_soc_floor - avg_soc) / 100.0 * total_capacity_kwh
 
         # Get dynamic consumption forecast

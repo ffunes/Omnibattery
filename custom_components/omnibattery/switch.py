@@ -27,6 +27,8 @@ from .const import (
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
     CONF_SYSTEM_MAX_CHARGE_POWER,
     CONF_SYSTEM_MAX_DISCHARGE_POWER,
+    CONF_ENABLE_MIN_SOC_FLOOR,
+    CONF_ENABLE_PREDICTIVE_CHARGING,
     NOTIFICATION_ID_PREFIX,
 )
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
@@ -97,6 +99,10 @@ async def async_setup_entry(
     )
     if controller and has_system_limits_config:
         entities.append(SystemPowerLimitsSwitch(hass, entry, controller))
+
+    # Add guaranteed minimum SOC floor switch (predictive charging sub-feature)
+    if controller and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data:
+        entities.append(MinSOCFloorSwitch(hass, entry, controller))
 
     # Add time slot enable/disable switches
     time_slots = entry.data.get("no_discharge_time_slots", [])
@@ -1108,6 +1114,52 @@ class HourlyBalanceSwitch(SwitchEntity):
     @property
     def device_info(self):
         """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class MinSOCFloorSwitch(SwitchEntity):
+    """Switch to enable/disable the guaranteed minimum SOC floor feature."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "min_soc_floor_enabled"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}min_soc_floor_enabled"
+        self.entity_id = system_entity_id("switch", "min_soc_floor_enabled")
+        self._attr_icon = "mdi:battery-arrow-up"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        return self.controller._predictive_min_soc_floor_enabled
+
+    async def async_turn_on(self, **kwargs) -> None:
+        self.controller._predictive_min_soc_floor_enabled = True
+        new_data = dict(self.entry.data)
+        new_data[CONF_ENABLE_MIN_SOC_FLOOR] = True
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Guaranteed Minimum SOC floor ENABLED (floor: %.0f%%)",
+                     self.controller._predictive_min_soc_floor)
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        self.controller._predictive_min_soc_floor_enabled = False
+        new_data = dict(self.entry.data)
+        new_data[CONF_ENABLE_MIN_SOC_FLOOR] = False
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Guaranteed Minimum SOC floor DISABLED")
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",

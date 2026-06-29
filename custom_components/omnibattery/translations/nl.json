@@ -966,6 +966,9 @@
       "no_pd_mode": {
         "name": "Directe Tracking zonder PD"
       },
+      "min_soc_floor_enabled": {
+        "name": "Gegarandeerd Minimum SOC"
+      },
       "system_power_limits": {
         "name": "Systeemvermogenslimieten"
       },
