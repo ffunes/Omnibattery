@@ -115,7 +115,7 @@ For multi-battery power limits it reports whether the feature is enabled (`syste
 
 **How to enable it:**
 
-1. Go to **Settings → Devices & Services → Marstek Venus Energy Manager**.
+1. Go to **Settings → Devices & Services → Omnibattery**.
 2. Select the **Marstek Venus System** device.
 3. Find the **Configuration Summary** sensor (it is hidden by default) and enable it.
 4. Open the sensor's detail card and share its attributes (state + attributes).

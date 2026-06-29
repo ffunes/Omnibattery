@@ -71,7 +71,7 @@ Cuando la funcionalidad está activada, se crea un único sensor de diagnóstico
 
 ## Configuración
 
-Activa y configura desde **Configuración → Dispositivos y Servicios → Marstek Venus Energy Manager → Configurar → Balance neto horario**.
+Activa y configura desde **Configuración → Dispositivos y Servicios → Omnibattery → Configurar → Balance neto horario**.
 
 | Parámetro | Por defecto | Descripción |
 |---|---|---|

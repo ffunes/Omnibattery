@@ -71,7 +71,7 @@ A single diagnostic sensor (`sensor.*_balance_neto`) is created when the feature
 
 ## Configuration
 
-Enable and configure from **Settings → Devices & Services → Marstek Venus Energy Manager → Configure → Hourly net balance**.
+Enable and configure from **Settings → Devices & Services → Omnibattery → Configure → Hourly net balance**.
 
 | Parameter | Default | Description |
 |---|---|---|

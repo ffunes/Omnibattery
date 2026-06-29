@@ -115,7 +115,7 @@ Para límites de potencia multi-batería informa si la funcionalidad está activ
 
 **Cómo activarlo:**
 
-1. Ve a **Configuración → Dispositivos y servicios → Marstek Venus Energy Manager**.
+1. Ve a **Configuración → Dispositivos y servicios → Omnibattery**.
 2. Selecciona el dispositivo **Marstek Venus System**.
 3. Busca el sensor **Resumen de Configuración** (está oculto por defecto) y actívalo.
 4. Abre la tarjeta de detalle del sensor y comparte sus atributos (estado + atributos).

@@ -52,6 +52,6 @@ flowchart TD
 ## Modificar la configuración
 
 Una vez instalada, puedes modificar cualquier parámetro en:
-**Ajustes → Dispositivos y servicios → Marstek Venus Energy Manager → Configurar**
+**Ajustes → Dispositivos y servicios → Omnibattery → Configurar**
 
-![Reconfigure Marstek Venus Energy Manager](../assets/screenshots/configuration/reconfigure-marstek-venus-energy-manager.png){ width="650" style="display: block; margin: 0 auto;"}
+![Reconfigure Omnibattery](../assets/screenshots/configuration/reconfigure-marstek-venus-energy-manager.png){ width="650" style="display: block; margin: 0 auto;"}

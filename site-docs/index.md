@@ -1,6 +1,6 @@
-# Marstek Venus Energy Manager
+# Omnibattery
 
-**Marstek Venus Energy Manager** is a custom Home Assistant integration to monitor and control Marstek Venus batteries (E v2/v3, Venus A and Venus D series) via Modbus TCP.
+**Omnibattery** is a custom Home Assistant integration to monitor and control pluggable solar batteries — Marstek Venus (E v2/v3, Venus A and Venus D series) and Zendure SolarFlow (2400 AC+ / AC Pro) — via Modbus TCP or local HTTP.
 
 <div class="grid cards" markdown>
 
@@ -35,7 +35,8 @@ Three tabs:
 ## Key features
 
 - **PD Controller (Zero Export/Import)**: adjusts battery power in real time to keep grid exchange close to zero.
-- **Predictive charging**: three modes (time slot, dynamic pricing, real-time price) that charge from the grid only when the energy balance requires it. Uses a 7-day rolling average of real household consumption to decide whether grid charging is needed.
+- **No-PD direct-tracking mode** (opt-in): the battery follows the consumption sensor 1:1 in a single cycle — no integral, derivative, smoothing or rate limiter — for installations that prefer raw tracking over the PD control law.
+- **Predictive charging**: three modes (time slot, dynamic pricing, real-time price — including Tibber) that charge from the grid only when the energy balance requires it. Uses a 7-day rolling average of real household consumption to decide whether grid charging is needed.
 - **Multi-battery management**: smart selection with SOC priorities, energy hysteresis and efficiency zone operation.
 - **Discharge time slots**: define time windows and per-slot target grid power levels.
 - **Peak shaving**: reserves battery capacity to cover demand spikes above a configurable power threshold.
@@ -43,8 +44,8 @@ Three tabs:
 - **Cell balance monitor**: measures the voltage spread between the strongest and weakest cell after each full charge; tracks imbalance trends over time, sends alerts for moderate or high imbalance, and blocks discharge during the open-circuit voltage rest period.
 - **Solar charge delay**: postpones morning battery charging (both solar and grid) while expected solar production is enough to cover the remaining energy needed.
 - **Hourly net balance**: adjusts the PD setpoint continuously to keep hourly net grid energy at a configurable target (default: net zero per hour). Supports external net balance sensors and composes cleanly with all other features via the setpoint registry.
-- **Load exclusion**: exclude high-power devices (e.g. EV chargers) so the controller does not try to compensate their consumption.
-- **Proactive alarm notifications (v2 batteries only)**: monitors battery fault and alarm registers every 5 seconds and sends a Home Assistant notification the moment a new condition is detected, with the exact fault or alarm name. A system-level `System Alarm Status` sensor (`OK` / `Warning` / `Fault`) provides an at-a-glance view across all batteries.
+- **Load exclusion**: exclude high-power devices (e.g. EV chargers) so the controller does not try to compensate their consumption. Each excluded device has an individual exclusion percentage slider (0–100%).
+- **Proactive alarm notifications (Marstek v2 batteries only)**: monitors battery fault and alarm registers every 5 seconds and sends a Home Assistant notification the moment a new condition is detected, with the exact fault or alarm name. A system-level `System Alarm Status` sensor (`OK` / `Warning` / `Fault`) provides an at-a-glance view across all batteries.
 
 ## Disclaimer
 
