@@ -376,10 +376,25 @@ class MaxSocChargeManager:
         took_over = False
         active_coordinators: set = set()
 
+        # During an active weekly full charge the taper must drive the battery
+        # all the way to the real BMS cutoff. The 60 s measurement hold (0 W
+        # while vmax >= pause voltage) would otherwise cap the cell at 3.58 V and
+        # stall an imbalanced pack there forever — it relaxes below 3.58 V at 0 W,
+        # resumes, climbs back, and ping-pongs without ever reaching the cutoff.
+        # The delta-V diagnostic is still captured once at completion.
+        weekly_active = (
+            hasattr(c, "_weekly_charge_mgr") and c._weekly_full_charge_unlocked()
+        )
+
         for coordinator in c.coordinators:
             if coordinator.data is None or not self._taper_applies(coordinator):
                 continue
             if c._is_active_balance_mode_running(coordinator):
+                continue
+            if weekly_active:
+                # Let the weekly taper charge to the BMS cutoff; don't hold/measure.
+                c._normal_active_balance_phases.pop(coordinator, None)
+                c._normal_balance_measure_started.pop(coordinator, None)
                 continue
             if c._normal_balance_recal_override.get(coordinator):
                 # SOC recalibration in progress: let PD keep charging to the BMS
