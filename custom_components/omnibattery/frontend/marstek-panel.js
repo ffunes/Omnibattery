@@ -82,9 +82,11 @@ const I18N = {
     bcChargePower: "Charge power", bcDischargePower: "Discharge power",
     bcMaxCharge: "Max charge", bcMaxDischarge: "Max discharge",
     bcChargeToSoc: "Charge to SOC", bcChargeHysteresis: "Charge hysteresis", bcBackup: "Backup function", bcOffgridMode: "Off-grid mode",
+    bcBackupThreshold: "Backup threshold", bcVoltageTaper: "100% charge taper", bcActiveBalance: "Active balance",
     secManual: "Manual mode", itemEnable: "Enable",
     itemMaxContracted: "Max contracted power", itemSolarSafety: "Solar safety margin", itemGridChargeMargin: "Grid charge margin", itemMinSocFloorEnable: "SOC floor", itemMinSocFloor: "Guaranteed minimum SOC",
     itemSocThreshold: "SOC threshold", itemPeakLimit: "Peak limit",
+    secPricing: "Dynamic pricing", itemMaxPrice: "Max price (charge)", itemDischargePrice: "Discharge price floor",
     itemDelaySafety: "Safety margin", itemDelaySoc: "Delay target SOC", itemDelayDeadband: "Balance deadband",
     secHourly: "Hourly balance", hourlyEsOnly: "Only useful in Spain (RD 244/2019) · detected country: {c}", secWeeklyFull: "Weekly full charge", itemWeeklyDay: "Full charge day", itemWeeklyDelay: "Wait for solar charge delay",
     secSlots: "Configured slots", itemSlot: "Slot",
@@ -146,9 +148,11 @@ const I18N = {
     bcChargePower: "Potencia de carga", bcDischargePower: "Potencia de descarga",
     bcMaxCharge: "Máx. carga", bcMaxDischarge: "Máx. descarga",
     bcChargeToSoc: "Cargar hasta SOC", bcChargeHysteresis: "Histéresis de carga", bcBackup: "Función de respaldo", bcOffgridMode: "Modo off-grid",
+    bcBackupThreshold: "Umbral de respaldo", bcVoltageTaper: "Reducción carga 100%", bcActiveBalance: "Balanceo activo",
     secManual: "Modo manual", itemEnable: "Activar",
     itemMaxContracted: "Potencia contratada máx.", itemSolarSafety: "Margen de seguridad solar", itemGridChargeMargin: "Margen de carga de red", itemMinSocFloorEnable: "Suelo de SOC", itemMinSocFloor: "SOC mínimo garantizado",
     itemSocThreshold: "Umbral de SOC", itemPeakLimit: "Límite de pico",
+    secPricing: "Precios dinámicos", itemMaxPrice: "Precio máximo (carga)", itemDischargePrice: "Precio mínimo de descarga",
     itemDelaySafety: "Margen de seguridad", itemDelaySoc: "SOC objetivo de retardo", itemDelayDeadband: "Banda muerta de balance",
     secHourly: "Balance horario", hourlyEsOnly: "Solo útil en España (RD 244/2019) · país detectado: {c}", secWeeklyFull: "Carga semanal completa", itemWeeklyDay: "Día de carga completa", itemWeeklyDelay: "Esperar al retraso por solar",
     secSlots: "Franjas configuradas", itemSlot: "Franja",
@@ -208,9 +212,11 @@ const I18N = {
     bcChargePower: "Potència de càrrega", bcDischargePower: "Potència de descàrrega",
     bcMaxCharge: "Màx. càrrega", bcMaxDischarge: "Màx. descàrrega",
     bcChargeToSoc: "Carregar fins a SOC", bcChargeHysteresis: "Histèresi de càrrega", bcBackup: "Funció de reserva", bcOffgridMode: "Mode fora de xarxa",
+    bcBackupThreshold: "Llindar de reserva", bcVoltageTaper: "Reducció càrrega 100%", bcActiveBalance: "Balanç actiu",
     secManual: "Mode manual", itemEnable: "Activar",
     itemMaxContracted: "Potència contractada màx.", itemSolarSafety: "Marge de seguretat solar", itemGridChargeMargin: "Marge de càrrega de xarxa", itemMinSocFloorEnable: "Terra de SOC", itemMinSocFloor: "SOC mínim garantit",
     itemSocThreshold: "Llindar de SOC", itemPeakLimit: "Límit de pic",
+    secPricing: "Preus dinàmics", itemMaxPrice: "Preu màxim (càrrega)", itemDischargePrice: "Preu mínim de descàrrega",
     itemDelaySafety: "Marge de seguretat", itemDelaySoc: "SOC objectiu de retard", itemDelayDeadband: "Banda morta de balanç",
     secHourly: "Balanç horari", hourlyEsOnly: "Només útil a Espanya (RD 244/2019) · país detectat: {c}", secWeeklyFull: "Càrrega setmanal completa", itemWeeklyDay: "Dia de càrrega completa", itemWeeklyDelay: "Esperar al retard per solar",
     secSlots: "Franges configurades", itemSlot: "Franja",
@@ -270,9 +276,11 @@ const I18N = {
     bcChargePower: "Ladeleistung", bcDischargePower: "Entladeleistung",
     bcMaxCharge: "Max. Ladeleistung", bcMaxDischarge: "Max. Entladeleistung",
     bcChargeToSoc: "Laden bis SOC", bcChargeHysteresis: "Ladehysterese", bcBackup: "Backup-Funktion", bcOffgridMode: "Inselnetz-Modus",
+    bcBackupThreshold: "Backup-Schwelle", bcVoltageTaper: "100%-Ladungsreduktion", bcActiveBalance: "Aktiver Zellabgleich",
     secManual: "Manueller Modus", itemEnable: "Aktivieren",
     itemMaxContracted: "Max. Vertragsleistung", itemSolarSafety: "Sicherheitspuffer Solar", itemGridChargeMargin: "Netzladungs-Marge", itemMinSocFloorEnable: "SOC-Untergrenze", itemMinSocFloor: "Garantierter Mindest-SOC",
     itemSocThreshold: "SOC-Schwelle", itemPeakLimit: "Spitzenlimit",
+    secPricing: "Dynamische Preise", itemMaxPrice: "Max. Preis (Laden)", itemDischargePrice: "Entlade-Preisuntergrenze",
     itemDelaySafety: "Sicherheitspuffer", itemDelaySoc: "Verzögerungs-Ziel-SOC", itemDelayDeadband: "Bilanz-Totband",
     secHourly: "Stündliche Balance", hourlyEsOnly: "Nur in Spanien sinnvoll (RD 244/2019) · erkanntes Land: {c}", secWeeklyFull: "Wöchentliche Vollladung", itemWeeklyDay: "Tag der Vollladung", itemWeeklyDelay: "Auf Solar-Ladeverzögerung warten",
     secSlots: "Konfigurierte Zeitfenster", itemSlot: "Zeitfenster",
@@ -332,9 +340,11 @@ const I18N = {
     bcChargePower: "Puissance de charge", bcDischargePower: "Puissance de décharge",
     bcMaxCharge: "Charge max.", bcMaxDischarge: "Décharge max.",
     bcChargeToSoc: "Charger jusqu'à SOC", bcChargeHysteresis: "Hystérésis de charge", bcBackup: "Fonction de secours", bcOffgridMode: "Mode hors-réseau",
+    bcBackupThreshold: "Seuil de secours", bcVoltageTaper: "Réduction charge 100%", bcActiveBalance: "Équilibrage actif",
     secManual: "Mode manuel", itemEnable: "Activer",
     itemMaxContracted: "Puissance contractuelle max.", itemSolarSafety: "Marge de sécurité solaire", itemGridChargeMargin: "Marge de charge réseau", itemMinSocFloorEnable: "Plancher SOC", itemMinSocFloor: "SOC minimum garanti",
     itemSocThreshold: "Seuil SOC", itemPeakLimit: "Limite de pointe",
+    secPricing: "Tarification dynamique", itemMaxPrice: "Prix max. (charge)", itemDischargePrice: "Prix plancher de décharge",
     itemDelaySafety: "Marge de sécurité", itemDelaySoc: "SOC cible du délai", itemDelayDeadband: "Bande morte de bilan",
     secHourly: "Bilan horaire", hourlyEsOnly: "Utile uniquement en Espagne (RD 244/2019) · pays détecté : {c}", secWeeklyFull: "Charge complète hebdomadaire", itemWeeklyDay: "Jour de charge complète", itemWeeklyDelay: "Attendre le délai de charge solaire",
     secSlots: "Créneaux configurés", itemSlot: "Créneau",
@@ -394,9 +404,11 @@ const I18N = {
     bcChargePower: "Laadvermogen", bcDischargePower: "Ontlaadvermogen",
     bcMaxCharge: "Max. laden", bcMaxDischarge: "Max. ontladen",
     bcChargeToSoc: "Laden tot SOC", bcChargeHysteresis: "Laadhysterese", bcBackup: "Back-upfunctie", bcOffgridMode: "Off-grid-modus",
+    bcBackupThreshold: "Back-updrempel", bcVoltageTaper: "100%-laadbegrenzing", bcActiveBalance: "Actieve celbalans",
     secManual: "Handmatige modus", itemEnable: "Inschakelen",
     itemMaxContracted: "Max. gecontracteerd vermogen", itemSolarSafety: "Veiligheidsmarge zon", itemGridChargeMargin: "Netladingsmarge", itemMinSocFloorEnable: "SOC-vloer", itemMinSocFloor: "Gegarandeerde min. SOC",
     itemSocThreshold: "SOC-drempel", itemPeakLimit: "Pieklimiet",
+    secPricing: "Dynamische prijzen", itemMaxPrice: "Max. prijs (laden)", itemDischargePrice: "Ontlaad-prijsondergrens",
     itemDelaySafety: "Veiligheidsmarge", itemDelaySoc: "Doel-SOC vertraging", itemDelayDeadband: "Balans dode band",
     secHourly: "Uurbalans", hourlyEsOnly: "Alleen nuttig in Spanje (RD 244/2019) · gedetecteerd land: {c}", secWeeklyFull: "Wekelijkse volledige lading", itemWeeklyDay: "Dag volledige lading", itemWeeklyDelay: "Wachten op zonne-laadvertraging",
     secSlots: "Geconfigureerde tijdvakken", itemSlot: "Tijdvak",
@@ -535,9 +547,15 @@ const BAT_CONTROLS = [
   { key: "charge_to_soc", domain: "number", lk: "bcChargeToSoc", icon: "mdi:battery-sync-outline" },
   { key: "charge_hysteresis_percent", domain: "number", lk: "bcChargeHysteresis", icon: "mdi:battery-sync" },
   { key: "backup_function", domain: "switch", lk: "bcBackup", icon: "mdi:home-battery-outline" },
+  // Offgrid load threshold for the backup output (software-only, no register).
+  { key: "backup_offgrid_threshold", domain: "number", lk: "bcBackupThreshold", icon: "mdi:transmission-tower-off" },
   // Zendure off-grid output port mode (select: normal/economy/off). Distinct from
   // the Marstek backup_function switch; only one exists per device.
   { key: "grid_off_mode", domain: "select", lk: "bcOffgridMode", icon: "mdi:transmission-tower-off" },
+  // Cell-maintenance switches (Marstek only): 100% charge voltage taper and active
+  // balancing. Both default-enabled per battery; absent on Zendure.
+  { key: "full_charge_voltage_taper", domain: "switch", lk: "bcVoltageTaper", icon: "mdi:battery-clock" },
+  { key: "active_balance_mode", domain: "switch", lk: "bcActiveBalance", icon: "mdi:battery-sync" },
 ];
 
 // Unified Control tab: system-level entities grouped BY FEATURE — each section
@@ -709,6 +727,16 @@ const SYS_SECTIONS = [
       { key: "capacity_protection_limit", lk: "itemPeakLimit", icon: "mdi:flash" },
     ],
   },
+  {
+    // Dynamic-pricing thresholds (only exist when a price provider is configured):
+    // live-editable charge ceiling + discharge floor.
+    tk: "secPricing",
+    icon: "mdi:cash-clock",
+    items: [
+      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus" },
+      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus" },
+    ],
+  },
 ];
 
 // Control tab layout, by section `tk`. Sections absent from the live registry
@@ -723,7 +751,7 @@ const SYS_LAYOUT = [
       ["secManual", "secWeeklyFull"],
       ["diagPredictive", "diagChargeDelay"],
       ["secHourly", "secSysLimits"],
-      ["diagPeak", null],
+      ["diagPeak", "secPricing"],
     ],
   },
   { col: ["secSlots"] },
@@ -788,6 +816,7 @@ const SYS_HELP = {
     delay_soc_setpoint: "The SOC the battery must reach before the solar delay kicks in. Minimum is 12 % — the Venus battery minimum discharge SOC.",
     capacity_protection_soc_threshold: "When average battery SOC drops below this value, capacity protection activates. The battery will stop discharging for normal consumption and only cover peaks above the limit.",
     capacity_protection_limit: "Grid import power threshold. When house consumption exceeds this value and protection is active, the battery discharges only the excess above this limit.",
+    secPricing: "Live thresholds for dynamic pricing. Charge only when the grid price is at or below the charge ceiling; discharge only when at or above the discharge floor. Leave empty to fall back to the daily-average price. The charge ceiling must stay ≤ the discharge floor.",
   },
   es: {
     secManual: "Cuando está ACTIVADO, el control automático (PD, carga predictiva, franjas horarias, reducción de picos…) se pausa y todas las baterías se ponen a 0 W (en reposo). DESACTÍVALO para reanudar el control automático.",
@@ -830,6 +859,7 @@ const SYS_HELP = {
     delay_soc_setpoint: "SOC mínimo que debe alcanzar la batería antes de que el retraso solar entre en funcionamiento. El valor mínimo es el 12 % (SOC mínimo de descarga de las baterías Venus).",
     capacity_protection_soc_threshold: "Cuando el SOC medio de las baterías baje de este valor, se activa la reducción de picos. La batería dejará de descargar para consumo normal y solo cubrirá picos por encima del límite.",
     capacity_protection_limit: "Umbral de potencia de importación de red. Cuando el consumo de la casa supere este valor y la reducción de picos esté activa, la batería solo descargará el exceso por encima de este límite.",
+    secPricing: "Umbrales en vivo para precios dinámicos. Carga solo cuando el precio de red está en o por debajo del techo de carga; descarga solo cuando está en o por encima del suelo de descarga. Déjalos vacíos para usar el precio medio diario. El techo de carga debe mantenerse ≤ el suelo de descarga.",
   },
   ca: {
     secManual: "Quan està ACTIVAT, el control automàtic (PD, càrrega predictiva, franges horàries, reducció de pics…) es pausa i totes les bateries es posen a 0 W (en repòs). DESACTIVA'L per reprendre el control automàtic.",
@@ -871,6 +901,7 @@ const SYS_HELP = {
     delay_soc_setpoint: "SOC mínim que ha d'assolir la bateria abans que el retard solar entri en funcionament. El valor mínim és el 12 % (SOC mínim de descàrrega de les bateries Venus).",
     capacity_protection_soc_threshold: "Quan el SOC mitjà de les bateries baixi d'aquest valor, s'activa la reducció de pics. La bateria deixarà de descarregar per a consum normal i només cobrirà pics per sobre del límit.",
     capacity_protection_limit: "Llindar de potència d'importació de xarxa. Quan el consum de la casa superi aquest valor i la reducció de pics estigui activa, la bateria només descarregarà l'excés per sobre d'aquest límit.",
+    secPricing: "Llindars en viu per a preus dinàmics. Carrega només quan el preu de xarxa està en o per sota del sostre de càrrega; descarrega només quan està en o per sobre del terra de descàrrega. Deixa'ls buits per usar el preu mitjà diari. El sostre de càrrega s'ha de mantenir ≤ el terra de descàrrega.",
   },
   de: {
     secManual: "Wenn EIN, wird die automatische Regelung (PD, prädiktives Laden, Zeitfenster, Lastspitzenkappung…) pausiert und jede Batterie auf 0 W (Leerlauf) gesetzt. Schalte AUS, um die automatische Regelung fortzusetzen.",
@@ -912,6 +943,7 @@ const SYS_HELP = {
     delay_soc_setpoint: "Der SOC, den die Batterie erreichen muss, bevor die Solarverzögerung greift. Minimum ist 12 % — der minimale Entlade-SOC der Venus-Batterie.",
     capacity_protection_soc_threshold: "Wenn der durchschnittliche Batterie-SOC unter diesen Wert fällt, wird die Kapazitätsschutzfunktion aktiviert. Die Batterie entlädt nicht mehr für den normalen Verbrauch und deckt nur Spitzen über dem Limit ab.",
     capacity_protection_limit: "Netzimport-Leistungsschwelle. Wenn der Hausverbrauch diesen Wert überschreitet und der Schutz aktiv ist, entlädt die Batterie nur den Überschuss über diesem Limit.",
+    secPricing: "Live-Schwellen für dynamische Preise. Lädt nur, wenn der Netzpreis auf oder unter der Lade-Obergrenze liegt; entlädt nur, wenn er auf oder über der Entlade-Untergrenze liegt. Leer lassen, um auf den Tagesdurchschnittspreis zurückzufallen. Die Lade-Obergrenze muss ≤ der Entlade-Untergrenze bleiben.",
   },
   fr: {
     secManual: "Quand ACTIVÉ, le contrôle automatique (PD, charge prédictive, plages horaires, écrêtage des pics…) est mis en pause et chaque batterie est réglée à 0 W (repos). DÉSACTIVE-le pour reprendre le contrôle automatique.",
@@ -953,6 +985,7 @@ const SYS_HELP = {
     delay_soc_setpoint: "Le SOC que la batterie doit atteindre avant que le délai solaire ne s'active. Le minimum est 12 % — le SOC de décharge minimal de la batterie Venus.",
     capacity_protection_soc_threshold: "Quand le SOC moyen des batteries descend sous cette valeur, l'écrêtage des pics s'active. La batterie cesse de décharger pour la consommation normale et ne couvre que les pics au-dessus de la limite.",
     capacity_protection_limit: "Seuil de puissance d'import réseau. Quand la consommation de la maison dépasse cette valeur et que la protection est active, la batterie ne décharge que l'excédent au-dessus de cette limite.",
+    secPricing: "Seuils en direct pour la tarification dynamique. Charge uniquement quand le prix réseau est au plafond de charge ou en dessous ; décharge uniquement quand il est au plancher de décharge ou au-dessus. Laisse-les vides pour utiliser le prix moyen journalier. Le plafond de charge doit rester ≤ au plancher de décharge.",
   },
   nl: {
     secManual: "Wanneer AAN, wordt de automatische regeling (PD, voorspellend laden, tijdvensters, piekafvlakking…) gepauzeerd en wordt elke batterij op 0 W (rust) gezet. Zet UIT om de automatische regeling te hervatten.",
@@ -994,6 +1027,7 @@ const SYS_HELP = {
     delay_soc_setpoint: "De SOC die de batterij moet bereiken voordat de zonnevertraging ingaat. Minimum is 12 % — de minimale ontlaad-SOC van de Venus-batterij.",
     capacity_protection_soc_threshold: "Wanneer de gemiddelde batterij-SOC onder deze waarde zakt, wordt capaciteitsbescherming geactiveerd. De batterij stopt met ontladen voor normaal verbruik en dekt alleen pieken boven de limiet.",
     capacity_protection_limit: "Netimport-vermogensdrempel. Wanneer het huisverbruik deze waarde overschrijdt en de bescherming actief is, ontlaadt de batterij alleen het overschot boven deze limiet.",
+    secPricing: "Live-drempels voor dynamische prijzen. Laadt alleen wanneer de netprijs op of onder het laadplafond ligt; ontlaadt alleen wanneer op of boven de ontlaadondergrens. Laat leeg om terug te vallen op de daggemiddelde prijs. Het laadplafond moet ≤ de ontlaadondergrens blijven.",
   },
 };
 
