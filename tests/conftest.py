@@ -124,6 +124,7 @@ class FakeCoordinator:
         "max_discharge_power": 0,
         "max_soc": 80,
         "min_soc": 10,
+        "commanded_charge_power": 0,
         "rs485_user_disabled": False,
         "balance_hold": False,
         "apply_power": None,

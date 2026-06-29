@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.0b2] - 2026-06-29
+
+### Fixed
+- **Weekly full charge stopped near the top instead of charging to the BMS cutoff**: an idle battery (≤10 W + Standby in the taper zone but *not* being commanded to charge) was mistaken for a real BMS cutoff, so a brief solar lull falsely marked it "full" at 94–98 % SOC and excluded it from charging for the rest of the run. A cutoff now only counts while the battery is actually commanded to charge yet refuses, and the confirmed-cutoff latch is held through the charge exclusion that follows. [`control/weekly_full_charge.py`](custom_components/omnibattery/control/weekly_full_charge.py).
+
 ## [1.0.0b1] - 2026-06-29
 
 > ### ⚠️ Major change — new repository, integration renamed to “Omnibattery”

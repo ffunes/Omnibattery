@@ -92,9 +92,19 @@ class WeeklyFullChargeManager:
             if soc >= 99 or in_taper_zone:
                 power = c.data.get("battery_power", None)
                 inv_state = c.data.get("inverter_state", None)
+                # A real top-of-charge cutoff only counts when we are actually
+                # commanding the battery to charge but it refuses (≤10 W +
+                # Standby). A battery that is merely idle — not allocated charge
+                # this cycle (solar lull, PD prioritising another battery, or
+                # already excluded as full) — reads the same ≤10 W + Standby
+                # without being full. Gating on the commanded setpoint is what
+                # separates a real BMS cut from "nobody asked it to charge", and
+                # stops an idle battery from racking up cutoff cycles forever.
+                commanded = getattr(c, "commanded_charge_power", 0) or 0
                 cutoff = (
                     power is not None
                     and inv_state is not None
+                    and commanded > _BMS_CUTOFF_POWER_W
                     and power <= _BMS_CUTOFF_POWER_W
                     and inv_state == _INVERTER_STATE_STANDBY
                 )
@@ -103,23 +113,29 @@ class WeeklyFullChargeManager:
                     self._bms_cutoff_counts[c.name] = count
                     if count == 1:
                         _LOGGER.info(
-                            "%s: SOC %d%%, power=%.1fW, inverter=Standby — "
+                            "%s: SOC %d%%, commanded=%.0fW, power=%.1fW, inverter=Standby — "
                             "possible BMS cutoff, confirming (%d/%d cycles)",
-                            c.name, soc, power, count, _BMS_CUTOFF_REQUIRED_CYCLES,
+                            c.name, soc, commanded, power, count, _BMS_CUTOFF_REQUIRED_CYCLES,
                         )
                     elif count == _BMS_CUTOFF_REQUIRED_CYCLES:
                         _LOGGER.info(
-                            "%s: BMS cutoff confirmed at %d%% (%d cycles at ≤%.0fW + Standby)",
+                            "%s: BMS cutoff confirmed at %d%% (%d cycles at ≤%.0fW + Standby "
+                            "while commanded to charge)",
                             c.name, soc, count, _BMS_CUTOFF_POWER_W,
                         )
-                else:
+                elif power is not None and power > _BMS_CUTOFF_POWER_W:
+                    # Battery is accepting charge → genuinely not full. Reset.
                     if self._bms_cutoff_counts.get(c.name, 0) > 0:
                         _LOGGER.debug(
-                            "%s: BMS cutoff condition cleared (power=%.1fW, inv_state=%s) — "
+                            "%s: BMS cutoff condition cleared (charging at %.1fW) — "
                             "resetting counter",
-                            c.name, power or 0, inv_state,
+                            c.name, power,
                         )
                     self._bms_cutoff_counts[c.name] = 0
+                # else: idle / not commanded to charge this cycle — freeze the
+                # counter (neither increment nor reset) so a confirmed cutoff
+                # latches through the charge-exclusion that follows it (a full
+                # battery stops being commanded, which would otherwise reset it).
             else:
                 self._bms_cutoff_counts[c.name] = 0
 
