@@ -6,13 +6,13 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Home Assistant custom integration for Marstek Venus battery systems">
+        <meta name="description" content="Home Assistant custom integration for pluggable solar batteries (Marstek Venus and Zendure SolarFlow)">
       
       
         <meta name="author" content="ffunes">
       
       
-        <link rel="canonical" href="https://ffunes.github.io/Marstek-Venus-Energy-Manager/es/reference/architecture/">
+        <link rel="canonical" href="https://ffunes.github.io/omnibattery/es/reference/architecture/">
       
       
         <link rel="prev" href="../../features/hourly-net-balance/">
@@ -33,7 +33,7 @@
     
     
       
-        <title>Arquitectura - Marstek Venus Energy Manager</title>
+        <title>Arquitectura - Omnibattery</title>
       
     
     
@@ -104,7 +104,7 @@
 
 <header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Cabecera">
-    <a href="../../" title="Marstek Venus Energy Manager" class="md-header__button md-logo" aria-label="Marstek Venus Energy Manager" data-md-component="logo">
+    <a href="../../" title="Omnibattery" class="md-header__button md-logo" aria-label="Omnibattery" data-md-component="logo">
       
   <img src="../../../assets/logo.png" alt="logo">
 
@@ -117,7 +117,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Marstek Venus Energy Manager
+            Omnibattery
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -231,13 +231,13 @@
     
     
       <div class="md-header__source">
-        <a href="https://github.com/ffunes/Marstek-Venus-Energy-Manager" title="Ir al repositorio" class="md-source" data-md-component="source">
+        <a href="https://github.com/ffunes/omnibattery" title="Ir al repositorio" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
-    ffunes/Marstek-Venus-Energy-Manager
+    ffunes/omnibattery
   </div>
 </a>
       </div>
@@ -416,22 +416,22 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navegación" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../" title="Marstek Venus Energy Manager" class="md-nav__button md-logo" aria-label="Marstek Venus Energy Manager" data-md-component="logo">
+    <a href="../../" title="Omnibattery" class="md-nav__button md-logo" aria-label="Omnibattery" data-md-component="logo">
       
   <img src="../../../assets/logo.png" alt="logo">
 
     </a>
-    Marstek Venus Energy Manager
+    Omnibattery
   </label>
   
     <div class="md-nav__source">
-      <a href="https://github.com/ffunes/Marstek-Venus-Energy-Manager" title="Ir al repositorio" class="md-source" data-md-component="source">
+      <a href="https://github.com/ffunes/omnibattery" title="Ir al repositorio" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
   </div>
   <div class="md-source__repository">
-    ffunes/Marstek-Venus-Energy-Manager
+    ffunes/omnibattery
   </div>
 </a>
     </div>
@@ -1354,6 +1354,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#drivers-de-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drivers de hardware
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Drivers de hardware">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#que-aporta-un-driver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qué aporta un driver
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#las-capacidades-reemplazan-a-los-checks-de-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Las capacidades reemplazan a los checks de versión
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#flujo-de-datos" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1550,6 +1589,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#drivers-de-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drivers de hardware
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Drivers de hardware">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#que-aporta-un-driver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qué aporta un driver
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#las-capacidades-reemplazan-a-los-checks-de-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Las capacidades reemplazan a los checks de versión
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#flujo-de-datos" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1588,7 +1666,7 @@
 
 
   
-    <a href="https://github.com/ffunes/Marstek-Venus-Energy-Manager/edit/main/site-docs/reference/architecture.es.md" title="Editar esta página" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/reference/architecture.es.md" title="Editar esta página" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1602,18 +1680,26 @@
     GS[Sensor de red HA] --&gt; CC[ChargeDischargeController\n__init__.py]
     CC --&gt; PD[Algoritmo PD]
     PD --&gt; DIST[Distribución de potencia\nmulti-batería]
-    DIST --&gt; MW[Escritura Modbus]
-    MW --&gt; BAT1[Batería 1]
-    MW --&gt; BAT2[Batería 2..4]
+    DIST --&gt; DRV[BatteryDriver\napply_setpoint]
 
-    COORD[MarstekVenusDataUpdateCoordinator\ncoordinator.py] --&gt; MR[Lectura Modbus]
-    MR --&gt; BAT1
-    MR --&gt; BAT2
+    COORD[MarstekVenusDataUpdateCoordinator\ninfra/coordinator.py] --&gt; DRV2[BatteryDriver\nread_telemetry]
     COORD --&gt; EU[Actualización de entidades HA]
 
-    MC[MarstekModbusClient\nmodbus_client.py] --&gt; MW
-    MC --&gt; MR</code></pre>
+    DRV --&gt; M[MarstekModbusDriver\nModbus TCP/RTU]
+    DRV --&gt; Z[ZendureLocalDriver\nHTTP local]
+    DRV2 --&gt; M
+    DRV2 --&gt; Z
+    M --&gt; BAT1[Batería Marstek]
+    Z --&gt; BAT2[Batería Zendure]</code></pre>
+<p>El bucle de control y el coordinador nunca hablan con el hardware directamente:
+cada lectura y escritura pasa por un <strong><code>BatteryDriver</code></strong> agnóstico de marca (ver
+<a href="#drivers-de-hardware">Drivers de hardware</a> más abajo). Esto es lo que hace
+multi-marca a la integración — añadir una marca de batería es escribir un driver
+nuevo, no editar la lógica de control.</p>
 <h2 id="modulos">Módulos<a class="headerlink" href="#modulos" title="Permanent link">&para;</a></h2>
+<p>La raíz de la integración guarda solo los archivos de plataforma de Home
+Assistant (<code>sensor.py</code>, <code>number.py</code>, …) y el controlador. Todo lo demás vive en
+subpaquetes por responsabilidad.</p>
 <table>
 <thead>
 <tr>
@@ -1629,66 +1715,237 @@
 <td>Bucle de control principal (dirigido por eventos del sensor de red + watchdog de 2 s), algoritmo PD, distribución multi-batería</td>
 </tr>
 <tr>
-<td><code>coordinator.py</code></td>
-<td><code>MarstekVenusDataUpdateCoordinator</code></td>
-<td>Polling periódico de datos Modbus, actualización de entidades</td>
-</tr>
-<tr>
-<td><code>modbus_client.py</code></td>
-<td><code>MarstekModbusClient</code></td>
-<td>Comunicación TCP asíncrona con pymodbus, reintentos con backoff</td>
-</tr>
-<tr>
 <td><code>config_flow.py</code></td>
 <td>—</td>
-<td>Asistente de configuración multi-paso en HA UI</td>
+<td>Asistente de configuración multi-paso en HA UI (selección de marca, baterías, funciones)</td>
 </tr>
 <tr>
-<td><code>const.py</code></td>
+<td><strong><code>drivers/</code></strong></td>
+<td><code>BatteryDriver</code></td>
+<td>Abstracción de hardware agnóstica de marca — ver abajo</td>
+</tr>
+<tr>
+<td><code>drivers/base.py</code></td>
+<td><code>BatteryDriver</code>, <code>DriverCapabilities</code></td>
+<td>El contrato del driver y el dataclass de rasgos estáticos</td>
+</tr>
+<tr>
+<td><code>drivers/marstek.py</code></td>
+<td><code>MarstekModbusDriver</code></td>
+<td>Marstek Venus (v2/v3/vA/vD) por Modbus TCP / RTU</td>
+</tr>
+<tr>
+<td><code>drivers/zendure.py</code></td>
+<td><code>ZendureLocalDriver</code></td>
+<td>Zendure SolarFlow por HTTP local</td>
+</tr>
+<tr>
+<td><code>infra/coordinator.py</code></td>
+<td><code>MarstekVenusDataUpdateCoordinator</code></td>
+<td>Polling periódico de telemetría (vía el driver), actualización de entidades</td>
+</tr>
+<tr>
+<td><code>infra/modbus_client.py</code></td>
+<td><code>MarstekModbusClient</code></td>
+<td>Transporte Modbus TCP/RTU asíncrono con pymodbus, reintentos con backoff</td>
+</tr>
+<tr>
+<td><code>infra/external_loads.py</code></td>
 <td>—</td>
-<td>Definiciones de todos los registros Modbus y entidades</td>
+<td>Ajuste por dispositivos excluidos y reparto del excedente solar</td>
 </tr>
 <tr>
-<td><code>aggregate_sensors.py</code></td>
-<td>—</td>
-<td>Sensores agregados del sistema (suma de todas las baterías)</td>
-</tr>
-<tr>
-<td><code>calculated_sensors.py</code></td>
-<td>—</td>
-<td>Sensores derivados calculados (ciclos, estimaciones)</td>
-</tr>
-<tr>
-<td><code>balance_monitor.py</code></td>
-<td><code>CellBalanceMonitor</code></td>
-<td>Medición del spread de tensión de celdas tras la carga completa e historial de salud</td>
-</tr>
-<tr>
-<td><code>non_responsive_tracker.py</code></td>
-<td><code>NonResponsiveTracker</code></td>
-<td>Detección de baterías sin respuesta y ventanas de exclusión de 5 minutos</td>
-</tr>
-<tr>
-<td><code>alarm_notifier.py</code></td>
+<td><code>infra/alarm_notifier.py</code></td>
 <td><code>AlarmNotifier</code></td>
 <td>Detección de cambios de bits de alarma/fallo y formateo de notificaciones persistentes de HA</td>
 </tr>
 <tr>
-<td><code>weekly_full_charge.py</code></td>
+<td><code>infra/entity_naming.py</code></td>
+<td>—</td>
+<td>IDs de entidad basados en translation-key y migraciones del registro</td>
+</tr>
+<tr>
+<td><code>const/</code></td>
+<td>—</td>
+<td>Definiciones de todos los registros Modbus y entidades (divididas por versión de batería)</td>
+</tr>
+<tr>
+<td><code>pricing/engine.py</code></td>
+<td>—</td>
+<td>Carga predictiva: precio dinámico, franja horaria, precio en tiempo real, SOC garantizado</td>
+</tr>
+<tr>
+<td><code>control/power_distribution.py</code></td>
+<td>—</td>
+<td>Reparte el setpoint del sistema entre las baterías activas</td>
+</tr>
+<tr>
+<td><code>control/charge_delay.py</code></td>
+<td>—</td>
+<td>Retraso de carga solar</td>
+</tr>
+<tr>
+<td><code>control/max_soc_charge.py</code></td>
+<td>—</td>
+<td>Reducción por voltaje al 100 % / protección de tope de carga</td>
+</tr>
+<tr>
+<td><code>control/weekly_full_charge.py</code></td>
 <td><code>WeeklyFullChargeManager</code></td>
 <td>Estado de carga semanal completa, persistencia y orquestación de escritura de registros</td>
 </tr>
 <tr>
-<td><code>consumption_tracker.py</code></td>
+<td><code>control/active_balance_mode.py</code></td>
+<td>—</td>
+<td>Medición de balance activo de celdas</td>
+</tr>
+<tr>
+<td><code>tracking/consumption_tracker.py</code></td>
 <td><code>ConsumptionTracker</code></td>
-<td>Historial de consumo, acumuladores de energía diaria, detección de tiempos solares, backfill del recorder y captura diaria a las 23:55</td>
+<td>Historial de consumo, acumuladores de energía diaria, detección de tiempos solares, backfill del recorder, captura diaria</td>
+</tr>
+<tr>
+<td><code>tracking/balance_monitor.py</code></td>
+<td><code>CellBalanceMonitor</code></td>
+<td>Medición del spread de tensión de celdas tras la carga completa e historial de salud</td>
+</tr>
+<tr>
+<td><code>tracking/non_responsive_tracker.py</code></td>
+<td><code>NonResponsiveTracker</code></td>
+<td>Detección de baterías sin respuesta y ventanas de exclusión de 5 minutos</td>
+</tr>
+<tr>
+<td><code>tracking/hourly_balance.py</code></td>
+<td>—</td>
+<td>Contabilidad de balance neto horario (España RD 244/2019)</td>
+</tr>
+<tr>
+<td><code>sensors/aggregate_sensors.py</code></td>
+<td>—</td>
+<td>Sensores agregados del sistema (suma de todas las baterías)</td>
+</tr>
+<tr>
+<td><code>sensors/calculated_sensors.py</code></td>
+<td>—</td>
+<td>Sensores derivados (ciclos, eficiencia, energía sintética, estimaciones)</td>
 </tr>
 </tbody>
 </table>
+<h2 id="drivers-de-hardware">Drivers de hardware<a class="headerlink" href="#drivers-de-hardware" title="Permanent link">&para;</a></h2>
+<p>Un <strong>driver</strong> posee toda la E/S de hardware específica de marca — transporte,
+ciclo de vida de la conexión, decodificación de telemetría y comandos de
+control — detrás de una sola interfaz,
+<a href="https://github.com/ffunes/omnibattery/blob/main/custom_components/omnibattery/drivers/base.py"><code>drivers/base.py</code></a><code>::BatteryDriver</code>.
+El coordinador y el bucle de control hablan solo con esa interfaz, así que nunca
+ramifican por marca o versión de firmware.</p>
+<p>El contrato es deliberadamente <strong>semántico, no con forma de registro</strong>. Expone
+dos operaciones — «dame una instantánea de telemetría» y «entrega esta potencia
+neta» — de modo que una batería de registros/Modbus (Marstek) y una de
+propiedades/HTTP (Zendure) encajan ambas detrás de él sin que direcciones de
+registro ni rutas HTTP se filtren a la capa de control.</p>
+<h3 id="que-aporta-un-driver">Qué aporta un driver<a class="headerlink" href="#que-aporta-un-driver" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Superficie</th>
+<th>Método / propiedad</th>
+<th>Propósito</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Identidad</td>
+<td><code>capabilities</code>, <code>model_label</code></td>
+<td>Rasgos estáticos del hardware (ver abajo) y una etiqueta de display</td>
+</tr>
+<tr>
+<td>Conexión</td>
+<td><code>connect()</code>, <code>close()</code>, <code>connected</code></td>
+<td>Ciclo de vida del transporte (posee el slot TCP único de v3, etc.)</td>
+</tr>
+<tr>
+<td>Lectura</td>
+<td><code>read_telemetry(keys)</code>, <code>read_groups</code></td>
+<td>Última telemetría como dict plano <code>{clave_lógica: valor}</code>; <code>read_groups</code> permite al coordinador programar el polling por bloque de registros</td>
+</tr>
+<tr>
+<td>Escritura</td>
+<td><code>apply_setpoint(net_power_w, …)</code></td>
+<td>Comanda una única potencia neta con signo (+carga / −descarga); el driver la traduce a su propio formato de cable</td>
+</tr>
+<tr>
+<td>Escritura</td>
+<td><code>write_control(key, value)</code></td>
+<td>Ruta genérica de escritura para las entidades number/select/switch de usuario</td>
+</tr>
+</tbody>
+</table>
+<p><code>apply_setpoint</code> devuelve un <code>SetpointResult</code> que lleva la potencia aplicada, si
+la escritura se confirmó por readback, la potencia entregada medida y un eco del
+estado nativo de la marca que el coordinador fusiona en <code>coordinator.data</code>.</p>
+<h3 id="las-capacidades-reemplazan-a-los-checks-de-version">Las capacidades reemplazan a los checks de versión<a class="headerlink" href="#las-capacidades-reemplazan-a-los-checks-de-version" title="Permanent link">&para;</a></h3>
+<p>Cada driver reporta un <code>DriverCapabilities</code> inmutable una vez; los llamadores lo
+consultan en lugar de codificar <code>if battery_version in (...)</code>. Las capas de
+control y entidades lo leen desde <code>coordinator.capabilities</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Capacidad</th>
+<th>Significado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hardware_soc_cutoff</code></td>
+<td>El hardware aplica el corte min/max de SOC por sí mismo (v2); si no, lo hace la capa de control por software</td>
+</tr>
+<tr>
+<td><code>has_force_mode</code></td>
+<td>El hardware tiene un comando de modo forzado/carga/descarga distinto</td>
+</tr>
+<tr>
+<td><code>push_telemetry</code></td>
+<td>La telemetría llega por push en vez de polling</td>
+</tr>
+<tr>
+<td><code>max_charge_power_w</code> / <code>max_discharge_power_w</code></td>
+<td>Envolvente de potencia que acepta el hardware</td>
+</tr>
+<tr>
+<td><code>has_mppt_pv</code></td>
+<td>Entradas PV de acoplamiento DC / MPPT presentes (Venus A/D)</td>
+</tr>
+<tr>
+<td><code>has_alarm_registers</code></td>
+<td>Expone estado de alarma/fallo (solo Marstek v2)</td>
+</tr>
+<tr>
+<td><code>has_rs485_control</code></td>
+<td>El modo de control externo RS485/Modbus se puede conmutar</td>
+</tr>
+<tr>
+<td><code>has_energy_counters</code></td>
+<td>Reporta energía acumulada + capacidad nominal; cuando es falso la integración sintetiza la energía a partir de la potencia y toma la capacidad de una entidad de usuario (Zendure)</td>
+</tr>
+<tr>
+<td><code>setpoint_confirm_reliable</code></td>
+<td>Un readback refleja de forma fiable el comando recién escrito en el ciclo de confirmación</td>
+</tr>
+<tr>
+<td><code>actuator_latency_s</code></td>
+<td>Tiempo de peor caso para que un setpoint se aplique y aparezca en la telemetría — gobierna el ritmo del bucle por driver</td>
+</tr>
+</tbody>
+</table>
+<p>El coordinador selecciona el driver según la marca configurada
+(<a href="https://github.com/ffunes/omnibattery/blob/main/custom_components/omnibattery/infra/coordinator.py"><code>infra/coordinator.py</code></a>):
+<code>zendure</code> → <code>ZendureLocalDriver</code>, en otro caso <code>MarstekModbusDriver</code>. El driver
+también posee las listas de definiciones de registro/entidad de su versión, que
+las plataformas leen en lugar de ramificar por la cadena de versión.</p>
 <h2 id="flujo-de-datos">Flujo de datos<a class="headerlink" href="#flujo-de-datos" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Sensor de red → Controlador (PD) → Distribución de potencia → Escritura Modbus → Baterías
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Sensor de red → Controlador (PD) → Distribución de potencia → driver.apply_setpoint → Baterías
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                      ↑
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Coordinador → Lectura Modbus → Actualización de entidades
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Coordinador → driver.read_telemetry → Actualización de entidades
 </code></pre></div>
 <h2 id="intervalos-de-polling">Intervalos de polling<a class="headerlink" href="#intervalos-de-polling" title="Permanent link">&para;</a></h2>
 <table>
@@ -1816,7 +2073,7 @@
       
       
     
-    <a href="https://github.com/ffunes/Marstek-Venus-Energy-Manager" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+    <a href="https://github.com/ffunes/omnibattery" target="_blank" rel="noopener" title="github.com" class="md-social__link">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
     </a>
   
