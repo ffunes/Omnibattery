@@ -357,6 +357,10 @@ class ZendureLocalDriver(BatteryDriver):
     def model_label(self) -> Optional[str]:
         return self._product
 
+    @property
+    def serial(self) -> Optional[str]:
+        return self._sn
+
     # --- connection lifecycle -----------------------------------------------
 
     @property

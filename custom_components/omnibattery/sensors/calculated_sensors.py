@@ -421,6 +421,10 @@ class SyntheticEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
         self._kwh = 0.0
         self._last_mono: float | None = None
         self._reset_date = dt_util.now().date() if self._daily else None
+        # Per-serial backup so a delete + re-add reclaims the lifetime total.
+        self._backup = None
+        self._restored_from_entity = False
+        self._backup_restore_done = False
 
     async def async_added_to_hass(self) -> None:
         """Restore the accumulated energy on startup.
@@ -430,8 +434,12 @@ class SyntheticEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
         """
         await super().async_added_to_hass()
 
+        from ..synthetic_energy_backup import async_get_backup
+        self._backup = await async_get_backup(self.hass)
+
         stored = await self.async_get_last_extra_data()
         data = _SyntheticEnergyData.from_dict(stored.as_dict()) if stored else None
+        self._restored_from_entity = data is not None
         if data is not None:
             self._kwh = data.kwh
             stored_reset_date = data.reset_date
@@ -453,9 +461,52 @@ class SyntheticEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
                 self._kwh = 0.0
             self._reset_date = today
 
+        # No per-entity restore (deleted and re-added): reclaim the lifetime total
+        # from the per-serial backup. The serial is normally already known here.
+        self._maybe_restore_from_backup()
+
         # Seed the running total into coordinator.data immediately so the cycle /
         # efficiency sensors can read it before the first poll re-publishes it.
         self._publish_total()
+
+    @callback
+    def _maybe_restore_from_backup(self) -> None:
+        """Reclaim kWh from the per-serial backup once the serial is known.
+
+        Skipped when a per-entity restore already supplied the total. The serial
+        is set by the driver before this entity is added, so this normally runs
+        in async_added_to_hass; a slow first poll can delay it, so
+        _handle_coordinator_update retries. *Adds* to the live accumulator (rather
+        than overwriting) so the few samples taken before the serial appeared are
+        not lost. Runs at most once.
+        """
+        if self._backup_restore_done or self._restored_from_entity or self._backup is None:
+            return
+        serial = self.coordinator.driver.serial
+        if not serial:
+            return
+        self._backup_restore_done = True
+        saved = self._backup.get(serial, self._key)
+        if saved is None:
+            return
+        # A daily counter only carries forward within the same local day.
+        if self._daily and saved.get("reset_date") != self._reset_date.isoformat():
+            return
+        self._kwh += saved.get("kwh", 0.0)
+
+    def _save_to_backup(self) -> None:
+        """Mirror the running total into the per-serial backup (debounced)."""
+        if self._backup is None:
+            return
+        serial = self.coordinator.driver.serial
+        if not serial:
+            return
+        self._backup.set(
+            serial,
+            self._key,
+            self._kwh,
+            self._reset_date.isoformat() if self._reset_date else None,
+        )
 
     def _publish_total(self) -> None:
         """Expose the running total in coordinator.data.
@@ -471,8 +522,10 @@ class SyntheticEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Integrate battery_power on each coordinator update, then write state."""
+        self._maybe_restore_from_backup()
         self._accumulate()
         self._publish_total()
+        self._save_to_backup()
         super()._handle_coordinator_update()
 
     def _accumulate(self) -> None:

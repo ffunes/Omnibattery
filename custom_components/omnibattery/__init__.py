@@ -5022,6 +5022,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .config_backup import async_save_config_backup
     await async_save_config_backup(hass)
 
+    # Load the per-serial synthetic-energy backup once, domain-level, before the
+    # platforms set up their entities (so the sensors find it cached, no race).
+    from .synthetic_energy_backup import async_get_backup
+    await async_get_backup(hass)
+
     coordinators = []
     for battery_config in entry.data["batteries"]:
         coordinator = MarstekVenusDataUpdateCoordinator(

@@ -180,6 +180,16 @@ class BatteryDriver(ABC):
         """
         return None
 
+    @property
+    def serial(self) -> Optional[str]:
+        """Stable hardware serial, or None if the transport exposes none.
+
+        Used to key the synthetic-energy backup so a deleted-and-re-added battery
+        reclaims its lifetime totals (host/port can change with DHCP; the serial
+        does not). Defaults to None; only drivers that read one override it.
+        """
+        return None
+
     # --- connection lifecycle ----------------------------------------------
 
     @property
