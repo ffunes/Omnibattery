@@ -543,7 +543,10 @@ class ChargeDelayManager:
         # (teruglever) revenue. SOC target stays fully protected: the window never
         # extends past the edge, and the hard energy/time unlocks above remain the
         # floor. Degrades to legacy edge-release when no price data is available.
-        release_h = self._price_optimal_release_h(now_h, est_unlock_h)
+        # charge_time_h is passed so the scorer weights the WHOLE charge window, not
+        # just the starting slot (a cheap start followed by pricey hours can cost
+        # more export than a slightly dearer start sitting in a sustained trough).
+        release_h = self._price_optimal_release_h(now_h, est_unlock_h, charge_time_h)
         if release_h is not None:
             if now_h + 1e-6 < release_h:
                 # A cheaper feasible hour lies ahead, keep holding for it.
@@ -562,14 +565,24 @@ class ChargeDelayManager:
         status["state"] = f"Delayed ({status['estimated_unlock_time']} est.)"
         return True
 
-    def _price_optimal_release_h(self, now_h: float, edge_h: float) -> float | None:
-        """Cheapest export hour to begin charging within [now_h, edge_h].
+    def _price_optimal_release_h(
+        self, now_h: float, edge_h: float, charge_h: float | None = None
+    ) -> float | None:
+        """Cheapest hour to begin charging within [now_h, edge_h].
 
-        Returns the start hour (float, today) of the lowest-priced price slot whose
-        start lies in the still-feasible window. Returns ``now_h`` when the current
-        slot is itself the cheapest (within a small epsilon, so we never hold for a
-        negligible gain). Returns ``None`` when no usable price data exists, in
-        which case the caller keeps the legacy edge-release behaviour.
+        Returns the start hour (float, today) of the lowest-priced feasible start.
+        Returns ``now_h`` when the current moment is itself the cheapest (within a
+        small epsilon, so we never hold for a negligible gain). Returns ``None``
+        when no usable price data exists, in which case the caller keeps the legacy
+        edge-release behaviour.
+
+        When ``charge_h`` is given (> 0) each candidate start is scored by the
+        duration-weighted AVERAGE price over the whole charge window
+        ``[start, start+charge_h]``, so the charge lands in the cheapest *sustained*
+        block rather than merely starting in the cheapest single slot. A start whose
+        window runs past the available price data is skipped (an incomplete tail
+        must not score as artificially cheap). Without ``charge_h`` the score is the
+        single slot price (legacy behaviour).
 
         This only ever moves the release EARLIER than the feasibility edge; it never
         defers past it, so the SOC-target safety margin enforced upstream is intact.
@@ -588,23 +601,65 @@ class ChargeDelayManager:
         if not slots:
             return None
 
-        candidates = []  # (start_hour, price)
-        cur_price = None
+        def _score(start_h):
+            """Window-average price for a charge starting at ``start_h`` (or the
+            single covering-slot price when no charge length is known)."""
+            if charge_h and charge_h > 0:
+                return self._window_avg_price(start_h, charge_h, slots)
+            for s in slots:
+                s_h = s.start.hour + s.start.minute / 60.0
+                s_end = s_h + (s.end - s.start).total_seconds() / 3600.0
+                if s_h - 1e-9 <= start_h < s_end:
+                    return s.price
+            return None
+
+        candidates = []  # (start_hour, score)
+        has_current = False
         for s in slots:
             s_h = s.start.hour + s.start.minute / 60.0
             if s_h > edge_h + 1e-6:  # slot starts after the feasibility edge
                 continue
-            candidates.append((s_h, s.price))
-            if s_h <= now_h + 1e-9:  # slot covering the current moment
-                cur_price = s.price
+            score = _score(s_h)
+            if score is None:  # window runs past available price data — unscorable
+                continue
+            candidates.append((s_h, score))
+            if s_h <= now_h + 1e-9:  # a slot covers the current moment
+                has_current = True
         if not candidates:
             return None
 
         eps = 0.005  # EUR/kWh: ignore sub-cent differences, prefer releasing sooner
         best_h, best_p = min(candidates, key=lambda c: (c[1], c[0]))
-        if cur_price is not None and cur_price <= best_p + eps:
-            return now_h
+        if has_current:
+            cur_score = _score(now_h)  # window starting at the current moment
+            if cur_score is not None and cur_score <= best_p + eps:
+                return now_h
         return best_h
+
+    @staticmethod
+    def _window_avg_price(start_h: float, charge_h: float, slots: list) -> float | None:
+        """Duration-weighted average slot price over [start_h, start_h+charge_h].
+
+        Returns ``None`` when the window is not fully covered by the available
+        slots (an incomplete forecast tail, or a window crossing midnight past the
+        today-only slot set), so the caller skips that start rather than scoring a
+        partial — and therefore artificially cheap — window.
+        """
+        if charge_h <= 0:
+            return None
+        end_h = start_h + charge_h
+        cost = 0.0
+        covered = 0.0
+        for s in slots:
+            s_h = s.start.hour + s.start.minute / 60.0
+            s_end = s_h + (s.end - s.start).total_seconds() / 3600.0
+            overlap = min(end_h, s_end) - max(start_h, s_h)
+            if overlap > 0:
+                cost += s.price * overlap
+                covered += overlap
+        if covered < charge_h - 1e-6:
+            return None
+        return cost / charge_h
 
     def _low_forecast_price_release(self, now_h: float) -> bool:
         """Hold a genuine grid-deficit day until its cheapest import hour.

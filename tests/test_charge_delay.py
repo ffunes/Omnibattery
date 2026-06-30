@@ -13,6 +13,8 @@ from __future__ import annotations
 from datetime import date
 from types import SimpleNamespace
 
+import pytest
+
 from custom_components.omnibattery.control.charge_delay import (
     ChargeDelayManager,
     _TRANSIENT_UNLOCK_REASONS,
@@ -569,3 +571,59 @@ def test_price_release_counts_current_partial_hour():
     slots = [_slot(11, 0.14), _slot(12, 0.20)]
     mgr = _make_mgr(_price_ctrl(slots))
     assert mgr._price_optimal_release_h(11.5, 16.0) == 11.5
+
+
+# ----------------------------------------------------------------------
+# _price_optimal_release_h with charge_h: window-average (sustained-trough) scoring
+# ----------------------------------------------------------------------
+
+
+def test_window_avg_price_basic():
+    # Two-hour charge from 11:00 averages the 11:00 and 12:00 slots.
+    slots = [_slot(11, 0.10), _slot(12, 0.20)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._window_avg_price(11.0, 2.0, slots) == pytest.approx(0.15)
+
+
+def test_window_avg_price_partial_overlap():
+    # A 1h charge starting mid-slot (11:30) spans half of 11:00 and half of 12:00.
+    slots = [_slot(11, 0.10), _slot(12, 0.30)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._window_avg_price(11.5, 1.0, slots) == pytest.approx(0.20)
+
+
+def test_window_avg_price_none_on_incomplete_tail():
+    # The window runs past the last slot → unscorable (must not look cheap).
+    slots = [_slot(11, 0.10), _slot(12, 0.20)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._window_avg_price(11.0, 3.0, slots) is None
+
+
+def test_window_release_prefers_sustained_trough_over_cheap_start():
+    # Single-slot scoring would pick 11:00 (the lone cheapest slot), but the
+    # following hour is dear; the sustained trough at 13:00-15:00 is cheaper across
+    # the whole 2h charge, so the window scorer holds for 13:00.
+    slots = [
+        _slot(11, 0.10), _slot(12, 0.30), _slot(13, 0.16),
+        _slot(14, 0.16), _slot(15, 0.30),
+    ]
+    mgr = _make_mgr(_price_ctrl(slots))
+    # Legacy single-slot behaviour (no charge_h) still picks the lone cheap start.
+    assert mgr._price_optimal_release_h(11.0, 16.0) == 11.0
+    # Window-aware (2h charge) holds for the sustained trough.
+    assert mgr._price_optimal_release_h(11.0, 16.0, 2.0) == 13.0
+
+
+def test_window_release_skips_start_whose_window_exceeds_data():
+    # start=13 would need price data to 15:00 but the tail stops at 14:00, so 13 is
+    # skipped; the cheapest fully-scorable 2h window (12:00) wins.
+    slots = [_slot(11, 0.20), _slot(12, 0.10), _slot(13, 0.10)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.0, 16.0, 2.0) == 12.0
+
+
+def test_window_release_now_when_current_window_cheapest():
+    # The charge starting now is the cheapest 2h window → release immediately.
+    slots = [_slot(11, 0.10), _slot(12, 0.10), _slot(13, 0.30), _slot(14, 0.30)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.0, 16.0, 2.0) == 11.0
