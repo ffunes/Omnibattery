@@ -40,6 +40,14 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# Unlock reasons that are fail-safe responses to missing/transient data, not a
+# real "charging is legitimately allowed" decision. These must NOT latch the
+# permanent daily unlock: otherwise a momentary gap (e.g. the solar-forecast
+# sensor going unavailable at the midnight rollover) silently disables the
+# charge delay for the rest of the day. Keeping them re-evaluable lets the delay
+# re-arm as soon as the data comes back.
+_TRANSIENT_UNLOCK_REASONS = frozenset({"no_forecast"})
+
 
 class ChargeDelayManager:
     """Manages the unified charge-delay gate, persistence and projection."""
@@ -203,7 +211,14 @@ class ChargeDelayManager:
         if self._should_delay_charge(target_soc):
             return True  # Keep delay active (block charging)
 
-        # Delay conditions no longer met - unlock permanently for today
+        # A fail-safe unlock from missing/transient data (e.g. the forecast
+        # sensor briefly unavailable at the midnight rollover) must stay
+        # re-evaluable so the delay re-arms once the data returns. Allow
+        # charging for this cycle, but do not latch the permanent daily unlock.
+        if ctrl._charge_delay_status.get("unlock_reason") in _TRANSIENT_UNLOCK_REASONS:
+            return False
+
+        # Delay conditions genuinely no longer met - unlock permanently for today
         ctrl._charge_delay_unlocked = True
         self.schedule_save()
         _LOGGER.info("Charge Delay: Unlocked (target_soc=%d%%) - charging now allowed", target_soc)
@@ -355,21 +370,35 @@ class ChargeDelayManager:
             usable_energy_kwh = max(0, ((avg_soc - min_soc) / 100) * total_capacity_kwh)
             avg_consumption_kwh = ctrl._consumption_tracker.get_avg_daily_consumption()
             prev_cache = ctrl._charge_delay_forecast_cache
+            # Binary "is grid needed today?" gate. Use the RAW forecast, not the
+            # 0.85 haircut applied below: the haircut is a conservatism for the
+            # energy SCHEDULING math, but on this all-or-nothing gate it turns a
+            # balanced day (raw forecast ~= consumption) into a false deficit and a
+            # latched pre-dawn unlock (#4). A small deadband absorbs sensor noise so
+            # a near-balanced day still holds for the cheap window. Runtime-tunable.
+            deadband_kwh = ctrl._charge_delay_balance_deadband_kwh
             ctrl._charge_delay_balance_needs_charge = (
-                (usable_energy_kwh + forecast_today) < avg_consumption_kwh
+                (usable_energy_kwh + raw_forecast)
+                < (avg_consumption_kwh - deadband_kwh)
             )
             ctrl._charge_delay_forecast_cache = forecast_today
             _LOGGER.info(
-                "Charge Delay: Forecast %s (%.2f → %.2f kWh) → "
-                "balance: %.2f usable + %.2f solar = %.2f kWh vs %.2f kWh consumption → %s",
+                "Charge Delay: Forecast %s (raw %.2f, scheduling %.2f kWh) → "
+                "balance: %.2f usable + %.2f solar = %.2f kWh vs %.2f kWh consumption "
+                "(deadband %.2f) → %s",
                 "initialised" if prev_cache is None else "changed",
-                prev_cache if prev_cache is not None else 0.0, forecast_today,
-                usable_energy_kwh, forecast_today, usable_energy_kwh + forecast_today,
-                avg_consumption_kwh,
+                raw_forecast, forecast_today,
+                usable_energy_kwh, raw_forecast, usable_energy_kwh + raw_forecast,
+                avg_consumption_kwh, deadband_kwh,
                 "grid needed (unlock delay)" if ctrl._charge_delay_balance_needs_charge else "solar sufficient (keep delay)",
             )
 
         if ctrl._charge_delay_balance_needs_charge:
+            # Genuine grid-deficit day: rather than unlocking immediately (often a
+            # pre-dawn price peak), hold until the cheapest import hour before solar
+            # is due, so the unavoidable grid charge lands in the cheap window (#4).
+            if self._low_forecast_price_release(now_h):
+                return True
             return _unlock("low_forecast")
 
         # --- Exception 3: No T_start detected ---
@@ -505,8 +534,103 @@ class ChargeDelayManager:
             )
             return _unlock("time_backup")
 
+        # --- Price-aware release (within the proven-feasible window only) ---
+        # The checks above keep the delay until the feasibility edge
+        # (energy_balance / time_backup), which is the LATEST safe release and is
+        # often a pricier afternoon hour than the midday export trough. Pull the
+        # release FORWARD to the cheapest export hour inside the still-feasible
+        # window [now, est_unlock_h], so self-charging sacrifices the least export
+        # (teruglever) revenue. SOC target stays fully protected: the window never
+        # extends past the edge, and the hard energy/time unlocks above remain the
+        # floor. Degrades to legacy edge-release when no price data is available.
+        release_h = self._price_optimal_release_h(now_h, est_unlock_h)
+        if release_h is not None:
+            if now_h + 1e-6 < release_h:
+                # A cheaper feasible hour lies ahead, keep holding for it.
+                status["estimated_unlock_time"] = _h_to_hhmm(release_h)
+                status["state"] = f"Delayed (price, {_h_to_hhmm(release_h)} est.)"
+                return True
+            # Current hour is the cheapest feasible export hour, release now.
+            _LOGGER.info(
+                "Charge Delay: now (%.2fh) is cheapest feasible export hour up to "
+                "%.2fh - unlocking (reason: price_optimal)",
+                now_h, est_unlock_h,
+            )
+            return _unlock("price_optimal")
+
         # All checks passed - keep delay active
         status["state"] = f"Delayed ({status['estimated_unlock_time']} est.)"
+        return True
+
+    def _price_optimal_release_h(self, now_h: float, edge_h: float) -> float | None:
+        """Cheapest export hour to begin charging within [now_h, edge_h].
+
+        Returns the start hour (float, today) of the lowest-priced price slot whose
+        start lies in the still-feasible window. Returns ``now_h`` when the current
+        slot is itself the cheapest (within a small epsilon, so we never hold for a
+        negligible gain). Returns ``None`` when no usable price data exists, in
+        which case the caller keeps the legacy edge-release behaviour.
+
+        This only ever moves the release EARLIER than the feasibility edge; it never
+        defers past it, so the SOC-target safety margin enforced upstream is intact.
+        """
+        ctrl = self._controller
+        pricing = getattr(ctrl, "_pricing_mgr", None)
+        if pricing is None or not getattr(ctrl, "price_sensor", None):
+            return None
+        try:
+            # Already today-only and future-only (slot.end > now); quiet so this
+            # per-cycle poll does not spam the price-parse log.
+            slots = pricing.get_future_price_slots()
+        except Exception:  # defensive: a price-parse failure must not break the delay gate
+            _LOGGER.debug("Charge Delay: price parse failed, skipping price-aware release", exc_info=True)
+            return None
+        if not slots:
+            return None
+
+        candidates = []  # (start_hour, price)
+        cur_price = None
+        for s in slots:
+            s_h = s.start.hour + s.start.minute / 60.0
+            if s_h > edge_h + 1e-6:  # slot starts after the feasibility edge
+                continue
+            candidates.append((s_h, s.price))
+            if s_h <= now_h + 1e-9:  # slot covering the current moment
+                cur_price = s.price
+        if not candidates:
+            return None
+
+        eps = 0.005  # EUR/kWh: ignore sub-cent differences, prefer releasing sooner
+        best_h, best_p = min(candidates, key=lambda c: (c[1], c[0]))
+        if cur_price is not None and cur_price <= best_p + eps:
+            return now_h
+        return best_h
+
+    def _low_forecast_price_release(self, now_h: float) -> bool:
+        """Hold a genuine grid-deficit day until its cheapest import hour.
+
+        On a balanced/low-forecast day the battery must take some grid charge, but
+        unlocking the moment the deficit is detected (often pre-dawn) charges at a
+        price peak. Instead, hold until the cheapest price slot in the window before
+        solar production is expected, so the unavoidable import lands in the cheap
+        window (#4). Reuses :meth:`_price_optimal_release_h` (min-price slot in a
+        feasible window — the same selection serves cheapest-import here as it does
+        cheapest-export for the PV-surplus hold).
+
+        Returns True to keep holding, False to unlock now: when the current hour is
+        already the cheapest, when no price data is available (legacy immediate
+        unlock preserved), or when there is no pre-solar slack left.
+        """
+        ctrl = self._controller
+        edge_h = ctrl._solar_t_start if ctrl._solar_t_start is not None else T_START_FALLBACK_HOUR
+        if edge_h <= now_h:
+            return False  # solar already due/past — no cheap pre-solar window
+        release_h = self._price_optimal_release_h(now_h, edge_h)
+        if release_h is None or now_h + 1e-6 >= release_h:
+            return False  # no price data, or now is the cheapest feasible hour
+        hhmm = ctrl._consumption_tracker.h_to_hhmm(release_h)
+        ctrl._charge_delay_status["estimated_unlock_time"] = hhmm
+        ctrl._charge_delay_status["state"] = f"Delayed (cheap import {hhmm} est.)"
         return True
 
     def _estimate_energy_balance_unlock_h(

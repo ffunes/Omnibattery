@@ -447,5 +447,25 @@ async def test_handle_measurement_skips_during_soc_recalibration():
     assert c not in ctrl._normal_active_balance_phases
 
 
+async def test_handle_measurement_skips_during_weekly_full_charge():
+    """Weekly full charge owns the taper to the BMS cutoff — no 3.58 V hold."""
+    c = _Coord(data={"max_cell_voltage": 3.60, "min_cell_voltage": 3.55,
+                     "battery_soc": 94})
+    calls = []
+
+    async def _set(coordinator, charge, discharge, **kw):
+        calls.append(coordinator.name)
+
+    ctrl = _controller(
+        [c], _set_battery_power=_set, _weekly_full_charge_unlocked=lambda: True
+    )
+
+    took_over = await _mgr(ctrl).handle_measurement()
+
+    assert took_over is False
+    assert calls == []
+    assert c not in ctrl._normal_active_balance_phases
+
+
 async def _noop():
     return None

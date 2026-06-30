@@ -185,28 +185,39 @@ class PricingManager:
         else:
             _LOGGER.warning("Dynamic pricing: tibber.get_prices returned no usable slots")
 
-    def _parse_price_data(self, *, horizon_end=None) -> list:
+    def get_future_price_slots(self, horizon_end=None) -> list:
+        """Public accessor for parsed future PriceSlots (today, future-only).
+
+        Thin, quiet wrapper around :meth:`_parse_price_data` for other managers
+        (e.g. the charge-delay price-aware release) that poll prices every control
+        cycle and must not spam the log. Logging is demoted to debug level here.
+        """
+        return self._parse_price_data(horizon_end=horizon_end, quiet=True)
+
+    def _parse_price_data(self, *, horizon_end=None, quiet=False) -> list:
         """Read price sensor and return list[PriceSlot] for remaining slots up to horizon_end.
 
         Dispatches to the correct parser based on price_integration_type.
         When horizon_end is None, defaults to end of current day (today 23:59:59).
-        Returns empty list on error.
+        Returns empty list on error. When quiet=True, status logging is demoted to
+        debug so high-frequency callers do not spam the log.
         """
+        _warn = _LOGGER.debug if quiet else _LOGGER.warning
         if self._controller.price_integration_type == PRICE_INTEGRATION_TIBBER:
             # Service-based: use the cached slots refreshed by _maybe_refresh_tibber_prices.
             raw_slots = list(self._controller._tibber_price_slots)
             if not raw_slots:
-                _LOGGER.warning("Dynamic pricing: no Tibber price data cached")
+                _warn("Dynamic pricing: no Tibber price data cached")
                 self._controller._price_data_status = "no_slots"
                 return []
         elif not self._controller.price_sensor:
-            _LOGGER.warning("Dynamic pricing: no price sensor configured")
+            _warn("Dynamic pricing: no price sensor configured")
             self._controller._price_data_status = "no_sensor"
             return []
         else:
             state = self._hass.states.get(self._controller.price_sensor)
             if state is None or state.state in ("unknown", "unavailable"):
-                _LOGGER.warning("Dynamic pricing: price sensor %s unavailable", self._controller.price_sensor)
+                _warn("Dynamic pricing: price sensor %s unavailable", self._controller.price_sensor)
                 self._controller._price_data_status = "sensor_unavailable"
                 return []
 
@@ -224,7 +235,7 @@ class PricingManager:
                 raw_slots = calculations.parse_nordpool_prices(attrs)
 
             if not raw_slots:
-                _LOGGER.warning(
+                _warn(
                     "Dynamic pricing: no price data parsed from %s (integration=%s)",
                     self._controller.price_sensor, self._controller.price_integration_type
                 )
@@ -239,7 +250,9 @@ class PricingManager:
         effective_horizon = horizon_end if horizon_end is not None else end_of_day
         filtered = [s for s in raw_slots if s.end > now and s.start <= effective_horizon]
         self._controller._price_data_status = f"ok ({len(filtered)} slots)"
-        _LOGGER.info("Dynamic pricing: parsed %d slots (%d within horizon)", len(raw_slots), len(filtered))
+        (_LOGGER.debug if quiet else _LOGGER.info)(
+            "Dynamic pricing: parsed %d slots (%d within horizon)", len(raw_slots), len(filtered)
+        )
         return filtered
 
     # =========================================================================

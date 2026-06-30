@@ -1459,6 +1459,9 @@
       "delay_safety_margin_min": {
         "name": "Laadvertraging – Marge"
       },
+      "charge_delay_balance_deadband_kwh": {
+        "name": "Laadvertraging – Balans Dode Band"
+      },
       "delay_soc_setpoint": {
         "name": "Laadvertraging – SOC-drempel"
       },

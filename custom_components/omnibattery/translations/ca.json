@@ -1459,6 +1459,9 @@
       "delay_safety_margin_min": {
         "name": "Retard de Càrrega – Marge"
       },
+      "charge_delay_balance_deadband_kwh": {
+        "name": "Retard de Càrrega – Banda Morta de Balanç"
+      },
       "delay_soc_setpoint": {
         "name": "Retard de Càrrega – SOC Setpoint"
       },

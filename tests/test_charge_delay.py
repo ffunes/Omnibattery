@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 from custom_components.omnibattery.control.charge_delay import (
     ChargeDelayManager,
+    _TRANSIENT_UNLOCK_REASONS,
 )
 from custom_components.omnibattery.const import (
     DELAY_SOC_SETPOINT_HYSTERESIS,
@@ -74,6 +75,7 @@ def _controller(**overrides):
         _forecast_grace_s=300,
         _charge_delay_forecast_cache=None,
         _charge_delay_balance_needs_charge=False,
+        _charge_delay_balance_deadband_kwh=0.5,
         _daily_solar_energy_kwh=0.0,
         _delay_safety_margin_h=0.5,
         _delay_last_log_time=0,
@@ -151,6 +153,50 @@ def test_keep_delay_when_should_delay_true():
     mgr._should_delay_charge = lambda target: True
     assert mgr.is_charge_delayed() is True
     assert ctrl._charge_delay_unlocked is False
+
+
+def test_transient_no_forecast_does_not_latch():
+    # A fail-safe unlock (no forecast available) allows charging this cycle but
+    # must NOT latch the permanent daily unlock, so it can re-arm later.
+    assert "no_forecast" in _TRANSIENT_UNLOCK_REASONS
+    ctrl = _controller(solar_forecast_sensor=None)
+    mgr = _make_mgr(ctrl)
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_status["unlock_reason"] == "no_forecast"
+    assert ctrl._charge_delay_unlocked is False
+    assert mgr.saves == 0  # nothing latched, nothing persisted
+
+
+def test_delay_rearms_after_forecast_recovers():
+    # First cycle: forecast unavailable past grace -> no_forecast unlock (not latched).
+    from time import monotonic
+    ctrl = _controller(
+        _forecast_unavailable_since=monotonic() - 10_000,
+        _forecast_grace_s=300,
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state("unavailable")})
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_unlocked is False
+    # Next cycle the forecast is healthy again and the day is covered -> the
+    # delay re-arms instead of staying disabled for the rest of the day.
+    mgr._should_delay_charge = lambda target: True
+    assert mgr.is_charge_delayed() is True
+    assert ctrl._charge_delay_unlocked is False
+
+
+def test_genuine_unlock_still_latches():
+    # A real "conditions met" unlock (e.g. time_backup) keeps latching as before.
+    ctrl = _controller()
+    mgr = _make_mgr(ctrl)
+
+    def _stub(target):
+        ctrl._charge_delay_status["unlock_reason"] = "time_backup"
+        return False
+
+    mgr._should_delay_charge = _stub
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_unlocked is True
+    assert mgr.saves == 1
 
 
 # ----------------------------------------------------------------------
@@ -238,8 +284,9 @@ def test_zero_capacity_unlocks():
 
 
 def test_balance_needs_charge_unlocks_low_forecast():
-    # avg_soc 30, min_soc 20, capacity 10 -> usable ~1 kWh; forecast 1*0.85=0.85;
-    # consumption 5 -> (1 + 0.85) < 5 -> grid needed -> unlock(low_forecast)
+    # avg_soc 30, min_soc 20, capacity 10 -> usable 1 kWh; RAW forecast 1.0;
+    # consumption 5, deadband 0.5 -> (1 + 1.0) < (5 - 0.5) -> grid needed.
+    # No pricing manager -> price-aware release is a no-op -> unlock(low_forecast).
     ctrl = _controller(
         coordinators=[_coord(soc=30, total_energy=10.0, min_soc=20)],
         _consumption_tracker=_tracker(get_avg_daily_consumption=lambda: 5.0),
@@ -247,6 +294,64 @@ def test_balance_needs_charge_unlocks_low_forecast():
     mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(1.0)})
     assert mgr._should_delay_charge(80) is False
     assert ctrl._charge_delay_status["unlock_reason"] == "low_forecast"
+
+
+def test_balanced_day_holds_with_deadband():
+    # #4 concrete day: usable ~0.4 + raw forecast 15.76 vs 15.40 consumption.
+    # Pre-fix the 0.85 haircut (15.76 -> 13.40) flipped this into a false deficit
+    # and a latched pre-dawn unlock. With the raw forecast + deadband the gate now
+    # reads it as solar-sufficient and keeps the delay armed.
+    ctrl = _controller(
+        coordinators=[_coord(soc=24, total_energy=10.0, min_soc=20)],
+        _consumption_tracker=_tracker(get_avg_daily_consumption=lambda: 15.40),
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(15.76)})
+    mgr._should_delay_charge(80)
+    assert ctrl._charge_delay_balance_needs_charge is False
+
+
+def test_low_forecast_price_release_holds_for_cheaper_hour():
+    # Genuine deficit, cheaper import hour ahead before solar -> hold, do not unlock.
+    ctrl = _controller(_solar_t_start=8.0)
+    mgr = _make_mgr(ctrl)
+    mgr._price_optimal_release_h = lambda now_h, edge_h: 7.0
+    assert mgr._low_forecast_price_release(5.0) is True
+    assert ctrl._charge_delay_status["estimated_unlock_time"] == "07:00"
+    assert "cheap import" in ctrl._charge_delay_status["state"]
+
+
+def test_low_forecast_price_release_unlocks_when_now_cheapest():
+    ctrl = _controller(_solar_t_start=8.0)
+    mgr = _make_mgr(ctrl)
+    mgr._price_optimal_release_h = lambda now_h, edge_h: now_h  # current slot cheapest
+    assert mgr._low_forecast_price_release(5.0) is False
+
+
+def test_low_forecast_price_release_unlocks_without_price_data():
+    ctrl = _controller(_solar_t_start=8.0)
+    mgr = _make_mgr(ctrl)
+    mgr._price_optimal_release_h = lambda now_h, edge_h: None  # no price data
+    assert mgr._low_forecast_price_release(5.0) is False
+
+
+def test_low_forecast_price_release_unlocks_when_no_presolar_slack():
+    # now is already past solar start -> no cheap pre-solar window, unlock now.
+    ctrl = _controller(_solar_t_start=8.0)
+    mgr = _make_mgr(ctrl)
+    called = []
+    mgr._price_optimal_release_h = lambda now_h, edge_h: called.append(1) or 9.0
+    assert mgr._low_forecast_price_release(9.0) is False
+    assert called == []  # short-circuits before touching prices
+
+
+def test_low_forecast_price_release_uses_fallback_when_no_t_start():
+    # No T_start yet (pre-dawn): the window edge falls back to T_START_FALLBACK_HOUR.
+    ctrl = _controller(_solar_t_start=None)
+    mgr = _make_mgr(ctrl)
+    edges = []
+    mgr._price_optimal_release_h = lambda now_h, edge_h: edges.append(edge_h) or 7.0
+    assert mgr._low_forecast_price_release(5.0) is True
+    assert edges == [11]  # T_START_FALLBACK_HOUR
 
 
 # ----------------------------------------------------------------------
@@ -389,3 +494,78 @@ def test_setpoint_blocks_noop_when_feature_disabled():
     ctrl = _setpoint_controller([leader], _delay_soc_setpoint_enabled=False)
     _mgr_for(ctrl).refresh_setpoint_blocks()
     assert ctrl.blocks.get("charge_delay_setpoint", set()) == set()
+
+
+# ----------------------------------------------------------------------
+# _price_optimal_release_h: price-aware release within the feasible window
+# ----------------------------------------------------------------------
+from datetime import timedelta  # noqa: E402
+
+from homeassistant.util import dt as dt_util  # noqa: E402
+
+from custom_components.omnibattery.pricing import (  # noqa: E402
+    PriceSlot,
+)
+
+
+def _slot(hour, price):
+    """Hourly PriceSlot for today at ``hour`` (matches the manager's today check)."""
+    start = dt_util.now().replace(
+        hour=int(hour), minute=0, second=0, microsecond=0
+    )
+    return PriceSlot(start=start, end=start + timedelta(hours=1), price=price)
+
+
+def _price_ctrl(slots, **overrides):
+    return _controller(
+        price_sensor="sensor.price",
+        _pricing_mgr=SimpleNamespace(get_future_price_slots=lambda horizon_end=None: slots),
+        **overrides,
+    )
+
+
+def test_price_release_none_without_sensor():
+    # No price_sensor / pricing manager → legacy edge release (returns None).
+    mgr = _make_mgr(_controller())
+    assert mgr._price_optimal_release_h(11.0, 16.0) is None
+
+
+def test_price_release_none_on_empty_slots():
+    mgr = _make_mgr(_price_ctrl([]))
+    assert mgr._price_optimal_release_h(11.0, 16.0) is None
+
+
+def test_price_release_holds_for_cheaper_hour_ahead():
+    # Cheapest feasible hour is 13:00 (the trough); at 11:00 with edge 16:00 → hold.
+    slots = [_slot(11, 0.21), _slot(12, 0.17), _slot(13, 0.14), _slot(14, 0.18)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.0, 16.0) == 13.0
+
+
+def test_price_release_now_when_current_is_cheapest():
+    slots = [_slot(11, 0.14), _slot(12, 0.17), _slot(13, 0.21)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.0, 16.0) == 11.0
+
+
+def test_price_release_ignores_slots_past_edge():
+    # The 13:00 trough sits past the feasibility edge (12.5) → unreachable, so the
+    # cheapest *feasible* hour (12:00) wins. This is today's tight-solar shape: the
+    # edge precedes the trough, so the trough cannot be captured without risking SOC.
+    slots = [_slot(11, 0.21), _slot(12, 0.17), _slot(13, 0.14)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.0, 12.5) == 12.0
+
+
+def test_price_release_epsilon_prefers_releasing_now():
+    # A negligibly-cheaper hour ahead (< 0.005 €/kWh) must not trigger a hold.
+    slots = [_slot(11, 0.150), _slot(13, 0.147)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.0, 16.0) == 11.0
+
+
+def test_price_release_counts_current_partial_hour():
+    # Called mid-hour (11:30): the 11:00 slot still covers now and counts as current.
+    slots = [_slot(11, 0.14), _slot(12, 0.20)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.5, 16.0) == 11.5

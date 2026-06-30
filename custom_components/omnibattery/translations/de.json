@@ -1459,6 +1459,9 @@
       "delay_safety_margin_min": {
         "name": "Ladungsverzögerung – Puffer"
       },
+      "charge_delay_balance_deadband_kwh": {
+        "name": "Ladungsverzögerung – Bilanz-Totband"
+      },
       "delay_soc_setpoint": {
         "name": "Ladungsverzögerung – SOC-Schwellwert"
       },

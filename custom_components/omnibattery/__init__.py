@@ -39,6 +39,8 @@ from .const import (
     CONF_ENABLE_CHARGE_DELAY,
     CONF_DELAY_SAFETY_MARGIN_MIN,
     DEFAULT_DELAY_SAFETY_MARGIN_MIN,
+    CONF_CHARGE_DELAY_BALANCE_DEADBAND_KWH,
+    DEFAULT_CHARGE_DELAY_BALANCE_DEADBAND_KWH,
     CONF_DELAY_SOC_SETPOINT_ENABLED,
     DEFAULT_DELAY_SOC_SETPOINT_ENABLED,
     CONF_DELAY_SOC_SETPOINT,
@@ -624,6 +626,7 @@ class ChargeDischargeController:
             config_entry.data.get(CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY, False)
         )
         self._delay_safety_margin_h = config_entry.data.get(CONF_DELAY_SAFETY_MARGIN_MIN, DEFAULT_DELAY_SAFETY_MARGIN_MIN) / 60.0
+        self._charge_delay_balance_deadband_kwh = config_entry.data.get(CONF_CHARGE_DELAY_BALANCE_DEADBAND_KWH, DEFAULT_CHARGE_DELAY_BALANCE_DEADBAND_KWH)
         self._delay_soc_setpoint_enabled = config_entry.data.get(CONF_DELAY_SOC_SETPOINT_ENABLED, DEFAULT_DELAY_SOC_SETPOINT_ENABLED)
         self._delay_soc_setpoint = config_entry.data.get(CONF_DELAY_SOC_SETPOINT, DEFAULT_DELAY_SOC_SETPOINT)
         self._weekly_full_charge_skip_delay = config_entry.data.get(
@@ -1054,6 +1057,12 @@ class ChargeDischargeController:
         self.max_contracted_power = self.config_entry.data.get(CONF_MAX_CONTRACTED_POWER, 7000)
         self._delay_safety_margin_h = self.config_entry.data.get(CONF_DELAY_SAFETY_MARGIN_MIN, DEFAULT_DELAY_SAFETY_MARGIN_MIN) / 60.0
         self._charge_delay_status["safety_margin_min"] = int(self._delay_safety_margin_h * 60)
+        new_balance_deadband = self.config_entry.data.get(CONF_CHARGE_DELAY_BALANCE_DEADBAND_KWH, DEFAULT_CHARGE_DELAY_BALANCE_DEADBAND_KWH)
+        if new_balance_deadband != self._charge_delay_balance_deadband_kwh:
+            # Force the balance check to recompute with the new tolerance on the
+            # next cycle (it is otherwise cached until the forecast value moves).
+            self._charge_delay_forecast_cache = None
+        self._charge_delay_balance_deadband_kwh = new_balance_deadband
         self._delay_soc_setpoint_enabled = self.config_entry.data.get(CONF_DELAY_SOC_SETPOINT_ENABLED, DEFAULT_DELAY_SOC_SETPOINT_ENABLED)
         self._delay_soc_setpoint = self.config_entry.data.get(CONF_DELAY_SOC_SETPOINT, DEFAULT_DELAY_SOC_SETPOINT)
         self._weekly_full_charge_skip_delay = self.config_entry.data.get(

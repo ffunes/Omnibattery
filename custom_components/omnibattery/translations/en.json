@@ -1447,6 +1447,9 @@
       "delay_safety_margin_min": {
         "name": "Charge Delay Margin"
       },
+      "charge_delay_balance_deadband_kwh": {
+        "name": "Charge Delay Balance Deadband"
+      },
       "delay_soc_setpoint": {
         "name": "Charge Delay SOC Setpoint"
       },

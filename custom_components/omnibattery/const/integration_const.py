@@ -275,6 +275,11 @@ DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED = True
 CONF_ENABLE_CHARGE_DELAY = "enable_charge_delay"
 CONF_DELAY_SAFETY_MARGIN_MIN = "delay_safety_margin_min"
 DEFAULT_DELAY_SAFETY_MARGIN_MIN = 60
+# Deadband (kWh) on the binary "grid needed today?" gate, so a near-balanced day
+# (raw forecast ~= consumption) does not flip into a false pre-dawn deficit
+# unlock. Runtime-tunable slider (see ChargeDelayManager._should_delay_charge, #4).
+CONF_CHARGE_DELAY_BALANCE_DEADBAND_KWH = "charge_delay_balance_deadband_kwh"
+DEFAULT_CHARGE_DELAY_BALANCE_DEADBAND_KWH = 0.5
 CONF_DELAY_SOC_SETPOINT_ENABLED = "delay_soc_setpoint_enabled"
 DEFAULT_DELAY_SOC_SETPOINT_ENABLED = False
 CONF_DELAY_SOC_SETPOINT = "delay_soc_setpoint"
@@ -646,6 +651,17 @@ CONFIG_NUMBER_DEFINITIONS = [
         "scale": 60,
         "default": DEFAULT_DELAY_SAFETY_MARGIN_MIN,
         "icon": "mdi:timer-sand",
+        "condition": CONF_ENABLE_CHARGE_DELAY,
+    },
+    {
+        "key": CONF_CHARGE_DELAY_BALANCE_DEADBAND_KWH,
+        "name": "Charge Delay Balance Deadband",
+        "min": 0.0,
+        "max": 5.0,
+        "step": 0.1,
+        "unit": "kWh",
+        "default": DEFAULT_CHARGE_DELAY_BALANCE_DEADBAND_KWH,
+        "icon": "mdi:arrow-collapse-horizontal",
         "condition": CONF_ENABLE_CHARGE_DELAY,
     },
     {
