@@ -1017,6 +1017,15 @@
       "hourly_balance": {
         "name": "Bilan Net"
       },
+      "weekly_full_charge_enabled": {
+        "name": "Charge complète hebdomadaire"
+      },
+      "dp_price_discharge_control": {
+        "name": "Décharge selon le prix"
+      },
+      "rt_price_discharge_control": {
+        "name": "Décharge selon le prix"
+      },
       "lamp_switch": {
         "name": "LED d'état"
       }
@@ -1485,6 +1494,18 @@
       },
       "battery_capacity": {
         "name": "Capacité de la Batterie"
+      },
+      "hourly_balance_target_net_wh": {
+        "name": "Cible du bilan horaire"
+      },
+      "hourly_balance_max_offset_w": {
+        "name": "Décalage max. bilan horaire"
+      },
+      "hourly_balance_deadband_wh": {
+        "name": "Bande morte bilan horaire"
+      },
+      "hourly_balance_hysteresis_w": {
+        "name": "Hystérésis bilan horaire"
       },
       "soc_set": {
         "name": "SOC Cible"

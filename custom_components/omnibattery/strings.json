@@ -999,6 +999,15 @@
       "hourly_balance": {
         "name": "Net Balance"
       },
+      "weekly_full_charge_enabled": {
+        "name": "Weekly Full Charge"
+      },
+      "dp_price_discharge_control": {
+        "name": "Price-Based Discharge"
+      },
+      "rt_price_discharge_control": {
+        "name": "Price-Based Discharge"
+      },
       "lamp_switch": {
         "name": "Status LEDs"
       }
@@ -1467,6 +1476,18 @@
       },
       "predictive_min_soc_floor": {
         "name": "Guaranteed Minimum SOC"
+      },
+      "hourly_balance_target_net_wh": {
+        "name": "Hourly Balance Target"
+      },
+      "hourly_balance_max_offset_w": {
+        "name": "Hourly Balance Max Offset"
+      },
+      "hourly_balance_deadband_wh": {
+        "name": "Hourly Balance Deadband"
+      },
+      "hourly_balance_hysteresis_w": {
+        "name": "Hourly Balance Hysteresis"
       },
       "soc_set": {
         "name": "Target SOC"

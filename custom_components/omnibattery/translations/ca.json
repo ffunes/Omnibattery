@@ -1017,6 +1017,15 @@
       "hourly_balance": {
         "name": "Balanç Net"
       },
+      "weekly_full_charge_enabled": {
+        "name": "Càrrega setmanal completa"
+      },
+      "dp_price_discharge_control": {
+        "name": "Descàrrega segons preu"
+      },
+      "rt_price_discharge_control": {
+        "name": "Descàrrega segons preu"
+      },
       "lamp_switch": {
         "name": "LEDs d'estat"
       }
@@ -1485,6 +1494,18 @@
       },
       "battery_capacity": {
         "name": "Capacitat de la Bateria"
+      },
+      "hourly_balance_target_net_wh": {
+        "name": "Objectiu de balanç horari"
+      },
+      "hourly_balance_max_offset_w": {
+        "name": "Offset màx. de balanç horari"
+      },
+      "hourly_balance_deadband_wh": {
+        "name": "Banda morta de balanç horari"
+      },
+      "hourly_balance_hysteresis_w": {
+        "name": "Histèresi de balanç horari"
       },
       "soc_set": {
         "name": "SOC Objectiu"

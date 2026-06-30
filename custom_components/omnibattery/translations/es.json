@@ -963,6 +963,15 @@
       "lamp_switch": {
         "name": "LEDs de Estado"
       },
+      "weekly_full_charge_enabled": {
+        "name": "Carga semanal completa"
+      },
+      "dp_price_discharge_control": {
+        "name": "Descarga según precio"
+      },
+      "rt_price_discharge_control": {
+        "name": "Descarga según precio"
+      },
       "manual_mode": {
         "name": "Modo Manual"
       },
@@ -1485,6 +1494,18 @@
       },
       "predictive_min_soc_floor": {
         "name": "SOC mínimo garantizado"
+      },
+      "hourly_balance_target_net_wh": {
+        "name": "Objetivo de balance horario"
+      },
+      "hourly_balance_max_offset_w": {
+        "name": "Offset máx. de balance horario"
+      },
+      "hourly_balance_deadband_wh": {
+        "name": "Banda muerta de balance horario"
+      },
+      "hourly_balance_hysteresis_w": {
+        "name": "Histéresis de balance horario"
       },
       "soc_set": {
         "name": "SOC Objetivo"

@@ -19,12 +19,18 @@ from .const import (
     CONF_ENABLE_CHARGE_DELAY,
     CONF_ENABLE_HOURLY_BALANCE,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
+    CONF_ENABLE_WEEKLY_FULL_CHARGE,
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
     CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     CONF_MANUAL_MODE_ENABLED,
     CONF_NO_PD_MODE_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
+    CONF_PREDICTIVE_CHARGING_MODE,
+    CONF_DP_PRICE_DISCHARGE_CONTROL,
+    CONF_RT_PRICE_DISCHARGE_CONTROL,
+    PREDICTIVE_MODE_DYNAMIC_PRICING,
+    PREDICTIVE_MODE_REALTIME_PRICE,
     CONF_SYSTEM_MAX_CHARGE_POWER,
     CONF_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_ENABLE_MIN_SOC_FLOOR,
@@ -62,6 +68,19 @@ async def async_setup_entry(
     if controller:
         entities.append(ManualModeSwitch(hass, entry, controller))
         entities.append(NoPdModeSwitch(hass, entry, controller))
+        # Weekly full charge enable/disable (system-level, always present so it can
+        # be turned on from the dashboard even if configured off at setup).
+        entities.append(WeeklyFullChargeEnableSwitch(hass, entry, controller))
+
+    # Add price-based discharge control switch, scoped to the active predictive
+    # pricing mode (dynamic pricing or real-time price). The pricing engine reads
+    # the controller flag live each cycle.
+    if controller and entry.data.get(CONF_ENABLE_PREDICTIVE_CHARGING):
+        mode = entry.data.get(CONF_PREDICTIVE_CHARGING_MODE)
+        if mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
+            entities.append(PriceDischargeControlSwitch(hass, entry, controller, "dp"))
+        elif mode == PREDICTIVE_MODE_REALTIME_PRICE:
+            entities.append(PriceDischargeControlSwitch(hass, entry, controller, "rt"))
 
     # Add predictive charging switch (system-level, not per-battery)
     if controller and controller.predictive_charging_enabled:
@@ -1160,6 +1179,125 @@ class MinSOCFloorSwitch(SwitchEntity):
 
     @property
     def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class WeeklyFullChargeEnableSwitch(SwitchEntity):
+    """Switch to enable/disable the weekly full (100%) charge for cell balancing."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the weekly full charge enable switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "weekly_full_charge_enabled"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}weekly_full_charge_enabled"
+        self.entity_id = system_entity_id("switch", "weekly_full_charge_enabled")
+        self._attr_icon = "mdi:calendar-check"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if the weekly full charge is enabled."""
+        return self.controller.weekly_full_charge_enabled
+
+    def _set_enabled(self, enabled: bool) -> None:
+        """Persist the flag; update_pd_parameters syncs the controller + reset state."""
+        new_data = dict(self.entry.data)
+        new_data[CONF_ENABLE_WEEKLY_FULL_CHARGE] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        # Re-reads CONF_ENABLE_WEEKLY_FULL_CHARGE and handles the disable->reset
+        # (mid-charge hardware restore) transition.
+        self.controller.update_pd_parameters()
+        _LOGGER.info("Weekly Full Charge %s", "ENABLED" if enabled else "DISABLED")
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable the weekly full charge."""
+        self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable the weekly full charge."""
+        self._set_enabled(False)
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class PriceDischargeControlSwitch(SwitchEntity):
+    """Switch gating battery discharge on the electricity price being above threshold.
+
+    Two variants share this class: ``dp`` (dynamic pricing) and ``rt`` (real-time
+    price). The pricing engine reads the matching controller flag
+    (``dp_price_discharge_control`` / ``rt_price_discharge_control``) live each cycle.
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller, kind: str) -> None:
+        """Initialize. kind must be 'dp' or 'rt'."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        self._kind = kind
+        if kind == "dp":
+            self._attr_translation_key = "dp_price_discharge_control"
+            self._conf_key = CONF_DP_PRICE_DISCHARGE_CONTROL
+            self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}dp_price_discharge_control"
+            self.entity_id = system_entity_id("switch", "dp_price_discharge_control")
+        else:
+            self._attr_translation_key = "rt_price_discharge_control"
+            self._conf_key = CONF_RT_PRICE_DISCHARGE_CONTROL
+            self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}rt_price_discharge_control"
+            self.entity_id = system_entity_id("switch", "rt_price_discharge_control")
+
+        self._attr_has_entity_name = True
+        self._attr_icon = "mdi:cash-clock"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if price-based discharge control is active."""
+        if self._kind == "dp":
+            return self.controller.dp_price_discharge_control
+        return self.controller.rt_price_discharge_control
+
+    def _set_enabled(self, enabled: bool) -> None:
+        """Set the controller flag and persist it."""
+        if self._kind == "dp":
+            self.controller.dp_price_discharge_control = enabled
+        else:
+            self.controller.rt_price_discharge_control = enabled
+        new_data = dict(self.entry.data)
+        new_data[self._conf_key] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Price-based discharge control (%s) %s",
+                     self._kind, "ENABLED" if enabled else "DISABLED")
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable price-based discharge control."""
+        self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable price-based discharge control."""
+        self._set_enabled(False)
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",

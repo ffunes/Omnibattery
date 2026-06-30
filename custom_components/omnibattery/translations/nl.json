@@ -1017,6 +1017,15 @@
       "hourly_balance": {
         "name": "Nettosaldo"
       },
+      "weekly_full_charge_enabled": {
+        "name": "Wekelijkse volledige lading"
+      },
+      "dp_price_discharge_control": {
+        "name": "Prijsgebaseerd ontladen"
+      },
+      "rt_price_discharge_control": {
+        "name": "Prijsgebaseerd ontladen"
+      },
       "lamp_switch": {
         "name": "Status-leds"
       }
@@ -1485,6 +1494,18 @@
       },
       "battery_capacity": {
         "name": "Batterijcapaciteit"
+      },
+      "hourly_balance_target_net_wh": {
+        "name": "Doel uurbalans"
+      },
+      "hourly_balance_max_offset_w": {
+        "name": "Max. offset uurbalans"
+      },
+      "hourly_balance_deadband_wh": {
+        "name": "Dodeband uurbalans"
+      },
+      "hourly_balance_hysteresis_w": {
+        "name": "Hysterese uurbalans"
       },
       "soc_set": {
         "name": "Doel-SOC"
