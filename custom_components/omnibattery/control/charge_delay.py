@@ -505,9 +505,77 @@ class ChargeDelayManager:
             )
             return _unlock("time_backup")
 
+        # --- Price-aware release (within the proven-feasible window only) ---
+        # The checks above keep the delay until the feasibility edge
+        # (energy_balance / time_backup), which is the LATEST safe release and is
+        # often a pricier afternoon hour than the midday export trough. Pull the
+        # release FORWARD to the cheapest export hour inside the still-feasible
+        # window [now, est_unlock_h], so self-charging sacrifices the least export
+        # (teruglever) revenue. SOC target stays fully protected: the window never
+        # extends past the edge, and the hard energy/time unlocks above remain the
+        # floor. Degrades to legacy edge-release when no price data is available.
+        release_h = self._price_optimal_release_h(now_h, est_unlock_h)
+        if release_h is not None:
+            if now_h + 1e-6 < release_h:
+                # A cheaper feasible hour lies ahead, keep holding for it.
+                status["estimated_unlock_time"] = _h_to_hhmm(release_h)
+                status["state"] = f"Delayed (price, {_h_to_hhmm(release_h)} est.)"
+                return True
+            # Current hour is the cheapest feasible export hour, release now.
+            _LOGGER.info(
+                "Charge Delay: now (%.2fh) is cheapest feasible export hour up to "
+                "%.2fh - unlocking (reason: price_optimal)",
+                now_h, est_unlock_h,
+            )
+            return _unlock("price_optimal")
+
         # All checks passed - keep delay active
         status["state"] = f"Delayed ({status['estimated_unlock_time']} est.)"
         return True
+
+    def _price_optimal_release_h(self, now_h: float, edge_h: float) -> float | None:
+        """Cheapest export hour to begin charging within [now_h, edge_h].
+
+        Returns the start hour (float, today) of the lowest-priced price slot whose
+        start lies in the still-feasible window. Returns ``now_h`` when the current
+        slot is itself the cheapest (within a small epsilon, so we never hold for a
+        negligible gain). Returns ``None`` when no usable price data exists, in
+        which case the caller keeps the legacy edge-release behaviour.
+
+        This only ever moves the release EARLIER than the feasibility edge; it never
+        defers past it, so the SOC-target safety margin enforced upstream is intact.
+        """
+        ctrl = self._controller
+        pricing = getattr(ctrl, "_pricing_mgr", None)
+        if pricing is None or not getattr(ctrl, "price_sensor", None):
+            return None
+        try:
+            # Already today-only and future-only (slot.end > now); quiet so this
+            # per-cycle poll does not spam the price-parse log.
+            slots = pricing.get_future_price_slots()
+        except Exception:  # defensive: a price-parse failure must not break the delay gate
+            _LOGGER.debug("Charge Delay: price parse failed, skipping price-aware release", exc_info=True)
+            return None
+        if not slots:
+            return None
+
+        candidates = []  # (start_hour, price)
+        cur_price = None
+        for s in slots:
+            s_h = s.start.hour + s.start.minute / 60.0
+            if s_h > edge_h + 1e-6:  # slot starts after the feasibility edge
+                continue
+            candidates.append((s_h, s.price))
+            if s_h <= now_h + 1e-9:  # slot covering the current moment
+                cur_price = s.price
+        if not candidates:
+            return None
+
+        eps = 0.005  # EUR/kWh: ignore sub-cent differences, prefer releasing sooner
+        best_h, best_p = min(candidates, key=lambda c: (c[1], c[0]))
+        if cur_price is not None and cur_price <= best_p + eps:
+            return now_h
+        return best_h
 
     def _estimate_energy_balance_unlock_h(
         self,

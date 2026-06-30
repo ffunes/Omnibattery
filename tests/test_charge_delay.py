@@ -389,3 +389,78 @@ def test_setpoint_blocks_noop_when_feature_disabled():
     ctrl = _setpoint_controller([leader], _delay_soc_setpoint_enabled=False)
     _mgr_for(ctrl).refresh_setpoint_blocks()
     assert ctrl.blocks.get("charge_delay_setpoint", set()) == set()
+
+
+# ----------------------------------------------------------------------
+# _price_optimal_release_h: price-aware release within the feasible window
+# ----------------------------------------------------------------------
+from datetime import timedelta  # noqa: E402
+
+from homeassistant.util import dt as dt_util  # noqa: E402
+
+from custom_components.omnibattery.pricing import (  # noqa: E402
+    PriceSlot,
+)
+
+
+def _slot(hour, price):
+    """Hourly PriceSlot for today at ``hour`` (matches the manager's today check)."""
+    start = dt_util.now().replace(
+        hour=int(hour), minute=0, second=0, microsecond=0
+    )
+    return PriceSlot(start=start, end=start + timedelta(hours=1), price=price)
+
+
+def _price_ctrl(slots, **overrides):
+    return _controller(
+        price_sensor="sensor.price",
+        _pricing_mgr=SimpleNamespace(get_future_price_slots=lambda horizon_end=None: slots),
+        **overrides,
+    )
+
+
+def test_price_release_none_without_sensor():
+    # No price_sensor / pricing manager → legacy edge release (returns None).
+    mgr = _make_mgr(_controller())
+    assert mgr._price_optimal_release_h(11.0, 16.0) is None
+
+
+def test_price_release_none_on_empty_slots():
+    mgr = _make_mgr(_price_ctrl([]))
+    assert mgr._price_optimal_release_h(11.0, 16.0) is None
+
+
+def test_price_release_holds_for_cheaper_hour_ahead():
+    # Cheapest feasible hour is 13:00 (the trough); at 11:00 with edge 16:00 → hold.
+    slots = [_slot(11, 0.21), _slot(12, 0.17), _slot(13, 0.14), _slot(14, 0.18)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.0, 16.0) == 13.0
+
+
+def test_price_release_now_when_current_is_cheapest():
+    slots = [_slot(11, 0.14), _slot(12, 0.17), _slot(13, 0.21)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.0, 16.0) == 11.0
+
+
+def test_price_release_ignores_slots_past_edge():
+    # The 13:00 trough sits past the feasibility edge (12.5) → unreachable, so the
+    # cheapest *feasible* hour (12:00) wins. This is today's tight-solar shape: the
+    # edge precedes the trough, so the trough cannot be captured without risking SOC.
+    slots = [_slot(11, 0.21), _slot(12, 0.17), _slot(13, 0.14)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.0, 12.5) == 12.0
+
+
+def test_price_release_epsilon_prefers_releasing_now():
+    # A negligibly-cheaper hour ahead (< 0.005 €/kWh) must not trigger a hold.
+    slots = [_slot(11, 0.150), _slot(13, 0.147)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.0, 16.0) == 11.0
+
+
+def test_price_release_counts_current_partial_hour():
+    # Called mid-hour (11:30): the 11:00 slot still covers now and counts as current.
+    slots = [_slot(11, 0.14), _slot(12, 0.20)]
+    mgr = _make_mgr(_price_ctrl(slots))
+    assert mgr._price_optimal_release_h(11.5, 16.0) == 11.5
