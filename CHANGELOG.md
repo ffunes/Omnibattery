@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0b2] - 2026-06-30
+
+### Fixed
+- **Battery kept exporting to grid after it dropped RS485 control (#434)**: when a v3 silently slipped out of forced mode (ACK ok, ~0 W delivered) the non-responsive recovery toggled RS485 *off* → on — but the *off* step hands control to the battery's internal logic, which can export to grid, and the 5-minute pool exclusion then left it running free. Recovery now re-asserts RS485 without the off step and forces standby, and a battery commanded idle while still moving power is re-pinned (RS485 re-asserted + a real standby write) instead of trusting its matching set-points. [`__init__.py`](custom_components/omnibattery/__init__.py).
+- **Weekly full charge stalled an imbalanced pack at 3.58 V**: the 60 s top-of-charge delta-V measurement held the battery at 0 W whenever the max cell reached the pause voltage, even during a weekly full charge. An imbalanced pack (whose highest cell hits 3.58 V well before the pack is full) ping-ponged at 3.58 V and never climbed to the real BMS cutoff. The measurement now steps aside during an active weekly charge so the taper drives the cell to the cutoff; the delta-V is still captured once at completion. [`control/max_soc_charge.py`](custom_components/omnibattery/control/max_soc_charge.py).
+- **Weekly full charge stopped near the top instead of charging to the BMS cutoff**: an idle battery (≤10 W + Standby in the taper zone but *not* being commanded to charge) was mistaken for a real BMS cutoff, so a brief solar lull falsely marked it "full" at 94–98 % SOC and excluded it from charging for the rest of the run. A cutoff now only counts while the battery is actually commanded to charge yet refuses, and the confirmed-cutoff latch is held through the charge exclusion that follows. [`control/weekly_full_charge.py`](custom_components/omnibattery/control/weekly_full_charge.py).
+
 ## [1.0.0b1] - 2026-06-29
 
 > ### ⚠️ Major change — new repository, integration renamed to “Omnibattery”

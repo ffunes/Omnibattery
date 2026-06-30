@@ -98,6 +98,28 @@ async def test_skip_when_idle_unchanged():
     coord.apply_power.assert_not_called()
 
 
+async def test_no_skip_when_idle_but_delivering():
+    """Commanded idle but the battery is exporting under its own internal logic
+    (a v3 that dropped RS485 forced mode — issue #434): the matching standby
+    set-points are not trustworthy. Must re-assert RS485 control and write a real
+    standby instead of skipping."""
+    coord = _Coord({
+        "force_mode": 0,
+        "set_charge_power": 0,
+        "set_discharge_power": 0,
+        "battery_power": -2600,  # exporting on its own while commanded idle
+    })
+    coord.set_rs485_control = AsyncMock(return_value=True)
+    coord.apply_power = AsyncMock(return_value=_ok(0, battery_power_w=0))
+    ctrl = _controller()
+
+    result = await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 0)
+
+    assert result is True
+    coord.set_rs485_control.assert_awaited_once_with(True)
+    coord.apply_power.assert_called_once()  # re-pinned to standby, not skipped
+
+
 async def test_skip_when_discharge_unchanged_and_delivering():
     coord = _Coord({
         "force_mode": 2,

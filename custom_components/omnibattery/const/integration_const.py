@@ -238,6 +238,14 @@ FAST_ACTUATOR_MAX_LATENCY_S = 1.5
 # engages is still caught, just this many seconds later.
 DISCHARGE_ENGAGE_GRACE_S = 30
 
+# Idle-runaway floor: a battery commanded to idle (0 W) that is actually moving
+# more than this many watts has slipped out of RS485 forced mode and is running
+# its own internal logic (a v3 can export to grid this way — see issue #434). Above
+# this floor we re-assert RS485 control and write a real standby instead of letting
+# the bus-load skip-write trust the matching set-points. Set above standby self-draw
+# / metering noise so a resting battery doesn't trigger needless writes.
+IDLE_RUNAWAY_POWER_W = 100
+
 # Active balance mode.
 # Once the battery has reached the top, keep the cells in the balancing window
 # with gentle charge/discharge micro-cycles instead of only resting at 100% SOC.

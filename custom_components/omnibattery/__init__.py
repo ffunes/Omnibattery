@@ -123,6 +123,7 @@ from .const import (
     PD_READBACK_EVERY_N_WRITES,
     FAST_ACTUATOR_MAX_LATENCY_S,
     DISCHARGE_ENGAGE_GRACE_S,
+    IDLE_RUNAWAY_POWER_W,
     CONF_ACTIVE_BALANCE_MODE_ENABLED,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
@@ -2992,8 +2993,13 @@ class ChargeDischargeController:
         ignore_charge_blockers: set[str] | None = None,
         ignore_discharge_blockers: set[str] | None = None,
         bypass_blockers: bool = False,
+        force_write: bool = False,
     ) -> bool:
         """Set charge/discharge power for a single battery with ACK verification.
+
+        ``force_write`` bypasses the bus-load skip-write so the command is always
+        written, even when the battery's set-points already match — used by the
+        non-responsive recovery to re-pin a battery that has slipped its control.
 
         Returns True if command was acknowledged, False otherwise.
         """
@@ -3129,9 +3135,32 @@ class ChargeDischargeController:
         # drops and we fall through to a real write so the tracker keeps seeing it.
         data = coordinator.data or {}
         current_net = coordinator.driver.net_power_from_data(data)
-        if current_net is not None and current_net == net_power:
+        if not force_write and current_net is not None and current_net == net_power:
             skip_write = True
-            if net_power < 0 and abs(net_power) >= 100:
+            if net_power == 0:
+                # Commanded idle but the battery is actually moving power means it
+                # has slipped out of RS485 forced mode into its own internal logic
+                # (a v3 reverts to its app mode and can export to grid this way —
+                # issue #434). The matching standby set-points are not trustworthy:
+                # re-assert RS485 control and fall through to a real standby write
+                # so the battery is pinned back to idle instead of running free.
+                batt_power = data.get("battery_power")
+                if (
+                    batt_power is not None
+                    and abs(float(batt_power)) >= IDLE_RUNAWAY_POWER_W
+                ):
+                    skip_write = False
+                    if (
+                        coordinator.capabilities.has_rs485_control
+                        and not coordinator.rs485_user_disabled
+                    ):
+                        _LOGGER.warning(
+                            "[%s] Commanded idle but delivering %.0fW — re-asserting "
+                            "RS485 control and forcing standby",
+                            coordinator.name, float(batt_power),
+                        )
+                        await coordinator.set_rs485_control(True)
+            elif net_power < 0 and abs(net_power) >= 100:
                 batt_power = data.get("battery_power")
                 skip_write = (
                     batt_power is not None
@@ -3379,26 +3408,30 @@ class ChargeDischargeController:
             self._non_responsive.set_wake_attempted(coordinator, woke)
 
     async def _attempt_wake(self, coordinator) -> bool:
-        """Toggle RS485 control off→on as a wake nudge for an unresponsive battery.
+        """Re-assert RS485 control and force standby on an unresponsive battery.
 
-        A battery that ACKs power commands but delivers 0 W has usually dropped its
-        RS485 control mode (e.g. it slipped into standby). Simply re-asserting the
-        enable value is a no-op if the battery already believes it is enabled, so we
-        force a real state transition: disable, wait 1 s, then re-enable. Skipped
-        when the user has disabled RS485 control. Returns True if the re-enable
-        succeeded.
+        A battery that ACKs power commands but delivers ~0 W has usually dropped its
+        RS485 forced mode and reverted to its own internal logic (a v3 in internal
+        logic can export to grid on its own — issue #434). Re-enable RS485 to take
+        control back, then force a real standby write so the battery idles instead of
+        running its internal mode. We deliberately do NOT disable RS485 first: that
+        very step hands control to the internal logic we are trying to override,
+        opening an export window. Skipped when the user has disabled RS485 control.
+        Returns True if the re-enable succeeded.
         """
         if coordinator.rs485_user_disabled:
             return False
         if not coordinator.capabilities.has_rs485_control:
             return False
         _LOGGER.info(
-            "[%s] Non-delivery — RS485 wake toggle (disable → 1s → enable)",
+            "[%s] Non-delivery — re-asserting RS485 control + forcing standby",
             coordinator.name,
         )
-        await coordinator.set_rs485_control(False)
-        await asyncio.sleep(1)
-        return await coordinator.set_rs485_control(True)
+        ok = await coordinator.set_rs485_control(True)
+        await self._set_battery_power(
+            coordinator, 0, 0, bypass_blockers=True, force_write=True,
+        )
+        return ok
 
     # =========================================================================
     # DYNAMIC PRICING / REAL-TIME PRICE: delegators to PricingManager
