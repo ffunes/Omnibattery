@@ -57,7 +57,7 @@ Full documentation (configuration, features, entities, troubleshooting) is avail
 | Grid sensor | HA sensor measuring total grid consumption (e.g. Shelly EM3, Neurio, smart meter) |
 | Network | Battery reachable by IP from Home Assistant |
 | Home Assistant | Recent version (tested on 2024.x+) |
-| Solar forecast *(optional)* | Sensor providing tomorrow's production in kWh (Solcast, Forecast.Solar, …) |
+| Solar forecast *(optional)* | Sensor providing today's production in kWh (Solcast, Forecast.Solar, …) |
 
 ## Installation
 
