@@ -3437,6 +3437,18 @@ class ChargeDischargeController:
             coordinator.name,
         )
         ok = await coordinator.set_rs485_control(True)
+        # A v3 that dropped forced mode at the BMS full-charge cutoff ACKs this
+        # write over the existing socket but ignores it (register still reads
+        # disabled) — only a fresh TCP connection makes it accept control, which
+        # is why an HA restart recovers the battery. If the re-assert didn't
+        # take, do that restart-equivalent here. Read error (None) is left to the
+        # read-failure health path; only a definitive "still disabled" escalates.
+        if await coordinator.rs485_control_enabled() is False:
+            _LOGGER.warning(
+                "[%s] RS485 re-assert didn't take over the live connection — "
+                "reconnecting fresh (restart-equivalent)", coordinator.name,
+            )
+            ok = await coordinator.async_reconnect_fresh()
         await self._set_battery_power(
             coordinator, 0, 0, bypass_blockers=True, force_write=True,
         )

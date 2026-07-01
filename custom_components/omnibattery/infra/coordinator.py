@@ -802,6 +802,20 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning("[%s] Failed to set RS485 control=%s", self.name, enable)
             return ok
 
+    async def rs485_control_enabled(self) -> bool | None:
+        """Read back RS485 control mode to verify a re-assert took. None on error.
+
+        Holds self.lock, matching set_rs485_control. Only meaningful on drivers
+        with RS485 control (Marstek); callers gate on capabilities.has_rs485_control.
+        """
+        async with self.lock:
+            try:
+                return await self.driver.get_rs485_control()
+            except Exception as e:
+                if not self._is_shutting_down:
+                    _LOGGER.error("[%s] Exception reading RS485 control: %s", self.name, e)
+                return None
+
     async def apply_config(
         self,
         *,

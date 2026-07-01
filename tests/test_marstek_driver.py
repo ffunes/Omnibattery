@@ -515,6 +515,41 @@ async def test_set_rs485_control_propagates_write_failure():
 
 
 # ----------------------------------------------------------------------
+# get_rs485_control (read-back to verify a re-assert took)
+# ----------------------------------------------------------------------
+async def test_get_rs485_control_reads_enabled():
+    client = _fake_client()
+    client.async_read_register = AsyncMock(return_value=21930)  # 0x55AA
+    drv = _driver("v3", client=client)
+
+    assert await drv.get_rs485_control() is True
+    reg = REGISTER_MAP["v3"]["rs485_control"]
+    client.async_read_register.assert_awaited_once_with(reg, "uint16")
+
+
+async def test_get_rs485_control_reads_disabled():
+    client = _fake_client()
+    client.async_read_register = AsyncMock(return_value=21947)  # 0x55BB
+    drv = _driver("v3", client=client)
+
+    assert await drv.get_rs485_control() is False
+
+
+async def test_get_rs485_control_none_on_read_error():
+    client = _fake_client()
+    client.async_read_register = AsyncMock(return_value=None)
+    drv = _driver("v3", client=client)
+
+    assert await drv.get_rs485_control() is None
+
+
+async def test_get_rs485_control_none_when_register_missing():
+    drv = _driver("vX", client=_fake_client())  # unknown version -> no register
+
+    assert await drv.get_rs485_control() is None
+
+
+# ----------------------------------------------------------------------
 # apply_config
 # ----------------------------------------------------------------------
 async def test_apply_config_v2_writes_cutoffs_and_power_caps():

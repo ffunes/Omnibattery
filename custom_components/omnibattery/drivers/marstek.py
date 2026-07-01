@@ -643,6 +643,23 @@ class MarstekModbusDriver(BatteryDriver):
             reg, _RS485_ENABLE if enable else _RS485_DISABLE
         )
 
+    async def get_rs485_control(self) -> Optional[bool]:
+        """Read back RS485 control mode. True=enabled, False=disabled, None on error.
+
+        Used to verify a ``set_rs485_control(True)`` actually took: a v3 that dropped
+        forced mode at the BMS full-charge cutoff ACKs the enable write over the
+        existing socket but still reads back disabled — only a fresh TCP connection
+        makes it stick (which is why an HA restart recovers control).
+        """
+        reg = self.get_register("rs485_control")
+        if reg is None:
+            return None
+        self._client.unit_id = self._slave_id
+        value = await self._client.async_read_register(reg, "uint16")
+        if value is None:
+            return None
+        return value == _RS485_ENABLE
+
     @classmethod
     async def probe(cls, host: str, port: int, version: str, slave_id: int = 1, serial_port: Optional[str] = None) -> bool:
         """Test whether a Marstek battery responds for this version.
