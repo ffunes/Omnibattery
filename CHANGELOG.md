@@ -1,8 +1,9 @@
 # Changelog
 
-## [1.0.0b2] - 2026-06-30
+## [1.0.0b3] - 2026-07-01
 
 ### Fixed
+- **Tibber dynamic pricing only returned today's prices** (#21): `tibber.get_prices` without an explicit `end` defaults to today only, so tomorrow's already-published slots (available after ~13:00) were never fetched. The service call now requests through the day after tomorrow. [`pricing/engine.py`](custom_components/omnibattery/pricing/engine.py).
 - **Backup Function switch had no effect (all models)**: `REGISTER_MAP` was missing the `backup_function` key, so toggling the switch always silently failed. Added register 41200 for v2, v3, vA and vD. [`const/registers_common.py`](custom_components/omnibattery/const/registers_common.py).
 - **Lost RS485 control after a full charge now recovers without an HA restart**: a v3 that drops forced mode at the BMS full-charge cutoff ACKs a re-enable write over the existing socket but ignores it — only a fresh TCP connection makes it stick, which is why a restart was the only fix. The non-delivery recovery now reads the RS485 register back and, if the re-assert didn't take, reconnects fresh (the restart-equivalent) instead of leaving the battery uncontrolled. [`__init__.py`](custom_components/omnibattery/__init__.py), [`drivers/marstek.py`](custom_components/omnibattery/drivers/marstek.py).
 - **Battery kept exporting to grid after it dropped RS485 control (#434)**: when a v3 silently slipped out of forced mode (ACK ok, ~0 W delivered) the non-responsive recovery toggled RS485 *off* → on — but the *off* step hands control to the battery's internal logic, which can export to grid, and the 5-minute pool exclusion then left it running free. Recovery now re-asserts RS485 without the off step and forces standby, and a battery commanded idle while still moving power is re-pinned (RS485 re-asserted + a real standby write) instead of trusting its matching set-points. [`__init__.py`](custom_components/omnibattery/__init__.py).

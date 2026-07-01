@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from custom_components.omnibattery.const import (
     PRICE_INTEGRATION_CKW,
     PRICE_INTEGRATION_NORDPOOL,
+    PRICE_INTEGRATION_TIBBER,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PREDICTIVE_MODE_REALTIME_PRICE,
     PREDICTIVE_MODE_TIME_SLOT,
@@ -274,4 +275,41 @@ def test_dp_discharge_floor_unset_falls_back_to_charge_ceiling():
     ctrl = _dp_band_controller(discharge_price_threshold=None)
     _mgr_with_price(ctrl, 0.25).apply_price_discharge_block()
     assert ctrl._removed == ["price_discharge"]
+
+
+# ----------------------------------------------------------------------
+# _maybe_refresh_tibber_prices (#21: default call only returns today)
+# ----------------------------------------------------------------------
+
+class _FakeTibberServices:
+    """Records ``async_call`` args; ``get_prices`` always reports available."""
+
+    def __init__(self):
+        self.calls: list = []
+
+    def has_service(self, domain, service):
+        return domain == "tibber" and service == "get_prices"
+
+    async def async_call(self, domain, service, data, blocking=True, return_response=True):
+        self.calls.append(data)
+        return {"prices": {}}
+
+
+def test_tibber_refresh_requests_through_day_after_tomorrow():
+    import asyncio
+    from homeassistant.util import dt as dt_util
+
+    services = _FakeTibberServices()
+    hass = SimpleNamespace(services=services)
+    ctrl = _controller(
+        price_integration_type=PRICE_INTEGRATION_TIBBER,
+        _tibber_price_slots=[],
+        _tibber_prices_fetched_at=None,
+    )
+
+    asyncio.run(PricingManager(hass, ctrl)._maybe_refresh_tibber_prices(force=True))
+
+    assert len(services.calls) == 1
+    end = dt_util.parse_datetime(services.calls[0]["end"])
+    assert end == dt_util.start_of_local_day() + timedelta(days=2)
     assert ctrl._price_based_discharge_blocked is False
