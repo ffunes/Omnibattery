@@ -147,10 +147,13 @@ class PricingManager:
     async def _maybe_refresh_tibber_prices(self, *, force: bool = False) -> None:
         """Poll ``tibber.get_prices`` and cache the slots when stale.
 
-        Tibber has no price sensor; the service returns today's slots and, after
-        ~13:00, tomorrow's. Refreshes when the cache is empty, older than
-        ``TIBBER_REFRESH_MINUTES``, or when ``force`` (before each evaluation).
-        No-op for every other integration type.
+        Tibber has no price sensor. Without an explicit ``end``, the service
+        defaults to today only (start of today to start of tomorrow); tomorrow's
+        already-published slots (available after ~13:00) are only returned if
+        ``end`` reaches past tomorrow midnight, so ``end`` is requested as the
+        start of the day after tomorrow. Refreshes when the cache is empty,
+        older than ``TIBBER_REFRESH_MINUTES``, or when ``force`` (before each
+        evaluation). No-op for every other integration type.
         """
         if self._controller.price_integration_type != PRICE_INTEGRATION_TIBBER:
             return
@@ -169,9 +172,16 @@ class PricingManager:
             _LOGGER.warning("Dynamic pricing: tibber.get_prices service not available")
             return
 
+        from homeassistant.util import dt as dt_util
+
+        end = dt_util.start_of_local_day() + timedelta(days=2)
         try:
             response = await self._hass.services.async_call(
-                "tibber", "get_prices", {}, blocking=True, return_response=True
+                "tibber",
+                "get_prices",
+                {"end": end.isoformat()},
+                blocking=True,
+                return_response=True,
             )
         except Exception as exc:
             _LOGGER.warning("Dynamic pricing: tibber.get_prices call failed: %s", exc)
