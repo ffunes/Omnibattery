@@ -3405,33 +3405,56 @@ class ChargeDischargeController:
             self._non_responsive.clear(coordinator)
             return
         reason = "standby_no_delivery" if is_standby else "non_delivery"
-        just_excluded = self._non_responsive.record_non_delivery(
+        outcome = self._non_responsive.record_non_delivery(
             coordinator, discharge_power, actual_abs,
             reason=reason, retry_attempted=attempt > 0,
         )
-        # One-shot wake nudge, only at the moment of exclusion — a last-ditch
-        # RS485 re-assert before dropping it from the pool (no-op on drivers
-        # without RS485 control, e.g. Zendure).
-        if just_excluded:
-            woke = await self._attempt_wake(coordinator)
+        # First threshold-cross: a one-shot wake nudge (reconnect/re-assert), but
+        # the tracker resets the fail counter instead of excluding — the battery
+        # stays in the pool so the very next real PD cycle proves whether the
+        # wake worked, instead of paying a 5-minute cooldown for nothing if it
+        # did. Only a second consecutive threshold-cross in the same episode
+        # (post-wake) actually excludes it, and that one gets no further wake
+        # (no-op on drivers without RS485 control, e.g. Zendure).
+        if outcome == "wake":
+            woke = await self._attempt_wake(coordinator, is_standby=is_standby)
             self._non_responsive.set_wake_attempted(coordinator, woke)
 
-    async def _attempt_wake(self, coordinator) -> bool:
-        """Re-assert RS485 control and force standby on an unresponsive battery.
+    async def _attempt_wake(self, coordinator, *, is_standby: bool = False) -> bool:
+        """Re-assert RS485 control (or toggle it) on an unresponsive battery.
 
         A battery that ACKs power commands but delivers ~0 W has usually dropped its
         RS485 forced mode and reverted to its own internal logic (a v3 in internal
-        logic can export to grid on its own — issue #434). Re-enable RS485 to take
-        control back, then force a real standby write so the battery idles instead of
-        running its internal mode. We deliberately do NOT disable RS485 first: that
-        very step hands control to the internal logic we are trying to override,
-        opening an export window. Skipped when the user has disabled RS485 control.
+        logic can export to grid on its own — issue #434). The safe recovery for
+        that case is to re-enable RS485 without a disable step and force a real
+        standby write, since disabling first hands control to the internal logic
+        we are trying to override, opening an export window.
+
+        When the battery is already sitting in ``inverter_state == standby``
+        (``is_standby``), that risk doesn't apply — it isn't running any internal
+        logic to hand control to. A plain re-assert is a no-op if the BMS already
+        believes RS485 is enabled and is simply stuck (exactly the reported case:
+        RS485 reads enabled, yet discharge never engages). Users confirm only an
+        HA restart or a manual command recovers it, and a restart's fix is the
+        fresh TCP connection (see ``async_reconnect_fresh``), not a register
+        toggle — so go straight to that restart-equivalent here rather than
+        guessing with a toggle. Skipped when the user has disabled RS485 control.
         Returns True if the re-enable succeeded.
         """
         if coordinator.rs485_user_disabled:
             return False
         if not coordinator.capabilities.has_rs485_control:
             return False
+        if is_standby:
+            _LOGGER.info(
+                "[%s] Non-delivery (standby) — reconnecting fresh "
+                "(restart-equivalent)", coordinator.name,
+            )
+            ok = await coordinator.async_reconnect_fresh()
+            await self._set_battery_power(
+                coordinator, 0, 0, bypass_blockers=True, force_write=True,
+            )
+            return ok
         _LOGGER.info(
             "[%s] Non-delivery — re-asserting RS485 control + forcing standby",
             coordinator.name,

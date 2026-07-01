@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Battery stuck in standby near full SOC never recovered automatically**: b2's #434 fix made the non-responsive wake nudge only re-assert RS485 (no reconnect) everywhere, but a battery already in standby with RS485 reading enabled needs the same fresh reconnection an HA restart does — a register write alone doesn't unstick it. That case now reconnects fresh directly instead of guessing with a register toggle. [`__init__.py`](custom_components/omnibattery/__init__.py).
+- **Wake nudge excluded the battery for 5 minutes even when it fixed the fault**: the non-responsive tracker excluded on the same cycle it attempted the wake, so a successful reconnect still paid the full cooldown before being retried. The battery now gets one grace cycle after the wake — the fail counter resets and it stays in the pool so the next real PD command proves whether the fault is gone — and only excludes for real if it fails the threshold again afterward. [`tracking/non_responsive_tracker.py`](custom_components/omnibattery/tracking/non_responsive_tracker.py), [`__init__.py`](custom_components/omnibattery/__init__.py).
+
 ## [1.0.0b2] - 2026-07-01
 
 ### Fixed
