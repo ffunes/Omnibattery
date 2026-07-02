@@ -298,7 +298,8 @@ class MarstekVenusAggregateSensor(SensorEntity):
 
         Mirrors the dashboard's per-battery cell-power formula exactly, so the SOC
         card's Charge/Discharge blocks link to a value that matches what they show:
-        ``-ac_power - ac_offgrid_power + sum(MPPT)``. ac_power is preferred over the
+        ``-ac_power - ac_offgrid_power + sum(MPPT)`` (offgrid only in Backup Mode).
+        ac_power is preferred over the
         unreliable battery_power register; drivers without ac_power (no MPPT, so this
         sensor isn't created for them) fall back to their signed battery_power.
         """
@@ -316,7 +317,12 @@ class MarstekVenusAggregateSensor(SensorEntity):
                     value = data.get(mk)
                     if value is not None:
                         mppt += value
-                aco = data.get("ac_offgrid_power") or 0.0
+                # Off-grid/backup output only draws from the cells in Backup Mode
+                # (inverter_state == 4, grid down). With the grid present it's fed
+                # by passthrough, so counting it would inflate discharge / eat charge.
+                aco = 0.0
+                if data.get("inverter_state") == 4:
+                    aco = data.get("ac_offgrid_power") or 0.0
                 total += -ac - aco + mppt
                 has_data = True
             else:

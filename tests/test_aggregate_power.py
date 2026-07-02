@@ -130,15 +130,26 @@ def test_cell_power_solar_bypass_net_discharge():
     assert sensor._calculate_battery_cell_power() == -200
 
 
-def test_cell_power_includes_ac_offgrid_and_all_mppt():
-    # Backup-port draw (ac_offgrid +50) plus four MPPT strings.
+def test_cell_power_includes_ac_offgrid_in_backup_mode():
+    # In Backup Mode (grid down) the backup port draws from the cells: count it.
     va = FakeCoordinator(data={
-        "ac_power": -100, "ac_offgrid_power": 50,
+        "ac_power": -100, "ac_offgrid_power": 50, "inverter_state": 4,
         "mppt1_power": 100, "mppt2_power": 100, "mppt3_power": 100, "mppt4_power": 100,
     })
     sensor = _sensor([va], "system_battery_cell_power")
     # -(-100) - 50 + 400 = 450
     assert sensor._calculate_battery_cell_power() == 450
+
+
+def test_cell_power_ignores_ac_offgrid_on_grid():
+    # Grid present (not Backup Mode): the backup port is grid passthrough, not cell
+    # draw, so it must not inflate discharge / eat charge (issue #33).
+    va = FakeCoordinator(data={
+        "ac_power": 2500, "ac_offgrid_power": 300, "inverter_state": 3,  # Discharge
+    })
+    sensor = _sensor([va], "system_battery_cell_power")
+    # -2500 - 0 = -2500 (offgrid ignored, not -2800)
+    assert sensor._calculate_battery_cell_power() == -2500
 
 
 def test_cell_power_falls_back_to_battery_power():

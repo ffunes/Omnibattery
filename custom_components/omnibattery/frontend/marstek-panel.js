@@ -1228,8 +1228,12 @@ class MarstekVenusPanel extends HTMLElement {
       // Zendure exposes no ac_power; fall back to its synthesised battery_power
       // sensor (already + charge / - discharge, MPPT-inclusive).
       const battPwrW = this._watts(get(K.batteryPower));
+      // Off-grid output only draws from the cells in Backup Mode (grid down);
+      // with the grid present it's fed by passthrough, not the battery.
+      const invBackup = /backup/i.test(this._sval(get(K.inverterState)) || "");
+      const cellAcoW = invBackup ? acoW || 0 : 0;
       const powerW =
-        acW != null ? -acW - (acoW || 0) + (mpptW || 0) : battPwrW;
+        acW != null ? -acW - cellAcoW + (mpptW || 0) : battPwrW;
       batteries.push({
         dev,
         soc: this._num(socObj),
