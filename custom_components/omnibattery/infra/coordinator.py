@@ -200,9 +200,18 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self._max_failures_before_suspend = 5     # Suspend after 5 failed poll cycles
         self._is_connected = False
         self._suspension_reset_time = None         # When suspended, retry after this time
+        # Reason string of the most recent failed control write (set in the write
+        # path, surfaced by health_snapshot / diagnostics). Initialised here so a
+        # read before the first write returns None rather than raising.
+        self._last_write_failure_reason = None
 
         # Timestamp-based update tracking
         self._last_update_times = {}
+        # Last-written select values that override buggy register readbacks.
+        # Repopulated from persisted battery_config after construction; initialised
+        # here so get_shadow_select before that assignment returns None instead of
+        # raising AttributeError.
+        self._shadow_selects = {}
         self._entity_registry = None
         self.rs485_user_disabled = False  # Set by RS485 switch when user explicitly disables
         self._config_entry = None  # Set after creation to allow persisting rs485_user_disabled
@@ -446,6 +455,36 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
     def get_shadow_select(self, key: str) -> int | None:
         """Return the last-written value for a shadowed select, or None."""
         return self._shadow_selects.get(key)
+
+    def health_snapshot(self) -> dict:
+        """Point-in-time connection-health state for diagnostics / system_health.
+
+        A read-only view of the failure ladder and poll bookkeeping, keyed by
+        plain serialisable values so the diagnostics platform can dump it without
+        reaching into driver internals. Consumed by both ``diagnostics.py`` and
+        ``system_health.py`` so the two never diverge.
+        """
+        def _iso(value):
+            return value.isoformat() if hasattr(value, "isoformat") else value
+
+        return {
+            "name": self.name,
+            "brand": self.brand,
+            "battery_version": self.battery_version,
+            "connected": self._is_connected,
+            "available": self.is_available,
+            "shutting_down": self._is_shutting_down,
+            "consecutive_failures": self._consecutive_failures,
+            "max_failures_before_reconnect": self._max_failures_before_reconnect,
+            "max_failures_before_suspend": self._max_failures_before_suspend,
+            "suspended": self._suspension_reset_time is not None,
+            "suspension_reset_time": _iso(self._suspension_reset_time),
+            "last_write_failure_reason": self._last_write_failure_reason,
+            "last_update_times": {
+                ",".join(keys): _iso(ts)
+                for keys, ts in self._last_update_times.items()
+            },
+        }
 
     async def _async_update_data(self) -> dict:
         """Update all sensors asynchronously with per-sensor interval skipping.
