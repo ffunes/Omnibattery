@@ -73,22 +73,23 @@ class WeeklyFullChargeManager:
         is_battery_full() as a read-only state check.
         """
         ctrl = self._controller
-        weekly_active = self.is_active()
+        self.is_active()  # side effect: day-boundary flag reset
         for c in ctrl.coordinators:
             if not c.data:
                 self._bms_cutoff_counts[c.name] = 0
                 continue
             soc = c.data.get("battery_soc", 0)
-            # During weekly charge, also arm the counter when cells are in the
-            # top taper zone regardless of SOC — handles BMS coulomb drift where
-            # the BMS cuts at ~3.65 V but reports e.g. 95% SOC.
+            # Also arm the counter when cells are in the top taper zone regardless
+            # of SOC — handles BMS coulomb drift where the BMS cuts at ~3.65 V but
+            # reports e.g. 95-98% SOC. Not gated on weekly charge: an everyday BMS
+            # cutoff below 99% during normal charging needs this too, otherwise the
+            # charge hysteresis never latches and we keep commanding a refusing BMS.
             in_taper_zone = False
-            if weekly_active:
-                vmax = c.data.get("max_cell_voltage")
-                try:
-                    in_taper_zone = vmax is not None and float(vmax) >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
-                except (TypeError, ValueError):
-                    pass
+            vmax = c.data.get("max_cell_voltage")
+            try:
+                in_taper_zone = vmax is not None and float(vmax) >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
+            except (TypeError, ValueError):
+                pass
             if soc >= 99 or in_taper_zone:
                 power = c.data.get("battery_power", None)
                 inv_state = c.data.get("inverter_state", None)

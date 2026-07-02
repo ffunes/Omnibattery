@@ -84,6 +84,18 @@ def test_confirmed_cutoff_latches_when_battery_goes_idle():
     assert m.is_battery_full(coord) is True
 
 
+def test_cutoff_below_99_confirms_without_weekly_charge():
+    """v2 BMS cutting off at 98% (cells in taper zone) must confirm outside weekly
+    charge — otherwise charge hysteresis never latches. Regression for the
+    'stopped at 98%, hysteresis inactive' report."""
+    coord = _Coord("bat", soc=98, power=0, commanded=200)
+    m = _mgr(coord)
+    m.is_active = lambda: False  # NOT in weekly full charge
+    for _ in range(_BMS_CUTOFF_REQUIRED_CYCLES):
+        m.tick_bms_cutoff()
+    assert m.is_battery_full(coord) is True
+
+
 def test_accepting_charge_resets_counter():
     """A battery taking the charge it was offered is not full → counter resets."""
     coord = _Coord("bat", soc=94, power=0, commanded=200)
