@@ -470,6 +470,11 @@ class ChargeDischargeController:
         # while it is still engaging. See _set_battery_power.
         self._last_commanded_net_sign: dict[MarstekVenusDataUpdateCoordinator, int] = {}
         self._discharge_engage_started: dict[MarstekVenusDataUpdateCoordinator, datetime] = {}
+        # Idle-runaway episode guard: True while a battery commanded idle is still
+        # running free (issue #434), so the wake/re-assert fires once per episode
+        # instead of every control cycle (which floods the log). Cleared when the
+        # battery returns to idle or is commanded to move. See _set_battery_power.
+        self._idle_runaway_handled: dict[MarstekVenusDataUpdateCoordinator, bool] = {}
 
         # Coordinators currently owned by a manual time-slot this cycle.
         # PD/predictive logic must not touch these — _set_battery_power short-circuits.
@@ -3121,6 +3126,9 @@ class ChargeDischargeController:
             self._discharge_engage_started[coordinator] = dt_util.utcnow()
             self._non_responsive.clear(coordinator)
         self._last_commanded_net_sign[coordinator] = net_sign
+        if net_sign != 0:
+            # Commanding a move ends any idle-runaway episode.
+            self._idle_runaway_handled.pop(coordinator, None)
 
         # Record the live commanded setpoint so the manual sliders / force_mode
         # select can mirror it (parity with the Marstek register entities).
@@ -3151,24 +3159,38 @@ class ChargeDischargeController:
                 # has slipped out of RS485 forced mode into its own internal logic
                 # (a v3 reverts to its app mode and can export to grid this way —
                 # issue #434). The matching standby set-points are not trustworthy:
-                # re-assert RS485 control and fall through to a real standby write
-                # so the battery is pinned back to idle instead of running free.
+                # fall through to a real standby write so the battery is pinned back
+                # to idle instead of running free.
                 batt_power = data.get("battery_power")
                 if (
                     batt_power is not None
                     and abs(float(batt_power)) >= IDLE_RUNAWAY_POWER_W
                 ):
                     skip_write = False
+                    # Wake/re-assert only once per runaway episode. A v3 that
+                    # dropped forced mode ignores register writes over the live
+                    # socket, so re-asserting every ~2 s cycle just floods the log
+                    # without recovering — _attempt_wake escalates to a fresh
+                    # reconnect (restart-equivalent) if the re-assert doesn't take,
+                    # the same recovery the discharge non-delivery path uses. Later
+                    # cycles keep pinning standby via the fall-through write below.
                     if (
                         coordinator.capabilities.has_rs485_control
                         and not coordinator.rs485_user_disabled
+                        and not self._idle_runaway_handled.get(coordinator, False)
                     ):
+                        self._idle_runaway_handled[coordinator] = True
                         _LOGGER.warning(
                             "[%s] Commanded idle but delivering %.0fW — re-asserting "
                             "RS485 control and forcing standby",
                             coordinator.name, float(batt_power),
                         )
-                        await coordinator.set_rs485_control(True)
+                        await self._attempt_wake(coordinator)
+                        return True
+                else:
+                    # Back at genuine idle — end the episode so a future runaway
+                    # re-arms the wake.
+                    self._idle_runaway_handled.pop(coordinator, None)
             elif net_power < 0 and abs(net_power) >= 100:
                 batt_power = data.get("battery_power")
                 skip_write = (

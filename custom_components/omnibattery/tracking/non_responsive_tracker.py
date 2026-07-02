@@ -2,7 +2,8 @@
 
 Excludes batteries that ACK power commands but fail to deliver power
 (e.g. firmware glitch, BMS lockout). Excluded batteries are retried after
-a cooldown that doubles each cycle, capped.
+a flat cooldown — the goal is to recover a battery as soon as possible, so
+the penalty never grows across episodes.
 """
 from __future__ import annotations
 
@@ -20,38 +21,41 @@ class NonResponsiveTracker:
     def __init__(
         self,
         fail_threshold: int = 3,
-        initial_cooldown_min: int = 5,
-        cooldown_cap_min: int = 5,
+        cooldown_min: int = 5,
     ) -> None:
         self._fail_threshold = fail_threshold
-        self._initial_cooldown_min = initial_cooldown_min
-        self._cooldown_cap_min = cooldown_cap_min
-        # coordinator -> {"fail_count": int, "excluded_at": datetime|None, "cooldown_minutes": int}
+        # Flat retry cooldown — never grows across episodes. Recovering the
+        # battery fast matters more than penalising a chronically flaky one; a
+        # still-dead battery just re-excludes on its next failed cycle.
+        self._cooldown_min = cooldown_min
+        # coordinator -> {"fail_count": int, "excluded_at": datetime|None}
         self.batteries: dict[Any, dict] = {}
+
+    @property
+    def cooldown_min(self) -> int:
+        """Flat exclusion cooldown in minutes (read by the diagnostic sensor)."""
+        return self._cooldown_min
 
     def is_excluded(self, coordinator) -> bool:
         """Return True if the battery is currently in non-responsive cooldown.
 
         When the cooldown expires, the battery is allowed one retry window:
-        fail_count is reset and the next cooldown duration is doubled (capped).
-        The wake-grace budget also resets, so the next failure episode gets its
-        own one-shot wake-before-exclude round.
+        fail_count is reset so it re-enters the pool. The wake-grace budget also
+        resets, so the next failure episode gets its own one-shot
+        wake-before-exclude round.
         """
         info = self.batteries.get(coordinator)
         if not info or info["excluded_at"] is None:
             return False
         elapsed_min = (dt_util.utcnow() - info["excluded_at"]).total_seconds() / 60
-        if elapsed_min >= info["cooldown_minutes"]:
+        if elapsed_min >= self._cooldown_min:
             _LOGGER.info(
                 "[%s] Non-responsive cooldown expired (%d min) - retrying battery",
-                coordinator.name, info["cooldown_minutes"],
+                coordinator.name, self._cooldown_min,
             )
             info["excluded_at"] = None
             info["fail_count"] = 0
             info["wake_used"] = False
-            info["cooldown_minutes"] = min(
-                info["cooldown_minutes"] * 2, self._cooldown_cap_min
-            )
             return False
         return True
 
@@ -81,11 +85,7 @@ class NonResponsiveTracker:
         """
         info = self.batteries.setdefault(
             coordinator,
-            {
-                "fail_count": 0, "excluded_at": None,
-                "cooldown_minutes": self._initial_cooldown_min,
-                "wake_used": False,
-            },
+            {"fail_count": 0, "excluded_at": None, "wake_used": False},
         )
         info["fail_count"] += 1
         info["reason"] = reason
@@ -110,7 +110,7 @@ class NonResponsiveTracker:
                 "[%s] Non-responsive after %d consecutive cycles (reason=%s, "
                 "retry_attempted=%s) — %s. Excluding from pool for %d minutes.",
                 coordinator.name, self._fail_threshold, reason,
-                retry_attempted, detail, info["cooldown_minutes"],
+                retry_attempted, detail, self._cooldown_min,
             )
             return "excluded"
         return None
@@ -158,7 +158,6 @@ class NonResponsiveTracker:
             was_excluded = info["excluded_at"] is not None
             info["fail_count"] = 0
             info["excluded_at"] = None
-            info["cooldown_minutes"] = self._initial_cooldown_min
             info["reason"] = None
             info["retry_attempted"] = False
             info["wake_attempted"] = False
@@ -176,5 +175,5 @@ class NonResponsiveTracker:
             c.name
             for c, info in self.batteries.items()
             if info.get("excluded_at") is not None
-            and (now - info["excluded_at"]).total_seconds() / 60 < info["cooldown_minutes"]
+            and (now - info["excluded_at"]).total_seconds() / 60 < self._cooldown_min
         ]

@@ -59,6 +59,34 @@ def test_recovery_between_grace_and_second_attempt_clears_state():
     assert tracker.record_non_delivery(coord, 300, 0) == "wake"  # fresh grace budget
 
 
+def test_cooldown_is_flat_across_episodes():
+    """The exclusion cooldown must not grow across episodes — recovering fast is
+    the goal, so a second exclusion waits the same as the first (no backoff)."""
+    import custom_components.omnibattery.tracking.non_responsive_tracker as trk
+    from datetime import timedelta
+
+    tracker = NonResponsiveTracker(fail_threshold=3, cooldown_min=5)
+    coord = _coord()
+    real_utcnow = trk.dt_util.utcnow
+
+    def exclude_and_time_cooldown() -> None:
+        for _ in range(6):
+            tracker.record_non_delivery(coord, 300, 0)  # grace, then exclude
+        assert tracker.is_excluded(coord) is True
+        # Just under 5 min: still excluded. Just over: released.
+        trk.dt_util.utcnow = lambda: real_utcnow() + timedelta(minutes=4)
+        assert tracker.is_excluded(coord) is True
+        trk.dt_util.utcnow = lambda: real_utcnow() + timedelta(minutes=6)
+        assert tracker.is_excluded(coord) is False
+
+    try:
+        exclude_and_time_cooldown()   # first episode
+        trk.dt_util.utcnow = real_utcnow
+        exclude_and_time_cooldown()   # second episode: same 5-min window, not 10
+    finally:
+        trk.dt_util.utcnow = real_utcnow
+
+
 def test_comm_failure_excludes_immediately_no_grace():
     tracker = NonResponsiveTracker(fail_threshold=3)
     coord = _coord()
@@ -73,7 +101,7 @@ def test_comm_failure_excludes_immediately_no_grace():
 def test_cooldown_expiry_resets_wake_budget():
     import custom_components.omnibattery.tracking.non_responsive_tracker as trk
 
-    tracker = NonResponsiveTracker(fail_threshold=3, initial_cooldown_min=5)
+    tracker = NonResponsiveTracker(fail_threshold=3, cooldown_min=5)
     coord = _coord()
     for _ in range(6):
         tracker.record_non_delivery(coord, 300, 0)  # grace round, then excluded
@@ -82,8 +110,7 @@ def test_cooldown_expiry_resets_wake_budget():
     # Monkeypatch dt_util.utcnow to jump past the cooldown.
     from datetime import timedelta
     real_utcnow = trk.dt_util.utcnow
-    info = tracker.batteries[coord]
-    trk.dt_util.utcnow = lambda: real_utcnow() + timedelta(minutes=info["cooldown_minutes"] + 1)
+    trk.dt_util.utcnow = lambda: real_utcnow() + timedelta(minutes=6)
     try:
         assert tracker.is_excluded(coord) is False  # cooldown expired
     finally:

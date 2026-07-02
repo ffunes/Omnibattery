@@ -1267,15 +1267,16 @@ class NonResponsiveBatteriesSensor(SensorEntity):
                 and getattr(coordinator, "_consecutive_failures", 0) > 0
             )
             if info and info.get("excluded_at") is not None:
+                cooldown_min = self._controller._non_responsive.cooldown_min
                 elapsed_min = (now - info["excluded_at"]).total_seconds() / 60
-                remaining_min = max(0.0, info["cooldown_minutes"] - elapsed_min)
+                remaining_min = max(0.0, cooldown_min - elapsed_min)
                 attrs[coordinator.name] = {
                     "excluded": True,
                     "unreachable": unreachable,
                     "reason": info.get("reason") or "non_delivery",
                     "retry_attempted": info.get("retry_attempted", False),
                     "wake_attempted": info.get("wake_attempted", False),
-                    "cooldown_minutes": info["cooldown_minutes"],
+                    "cooldown_minutes": cooldown_min,
                     "remaining_minutes": round(remaining_min, 1),
                     "consecutive_failures": getattr(coordinator, "_consecutive_failures", 0),
                 }

@@ -81,6 +81,7 @@ def _controller():
             clear=lambda c: None,
             set_wake_attempted=lambda *a, **k: None,
         ),
+        _idle_runaway_handled={},
     )
     # The non-delivery judgment is a real method on the controller; bind it to
     # the stub so the readback and poll-time paths exercise the real logic.
@@ -101,23 +102,49 @@ async def test_skip_when_idle_unchanged():
 async def test_no_skip_when_idle_but_delivering():
     """Commanded idle but the battery is exporting under its own internal logic
     (a v3 that dropped RS485 forced mode — issue #434): the matching standby
-    set-points are not trustworthy. Must re-assert RS485 control and write a real
-    standby instead of skipping."""
+    set-points are not trustworthy. Must fire the wake recovery once per episode
+    instead of skipping."""
     coord = _Coord({
         "force_mode": 0,
         "set_charge_power": 0,
         "set_discharge_power": 0,
         "battery_power": -2600,  # exporting on its own while commanded idle
     })
-    coord.set_rs485_control = AsyncMock(return_value=True)
-    coord.apply_power = AsyncMock(return_value=_ok(0, battery_power_w=0))
     ctrl = _controller()
+    wake = AsyncMock(return_value=True)
+    ctrl._attempt_wake = wake
 
     result = await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 0)
 
     assert result is True
-    coord.set_rs485_control.assert_awaited_once_with(True)
-    coord.apply_power.assert_called_once()  # re-pinned to standby, not skipped
+    wake.assert_awaited_once_with(coord)
+
+
+async def test_idle_runaway_wake_fires_once_per_episode():
+    """The wake must fire once per runaway episode, not every cycle — re-asserting
+    every ~2 s is what floods the log without recovering the battery."""
+    coord = _Coord({
+        "force_mode": 0,
+        "set_charge_power": 0,
+        "set_discharge_power": 0,
+        "battery_power": -2600,  # still running free next cycle too
+    })
+    ctrl = _controller()
+    wake = AsyncMock(return_value=True)
+    ctrl._attempt_wake = wake
+
+    for _ in range(3):
+        await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 0)
+
+    wake.assert_awaited_once_with(coord)  # only the first cycle wakes
+
+    # Battery returns to idle, then runs away again -> a fresh episode re-arms.
+    coord.data["battery_power"] = 0
+    await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 0)
+    coord.data["battery_power"] = -2600
+    await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 0)
+
+    assert wake.await_count == 2
 
 
 async def test_skip_when_discharge_unchanged_and_delivering():
