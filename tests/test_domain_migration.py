@@ -34,6 +34,7 @@ from pytest_homeassistant_custom_component.common import (
     mock_platform,
 )
 
+from custom_components.omnibattery import async_migrate_entry
 from custom_components.omnibattery.domain_migration import (
     async_migrate_legacy_domain_entries,
 )
@@ -318,3 +319,135 @@ async def test_config_flow_triggers_migration(hass: HomeAssistant) -> None:
         post = er.async_entries_for_config_entry(registry, new_entries[0].entry_id)
         assert {e.unique_id: e.entity_id for e in post} == pre_map
         assert all(e.platform == NEW_DOMAIN for e in post)
+
+
+# --- Single-entry, real-heal end-to-end check (issue #31) -------------------
+#
+# Everything above uses a stable unique_id on both sides (no v9 heal involved).
+# System entities are different: pre-rebrand they keyed unique_id on the config
+# entry_id, and the real v8->v9 heal (custom_components.omnibattery.async_migrate_entry)
+# is what re-keys them onto the literal `marstek_venus_system_` prefix sensor.py
+# now uses. This exercises that real function end-to-end, for a SINGLE old entry,
+# to check whether the ordinary (non-race) case actually preserves the historical
+# entity_id -- i.e. whether issue #31 needs 2 old entries to reproduce at all.
+
+SYSTEM_UID_PREFIX = "marstek_venus_system_"
+HISTORICAL_EID = "sensor.marstek_venus_system_discharge_window"
+
+
+class _OldSystemFlow(ConfigFlow):
+    """Stand-in for the pre-rebrand marstek_venus_energy_manager config flow."""
+
+    VERSION = 8
+    MINOR_VERSION = 1
+
+
+class _NewSystemFlow(ConfigFlow):
+    """Stand-in for the real Omnibattery config flow (config_flow.py VERSION=10)."""
+
+    VERSION = 10
+    MINOR_VERSION = 1
+
+
+async def _old_system_platform_setup(hass, entry, async_add_entities):
+    """Mimic the real pre-rebrand sensor.py: DischargeWindowSensor.
+
+    unique_id = f"{entry.entry_id}_discharge_window" (entry-id-prefixed);
+    entity_id explicitly set via english_entity_id(...), which slugifies to the
+    same clean id regardless of which entry created it.
+    """
+    e = MockEntity(
+        unique_id=f"{entry.entry_id}_discharge_window",
+        entity_id=HISTORICAL_EID,
+        name="Marstek Venus System Discharge Window",
+    )
+    async_add_entities([e])
+
+
+async def _new_system_platform_setup(hass, entry, async_add_entities):
+    """Mimic the real current sensor.py: DischargeWindowSensor.
+
+    unique_id is the literal SYSTEM_UNIQUE_ID_PREFIX (entry-independent);
+    entity_id is explicitly suggested via system_entity_id(), i.e. `omnibattery_*`.
+    """
+    e = MockEntity(
+        unique_id=f"{SYSTEM_UID_PREFIX}discharge_window",
+        entity_id="sensor.omnibattery_discharge_window",
+        name="Discharge Window",
+    )
+    async_add_entities([e])
+
+
+def _register_system_domain(hass: HomeAssistant, domain: str, platform_setup) -> None:
+    async def async_setup_entry(hass, entry):
+        await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
+        return True
+
+    async def async_unload_entry(hass, entry):
+        return await hass.config_entries.async_unload_platforms(
+            entry, [Platform.SENSOR]
+        )
+
+    mock_integration(
+        hass,
+        MockModule(
+            domain,
+            async_setup_entry=async_setup_entry,
+            async_unload_entry=async_unload_entry,
+            # The real heal (v8 -> v9) only runs for the NEW domain, but wiring
+            # it for both is harmless -- the OLD domain's entry starts at its own
+            # matching version so migrate() short-circuits as "up to date".
+            async_migrate_entry=async_migrate_entry,
+        ),
+    )
+    mock_platform(hass, f"{domain}.sensor", MockPlatform(async_setup_entry=platform_setup))
+    mock_platform(hass, f"{domain}.config_flow", Mock())
+
+
+async def test_single_old_entry_system_entity_survives_seamless_migration(
+    hass: HomeAssistant,
+) -> None:
+    """Does issue #31 need 2 old entries, or does a single one already break?
+
+    One old config entry, one system entity, real ``async_migrate_entry`` (the
+    v9 heal) wired in exactly as production does. If this passes, the historical
+    ``sensor.marstek_venus_system_discharge_window`` id survives on an ordinary
+    single-entry install, and issue #31 needs the 2-old-entries race to
+    reproduce. If it fails, the bug is universal and the race theory is wrong.
+    """
+    with mock_config_flow(OLD_DOMAIN, _OldSystemFlow), mock_config_flow(
+        NEW_DOMAIN, _NewSystemFlow
+    ):
+        _register_system_domain(hass, OLD_DOMAIN, _old_system_platform_setup)
+        _register_system_domain(hass, NEW_DOMAIN, _new_system_platform_setup)
+
+        old_entry = MockConfigEntry(
+            domain=OLD_DOMAIN, title="Marstek Venus", version=8, minor_version=1,
+            data={},
+        )
+        old_entry.add_to_hass(hass)
+        assert await hass.config_entries.async_setup(old_entry.entry_id)
+        await hass.async_block_till_done()
+
+        reg = er.async_get(hass)
+        pre = reg.async_get(HISTORICAL_EID)
+        assert pre is not None
+        assert pre.unique_id == f"{old_entry.entry_id}_discharge_window"
+
+        migrated = await async_migrate_legacy_domain_entries(hass, OLD_DOMAIN, NEW_DOMAIN)
+        await hass.async_block_till_done()
+
+        assert len(migrated) == 1
+        new_entry = hass.config_entries.async_entries(NEW_DOMAIN)[0]
+        assert new_entry.state is ConfigEntryState.LOADED
+        # Confirms the real async_migrate_entry ran all the way through (proves
+        # the v9 heal block actually executed, not skipped).
+        assert new_entry.version == 10
+
+        final = reg.async_get(HISTORICAL_EID)
+        assert final is not None, "historical entity_id should survive"
+        assert final.unique_id == f"{SYSTEM_UID_PREFIX}discharge_window", (
+            "should have been healed onto the literal uid"
+        )
+        # The fresh omnibattery_* id must NOT exist as a second, competing entity.
+        assert reg.async_get("sensor.omnibattery_discharge_window") is None

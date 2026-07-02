@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0b3] - 2026-07-02
+
+### Fixed
+- **Idle-runaway log flood**: a battery commanded idle but still moving power re-asserted RS485 and logged a warning every ~2 s control cycle. The wake now fires once per runaway episode (escalating to a fresh reconnect if the re-assert doesn't take), and re-arms when the battery returns to idle. [`__init__.py`](custom_components/omnibattery/__init__.py).
+- **Battery stuck in standby near full SOC never recovered automatically**: b2's #434 fix made the non-responsive wake nudge only re-assert RS485 (no reconnect) everywhere, but a battery already in standby with RS485 reading enabled needs the same fresh reconnection an HA restart does — a register write alone doesn't unstick it. That case now reconnects fresh directly instead of guessing with a register toggle. [`__init__.py`](custom_components/omnibattery/__init__.py).
+- **Wake nudge excluded the battery for 5 minutes even when it fixed the fault**: the non-responsive tracker excluded on the same cycle it attempted the wake, so a successful reconnect still paid the full cooldown before being retried. The battery now gets one grace cycle after the wake — the fail counter resets and it stays in the pool so the next real PD command proves whether the fault is gone — and only excludes for real if it fails the threshold again afterward. [`tracking/non_responsive_tracker.py`](custom_components/omnibattery/tracking/non_responsive_tracker.py), [`__init__.py`](custom_components/omnibattery/__init__.py).
+
+### Changed
+- **Non-responsive exclusion cooldown is now flat** (5 min): removed dead backoff code that was meant to double the cooldown but never escalated (cap == initial), so a recovered battery is retried on a fixed, predictable window. [`tracking/non_responsive_tracker.py`](custom_components/omnibattery/tracking/non_responsive_tracker.py)
+- **Faster response to load bursts (e.g. a kettle)**: the grid-sample filter now passes large steps straight through instead of smoothing them over seconds, since a multi-hundred-watt jump is a real load change, not sensor noise. [`__init__.py`](custom_components/omnibattery/__init__.py).
+- **Fresher battery power feedback after a command change**: for a few seconds after the controller writes a new power setpoint, the delivered-power reading polls at 1 s instead of 2 s, so the control loop sees the actuator's ramp sooner. [`infra/coordinator.py`](custom_components/omnibattery/infra/coordinator.py).
+
 ## [1.0.0b2] - 2026-07-01
 
 ### Fixed
@@ -21,8 +33,6 @@
 
 ### Changed
 - **PV-surplus charge delay scores the whole charge window, not just the start hour** (#18): the cheapest-price release (#12) picked the single cheapest *starting* slot, but the charge runs across several slots, so a cheap start followed by pricey hours could sacrifice more export than a slightly dearer start inside a sustained trough. Each candidate start is now scored by the duration-weighted average price over `[start, start + charge_time_h]`, landing the whole charge in the cheapest sustained block; a window running past the available price data is skipped so an incomplete tail can't score as artificially cheap. The grid-deficit path (no defined charge length) keeps the legacy single-slot behaviour, and SOC safety is untouched — release only ever moves earlier. Thanks to @syphernl for the contribution. [`control/charge_delay.py`](custom_components/omnibattery/control/charge_delay.py), [`pricing/engine.py`](custom_components/omnibattery/pricing/engine.py).
-- **Faster response to load bursts (e.g. a kettle)**: the grid-sample filter now passes large steps straight through instead of smoothing them over seconds, since a multi-hundred-watt jump is a real load change, not sensor noise. [`__init__.py`](custom_components/omnibattery/__init__.py).
-- **Fresher battery power feedback after a command change**: for a few seconds after the controller writes a new power setpoint, the delivered-power reading polls at 1 s instead of 2 s, so the control loop sees the actuator's ramp sooner. [`infra/coordinator.py`](custom_components/omnibattery/infra/coordinator.py).
 
 ## [1.0.0b1] - 2026-06-29
 

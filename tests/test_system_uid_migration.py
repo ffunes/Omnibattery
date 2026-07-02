@@ -101,3 +101,69 @@ async def test_v9_heals_system_entity_duplicates(hass: HomeAssistant) -> None:
     # untouched entities keep their unique_id.
     assert reg.async_get(agg.entity_id).unique_id == "marstek_venus_system_soc"
     assert reg.async_get(perbat.entity_id).unique_id == "1.2.3.4_502_ac_power"
+
+
+async def test_v9_heal_loses_race_across_two_old_entries(hass: HomeAssistant) -> None:
+    """Issue #31: system entities minted fresh ``omnibattery_*`` ids after a
+    seamless migration, while the historical ``marstek_venus_system_*`` ones were
+    left ``restored``/unavailable -- even though unique_id looked "clean".
+
+    ``domain_migration.py`` migrates old config entries one at a time, *fully*
+    (re-point registry -> enable, which synchronously runs both v9 heal and the
+    platform's fresh entity creation) before moving to the next old entry. System
+    entities are declared inside *every* entry's ``async_setup_entry`` but only
+    ever really belong to whichever old entry historically won the unique_id
+    collision. If that entry is processed *second*, the *first* entry's platform
+    setup mints the system entity fresh (nothing registered under the literal uid
+    yet) with the new suggested ``omnibattery_*`` id. When the true owner is
+    migrated next, v9's own collision guard correctly refuses to steal the
+    now-taken literal uid -- so the historical row is never reclaimed and sits
+    orphaned forever, still live, still device-bound, just never updated again.
+    """
+    entry_1 = MockConfigEntry(domain=DOMAIN, version=8, data={"batteries": []})
+    entry_2 = MockConfigEntry(domain=DOMAIN, version=8, data={"batteries": []})
+    entry_1.add_to_hass(hass)
+    entry_2.add_to_hass(hass)
+
+    reg = er.async_get(hass)
+    dev = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry_2.entry_id,
+        identifiers={(DOMAIN, "marstek_venus_system")},
+    )
+
+    # entry_2 is the historical owner: old-style (entry-id-prefixed) uid, already
+    # at its clean/stable entity_id, device-bound -- exactly what domain_migration
+    # step 3 leaves behind for a pre-rebrand install (uid unchanged, only platform
+    # + config_entry_id repointed).
+    reg.async_get_or_create(
+        "sensor", DOMAIN, f"{OLD_ULID}_discharge_window",
+        suggested_object_id="marstek_venus_system_discharge_window",
+        config_entry=entry_2, device_id=dev.id,
+    )
+
+    # entry_1 is migrated + enabled FIRST in domain_migration's per-entry loop.
+    # It owns nothing under this key, so the heal is a no-op for it...
+    assert await async_migrate_entry(hass, entry_1) is True
+
+    # ...and its platform setup (sensor.py's DischargeWindowSensor) mints the
+    # entity fresh: the literal uid doesn't exist under this platform yet, so
+    # HA honors the explicitly-set `self.entity_id = system_entity_id(...)`
+    # suggestion instead of finding entry_2's row.
+    fresh = reg.async_get_or_create(
+        "sensor", DOMAIN, "marstek_venus_system_discharge_window",
+        suggested_object_id="omnibattery_discharge_window",
+        config_entry=entry_1,
+    )
+    assert fresh.entity_id == "sensor.omnibattery_discharge_window"
+
+    # entry_2 (the true historical owner) is migrated + enabled next.
+    assert await async_migrate_entry(hass, entry_2) is True
+
+    # BUG: the literal uid is already taken, so v9's collision guard
+    # (`if not ent_reg.async_get_entity_id(...)`) correctly refuses to steal it --
+    # but that means the historical row is never healed, never reclaimed, and
+    # never touched by a live entity again. It just orphans in place.
+    orphan = reg.async_get("sensor.marstek_venus_system_discharge_window")
+    assert orphan is not None
+    assert orphan.unique_id == f"{OLD_ULID}_discharge_window"  # never re-keyed
+    assert orphan.config_entry_id == entry_2.entry_id  # still "live", never claimed
