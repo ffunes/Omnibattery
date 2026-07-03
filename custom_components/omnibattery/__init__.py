@@ -127,6 +127,7 @@ from .const import (
     DISCHARGE_ENGAGE_GRACE_S,
     IDLE_RUNAWAY_POWER_W,
     IDLE_RUNAWAY_GRACE_S,
+    DISCHARGE_MIN_SOC_REENTRY_MARGIN,
     CONF_ACTIVE_BALANCE_MODE_ENABLED,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
@@ -2001,8 +2002,25 @@ class ChargeDischargeController:
                 if current_soc < effective_max_soc:
                     available_batteries.append(coordinator)
             else:  # discharging
+                # MIN-SOC RE-ENTRY HYSTERESIS: after emptying to min_soc the
+                # resting SOC rebounds 1-2% (cell relaxation) and would re-admit
+                # the battery for a sliver of discharge — relay ping-pong and
+                # micro-cycles at the worst SOC region. Latch the exclusion at
+                # min_soc; release only after a real recovery margin.
+                if current_soc <= coordinator.min_soc:
+                    coordinator._discharge_min_soc_latched = True
+                elif current_soc >= coordinator.min_soc + DISCHARGE_MIN_SOC_REENTRY_MARGIN:
+                    coordinator._discharge_min_soc_latched = False
                 if current_soc > coordinator.min_soc:
-                    available_batteries.append(coordinator)
+                    if getattr(coordinator, "_discharge_min_soc_latched", False):
+                        _LOGGER.debug(
+                            "%s: Skipping discharge - min-SOC re-entry hysteresis "
+                            "(SOC %.1f%%, releases at %.1f%%)",
+                            coordinator.name, current_soc,
+                            coordinator.min_soc + DISCHARGE_MIN_SOC_REENTRY_MARGIN,
+                        )
+                    else:
+                        available_batteries.append(coordinator)
         
         return available_batteries
 
@@ -3993,15 +4011,24 @@ class ChargeDischargeController:
         
         if self.last_output_sign != 0 and current_output_sign != 0:
             if self.last_output_sign != current_output_sign:
-                # Direction is changing - check if it overcomes hysteresis
-                if abs(new_power) < self.direction_hysteresis:
-                    _LOGGER.info("PD: Direction change suppressed by hysteresis - output=%.1fW < threshold=%dW, staying at 0W",
-                                new_power, self.direction_hysteresis)
+                # Direction is changing - check if it overcomes hysteresis.
+                # The grid error is checked too: after a suppressed flip the
+                # increment base is 0, so |new_power| is just the kp-scaled error
+                # and understates the demand — gating on it alone would either
+                # block small flips forever (dead zone up to hysteresis/kp) or,
+                # with the sign memory zeroed, not at all. The error is the
+                # physical demand signal and does not decay across cycles.
+                if (
+                    abs(new_power) < self.direction_hysteresis
+                    and abs(error) < self.direction_hysteresis
+                ):
+                    _LOGGER.info("PD: Direction change suppressed by hysteresis - output=%.1fW, error=%.1fW < threshold=%dW, staying at 0W",
+                                new_power, error, self.direction_hysteresis)
                     new_power = 0
                     current_output_sign = 0
                 else:
-                    _LOGGER.info("PD: Direction change ALLOWED - output=%.1fW > threshold=%dW",
-                                abs(new_power), self.direction_hysteresis)
+                    _LOGGER.info("PD: Direction change ALLOWED - output=%.1fW or error=%.1fW > threshold=%dW",
+                                abs(new_power), abs(error), self.direction_hysteresis)
         # Log control output
         if self.ki > 0:
             # Calculate integral utilization percentage for monitoring
@@ -4020,6 +4047,41 @@ class ChargeDischargeController:
             if DEBUG_CONTROL_LOOP_DETAIL:
                 _LOGGER.debug("ChargeDischargeController: PD Control - Grid=%.1fW, P=%.1fW, D=%.1fW, Adjustment=%.1fW, New=%.1fW",
                               error, P, D, pd_adjustment, new_power)
+        return new_power
+
+    def _apply_min_power(self, new_power, error):
+        """MINIMUM POWER CHECK: avoid inefficient low-power operation.
+
+        A sub-minimum PD output cannot simply be zeroed: zeroing also resets
+        ``previous_power``, so the incremental loop restarts from 0 every cycle
+        and a steady sub-minimum demand never accumulates up to the minimum —
+        a dead zone up to ~minimum/kp where the load is never covered at all.
+
+        Instead, engage AT the minimum when the grid error is large enough that
+        the resulting over-correction lands inside the deadband (error >=
+        minimum - deadband): that is a stable point the deadband then holds.
+        Smaller errors stay idle (also stable) rather than bouncing on/off
+        around the minimum. Larger errors bootstrap normal incremental ramping
+        from the minimum on the next cycle.
+        """
+        min_charge = self.min_charge_power
+        min_discharge = self.min_discharge_power
+        if new_power > 0 and min_charge > 0 and new_power < min_charge:
+            if -error >= min_charge - self.deadband:
+                _LOGGER.debug("PD: Charge power %.1fW below minimum %dW, engaging at minimum (error=%.1fW)",
+                              new_power, min_charge, error)
+                return min_charge
+            _LOGGER.debug("PD: Charge power %.1fW below minimum %dW, setting to idle",
+                          new_power, min_charge)
+            return 0
+        if new_power < 0 and min_discharge > 0 and abs(new_power) < min_discharge:
+            if error >= min_discharge - self.deadband:
+                _LOGGER.debug("PD: Discharge power %.1fW below minimum %dW, engaging at minimum (error=%.1fW)",
+                              abs(new_power), min_discharge, error)
+                return -min_discharge
+            _LOGGER.debug("PD: Discharge power %.1fW below minimum %dW, setting to idle",
+                          abs(new_power), min_discharge)
+            return 0
         return new_power
 
     def _apply_relay_dwell(self, new_power, error):
@@ -4255,8 +4317,6 @@ class ChargeDischargeController:
         )
 
         active_target = self.compute_active_target()
-        min_charge = self.min_charge_power
-        min_discharge = self.min_discharge_power
 
         # Use filtered sensor directly - it shows the real grid imbalance we need to correct
         sensor_actual = sensor_filtered
@@ -4497,16 +4557,7 @@ class ChargeDischargeController:
         # Note: last_output_sign and previous_error will be updated at the end of the method
         # This is done conditionally based on whether the operation is restricted by time slots
 
-        # MINIMUM POWER CHECK: Avoid inefficient low-power operation
-        # If PD output is below the configured minimum, stay idle instead
-        if new_power > 0 and min_charge > 0 and new_power < min_charge:
-            _LOGGER.debug("PD: Charge power %.1fW below minimum %dW, setting to idle",
-                          new_power, min_charge)
-            new_power = 0
-        elif new_power < 0 and min_discharge > 0 and abs(new_power) < min_discharge:
-            _LOGGER.debug("PD: Discharge power %.1fW below minimum %dW, setting to idle",
-                          abs(new_power), min_discharge)
-            new_power = 0
+        new_power = self._apply_min_power(new_power, error)
 
         new_power = self._apply_relay_dwell(new_power, error)
 
@@ -4769,7 +4820,12 @@ class ChargeDischargeController:
             self._pd_limited = pd_limited
             self._update_pd_quality_metrics(error, sign_changed, active_target, pd_limited)
             self.previous_error = error
-            self.last_output_sign = current_output_sign
+            # Keep the last direction of flow across idle cycles so directional
+            # hysteresis still applies to the next flip. Zeroing it here made the
+            # hysteresis one-shot: a suppressed flip cleared the memory, so the
+            # very next cycle allowed any tiny opposite-direction command through.
+            if current_output_sign != 0:
+                self.last_output_sign = current_output_sign
             if DEBUG_CONTROL_LOOP_DETAIL:
                 _LOGGER.debug("ChargeDischargeController: PD state updated - previous_error=%.1fW, error_sign=%d, output_sign=%d",
                              self.previous_error, self.last_error_sign, self.last_output_sign)

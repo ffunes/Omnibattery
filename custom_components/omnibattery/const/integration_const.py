@@ -262,6 +262,13 @@ IDLE_RUNAWAY_POWER_W = 100
 # idle; a genuine runaway is still caught, just this many seconds later.
 IDLE_RUNAWAY_GRACE_S = 15
 
+# Min-SOC re-entry hysteresis for discharge availability: after a battery empties
+# to min_soc its resting SOC rebounds 1-2% (cell relaxation), which would re-admit
+# it for a sliver of discharge and drop it again — relay on/off ping-pong plus
+# micro-cycles in the worst SOC region. Once excluded at min_soc, the battery only
+# becomes dischargeable again after recovering this many percent above min_soc.
+DISCHARGE_MIN_SOC_REENTRY_MARGIN = 2
+
 # Active balance mode.
 # Once the battery has reached the top, keep the cells in the balancing window
 # with gentle charge/discharge micro-cycles instead of only resting at 100% SOC.
