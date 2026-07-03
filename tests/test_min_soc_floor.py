@@ -215,6 +215,58 @@ def test_floor_recovered_does_not_fire_twice():
     assert calls["activate"] == 0
 
 
+# --- slot-exit cleanup resets last_evaluation_soc even when charging never ran ----
+# Regression: on a solar-sufficient day the initial eval sets last_evaluation_soc
+# but grid_charging_active/_grid_charging_initialized stay False. The exit cleanup
+# was gated on those flags, so last_evaluation_soc kept its value and the NEXT
+# day's slot was not treated as an initial eval → its notification never fired.
+
+
+def _make_engine_out_of_window(*, grid_charging_active, last_evaluation_soc):
+    dismissed = {"n": 0}
+
+    async def _async_call(domain, service, data):
+        if service == "dismiss":
+            dismissed["n"] += 1
+
+    controller = SimpleNamespace(
+        charging_time_slots=["slot"],
+        predictive_charging_overridden=False,
+        grid_charging_active=grid_charging_active,
+        last_evaluation_soc=last_evaluation_soc,
+        _grid_charging_initialized=False,
+        error_integral=1.0,
+        previous_error=1.0,
+        sign_changes=3,
+        _slot_entry_time=object(),
+        _check_time_window=lambda: False,   # out of window → else branch
+    )
+    engine = PricingManager(
+        hass=SimpleNamespace(services=SimpleNamespace(async_call=_async_call)),
+        controller=controller,
+    )
+    return engine, controller, dismissed
+
+
+def test_slot_exit_resets_eval_soc_after_no_charge_day():
+    # Not-needed day: last_evaluation_soc set by initial eval, charging never ran.
+    engine, ctrl, dismissed = _make_engine_out_of_window(
+        grid_charging_active=False, last_evaluation_soc=42.0
+    )
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+    assert ctrl.last_evaluation_soc is None   # reset → next day is a fresh initial eval
+    assert dismissed["n"] == 1                 # lingering "Not required" notification cleared
+
+
+def test_slot_exit_noop_when_nothing_to_clean():
+    # Fully idle outside a slot (no prior eval): cleanup must not run every cycle.
+    engine, ctrl, dismissed = _make_engine_out_of_window(
+        grid_charging_active=False, last_evaluation_soc=None
+    )
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+    assert dismissed["n"] == 0
+
+
 if __name__ == "__main__":
     test_floor_forces_charge_on_solar_positive_day()
     test_floor_disabled_does_not_charge()
@@ -226,4 +278,6 @@ if __name__ == "__main__":
     test_floor_recovered_stops_charging()
     test_floor_recovered_does_not_fire_below_floor()
     test_floor_recovered_does_not_fire_twice()
+    test_slot_exit_resets_eval_soc_after_no_charge_day()
+    test_slot_exit_noop_when_nothing_to_clean()
     print("ok")

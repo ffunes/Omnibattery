@@ -1125,7 +1125,17 @@ class PricingManager:
                 _LOGGER.info("In predictive charging slot but charging not needed - continuing normal operation")
                 return
         else:
-            if self._controller.grid_charging_active or self._controller._grid_charging_initialized:
+            # `last_evaluation_soc is not None` marks that we evaluated during a
+            # slot (set on every slot's initial eval, charging or not). Including
+            # it makes this a one-shot cleanup that also fires on solar-sufficient
+            # days where charging never activated — otherwise last_evaluation_soc
+            # kept yesterday's value, so the next day was not treated as an
+            # initial eval and its notification was never sent.
+            if (
+                self._controller.last_evaluation_soc is not None
+                or self._controller.grid_charging_active
+                or self._controller._grid_charging_initialized
+            ):
                 _LOGGER.info("Exiting predictive grid charging slot - returning to normal mode")
                 self._controller.grid_charging_active = False
                 self._controller.last_evaluation_soc = None
