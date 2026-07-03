@@ -1465,6 +1465,7 @@
 <h2 id="unreleased">[Unreleased]<a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
 <ul>
+<li><strong>Consumption average skewed by non-operating days</strong> (#46): days the battery doesn't run (e.g. weekends outside the charging window) were seeded with the 5.0 kWh default and averaged into the consumption forecast, dragging it down (e.g. 16.7 vs ~21 kWh real). The history window is now <strong>7 operating days</strong>, reaching back across weekends into the previous week rather than counting non-operating days; stale weekend defaults are purged on startup. <a href="custom_components/omnibattery/tracking/consumption_tracker.py"><code>tracking/consumption_tracker.py</code></a>.</li>
 <li><strong>Predictive-charging notification quoted nonsense grid/solar numbers</strong> (#46): on a floor-driven charge (SOC below the guaranteed-min-SOC target) the "STARTED" notification showed <code>Grid: 0.00 kWh</code> while claiming solar would charge a figure larger than the battery. It now reports the grid deficit needed to reach the floor, and <code>solar_surplus_kwh</code> is capped at battery headroom. <a href="custom_components/omnibattery/__init__.py"><code>__init__.py</code></a>, <a href="custom_components/omnibattery/pricing/notifications.py"><code>pricing/notifications.py</code></a>.</li>
 </ul>
 <h2 id="100b4-2026-07-02">[1.0.0b4] - 2026-07-02<a class="headerlink" href="#100b4-2026-07-02" title="Permanent link">&para;</a></h2>
