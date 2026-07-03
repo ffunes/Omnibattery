@@ -8,6 +8,7 @@ from pymodbus.client import AsyncModbusTcpClient, AsyncModbusSerialClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
 import asyncio
 import inspect
+import time
 from typing import Optional
 
 import logging
@@ -15,6 +16,17 @@ import logging
 from ..const import DEBUG_RAW_MODBUS_READS, SERIAL_BAUDRATE
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _backoff_jitter(delay: float) -> float:
+    """Return a symmetric +/-10% jitter for a retry backoff delay.
+
+    Entropy comes from time.monotonic() rather than
+    asyncio.get_event_loop().time(); the latter reaches into loop internals and
+    is a deprecated access pattern. Precision is irrelevant: the jitter only
+    de-syncs concurrent retriers so they don't all wake on the same tick.
+    """
+    return delay * 0.1 * (0.5 - time.monotonic() % 1)
 
 
 def _marstek_v3_packet_correction(sending: bool, data: bytes) -> bytes:
@@ -218,8 +230,8 @@ class MarstekModbusClient:
                     result = self.client.close()
                     if asyncio.iscoroutine(result):
                         await result
-                except Exception:
-                    pass
+                except Exception as e:
+                    _LOGGER.debug("Error closing stale Modbus client before reconnect: %s", e)
 
                 # v3 firmware exposes a single TCP slot and does not free it
                 # instantly on close. Reopening immediately gets refused, so the
@@ -382,8 +394,7 @@ class MarstekModbusClient:
             attempt += 1
             if attempt < max_retries:
                 # Exponential backoff with jitter
-                jitter = current_retry_delay * 0.1 * (0.5 - asyncio.get_event_loop().time() % 1)
-                await asyncio.sleep(current_retry_delay + jitter)
+                await asyncio.sleep(current_retry_delay + _backoff_jitter(current_retry_delay))
                 current_retry_delay = min(current_retry_delay * 2, 5.0)  # Cap at 5 seconds
 
         _LOGGER.debug(
@@ -508,8 +519,7 @@ class MarstekModbusClient:
             attempt += 1
             if attempt < max_retries:
                 # Exponential backoff with jitter
-                jitter = current_retry_delay * 0.1 * (0.5 - asyncio.get_event_loop().time() % 1)
-                await asyncio.sleep(current_retry_delay + jitter)
+                await asyncio.sleep(current_retry_delay + _backoff_jitter(current_retry_delay))
                 current_retry_delay = min(current_retry_delay * 2, 5.0)  # Cap at 5 seconds
 
         _LOGGER.debug(
