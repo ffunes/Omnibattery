@@ -84,6 +84,28 @@ def test_predictive_started():
     assert "ICP: 5000W, batteries: 3000W" in message
 
 
+def test_predictive_floor_charge_reports_grid_deficit_not_solar():
+    # Issue #46: floor-driven charge on a solar-positive day. grid_charge_kwh
+    # computes to 0 and solar_surplus is large, but the battery really charges
+    # energy_deficit from the grid to reach the floor. Notification must say so
+    # and must not claim solar covers it.
+    title, message = notifications.format_predictive_notification_message(
+        _decision(
+            should_charge=True,
+            solar_forecast_kwh=29.61,
+            avg_consumption_kwh=16.67,
+            energy_deficit_kwh=0.67,
+            grid_charge_kwh=0.0,
+            solar_surplus_kwh=3.74,
+            floor_active=True,
+        ),
+        **_CFG,
+    )
+    assert title == "Predictive Charging: STARTED"
+    assert "Grid: 0.67 kWh to reach guaranteed minimum SOC" in message
+    assert "solar will charge the remaining" not in message
+
+
 def test_predictive_daily_evaluation_expected():
     title, _ = notifications.format_predictive_notification_message(
         _decision(should_charge=True, energy_deficit_kwh=2.0), True, **_CFG

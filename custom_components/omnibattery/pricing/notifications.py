@@ -90,8 +90,17 @@ def format_predictive_notification_message(
 
     grid_charge = decision_data.get("grid_charge_kwh")
     solar_surplus = decision_data.get("solar_surplus_kwh")
-    if grid_charge is not None and solar_surplus is not None:
-        # When charging triggers, solar_surplus ≤ gap_to_max, so solar will contribute exactly solar_surplus to battery
+    if decision_data.get("floor_active"):
+        # Charge is driven by the guaranteed-minimum-SOC floor, not the daily
+        # energy balance. The floor charge happens whenever SOC is low (often
+        # overnight, before solar ramps), so the day's solar surplus can't be
+        # credited against it — the whole deficit comes from the grid.
+        charge_split_line = (
+            f"🔌 Grid: {energy_deficit:.2f} kWh to reach guaranteed minimum SOC\n"
+        )
+    elif grid_charge is not None and solar_surplus is not None:
+        # solar_surplus is capped at battery headroom, so it's the amount solar
+        # can actually add; grid covers the rest of the gap.
         charge_split_line = (
             f"🔌 Grid: {grid_charge:.2f} kWh — solar will charge the remaining {solar_surplus:.2f} kWh\n"
         )

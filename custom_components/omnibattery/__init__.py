@@ -2597,7 +2597,10 @@ class ChargeDischargeController:
         _max_soc_values = [c.max_soc for c in coordinators_with_data]
         _config_max_soc = min(_max_soc_values) if _max_soc_values else 95
         _gap_to_max_kwh = max(0.0, (_config_max_soc - avg_soc) / 100.0 * total_capacity_kwh)
-        solar_surplus_kwh = max(0.0, solar_forecast_kwh - avg_consumption_kwh)
+        # Cap at battery headroom: only this much solar can actually land in the
+        # battery, so the "solar will charge the remaining X" line can't quote a
+        # figure larger than the pack (e.g. 12.94 kWh into a 5.12 kWh battery).
+        solar_surplus_kwh = max(0.0, min(solar_forecast_kwh - avg_consumption_kwh, _gap_to_max_kwh))
         _grid_margin_factor = 1.0 + self._predictive_grid_charge_margin_pct / 100.0
         grid_charge_kwh = min(
             _gap_to_max_kwh,
@@ -2619,6 +2622,7 @@ class ChargeDischargeController:
             "days_in_history": days_in_history,
             "solar_surplus_kwh": solar_surplus_kwh,
             "grid_charge_kwh": grid_charge_kwh,
+            "floor_active": floor_active,
             "consumption_source": "derived (grid + battery AC + solar)",
             "reason": (
                 f"Guaranteed minimum SOC: charging {energy_deficit_kwh:.2f} kWh "
