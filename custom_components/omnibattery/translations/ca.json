@@ -74,6 +74,18 @@
           "port": "Port HTTP (per defecte 80)"
         }
       },
+      "battery_connection_esphome": {
+        "title": "Configura la bateria {battery_num} — Connexió (LilyGo/ESPHome)",
+        "description": "Selecciona el dispositiu ESPHome (pont LilyGo RS485) que exposa la bateria Marstek {battery_num}. Ha d'executar el firmware marstek-lilygo-rs485 amb els noms d'entitat originals.",
+        "data": {
+          "name": "Nom",
+          "esphome_device": "Dispositiu ESPHome"
+        },
+        "data_description": {
+          "name": "Nom descriptiu per identificar aquesta bateria",
+          "esphome_device": "El dispositiu LilyGo T-CAN485 amb el firmware ESPHome de Marstek"
+        }
+      },
       "battery_limits": {
         "title": "Configurar bateria {battery_num} — Límits",
         "description": "Introdueix els límits de potència i SOC de la bateria {battery_num}.",
@@ -469,6 +481,18 @@
           "port": "Port HTTP (per defecte 80)"
         }
       },
+      "reconfigure_battery_esphome": {
+        "title": "Reconfigura la bateria {battery_num} — Connexió (LilyGo/ESPHome)",
+        "description": "Actualitza el dispositiu ESPHome de la bateria Marstek {battery_num}. La resta d'ajustos es conserven.",
+        "data": {
+          "name": "Nom",
+          "esphome_device": "Dispositiu ESPHome"
+        },
+        "data_description": {
+          "name": "Nom descriptiu per identificar aquesta bateria",
+          "esphome_device": "El dispositiu LilyGo T-CAN485 amb el firmware ESPHome de Marstek"
+        }
+      },
       "restore_backup": {
         "title": "Restaura la configuració anterior",
         "description": "S'ha trobat una còpia de seguretat de {count} configuració(ns) anterior(s) (connexió, opcions i ajust). Vols restaurar-la per recuperar-ho tot sense tornar a configurar? Les teves entitats i historial es reconnectaran automàticament.",
@@ -479,6 +503,7 @@
     },
     "error": {
       "cannot_connect": "No es pot connectar a la bateria. Verifica l'adreça IP i que la bateria sigui accessible a la xarxa.",
+      "esphome_entities_missing": "Al dispositiu ESPHome seleccionat li falten entitats necessàries: {missing}. Assegura't que executa el firmware marstek-lilygo-rs485 amb els noms d'entitat originals.",
       "sensor_not_found": "El sensor de predicció solar no existeix. Verifica que el sensor estigui disponible.",
       "invalid_unit": "El sensor de predicció solar ha de tenir com a unitat 'kWh' o 'Wh'.",
       "incomplete_window": "Cada franja de càrrega addicional necessita hora d'inici i de fi. Omple les dues o deixa-les buides per ometre-la.",
@@ -585,6 +610,18 @@
           "name": "Nom descriptiu per identificar aquesta bateria",
           "host": "Adreça IP del Zendure SolarFlow a la teva xarxa local",
           "port": "Port HTTP (per defecte 80)"
+        }
+      },
+      "battery_connection_esphome": {
+        "title": "Configura la bateria {battery_num} — Connexió (LilyGo/ESPHome)",
+        "description": "Selecciona el dispositiu ESPHome (pont LilyGo RS485) que exposa la bateria Marstek {battery_num}. Ha d'executar el firmware marstek-lilygo-rs485 amb els noms d'entitat originals.",
+        "data": {
+          "name": "Nom",
+          "esphome_device": "Dispositiu ESPHome"
+        },
+        "data_description": {
+          "name": "Nom descriptiu per identificar aquesta bateria",
+          "esphome_device": "El dispositiu LilyGo T-CAN485 amb el firmware ESPHome de Marstek"
         }
       },
       "battery_limits": {
@@ -951,6 +988,7 @@
     },
     "error": {
       "cannot_connect": "No es pot connectar a la bateria. Verifica l'adreça IP i que la bateria sigui accessible a la xarxa.",
+      "esphome_entities_missing": "Al dispositiu ESPHome seleccionat li falten entitats necessàries: {missing}. Assegura't que executa el firmware marstek-lilygo-rs485 amb els noms d'entitat originals.",
       "sensor_not_found": "El sensor de predicció solar no existeix. Verifica que el sensor estigui disponible.",
       "invalid_unit": "El sensor de predicció solar ha de tenir com a unitat 'kWh' o 'Wh'.",
       "incomplete_window": "Cada franja de càrrega addicional necessita hora d'inici i de fi. Omple les dues o deixa-les buides per ometre-la.",

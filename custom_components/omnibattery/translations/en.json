@@ -74,6 +74,18 @@
           "port": "HTTP port (default 80)"
         }
       },
+      "battery_connection_esphome": {
+        "title": "Configure battery {battery_num} — Connection (LilyGo/ESPHome)",
+        "description": "Select the ESPHome device (LilyGo RS485 bridge) that exposes Marstek battery {battery_num}. It must run the marstek-lilygo-rs485 firmware with the stock entity names.",
+        "data": {
+          "name": "Name",
+          "esphome_device": "ESPHome device"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "esphome_device": "The LilyGo T-CAN485 device flashed with the Marstek ESPHome firmware"
+        }
+      },
       "battery_limits": {
         "title": "Configure battery {battery_num} — Limits",
         "description": "Enter power and SOC limits for battery {battery_num}.",
@@ -463,6 +475,18 @@
           "port": "HTTP port (default 80)"
         }
       },
+      "reconfigure_battery_esphome": {
+        "title": "Reconfigure battery {battery_num} — Connection (LilyGo/ESPHome)",
+        "description": "Update the ESPHome device for Marstek battery {battery_num}. All other settings are preserved.",
+        "data": {
+          "name": "Name",
+          "esphome_device": "ESPHome device"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "esphome_device": "The LilyGo T-CAN485 device flashed with the Marstek ESPHome firmware"
+        }
+      },
       "restore_backup": {
         "title": "Restore previous configuration",
         "description": "Found a saved backup of {count} previous configuration(s) (connection, options and tuning). Restore it to recover everything without setting it up again? Your entities and history reconnect automatically.",
@@ -473,6 +497,7 @@
     },
     "error": {
       "cannot_connect": "Cannot connect to the battery. Check the IP address and that the battery is accessible on the network.",
+      "esphome_entities_missing": "The selected ESPHome device is missing required entities: {missing}. Make sure it runs the marstek-lilygo-rs485 firmware with the stock entity names.",
       "sensor_not_found": "Solar forecast sensor does not exist. Verify the sensor is available.",
       "invalid_unit": "Solar forecast sensor must have 'kWh' or 'Wh' as unit.",
       "incomplete_window": "Each extra charging window needs both a start and an end time. Fill both, or leave both empty to skip it.",
@@ -579,6 +604,18 @@
           "name": "Descriptive name to identify this battery",
           "host": "IP address of the Zendure device on your local network",
           "port": "HTTP port (default 80)"
+        }
+      },
+      "battery_connection_esphome": {
+        "title": "Configure battery {battery_num} — Connection (LilyGo/ESPHome)",
+        "description": "Select the ESPHome device (LilyGo RS485 bridge) that exposes Marstek battery {battery_num}. It must run the marstek-lilygo-rs485 firmware with the stock entity names.",
+        "data": {
+          "name": "Name",
+          "esphome_device": "ESPHome device"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "esphome_device": "The LilyGo T-CAN485 device flashed with the Marstek ESPHome firmware"
         }
       },
       "battery_limits": {
@@ -939,6 +976,7 @@
     },
     "error": {
       "cannot_connect": "Cannot connect to the battery. Check the IP address and that the battery is accessible on the network.",
+      "esphome_entities_missing": "The selected ESPHome device is missing required entities: {missing}. Make sure it runs the marstek-lilygo-rs485 firmware with the stock entity names.",
       "sensor_not_found": "Solar forecast sensor does not exist. Verify the sensor is available.",
       "invalid_unit": "Solar forecast sensor must have 'kWh' or 'Wh' as unit.",
       "incomplete_window": "Each extra charging window needs both a start and an end time. Fill both, or leave both empty to skip it.",

@@ -20,6 +20,7 @@ from ..const import (
     BURST_POLL_WINDOW_S,
     BURST_POLL_INTERVAL_S,
 )
+from ..drivers.esphome import EsphomeEntityDriver
 from ..drivers.marstek import MarstekModbusDriver
 from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
 from ..drivers.base import SetpointResult
@@ -93,7 +94,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  full_charge_voltage_taper_enabled: bool = DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
                  brand: str = "marstek",
                  zendure_model: str = ZENDURE_MODEL_2400AC_PRO,
-                 serial_port: str | None = None) -> None:
+                 serial_port: str | None = None,
+                 esphome_device_id: str | None = None) -> None:
         """Initialize the data update coordinator."""
         super().__init__(
             hass,
@@ -234,6 +236,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 self.host,
                 port=self.port,
                 model=zendure_model,
+            )
+        elif self.brand == "esphome":
+            # Marstek behind a LilyGo RS485 bridge: telemetry/control go through
+            # the ESPHome integration's HA entities. host carries the ESPHome
+            # device registry id (stable identity for device_key / persistence);
+            # esphome_device_id is the explicit config field.
+            self.driver = EsphomeEntityDriver(
+                hass,
+                esphome_device_id or self.host,
+                max_charge_power_w=self.max_charge_power,
+                max_discharge_power_w=self.max_discharge_power,
             )
         else:
             self.driver = MarstekModbusDriver(

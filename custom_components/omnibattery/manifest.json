@@ -2,7 +2,8 @@
   "domain": "omnibattery",
   "name": "Omnibattery",
   "after_dependencies": [
-    "recorder"
+    "recorder",
+    "esphome"
   ],
   "codeowners": [
     "@ffunes"
