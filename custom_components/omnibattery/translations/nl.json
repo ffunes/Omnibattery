@@ -74,6 +74,18 @@
           "port": "HTTP-poort (standaard 80)"
         }
       },
+      "battery_connection_esphome": {
+        "title": "Batterij {battery_num} configureren — Verbinding (LilyGo/ESPHome)",
+        "description": "Selecteer het ESPHome-apparaat (LilyGo RS485-brug) dat Marstek-batterij {battery_num} beschikbaar maakt. Het moet de marstek-lilygo-rs485-firmware met de originele entiteitsnamen draaien.",
+        "data": {
+          "name": "Naam",
+          "esphome_device": "ESPHome-apparaat"
+        },
+        "data_description": {
+          "name": "Beschrijvende naam om deze batterij te identificeren",
+          "esphome_device": "Het LilyGo T-CAN485-apparaat geflasht met de Marstek ESPHome-firmware"
+        }
+      },
       "battery_limits": {
         "title": "Batterij {battery_num} configureren — Limieten",
         "description": "Voer vermogen- en SOC-limieten in voor batterij {battery_num}.",
@@ -469,6 +481,18 @@
           "port": "HTTP-poort (standaard 80)"
         }
       },
+      "reconfigure_battery_esphome": {
+        "title": "Batterij {battery_num} opnieuw configureren — Verbinding (LilyGo/ESPHome)",
+        "description": "Werk het ESPHome-apparaat van Marstek-batterij {battery_num} bij. Alle andere instellingen blijven behouden.",
+        "data": {
+          "name": "Naam",
+          "esphome_device": "ESPHome-apparaat"
+        },
+        "data_description": {
+          "name": "Beschrijvende naam om deze batterij te identificeren",
+          "esphome_device": "Het LilyGo T-CAN485-apparaat geflasht met de Marstek ESPHome-firmware"
+        }
+      },
       "restore_backup": {
         "title": "Vorige configuratie herstellen",
         "description": "Er is een back-up van {count} vorige configuratie(s) (verbinding, opties en afstemming) gevonden. Herstellen om alles terug te krijgen zonder opnieuw in te stellen? Je entiteiten en geschiedenis worden automatisch opnieuw verbonden.",
@@ -479,6 +503,7 @@
     },
     "error": {
       "cannot_connect": "Kan geen verbinding maken met de batterij. Controleer het IP-adres en of de batterij toegankelijk is op het netwerk.",
+      "esphome_entities_missing": "Het geselecteerde ESPHome-apparaat mist vereiste entiteiten: {missing}. Zorg dat het de marstek-lilygo-rs485-firmware met de originele entiteitsnamen draait.",
       "sensor_not_found": "Zonnevoorspellingssensor bestaat niet. Controleer of de sensor beschikbaar is.",
       "invalid_unit": "Zonnevoorspellingssensor moet 'kWh' of 'Wh' als eenheid hebben.",
       "incomplete_window": "Elk extra laadvenster heeft een start- en een eindtijd nodig. Vul beide in, of laat beide leeg om het over te slaan.",
@@ -585,6 +610,18 @@
           "name": "Beschrijvende naam om deze batterij te identificeren",
           "host": "IP-adres van de Zendure SolarFlow op uw lokale netwerk",
           "port": "HTTP-poort (standaard 80)"
+        }
+      },
+      "battery_connection_esphome": {
+        "title": "Batterij {battery_num} configureren — Verbinding (LilyGo/ESPHome)",
+        "description": "Selecteer het ESPHome-apparaat (LilyGo RS485-brug) dat Marstek-batterij {battery_num} beschikbaar maakt. Het moet de marstek-lilygo-rs485-firmware met de originele entiteitsnamen draaien.",
+        "data": {
+          "name": "Naam",
+          "esphome_device": "ESPHome-apparaat"
+        },
+        "data_description": {
+          "name": "Beschrijvende naam om deze batterij te identificeren",
+          "esphome_device": "Het LilyGo T-CAN485-apparaat geflasht met de Marstek ESPHome-firmware"
         }
       },
       "battery_limits": {
@@ -951,6 +988,7 @@
     },
     "error": {
       "cannot_connect": "Kan geen verbinding maken met de batterij. Controleer het IP-adres en of de batterij toegankelijk is op het netwerk.",
+      "esphome_entities_missing": "Het geselecteerde ESPHome-apparaat mist vereiste entiteiten: {missing}. Zorg dat het de marstek-lilygo-rs485-firmware met de originele entiteitsnamen draait.",
       "sensor_not_found": "Zonnevoorspellingssensor bestaat niet. Controleer of de sensor beschikbaar is.",
       "invalid_unit": "Zonnevoorspellingssensor moet 'kWh' of 'Wh' als eenheid hebben.",
       "incomplete_window": "Elk extra laadvenster heeft een start- en een eindtijd nodig. Vul beide in, of laat beide leeg om het over te slaan.",

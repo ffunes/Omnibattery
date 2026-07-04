@@ -5249,6 +5249,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             brand=battery_config.get("brand", "marstek"),
             zendure_model=battery_config.get("zendure_model", "2400ac_pro"),
             serial_port=battery_config.get(CONF_SERIAL_PORT) or None,
+            esphome_device_id=battery_config.get("esphome_device_id"),
         )
 
         # Restore persisted RS485 user preference and store entry reference for future persistence

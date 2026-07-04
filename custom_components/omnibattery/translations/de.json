@@ -74,6 +74,18 @@
           "port": "HTTP-Port (Standard 80)"
         }
       },
+      "battery_connection_esphome": {
+        "title": "Batterie {battery_num} konfigurieren — Verbindung (LilyGo/ESPHome)",
+        "description": "Wähle das ESPHome-Gerät (LilyGo-RS485-Brücke), das die Marstek-Batterie {battery_num} bereitstellt. Es muss die marstek-lilygo-rs485-Firmware mit den Original-Entitätsnamen ausführen.",
+        "data": {
+          "name": "Name",
+          "esphome_device": "ESPHome-Gerät"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifikation dieser Batterie",
+          "esphome_device": "Das mit der Marstek-ESPHome-Firmware geflashte LilyGo-T-CAN485-Gerät"
+        }
+      },
       "battery_limits": {
         "title": "Batterie {battery_num} konfigurieren — Grenzwerte",
         "description": "Geben Sie Leistungs- und SOC-Grenzwerte für Batterie {battery_num} ein.",
@@ -469,6 +481,18 @@
           "port": "HTTP-Port (Standard 80)"
         }
       },
+      "reconfigure_battery_esphome": {
+        "title": "Batterie {battery_num} neu konfigurieren — Verbindung (LilyGo/ESPHome)",
+        "description": "Aktualisiere das ESPHome-Gerät der Marstek-Batterie {battery_num}. Alle anderen Einstellungen bleiben erhalten.",
+        "data": {
+          "name": "Name",
+          "esphome_device": "ESPHome-Gerät"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifikation dieser Batterie",
+          "esphome_device": "Das mit der Marstek-ESPHome-Firmware geflashte LilyGo-T-CAN485-Gerät"
+        }
+      },
       "restore_backup": {
         "title": "Vorherige Konfiguration wiederherstellen",
         "description": "Eine gespeicherte Sicherung von {count} vorherigen Konfiguration(en) (Verbindung, Optionen und Abstimmung) wurde gefunden. Wiederherstellen, um alles ohne erneute Einrichtung zurückzubekommen? Deine Entitäten und der Verlauf werden automatisch wieder verbunden.",
@@ -479,6 +503,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung zur Batterie nicht möglich. Überprüfen Sie die IP-Adresse und dass die Batterie im Netzwerk erreichbar ist.",
+      "esphome_entities_missing": "Dem ausgewählten ESPHome-Gerät fehlen erforderliche Entitäten: {missing}. Stelle sicher, dass es die marstek-lilygo-rs485-Firmware mit den Original-Entitätsnamen ausführt.",
       "sensor_not_found": "Solarprognose-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
       "invalid_unit": "Solarprognose-Sensor muss 'kWh' oder 'Wh' als Einheit haben.",
       "incomplete_window": "Jedes zusätzliche Ladefenster benötigt eine Start- und eine Endzeit. Füllen Sie beide aus oder lassen Sie beide leer, um es zu überspringen.",
@@ -585,6 +610,18 @@
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
           "host": "IP-Adresse des Zendure SolarFlow in Ihrem lokalen Netzwerk",
           "port": "HTTP-Port (Standard 80)"
+        }
+      },
+      "battery_connection_esphome": {
+        "title": "Batterie {battery_num} konfigurieren — Verbindung (LilyGo/ESPHome)",
+        "description": "Wähle das ESPHome-Gerät (LilyGo-RS485-Brücke), das die Marstek-Batterie {battery_num} bereitstellt. Es muss die marstek-lilygo-rs485-Firmware mit den Original-Entitätsnamen ausführen.",
+        "data": {
+          "name": "Name",
+          "esphome_device": "ESPHome-Gerät"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifikation dieser Batterie",
+          "esphome_device": "Das mit der Marstek-ESPHome-Firmware geflashte LilyGo-T-CAN485-Gerät"
         }
       },
       "battery_limits": {
@@ -951,6 +988,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung zur Batterie nicht möglich. Überprüfen Sie die IP-Adresse und dass die Batterie im Netzwerk erreichbar ist.",
+      "esphome_entities_missing": "Dem ausgewählten ESPHome-Gerät fehlen erforderliche Entitäten: {missing}. Stelle sicher, dass es die marstek-lilygo-rs485-Firmware mit den Original-Entitätsnamen ausführt.",
       "sensor_not_found": "Solarprognose-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
       "invalid_unit": "Solarprognose-Sensor muss 'kWh' oder 'Wh' als Einheit haben.",
       "incomplete_window": "Jedes zusätzliche Ladefenster benötigt eine Start- und eine Endzeit. Füllen Sie beide aus oder lassen Sie beide leer, um es zu überspringen.",

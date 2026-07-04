@@ -9,6 +9,7 @@ writing a new driver, not by editing the control logic.
 Drivers:
   - ``marstek``: Modbus-TCP, register based, polled (the original hardware).
   - ``zendure``: local HTTP REST, property based, polled (SolarFlow series).
+  - ``esphome``: HA-entity based, push (Marstek behind a LilyGo RS485 bridge).
 
 See ``docs/plans/driver_abstraction.md`` for the phased extraction plan.
 """
@@ -20,6 +21,7 @@ from .base import (
     SetpointResult,
     TelemetrySnapshot,
 )
+from .esphome import EsphomeEntityDriver
 from .marstek import MarstekModbusDriver
 from .zendure import ZendureLocalDriver
 
@@ -29,6 +31,7 @@ __all__ = [
     "ReadGroup",
     "SetpointResult",
     "TelemetrySnapshot",
+    "EsphomeEntityDriver",
     "MarstekModbusDriver",
     "ZendureLocalDriver",
 ]

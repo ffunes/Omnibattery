@@ -74,6 +74,18 @@
           "port": "Port HTTP (par défaut 80)"
         }
       },
+      "battery_connection_esphome": {
+        "title": "Configurer la batterie {battery_num} — Connexion (LilyGo/ESPHome)",
+        "description": "Sélectionnez l'appareil ESPHome (pont LilyGo RS485) qui expose la batterie Marstek {battery_num}. Il doit exécuter le firmware marstek-lilygo-rs485 avec les noms d'entités d'origine.",
+        "data": {
+          "name": "Nom",
+          "esphome_device": "Appareil ESPHome"
+        },
+        "data_description": {
+          "name": "Nom descriptif pour identifier cette batterie",
+          "esphome_device": "L'appareil LilyGo T-CAN485 flashé avec le firmware ESPHome Marstek"
+        }
+      },
       "battery_limits": {
         "title": "Configurer la batterie {battery_num} — Limites",
         "description": "Entrez les limites de puissance et de SOC pour la batterie {battery_num}.",
@@ -469,6 +481,18 @@
           "port": "Port HTTP (par défaut 80)"
         }
       },
+      "reconfigure_battery_esphome": {
+        "title": "Reconfigurer la batterie {battery_num} — Connexion (LilyGo/ESPHome)",
+        "description": "Mettez à jour l'appareil ESPHome de la batterie Marstek {battery_num}. Tous les autres réglages sont conservés.",
+        "data": {
+          "name": "Nom",
+          "esphome_device": "Appareil ESPHome"
+        },
+        "data_description": {
+          "name": "Nom descriptif pour identifier cette batterie",
+          "esphome_device": "L'appareil LilyGo T-CAN485 flashé avec le firmware ESPHome Marstek"
+        }
+      },
       "restore_backup": {
         "title": "Restaurer la configuration précédente",
         "description": "Une sauvegarde de {count} configuration(s) précédente(s) (connexion, options et réglages) a été trouvée. La restaurer pour tout récupérer sans reconfigurer ? Vos entités et votre historique se reconnecteront automatiquement.",
@@ -479,6 +503,7 @@
     },
     "error": {
       "cannot_connect": "Impossible de se connecter à la batterie. Vérifiez l'adresse IP et que la batterie est accessible sur le réseau.",
+      "esphome_entities_missing": "Il manque des entités requises à l'appareil ESPHome sélectionné : {missing}. Vérifiez qu'il exécute le firmware marstek-lilygo-rs485 avec les noms d'entités d'origine.",
       "sensor_not_found": "Le capteur de prévision solaire n'existe pas. Vérifiez que le capteur est disponible.",
       "invalid_unit": "Le capteur de prévision solaire doit avoir 'kWh' ou 'Wh' comme unité.",
       "incomplete_window": "Chaque fenêtre de charge supplémentaire nécessite une heure de début et de fin. Remplissez les deux, ou laissez les deux vides pour l'ignorer.",
@@ -585,6 +610,18 @@
           "name": "Nom descriptif pour identifier cette batterie",
           "host": "Adresse IP du Zendure SolarFlow sur votre réseau local",
           "port": "Port HTTP (par défaut 80)"
+        }
+      },
+      "battery_connection_esphome": {
+        "title": "Configurer la batterie {battery_num} — Connexion (LilyGo/ESPHome)",
+        "description": "Sélectionnez l'appareil ESPHome (pont LilyGo RS485) qui expose la batterie Marstek {battery_num}. Il doit exécuter le firmware marstek-lilygo-rs485 avec les noms d'entités d'origine.",
+        "data": {
+          "name": "Nom",
+          "esphome_device": "Appareil ESPHome"
+        },
+        "data_description": {
+          "name": "Nom descriptif pour identifier cette batterie",
+          "esphome_device": "L'appareil LilyGo T-CAN485 flashé avec le firmware ESPHome Marstek"
         }
       },
       "battery_limits": {
@@ -951,6 +988,7 @@
     },
     "error": {
       "cannot_connect": "Impossible de se connecter à la batterie. Vérifiez l'adresse IP et que la batterie est accessible sur le réseau.",
+      "esphome_entities_missing": "Il manque des entités requises à l'appareil ESPHome sélectionné : {missing}. Vérifiez qu'il exécute le firmware marstek-lilygo-rs485 avec les noms d'entités d'origine.",
       "sensor_not_found": "Le capteur de prévision solaire n'existe pas. Vérifiez que le capteur est disponible.",
       "invalid_unit": "Le capteur de prévision solaire doit avoir 'kWh' ou 'Wh' comme unité.",
       "incomplete_window": "Chaque fenêtre de charge supplémentaire nécessite une heure de début et de fin. Remplissez les deux, ou laissez les deux vides pour l'ignorer.",

@@ -1,6 +1,11 @@
 # Changelog
 
-## [1.0.0b5] - 2026-07-04
+## [Unreleased]
+
+### Added
+- **LilyGo RS485 / ESPHome driver**: support for Marstek batteries bridged by the [marstek-lilygo-rs485](https://github.com/whyisthisbroken/marstek-lilygo-rs485) firmware — telemetry and control go through the ESPHome device's HA entities (the battery's RS485 port is occupied by the ESP32). New brand in the config flow; same register semantics as the direct Modbus driver. [`drivers/esphome.py`](custom_components/omnibattery/drivers/esphome.py).
+
+## [1.0.0b5] - 2026-07-03
 
 ### Added
 - **Diagnostics and system health platforms**: per-entry, per-battery diagnostics (connection-health ladder, driver capabilities, non-responsive tracker state) and a system health card (connected/suspended/non-responsive counts), both read from a single `coordinator.health_snapshot()` so they can't drift. Thanks to @syphernl for the contribution. [`diagnostics.py`](custom_components/omnibattery/diagnostics.py), [`system_health.py`](custom_components/omnibattery/system_health.py).
