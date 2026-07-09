@@ -1,11 +1,5 @@
 # Battery configuration
 
-## Brand
-
-Each battery is added under a **brand** — **Marstek** (Venus, over Modbus TCP/RTU) or **Zendure** (SolarFlow 2400 AC / AC Pro / AC+, over local HTTP). The brand you pick changes the connection fields below: Marstek asks for the Modbus host/port (or a serial path) and battery version; Zendure auto-detects the model and only needs the device's local IP. The rest of the integration — control loop, sensors, dashboard, predictive charging — is shared.
-
-The fields documented on this page are for **Marstek** batteries. The control and SOC/power sliders behave the same for Zendure; only the connection and a user-set capacity differ.
-
 ## Number of batteries
 
 Select how many battery units you have (1–6). The integration will ask you to configure each one separately.
@@ -14,20 +8,32 @@ Select how many battery units you have (1–6). The integration will ask you to 
 
 ---
 
+## Battery brand
 
-## Per-battery parameters
+Each battery is added under a **brand** — **Marstek** (Venus, over Modbus TCP/RTU) or **Zendure** (SolarFlow 2400 AC / AC Pro / AC+, over local HTTP). 
+
+![Battery Brand](../assets/screenshots/configuration/battery-brand-form.png){ width="650"  style="display: block; margin: 0 auto;"}
+
+The brand you pick changes the connection fields below: Marstek asks for the Modbus host/port (or a serial path) and battery version; Zendure auto-detects the model and only needs the device's local IP. The rest of the integration — control loop, sensors, dashboard, predictive charging — is shared.The fields documented on this page are for **Marstek** batteries. The control and SOC/power sliders behave the same for Zendure; only the connection and a user-set capacity differ.
+
+---
+
+## Per-battery Marstek parameters
 
 | Parameter | Description | Default |
 |---|---|---|
 | **Name** | Unique identifier (e.g. "Venus 1") | — |
-| **Host** | IP address of the Modbus TCP converter | — |
-| **Port** | Modbus TCP port | `502` |
+| **Host IP** | IP address of the Modbus TCP converter | — |
+| **Modbus Port** | Modbus TCP port | `502` |
+| **Serial port (Modbus RTU)** | COM port when using USB-RS485 adapter (leave empty for TCP) | — |
+| **Modbus Slave ID** | Use when mapping several Marstek batteries to one IP:port using distinct slave ids | `1` |
 | **Version** | Battery model | — |
-| **Max charge/discharge power** | Rated power of your setup | — |
-| **Max SOC** | Stop charging at this percentage | `100 %` |
-| **Min SOC** | Stop discharging at this percentage | `12 %` |
-| **Charge hysteresis** | Always on (minimum 2 %). After the battery reaches the top it won't charge again until SOC drops by this margin — avoids rapid cycling and absorbs SOC-reading drift | `2 %` |
-| **Backup offgrid threshold** | Minimum offgrid load (W) to be considered an active backup event | `50 W` |
+| **Max charge/discharge power (W)** | Rated power of your setup | — |
+| **Max SOC (%)** | Stop charging at this percentage | `100 %` |
+| **Min SOC (%)** | Stop discharging at this percentage | `12 %` |
+| **Charge hysteresis (%)** | Always on (minimum 2 %). After the battery reaches the top it won't charge again until SOC drops by this margin — avoids rapid cycling and absorbs SOC-reading drift | `2 %` |
+| **Backup offgrid threshold (W)** | Minimum offgrid load (W) to be considered an active backup event | `50 W` |
+| **Enable 100% charge voltage taper** | When target is 100%, limit charge to 95W from 3.48V max cell voltage and stop at 3.58V to measure imbalance after 60 seconds | `on` |
 
 ### Battery versions
 
