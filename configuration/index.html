@@ -1576,16 +1576,19 @@
     K --&gt; L{Solar charge delay?}
     L -- Yes --&gt; M[8. Solar charge delay config]
     L -- No --&gt; N
-    M --&gt; N{Capacity protection?}
-    N -- Yes --&gt; O[9. Capacity protection config]
-    N -- No --&gt; P
-    O --&gt; P{Hourly net balance?}
-    P -- Yes --&gt; Q[10. Hourly net balance config]
+    M --&gt; N{Temperature charge limit?}
+    N -- Yes --&gt; O[9. Temperature charge limit]
+    N -- No --&gt; P  
+    O --&gt; P{Capacity protection?}
+    P -- Yes --&gt; Q[10. Capacity protection config]
     P -- No --&gt; R
-    Q --&gt; R{PD controller advanced?}
-    R -- Yes --&gt; S[11. PD controller advanced config]
-    R -- No --&gt; T[Done]
-    S --&gt; T</code></pre>
+    Q --&gt; R{Hourly net balance?}
+    R -- Yes --&gt; S[11. Hourly net balance config]
+    R -- No --&gt; T
+    S --&gt; T{PD controller advanced?}
+    T -- Yes --&gt; U[12. PD controller advanced config]
+    T -- No --&gt; W
+    U --&gt; W[Done]</code></pre>
 <table>
 <thead>
 <tr>
@@ -1636,6 +1639,11 @@
 <td style="text-align: center;">❌</td>
 </tr>
 <tr>
+<td><a href="advanced/">Temperature charge limit</a></td>
+<td>Linear derate charge/discharge power based on battery temperature</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
 <td><a href="advanced/">Capacity protection</a></td>
 <td>Reserves a portion of battery capacity for demand spikes (peak shaving)</td>
 <td style="text-align: center;">❌</td>
@@ -1655,7 +1663,7 @@
 <h2 id="modifying-the-configuration">Modifying the configuration<a class="headerlink" href="#modifying-the-configuration" title="Permanent link">&para;</a></h2>
 <p>Once installed, any parameter can be changed at:
 <strong>Settings → Devices &amp; Services → Omnibattery → Configure</strong></p>
-<p><img alt="Reconfigure Omnibattery" src="../assets/screenshots/configuration/reconfigure-marstek-venus-energy-manager.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<p><img alt="Reconfigure Omnibattery" src="../assets/screenshots/configuration/reconfigure-omnibattery.png" style="display: block; margin: 0 auto;" width="650" /></p>
 
 
 

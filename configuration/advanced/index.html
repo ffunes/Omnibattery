@@ -955,6 +955,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#temperature-charge-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Temperature charge limit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#capacity-protection-peak-shaving" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1564,6 +1575,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#temperature-charge-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Temperature charge limit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#capacity-protection-peak-shaving" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1641,8 +1663,8 @@
 <td>—</td>
 </tr>
 <tr>
-<td><strong>Enable cell balance monitor</strong></td>
-<td>If checked active cell balancing will be activated (this can be <em>slow</em>)</td>
+<td><strong>Wait for solar charge delay</strong></td>
+<td>If checked solar charge delay has priority (dashboard setting)</td>
 <td>Disabled</td>
 </tr>
 </tbody>
@@ -1681,11 +1703,52 @@
 <td>Battery SOC to reach before solar charge delay kicks in</td>
 <td>—</td>
 </tr>
+<tr>
+<td><strong>Balance deadband (kWh)</strong></td>
+<td>Tolerance on energy-balance check; if battery+solar forecast&lt;expected consumption then delay is longer (dashboard setting)</td>
+<td><code>0.5 kWh</code></td>
+</tr>
 </tbody>
 </table>
 <p>A larger margin (e.g. 180 min) unlocks grid charging earlier in the day; a smaller margin waits longer for the sun to cover the energy.</p>
 <p>See <a href="../../features/solar-charge-delay/">Solar charge delay</a> for how it works.</p>
 <p><img alt="Solar charge delay configuration" src="../../assets/screenshots/configuration/advanced-solar-charge-delay-config.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<hr />
+<h2 id="temperature-charge-limit">Temperature charge limit<a class="headerlink" href="#temperature-charge-limit" title="Permanent link">&para;</a></h2>
+<p>Reduces charge/discharge power when the battery gets hot. Above a temperature limit charging/discharging is throttled proportionally and restored as the battery cools down.</p>
+<p>Linear derate from full charge power down to a floor as a battery's temperature crosses a configurable limit and band; floor is clamped to each battery's minimum operating power (v2/v3 = 800 W, vA/vD/Zendure = 0). Optional discharge derate too, to stay under the BMS over-temp cutoff. Controls in all six languages. Thanks to @syphernl for the contribution.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Temperature limit (°C)</strong></td>
+<td>Charging runs at full power at or below this temperature; above the derate begins</td>
+<td><code>40°C</code></td>
+</tr>
+<tr>
+<td><strong>Ramp band (°C)</strong></td>
+<td>Temperature range above the limit over which charge power ramps down to the minimum</td>
+<td><code>10°C</code></td>
+</tr>
+<tr>
+<td><strong>Minimum charge power (%)</strong></td>
+<td>Charge power at the limit plus the band, as a percentage of the normal charge ceiling. 0% stops charging when very hot</td>
+<td><code>40%</code></td>
+</tr>
+<tr>
+<td><strong>Also throttle discharge</strong></td>
+<td>Apply the same temperature derate to discharge power. Keeps discharge under the BMS over-temp cutoff.</td>
+<td><code>off</code></td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Temperature charge limit configuration" src="../../assets/screenshots/configuration/advanced-temperature-charge-limit-config.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <hr />
 <h2 id="capacity-protection-peak-shaving">Capacity protection (peak shaving)<a class="headerlink" href="#capacity-protection-peak-shaving" title="Permanent link">&para;</a></h2>
 <p>Limits discharge when SOC drops below a threshold, covering only consumption peaks that exceed a configurable power limit.</p>
@@ -1839,6 +1902,11 @@
 <p>The system max charge/discharge caps are useful when the installation has a shared hardware or wiring limit. They do not reduce each battery's individual maximum: if only one battery is active, it can still use its own configured limit; when several batteries are active, the controller throttles the combined total to the configured system cap.</p>
 <p>When <strong>Enable system power limits</strong> is off, both caps are ignored and their runtime number entities are not created. When enabled, the caps are exposed as slider entities on the Omnibattery System device.</p>
 <p><img alt="Advanced PD controller configuration" src="../../assets/screenshots/configuration/advanced-pd-controller-config.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<div class="admonition warning">
+<p class="admonition-title">No-PD Direct Tracking</p>
+<p>You can bypass the PD controller by enabling this on the Control tab of your dashboard. Each battery will track the grid setpoint 1:1. There will be no integral/derivative/smoothing/rate-limit. It will use the deadband, min charge/discharge power, relay cooldown and target grid power.
+<strong>Use only if PD tuning can't tame your meter, PD is the safer default !</strong></p>
+</div>
 
 
 

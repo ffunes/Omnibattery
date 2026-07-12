@@ -672,17 +672,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#brand" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Brand
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#number-of-batteries" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -694,15 +683,26 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#per-battery-parameters" class="md-nav__link">
+  <a href="#battery-brand" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Per-battery parameters
+        Battery brand
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Per-battery parameters">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-battery-marstek-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-battery Marstek parameters
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Per-battery Marstek parameters">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1559,17 +1559,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#brand" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Brand
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#number-of-batteries" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1581,15 +1570,26 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#per-battery-parameters" class="md-nav__link">
+  <a href="#battery-brand" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Per-battery parameters
+        Battery brand
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Per-battery parameters">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-battery-marstek-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-battery Marstek parameters
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Per-battery Marstek parameters">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1656,14 +1656,16 @@
 
 
 <h1 id="battery-configuration">Battery configuration<a class="headerlink" href="#battery-configuration" title="Permanent link">&para;</a></h1>
-<h2 id="brand">Brand<a class="headerlink" href="#brand" title="Permanent link">&para;</a></h2>
-<p>Each battery is added under a <strong>brand</strong> — <strong>Marstek</strong> (Venus, over Modbus TCP/RTU) or <strong>Zendure</strong> (SolarFlow 2400 AC / AC Pro / AC+, over local HTTP). The brand you pick changes the connection fields below: Marstek asks for the Modbus host/port (or a serial path) and battery version; Zendure auto-detects the model and only needs the device's local IP. The rest of the integration — control loop, sensors, dashboard, predictive charging — is shared.</p>
-<p>The fields documented on this page are for <strong>Marstek</strong> batteries. The control and SOC/power sliders behave the same for Zendure; only the connection and a user-set capacity differ.</p>
 <h2 id="number-of-batteries">Number of batteries<a class="headerlink" href="#number-of-batteries" title="Permanent link">&para;</a></h2>
 <p>Select how many battery units you have (1–6). The integration will ask you to configure each one separately.</p>
 <p><img alt="Number of Batteries slider" src="../../assets/screenshots/configuration/battery-slider.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <hr />
-<h2 id="per-battery-parameters">Per-battery parameters<a class="headerlink" href="#per-battery-parameters" title="Permanent link">&para;</a></h2>
+<h2 id="battery-brand">Battery brand<a class="headerlink" href="#battery-brand" title="Permanent link">&para;</a></h2>
+<p>Each battery is added under a <strong>brand</strong> — <strong>Marstek</strong> (Venus, over Modbus TCP/RTU) or <strong>Zendure</strong> (SolarFlow 2400 AC / AC Pro / AC+, over local HTTP). </p>
+<p><img alt="Battery Brand" src="../../assets/screenshots/configuration/battery-brand-form.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<p>The brand you pick changes the connection fields below: Marstek asks for the Modbus host/port (or a serial path) and battery version; Zendure auto-detects the model and only needs the device's local IP. The rest of the integration — control loop, sensors, dashboard, predictive charging — is shared.The fields documented on this page are for <strong>Marstek</strong> batteries. The control and SOC/power sliders behave the same for Zendure; only the connection and a user-set capacity differ.</p>
+<hr />
+<h2 id="per-battery-marstek-parameters">Per-battery Marstek parameters<a class="headerlink" href="#per-battery-marstek-parameters" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -1679,14 +1681,24 @@
 <td>—</td>
 </tr>
 <tr>
-<td><strong>Host</strong></td>
+<td><strong>Host IP</strong></td>
 <td>IP address of the Modbus TCP converter</td>
 <td>—</td>
 </tr>
 <tr>
-<td><strong>Port</strong></td>
+<td><strong>Modbus Port</strong></td>
 <td>Modbus TCP port</td>
 <td><code>502</code></td>
+</tr>
+<tr>
+<td><strong>Serial port (Modbus RTU)</strong></td>
+<td>COM port when using USB-RS485 adapter (leave empty for TCP)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Modbus Slave ID</strong></td>
+<td>Use when mapping several Marstek batteries to one IP:port using distinct slave ids</td>
+<td><code>1</code></td>
 </tr>
 <tr>
 <td><strong>Version</strong></td>
@@ -1694,29 +1706,34 @@
 <td>—</td>
 </tr>
 <tr>
-<td><strong>Max charge/discharge power</strong></td>
+<td><strong>Max charge/discharge power (W)</strong></td>
 <td>Rated power of your setup</td>
 <td>—</td>
 </tr>
 <tr>
-<td><strong>Max SOC</strong></td>
+<td><strong>Max SOC (%)</strong></td>
 <td>Stop charging at this percentage</td>
 <td><code>100 %</code></td>
 </tr>
 <tr>
-<td><strong>Min SOC</strong></td>
+<td><strong>Min SOC (%)</strong></td>
 <td>Stop discharging at this percentage</td>
 <td><code>12 %</code></td>
 </tr>
 <tr>
-<td><strong>Charge hysteresis</strong></td>
+<td><strong>Charge hysteresis (%)</strong></td>
 <td>Always on (minimum 2 %). After the battery reaches the top it won't charge again until SOC drops by this margin — avoids rapid cycling and absorbs SOC-reading drift</td>
 <td><code>2 %</code></td>
 </tr>
 <tr>
-<td><strong>Backup offgrid threshold</strong></td>
+<td><strong>Backup offgrid threshold (W)</strong></td>
 <td>Minimum offgrid load (W) to be considered an active backup event</td>
 <td><code>50 W</code></td>
+</tr>
+<tr>
+<td><strong>Enable 100% charge voltage taper</strong></td>
+<td>When target is 100%, limit charge to 95W from 3.48V max cell voltage and stop at 3.58V to measure imbalance after 60 seconds</td>
+<td><code>on</code></td>
 </tr>
 </tbody>
 </table>
