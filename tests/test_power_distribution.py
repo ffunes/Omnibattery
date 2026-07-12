@@ -215,6 +215,30 @@ def test_select_below_deactivation_drops_active_battery():
     assert c._controller._active_discharge_batteries == [a]
 
 
+def test_select_skips_zero_limit_battery_no_zerodivision():
+    # Venus D bug: hardware max_discharge_power register reads 0 -> crossover_w / 0
+    # crashed the whole control cycle. Zero-limit batteries must be skipped.
+    a, b, z = _coord("a", 2500, soc=90), _coord("b", 2500, soc=50), _coord("z", 0, soc=95)
+    c = _build([a, b, z])
+    # z sorts first (highest SOC) but can't contribute -> skipped, no crash.
+    selected = c._select_batteries_for_operation(4000, [a, b, z], is_charging=False)
+    assert set(selected) == {a, b}
+
+
+def test_select_all_zero_limits_returns_empty():
+    a, b = _coord("a", 0), _coord("b", 0)
+    c = _build([a, b])
+    assert c._select_batteries_for_operation(1000, [a, b], is_charging=False) == []
+
+
+def test_select_zero_limit_previous_active_not_readded():
+    # Case A hysteresis must not re-add (or divide by) a battery whose limit
+    # dropped to 0 while it was active.
+    a, z = _coord("a", 2500, soc=90), _coord("z", 0, soc=95)
+    c = _build([a, z], active_discharge=[a, z])
+    assert c._select_batteries_for_operation(1400, [a, z], is_charging=False) == [a]
+
+
 def test_select_wallclock_hold_retains_dropped_battery():
     a, b = _coord("a", 2500, soc=90), _coord("b", 2500, soc=50)
     c = _build([a, b], active_discharge=[a, b],

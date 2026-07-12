@@ -218,8 +218,13 @@ class PowerDistribution:
         combined_capacity = 0
 
         for battery in sorted_batteries:
-            selected.append(battery)
             limit = self._controller._battery_power_limit(battery, is_charging)
+            if limit <= 0:
+                # Can't contribute in this direction (e.g. hardware
+                # max_charge/discharge_power register reads 0) — skipping also
+                # avoids a ZeroDivisionError below (issue: Venus D idle).
+                continue
+            selected.append(battery)
             combined_capacity += limit
             activation_threshold = max(
                 MULTI_BATTERY_MIN_ACTIVATION,
@@ -236,6 +241,8 @@ class PowerDistribution:
             for battery in previous_active:
                 if battery not in selected and battery in available_batteries:
                     limit = self._controller._battery_power_limit(battery, is_charging)
+                    if limit <= 0:
+                        continue
                     first_limit = (
                         self._controller._battery_power_limit(selected[0], is_charging)
                     ) if selected else limit
