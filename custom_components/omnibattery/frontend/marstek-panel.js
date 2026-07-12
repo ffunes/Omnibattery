@@ -75,6 +75,7 @@ const I18N = {
     ctlEmpty: "No controls enabled. Enable them on the device (Settings → disabled entities).",
     ctlArrange: "Arrange", ctlArrangeHint: "Drag cards to reorder · controls are locked",
     ctlCols: "Columns", ctlRows: "Rows", ctlAuto: "Auto",
+    ctlHide: "Hide card", ctlShow: "Show card", ctlHidden: "Hidden cards",
     sysEmptyTitle: "No controls available",
     sysEmptyMsg: "This integration exposes no system controls, or they are disabled. Enable them in Settings → entities.",
     bcAllowCharge: "Allow charge", bcAllowDischarge: "Allow discharge",
@@ -140,6 +141,7 @@ const I18N = {
     ctlEmpty: "No hay controles habilitados. Actívalos en el dispositivo (Ajustes → entidades deshabilitadas).",
     ctlArrange: "Reordenar", ctlArrangeHint: "Arrastra las tarjetas para reordenar · controles bloqueados",
     ctlCols: "Columnas", ctlRows: "Filas", ctlAuto: "Auto",
+    ctlHide: "Ocultar tarjeta", ctlShow: "Mostrar tarjeta", ctlHidden: "Tarjetas ocultas",
     sysEmptyTitle: "Sin controles disponibles",
     sysEmptyMsg: "Esta integración no expone controles de sistema, o están deshabilitados. Actívalos en Ajustes → entidades.",
     bcAllowCharge: "Permitir carga", bcAllowDischarge: "Permitir descarga",
@@ -3665,6 +3667,16 @@ class MarstekVenusPanel extends HTMLElement {
     this._ctlSig = sig;
     // Only offer drag-to-arrange when there are real cards (not the empty state).
     if (!wrap.querySelector(".card")) return wrap;
+    // Hidden cards move to their own stack BEFORE layout so the grid/matrix only
+    // places the visible ones. Each card gets its eye toggle (arrange mode only).
+    const hiddenSet = new Set(this._loadCtlHidden());
+    const hiddenStack = document.createElement("div");
+    hiddenStack.className = "sys-stack ctl-hidden-stack";
+    for (const card of [...wrap.querySelectorAll(".card")]) {
+      const isHidden = hiddenSet.has(card.dataset.tk);
+      this._addHideBtn(card, isHidden);
+      if (isHidden) hiddenStack.appendChild(card);
+    }
     // Layout: a fixed column+row count switches to a manual C×R matrix (drag any
     // card into any cell, empty cells included); otherwise a responsive flow grid
     // (fixed-or-auto columns, drag reorders the sequence).
@@ -3672,9 +3684,37 @@ class MarstekVenusPanel extends HTMLElement {
     else this._applyCtlGrid(wrap);
     const root = document.createElement("div");
     root.className = "ctl-root";
+    this._ctlRoot = root; // _applyArrangeMode toggles .arranging here too
     root.appendChild(this._buildArrangeBar(wrap));
     root.appendChild(wrap);
+    if (hiddenStack.childElementCount) {
+      const sec = document.createElement("div");
+      sec.className = "ctl-hidden";
+      sec.innerHTML =
+        `<div class="ctl-hidden-title"><ha-icon icon="mdi:eye-off-outline"></ha-icon>` +
+        `<span>${this._t("ctlHidden")}</span></div>`;
+      sec.appendChild(hiddenStack);
+      root.appendChild(sec);
+    }
     return root;
+  }
+
+  /** Eye toggle in the card header: hides the card into the "Hidden cards"
+   *  section (or restores it). Only visible while arrange mode is ON (CSS). */
+  _addHideBtn(card, isHidden) {
+    const btn = document.createElement("button");
+    btn.className = "ctl-hide-btn";
+    btn.title = this._t(isHidden ? "ctlShow" : "ctlHide");
+    btn.innerHTML = `<ha-icon icon="mdi:${isHidden ? "eye" : "eye-off"}-outline"></ha-icon>`;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const set = new Set(this._loadCtlHidden());
+      if (isHidden) set.delete(card.dataset.tk);
+      else set.add(card.dataset.tk);
+      this._saveCtlHidden([...set]);
+      this._rebuildControl();
+    });
+    card.querySelector(".card-head").appendChild(btn);
   }
 
   /** Manual matrix is active only when BOTH a column and a row count are pinned;
@@ -3759,6 +3799,7 @@ class MarstekVenusPanel extends HTMLElement {
   _applyArrangeMode(stack, btn, hint, tools) {
     const on = !!this._arrangeMode;
     stack.classList.toggle("arranging", on);
+    if (this._ctlRoot) this._ctlRoot.classList.toggle("arranging", on);
     btn.classList.toggle("active", on);
     hint.textContent = on ? this._t("ctlArrangeHint") : "";
     if (tools) tools.style.display = on ? "" : "none";
@@ -3999,6 +4040,17 @@ class MarstekVenusPanel extends HTMLElement {
     const order = [...stack.querySelectorAll(".card")].map((c) => c.dataset.tk).filter(Boolean);
     try { localStorage.setItem(this._ctlOrderKey(), JSON.stringify(order)); } catch { /* private mode */ }
   }
+  // --- Control-tab hidden cards (eye toggle in arrange mode, persisted) -------
+  _ctlHiddenKey() { return "omnibattery:control-hidden"; }
+  _loadCtlHidden() {
+    try {
+      const v = JSON.parse(localStorage.getItem(this._ctlHiddenKey()));
+      return Array.isArray(v) ? v : [];
+    } catch { return []; }
+  }
+  _saveCtlHidden(tks) {
+    try { localStorage.setItem(this._ctlHiddenKey(), JSON.stringify(tks)); } catch { /* private mode */ }
+  }
   /** Wire HTML5 drag events on a card. Active only while arrange mode is ON
    *  (card.draggable is toggled by _applyArrangeMode). In flow mode it reorders
    *  the DOM sequence live; in matrix mode the cell drop-zones own placement so
@@ -4018,6 +4070,7 @@ class MarstekVenusPanel extends HTMLElement {
     });
     card.addEventListener("dragover", (e) => {
       if (this._isMatrixMode()) return; // cells handle placement
+      if (card.parentElement !== stack) return; // card lives in the hidden stack
       if (!this._arrangeMode || !this._dragEl || this._dragEl === card) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
@@ -4711,6 +4764,20 @@ class MarstekVenusPanel extends HTMLElement {
         border: 1px dashed var(--line); border-radius: var(--radius-sm); }
       .ctl-cell.drop-target { outline: 2px solid var(--accent); outline-offset: -2px;
         border-radius: var(--radius-sm); }
+      /* hide/show eye toggle: only shown while arranging */
+      .ctl-hide-btn { display: none; margin-left: auto; padding: 0; border: 0; background: none;
+        cursor: pointer; color: var(--ink-dim); place-items: center; --mdc-icon-size: 16px; }
+      .ctl-hide-btn:hover { color: var(--ink); }
+      .ctl-root.arranging .ctl-hide-btn { display: grid; }
+      .card-head .card-info + .ctl-hide-btn, .card-head .ctl-hide-btn + .card-info { margin-left: 8px; }
+      /* hidden-cards section: only visible while arranging; cards are parked
+         (dimmed, controls locked) until the eye toggle restores them */
+      .ctl-hidden { display: none; }
+      .ctl-root.arranging .ctl-hidden { display: flex; flex-direction: column; gap: 10px; }
+      .ctl-hidden-title { display: inline-flex; align-items: center; gap: 6px;
+        color: var(--ink-dim); font-size: 12px; --mdc-icon-size: 16px; }
+      .ctl-hidden-stack .card { border-style: dashed; opacity: 0.7; }
+      .ctl-hidden-stack .card .bat-ctl-grid { pointer-events: none; }
       /* options-flow help affordance pinned to the right of a section header */
       .card-info { margin-left: auto; padding: 0; border: 0; background: none; cursor: pointer;
         color: var(--ink-dim); display: grid; place-items: center; --mdc-icon-size: 16px; }

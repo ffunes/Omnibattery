@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.0b7] - 2026-07-12
+
+### Added
+- **Hideable control cards**: in the Control tab's arrange mode, each card gets an eye toggle that parks it in a "Hidden cards" section below the grid; restore it from there. Persists per browser. [`frontend/marstek-panel.js`](custom_components/omnibattery/frontend/marstek-panel.js).
+
 ## [1.0.0b6] - 2026-07-04
 
 ### Added
