@@ -24,7 +24,6 @@ from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import (
     IDLE_RUNAWAY_GRACE_S,
     PD_READBACK_EVERY_N_WRITES,
-    PD_WRITE_KEEPALIVE_S,
 )
 from custom_components.omnibattery.drivers import SetpointResult
 from tests.conftest import FakeCoordinator
@@ -296,45 +295,6 @@ async def test_no_record_during_discharge_engage_grace():
     assert result is True
     coord.apply_power.assert_called_once()
     record.assert_not_called()  # suppressed: inverter still within engage grace
-
-
-async def test_keepalive_rewrites_after_interval():
-    """In-state skips must not starve the v3 firmware's RS485 forced-mode
-    watchdog: once the last real write is older than PD_WRITE_KEEPALIVE_S, the
-    next in-state cycle falls through to a real refresh write."""
-    coord = _Coord({"force_mode": 1, "set_charge_power": 500, "set_discharge_power": 0})
-    coord.apply_power = AsyncMock(return_value=_ok(500))
-    ctrl = _controller()
-
-    # First in-state cycle arms the countdown and still skips.
-    await ChargeDischargeController._set_battery_power(ctrl, coord, 500, 0)
-    coord.apply_power.assert_not_called()
-
-    # Age the stamp past the keep-alive window -> next cycle writes for real.
-    coord._pd_last_write_ts = dt_util.utcnow() - timedelta(
-        seconds=PD_WRITE_KEEPALIVE_S + 1
-    )
-    await ChargeDischargeController._set_battery_power(ctrl, coord, 500, 0)
-    coord.apply_power.assert_called_once()
-
-    # The real write restamped the countdown -> skipping resumes.
-    await ChargeDischargeController._set_battery_power(ctrl, coord, 500, 0)
-    coord.apply_power.assert_called_once()
-
-
-async def test_no_keepalive_at_idle():
-    """Keep-alive only defends an *active* setpoint: a battery resting at idle
-    must stay write-free no matter how stale the last write is."""
-    coord = _Coord({"force_mode": 0, "set_charge_power": 0, "set_discharge_power": 0})
-    coord._pd_last_write_ts = dt_util.utcnow() - timedelta(
-        seconds=PD_WRITE_KEEPALIVE_S + 1
-    )
-    ctrl = _controller()
-
-    result = await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 0)
-
-    assert result is True
-    coord.apply_power.assert_not_called()
 
 
 async def test_no_skip_when_setpoints_differ():

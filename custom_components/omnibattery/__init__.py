@@ -133,7 +133,6 @@ from .const import (
     NORMAL_BALANCE_RECAL_INVERTER_STANDBY,
     BMS_DISCHARGE_CUTOFF_SOC,
     PD_READBACK_EVERY_N_WRITES,
-    PD_WRITE_KEEPALIVE_S,
     FAST_ACTUATOR_MAX_LATENCY_S,
     DISCHARGE_ENGAGE_GRACE_S,
     IDLE_RUNAWAY_POWER_W,
@@ -3294,25 +3293,6 @@ class ChargeDischargeController:
                     await self._check_non_delivery(
                         coordinator, abs(net_power), float(batt_power), attempt=0,
                     )
-            # Keep-alive: some v3 firmwares drop out of RS485 forced mode when
-            # no Modbus command arrives for ~2 minutes, so an active setpoint
-            # held entirely by skips starves that watchdog — the battery falls
-            # to 0 W until the delivery check forces a re-write. Refresh with a
-            # real write once per PD_WRITE_KEEPALIVE_S even when in-state.
-            if skip_write and net_power != 0:
-                last_write_ts = getattr(coordinator, "_pd_last_write_ts", None)
-                if last_write_ts is None:
-                    # First in-state cycle (e.g. after restart): start the countdown.
-                    coordinator._pd_last_write_ts = dt_util.utcnow()
-                elif (
-                    dt_util.utcnow() - last_write_ts
-                ).total_seconds() >= PD_WRITE_KEEPALIVE_S:
-                    skip_write = False
-                    _LOGGER.debug(
-                        "[%s] Keep-alive write - refreshing setpoint held by "
-                        "skips for %ds",
-                        coordinator.name, PD_WRITE_KEEPALIVE_S,
-                    )
             if skip_write:
                 _LOGGER.debug(
                     "[%s] Power write skipped - already at force=%d charge=%dW "
@@ -3340,7 +3320,6 @@ class ChargeDischargeController:
         # stalled registerless battery is still excluded from the pool.
         write_count = getattr(coordinator, "_pd_write_count", 0)
         coordinator._pd_write_count = write_count + 1
-        coordinator._pd_last_write_ts = dt_util.utcnow()
         read_back = (
             (write_count % PD_READBACK_EVERY_N_WRITES) == 0
             and coordinator.capabilities.actuator_latency_s <= FAST_ACTUATOR_MAX_LATENCY_S

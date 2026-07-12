@@ -2,9 +2,6 @@
 
 ## [1.0.0b6] - 2026-07-04
 
-### Fixed
-- **Attempted fix for steady-state 0 W dips every ~2-3 min on some v3 firmwares**: those firmwares appear to drop out of RS485 forced mode when no Modbus command arrives for ~2 minutes, and the bus-load skip could hold a steady setpoint for minutes without a single write — the battery fell to 0 W until the delivery check re-wrote it. Active setpoints are now refreshed with a real write at least every 60 s (keep-alive). Not yet confirmed on affected hardware; please report back if the dips persist. [`__init__.py`](custom_components/omnibattery/__init__.py).
-
 ### Added
 - **LilyGo RS485 / ESPHome driver**: support for Marstek batteries bridged by the [marstek-lilygo-rs485](https://github.com/whyisthisbroken/marstek-lilygo-rs485) firmware — telemetry and control go through the ESPHome device's HA entities (the battery's RS485 port is occupied by the ESP32). New brand in the config flow; same register semantics as the direct Modbus driver. [`drivers/esphome.py`](custom_components/omnibattery/drivers/esphome.py).
 

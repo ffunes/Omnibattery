@@ -222,13 +222,6 @@ BMS_DISCHARGE_CUTOFF_SOC = 20                  # %: below this, refused discharg
 # delivering are caught up to N writes later instead of immediately.
 PD_READBACK_EVERY_N_WRITES = 5
 
-# Keep-alive for the skip-if-unchanged guard: some v3 firmwares drop out of
-# RS485 forced mode when no Modbus command arrives for ~2 minutes, so a steady
-# setpoint held entirely by skips starves that watchdog and the battery falls
-# to 0 W until the delivery check forces a re-write (a metronomic dip every
-# ~2-3 min). Refresh an active setpoint with a real write at least this often.
-PD_WRITE_KEEPALIVE_S = 60
-
 # Transient burst poll: right after a REAL power command change, the delivered-
 # power reading (ac_power / battery_power) is polled at this cadence instead of
 # its normal "high" scan interval, so _measured_battery_power() isn't stale
