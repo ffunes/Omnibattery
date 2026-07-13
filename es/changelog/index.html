@@ -1471,6 +1471,7 @@
 </ul>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
 <ul>
+<li><strong>Discharge dropped to 0 W for 5-40 s on downward load steps</strong>: the transient grid export while the discharging battery ramped down made the incremental PD cross zero and emit a charge order on another battery, zeroing the discharger (ping-pong every 1-3 min). A charge↔discharge flip must now persist past the actuator settle window (~5 s) before it goes through; transients collapse back to discharge, sustained solar surplus still flips. <a href="custom_components/omnibattery/__init__.py"><code>__init__.py</code></a>.</li>
 <li><strong>Battery reporting a 0 W power limit crashed the control cycle</strong>: a Venus D whose <code>max_discharge_power</code> register reads 0 hit a division by zero in the load-sharing selector, aborting the whole cycle and leaving batteries idle. Zero-limit batteries are now skipped. <a href="custom_components/omnibattery/control/power_distribution.py"><code>control/power_distribution.py</code></a>.</li>
 </ul>
 <h2 id="100b6-2026-07-04">[1.0.0b6] - 2026-07-04<a class="headerlink" href="#100b6-2026-07-04" title="Permanent link">&para;</a></h2>
