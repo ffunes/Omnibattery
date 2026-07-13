@@ -1063,6 +1063,9 @@
       "charge_delay": {
         "name": "Ladeverzögerung"
       },
+      "delay_soc_setpoint_enabled": {
+        "name": "Verzögerungs-Ziel-SOC Aktiv"
+      },
       "temp_charge_limit": {
         "name": "Temperaturbasierte Ladebegrenzung"
       },

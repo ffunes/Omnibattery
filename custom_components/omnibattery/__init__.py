@@ -5396,6 +5396,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.info("Migrated %s to %s (default for existing installations)",
                         battery_config[CONF_NAME], DEFAULT_VERSION)
 
+    # Backfill feature enable keys no longer written by the config/options flows.
+    # The feature switch/slider entities are gated on key *presence*, so entries
+    # predating a feature need the key for its dashboard controls to exist. A
+    # missing key means the feature was never enabled → backfill False (no
+    # behavior change); system power limits keep their legacy value-derived
+    # default.
+    _backfill = {
+        _key: False
+        for _key in (
+            CONF_ENABLE_CHARGE_DELAY,
+            CONF_DELAY_SOC_SETPOINT_ENABLED,
+            CONF_ENABLE_TEMP_CHARGE_LIMIT,
+            CONF_CAPACITY_PROTECTION_ENABLED,
+            CONF_ENABLE_HOURLY_BALANCE,
+        )
+        if _key not in entry.data
+    }
+    if CONF_ENABLE_SYSTEM_POWER_LIMITS not in entry.data:
+        _backfill[CONF_ENABLE_SYSTEM_POWER_LIMITS] = (
+            (entry.data.get(CONF_SYSTEM_MAX_CHARGE_POWER, 0) or 0) > 0
+            or (entry.data.get(CONF_SYSTEM_MAX_DISCHARGE_POWER, 0) or 0) > 0
+        )
+    if _backfill:
+        hass.config_entries.async_update_entry(entry, data={**entry.data, **_backfill})
+        _LOGGER.info("Backfilled feature enable keys: %s", _backfill)
+
     # Persist a copy of the config so a full integration delete stays recoverable
     # (see config_backup.py). Survives a config-entry deletion that the seamless
     # domain migration cannot, because it can't grab a deleted entry.

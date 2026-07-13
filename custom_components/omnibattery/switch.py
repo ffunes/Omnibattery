@@ -16,6 +16,7 @@ from .const import (
     DOMAIN,
     CONF_ACTIVE_BALANCE_MODE_ENABLED,
     CONF_CAPACITY_PROTECTION_ENABLED,
+    CONF_DELAY_SOC_SETPOINT_ENABLED,
     CONF_ENABLE_CHARGE_DELAY,
     CONF_ENABLE_TEMP_CHARGE_LIMIT,
     CONF_TEMP_LIMIT_APPLY_DISCHARGE,
@@ -106,11 +107,13 @@ async def async_setup_entry(
     )
     if controller and has_charge_delay_config:
         entities.append(ChargeDelaySwitch(hass, entry, controller))
+        entities.append(DelaySocSetpointEnabledSwitch(hass, entry, controller))
 
     # Add weekly-full-charge delay switch: lets the weekly charge wait for the
     # solar charge delay instead of charging immediately. Only meaningful when
-    # both weekly full charge and the charge delay are configured.
-    if controller and controller.weekly_full_charge_enabled and has_charge_delay_config:
+    # the charge delay is configured; not gated on weekly-full-charge being
+    # enabled since that switch can be flipped live without a platform reload.
+    if controller and has_charge_delay_config:
         entities.append(WeeklyFullChargeDelaySwitch(hass, entry, controller))
 
     # Add temperature charge limit switch (system-level, when configured)
@@ -698,6 +701,49 @@ class ChargeDelaySwitch(SwitchEntity):
     @property
     def device_info(self):
         """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class DelaySocSetpointEnabledSwitch(SwitchEntity):
+    """Switch to enable the intermediate SOC setpoint during the charge delay."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "delay_soc_setpoint_enabled"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}delay_soc_setpoint_enabled"
+        self.entity_id = system_entity_id("switch", "delay_soc_setpoint_enabled")
+        self._attr_icon = "mdi:battery-charging-50"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        return self.controller._delay_soc_setpoint_enabled
+
+    def _set_enabled(self, enabled: bool) -> None:
+        self.controller._delay_soc_setpoint_enabled = enabled
+        new_data = dict(self.entry.data)
+        new_data[CONF_DELAY_SOC_SETPOINT_ENABLED] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Charge delay SOC setpoint %s", "ENABLED" if enabled else "DISABLED")
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        self._set_enabled(False)
+
+    @property
+    def device_info(self):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",

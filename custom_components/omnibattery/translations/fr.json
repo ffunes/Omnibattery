@@ -1063,6 +1063,9 @@
       "charge_delay": {
         "name": "Délai de Charge"
       },
+      "delay_soc_setpoint_enabled": {
+        "name": "SOC Cible du Délai Actif"
+      },
       "temp_charge_limit": {
         "name": "Limite de charge par température"
       },

@@ -11,7 +11,6 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     DOMAIN,
-    CONF_ENABLE_WEEKLY_FULL_CHARGE,
     CONF_WEEKLY_FULL_CHARGE_DAY,
     CONF_PD_TUNING_PROFILE,
     PD_PROFILE_CUSTOM,
@@ -43,9 +42,10 @@ async def async_setup_entry(
         if coordinator.needs_software_manual_control:
             entities.append(MarstekManualForceModeSelect(coordinator))
 
-    # Add weekly full charge day select (system-level)
-    if entry.data.get(CONF_ENABLE_WEEKLY_FULL_CHARGE, False):
-        entities.append(WeeklyFullChargeDaySelect(hass, entry))
+    # Add weekly full charge day select (system-level, always present: the enable
+    # switch is always available, so the day must be pickable before enabling —
+    # toggling the switch does not reload platforms).
+    entities.append(WeeklyFullChargeDaySelect(hass, entry))
 
     # Add PD tuning profile select (system-level, always available)
     entities.append(PdTuningProfileSelect(hass, entry))

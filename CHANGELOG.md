@@ -1,12 +1,11 @@
 # Changelog
 
-### Added
-
 ## [1.0.0b7] - 2026-07-12
 
 ### Added
 - **Hideable control cards**: in the Control tab's arrange mode, each card gets an eye toggle that parks it in a "Hidden cards" section below the grid; restore it from there. Persists per browser. [`frontend/marstek-panel.js`](custom_components/omnibattery/frontend/marstek-panel.js).
 - **Feedforward on confirmed load steps (PD mode)**: a kettle/oven-sized load step is now covered in one deadbeat cycle (~5-7 s, actuator floor) instead of the ~13 s exponential approach of the incremental P term. Two-sample confirmation rejects meter spikes; a cooldown and an opposite-sign pulse guard keep pulsing loads (induction hobs) on the stable slow-PD averaging. [`__init__.py`](custom_components/omnibattery/__init__.py).
+- **Simplified onboarding**: weekly full charge, solar charge delay, temperature charge limit, capacity protection, hourly balance and PD controller removed from the setup wizard and options menu — new installs get them present but disabled, everything is configured live from the dashboard. New Charge Delay Target SOC switch; weekly day select and per-feature sliders now always exist alongside their toggle. Existing installs keep their current settings. [`config_flow.py`](custom_components/omnibattery/config_flow.py).
 
 ### Fixed
 - **Discharge dropped to 0 W for 5-40 s on downward load steps**: the transient grid export while the discharging battery ramped down made the incremental PD cross zero and emit a charge order on another battery, zeroing the discharger (ping-pong every 1-3 min). A charge↔discharge flip must now persist past the actuator settle window (~5 s) before it goes through; transients collapse back to discharge, sustained solar surplus still flips. [`__init__.py`](custom_components/omnibattery/__init__.py).

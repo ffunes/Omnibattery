@@ -14,8 +14,6 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (
     CONFIG_NUMBER_DEFINITIONS,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
-    CONF_SYSTEM_MAX_CHARGE_POWER,
-    CONF_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_MAX_PRICE_THRESHOLD,
     CONF_DISCHARGE_PRICE_THRESHOLD,
     CONF_ENABLE_TEMP_CHARGE_LIMIT,
@@ -77,23 +75,18 @@ async def async_setup_entry(
         if coordinator.needs_software_max_charge:
             entities.append(MarstekSoftMaxChargeNumber(coordinator))
 
-    # Add config numbers (system-level, PD parameters)
+    # Add config numbers (system-level, PD parameters). Conditional entities are
+    # gated on their feature key being present (enabled OR disabled) — the panel
+    # hides disabled features' sliders, and toggling a feature switch doesn't
+    # reload platforms, so the entities must exist either way. System power
+    # limits predate their enable key, so presence is not required for them.
     for definition in CONFIG_NUMBER_DEFINITIONS:
-        # Skip conditional entities if their feature has never been configured
         condition = definition.get("condition")
         if (
             condition
             and condition not in entry.data
             and condition != CONF_ENABLE_SYSTEM_POWER_LIMITS
         ):
-            continue
-        condition_enabled = entry.data.get(condition, False)
-        if condition == CONF_ENABLE_SYSTEM_POWER_LIMITS and condition not in entry.data:
-            condition_enabled = (
-                (entry.data.get(CONF_SYSTEM_MAX_CHARGE_POWER, 0) or 0) > 0
-                or (entry.data.get(CONF_SYSTEM_MAX_DISCHARGE_POWER, 0) or 0) > 0
-            )
-        if condition and definition.get("condition_enabled") and not condition_enabled:
             continue
         entities.append(MarstekConfigNumberEntity(hass, entry, definition))
 

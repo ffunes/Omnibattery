@@ -1063,6 +1063,9 @@
       "charge_delay": {
         "name": "Laadvertraging"
       },
+      "delay_soc_setpoint_enabled": {
+        "name": "Doel-SOC Vertraging Actief"
+      },
       "temp_charge_limit": {
         "name": "Temperatuurbegrenzing laden"
       },

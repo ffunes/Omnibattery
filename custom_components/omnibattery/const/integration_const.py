@@ -682,7 +682,6 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": DEFAULT_SYSTEM_MAX_CHARGE_POWER,
         "icon": "mdi:battery-arrow-up-outline",
         "condition": CONF_ENABLE_SYSTEM_POWER_LIMITS,
-        "condition_enabled": True,
     },
     {
         "key": CONF_SYSTEM_MAX_DISCHARGE_POWER,
@@ -694,7 +693,6 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": DEFAULT_SYSTEM_MAX_DISCHARGE_POWER,
         "icon": "mdi:battery-arrow-down-outline",
         "condition": CONF_ENABLE_SYSTEM_POWER_LIMITS,
-        "condition_enabled": True,
     },
     {
         "key": CONF_MAX_CONTRACTED_POWER,
@@ -806,7 +804,6 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": DEFAULT_HOURLY_BALANCE_TARGET_NET_WH,
         "icon": "mdi:scale-balance",
         "condition": CONF_ENABLE_HOURLY_BALANCE,
-        "condition_enabled": True,
     },
     {
         "key": CONF_HOURLY_BALANCE_MAX_OFFSET_W,
@@ -818,7 +815,6 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W,
         "icon": "mdi:arrow-expand-vertical",
         "condition": CONF_ENABLE_HOURLY_BALANCE,
-        "condition_enabled": True,
     },
     {
         "key": CONF_HOURLY_BALANCE_DEADBAND_WH,
@@ -830,7 +826,6 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": DEFAULT_HOURLY_BALANCE_DEADBAND_WH,
         "icon": "mdi:arrow-collapse-horizontal",
         "condition": CONF_ENABLE_HOURLY_BALANCE,
-        "condition_enabled": True,
     },
     {
         "key": CONF_HOURLY_BALANCE_HYSTERESIS_W,
@@ -842,6 +837,5 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": DEFAULT_HOURLY_BALANCE_HYSTERESIS_W,
         "icon": "mdi:swap-horizontal",
         "condition": CONF_ENABLE_HOURLY_BALANCE,
-        "condition_enabled": True,
     },
 ]

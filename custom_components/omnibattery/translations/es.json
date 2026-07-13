@@ -1075,6 +1075,9 @@
       "charge_delay": {
         "name": "Retraso de Carga"
       },
+      "delay_soc_setpoint_enabled": {
+        "name": "SOC Objetivo de Retardo Activo"
+      },
       "temp_charge_limit": {
         "name": "Límite de carga por temperatura"
       },
