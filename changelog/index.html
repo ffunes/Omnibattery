@@ -1466,6 +1466,7 @@
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Charge stuck at the top voltage with the SOC below 100%</strong> (voltage taper): an idle battery reads the same ≤10 W + Standby as a real BMS cutoff, which falsely latched the top-of-charge pause; the cutoff now only counts when we actually commanded the charge.</li>
+<li><strong>Battery stayed in Standby after a tapered full charge without being detected</strong> (#26): once the discharge engage grace expires, an ACKed command that still delivers no power now reaches the wake/reconnect and non-responsive exclusion flow.</li>
 </ul>
 <h2 id="100-2026-07-13">[1.0.0] - 2026-07-13<a class="headerlink" href="#100-2026-07-13" title="Permanent link">&para;</a></h2>
 <blockquote>
