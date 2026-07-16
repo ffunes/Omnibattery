@@ -26,6 +26,9 @@ from custom_components.omnibattery.const import (
     PD_READBACK_EVERY_N_WRITES,
 )
 from custom_components.omnibattery.drivers import SetpointResult
+from custom_components.omnibattery.tracking.non_responsive_tracker import (
+    NonResponsiveTracker,
+)
 from tests.conftest import FakeCoordinator
 
 
@@ -77,7 +80,6 @@ def _controller():
         get_charge_blockers=lambda c: {},
         get_discharge_blockers=lambda c: {},
         _log_low_power_delivery=lambda coordinator, **k: None,
-        _normal_balance_top_voltage_seen={},
         _last_commanded_net_sign={},
         _discharge_engage_started={},
         _idle_commanded_started={},
@@ -295,6 +297,41 @@ async def test_no_record_during_discharge_engage_grace():
     assert result is True
     coord.apply_power.assert_called_once()
     record.assert_not_called()  # suppressed: inverter still within engage grace
+
+
+async def test_high_soc_standby_after_taper_reaches_wake_and_exclusion():
+    """Issue #26: a previous top-charge pause must not exempt a stuck discharge.
+
+    The engage grace has already elapsed here. The battery ACKs the discharge
+    set-point but remains at 0 W in standby, so it must accumulate failures, get
+    the one-shot wake, and eventually be excluded.
+    """
+    coord = _Coord({
+        "force_mode": 2,
+        "set_charge_power": 0,
+        "set_discharge_power": 600,
+        "battery_power": 0,
+        "battery_soc": 99,
+        "inverter_state": 1,
+    })
+    ctrl = _controller()
+    ctrl._non_responsive = NonResponsiveTracker(fail_threshold=3)
+    ctrl._attempt_wake = AsyncMock(return_value=True)
+    # The charge-side anti-ping-pong latch remains active after reaching the top;
+    # it must not suppress discharge-side non-delivery recovery.
+    ctrl._normal_balance_pause_latch_soc = {coord: 99.0}
+
+    for _ in range(3):
+        await ctrl._check_non_delivery(coord, 600, 0, attempt=0)
+
+    assert ctrl._non_responsive.is_excluded(coord) is False
+    ctrl._attempt_wake.assert_awaited_once_with(coord, is_standby=True)
+
+    for _ in range(3):
+        await ctrl._check_non_delivery(coord, 600, 0, attempt=0)
+
+    assert ctrl._non_responsive.is_excluded(coord) is True
+    assert ctrl._non_responsive.excluded_names() == ["BAT1"]
 
 
 async def test_no_skip_when_setpoints_differ():

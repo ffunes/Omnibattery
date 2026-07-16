@@ -65,7 +65,6 @@ class MaxSocChargeManager:
         c._normal_active_balance_phases.clear()
         c._normal_balance_measure_started.clear()
         c._normal_balance_last_delta_v.clear()
-        c._normal_balance_top_voltage_seen.clear()
         c._normal_balance_pause_latch_soc.clear()
         c._normal_balance_recal_override.clear()
         c._normal_balance_recal_cutoff_count.clear()
@@ -278,7 +277,6 @@ class MaxSocChargeManager:
                 if not weekly_active and in_zone and (
                     vmax_f >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE or bms_cut_signature
                 ):
-                    c._normal_balance_top_voltage_seen[coordinator] = True
                     if coordinator not in c._normal_balance_pause_latch_soc:
                         c._normal_balance_pause_latch_soc[coordinator] = (
                             soc_f if soc_f is not None else 100.0

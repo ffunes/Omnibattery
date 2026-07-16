@@ -80,7 +80,6 @@ def _controller(coords, **overrides):
         _normal_active_balance_phases={},
         _normal_balance_measure_started={},
         _normal_balance_last_delta_v={},
-        _normal_balance_top_voltage_seen={},
         _normal_balance_pause_latch_soc={},
         _normal_balance_recal_override={},
         _normal_balance_recal_cutoff_count={},
@@ -264,7 +263,6 @@ def test_refresh_blocks_latches_pause_at_top_voltage():
 
     assert _paused(ctrl, c)
     assert ctrl._normal_balance_pause_latch_soc[c] == 100.0
-    assert ctrl._normal_balance_top_voltage_seen.get(c) is True
     assert ctrl._normal_balance_charge_paused.get(c) is True
 
 
@@ -311,7 +309,6 @@ def test_refresh_blocks_latches_on_bms_cutoff_signature_below_pause_voltage():
     _mgr(ctrl).refresh_blocks()
 
     assert _paused(ctrl, c)
-    assert ctrl._normal_balance_top_voltage_seen.get(c) is True
 
 
 def test_refresh_blocks_does_not_latch_pause_on_idle_battery():
