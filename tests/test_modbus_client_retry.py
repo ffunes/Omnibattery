@@ -2,13 +2,11 @@
 
 Exercises ``_read_raw`` and ``async_write_register`` against a scripted fake
 pymodbus client (no hardware, no HA). These pin three deliberate properties:
-the default is a SINGLE wrapper attempt (retries are pymodbus-internal so they
-re-send the same transaction_id and a late reply still matches — wrapper
-retries minted a new tid per attempt, turning every late reply into a
-"transaction_id mismatch, Skipping" error), the same-connection retry loop
-still works for callers that opt in, and a connection error does NOT trigger
-a reconnect from inside the loop (the coordinator owns reconnection;
-reconnecting here would storm the v3 single TCP slot, issue #361).
+the default is a SINGLE wrapper attempt (v3 retries are pymodbus-internal and
+reuse the same transaction_id; v2 sends once), the same-connection retry loop
+still works for callers that opt in, and a connection error does NOT trigger a
+reconnect from inside the loop (the coordinator owns reconnection; reconnecting
+here would storm the v3 single TCP slot, issue #361).
 
 ``retry_delay=0`` keeps the backoff sleeps at zero so the tests run instantly.
 """
@@ -86,8 +84,7 @@ def test_read_success_returns_registers():
 
 
 def test_read_default_is_single_attempt():
-    """Default = one wrapper attempt: retries are pymodbus-internal (same tid),
-    a wrapper-level retry would mint a new tid and discard the late reply."""
+    """Default = one wrapper attempt; policy inside pymodbus is version-specific."""
     fake = _FakeClient(read_results=[asyncio.TimeoutError(), _Result([5])])
     c = _client_with_fake(fake)
     regs = asyncio.run(c._read_raw(0x0010, 1, retry_delay=0))
@@ -177,7 +174,7 @@ def test_write_success_returns_true():
 
 
 def test_write_default_is_single_attempt():
-    """Same property as the read path: pymodbus owns the retries."""
+    """Same wrapper property as the read path."""
     fake = _FakeClient(write_results=[asyncio.TimeoutError(), _Result(error=False)])
     c = _client_with_fake(fake)
     assert asyncio.run(c.async_write_register(0x2000, 1, retry_delay=0)) is False

@@ -3,6 +3,7 @@
 ## [1.0.1] - 2026-07-14
 
 ### Fixed
+- **Transaction-ID mismatches and truncated reads on Venus v2 behind queued Modbus gateways** (#77): v2 requests are now sent only once per transaction. Internal same-ID retries remain enabled for the v3 family, where they are needed to consume replies after the firmware's known communication stalls, but on some TCP-to-RTU gateways those resends were queued independently and their duplicate replies contaminated subsequent requests.
 - **Charge stuck at the top voltage with the SOC below 100%** (voltage taper): an idle battery reads the same ≤10 W + Standby as a real BMS cutoff, which falsely latched the top-of-charge pause; the cutoff now only counts when we actually commanded the charge.
 - **Battery stayed in Standby after a tapered full charge without being detected** (#26): once the discharge engage grace expires, an ACKed command that still delivers no power now reaches the wake/reconnect and non-responsive exclusion flow.
 - **Dynamic pricing selected more charging slots than the battery could store** (discussion #87): charging hours are now calculated from the planned grid energy capped by the real per-battery headroom to `max_soc`, rather than the full household deficit. The same value drives the schedule and predictive SOC targets, including the configured grid-charge margin.

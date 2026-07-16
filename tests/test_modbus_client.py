@@ -11,6 +11,7 @@ import asyncio
 
 import pytest
 
+import custom_components.omnibattery.infra.modbus_client as modbus_client_module
 from custom_components.omnibattery.infra.modbus_client import (
     decode_registers,
     MarstekModbusClient,
@@ -196,6 +197,69 @@ def test_default_transport_is_tcp():
     """No serial_port -> TCP client, unchanged behaviour."""
     c = _make_client(host="192.168.1.50", port=502)
     assert isinstance(c.client, AsyncModbusTcpClient)
+
+
+def test_v2_tcp_sends_once_per_transaction():
+    """V2 gateways must not receive duplicate requests with the same TID."""
+    c = _make_client(host="192.168.1.50", port=502, is_v3=False)
+    assert c._pymodbus_retries == 0
+    assert c.client.ctx.retries == 0
+    assert c._request_timeout == c._timeout + 2
+
+
+def test_v3_tcp_keeps_internal_same_tid_retries():
+    """V3 retains retries for its known stall-and-late-burst behaviour."""
+    c = _make_client(host="192.168.1.50", port=502, is_v3=True)
+    assert c._pymodbus_retries == 2
+    assert c.client.ctx.retries == 2
+    assert c._request_timeout == c._timeout * 3 + 2
+
+
+@pytest.mark.parametrize("is_v3, expected_retries", [(False, 0), (True, 2)])
+def test_fresh_reconnect_preserves_version_retry_policy(
+    monkeypatch, is_v3, expected_retries
+):
+    """A fresh client built during reconnect must keep the original policy."""
+    created = []
+
+    class _FakeTcpClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.connected = False
+            self.trace_packet = None
+            created.append(self)
+
+        async def connect(self):
+            self.connected = True
+            return True
+
+        def close(self):
+            self.connected = False
+
+        async def read_holding_registers(
+            self, address, *, count=1, device_id=1
+        ):
+            raise AssertionError("not called")
+
+    monkeypatch.setattr(
+        modbus_client_module, "AsyncModbusTcpClient", _FakeTcpClient
+    )
+
+    async def _run():
+        client = MarstekModbusClient(
+            host="192.168.1.50",
+            port=502,
+            is_v3=is_v3,
+        )
+        assert await client.async_connect()
+
+    asyncio.run(_run())
+
+    assert len(created) == 2
+    assert [item.kwargs["retries"] for item in created] == [
+        expected_retries,
+        expected_retries,
+    ]
 
 
 def test_serial_port_selects_serial_client():
