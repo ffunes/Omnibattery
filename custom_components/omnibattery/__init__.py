@@ -465,7 +465,6 @@ class ChargeDischargeController:
         self._normal_active_balance_phases: dict[MarstekVenusDataUpdateCoordinator, str] = {}
         self._normal_balance_measure_started: dict[MarstekVenusDataUpdateCoordinator, datetime] = {}
         self._normal_balance_last_delta_v: dict[MarstekVenusDataUpdateCoordinator, float] = {}
-        self._normal_balance_top_voltage_seen: dict[MarstekVenusDataUpdateCoordinator, bool] = {}
         # SOC at which the taper pause latched. While set, charge stays stopped
         # (no re-trickle); the latch clears once SOC falls NORMAL_BALANCE_RESUME_SOC_DROP
         # below this value, i.e. the battery has actually been discharged.
@@ -3539,20 +3538,11 @@ class ChargeDischargeController:
             )
         except (TypeError, ValueError):
             is_standby = False
-        # High-SOC counterpart to the low-SOC BMS-cutoff exemption above: a
-        # battery that hit the top voltage this charge session (cells full, BMS
-        # dropped to standby) legitimately delivers 0 W until it leaves standby.
-        # That is expected BMS-full behaviour, not a fault, so don't exclude it
-        # from the PD pool. top_voltage_seen clears when the battery leaves the
-        # top zone, so the exemption is self-limiting.
-        if is_standby and self._normal_balance_top_voltage_seen.get(coordinator, False):
-            _LOGGER.debug(
-                "[%s] No discharge delivered but battery is in standby "
-                "after hitting top voltage this session — BMS full, not a fault",
-                coordinator.name,
-            )
-            self._non_responsive.clear(coordinator)
-            return
+        # Reaching the top voltage during the previous charge is not an exemption
+        # here. The discharge engage grace above covers the legitimate transition
+        # out of BMS-full standby; once it expires, a battery that still ACKs the
+        # discharge set-point but remains in standby is genuinely not delivering
+        # and must reach the wake/reconnect recovery path (issue #26).
         reason = "standby_no_delivery" if is_standby else "non_delivery"
         outcome = self._non_responsive.record_non_delivery(
             coordinator, discharge_power, actual_abs,
