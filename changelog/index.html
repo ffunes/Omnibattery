@@ -1465,6 +1465,7 @@
 <h2 id="101b2-2026-07-17">[1.0.1b2] - 2026-07-17<a class="headerlink" href="#101b2-2026-07-17" title="Permanent link">&para;</a></h2>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
 <ul>
+<li><strong>RS485 Control Mode switch could get stuck in either direction on Venus v3 batteries</strong> (#92): switching it from OFF to ON now closes and recreates the battery connection before enabling RS485; both transitions use the RS485-specific command and read back register 42000 to confirm the requested state instead of trusting the write acknowledgement.</li>
 <li><strong>Queued Modbus gateway compatibility now restores the proven MVEM retry path</strong> (#77): the per-battery opt-in sends each request once per transaction ID with the normal response timeout, then retries failed, timed-out or incomplete transactions up to three times with a fresh ID. This keeps same-ID resends out of queued TCP-to-RTU gateways without giving up MVEM's recovery from occasional short or missing replies.</li>
 </ul>
 <h2 id="101b1-2026-07-17">[1.0.1b1] - 2026-07-17<a class="headerlink" href="#101b1-2026-07-17" title="Permanent link">&para;</a></h2>
