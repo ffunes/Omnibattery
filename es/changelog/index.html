@@ -1469,6 +1469,7 @@
 </ul>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
 <ul>
+<li><strong>Peak shaving could retain a small grid-charge command while conserving</strong>: when SOC was below the peak-shaving threshold and household demand was below the peak limit, conservation stopped an existing discharge but left an existing charge command latched. The controller now forces the battery fully idle in this state while continuing to allow genuine solar-surplus charging.</li>
 <li><strong>Charge stuck at the top voltage with the SOC below 100%</strong> (voltage taper): an idle battery reads the same ≤10 W + Standby as a real BMS cutoff, which falsely latched the top-of-charge pause; the cutoff now only counts when we actually commanded the charge.</li>
 <li><strong>Battery stayed in Standby after a tapered full charge without being detected</strong> (#26): once the discharge engage grace expires, an ACKed command that still delivers no power now reaches the wake/reconnect and non-responsive exclusion flow.</li>
 <li><strong>Dynamic pricing selected more charging slots than the battery could store</strong> (discussion #87): charging hours are now calculated from the planned grid energy capped by the real per-battery headroom to <code>max_soc</code>, rather than the full household deficit. The same value drives the schedule and predictive SOC targets, including the configured grid-charge margin.</li>
