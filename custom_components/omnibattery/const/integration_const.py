@@ -39,6 +39,12 @@ DEFAULT_SLAVE_ID = 1
 CONF_SERIAL_PORT = "serial_port"
 SERIAL_BAUDRATE = 115200
 
+# Experimental per-battery compatibility for queued Modbus TCP-to-RTU
+# gateways. Disabled by default: ordinary v2 connections keep pymodbus's
+# internal same-transaction-id retries. When enabled on v2/TCP, each transaction
+# is sent only once while preserving the standard total response window.
+CONF_QUEUED_GATEWAY_COMPATIBILITY = "queued_gateway_compatibility"
+
 # Maximum power (W) per battery version — used by config_flow to set slider limits
 MAX_POWER_BY_VERSION = {
     "v2": 2500,

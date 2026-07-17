@@ -199,12 +199,31 @@ def test_default_transport_is_tcp():
     assert isinstance(c.client, AsyncModbusTcpClient)
 
 
-def test_v2_tcp_sends_once_per_transaction():
-    """V2 gateways must not receive duplicate requests with the same TID."""
+def test_v2_tcp_keeps_standard_retries_by_default():
+    """Ordinary v2 connections retain the established pymodbus policy."""
     c = _make_client(host="192.168.1.50", port=502, is_v3=False)
+    assert c._queued_gateway_compatibility is False
+    assert c._pymodbus_retries == 2
+    assert c.client.ctx.retries == 2
+    assert c._pymodbus_timeout == c._timeout
+    assert c.client.ctx.comm_params.timeout_connect == c._timeout
+    assert c._request_timeout == c._timeout * 3 + 2
+
+
+def test_v2_queued_gateway_mode_sends_once_with_full_response_window():
+    """The experimental opt-in changes only the selected v2/TCP client."""
+    c = _make_client(
+        host="192.168.1.50",
+        port=502,
+        is_v3=False,
+        queued_gateway_compatibility=True,
+    )
+    assert c._queued_gateway_compatibility is True
     assert c._pymodbus_retries == 0
     assert c.client.ctx.retries == 0
-    assert c._request_timeout == c._timeout + 2
+    assert c._pymodbus_timeout == c._timeout * 3
+    assert c.client.ctx.comm_params.timeout_connect == c._timeout * 3
+    assert c._request_timeout == c._timeout * 3 + 2
 
 
 def test_v3_tcp_keeps_internal_same_tid_retries():
@@ -212,12 +231,21 @@ def test_v3_tcp_keeps_internal_same_tid_retries():
     c = _make_client(host="192.168.1.50", port=502, is_v3=True)
     assert c._pymodbus_retries == 2
     assert c.client.ctx.retries == 2
+    assert c._pymodbus_timeout == c._timeout
+    assert c.client.ctx.comm_params.timeout_connect == c._timeout
     assert c._request_timeout == c._timeout * 3 + 2
 
 
-@pytest.mark.parametrize("is_v3, expected_retries", [(False, 0), (True, 2)])
+@pytest.mark.parametrize(
+    "is_v3, compatibility, expected_retries, expected_timeout",
+    [
+        (False, False, 2, 10),
+        (False, True, 0, 30),
+        (True, True, 2, 10),
+    ],
+)
 def test_fresh_reconnect_preserves_version_retry_policy(
-    monkeypatch, is_v3, expected_retries
+    monkeypatch, is_v3, compatibility, expected_retries, expected_timeout
 ):
     """A fresh client built during reconnect must keep the original policy."""
     created = []
@@ -250,6 +278,7 @@ def test_fresh_reconnect_preserves_version_retry_policy(
             host="192.168.1.50",
             port=502,
             is_v3=is_v3,
+            queued_gateway_compatibility=compatibility,
         )
         assert await client.async_connect()
 
@@ -260,12 +289,29 @@ def test_fresh_reconnect_preserves_version_retry_policy(
         expected_retries,
         expected_retries,
     ]
+    assert [item.kwargs["timeout"] for item in created] == [
+        expected_timeout,
+        expected_timeout,
+    ]
 
 
 def test_serial_port_selects_serial_client():
     """serial_port set -> RTU serial client built instead of TCP."""
     c = _make_client(host="/dev/ttyUSB0", port=502, serial_port="/dev/ttyUSB0")
     assert isinstance(c.client, AsyncModbusSerialClient)
+
+
+def test_serial_ignores_queued_tcp_gateway_mode():
+    """The compatibility option must not alter direct Modbus RTU."""
+    c = _make_client(
+        host="/dev/ttyUSB0",
+        port=502,
+        serial_port="/dev/ttyUSB0",
+        queued_gateway_compatibility=True,
+    )
+    assert c._queued_gateway_compatibility is False
+    assert c._pymodbus_retries == 2
+    assert c.client.ctx.retries == 2
 
 
 def test_serial_skips_v3_packet_correction():

@@ -49,7 +49,8 @@
           "port": "Modbus-Port",
           "battery_version": "Batteriemodell",
           "slave_id": "Modbus-Slave-ID",
-          "serial_port": "Serieller Port (Modbus RTU)"
+          "serial_port": "Serieller Port (Modbus RTU)",
+          "queued_gateway_compatibility": "Kompatibilität mit Modbus-Gateways mit Warteschlange (experimentell)"
         },
         "data_description": {
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
@@ -57,7 +58,8 @@
           "port": "Modbus-Port (normalerweise 502)",
           "battery_version": "Wählen Sie die Modellversion Ihrer Batterie. Ev2 für ältere Modelle, Ev3 für neuere Modelle mit aktualisierter Registerkarte, A (Venus A) oder D (Venus D) für Hybrid-Wechselrichter-Modelle",
           "slave_id": "Modbus Slave-/Unit-ID (Standard 1). Nur ändern, wenn ein Modbus-Proxy mehrere Batterien über dieselbe IP:Port mit unterschiedlichen Slave-IDs abbildet.",
-          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen."
+          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen.",
+          "queued_gateway_compatibility": "Nur für Venus v2 über Modbus TCP. Sendet jede Transaktion einmal, um Gateways zu testen, die Wiederholungen als separate RTU-Anfragen einreihen. Für Direktverbindungen, Elfin EW11, serielles RTU und normale Gateways deaktiviert lassen."
         }
       },
       "battery_connection_zendure": {
@@ -456,7 +458,8 @@
           "port": "Modbus-Port",
           "battery_version": "Batteriemodell",
           "slave_id": "Modbus-Slave-ID",
-          "serial_port": "Serieller Port (Modbus RTU)"
+          "serial_port": "Serieller Port (Modbus RTU)",
+          "queued_gateway_compatibility": "Kompatibilität mit Modbus-Gateways mit Warteschlange (experimentell)"
         },
         "data_description": {
           "name": "Beschreibender Name zur Identifikation dieser Batterie",
@@ -464,7 +467,8 @@
           "port": "Modbus-Port (normalerweise 502)",
           "battery_version": "Wählen Sie Ihre Batteriemodellversion",
           "slave_id": "Modbus Slave-/Unit-ID (Standard 1). Nur ändern, wenn ein Modbus-Proxy mehrere Batterien über dieselbe IP:Port mit unterschiedlichen Slave-IDs abbildet.",
-          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen."
+          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen.",
+          "queued_gateway_compatibility": "Nur für Venus v2 über Modbus TCP. Sendet jede Transaktion einmal, um Gateways zu testen, die Wiederholungen als separate RTU-Anfragen einreihen. Für Direktverbindungen, Elfin EW11, serielles RTU und normale Gateways deaktiviert lassen."
         }
       },
       "reconfigure_battery_zendure": {
@@ -587,7 +591,8 @@
           "port": "Modbus-Port",
           "battery_version": "Batteriemodell",
           "slave_id": "Modbus-Slave-ID",
-          "serial_port": "Serieller Port (Modbus RTU)"
+          "serial_port": "Serieller Port (Modbus RTU)",
+          "queued_gateway_compatibility": "Kompatibilität mit Modbus-Gateways mit Warteschlange (experimentell)"
         },
         "data_description": {
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
@@ -595,7 +600,8 @@
           "port": "Modbus-Port (normalerweise 502)",
           "battery_version": "Wählen Sie die Modellversion Ihrer Batterie. Ev2 für ältere Modelle, Ev3 für neuere Modelle mit aktualisierter Registerkarte, A (Venus A) oder D (Venus D) für Hybrid-Wechselrichter-Modelle",
           "slave_id": "Modbus Slave-/Unit-ID (Standard 1). Nur ändern, wenn ein Modbus-Proxy mehrere Batterien über dieselbe IP:Port mit unterschiedlichen Slave-IDs abbildet.",
-          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen."
+          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen.",
+          "queued_gateway_compatibility": "Nur für Venus v2 über Modbus TCP. Sendet jede Transaktion einmal, um Gateways zu testen, die Wiederholungen als separate RTU-Anfragen einreihen. Für Direktverbindungen, Elfin EW11, serielles RTU und normale Gateways deaktiviert lassen."
         }
       },
       "battery_connection_zendure": {

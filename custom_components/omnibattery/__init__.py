@@ -5448,7 +5448,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_frontend_panel(hass, entry)
 
     # Migration: Add default version for existing installations
-    from .const import CONF_BATTERY_VERSION, DEFAULT_VERSION, CONF_SLAVE_ID, DEFAULT_SLAVE_ID, CONF_SERIAL_PORT
+    from .const import CONF_BATTERY_VERSION, DEFAULT_VERSION, CONF_SLAVE_ID, DEFAULT_SLAVE_ID, CONF_SERIAL_PORT, CONF_QUEUED_GATEWAY_COMPATIBILITY
 
     for battery_config in entry.data["batteries"]:
         if CONF_BATTERY_VERSION not in battery_config:
@@ -5521,6 +5521,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             brand=battery_config.get("brand", "marstek"),
             zendure_model=battery_config.get("zendure_model", "2400ac_pro"),
             serial_port=battery_config.get(CONF_SERIAL_PORT) or None,
+            queued_gateway_compatibility=battery_config.get(
+                CONF_QUEUED_GATEWAY_COMPATIBILITY, False
+            ),
             esphome_device_id=battery_config.get("esphome_device_id"),
         )
 

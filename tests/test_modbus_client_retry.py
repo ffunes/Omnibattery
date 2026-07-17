@@ -2,11 +2,12 @@
 
 Exercises ``_read_raw`` and ``async_write_register`` against a scripted fake
 pymodbus client (no hardware, no HA). These pin three deliberate properties:
-the default is a SINGLE wrapper attempt (v3 retries are pymodbus-internal and
-reuse the same transaction_id; v2 sends once), the same-connection retry loop
-still works for callers that opt in, and a connection error does NOT trigger a
-reconnect from inside the loop (the coordinator owns reconnection; reconnecting
-here would storm the v3 single TCP slot, issue #361).
+the default is a SINGLE wrapper attempt (standard retries are
+pymodbus-internal and reuse the same transaction_id; the queued-gateway opt-in
+sends once), the same-connection retry loop still works for callers that opt
+in, and a connection error does NOT trigger a reconnect from inside the loop
+(the coordinator owns reconnection; reconnecting here would storm the v3
+single TCP slot, issue #361).
 
 ``retry_delay=0`` keeps the backoff sleeps at zero so the tests run instantly.
 """
@@ -84,7 +85,7 @@ def test_read_success_returns_registers():
 
 
 def test_read_default_is_single_attempt():
-    """Default = one wrapper attempt; policy inside pymodbus is version-specific."""
+    """Default = one wrapper attempt; the client selects pymodbus's policy."""
     fake = _FakeClient(read_results=[asyncio.TimeoutError(), _Result([5])])
     c = _client_with_fake(fake)
     regs = asyncio.run(c._read_raw(0x0010, 1, retry_delay=0))

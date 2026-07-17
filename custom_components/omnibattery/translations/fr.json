@@ -49,7 +49,8 @@
           "port": "Port Modbus",
           "battery_version": "Modèle de batterie",
           "slave_id": "ID d'esclave Modbus",
-          "serial_port": "Port série (Modbus RTU)"
+          "serial_port": "Port série (Modbus RTU)",
+          "queued_gateway_compatibility": "Compatibilité avec les passerelles Modbus à file d'attente (expérimental)"
         },
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
@@ -57,7 +58,8 @@
           "port": "Port Modbus (généralement 502)",
           "battery_version": "Sélectionnez la version du modèle de votre batterie. Ev2 pour les anciens modèles, Ev3 pour les nouveaux modèles avec cartographie mise à jour, A (Venus A) ou D (Venus D) pour les onduleurs hybrides",
           "slave_id": "ID d'esclave/unité Modbus (par défaut 1). À modifier uniquement lorsqu'un proxy Modbus expose plusieurs batteries sur une même IP:port avec des ID d'esclave distincts.",
-          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP."
+          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP.",
+          "queued_gateway_compatibility": "Uniquement pour Venus v2 via Modbus TCP. Envoie chaque transaction une seule fois afin de tester les passerelles susceptibles de mettre les nouvelles tentatives en file comme requêtes RTU indépendantes. Laissez désactivé pour les connexions directes, Elfin EW11, RTU série et les passerelles normales."
         }
       },
       "battery_connection_zendure": {
@@ -456,7 +458,8 @@
           "port": "Port Modbus",
           "battery_version": "Modèle de batterie",
           "slave_id": "ID d'esclave Modbus",
-          "serial_port": "Port série (Modbus RTU)"
+          "serial_port": "Port série (Modbus RTU)",
+          "queued_gateway_compatibility": "Compatibilité avec les passerelles Modbus à file d'attente (expérimental)"
         },
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
@@ -464,7 +467,8 @@
           "port": "Port Modbus (généralement 502)",
           "battery_version": "Sélectionnez la version de votre modèle de batterie",
           "slave_id": "ID d'esclave/unité Modbus (par défaut 1). À modifier uniquement lorsqu'un proxy Modbus expose plusieurs batteries sur une même IP:port avec des ID d'esclave distincts.",
-          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP."
+          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP.",
+          "queued_gateway_compatibility": "Uniquement pour Venus v2 via Modbus TCP. Envoie chaque transaction une seule fois afin de tester les passerelles susceptibles de mettre les nouvelles tentatives en file comme requêtes RTU indépendantes. Laissez désactivé pour les connexions directes, Elfin EW11, RTU série et les passerelles normales."
         }
       },
       "reconfigure_battery_zendure": {
@@ -587,7 +591,8 @@
           "port": "Port Modbus",
           "battery_version": "Modèle de batterie",
           "slave_id": "ID d'esclave Modbus",
-          "serial_port": "Port série (Modbus RTU)"
+          "serial_port": "Port série (Modbus RTU)",
+          "queued_gateway_compatibility": "Compatibilité avec les passerelles Modbus à file d'attente (expérimental)"
         },
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
@@ -595,7 +600,8 @@
           "port": "Port Modbus (généralement 502)",
           "battery_version": "Sélectionnez la version du modèle de votre batterie. Ev2 pour les anciens modèles, Ev3 pour les nouveaux modèles avec cartographie mise à jour, A (Venus A) ou D (Venus D) pour les onduleurs hybrides",
           "slave_id": "ID d'esclave/unité Modbus (par défaut 1). À modifier uniquement lorsqu'un proxy Modbus expose plusieurs batteries sur une même IP:port avec des ID d'esclave distincts.",
-          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP."
+          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP.",
+          "queued_gateway_compatibility": "Uniquement pour Venus v2 via Modbus TCP. Envoie chaque transaction une seule fois afin de tester les passerelles susceptibles de mettre les nouvelles tentatives en file comme requêtes RTU indépendantes. Laissez désactivé pour les connexions directes, Elfin EW11, RTU série et les passerelles normales."
         }
       },
       "battery_connection_zendure": {

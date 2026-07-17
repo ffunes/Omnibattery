@@ -95,6 +95,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  brand: str = "marstek",
                  zendure_model: str = ZENDURE_MODEL_2400AC_PRO,
                  serial_port: str | None = None,
+                 queued_gateway_compatibility: bool = False,
                  esphome_device_id: str | None = None) -> None:
         """Initialize the data update coordinator."""
         super().__init__(
@@ -254,6 +255,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 max_charge_power_w=self.max_charge_power,
                 max_discharge_power_w=self.max_discharge_power,
                 serial_port=self.serial_port,
+                queued_gateway_compatibility=queued_gateway_compatibility,
             )
 
         # Fast key -> definition lookup so the poll loop can scale each raw value by
