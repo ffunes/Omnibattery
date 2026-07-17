@@ -1,12 +1,16 @@
 # Changelog
 
+## [1.0.1b2] - 2026-07-17
+
+### Fixed
+- **RS485 Control Mode switch could get stuck in either direction on Venus v3 batteries** (#92): switching it from OFF to ON now closes and recreates the battery connection before enabling RS485; both transitions use the RS485-specific command and read back register 42000 to confirm the requested state instead of trusting the write acknowledgement.
+
 ## [1.0.1b1] - 2026-07-17
 
 ### Added
 - **Experimental queued Modbus gateway compatibility** (#77): Venus v2 TCP connections can opt in per battery to send each transaction only once while keeping the full response window open. The default remains unchanged for direct connections, Elfin EW11 and every other v2 setup; enable the option only to test gateways that may queue pymodbus's same-ID resends as independent RTU requests.
 
 ### Fixed
-- **RS485 Control Mode switch could get stuck in either direction on Venus v3 batteries** (#92): switching it from OFF to ON now closes and recreates the battery connection before enabling RS485; both transitions use the RS485-specific command and read back register 42000 to confirm the requested state instead of trusting the write acknowledgement.
 - **Peak shaving could retain a small grid-charge command while conserving**: when SOC was below the peak-shaving threshold and household demand was below the peak limit, conservation stopped an existing discharge but left an existing charge command latched. The controller now forces the battery fully idle in this state while continuing to allow genuine solar-surplus charging.
 - **Charge stuck at the top voltage with the SOC below 100%** (voltage taper): an idle battery reads the same ≤10 W + Standby as a real BMS cutoff, which falsely latched the top-of-charge pause; the cutoff now only counts when we actually commanded the charge.
 - **Battery stayed in Standby after a tapered full charge without being detected** (#26): once the discharge engage grace expires, an ACKed command that still delivers no power now reaches the wake/reconnect and non-responsive exclusion flow.
