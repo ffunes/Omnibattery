@@ -82,6 +82,26 @@ In the idle band the battery neither grid-charges nor discharges — but **solar
 
 Both thresholds are also exposed as live `number` entities (**Max Price Threshold** and **Discharge Price Floor**) so automations can rewrite them without entering the options flow.
 
+### Minimum arbitrage margin
+
+A fixed charge ceiling answers "is this price low?" but not "is it low *enough*". Those come apart in winter, when a flat price curve can sit entirely below the ceiling while offering no spread to trade against. Charging then runs the battery through a cycle that the round-trip losses eat.
+
+The optional **Minimum Arbitrage Margin** makes the ceiling move with the day instead. At each evaluation the engine takes the most expensive hours still ahead, as many as it plans to charge for, and requires:
+
+```
+expected_discharge_price × round_trip_efficiency − slot_price ≥ margin
+```
+
+Slots that fail are dropped. If none survive, the day is skipped entirely.
+
+The margin is **empty by default**, which leaves slot selection exactly as it was. Setting it back to `0` disables it again. When set, it applies *on top of* the max price threshold, and whichever ceiling is stricter wins.
+
+The gate runs on the 00:05 evaluation only. The evening recharge after a poor solar day is a deficit-driven safety top-up rather than an arbitrage trade, and by then the remaining horizon holds no expensive hours to price against, so applying the gate there would block every recharge it exists to perform.
+
+**Round-Trip Efficiency** (default `0.85`) is the AC-to-AC ratio used to value a stored kWh. Lower values tighten the gate. Note this is the *marginal* ratio (extra kWh out per extra kWh in), not the gross figure you get by dividing lifetime discharge by lifetime charge, which also carries standby drain. Standby is paid whether or not you cycle, so folding it in here would refuse profitable charges.
+
+Both are exposed as live `number` entities, and the evaluation notification reports the resulting ceiling so a skipped night is traceable.
+
 ### Interaction with time slots
 
 If discharge time slots are configured, **both conditions must be met** for the battery to discharge:

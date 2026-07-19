@@ -1633,6 +1633,12 @@
       },
       "discharge_price_threshold": {
         "name": "Prix plancher de décharge"
+      },
+      "min_arbitrage_margin": {
+        "name": "Marge d'arbitrage minimale"
+      },
+      "round_trip_efficiency": {
+        "name": "Rendement aller-retour"
       }
     },
     "button": {

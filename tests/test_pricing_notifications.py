@@ -135,6 +135,35 @@ def test_dynamic_none_schedule_no_slots():
     assert title == "Predictive Charging: Price Optimization - No slots available"
 
 
+def test_dynamic_no_slots_blames_the_margin_when_it_binds():
+    """Arbitrage ceiling under the static one, so the margin is the cause."""
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, energy_deficit_kwh=4.0), None,
+        **{**_DP_CFG, "arbitrage_ceiling": 0.20},
+    )
+    assert "spread is too small" in message
+    assert "not binding" not in message
+
+
+def test_dynamic_no_slots_blames_the_static_ceiling_when_it_binds():
+    """Regression: a low static ceiling must not be reported as a margin problem."""
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, energy_deficit_kwh=4.0), None,
+        **{**_DP_CFG, "max_price_threshold": 0.10, "arbitrage_ceiling": 0.30},
+    )
+    assert "raise max price threshold" in message
+    assert "spread is too small" not in message
+    assert "(not binding)" in message
+
+
+def test_dynamic_no_slots_without_gate_keeps_original_hint():
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, energy_deficit_kwh=4.0), None, **_DP_CFG
+    )
+    assert "raise max price threshold" in message
+    assert "arbitrage" not in message
+
+
 def test_dynamic_informational_lists_slots():
     schedule = _schedule([0.10, 0.12, 0.11, 0.09], charging_needed=False)
     title, message = notifications.format_dynamic_pricing_notification(

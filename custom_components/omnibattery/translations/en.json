@@ -1621,6 +1621,12 @@
       },
       "discharge_price_threshold": {
         "name": "Discharge Price Floor"
+      },
+      "min_arbitrage_margin": {
+        "name": "Minimum Arbitrage Margin"
+      },
+      "round_trip_efficiency": {
+        "name": "Round-Trip Efficiency"
       }
     },
     "button": {

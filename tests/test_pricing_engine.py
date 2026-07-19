@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 from custom_components.omnibattery.const import (
+    DEFAULT_ROUND_TRIP_EFFICIENCY,
     PRICE_INTEGRATION_CKW,
     PRICE_INTEGRATION_NORDPOOL,
     PRICE_INTEGRATION_TIBBER,
@@ -59,6 +60,8 @@ def _controller(**overrides):
         price_integration_type=PRICE_INTEGRATION_NORDPOOL,
         max_price_threshold=None,
         discharge_price_threshold=None,
+        min_arbitrage_margin=None,
+        round_trip_efficiency=DEFAULT_ROUND_TRIP_EFFICIENCY,
         average_price_sensor=None,
     )
     base.update(overrides)

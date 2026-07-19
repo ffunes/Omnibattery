@@ -1633,6 +1633,12 @@
       },
       "discharge_price_threshold": {
         "name": "Entlade-Preisuntergrenze"
+      },
+      "min_arbitrage_margin": {
+        "name": "Minimale Arbitragemarge"
+      },
+      "round_trip_efficiency": {
+        "name": "Round-Trip-Wirkungsgrad"
       }
     },
     "button": {

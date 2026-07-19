@@ -1633,6 +1633,12 @@
       },
       "discharge_price_threshold": {
         "name": "Ontlaad-prijsondergrens"
+      },
+      "min_arbitrage_margin": {
+        "name": "Minimale arbitragemarge"
+      },
+      "round_trip_efficiency": {
+        "name": "Retourrendement"
       }
     },
     "button": {

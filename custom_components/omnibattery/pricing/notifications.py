@@ -127,6 +127,7 @@ def format_dynamic_pricing_notification(
     unit: str,
     max_price_threshold,
     discharge_price_threshold,
+    arbitrage_ceiling=None,
     max_contracted_power,
     max_charge_capacity,
 ) -> tuple[str, str]:
@@ -144,11 +145,20 @@ def format_dynamic_pricing_notification(
         f"{avg_consumption:.2f} kWh ({days_in_history}-day avg)"
         if days_in_history > 0 else f"{avg_consumption:.2f} kWh (default)"
     )
+    # The arbitrage ceiling is only the binding constraint when it undercuts the
+    # static one; otherwise it is reported for information but decided nothing.
+    arbitrage_binding = arbitrage_ceiling is not None and (
+        max_price_threshold is None or arbitrage_ceiling < max_price_threshold
+    )
+
     _price_parts = []
     if max_price_threshold is not None:
         _price_parts.append(f"charge ≤ {max_price_threshold:.4f} {unit}")
     if discharge_price_threshold is not None:
         _price_parts.append(f"discharge ≥ {discharge_price_threshold:.4f} {unit}")
+    if arbitrage_ceiling is not None:
+        _suffix = "" if arbitrage_binding else " (not binding)"
+        _price_parts.append(f"arbitrage ceiling ≤ {arbitrage_ceiling:.4f} {unit}{_suffix}")
     price_config_line = ("⚙️ Price thresholds: " + " | ".join(_price_parts) + "\n") if _price_parts else ""
 
     if schedule is None or not schedule.selected_slots:
@@ -172,7 +182,12 @@ def format_dynamic_pricing_notification(
                 f"📊 Consumption: {consumption_str}\n"
                 f"⚡ Energy deficit: {energy_deficit:.2f} kWh\n\n"
                 f"{price_config_line}"
-                f"Check price sensor or raise max price threshold."
+                + (
+                    "Today's spread is too small to cover round-trip losses "
+                    "at the configured arbitrage margin."
+                    if arbitrage_binding
+                    else "Check price sensor or raise max price threshold."
+                )
             )
     else:
         hours_needed = schedule.hours_needed

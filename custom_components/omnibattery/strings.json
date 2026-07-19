@@ -1609,6 +1609,12 @@
       },
       "inverse_max_power": {
         "name": "Max Inverter Output"
+      },
+      "min_arbitrage_margin": {
+        "name": "Minimum Arbitrage Margin"
+      },
+      "round_trip_efficiency": {
+        "name": "Round-Trip Efficiency"
       }
     },
     "button": {

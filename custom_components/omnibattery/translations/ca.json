@@ -1633,6 +1633,12 @@
       },
       "discharge_price_threshold": {
         "name": "Preu mínim de descàrrega"
+      },
+      "min_arbitrage_margin": {
+        "name": "Marge mínim d'arbitratge"
+      },
+      "round_trip_efficiency": {
+        "name": "Eficiència de cicle complet"
       }
     },
     "button": {

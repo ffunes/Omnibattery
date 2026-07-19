@@ -288,6 +288,10 @@ class PricingManager:
 
         _LOGGER.info("Dynamic pricing: running evaluation at %s", now.strftime("%H:%M"))
 
+        # Cleared up front: the early returns below can still send a notification,
+        # and a ceiling from a previous evaluation must not be reported as today's.
+        self._controller._dp_arbitrage_ceiling = None
+
         # Ensure Tibber slots are current before evaluating (no-op otherwise)
         await self._maybe_refresh_tibber_prices(force=True)
 
@@ -342,7 +346,21 @@ class PricingManager:
             hours_needed = calculations.calculate_charging_hours_needed(
                 decision_data["avg_consumption_kwh"], self._controller.max_contracted_power, self._controller.max_charge_capacity
             )
-        selected = calculations.select_cheapest_hours(slots, hours_needed, self._controller.max_price_threshold)
+        # One instant, one computation. `ceiling` is what actually filters;
+        # `arb_ceiling` is kept only so the notification can name the cause.
+        eval_now = datetime.now()
+        ceiling, arb_ceiling = calculations.effective_charge_ceiling(
+            slots,
+            hours_needed,
+            self._controller.max_price_threshold,
+            self._controller.min_arbitrage_margin,
+            self._controller.round_trip_efficiency,
+            now=eval_now,
+        )
+        self._controller._dp_arbitrage_ceiling = arb_ceiling
+        selected = calculations.select_cheapest_hours(
+            slots, hours_needed, ceiling, now=eval_now
+        )
 
         if not selected:
             self._controller._dynamic_pricing_schedule = None
@@ -392,6 +410,7 @@ class PricingManager:
             unit=self._get_price_unit(),
             max_price_threshold=self._controller.max_price_threshold,
             discharge_price_threshold=self._controller.discharge_price_threshold,
+            arbitrage_ceiling=self._controller._dp_arbitrage_ceiling,
             max_contracted_power=self._controller.max_contracted_power,
             max_charge_capacity=self._controller.max_charge_capacity,
         )
@@ -743,7 +762,14 @@ class PricingManager:
             self._controller.max_contracted_power,
             self._controller.max_charge_capacity,
         )
-        selected = calculations.select_cheapest_hours(slots, hours_needed, self._controller.max_price_threshold)
+        # Deliberately no arbitrage gate here. This is a deficit-driven safety
+        # recharge after a bad solar day, not an arbitrage trade, and the horizon
+        # is truncated: late in the evening only cheap night slots remain, so the
+        # expected discharge price collapses toward the charge price and the gate
+        # would refuse every recharge it exists to perform.
+        selected = calculations.select_cheapest_hours(
+            slots, hours_needed, self._controller.max_price_threshold
+        )
 
         if not selected:
             _LOGGER.warning("Evening recharge: no slots below price threshold")
@@ -865,6 +891,7 @@ class PricingManager:
                 self._controller._dp_eval_retry_count = 0
                 self._controller._dp_pre_evaluated_slots = {}
                 self._controller._dp_daily_avg_price = None
+                self._controller._dp_arbitrage_ceiling = None
                 self._controller._dp_evening_reevaluated_date = None
                 self._controller._dp_last_eval_soc = None
 
