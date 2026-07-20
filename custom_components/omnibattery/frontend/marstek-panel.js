@@ -69,6 +69,8 @@ const I18N = {
     mTemp: "Temperature", mVoltage: "Voltage", mCellMax: "Cell max", mCellMin: "Cell min",
     mCellDelta: "Δ cell", mCycles: "Cycles", mEfficiency: "Efficiency", mHysteresis: "Hysteresis",
     solarMppt: "Solar (MPPT)", controls: "Controls", deviceInfo: "Device information",
+    acOutput: "AC output", acInput: "AC input", toHomeGrid: "To home / grid", fromAcBus: "From AC bus",
+    inverterMode: "Inverter · {state}",
     offgrid: "Off-grid", infoComm: "Comm module",
     invBackup: "Backup", invUpdating: "Updating", invStandby: "Standby", invBypass: "Bypass",
     active: "Active", inactive: "Inactive",
@@ -137,6 +139,8 @@ const I18N = {
     mTemp: "Temperatura", mVoltage: "Voltaje", mCellMax: "Celda máx", mCellMin: "Celda mín",
     mCellDelta: "Δ celda", mCycles: "Ciclos", mEfficiency: "Eficiencia", mHysteresis: "Histéresis",
     solarMppt: "Solar (MPPT)", controls: "Controles", deviceInfo: "Información del dispositivo",
+    acOutput: "Salida AC", acInput: "Entrada AC", toHomeGrid: "A casa / red", fromAcBus: "Desde bus AC",
+    inverterMode: "Inversor · {state}",
     offgrid: "Offgrid", infoComm: "Módulo com.",
     invBackup: "Respaldo", invUpdating: "Actualizando", invStandby: "En espera", invBypass: "Bypass",
     active: "Activa", inactive: "Inactiva",
@@ -205,6 +209,8 @@ const I18N = {
     mTemp: "Temperatura", mVoltage: "Voltatge", mCellMax: "Cel·la màx", mCellMin: "Cel·la mín",
     mCellDelta: "Δ cel·la", mCycles: "Cicles", mEfficiency: "Eficiència", mHysteresis: "Histèresi",
     solarMppt: "Solar (MPPT)", controls: "Controls", deviceInfo: "Informació del dispositiu",
+    acOutput: "Sortida CA", acInput: "Entrada CA", toHomeGrid: "A casa / xarxa", fromAcBus: "Des del bus CA",
+    inverterMode: "Inversor · {state}",
     offgrid: "Offgrid", infoComm: "Mòdul com.",
     invBackup: "Reserva", invUpdating: "Actualitzant", invStandby: "En espera", invBypass: "Bypass",
     active: "Activa", inactive: "Inactiva",
@@ -270,6 +276,8 @@ const I18N = {
     mTemp: "Temperatur", mVoltage: "Spannung", mCellMax: "Zelle max", mCellMin: "Zelle min",
     mCellDelta: "Δ Zelle", mCycles: "Zyklen", mEfficiency: "Effizienz", mHysteresis: "Hysterese",
     solarMppt: "Solar (MPPT)", controls: "Steuerung", deviceInfo: "Geräteinformationen",
+    acOutput: "AC-Ausgang", acInput: "AC-Eingang", toHomeGrid: "Zu Haus / Netz", fromAcBus: "Vom AC-Bus",
+    inverterMode: "Wechselrichter · {state}",
     offgrid: "Inselbetrieb", infoComm: "Komm.-Modul",
     invBackup: "Backup", invUpdating: "Aktualisierung", invStandby: "Standby", invBypass: "Bypass",
     active: "Aktiv", inactive: "Inaktiv",
@@ -335,6 +343,8 @@ const I18N = {
     mTemp: "Température", mVoltage: "Tension", mCellMax: "Cellule max", mCellMin: "Cellule min",
     mCellDelta: "Δ cellule", mCycles: "Cycles", mEfficiency: "Efficacité", mHysteresis: "Hystérésis",
     solarMppt: "Solaire (MPPT)", controls: "Contrôles", deviceInfo: "Informations sur l'appareil",
+    acOutput: "Sortie CA", acInput: "Entrée CA", toHomeGrid: "Vers maison / réseau", fromAcBus: "Depuis bus CA",
+    inverterMode: "Onduleur · {state}",
     offgrid: "Hors réseau", infoComm: "Module comm.",
     invBackup: "Secours", invUpdating: "Mise à jour", invStandby: "En attente", invBypass: "Bypass",
     active: "Active", inactive: "Inactive",
@@ -400,6 +410,8 @@ const I18N = {
     mTemp: "Temperatuur", mVoltage: "Spanning", mCellMax: "Cel max", mCellMin: "Cel min",
     mCellDelta: "Δ cel", mCycles: "Cycli", mEfficiency: "Efficiëntie", mHysteresis: "Hysterese",
     solarMppt: "Solar (MPPT)", controls: "Bediening", deviceInfo: "Apparaatinformatie",
+    acOutput: "AC-uitgang", acInput: "AC-ingang", toHomeGrid: "Naar huis / net", fromAcBus: "Vanaf AC-bus",
+    inverterMode: "Omvormer · {state}",
     offgrid: "Eilandbedrijf", infoComm: "Comm.-module",
     invBackup: "Back-up", invUpdating: "Bijwerken", invStandby: "Stand-by", invBypass: "Bypass",
     active: "Actief", inactive: "Inactief",
@@ -443,6 +455,8 @@ const K = {
   batterySoc: "battery_soc",
   acPower: "ac_power", // AC-side power. HA sign: - charge / + discharge (W)
   batteryPower: "battery_power", // synthesised cell power (Zendure). + charge / - discharge (W)
+  batteryCellPower: "battery_cell_power", // Venus A/D net cell power. + charge / - discharge (W)
+  solarPower: "solar_power", // Venus A/D total MPPT power (W)
   acOffgridPower: "ac_offgrid_power", // off-grid/backup AC output. HA sign: + discharge (W)
   storedEnergy: "stored_energy", // kWh
   batteryTotalEnergy: "battery_total_energy", // capacity kWh
@@ -3231,9 +3245,23 @@ class MarstekVenusPanel extends HTMLElement {
       const socObj = byTk[K.batterySoc];
       if (!socObj) continue; // not a battery device
       const acW = this._watts(byTk[K.acPower]);
+      const offgridW = this._watts(byTk[K.acOffgridPower]);
       const cmax = this._num(byTk[K.cellMax]);
       const cmin = this._num(byTk[K.cellMin]);
       const mppt = MPPT_KEYS.map((k) => this._num(byTk[k]));
+      const hasMppt = mppt.some((v) => v != null);
+      const mpptTotalW = hasMppt ? mppt.reduce((sum, value) => sum + (value || 0), 0) : null;
+      const inverter = byTk[K.inverterState] || null;
+      const invBackup = /backup/i.test(this._sval(inverter) || "");
+      // Venus A/D can feed the AC bus while DC-coupled PV charges the cells.
+      // Show the real cell balance as the battery flow, while retaining acW as a
+      // separate AC-port flow: cell = MPPT - AC output - active backup output.
+      const powerW =
+        hasMppt && acW != null
+          ? -acW - (invBackup ? offgridW || 0 : 0) + (mpptTotalW || 0)
+          : acW != null
+            ? -acW
+            : this._watts(byTk[K.batteryPower]);
       const devReg = (hass.devices && hass.devices[dev]) || null;
       const name =
         (devReg && (devReg.name_by_user || devReg.name)) ||
@@ -3246,11 +3274,13 @@ class MarstekVenusPanel extends HTMLElement {
         // model is hardcoded "Venus"): Marstek version / Zendure product.
         model: (socObj.attributes && socObj.attributes.model) || null,
         soc: this._num(socObj),
-        // ac_power HA sign is - charge / + discharge; negate to + charge / - discharge.
-        // Zendure has no ac_power: fall back to its synthesised battery_power
-        // (already + charge / - discharge).
-        powerW: acW != null ? -acW : this._watts(byTk[K.batteryPower]),
-        offgridW: this._watts(byTk[K.acOffgridPower]),
+        // Net cell flow (+charge / -discharge). On Venus A/D this includes MPPT;
+        // on AC-only units it remains the inverse of ac_power.
+        powerW,
+        // AC-port convention: +output to home/grid, -input from the AC bus.
+        acFlowW: acW,
+        mpptTotalW,
+        offgridW,
         backupOn: (byTk[K.backupFunction] || {}).state === "on",
         hysteresisActive: (() => {
           const s = byTk[K.chargeHysteresisActive];
@@ -3258,7 +3288,7 @@ class MarstekVenusPanel extends HTMLElement {
         })(),
         stored: this._num(byTk[K.storedEnergy]),
         capacity: this._num(byTk[K.batteryTotalEnergy]),
-        inverter: byTk[K.inverterState] || null,
+        inverter,
         temp: this._num(byTk[K.internalTemp]),
         voltage: this._num(byTk[K.batteryVoltage]),
         cellMax: cmax,
@@ -3274,7 +3304,7 @@ class MarstekVenusPanel extends HTMLElement {
         maxCharge: this._num(byTk[K.maxChargePower]),
         maxDischarge: this._num(byTk[K.maxDischargePower]),
         mppt,
-        hasMppt: mppt.some((v) => v != null),
+        hasMppt,
         entIds: idByTk,
         info: {
           sw: this._sval(byTk[K.softwareVersion]),
@@ -3353,8 +3383,20 @@ class MarstekVenusPanel extends HTMLElement {
     const pw = document.createElement("div");
     pw.className = "bat-power";
     pw.innerHTML =
+      `<div class="bat-standard-flow">` +
       `<div class="bat-pwr"><span class="num bat-pwr-val">—</span><span class="bat-pwr-unit dim"></span></div>` +
-      `<div class="muted bat-pwr-lbl">—</div>` +
+      `<div class="muted bat-pwr-lbl">—</div></div>` +
+      `<div class="bat-mppt-flows" style="display:none">` +
+      `<div class="bat-flow bat-ac-flow">` +
+      `<div class="muted bat-flow-label bat-ac-title">${this._t("acOutput")}</div>` +
+      `<div><span class="num bat-flow-value bat-ac-val">—</span><span class="dim bat-flow-unit bat-ac-unit"></span></div>` +
+      `<div class="muted bat-flow-sub bat-ac-sub">—</div></div>` +
+      `<div class="bat-flow bat-cell-flow">` +
+      `<div class="muted bat-flow-label">${this._t("battery")}</div>` +
+      `<div><span class="num bat-flow-value bat-cell-val">—</span><span class="dim bat-flow-unit bat-cell-unit"></span></div>` +
+      `<div class="muted bat-flow-sub bat-cell-sub">—</div></div>` +
+      `<div class="bat-mppt-total"><span class="muted">${this._t("solarMppt")}</span><span class="num bat-mppt-total-val">—</span></div>` +
+      `</div>` +
       `<div class="socbar bat-pwr-track" style="height:6px;margin-top:8px"><span class="bat-pwr-bar"></span></div>` +
       `<div class="dim bat-pwr-avail">—</div>` +
       `<div class="dim bat-cap">— / — kWh</div>` +
@@ -3368,10 +3410,12 @@ class MarstekVenusPanel extends HTMLElement {
     top.appendChild(pw);
     // click SOC ring / power / capacity -> more-info (history graph)
     this._linkMoreInfo(ring.ring, b.entIds[K.batterySoc]);
-    // Power source mirrors the value shown (powerW): ac_power on Marstek,
-    // battery_power on Zendure (no ac_power). Link the one that exists so the
-    // click opens its history instead of no-opping on a missing entity.
+    // AC-only models retain their single power readout. Venus A/D links each
+    // side of the dual readout to its matching AC/cell/solar history sensor.
     this._linkMoreInfo(pw.querySelector(".bat-pwr"), b.entIds[K.acPower] || b.entIds[K.batteryPower]);
+    this._linkMoreInfo(pw.querySelector(".bat-ac-flow"), b.entIds[K.acPower]);
+    this._linkMoreInfo(pw.querySelector(".bat-cell-flow"), b.entIds[K.batteryCellPower]);
+    this._linkMoreInfo(pw.querySelector(".bat-mppt-total"), b.entIds[K.solarPower]);
     this._linkMoreInfo(pw.querySelector(".bat-cap"), b.entIds[K.storedEnergy]);
     card.appendChild(top);
 
@@ -3449,12 +3493,24 @@ class MarstekVenusPanel extends HTMLElement {
       ringFg: ring.fg,
       ringCirc: ring.circ,
       ringVal: ring.val,
+      powerRoot: pw,
+      standardFlow: pw.querySelector(".bat-standard-flow"),
+      mpptFlows: pw.querySelector(".bat-mppt-flows"),
       pwrVal: pw.querySelector(".bat-pwr-val"),
       pwrUnit: pw.querySelector(".bat-pwr-unit"),
       pwrLbl: pw.querySelector(".bat-pwr-lbl"),
       pwrBar: pw.querySelector(".bat-pwr-bar"),
+      pwrTrack: pw.querySelector(".bat-pwr-track"),
       pwrAvail: pw.querySelector(".bat-pwr-avail"),
       cap: pw.querySelector(".bat-cap"),
+      acTitle: pw.querySelector(".bat-ac-title"),
+      acVal: pw.querySelector(".bat-ac-val"),
+      acUnit: pw.querySelector(".bat-ac-unit"),
+      acSub: pw.querySelector(".bat-ac-sub"),
+      cellVal: pw.querySelector(".bat-cell-val"),
+      cellUnit: pw.querySelector(".bat-cell-unit"),
+      cellSub: pw.querySelector(".bat-cell-sub"),
+      mpptTotal: pw.querySelector(".bat-mppt-total-val"),
       ogWrap: pw.querySelector(".bat-offgrid"),
       ogVal: pw.querySelector(".bat-og-val"),
       ogUnit: pw.querySelector(".bat-og-unit"),
@@ -3510,6 +3566,7 @@ class MarstekVenusPanel extends HTMLElement {
         typeof this._hass.formatEntityState === "function"
           ? this._hass.formatEntityState(inv)
           : invState;
+      if (b.hasMppt) disp = this._t("inverterMode", { state: disp });
       this._setChip(r.state, disp, tone);
       r.state.style.display = "";
     } else if (b.powerW != null) {
@@ -3536,7 +3593,8 @@ class MarstekVenusPanel extends HTMLElement {
     r.ringFg.setAttribute("stroke", col);
     r.ringFg.style.filter = `drop-shadow(0 0 6px ${col})`;
 
-    // power readout (+ charge / - discharge)
+    // Power readout (+ charge / - discharge). Venus A/D gets a dual view:
+    // AC-port output/input on the left and net cell flow on the right.
     const w = b.powerW;
     const charging = w != null && w > 30;
     const discharging = w != null && w < -30;
@@ -3548,6 +3606,33 @@ class MarstekVenusPanel extends HTMLElement {
     else if (discharging) { lbl = this._t("discharging"); pcol = "var(--grid)"; }
     r.pwrLbl.textContent = lbl;
     r.pwrVal.style.color = pcol;
+    r.powerRoot.classList.toggle("has-mppt", b.hasMppt);
+    r.standardFlow.style.display = b.hasMppt ? "none" : "";
+    r.mpptFlows.style.display = b.hasMppt ? "" : "none";
+    r.pwrTrack.style.display = b.hasMppt ? "none" : "";
+    r.pwrAvail.style.display = b.hasMppt ? "none" : "";
+
+    if (b.hasMppt) {
+      const ac = b.acFlowW;
+      const acOutput = ac != null && ac > 30;
+      const acInput = ac != null && ac < -30;
+      const af = this._fmtPower(ac == null ? null : Math.abs(ac));
+      r.acTitle.textContent = this._t(acInput ? "acInput" : "acOutput");
+      r.acVal.textContent = af.v;
+      r.acUnit.textContent = af.u ? " " + af.u : "";
+      r.acSub.textContent = acOutput
+        ? this._t("toHomeGrid")
+        : acInput
+          ? this._t("fromAcBus")
+          : this._t("idle");
+      r.acVal.style.color = acOutput ? "var(--grid)" : acInput ? "var(--battery)" : "var(--ink)";
+
+      r.cellVal.textContent = f.v;
+      r.cellUnit.textContent = f.u ? " " + f.u : "";
+      r.cellSub.textContent = lbl;
+      r.cellVal.style.color = pcol;
+      r.mpptTotal.textContent = this._fmtPowerStr(b.mpptTotalW);
+    }
     let tcap = charging ? b.maxCharge : discharging ? b.maxDischarge : b.maxCharge || b.maxDischarge;
     if (!tcap) tcap = 2500;
     r.pwrBar.style.width = this._clamp((Math.abs(w || 0) / tcap) * 100, 0, 100) + "%";
@@ -4815,12 +4900,23 @@ class MarstekVenusPanel extends HTMLElement {
       .bat-pwr-track { width: 100%; }
       .bat-pwr-avail { font-size: 11px; margin-top: 4px; }
       .bat-cap { font-size: 12px; margin-top: 6px; }
+      .bat-mppt-flows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+      .bat-flow { min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); }
+      .bat-flow-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+      .bat-flow-value { font-family: var(--font-display); font-size: 21px; font-weight: 600; line-height: 1.25; }
+      .bat-flow-unit { font-size: 12px; }
+      .bat-flow-sub { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .bat-mppt-total { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 2px; font-size: 12px; }
+      .bat-mppt-total-val { font-size: 13px; }
+      .bat-power.has-mppt .bat-cap { margin-top: 8px; }
       /* off-grid power: right edge, aligned with the AC-power line */
       .bat-offgrid { position: absolute; top: 0; right: 0; text-align: right; }
       .bat-offgrid .bat-pwr { justify-content: flex-end; }
       .bat-og-val { font-size: 20px; color: oklch(0.75 0.17 58); }
       .bat-og-unit { font-size: 12px; }
       .bat-og-lbl { font-size: 11px; margin-top: 3px; }
+      .bat-power.has-mppt .bat-offgrid { position: static; margin-top: 8px; text-align: left; }
+      .bat-power.has-mppt .bat-offgrid .bat-pwr { justify-content: flex-start; }
       .bat-sect { display: flex; flex-direction: column; gap: 9px; }
       .bat-sect-t { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-mid); }
       .bat-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
@@ -4831,6 +4927,7 @@ class MarstekVenusPanel extends HTMLElement {
       .clickable { cursor: pointer; }
       .metric.clickable:hover .m-v { color: var(--accent); }
       .bat-pwr.clickable:hover .bat-pwr-val { color: var(--accent); }
+      .bat-flow.clickable:hover .bat-flow-value, .bat-mppt-total.clickable:hover .bat-mppt-total-val { color: var(--accent); }
       .bat-cap.clickable:hover { color: var(--ink); }
       .ctl-val.ctl-sensor.clickable:hover { color: var(--accent); }
       .daily-row.clickable:hover .daily-head .muted { color: var(--ink); }

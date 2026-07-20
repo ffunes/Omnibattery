@@ -130,6 +130,20 @@ def test_cell_power_solar_bypass_net_discharge():
     assert sensor._calculate_battery_cell_power() == -200
 
 
+def test_cell_power_solar_supplies_ac_and_charges_battery_issue_93():
+    # Venus A/D may output power to the AC bus while larger MPPT production still
+    # leaves the cells charging: 946 W solar - 265 W AC output = 681 W charge.
+    va = FakeCoordinator(data={
+        "ac_power": 265,
+        "mppt1_power": 405,
+        "mppt2_power": 402,
+        "mppt3_power": 139,
+        "mppt4_power": 0,
+    })
+    sensor = _sensor([va], "system_battery_cell_power")
+    assert sensor._calculate_battery_cell_power() == 681
+
+
 def test_cell_power_includes_ac_offgrid_in_backup_mode():
     # In Backup Mode (grid down) the backup port draws from the cells: count it.
     va = FakeCoordinator(data={
