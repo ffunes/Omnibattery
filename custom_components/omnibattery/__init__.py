@@ -140,6 +140,7 @@ from .const import (
     FEEDFORWARD_COOLDOWN_S,
     FEEDFORWARD_PULSE_GUARD_S,
     PD_ZERO_CROSS_MIN_HOLD_S,
+    SLOW_SENSOR_WARN_INTERVALS,
     FAST_ACTUATOR_MAX_LATENCY_S,
     DISCHARGE_ENGAGE_GRACE_S,
     IDLE_RUNAWAY_POWER_W,
@@ -457,6 +458,7 @@ class ChargeDischargeController:
         self._control_lock = asyncio.Lock()     # serialize control cycle across timer + sensor-event triggers
         self._grid_at_min_soc_last_ts = None     # last accumulation timestamp for grid-at-min-soc kWh integration
         self._slow_sensor_warned = False        # one-shot warning: sensor cadence exceeds the stale window
+        self._slow_sensor_intervals = 0         # consecutive sensor intervals longer than the stale window
 
         # Normal high-SOC charge protection. These must exist before the first
         # capacity calculation because _battery_power_limit() reads them.
@@ -4422,31 +4424,35 @@ class ChargeDischargeController:
         )
         return 0
 
-    async def _command_idle_no_batteries(self, sensor_actual, error):
-        """Command every battery to idle when none can serve the requested direction.
+    def _check_sensor_cadence(self, sensor_elapsed_s):
+        """Warn once when the main sensor updates slower than the stale window.
 
-        This path ends the control cycle BEFORE the end-of-cycle PD state update, so
-        every piece of direction state it leaves behind is what the next cycle reads.
-        Leaving ``last_output_sign`` latched here caused issue #117: at min SoC the
-        controller stayed on "discharge" forever, so the zero-cross hold treated each
-        fresh charge request as an unproven flip and clamped it to 0, and the batteries
-        never recharged despite a sustained surplus. The batteries were just commanded
-        0 W, so the tracked flow direction IS 0.
+        A sensor slower than the watchdog means most control cycles run on frozen data
+        and the PD only ever sees one fresh sample per sensor period. That is a silent
+        misconfiguration today (HA's ``enphase_envoy`` is hard-capped at a 60s scan
+        interval), visible only as a poor control-quality metric.
+
+        Debounced over consecutive intervals: a single long gap is far more likely to be
+        an outage or a restart than the configured cadence, because the stored sensor
+        timestamp is not advanced while the sensor reads unavailable, so the first sample
+        after any downtime measures the whole gap.
         """
-        _LOGGER.debug("ChargeDischargeController: No available batteries, setting all to 0.")
-        for coordinator in self.coordinators:
-            if self._is_active_balance_mode_running(coordinator):
-                continue
-            await self._set_battery_power(coordinator, 0, 0)
-        self.previous_power = 0
-        self.previous_sensor = sensor_actual
-        self.last_output_sign = 0
-        self._zero_cross_since = None
-        self._active_discharge_batteries = []
-        self._active_charge_batteries = []
-        # No battery can act: demand outside the deadband is battery-limited, not
-        # a tuning fault (surfaced as "battery_limited", keeps the metric clean).
-        self._pd_limited = abs(error) > self.deadband
+        if sensor_elapsed_s is None:
+            return
+        stale_window_s = self._max_stale_cycles * self.dt
+        if sensor_elapsed_s <= stale_window_s:
+            self._slow_sensor_intervals = 0
+            return
+        self._slow_sensor_intervals += 1
+        if self._slow_sensor_intervals < SLOW_SENSOR_WARN_INTERVALS or self._slow_sensor_warned:
+            return
+        self._slow_sensor_warned = True
+        _LOGGER.warning(
+            "Main sensor %s updates every ~%.0fs, slower than the %.0fs stale window. "
+            "The control loop will spend most cycles on frozen data and regulation "
+            "quality will suffer. Configure a faster grid power sensor (~1-5s).",
+            self.consumption_sensor, sensor_elapsed_s, stale_window_s,
+        )
 
     async def _run_control_cycle(self, now=None):
         """Update the charge/discharge power of the batteries."""
@@ -4587,23 +4593,7 @@ class ChargeDischargeController:
             if previous_update_time is not None else None
         )
 
-        # A main sensor slower than the stale window means most cycles run on frozen
-        # data and the PD only ever sees one fresh sample per sensor period. Silent
-        # misconfiguration today (HA's enphase_envoy is hard-capped at 60s), so say it
-        # once instead of leaving the user to read it out of the control quality metric.
-        stale_window_s = self._max_stale_cycles * 2.0
-        if (
-            not self._slow_sensor_warned
-            and sensor_elapsed_s is not None
-            and sensor_elapsed_s > stale_window_s
-        ):
-            self._slow_sensor_warned = True
-            _LOGGER.warning(
-                "Main sensor %s updates every ~%.0fs, slower than the %.0fs stale window. "
-                "The control loop will spend most cycles on frozen data and regulation "
-                "quality will suffer. Configure a faster grid power sensor (~1-5s).",
-                self.consumption_sensor, sensor_elapsed_s, stale_window_s,
-            )
+        self._check_sensor_cadence(sensor_elapsed_s)
 
         # Generic safety recalc on a silent sensor must re-evaluate structural state
         # (SOC/limits/blockers) but must NOT integrate the P term: the grid error is
@@ -4914,7 +4904,9 @@ class ChargeDischargeController:
         # settle window before it becomes a real opposite-direction command (see
         # _apply_zero_cross_hold). Must run before _apply_min_power so a clamped
         # flip cannot be raised to the minimum charge power.
-        new_power = self._apply_zero_cross_hold(new_power, error, stale_safety_recalc)
+        new_power = self._apply_zero_cross_hold(
+            new_power, error, stale_recalc=stale_safety_recalc
+        )
 
         # Final commanded direction (feeds last_output_sign at end of cycle). In the
         # PD path the hysteresis inside _compute_pd_new_power already zeroed new_power
@@ -5077,7 +5069,24 @@ class ChargeDischargeController:
                         await self._consumption_tracker.maybe_save_grid_at_min_soc_history()
 
         if not available_batteries:
-            await self._command_idle_no_batteries(sensor_actual, error)
+            # NOTE: this path ends the cycle before the end-of-cycle PD state update,
+            # so last_output_sign stays latched at the last real flow direction. That
+            # is deliberate: the battery may still be ramping down (or the 0W write may
+            # not have landed on an unreachable battery), so the next flip must still
+            # prove itself against the zero-cross settle window. Issue #117 was the
+            # settle timer being cleared underneath that latch, not the latch itself.
+            _LOGGER.debug("ChargeDischargeController: No available batteries, setting all to 0.")
+            for coordinator in self.coordinators:
+                if self._is_active_balance_mode_running(coordinator):
+                    continue
+                await self._set_battery_power(coordinator, 0, 0)
+            self.previous_power = 0
+            self.previous_sensor = sensor_actual
+            self._active_discharge_batteries = []
+            self._active_charge_batteries = []
+            # No battery can act: demand outside the deadband is battery-limited, not
+            # a tuning fault (surfaced as "battery_limited", keeps the metric clean).
+            self._pd_limited = abs(error) > self.deadband
             return
         
         # Select batteries via load sharing, then distribute power

@@ -271,6 +271,13 @@ FEEDFORWARD_PULSE_GUARD_S = 30.0      # s: opposite-sign step this soon after a 
 # _apply_zero_cross_hold. Legitimate sustained surplus flips after the window.
 PD_ZERO_CROSS_MIN_HOLD_S = 5.0
 
+# Consecutive main-sensor intervals longer than the stale window before warning that
+# the sensor is too slow for the control loop. Debounced because a single long gap is
+# usually an outage or an HA restart rather than the configured cadence: the stored
+# sensor timestamp is not advanced while the sensor reads unavailable, so the first
+# sample after any downtime measures the whole gap.
+SLOW_SENSOR_WARN_INTERVALS = 3
+
 # An actuator at or below this latency (seconds, DriverCapabilities.actuator_latency_s)
 # reaches its setpoint and reflects it in telemetry within one poll. Such drivers do
 # the hot-path readback and use the measured-power feedforward; slower ones (Zendure

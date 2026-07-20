@@ -1,35 +1,42 @@
-"""Regression tests for issue #117 — PD deadlock at min SoC on a slow grid sensor.
+"""Regression tests for issue #117: PD deadlock at min SoC on a slow grid sensor.
 
 Reported field case: main sensor = HA ``enphase_envoy`` (hard-capped at a 60 s
 scan interval), 2x Marstek Venus at min SoC, sustained solar surplus. Result was
 19 h with 0.00 kWh charged while exporting and 3.81 kWh imported.
 
-Three behaviours interacted:
+The chain:
 
-1. The "no available batteries" bailout returns before the end-of-cycle PD state
-   update, so ``last_output_sign`` stayed latched at -1 (discharge) forever.
-2. Every fresh sensor sample therefore looked like an unproven discharge->charge
-   flip and ``_apply_zero_cross_hold`` clamped it to 0.
-3. The stale safety recalc in between froze the command at 0 W, and a 0 W request
-   cleared ``_zero_cross_since`` — so the hold re-armed at 0.0 s on every sample
-   and could never accumulate its settle window. The reporter's logs show exactly
-   that: one suppression per Envoy refresh, always at ``0.0s/5.0s``.
+1. At min SoC the "no available batteries" bailout ends the cycle before the
+   end-of-cycle PD state update, so ``last_output_sign`` stays latched at -1
+   (discharge). That latch is intentional: the battery may still be ramping down.
+2. Each fresh sensor sample therefore reads as a discharge->charge flip and
+   ``_apply_zero_cross_hold`` clamps it to 0 until the settle window elapses.
+3. The stale safety recalc in between freezes the command at 0 W, and a 0 W
+   request cleared ``_zero_cross_since``. On a sensor slower than the stale
+   window (~30 s) the timer was always cleared before the next fresh sample, so
+   the hold re-armed at 0.0 s forever and the flip could never pass. The
+   reporter's logs show exactly that: one suppression per Envoy refresh, always
+   ``0.0s/5.0s``.
+
+So the fix is in step 3, not in the latch: the settle timer must survive the
+stale freeze. The last test here is the end-to-end regression for that.
 
 Helpers are exercised unbound with a ``SimpleNamespace`` stub, per repo
-convention (see ``test_pd_zero_cross.py``). ``_command_idle_no_batteries`` is
-async and only touches controller state plus ``_set_battery_power``, so the stub
-carries async doubles for those two calls.
+convention (see ``test_pd_zero_cross.py``).
 """
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from types import SimpleNamespace
 
-import pytest
 from homeassistant.util import dt as dt_util
 
 from custom_components.omnibattery import ChargeDischargeController
-from custom_components.omnibattery.const import PD_ZERO_CROSS_MIN_HOLD_S
+from custom_components.omnibattery.const import (
+    PD_ZERO_CROSS_MIN_HOLD_S,
+    SLOW_SENSOR_WARN_INTERVALS,
+)
 
 
 def _coord(latency_s=0.8):
@@ -46,80 +53,11 @@ def _hold_ctrl(last_output_sign, *, zero_cross_since=None, latencies=(0.8,)):
 
 def _hold(ctrl, new_power, error=0.0, stale_recalc=False):
     return ChargeDischargeController._apply_zero_cross_hold(
-        ctrl, new_power, error, stale_recalc
+        ctrl, new_power, error, stale_recalc=stale_recalc
     )
 
 
-class _IdleStub:
-    """Stub self for ``_command_idle_no_batteries`` recording issued commands."""
-
-    def __init__(self, *, last_output_sign, previous_power, deadband=40):
-        self.last_output_sign = last_output_sign
-        self.previous_power = previous_power
-        self.previous_sensor = None
-        self.deadband = deadband
-        self._zero_cross_since = dt_util.utcnow()
-        self._active_discharge_batteries = ["stale"]
-        self._active_charge_batteries = ["stale"]
-        self._pd_limited = False
-        self.coordinators = [object(), object()]
-        self.commands = []
-
-    def _is_active_balance_mode_running(self, coordinator):
-        return False
-
-    async def _set_battery_power(self, coordinator, charge, discharge):
-        self.commands.append((coordinator, charge, discharge))
-
-
-async def _idle(stub, sensor_actual, error):
-    await ChargeDischargeController._command_idle_no_batteries(stub, sensor_actual, error)
-
-
-# --- 1. the latch ----------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_idle_bailout_clears_latched_discharge_sign():
-    """At min SoC the bailout must not leave the controller latched on discharge."""
-    stub = _IdleStub(last_output_sign=-1, previous_power=-300)
-
-    await _idle(stub, sensor_actual=-900, error=-904)
-
-    assert stub.last_output_sign == 0
-    assert stub.previous_power == 0
-    assert stub.commands == [(c, 0, 0) for c in stub.coordinators]
-
-
-@pytest.mark.asyncio
-async def test_idle_bailout_flags_battery_limited_outside_deadband():
-    stub = _IdleStub(last_output_sign=-1, previous_power=-300, deadband=40)
-
-    await _idle(stub, sensor_actual=-900, error=-904)
-    assert stub._pd_limited is True
-
-    stub._pd_limited = False
-    await _idle(stub, sensor_actual=10, error=10)
-    assert stub._pd_limited is False
-
-
-@pytest.mark.asyncio
-async def test_charge_request_after_idle_bailout_is_not_suppressed():
-    """End to end: the next surplus sample must reach the batteries as a charge order.
-
-    Before the fix this returned 0 on every sample for 19 hours.
-    """
-    stub = _IdleStub(last_output_sign=-1, previous_power=-300)
-    await _idle(stub, sensor_actual=-900, error=-904)
-
-    ctrl = _hold_ctrl(
-        last_output_sign=stub.last_output_sign,
-        zero_cross_since=stub._zero_cross_since,
-    )
-    assert _hold(ctrl, new_power=912, error=-904) == 912
-
-
-# --- 2. the never-accumulating settle window -------------------------------
+# --- the settle window must survive the stale freeze -----------------------
 
 
 def test_stale_recalc_zero_keeps_armed_timer():
@@ -148,12 +86,20 @@ def test_stale_recalc_with_no_armed_timer_is_untouched():
     assert ctrl._zero_cross_since is None
 
 
+def test_stale_recalc_with_nonzero_frozen_command_is_unaffected():
+    """A frozen command in the previous direction takes the ordinary pass-through."""
+    ctrl = _hold_ctrl(last_output_sign=-1, zero_cross_since=dt_util.utcnow())
+
+    assert _hold(ctrl, new_power=-300, error=400, stale_recalc=True) == -300
+    assert ctrl._zero_cross_since is None
+
+
 def test_flip_accumulates_across_stale_cycles_on_slow_sensor():
-    """60 s sensor, 2 s control cycles: the flip must eventually pass.
+    """The reported deadlock, end to end: 60 s sensor, 2 s control cycles.
 
     Sample 1 arms the timer. The stale recalcs in between hold it. By the time the
     next fresh sample arrives the window is long satisfied, so the charge order
-    goes through instead of re-arming at 0.0 s forever.
+    goes through instead of re-arming at 0.0 s forever (19 h at 0.00 kWh charged).
     """
     ctrl = _hold_ctrl(last_output_sign=-1)
 
@@ -170,3 +116,82 @@ def test_flip_accumulates_across_stale_cycles_on_slow_sensor():
     ctrl._zero_cross_since = armed_at - timedelta(seconds=PD_ZERO_CROSS_MIN_HOLD_S + 1)
     assert _hold(ctrl, new_power=973, error=-964) == 973
     assert ctrl._zero_cross_since is None
+
+
+# --- slow-sensor cadence warning ------------------------------------------
+
+
+def _cadence_ctrl(*, max_stale_cycles=15, dt=2.0):
+    return SimpleNamespace(
+        _max_stale_cycles=max_stale_cycles,
+        dt=dt,
+        _slow_sensor_warned=False,
+        _slow_sensor_intervals=0,
+        consumption_sensor="sensor.grid_power",
+    )
+
+
+def _cadence(ctrl, elapsed_s):
+    ChargeDischargeController._check_sensor_cadence(ctrl, elapsed_s)
+
+
+def test_sustained_slow_cadence_warns_once(caplog):
+    ctrl = _cadence_ctrl()
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(SLOW_SENSOR_WARN_INTERVALS + 3):
+            _cadence(ctrl, 60.0)
+
+    assert caplog.text.count("slower than the 30s stale window") == 1
+    assert "sensor.grid_power" in caplog.text
+
+
+def test_single_outage_gap_does_not_warn(caplog):
+    """A sensor unavailable for minutes leaves one huge gap; that is not a slow sensor.
+
+    ``_last_sensor_update_time`` is not advanced while the sensor reads unavailable,
+    so the first sample after any downtime measures the whole outage.
+    """
+    ctrl = _cadence_ctrl()
+
+    with caplog.at_level(logging.WARNING):
+        _cadence(ctrl, 1.0)
+        _cadence(ctrl, 180.0)  # outage gap
+        _cadence(ctrl, 1.0)
+        _cadence(ctrl, 1.0)
+
+    assert "stale window" not in caplog.text
+    assert ctrl._slow_sensor_intervals == 0
+
+
+def test_fast_interval_resets_the_streak(caplog):
+    ctrl = _cadence_ctrl()
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(SLOW_SENSOR_WARN_INTERVALS - 1):
+            _cadence(ctrl, 45.0)
+        _cadence(ctrl, 2.0)
+        for _ in range(SLOW_SENSOR_WARN_INTERVALS - 1):
+            _cadence(ctrl, 45.0)
+
+    assert "stale window" not in caplog.text
+
+
+def test_first_sample_without_a_previous_timestamp_is_ignored():
+    ctrl = _cadence_ctrl()
+
+    _cadence(ctrl, None)
+
+    assert ctrl._slow_sensor_intervals == 0
+    assert ctrl._slow_sensor_warned is False
+
+
+def test_window_follows_the_configured_loop_period(caplog):
+    """The window is _max_stale_cycles * dt, not a hardcoded 2 s cycle."""
+    ctrl = _cadence_ctrl(max_stale_cycles=15, dt=1.0)
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(SLOW_SENSOR_WARN_INTERVALS):
+            _cadence(ctrl, 20.0)  # under 30s, over 15s
+
+    assert "slower than the 15s stale window" in caplog.text
