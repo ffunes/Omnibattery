@@ -292,20 +292,30 @@ async def test_standby_writes_zero_setpoint():
 
 
 @pytest.mark.asyncio
-async def test_probe_reads_soc_over_fc04(monkeypatch):
+async def test_probe_reads_soc_and_power_caps(monkeypatch):
     created = {}
 
     class FakeClient:
         def __init__(self, host, port, slave_id=1, timeout=5.0):
             created["args"] = (host, port, slave_id)
             self.unit_id = slave_id
+            self.connected = True
             self.async_connect = AsyncMock(return_value=True)
             self.async_close = AsyncMock()
-            self.async_read_input_register = AsyncMock(return_value=42)
+            # Range 10000–10050: SOC at 10014, max charge 10036, max discharge 10038
+            buf = [0] * 51
+            buf[14] = 55
+            buf[36], buf[37] = encode_int32(3000)
+            buf[38], buf[39] = encode_int32(2800)
+            self.async_read_input_block = AsyncMock(return_value=buf)
+            self.async_read_holding_block = AsyncMock(return_value=None)
 
     monkeypatch.setattr(
         "custom_components.omnibattery.drivers.anker.AnkerModbusClient",
         FakeClient,
     )
-    assert await AnkerModbusDriver.probe("10.0.0.5", 502, 1) is True
+    ok, caps = await AnkerModbusDriver.probe("10.0.0.5", 502, 1)
+    assert ok is True
     assert created["args"] == ("10.0.0.5", 502, 1)
+    assert caps["max_charge_power"] == 3000
+    assert caps["max_discharge_power"] == 2800

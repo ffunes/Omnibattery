@@ -498,7 +498,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             result, _ = await ZendureLocalDriver.probe(host, port)
         elif brand == "anker":
             _LOGGER.info("Probing Anker Solarbank at %s:%s slave %s", host, port, slave_id)
-            result = await AnkerModbusDriver.probe(host, port, slave_id)
+            result, _ = await AnkerModbusDriver.probe(host, port, slave_id)
         elif serial_port:
             _LOGGER.info("Probing Marstek %s over serial %s slave %s", version, serial_port, slave_id)
             result = await MarstekModbusDriver.probe(
@@ -853,7 +853,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             host = user_input[CONF_HOST]
             port = int(user_input.get(CONF_PORT, 502))
             slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
-            ok = await AnkerModbusDriver.probe(host, port, slave_id)
+            ok, caps = await AnkerModbusDriver.probe(host, port, slave_id)
             if not ok:
                 errors["base"] = "cannot_connect"
             else:
@@ -864,6 +864,10 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     CONF_SLAVE_ID: slave_id,
                     "brand": "anker",
                 })
+                if "max_charge_power" in caps:
+                    self._current_battery_data["max_charge_power"] = caps["max_charge_power"]
+                if "max_discharge_power" in caps:
+                    self._current_battery_data["max_discharge_power"] = caps["max_discharge_power"]
                 return await self.async_step_battery_limits()
 
         return self.async_show_form(
@@ -930,10 +934,19 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 return await self.async_step_time_slots()
             return await self.async_step_battery_brand()
 
+        # Anker: prefer power caps read during probe (10036/10038).
+        default_charge = max(
+            100,
+            min(max_power, int(self._current_battery_data.get("max_charge_power", max_power))),
+        )
+        default_discharge = max(
+            100,
+            min(max_power, int(self._current_battery_data.get("max_discharge_power", max_power))),
+        )
         _schema: dict = {
-            vol.Required("max_charge_power", default=max_power):
+            vol.Required("max_charge_power", default=default_charge):
                 NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
-            vol.Required("max_discharge_power", default=max_power):
+            vol.Required("max_discharge_power", default=default_discharge):
                 NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
             vol.Required("max_soc", default=100):
                 NumberSelector(NumberSelectorConfig(min=80, max=100, step=1, mode=NumberSelectorMode.SLIDER)),
@@ -1839,7 +1852,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             new_host = user_input[CONF_HOST]
             new_port = int(user_input.get(CONF_PORT, 502))
             slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
-            ok = await AnkerModbusDriver.probe(new_host, new_port, slave_id)
+            ok, _ = await AnkerModbusDriver.probe(new_host, new_port, slave_id)
             if not ok:
                 errors["base"] = "cannot_connect"
             else:
@@ -1934,7 +1947,8 @@ class OptionsFlowHandler(OptionsFlow):
 
         if brand == "anker":
             _LOGGER.info("Probing Anker Solarbank at %s:%s slave %s", host, port, slave_id)
-            return await AnkerModbusDriver.probe(host, port, slave_id)
+            ok, _ = await AnkerModbusDriver.probe(host, port, slave_id)
+            return ok
 
         # Marstek: handle single-connection-slot constraint.
         entry_data = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id, {})
@@ -2364,7 +2378,7 @@ class OptionsFlowHandler(OptionsFlow):
                 host = user_input[CONF_HOST]
                 port = int(user_input.get(CONF_PORT, 502))
                 slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
-                ok = await AnkerModbusDriver.probe(host, port, slave_id)
+                ok, caps = await AnkerModbusDriver.probe(host, port, slave_id)
                 if not ok:
                     errors["base"] = "cannot_connect"
                 else:
@@ -2375,6 +2389,10 @@ class OptionsFlowHandler(OptionsFlow):
                         CONF_SLAVE_ID: slave_id,
                         "brand": "anker",
                     })
+                    if "max_charge_power" in caps:
+                        self._current_battery_data["max_charge_power"] = caps["max_charge_power"]
+                    if "max_discharge_power" in caps:
+                        self._current_battery_data["max_discharge_power"] = caps["max_discharge_power"]
                     return await self.async_step_battery_limits()
 
             if self.battery_index < len(current_batteries):
@@ -2486,8 +2504,20 @@ class OptionsFlowHandler(OptionsFlow):
                 }
             else:
                 defaults = {
-                    "max_charge_power": max_power,
-                    "max_discharge_power": max_power,
+                    "max_charge_power": max(
+                        100,
+                        min(
+                            max_power,
+                            int(self._current_battery_data.get("max_charge_power", max_power)),
+                        ),
+                    ),
+                    "max_discharge_power": max(
+                        100,
+                        min(
+                            max_power,
+                            int(self._current_battery_data.get("max_discharge_power", max_power)),
+                        ),
+                    ),
                     "max_soc": 100,
                     "min_soc": 10 if brand == "anker" else 12,
                     "charge_hysteresis_percent": DEFAULT_CHARGE_HYSTERESIS_PERCENT,

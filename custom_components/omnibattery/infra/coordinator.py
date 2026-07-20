@@ -619,7 +619,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             fetch_keys = []
             for key in group.keys:
                 sensor = self._def_by_key.get(key, {})
-                entity_type = self._get_entity_type(sensor)
+                entity_type = self._get_entity_type(sensor, fallback_key=key)
                 registry_entry = None
                 for unique_id in (
                     f"{self.device_key}_{key}",   # current format (post-migration)
@@ -840,9 +840,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         return self.data
 
-    def _get_entity_type(self, sensor_definition: dict) -> str:
-        """Determine entity type based on sensor definition."""
-        key = sensor_definition["key"]
+    def _get_entity_type(self, sensor_definition: dict, fallback_key: str | None = None) -> str:
+        """Determine entity type based on sensor definition.
+
+        Telemetry-only keys (present in driver field/read groups but not in any
+        entity definition list — e.g. Anker max_charge/discharge power caps used
+        for soft-max clamping) resolve via ``fallback_key`` and default to
+        ``sensor`` so the poll loop does not KeyError on an empty stub dict.
+        """
+        key = sensor_definition.get("key", fallback_key)
+        if not key:
+            return "sensor"
 
         # Check which definition list this sensor belongs to by key
         if key in [s["key"] for s in self.sensor_definitions]:
@@ -856,7 +864,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         elif key in [s["key"] for s in self.binary_sensor_definitions]:
             return "binary_sensor"
         else:
-            # Default to sensor if not found
+            # Default to sensor if not found (telemetry-only / soft-max keys)
             return "sensor"
 
     async def write_control(self, key: str, value: int, do_refresh: bool = True):

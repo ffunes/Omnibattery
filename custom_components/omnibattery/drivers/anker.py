@@ -496,14 +496,29 @@ class AnkerModbusDriver(BatteryDriver):
         host: str,
         port: int = 502,
         slave_id: int = 1,
-    ) -> bool:
-        """Return True if SOC can be read over FC04 from the device."""
+    ) -> tuple[bool, dict[str, int]]:
+        """Probe connectivity and read device power caps when available.
+
+        Returns ``(ok, caps)`` where ``caps`` may include ``max_charge_power`` and
+        ``max_discharge_power`` from input registers 10036/10038 (used to
+        pre-populate the setup limits step).
+        """
         client = AnkerModbusClient(host, port, slave_id=slave_id, timeout=5.0)
         try:
             if not await client.async_connect():
-                return False
+                return False, {}
             client.unit_id = slave_id
-            soc = await client.async_read_input_register(_ADDR_BATTERY_SOC, "uint16")
-            return soc is not None
+            drv = cls(host, port, slave_id, client=client)
+            snap = await drv.read_telemetry(
+                ["battery_soc", "max_charge_power", "max_discharge_power"]
+            )
+            if snap.get("battery_soc") is None:
+                return False, {}
+            caps: dict[str, int] = {}
+            for key in ("max_charge_power", "max_discharge_power"):
+                raw = snap.get(key)
+                if isinstance(raw, (int, float)) and int(raw) > 0:
+                    caps[key] = max(100, min(_HW_MAX_POWER_W, int(raw)))
+            return True, caps
         finally:
             await client.async_close()
