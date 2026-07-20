@@ -302,13 +302,17 @@ async def test_probe_reads_soc_and_power_caps(monkeypatch):
             self.connected = True
             self.async_connect = AsyncMock(return_value=True)
             self.async_close = AsyncMock()
-            # Range 10000–10050: SOC at 10014, max charge 10036, max discharge 10038
-            buf = [0] * 51
-            buf[14] = 55
-            buf[36], buf[37] = encode_int32(3000)
-            buf[38], buf[39] = encode_int32(2800)
-            self.async_read_input_block = AsyncMock(return_value=buf)
-            self.async_read_holding_block = AsyncMock(return_value=None)
+
+            async def _read_input(address, data_type="uint16", count=None):
+                if address == 10014:
+                    return 55
+                if address == 10036:
+                    return 3000
+                if address == 10038:
+                    return 2800
+                return None
+
+            self.async_read_input_register = AsyncMock(side_effect=_read_input)
 
     monkeypatch.setattr(
         "custom_components.omnibattery.drivers.anker.AnkerModbusClient",
@@ -317,5 +321,5 @@ async def test_probe_reads_soc_and_power_caps(monkeypatch):
     ok, caps = await AnkerModbusDriver.probe("10.0.0.5", 502, 1)
     assert ok is True
     assert created["args"] == ("10.0.0.5", 502, 1)
-    assert caps["max_charge_power"] == 3000
-    assert caps["max_discharge_power"] == 2800
+    assert caps["device_max_charge_power"] == 3000
+    assert caps["device_max_discharge_power"] == 2800

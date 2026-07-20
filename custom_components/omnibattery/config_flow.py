@@ -108,6 +108,61 @@ from .drivers.anker import AnkerModbusDriver
 _ZENDURE_MAX_POWER_W = 2400
 _ANKER_MAX_POWER_W = 3500
 
+
+def _anker_apply_probe_caps(battery_data: dict, caps: dict) -> None:
+    """Store Anker hardware ceilings from probe (not soft-limit defaults)."""
+    for src, dst in (
+        ("device_max_charge_power", "device_max_charge_power"),
+        ("device_max_discharge_power", "device_max_discharge_power"),
+    ):
+        if src in caps:
+            battery_data[dst] = int(caps[src])
+
+
+def _anker_power_ceilings(battery_data: dict) -> tuple[int, int]:
+    """Slider maxima from probed HW caps, falling back to the static envelope."""
+    charge = int(battery_data.get("device_max_charge_power") or _ANKER_MAX_POWER_W)
+    discharge = int(battery_data.get("device_max_discharge_power") or _ANKER_MAX_POWER_W)
+    return (
+        max(100, min(_ANKER_MAX_POWER_W, charge)),
+        max(100, min(_ANKER_MAX_POWER_W, discharge)),
+    )
+
+
+def _anker_soft_power_defaults(battery_data: dict) -> tuple[int, int]:
+    """Setup soft-limit defaults for Anker.
+
+    Prefer a previously saved software ceiling (``user_max_*``), then the saved
+    Omnibattery limit, then the probed hardware ceiling. Register 10036/10038
+    are Anker-internal HW caps (often 3500 W), not the Anker-app user limit.
+    """
+    charge_ceil, discharge_ceil = _anker_power_ceilings(battery_data)
+
+    def _pick(user_key: str, saved_key: str, ceiling: int) -> int:
+        for key in (user_key, saved_key):
+            raw = battery_data.get(key)
+            if raw is None:
+                continue
+            try:
+                return max(100, min(ceiling, int(raw)))
+            except (TypeError, ValueError):
+                continue
+        return ceiling
+
+    return (
+        _pick("user_max_charge_power", "max_charge_power", charge_ceil),
+        _pick("user_max_discharge_power", "max_discharge_power", discharge_ceil),
+    )
+
+
+def _seed_software_power_limits(merged: dict, brand: str) -> None:
+    """Persist soft-max keys for drivers that clamp against a read-only HW cap."""
+    if brand not in ("anker", "zendure"):
+        return
+    merged["user_max_charge_power"] = int(merged["max_charge_power"])
+    if brand == "anker":
+        merged["user_max_discharge_power"] = int(merged["max_discharge_power"])
+
 _LOGGER = logging.getLogger(__name__)
 
 _ALL_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -864,10 +919,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     CONF_SLAVE_ID: slave_id,
                     "brand": "anker",
                 })
-                if "max_charge_power" in caps:
-                    self._current_battery_data["max_charge_power"] = caps["max_charge_power"]
-                if "max_discharge_power" in caps:
-                    self._current_battery_data["max_discharge_power"] = caps["max_discharge_power"]
+                _anker_apply_probe_caps(self._current_battery_data, caps)
                 return await self.async_step_battery_limits()
 
         return self.async_show_form(
@@ -893,11 +945,18 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         brand = self._current_battery_data.get("brand", "marstek")
         if brand == "zendure":
             max_power = _ZENDURE_MAX_POWER_W
+            max_charge_power = max_power
+            max_discharge_power = max_power
         elif brand == "anker":
-            max_power = _ANKER_MAX_POWER_W
+            max_charge_power, max_discharge_power = _anker_power_ceilings(
+                self._current_battery_data
+            )
+            max_power = max(max_charge_power, max_discharge_power)
         else:
             battery_version = self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
             max_power = MAX_POWER_BY_VERSION.get(battery_version, 2500)
+            max_charge_power = max_power
+            max_discharge_power = max_power
         # Zendure's minSoc accepts 5–50 %; Anker discharge limit is 0–20 %;
         # Marstek's discharge floor is 12–30 %.
         if brand == "zendure":
@@ -913,6 +972,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             merged["max_discharge_power"] = int(user_input["max_discharge_power"])
             merged["max_soc"] = int(user_input["max_soc"])
             merged["min_soc"] = int(user_input["min_soc"])
+            _seed_software_power_limits(merged, brand)
             # Hysteresis is mandatory; floor the percent against SOC drift.
             merged["enable_charge_hysteresis"] = True
             merged["charge_hysteresis_percent"] = max(
@@ -934,20 +994,24 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 return await self.async_step_time_slots()
             return await self.async_step_battery_brand()
 
-        # Anker: prefer power caps read during probe (10036/10038).
-        default_charge = max(
-            100,
-            min(max_power, int(self._current_battery_data.get("max_charge_power", max_power))),
-        )
-        default_discharge = max(
-            100,
-            min(max_power, int(self._current_battery_data.get("max_discharge_power", max_power))),
-        )
+        if brand == "anker":
+            default_charge, default_discharge = _anker_soft_power_defaults(
+                self._current_battery_data
+            )
+        else:
+            default_charge = max(
+                100,
+                min(max_power, int(self._current_battery_data.get("max_charge_power", max_power))),
+            )
+            default_discharge = max(
+                100,
+                min(max_power, int(self._current_battery_data.get("max_discharge_power", max_power))),
+            )
         _schema: dict = {
             vol.Required("max_charge_power", default=default_charge):
-                NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
+                NumberSelector(NumberSelectorConfig(min=100, max=max_charge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
             vol.Required("max_discharge_power", default=default_discharge):
-                NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
+                NumberSelector(NumberSelectorConfig(min=100, max=max_discharge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
             vol.Required("max_soc", default=100):
                 NumberSelector(NumberSelectorConfig(min=80, max=100, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("min_soc", default=12 if brand != "anker" else 10):
@@ -2389,10 +2453,7 @@ class OptionsFlowHandler(OptionsFlow):
                         CONF_SLAVE_ID: slave_id,
                         "brand": "anker",
                     })
-                    if "max_charge_power" in caps:
-                        self._current_battery_data["max_charge_power"] = caps["max_charge_power"]
-                    if "max_discharge_power" in caps:
-                        self._current_battery_data["max_discharge_power"] = caps["max_discharge_power"]
+                    _anker_apply_probe_caps(self._current_battery_data, caps)
                     return await self.async_step_battery_limits()
 
             if self.battery_index < len(current_batteries):
@@ -2436,11 +2497,18 @@ class OptionsFlowHandler(OptionsFlow):
             brand = self._current_battery_data.get("brand", "marstek")
             if brand == "zendure":
                 max_power = _ZENDURE_MAX_POWER_W
+                max_charge_power = max_power
+                max_discharge_power = max_power
             elif brand == "anker":
-                max_power = _ANKER_MAX_POWER_W
+                max_charge_power, max_discharge_power = _anker_power_ceilings(
+                    self._current_battery_data
+                )
+                max_power = max(max_charge_power, max_discharge_power)
             else:
                 battery_version = self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
                 max_power = MAX_POWER_BY_VERSION.get(battery_version, 2500)
+                max_charge_power = max_power
+                max_discharge_power = max_power
             # Zendure's minSoc accepts 5–50 %; Anker discharge limit is 0–20 %;
             # Marstek's discharge floor is 12–30 %.
             if brand == "zendure":
@@ -2462,6 +2530,7 @@ class OptionsFlowHandler(OptionsFlow):
                 merged["max_discharge_power"] = int(user_input["max_discharge_power"])
                 merged["max_soc"] = int(user_input["max_soc"])
                 merged["min_soc"] = int(user_input["min_soc"])
+                _seed_software_power_limits(merged, brand)
                 # Hysteresis is mandatory; floor the percent against SOC drift.
                 merged["enable_charge_hysteresis"] = True
                 merged["charge_hysteresis_percent"] = max(
@@ -2486,9 +2555,23 @@ class OptionsFlowHandler(OptionsFlow):
 
             if self.battery_index < len(current_batteries):
                 current_battery = current_batteries[self.battery_index]
+                defaults_src = dict(current_battery)
+                defaults_src.update(
+                    {
+                        k: v
+                        for k, v in self._current_battery_data.items()
+                        if k.startswith("device_max_")
+                    }
+                )
+                if brand == "anker":
+                    default_charge, default_discharge = _anker_soft_power_defaults(defaults_src)
+                    max_charge_power, max_discharge_power = _anker_power_ceilings(defaults_src)
+                else:
+                    default_charge = min(current_battery.get("max_charge_power", max_power), max_power)
+                    default_discharge = min(current_battery.get("max_discharge_power", max_power), max_power)
                 defaults = {
-                    "max_charge_power": min(current_battery.get("max_charge_power", max_power), max_power),
-                    "max_discharge_power": min(current_battery.get("max_discharge_power", max_power), max_power),
+                    "max_charge_power": default_charge,
+                    "max_discharge_power": default_discharge,
                     "max_soc": current_battery.get("max_soc", 100),
                     "min_soc": current_battery.get("min_soc", 12 if brand != "anker" else 10),
                     "charge_hysteresis_percent": max(
@@ -2503,21 +2586,28 @@ class OptionsFlowHandler(OptionsFlow):
                     "battery_capacity_kwh": current_battery.get("battery_capacity_kwh", 0.0),
                 }
             else:
-                defaults = {
-                    "max_charge_power": max(
+                if brand == "anker":
+                    default_charge, default_discharge = _anker_soft_power_defaults(
+                        self._current_battery_data
+                    )
+                else:
+                    default_charge = max(
                         100,
                         min(
                             max_power,
                             int(self._current_battery_data.get("max_charge_power", max_power)),
                         ),
-                    ),
-                    "max_discharge_power": max(
+                    )
+                    default_discharge = max(
                         100,
                         min(
                             max_power,
                             int(self._current_battery_data.get("max_discharge_power", max_power)),
                         ),
-                    ),
+                    )
+                defaults = {
+                    "max_charge_power": default_charge,
+                    "max_discharge_power": default_discharge,
                     "max_soc": 100,
                     "min_soc": 10 if brand == "anker" else 12,
                     "charge_hysteresis_percent": DEFAULT_CHARGE_HYSTERESIS_PERCENT,
@@ -2531,9 +2621,9 @@ class OptionsFlowHandler(OptionsFlow):
 
         _schema: dict = {
             vol.Required("max_charge_power", default=defaults["max_charge_power"]):
-                NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
+                NumberSelector(NumberSelectorConfig(min=100, max=max_charge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
             vol.Required("max_discharge_power", default=defaults["max_discharge_power"]):
-                NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
+                NumberSelector(NumberSelectorConfig(min=100, max=max_discharge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
             vol.Required("max_soc", default=defaults["max_soc"]):
                 NumberSelector(NumberSelectorConfig(min=80, max=100, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("min_soc", default=max(soc_min_lo, min(soc_min_hi, defaults["min_soc"]))):
