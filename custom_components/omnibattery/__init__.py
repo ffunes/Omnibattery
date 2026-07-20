@@ -3443,21 +3443,21 @@ class ChargeDischargeController:
                         )
                 actual_power = result.battery_power_w
                 _LOGGER.debug(
-                    "[%s] Power ACK: force=%d charge=%dW discharge=%dW battery=%dW",
+                    "[%s] Power ACK: force=%d charge=%dW discharge=%dW battery=%sW",
                     coordinator.name,
                     expected_force_mode,
                     int(charge_power),
                     int(discharge_power),
                     actual_power,
                 )
-                if charge_power > 0:
+                if charge_power > 0 and actual_power is not None:
                     self._log_low_power_delivery(
                         coordinator,
                         command="charge",
                         commanded_power=charge_power,
                         actual_power=actual_power,
                     )
-                elif discharge_power > 0:
+                elif discharge_power > 0 and actual_power is not None:
                     self._log_low_power_delivery(
                         coordinator,
                         command="discharge",
@@ -3467,7 +3467,13 @@ class ChargeDischargeController:
                 # Detect non-responsive battery: ACK ok but not delivering discharge
                 # power. Register drivers reach this only on a readback cycle; slow
                 # actuators run the same judgment at poll time (see skip-write block).
-                if discharge_power >= 100 and charge_power == 0:
+                # Skip when delivered power is unknown (e.g. Anker write ACK without
+                # a successful battery_power sample).
+                if (
+                    discharge_power >= 100
+                    and charge_power == 0
+                    and actual_power is not None
+                ):
                     await self._check_non_delivery(
                         coordinator, discharge_power, actual_power, attempt=attempt,
                     )
@@ -5565,6 +5571,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+def _device_owns_initial_config(brand: str) -> bool:
+    """Return whether setup must preserve configuration stored by the device."""
+    return brand == "zendure"
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Omnibattery from a config entry."""
     hass.data.setdefault(DOMAIN, {})
@@ -5664,6 +5675,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator.user_max_charge_power = battery_config.get(
             "user_max_charge_power", coordinator.max_charge_power
         )
+        coordinator.user_max_discharge_power = battery_config.get(
+            "user_max_discharge_power", coordinator.max_discharge_power
+        )
         coordinator.active_balance_mode_started_ts = battery_config.get("active_balance_mode_started_ts")
         coordinator.active_balance_mode_run_date = battery_config.get("active_balance_mode_run_date")
         coordinator.active_balance_mode_phase = battery_config.get("active_balance_mode_phase")
@@ -5739,7 +5753,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 # device-set values on every restart and re-arm the full-charge
                 # taper/hysteresis machinery. The device is the source of truth and
                 # the coordinator syncs soc_set/min_soc back from the poll.
-                if coordinator.needs_software_manual_control:
+                if _device_owns_initial_config(coordinator.brand):
                     _LOGGER.info("Skipping initial SOC config write for %s (registerless driver; device flash holds the user values)",
                                battery_config[CONF_NAME])
                 else:

@@ -289,7 +289,15 @@ class MarstekVenusSensor(CoordinatorEntity, SensorEntity):
         
         # Map numeric values to state names if available
         if "states" in self.definition:
-            return self.definition["states"].get(value, value)
+            states = self.definition["states"]
+            if value in states:
+                return states[value]
+            # Coordinators may store ints as floats after scale/round; try int key.
+            try:
+                ivalue = int(value)
+            except (TypeError, ValueError):
+                return value
+            return states.get(ivalue, value)
         
         # For bit-described values, show which bits are active
         if "bit_descriptions" in self.definition:

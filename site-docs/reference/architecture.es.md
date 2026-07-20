@@ -14,10 +14,13 @@ flowchart TD
 
     DRV --> M[MarstekModbusDriver\nModbus TCP/RTU]
     DRV --> Z[ZendureLocalDriver\nHTTP local]
+    DRV --> A[AnkerModbusDriver\nModbus TCP]
     DRV2 --> M
     DRV2 --> Z
+    DRV2 --> A
     M --> BAT1[Batería Marstek]
     Z --> BAT2[Batería Zendure]
+    A --> BAT3[Anker Solarbank]
 ```
 
 El bucle de control y el coordinador nunca hablan con el hardware directamente:
@@ -40,8 +43,10 @@ subpaquetes por responsabilidad.
 | `drivers/base.py` | `BatteryDriver`, `DriverCapabilities` | El contrato del driver y el dataclass de rasgos estáticos |
 | `drivers/marstek.py` | `MarstekModbusDriver` | Marstek Venus (v2/v3/vA/vD) por Modbus TCP / RTU |
 | `drivers/zendure.py` | `ZendureLocalDriver` | Zendure SolarFlow por HTTP local |
+| `drivers/anker.py` | `AnkerModbusDriver` | Anker SOLIX Solarbank Max AC por Modbus TCP (lecturas FC03/FC04) |
 | `infra/coordinator.py` | `MarstekVenusDataUpdateCoordinator` | Polling periódico de telemetría (vía el driver), actualización de entidades |
 | `infra/modbus_client.py` | `MarstekModbusClient` | Transporte Modbus TCP/RTU asíncrono con pymodbus, reintentos con backoff |
+| `infra/anker_modbus_client.py` | `AnkerModbusClient` | Modbus TCP asíncrono para Anker (lecturas FC03/FC04, escrituras FC06/FC16) |
 | `infra/external_loads.py` | — | Ajuste por dispositivos excluidos y reparto del excedente solar |
 | `infra/alarm_notifier.py` | `AlarmNotifier` | Detección de cambios de bits de alarma/fallo y formateo de notificaciones persistentes de HA |
 | `infra/entity_naming.py` | — | IDs de entidad basados en translation-key y migraciones del registro |
@@ -109,7 +114,7 @@ control y entidades lo leen desde `coordinator.capabilities`:
 
 El coordinador selecciona el driver según la marca configurada
 ([`infra/coordinator.py`](https://github.com/ffunes/omnibattery/blob/main/custom_components/omnibattery/infra/coordinator.py)):
-`zendure` → `ZendureLocalDriver`, en otro caso `MarstekModbusDriver`. El driver
+`zendure` → `ZendureLocalDriver`, `anker` → `AnkerModbusDriver`, `esphome` → `EsphomeEntityDriver`, en otro caso `MarstekModbusDriver`. El driver
 también posee las listas de definiciones de registro/entidad de su versión, que
 las plataformas leen en lugar de ramificar por la cadena de versión.
 

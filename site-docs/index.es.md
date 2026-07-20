@@ -1,6 +1,6 @@
 ![Omnibattery](assets/logo-github.png){ width="420" }
 
-**Omnibattery** es una integración personalizada para Home Assistant que monitoriza y controla baterías solares enchufables — Marstek Venus (series E v2/v3, Venus A y Venus D) y Zendure SolarFlow (2400 AC+ / AC Pro) — mediante Modbus TCP o HTTP local.
+**Omnibattery** es una integración personalizada para Home Assistant que monitoriza y controla baterías solares enchufables — Marstek Venus (series E v2/v3, Venus A y Venus D), Zendure SolarFlow (2400 AC+ / AC Pro) y Anker SOLIX Solarbank Max AC — mediante Modbus TCP o HTTP local.
 
 <div class="grid cards" markdown>
 

@@ -64,7 +64,9 @@ async def async_setup_entry(
         if controller:
             entities.append(BatteryAllowChargeSwitch(hass, entry, controller, coordinator))
             entities.append(BatteryAllowDischargeSwitch(hass, entry, controller, coordinator))
-            if coordinator.brand != "zendure":
+            # Marstek-only cell maintenance: voltage taper + active balance need
+            # per-cell voltages Anker/Zendure do not expose the same way.
+            if coordinator.brand not in ("zendure", "anker"):
                 entities.append(BatteryFullChargeVoltageTaperSwitch(hass, entry, controller, coordinator))
                 entities.append(BatteryActiveBalanceModeSwitch(hass, entry, controller, coordinator))
 

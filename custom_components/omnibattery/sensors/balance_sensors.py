@@ -20,7 +20,11 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up balance sensor entities — one group of 5 per battery."""
+    """Set up balance sensor entities — one group of 5 per battery.
+
+    Skipped for brands without per-cell voltage telemetry (e.g. Anker): the
+    five diagnostic "Balans" sensors need max/min cell voltage to be meaningful.
+    """
     monitor: BalanceMonitor | None = hass.data[DOMAIN][entry.entry_id].get("balance_monitor")
     if monitor is None:
         return
@@ -29,6 +33,10 @@ async def async_setup_entry(
     entities: list[SensorEntity] = []
 
     for coordinator in coordinators:
+        sensor_keys = {d["key"] for d in coordinator.sensor_definitions}
+        if "max_cell_voltage" not in sensor_keys or "min_cell_voltage" not in sensor_keys:
+            continue
+
         host = coordinator.device_key
         init = monitor.get_initial_state(host)
 
@@ -45,7 +53,8 @@ async def async_setup_entry(
 
         entities.extend([delta, status, trend, last_read, avg4w])
 
-    async_add_entities(entities)
+    if entities:
+        async_add_entities(entities)
 
 
 # ---------------------------------------------------------------------------

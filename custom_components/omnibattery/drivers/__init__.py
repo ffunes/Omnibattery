@@ -10,6 +10,7 @@ Drivers:
   - ``marstek``: Modbus-TCP, register based, polled (the original hardware).
   - ``zendure``: local HTTP REST, property based, polled (SolarFlow series).
   - ``esphome``: HA-entity based, push (Marstek behind a LilyGo RS485 bridge).
+  - ``anker``: Modbus-TCP, register based, polled (SOLIX Solarbank Max AC).
 
 See ``docs/plans/driver_abstraction.md`` for the phased extraction plan.
 """
@@ -24,6 +25,7 @@ from .base import (
 from .esphome import EsphomeEntityDriver
 from .marstek import MarstekModbusDriver
 from .zendure import ZendureLocalDriver
+from .anker import AnkerModbusDriver
 
 __all__ = [
     "BatteryDriver",
@@ -34,4 +36,5 @@ __all__ = [
     "EsphomeEntityDriver",
     "MarstekModbusDriver",
     "ZendureLocalDriver",
+    "AnkerModbusDriver",
 ]

@@ -75,10 +75,13 @@ async def async_setup_entry(
             entities.append(MarstekManualSetPowerNumber(coordinator, "charge"))
             entities.append(MarstekManualSetPowerNumber(coordinator, "discharge"))
 
-        # Drivers whose max_charge_power is a read-only device cap (Zendure) get
-        # a software charge-power ceiling instead of the writable register entity.
+        # Drivers whose max_charge_power is telemetry-only with no sensor entity
+        # (Zendure chargeMaxLimit) get a software charge-power ceiling. Anker
+        # exposes 10036/10038 as sensors instead — no soft-max numbers.
         if coordinator.needs_software_max_charge:
             entities.append(MarstekSoftMaxChargeNumber(coordinator))
+        if coordinator.needs_software_max_discharge:
+            entities.append(MarstekSoftMaxDischargeNumber(coordinator))
 
     # Add config numbers (system-level, PD parameters). Conditional entities are
     # gated on their feature key being present (enabled OR disabled) — the panel
@@ -772,8 +775,8 @@ class MarstekManualSetPowerNumber(CoordinatorEntity, NumberEntity):
 
 
 class MarstekSoftMaxChargeNumber(CoordinatorEntity, NumberEntity):
-    """Software charge-power ceiling for drivers whose reported max_charge_power
-    is a read-only device cap (Zendure chargeMaxLimit).
+    """Software charge-power ceiling for drivers whose max_charge_power is
+    telemetry-only with no sensor entity (Zendure chargeMaxLimit).
 
     Stores a user limit on the coordinator; the poll loop applies
     min(device_cap, user limit) to coordinator.max_charge_power, which the PD
@@ -813,6 +816,51 @@ class MarstekSoftMaxChargeNumber(CoordinatorEntity, NumberEntity):
             min(int(device_cap), new_value) if device_cap is not None else new_value
         )
         _LOGGER.info("%s: user_max_charge_power → %dW", self.coordinator.name, new_value)
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return self.coordinator.battery_device_info
+
+
+class MarstekSoftMaxDischargeNumber(CoordinatorEntity, NumberEntity):
+    """Software discharge-power ceiling when max_discharge_power has no register
+    or sensor entity. Anker exposes 10038 as a sensor (no soft-max); this
+    remains for drivers that need a software discharge ceiling.
+    """
+
+    def __init__(self, coordinator: MarstekVenusDataUpdateCoordinator) -> None:
+        """Initialize the soft max-discharge entity."""
+        super().__init__(coordinator)
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "max_discharge_power"
+        self._attr_unique_id = f"{coordinator.device_key}_max_discharge_power"
+        self.entity_id = english_entity_id("number", coordinator.name, "max_discharge_power")
+        self._attr_icon = "mdi:battery-arrow-down-outline"
+        self._attr_native_unit_of_measurement = "W"
+        self._attr_native_min_value = 0
+        self._attr_native_max_value = coordinator.capabilities.max_discharge_power_w
+        self._attr_native_step = 10
+        self._attr_should_poll = False
+
+    @property
+    def native_value(self) -> float:
+        """Return the user-set discharge ceiling."""
+        return float(self.coordinator.user_max_discharge_power)
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Store the ceiling, persist it, and apply it against the device cap now."""
+        new_value = int(value)
+        self.coordinator.user_max_discharge_power = new_value
+        self.coordinator.persist_battery_config("user_max_discharge_power", new_value)
+        device_cap = None
+        if self.coordinator.data is not None:
+            device_cap = self.coordinator.data.get("max_discharge_power")
+        self.coordinator.max_discharge_power = (
+            min(int(device_cap), new_value) if device_cap is not None else new_value
+        )
+        _LOGGER.info("%s: user_max_discharge_power → %dW", self.coordinator.name, new_value)
         self.async_write_ha_state()
 
     @property
