@@ -47,12 +47,14 @@ class _Coord:
         taper_enabled=True,
         active_balance_mode_enabled=False,
         max_charge_power=800,
+        commanded_charge_power=0,
     ):
         self.name = name
         self.data = {} if data is None else data
         self.max_soc = max_soc
         self.max_charge_power = max_charge_power
         self.active_balance_mode_enabled = active_balance_mode_enabled
+        self.commanded_charge_power = commanded_charge_power
         setattr(self, CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, taper_enabled)
 
 
@@ -76,7 +78,6 @@ def _controller(coords, **overrides):
         _normal_active_balance_phases={},
         _normal_balance_measure_started={},
         _normal_balance_last_delta_v={},
-        _normal_balance_top_voltage_seen={},
         _normal_balance_pause_latch_soc={},
         _normal_balance_recal_override={},
         _normal_balance_recal_cutoff_count={},
@@ -260,7 +261,6 @@ def test_refresh_blocks_latches_pause_at_top_voltage():
 
     assert _paused(ctrl, c)
     assert ctrl._normal_balance_pause_latch_soc[c] == 100.0
-    assert ctrl._normal_balance_top_voltage_seen.get(c) is True
     assert ctrl._normal_balance_charge_paused.get(c) is True
 
 
@@ -291,28 +291,50 @@ def test_refresh_blocks_pause_releases_after_soc_drop_margin():
 
 
 def test_refresh_blocks_latches_on_bms_cutoff_signature_below_pause_voltage():
-    # vmax below the 3.58 pause voltage but in the taper zone, charge collapsed
-    # to <=10 W with the inverter in standby (raw state 1) -> BMS cut signature.
-    c = _Coord(data={
-        "max_cell_voltage": 3.50,
-        "battery_soc": 100,
-        "battery_power": 5,
-        "inverter_state": 1,
-    })
+    # A commanded charge collapsed to <=10 W with the inverter in standby.
+    c = _Coord(
+        data={
+            "max_cell_voltage": 3.50,
+            "battery_soc": 100,
+            "battery_power": 5,
+            "inverter_state": 1,
+        },
+        commanded_charge_power=200,
+    )
     ctrl = _controller([c])
 
     _mgr(ctrl).refresh_blocks()
 
     assert _paused(ctrl, c)
-    assert ctrl._normal_balance_top_voltage_seen.get(c) is True
+
+
+def test_refresh_blocks_does_not_latch_pause_on_idle_battery():
+    c = _Coord(
+        data={
+            "max_cell_voltage": 3.50,
+            "battery_soc": 92,
+            "battery_power": 0,
+            "inverter_state": 1,
+        },
+        commanded_charge_power=0,
+    )
+    ctrl = _controller([c])
+
+    _mgr(ctrl).refresh_blocks()
+
+    assert not _paused(ctrl, c)
+    assert c not in ctrl._normal_balance_pause_latch_soc
 
 
 # ----------------------------------------------------------------------
 # _compute_recal_override
 # ----------------------------------------------------------------------
 
-def _recal_coord(power=5, inv=1):
-    return _Coord(data={"battery_power": power, "inverter_state": inv})
+def _recal_coord(power=5, inv=1, commanded=200):
+    return _Coord(
+        data={"battery_power": power, "inverter_state": inv},
+        commanded_charge_power=commanded,
+    )
 
 
 def test_recal_override_false_when_soc_at_threshold():
@@ -350,6 +372,35 @@ def test_recal_override_cutoff_counter_resets_when_charge_resumes():
     c.data.update(battery_power=300, inverter_state=0)  # charge resumed
     assert m._compute_recal_override(c, 3.55, 95) is True
     assert c not in ctrl._normal_balance_recal_cutoff_count
+
+
+def test_recal_override_never_latches_on_idle_battery():
+    c = _recal_coord(power=0, inv=1, commanded=0)
+    ctrl = _controller([c])
+    m = _mgr(ctrl)
+
+    for _ in range(NORMAL_BALANCE_RECAL_CUTOFF_CYCLES * 2):
+        assert m._compute_recal_override(c, 3.55, 92) is True
+
+    assert c not in ctrl._normal_balance_recal_latched
+    assert ctrl._normal_balance_recal_cutoff_count.get(c, 0) == 0
+
+
+def test_recal_override_counter_freezes_while_idle():
+    c = _recal_coord(power=5, inv=1)
+    ctrl = _controller([c])
+    m = _mgr(ctrl)
+    for _ in range(NORMAL_BALANCE_RECAL_CUTOFF_CYCLES - 1):
+        m._compute_recal_override(c, 3.55, 95)
+    assert ctrl._normal_balance_recal_cutoff_count[c] == NORMAL_BALANCE_RECAL_CUTOFF_CYCLES - 1
+
+    c.commanded_charge_power = 0
+    assert m._compute_recal_override(c, 3.55, 95) is True
+    assert ctrl._normal_balance_recal_cutoff_count[c] == NORMAL_BALANCE_RECAL_CUTOFF_CYCLES - 1
+
+    c.commanded_charge_power = 200
+    assert m._compute_recal_override(c, 3.55, 95) is False
+    assert ctrl._normal_balance_recal_latched.get(c) is True
 
 
 # ----------------------------------------------------------------------

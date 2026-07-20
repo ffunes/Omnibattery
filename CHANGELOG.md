@@ -2,9 +2,12 @@
 
 ## [1.0.1b5] - 2026-07-20
 
+### Added
+- **Optional minimum arbitrage margin for dynamic pricing** (#115): charging slots can now be filtered by the expected discharge price, a configurable round-trip efficiency and the required minimum margin, avoiding battery cycles whose price spread would not cover conversion losses. It is disabled by default and combines with the existing maximum charge-price threshold, with the stricter ceiling taking precedence; both new settings are available from the Control tab and evaluation notifications explain when the gate blocks charging.
+
 ### Changed
 - **Rolled back the issue #77 beta gateway workarounds**: the reporter confirmed that switching the Waveshare gateway to multi-host non-storage mode eliminated the communication failures. The queued-gateway compatibility added in the 1.0.1 betas has been removed; the tolerant power ACK remains unchanged from the published 1.0.0 release.
-- **Reset all other post-1.0.0 integration code to the Omnibattery 1.0.0 baseline**, retaining only the Home Assistant startup background-task fix and the verified Venus v3 RS485 switch transitions.
+- **Kept all fixes consolidated in 1.0.1b1 through the gateway rollback**, including peak-shaving idle enforcement, commanded-charge gating for top-of-charge cutoff detection, post-taper non-responsive recovery and predictive schedule sizing capped by real battery headroom. The Home Assistant startup background-task fix and verified Venus v3 RS485 switch transitions also remain.
 
 ### Fixed
 - **PD could remain unable to charge at minimum SOC with a slow or temporarily stalled grid sensor** (#117): stale safety recalculations no longer erase an armed charge/discharge direction-flip timer. Grid sensors updating every 10 seconds or more are now explicitly unsupported in setup guidance and raise a Home Assistant Repairs issue after three consecutive slow intervals; the issue clears after the sensor returns to a supported cadence.

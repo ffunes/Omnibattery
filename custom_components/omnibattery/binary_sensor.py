@@ -241,7 +241,8 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
         "stored_energy_kwh", "usable_energy_kwh", "min_reserve_kwh",
         "cutoff_energy_kwh", "effective_min_soc", "avg_consumption_kwh",
         "total_available_kwh", "energy_deficit_kwh", "solar_forecast_kwh",
-        "solar_surplus_kwh", "grid_charge_kwh", "decision_reason",
+        "solar_surplus_kwh", "grid_charge_kwh", "planned_grid_charge_kwh",
+        "decision_reason",
     })
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
@@ -340,6 +341,7 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
                 "avg_consumption_kwh": decision.get("avg_consumption_kwh"),
                 "total_available_kwh": decision.get("total_available_kwh"),
                 "energy_deficit_kwh": decision.get("energy_deficit_kwh"),
+                "planned_grid_charge_kwh": decision.get("planned_grid_charge_kwh"),
                 "solar_forecast_kwh": decision.get("solar_forecast_kwh"),
                 "solar_surplus_kwh": decision.get("solar_surplus_kwh"),
                 "grid_charge_kwh": decision.get("grid_charge_kwh"),

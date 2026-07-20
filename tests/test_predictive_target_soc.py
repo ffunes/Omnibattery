@@ -67,6 +67,24 @@ def test_deficit_capped_at_gap_to_max():
     assert targets[c] == 100.0
 
 
+def test_precomputed_planned_charge_keeps_target_in_sync_with_scheduler():
+    c = _Coord("c", 19.0, 2.08, max_soc=95)
+    decision = {
+        "energy_deficit_kwh": 4.552857,
+        "planned_grid_charge_kwh": 1.5808,
+    }
+    targets = _compute(_ctrl([c], decision))
+    assert targets[c] == 95.0
+
+
+def test_grid_charge_margin_applies_to_fallback_target_calculation():
+    c = _Coord("c", 20.0, 5.0, max_soc=100)
+    ctrl = _ctrl([c], {"energy_deficit_kwh": 2.0})
+    ctrl._predictive_grid_charge_margin_pct = 50.0
+    targets = _compute(ctrl)
+    assert targets[c] == 80.0
+
+
 def test_target_never_below_current_soc():
     # No deficit (covered by solar/storage) → target stays at current SOC,
     # not driven down.

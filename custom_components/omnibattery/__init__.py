@@ -166,7 +166,7 @@ from .control.weekly_full_charge import WeeklyFullChargeManager
 from .control.active_balance_mode import ActiveBalanceModeManager
 from .control.max_soc_charge import MaxSocChargeManager
 from .control.temperature_limit import TemperatureChargeLimitManager
-from .pricing import DynamicPricingSchedule, notifications
+from .pricing import DynamicPricingSchedule, calculations, notifications
 from .pricing.engine import PricingManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -474,7 +474,6 @@ class ChargeDischargeController:
         self._normal_active_balance_phases: dict[MarstekVenusDataUpdateCoordinator, str] = {}
         self._normal_balance_measure_started: dict[MarstekVenusDataUpdateCoordinator, datetime] = {}
         self._normal_balance_last_delta_v: dict[MarstekVenusDataUpdateCoordinator, float] = {}
-        self._normal_balance_top_voltage_seen: dict[MarstekVenusDataUpdateCoordinator, bool] = {}
         # SOC at which the taper pause latched. While set, charge stays stopped
         # (no re-trickle); the latch clears once SOC falls NORMAL_BALANCE_RESUME_SOC_DROP
         # below this value, i.e. the battery has actually been discharged.
@@ -2350,7 +2349,7 @@ class ChargeDischargeController:
                 })
             elif estimated_house_load > active_target:
                 # House load is below peak limit but above normal target: hold the
-                # current grid level and stop any existing discharge immediately.
+                # current grid level and stop any existing battery command immediately.
                 # Undo excluded-device adjustment so target aligns with real grid reading
                 if self._excluded_included_adjustment > 0:
                     _LOGGER.info(
@@ -2360,7 +2359,7 @@ class ChargeDischargeController:
                     sensor_actual += self._excluded_included_adjustment
                 self.set_setpoint_override("capacity_protection", sensor_actual, priority=10)
                 active_target = self.compute_active_target()
-                if self.previous_power < 0:
+                if self.previous_power != 0:
                     self._capacity_protection_force_idle = True
                 _LOGGER.info(
                     "Capacity Protection ACTIVE: SOC=%.1f%% < %d%%, house_load=%.0fW <= limit=%dW -> idle (target=%.0fW)",
@@ -2531,6 +2530,14 @@ class ChargeDischargeController:
                 "days_in_history": 0,
                 "reason": f"Invalid battery capacity: {total_capacity_kwh:.2f} kWh"
             }
+        battery_headroom_kwh = sum(
+            max(
+                0.0,
+                (c.max_soc - (c.data.get("battery_soc", c.max_soc) or 0)) / 100.0
+                * (c.data.get("battery_total_energy", 0) or 0),
+            )
+            for c in coordinators_with_data
+        )
         avg_soc = sum(c.data.get("battery_soc", 0) for c in coordinators_with_data) / len(coordinators_with_data)
 
         # Get min_soc from coordinators (use max if mixed configs for safety)
@@ -2575,6 +2582,11 @@ class ChargeDischargeController:
             total_available_kwh = usable_energy_kwh
             energy_deficit_kwh = max(avg_consumption_kwh + safety_margin_kwh - total_available_kwh, floor_deficit_kwh)
             should_charge = energy_deficit_kwh > 0
+            planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
+                energy_deficit_kwh,
+                battery_headroom_kwh,
+                self._predictive_grid_charge_margin_pct,
+            )
 
             _LOGGER.warning(
                 "Solar forecast unavailable - using conservative mode:\n"
@@ -2599,6 +2611,7 @@ class ChargeDischargeController:
                 "avg_consumption_kwh": avg_consumption_kwh,
                 "total_available_kwh": total_available_kwh,
                 "energy_deficit_kwh": energy_deficit_kwh,
+                "planned_grid_charge_kwh": planned_grid_charge_kwh,
                 "days_in_history": days_in_history,
                 "reason": f"Solar unavailable - conservative mode ({'charge' if should_charge else 'safe'})"
             }
@@ -2610,6 +2623,11 @@ class ChargeDischargeController:
             total_available_kwh = usable_energy_kwh
             energy_deficit_kwh = max(avg_consumption_kwh + safety_margin_kwh - total_available_kwh, floor_deficit_kwh)
             should_charge = energy_deficit_kwh > 0
+            planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
+                energy_deficit_kwh,
+                battery_headroom_kwh,
+                self._predictive_grid_charge_margin_pct,
+            )
 
             _LOGGER.error(
                 "Invalid solar forecast value '%s' - using conservative mode:\n"
@@ -2634,6 +2652,7 @@ class ChargeDischargeController:
                 "avg_consumption_kwh": avg_consumption_kwh,
                 "total_available_kwh": total_available_kwh,
                 "energy_deficit_kwh": energy_deficit_kwh,
+                "planned_grid_charge_kwh": planned_grid_charge_kwh,
                 "days_in_history": days_in_history,
                 "reason": "Invalid solar forecast - conservative mode"
             }
@@ -2673,9 +2692,7 @@ class ChargeDischargeController:
 
         # === STEP 7: Return Complete Decision Data ===
         # Grid-only charge split: how much comes from grid vs solar
-        _max_soc_values = [c.max_soc for c in coordinators_with_data]
-        _config_max_soc = min(_max_soc_values) if _max_soc_values else 95
-        _gap_to_max_kwh = max(0.0, (_config_max_soc - avg_soc) / 100.0 * total_capacity_kwh)
+        _gap_to_max_kwh = battery_headroom_kwh
         # Cap at battery headroom: only this much solar can actually land in the
         # battery, so the "solar will charge the remaining X" line can't quote a
         # figure larger than the pack (e.g. 12.94 kWh into a 5.12 kWh battery).
@@ -2684,6 +2701,11 @@ class ChargeDischargeController:
         grid_charge_kwh = min(
             _gap_to_max_kwh,
             max(0.0, _gap_to_max_kwh - solar_surplus_kwh) * _grid_margin_factor,
+        )
+        planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
+            energy_deficit_kwh,
+            _gap_to_max_kwh,
+            self._predictive_grid_charge_margin_pct,
         )
 
         return {
@@ -2698,6 +2720,7 @@ class ChargeDischargeController:
             "avg_consumption_kwh": avg_consumption_kwh,
             "total_available_kwh": total_available_kwh,
             "energy_deficit_kwh": energy_deficit_kwh,
+            "planned_grid_charge_kwh": planned_grid_charge_kwh,
             "days_in_history": days_in_history,
             "solar_surplus_kwh": solar_surplus_kwh,
             "grid_charge_kwh": grid_charge_kwh,
@@ -2818,9 +2841,17 @@ class ChargeDischargeController:
         # there was no solar surplus (consumption ≥ solar: winter/cloudy/
         # overnight), so charging filled the battery for the whole slot instead
         # of stopping at the deficit. The deficit already nets out solar and the
-        # additive safety margin, so no further solar/margin term is applied. #409
+        # additive safety margin; the optional grid-charge percentage margin is
+        # applied by the shared planning calculation before the headroom cap. #409
         energy_deficit_kwh = max(0.0, decision_data.get("energy_deficit_kwh", 0.0))
-        grid_charge_kwh = min(total_gap_kwh, energy_deficit_kwh)
+        planned_grid_charge_kwh = decision_data.get("planned_grid_charge_kwh")
+        if planned_grid_charge_kwh is None:
+            planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
+                energy_deficit_kwh,
+                total_gap_kwh,
+                self._predictive_grid_charge_margin_pct,
+            )
+        grid_charge_kwh = min(total_gap_kwh, max(0.0, planned_grid_charge_kwh))
 
         targets: dict = {}
         for c in coordinators_with_data:
@@ -3557,20 +3588,11 @@ class ChargeDischargeController:
             )
         except (TypeError, ValueError):
             is_standby = False
-        # High-SOC counterpart to the low-SOC BMS-cutoff exemption above: a
-        # battery that hit the top voltage this charge session (cells full, BMS
-        # dropped to standby) legitimately delivers 0 W until it leaves standby.
-        # That is expected BMS-full behaviour, not a fault, so don't exclude it
-        # from the PD pool. top_voltage_seen clears when the battery leaves the
-        # top zone, so the exemption is self-limiting.
-        if is_standby and self._normal_balance_top_voltage_seen.get(coordinator, False):
-            _LOGGER.debug(
-                "[%s] No discharge delivered but battery is in standby "
-                "after hitting top voltage this session — BMS full, not a fault",
-                coordinator.name,
-            )
-            self._non_responsive.clear(coordinator)
-            return
+        # Reaching the top voltage during the previous charge is not an exemption
+        # here. The discharge engage grace above covers the legitimate transition
+        # out of BMS-full standby; once it expires, a battery that still ACKs the
+        # discharge set-point but remains in standby is genuinely not delivering
+        # and must reach the wake/reconnect recovery path (issue #26).
         reason = "standby_no_delivery" if is_standby else "non_delivery"
         outcome = self._non_responsive.record_non_delivery(
             coordinator, discharge_power, actual_abs,
@@ -4680,7 +4702,7 @@ class ChargeDischargeController:
         if self._capacity_protection_force_idle:
             self._capacity_protection_force_idle = False
             _LOGGER.info(
-                "Capacity Protection conserving capacity: stopping existing discharge command"
+                "Capacity Protection conserving capacity: stopping existing battery command"
             )
             for coordinator in self.coordinators:
                 if self._is_active_balance_mode_running(coordinator):

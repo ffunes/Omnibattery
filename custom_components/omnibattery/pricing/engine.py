@@ -334,8 +334,11 @@ class PricingManager:
         # Step 3: Calculate hours needed and select cheapest slots
         deficit_kwh = decision_data["energy_deficit_kwh"]
         if charging_needed:
+            planned_charge_kwh = decision_data.get("planned_grid_charge_kwh", deficit_kwh)
             hours_needed = calculations.calculate_charging_hours_needed(
-                deficit_kwh, self._controller.max_contracted_power, self._controller.max_charge_capacity
+                planned_charge_kwh,
+                self._controller.max_contracted_power,
+                self._controller.max_charge_capacity,
             )
         else:
             # No deficit — use daily consumption as reference so the number of
@@ -696,6 +699,11 @@ class PricingManager:
             energy_to_full_kwh,
             max(0.0, remaining_consumption_kwh - usable_now_kwh - remaining_solar_kwh),
         )
+        planned_evening_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
+            evening_deficit_kwh,
+            energy_to_full_kwh,
+            self._controller._predictive_grid_charge_margin_pct,
+        )
 
         if evening_deficit_kwh < EVENING_DEFICIT_THRESHOLD_KWH:
             _LOGGER.info(
@@ -737,6 +745,7 @@ class PricingManager:
                 if not isinstance(decision, dict):
                     decision = {}
                 decision["energy_deficit_kwh"] = evening_deficit_kwh
+                decision["planned_grid_charge_kwh"] = planned_evening_charge_kwh
                 self._controller._last_decision_data = decision
                 _LOGGER.info(
                     "Evening recharge: promoted informational schedule to charging "
@@ -749,7 +758,9 @@ class PricingManager:
             return
 
         hours_needed = calculations.calculate_charging_hours_needed(
-            evening_deficit_kwh, self._controller.max_contracted_power, self._controller.max_charge_capacity
+            planned_evening_charge_kwh,
+            self._controller.max_contracted_power,
+            self._controller.max_charge_capacity,
         )
         # Deliberately no arbitrage gate here. This is a deficit-driven safety
         # recharge after a bad solar day, not an arbitrage trade, and the horizon
@@ -796,6 +807,7 @@ class PricingManager:
         if not isinstance(decision, dict):
             decision = {}
         decision["energy_deficit_kwh"] = evening_deficit_kwh
+        decision["planned_grid_charge_kwh"] = planned_evening_charge_kwh
         self._controller._last_decision_data = decision
 
         _LOGGER.info(

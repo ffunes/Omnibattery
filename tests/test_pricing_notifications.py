@@ -180,10 +180,18 @@ def test_dynamic_informational_lists_slots():
 def test_dynamic_charging_shows_cost():
     schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True, estimated_cost=0.75)
     title, message = notifications.format_dynamic_pricing_notification(
-        _decision(should_charge=True, energy_deficit_kwh=1.0), schedule, **_DP_CFG
+        _decision(
+            should_charge=True,
+            energy_deficit_kwh=4.55,
+            planned_grid_charge_kwh=1.58,
+        ),
+        schedule,
+        **_DP_CFG,
     )
     assert "selected" in title
     assert "Selected hours (cheapest):" in message
+    assert "Energy deficit: 4.55 kWh" in message
+    assert "Grid charge planned: 1.58 kWh" in message
     assert "Estimated cost: ~0.75 €" in message
 
 

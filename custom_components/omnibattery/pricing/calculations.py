@@ -271,6 +271,24 @@ def calculate_charging_hours_needed(deficit_kwh: float, max_contracted_power: fl
     return math.ceil(hours * 2) / 2  # Round up to nearest 0.5h
 
 
+def calculate_planned_grid_charge_kwh(
+    deficit_kwh: float,
+    battery_headroom_kwh: float,
+    margin_pct: float = 0.0,
+) -> float:
+    """Return the grid energy to schedule, capped by battery headroom.
+
+    The predictive deficit describes how much energy the household is missing,
+    but a small or nearly-full battery may not be able to store all of it. The
+    optional forecast margin inflates the requested energy before the physical
+    headroom cap is applied.
+    """
+    deficit = max(0.0, deficit_kwh)
+    headroom = max(0.0, battery_headroom_kwh)
+    margin_factor = 1.0 + max(0.0, margin_pct) / 100.0
+    return min(headroom, deficit * margin_factor)
+
+
 def select_cheapest_blocks(slots: list, hours_needed: float, slot_duration_h: float) -> list:
     """Select cheapest slots using a block strategy for sub-hourly granularity.
 

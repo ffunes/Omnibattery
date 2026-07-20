@@ -241,6 +241,53 @@ def test_remaining_solar_zero_when_no_sensor_configured():
 
 
 # ----------------------------------------------------------------------
+# _evaluate_dynamic_pricing (discussion #87: schedule capped by headroom)
+# ----------------------------------------------------------------------
+
+def test_dynamic_pricing_sizes_slots_from_planned_charge_not_full_deficit():
+    import asyncio
+
+    async def should_charge():
+        return {
+            "should_charge": True,
+            "avg_soc": 19.0,
+            "avg_consumption_kwh": 4.552857,
+            "energy_deficit_kwh": 4.552857,
+            "planned_grid_charge_kwh": 1.5808,
+        }
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    start = datetime.now() + timedelta(hours=1)
+    slots = [
+        PriceSlot(
+            start=start + timedelta(minutes=15 * i),
+            end=start + timedelta(minutes=15 * (i + 1)),
+            price=0.30 - i / 1000,
+        )
+        for i in range(18)
+    ]
+    ctrl = _controller(
+        _should_activate_grid_charging=should_charge,
+        _last_decision_data=None,
+        _dp_last_eval_soc=None,
+        _dp_eval_retry_count=0,
+        max_contracted_power=7000,
+        max_charge_capacity=1200,
+    )
+    mgr = _mgr(ctrl)
+    mgr._maybe_refresh_tibber_prices = no_op
+    mgr._parse_price_data = lambda horizon_end=None: slots
+    mgr._send_dynamic_pricing_notification = no_op
+
+    asyncio.run(mgr._evaluate_dynamic_pricing())
+
+    assert ctrl._dynamic_pricing_schedule.hours_needed == 2.0
+    assert len(ctrl._dynamic_pricing_schedule.selected_slots) == 8
+
+
+# ----------------------------------------------------------------------
 # apply_price_discharge_block — early-return branches (no hass touched)
 # ----------------------------------------------------------------------
 

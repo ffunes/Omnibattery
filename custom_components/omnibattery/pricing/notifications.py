@@ -137,6 +137,7 @@ def format_dynamic_pricing_notification(
     solar_forecast = decision_data.get("solar_forecast_kwh")
     avg_consumption = decision_data.get("avg_consumption_kwh", 0)
     energy_deficit = decision_data.get("energy_deficit_kwh", 0)
+    planned_grid_charge = decision_data.get("planned_grid_charge_kwh", energy_deficit)
     days_in_history = decision_data.get("days_in_history", 0)
 
     solar_str = f"{solar_forecast:.2f} kWh" if solar_forecast is not None else "N/A"
@@ -218,7 +219,9 @@ def format_dynamic_pricing_notification(
                 f"🔋 Battery: {avg_soc:.0f}% ({usable_energy:.2f} kWh usable)\n"
                 f"☀️ Solar forecast: {solar_str}\n"
                 f"📊 Consumption: {consumption_str}\n"
-                f"⚡ Energy deficit: {energy_deficit:.2f} kWh → {hours_needed:.1f}h of charging needed\n\n"
+                f"⚡ Energy deficit: {energy_deficit:.2f} kWh\n"
+                f"🔌 Grid charge planned: {planned_grid_charge:.2f} kWh → "
+                f"{hours_needed:.1f}h of charging needed\n\n"
                 f"💰 Selected hours (cheapest):\n{slot_lines}\n\n"
                 f"Average price: {schedule.average_price:.4f} {unit}\n"
                 f"Estimated cost: ~{schedule.estimated_cost:.2f} {cost_unit}\n"
