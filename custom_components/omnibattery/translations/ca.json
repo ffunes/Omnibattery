@@ -1,4 +1,10 @@
 {
+  "issues": {
+    "slow_main_sensor": {
+      "title": "El sensor de potència de xarxa s'actualitza massa lentament",
+      "description": "El sensor de xarxa configurat {sensor} s'actualitza aproximadament cada {observed_interval} segons. Omnibattery necessita actualitzacions més ràpides que {max_interval} segons (es recomanen 1-2 segons). Amb un sensor més lent, el controlador actua sobre dades antigues i no pot regular de manera fiable. Configura un sensor de potència de xarxa en temps real més ràpid."
+    }
+  },
   "config": {
     "step": {
       "migrate_legacy": {
@@ -16,7 +22,7 @@
           "max_contracted_power": "Potència màxima contractada (W)"
         },
         "data_description": {
-          "consumption_sensor": "Sensor que indica la potència importada (+) o exportada (-) a la xarxa. El controlador ajustarà les bateries per mantenir aquest valor a prop de 0W.",
+          "consumption_sensor": "Sensor en temps real de potència importada (+) o exportada (-) a la xarxa. La cadència és crítica: es recomanen 1-2 segons; els intervals de 10 segons o més no són compatibles i impedeixen una regulació fiable.",
           "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si es configura aquí, s'utilitzarà automàticament per la càrrega predictiva i el retard de càrrega solar.",
           "solar_production_sensor": "Sensor de potència de producció fotovoltaica en temps real (W/kW) d'un inversor extern que no passa per les entrades MPPT de la bateria. S'utilitza per mostrar el node Solar al diagrama de flux del tauler. Deixa'l buit si els teus panells alimenten directament el MPPT de la bateria.",
           "meter_inverted": "Activa aquesta opció si el teu comptador utilitza el conveni oposat: positiu = exportació, negatiu = importació. La unitat (W/kW) es detecta automàticament.",
@@ -554,7 +560,7 @@
           "max_contracted_power": "Potència màxima contractada (W)"
         },
         "data_description": {
-          "consumption_sensor": "Sensor que indica la potència importada (+) o exportada (-) a la xarxa.",
+          "consumption_sensor": "Sensor en temps real de potència importada (+) o exportada (-) a la xarxa. La cadència és crítica: es recomanen 1-2 segons; els intervals de 10 segons o més no són compatibles i impedeixen una regulació fiable.",
           "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si es configura aquí, s'utilitzarà automàticament en càrrega predictiva i retard de càrrega solar.",
           "solar_production_sensor": "Sensor de potència de producció fotovoltaica en temps real (W/kW) d'un inversor extern que no passa per les entrades MPPT de la bateria. S'utilitza per mostrar el node Solar al diagrama de flux del tauler. Deixa'l buit si els teus panells alimenten directament el MPPT de la bateria.",
           "meter_inverted": "Activa aquesta opció si el teu comptador utilitza el conveni oposat: positiu = exportació, negatiu = importació. La unitat (W/kW) es detecta automàticament.",

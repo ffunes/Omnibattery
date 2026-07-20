@@ -13,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.core import CoreState, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.event import async_track_time_interval, async_track_time_change, async_track_state_change_event, async_call_later
 from homeassistant.util import dt as dt_util
@@ -143,6 +144,8 @@ from .const import (
     FEEDFORWARD_COOLDOWN_S,
     FEEDFORWARD_PULSE_GUARD_S,
     PD_ZERO_CROSS_MIN_HOLD_S,
+    MAX_SUPPORTED_SENSOR_INTERVAL_S,
+    SLOW_SENSOR_WARN_INTERVALS,
     FAST_ACTUATOR_MAX_LATENCY_S,
     DISCHARGE_ENGAGE_GRACE_S,
     IDLE_RUNAWAY_POWER_W,
@@ -459,6 +462,9 @@ class ChargeDischargeController:
         self._max_stale_cycles = 15             # safety valve: ~30s before forcing recalculation
         self._control_lock = asyncio.Lock()     # serialize control cycle across timer + sensor-event triggers
         self._grid_at_min_soc_last_ts = None     # last accumulation timestamp for grid-at-min-soc kWh integration
+        self._slow_sensor_warned = False        # one-shot warning/repair for unsupported sensor cadence
+        self._slow_sensor_intervals = 0         # consecutive unsupported sensor intervals
+        self._fast_sensor_intervals = 0         # consecutive supported intervals used to clear the repair
 
         # Normal high-SOC charge protection. These must exist before the first
         # capacity calculation because _battery_power_limit() reads them.
@@ -4326,7 +4332,7 @@ class ChargeDischargeController:
         )
         return held_power
 
-    def _apply_zero_cross_hold(self, new_power, error):
+    def _apply_zero_cross_hold(self, new_power, error, stale_recalc=False):
         """ZERO-CROSS HOLD (direction-flip dwell).
 
         On a downward load step the discharging battery keeps delivering its old
@@ -4351,8 +4357,17 @@ class ChargeDischargeController:
         min-power floor, so a suppressed flip can never be bootstrapped up to
         pd_min_charge_power; the relay dwell downstream then decides whether the
         previous battery holds at minimum power or drops to 0.
+
+        ``stale_recalc`` marks the safety recalculation that runs on a silent
+        sensor: its 0 W command is the frozen previous command, not a fresh idle
+        decision, so the armed timer must survive it.
         """
         requested_sign = 1 if new_power > 0 else (-1 if new_power < 0 else 0)
+        if stale_recalc and requested_sign == 0 and self._zero_cross_since is not None:
+            # Issue #117: on a sensor slower than the stale window (~30s), every
+            # stale recalc in between cleared the timer, so the flip re-armed at
+            # 0.0s on each fresh sample and could never accumulate the window.
+            return new_power
         if (
             self.last_output_sign == 0
             or requested_sign == 0
@@ -4388,6 +4403,59 @@ class ChargeDischargeController:
             new_power, error, held_s, window_s,
         )
         return 0
+
+    def _check_sensor_cadence(self, sensor_elapsed_s):
+        """Raise a repair when the main sensor cadence is unsupported.
+
+        Sensor compatibility is deliberately independent from the stale watchdog:
+        the former is a control-quality contract, while the latter rechecks structural
+        state after an unexpected telemetry outage. Only positive, real update intervals
+        reach the debounce; watchdog ticks report 0 and must not reset its streak.
+
+        Debounced over consecutive intervals: a single long gap is far more likely to be
+        an outage or a restart than the configured cadence, because the stored sensor
+        timestamp is not advanced while the sensor reads unavailable, so the first sample
+        after any downtime measures the whole gap.
+        """
+        if sensor_elapsed_s is None or sensor_elapsed_s <= 0:
+            return
+
+        issue_id = f"slow_main_sensor_{self.config_entry.entry_id}"
+        if sensor_elapsed_s < MAX_SUPPORTED_SENSOR_INTERVAL_S:
+            self._slow_sensor_intervals = 0
+            self._fast_sensor_intervals += 1
+            if self._fast_sensor_intervals == SLOW_SENSOR_WARN_INTERVALS:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+                self._slow_sensor_warned = False
+            return
+
+        self._fast_sensor_intervals = 0
+        self._slow_sensor_intervals += 1
+        if self._slow_sensor_intervals < SLOW_SENSOR_WARN_INTERVALS or self._slow_sensor_warned:
+            return
+        self._slow_sensor_warned = True
+        _LOGGER.warning(
+            "Main sensor %s updates every ~%.0fs; intervals of %.0fs or more are "
+            "unsupported. Configure a faster grid power sensor (~1-2s recommended).",
+            self.consumption_sensor,
+            sensor_elapsed_s,
+            MAX_SUPPORTED_SENSOR_INTERVAL_S,
+        )
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            is_persistent=True,
+            issue_domain=DOMAIN,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="slow_main_sensor",
+            translation_placeholders={
+                "sensor": self.consumption_sensor,
+                "observed_interval": f"{sensor_elapsed_s:.0f}",
+                "max_interval": f"{MAX_SUPPORTED_SENSOR_INTERVAL_S:.0f}",
+            },
+        )
 
     async def _run_control_cycle(self, now=None):
         """Update the charge/discharge power of the batteries."""
@@ -4527,6 +4595,12 @@ class ChargeDischargeController:
             (sensor_update_time - previous_update_time).total_seconds()
             if previous_update_time is not None else None
         )
+
+        # Watchdog ticks have elapsed=0 and are not cadence observations. Feeding
+        # them into the debounce reset the slow streak between every pair of real
+        # samples, so a 60 s sensor could never reach the warning threshold.
+        if not is_stale:
+            self._check_sensor_cadence(sensor_elapsed_s)
 
         # Generic safety recalc on a silent sensor must re-evaluate structural state
         # (SOC/limits/blockers) but must NOT integrate the P term: the grid error is
@@ -4837,7 +4911,9 @@ class ChargeDischargeController:
         # settle window before it becomes a real opposite-direction command (see
         # _apply_zero_cross_hold). Must run before _apply_min_power so a clamped
         # flip cannot be raised to the minimum charge power.
-        new_power = self._apply_zero_cross_hold(new_power, error)
+        new_power = self._apply_zero_cross_hold(
+            new_power, error, stale_recalc=stale_safety_recalc
+        )
 
         # Final commanded direction (feeds last_output_sign at end of cycle). In the
         # PD path the hysteresis inside _compute_pd_new_power already zeroed new_power
@@ -5000,6 +5076,12 @@ class ChargeDischargeController:
                         await self._consumption_tracker.maybe_save_grid_at_min_soc_history()
 
         if not available_batteries:
+            # NOTE: this path ends the cycle before the end-of-cycle PD state update,
+            # so last_output_sign stays latched at the last real flow direction. That
+            # is deliberate: the battery may still be ramping down (or the 0W write may
+            # not have landed on an unreachable battery), so the next flip must still
+            # prove itself against the zero-cross settle window. Issue #117 was the
+            # settle timer being cleared underneath that latch, not the latch itself.
             _LOGGER.debug("ChargeDischargeController: No available batteries, setting all to 0.")
             for coordinator in self.coordinators:
                 if self._is_active_balance_mode_running(coordinator):

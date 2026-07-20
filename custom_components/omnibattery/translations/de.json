@@ -1,4 +1,10 @@
 {
+  "issues": {
+    "slow_main_sensor": {
+      "title": "Der Netzleistungssensor aktualisiert zu langsam",
+      "description": "Der konfigurierte Netzsensor {sensor} aktualisiert ungefähr alle {observed_interval} Sekunden. Omnibattery benötigt Aktualisierungen schneller als {max_interval} Sekunden (1-2 Sekunden empfohlen). Mit einem langsameren Sensor arbeitet der Regler mit veralteten Daten und kann nicht zuverlässig regeln. Konfigurieren Sie einen schnelleren Echtzeit-Netzleistungssensor."
+    }
+  },
   "config": {
     "step": {
       "migrate_legacy": {
@@ -16,7 +22,7 @@
           "max_contracted_power": "Maximale Vertragsleistung (W)"
         },
         "data_description": {
-          "consumption_sensor": "Sensor, der importierte (+) oder exportierte (-) Leistung ins Netz anzeigt. Der Controller passt die Batterien an, um diesen Wert nahe 0W zu halten.",
+          "consumption_sensor": "Echtzeitsensor für importierte (+) oder exportierte (-) Netzleistung. Die Aktualisierungsrate ist entscheidend: 1-2 Sekunden werden empfohlen; Intervalle von 10 Sekunden oder mehr werden nicht unterstützt und verhindern eine zuverlässige Regelung.",
           "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Wenn hier konfiguriert, wird er automatisch für prädiktive Ladung und Solarladungsverzögerung verwendet.",
           "solar_production_sensor": "Echtzeit-PV-Produktionsleistungssensor (W/kW) von einem externen Wechselrichter, der nicht über die MPPT-Eingänge der Batterie geführt wird. Wird verwendet, um den Solar-Knoten im Energiefluss-Diagramm des Dashboards anzuzeigen. Leer lassen, wenn deine Module direkt den MPPT der Batterie speisen.",
           "meter_inverted": "Aktivieren Sie diese Option, wenn Ihr Zähler die umgekehrte Konvention verwendet: positiv = Export, negativ = Import. Die Einheit (W/kW) wird automatisch erkannt.",
@@ -554,7 +560,7 @@
           "max_contracted_power": "Maximale Vertragsleistung (W)"
         },
         "data_description": {
-          "consumption_sensor": "Sensor, der importierte (+) oder exportierte (-) Leistung ins Netz anzeigt.",
+          "consumption_sensor": "Echtzeitsensor für importierte (+) oder exportierte (-) Netzleistung. Die Aktualisierungsrate ist entscheidend: 1-2 Sekunden werden empfohlen; Intervalle von 10 Sekunden oder mehr werden nicht unterstützt und verhindern eine zuverlässige Regelung.",
           "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Wenn hier konfiguriert, wird er automatisch für prädiktive Ladung und Solarladungsverzögerung verwendet.",
           "solar_production_sensor": "Echtzeit-PV-Produktionsleistungssensor (W/kW) von einem externen Wechselrichter, der nicht über die MPPT-Eingänge der Batterie geführt wird. Wird verwendet, um den Solar-Knoten im Energiefluss-Diagramm des Dashboards anzuzeigen. Leer lassen, wenn deine Module direkt den MPPT der Batterie speisen.",
           "meter_inverted": "Aktivieren Sie diese Option, wenn Ihr Zähler die umgekehrte Konvention verwendet: positiv = Export, negativ = Import. Die Einheit (W/kW) wird automatisch erkannt.",

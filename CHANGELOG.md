@@ -6,6 +6,9 @@
 - **Rolled back the issue #77 beta gateway workarounds**: the reporter confirmed that switching the Waveshare gateway to multi-host non-storage mode eliminated the communication failures. The queued-gateway compatibility added in the 1.0.1 betas has been removed; the tolerant power ACK remains unchanged from the published 1.0.0 release.
 - **Reset all other post-1.0.0 integration code to the Omnibattery 1.0.0 baseline**, retaining only the Home Assistant startup background-task fix and the verified Venus v3 RS485 switch transitions.
 
+### Fixed
+- **PD could remain unable to charge at minimum SOC with a slow or temporarily stalled grid sensor** (#117): stale safety recalculations no longer erase an armed charge/discharge direction-flip timer. Grid sensors updating every 10 seconds or more are now explicitly unsupported in setup guidance and raise a Home Assistant Repairs issue after three consecutive slow intervals; the issue clears after the sensor returns to a supported cadence.
+
 ## [1.0.1b4] - 2026-07-18
 
 ### Fixed

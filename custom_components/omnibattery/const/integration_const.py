@@ -263,6 +263,17 @@ FEEDFORWARD_PULSE_GUARD_S = 30.0      # s: opposite-sign step this soon after a 
 # _apply_zero_cross_hold. Legitimate sustained surplus flips after the window.
 PD_ZERO_CROSS_MIN_HOLD_S = 5.0
 
+# Maximum supported interval for the grid-power sensor. This is a control-quality
+# contract and intentionally independent from the ~30 s stale watchdog: a 10+ s
+# feedback delay is already too slow for reliable real-time grid regulation even
+# though the watchdog has not fired yet. Recommended cadence is 1-2 s.
+MAX_SUPPORTED_SENSOR_INTERVAL_S = 10.0
+
+# Consecutive real main-sensor intervals at the same cadence class before creating
+# or clearing the slow-sensor repair. Debouncing prevents a single outage/restart
+# gap from flagging an otherwise fast sensor.
+SLOW_SENSOR_WARN_INTERVALS = 3
+
 # An actuator at or below this latency (seconds, DriverCapabilities.actuator_latency_s)
 # reaches its setpoint and reflects it in telemetry within one poll. Such drivers do
 # the hot-path readback and use the measured-power feedforward; slower ones (Zendure
