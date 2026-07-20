@@ -1298,6 +1298,12 @@
       "battery_power": {
         "name": "Potència de la Bateria"
       },
+      "max_charge_power": {
+        "name": "Màx. potència de càrrega"
+      },
+      "max_discharge_power": {
+        "name": "Màx. potència de descàrrega"
+      },
       "internal_temperature": {
         "name": "Temperatura Interna"
       },

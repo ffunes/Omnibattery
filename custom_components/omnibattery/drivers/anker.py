@@ -124,13 +124,14 @@ SENSOR_DEFINITIONS: list[dict] = [
          7: "Dynamic Pricing",
      }},
     # Hardware ceilings (official YAML internal:true) — read-only sensors.
-    # Not writable and not configurable in setup; PD uses the polled values.
+    # No device_class: these are capability limits, not live power; POWER would
+    # name them "Vermogen"/"Power" when sensor translations are missing.
     {"key": "max_charge_power", "name": "Max Charge Power", "unit": "W",
-     "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
+     "device_class": None, "state_class": None, "scale": 1, "precision": 0,
      "icon": "mdi:battery-charging-high", "scan_interval": "medium",
      "enabled_by_default": True},
     {"key": "max_discharge_power", "name": "Max Discharge Power", "unit": "W",
-     "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
+     "device_class": None, "state_class": None, "scale": 1, "precision": 0,
      "icon": "mdi:battery-arrow-down-outline", "scan_interval": "medium",
      "enabled_by_default": True},
     {"key": "battery_total_energy", "name": "Battery Total Energy", "unit": "kWh",
@@ -350,9 +351,16 @@ class AnkerModbusDriver(BatteryDriver):
                     value = -int(value)
                 snapshot[field["key"]] = value
                 if field["key"] == "max_charge_power" and isinstance(value, (int, float)):
-                    self._dynamic_max_charge_w = max(0, int(value)) or _HW_MAX_POWER_W
+                    # Cap at the static envelope so peak/aggregate readings
+                    # (e.g. 7000 W) do not inflate the PD clamp beyond the
+                    # Solarbank Max AC continuous rating.
+                    capped = max(0, min(_HW_MAX_POWER_W, int(value)))
+                    snapshot[field["key"]] = capped or _HW_MAX_POWER_W
+                    self._dynamic_max_charge_w = snapshot[field["key"]]
                 if field["key"] == "max_discharge_power" and isinstance(value, (int, float)):
-                    self._dynamic_max_discharge_w = max(0, int(value)) or _HW_MAX_POWER_W
+                    capped = max(0, min(_HW_MAX_POWER_W, int(value)))
+                    snapshot[field["key"]] = capped or _HW_MAX_POWER_W
+                    self._dynamic_max_discharge_w = snapshot[field["key"]]
 
         return snapshot
 

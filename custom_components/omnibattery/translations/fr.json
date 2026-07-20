@@ -1298,6 +1298,12 @@
       "battery_power": {
         "name": "Puissance Batterie"
       },
+      "max_charge_power": {
+        "name": "Puissance max. charge"
+      },
+      "max_discharge_power": {
+        "name": "Puissance max. décharge"
+      },
       "internal_temperature": {
         "name": "Température Interne"
       },

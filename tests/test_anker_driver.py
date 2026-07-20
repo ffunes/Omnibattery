@@ -145,6 +145,23 @@ async def test_read_telemetry_uses_fc04_for_input_and_inverts_battery_power():
 
 
 @pytest.mark.asyncio
+async def test_read_telemetry_caps_peak_charge_power_at_hw_max():
+    """Register 10036 can report peak/aggregate values (e.g. 7000 W); clamp to 3500."""
+    client = _fake_client()
+    buf = [0] * 51
+    buf[36], buf[37] = encode_int32(7000)
+    buf[38], buf[39] = encode_int32(3000)
+    client.async_read_input_block = AsyncMock(return_value=buf)
+    client.async_read_holding_block = AsyncMock(return_value=None)
+
+    drv = _driver(client=client)
+    snap = await drv.read_telemetry(["max_charge_power", "max_discharge_power"])
+
+    assert snap["max_charge_power"] == 3500
+    assert snap["max_discharge_power"] == 3000
+
+
+@pytest.mark.asyncio
 async def test_read_telemetry_uses_fc03_for_operating_mode_and_soc_limits():
     client = _fake_client()
     client.async_read_input_block = AsyncMock(return_value=None)

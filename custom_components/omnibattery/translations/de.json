@@ -1298,6 +1298,12 @@
       "battery_power": {
         "name": "Batterieleistung"
       },
+      "max_charge_power": {
+        "name": "Max. Ladeleistung"
+      },
+      "max_discharge_power": {
+        "name": "Max. Entladeleistung"
+      },
       "internal_temperature": {
         "name": "Innentemperatur"
       },
