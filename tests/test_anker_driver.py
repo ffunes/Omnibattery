@@ -89,6 +89,16 @@ def test_status_and_mode_sensors_have_state_maps():
     assert by_key["temperature"]["scale"] == 0.1
 
 
+def test_shared_sensor_aliases_are_exposed():
+    from custom_components.omnibattery.drivers import anker as anker_mod
+
+    sensor_keys = {d["key"] for d in anker_mod.SENSOR_DEFINITIONS}
+    assert {"ac_power", "internal_temperature", "inverter_state"} <= sensor_keys
+    assert {"battery_power", "battery_status", "temperature"} <= (
+        _driver().control_dependency_keys
+    )
+
+
 def test_encode_int32_roundtrip():
     for value in (0, 500, -800, 3500, -3500):
         words = encode_int32(value)
@@ -143,6 +153,51 @@ async def test_read_telemetry_uses_fc04_for_input_and_inverts_battery_power():
 
     assert snap["battery_soc"] == 47
     assert snap["battery_power"] == -612  # inverted to Omnibattery convention
+    assert snap["ac_power"] == 612  # shared AC convention: +discharge
+
+
+@pytest.mark.asyncio
+async def test_read_telemetry_normalizes_temperature_and_inverter_state():
+    client = _fake_client()
+
+    status_buf = [0] * 51  # 10000-10050
+    status_buf[1] = 2  # Anker Discharging
+    temp_buf = [0] * 67  # 10090-10156
+    temp_buf[66] = 340  # raw tenths of a degree
+
+    async def _input(start, count):
+        if start == 10000:
+            return status_buf
+        if start == 10090:
+            return temp_buf
+        return None
+
+    client.async_read_input_block = AsyncMock(side_effect=_input)
+    drv = _driver(client=client)
+    snap = await drv.read_telemetry(["battery_status", "temperature"])
+
+    assert snap["battery_status"] == 2
+    assert snap["inverter_state"] == 3  # shared Discharge
+    assert snap["temperature"] == 340
+    assert snap["internal_temperature"] == 340
+
+
+@pytest.mark.parametrize(
+    ("anker_status", "inverter_state"),
+    ((0, 1), (1, 2), (2, 3), (3, 0)),
+)
+@pytest.mark.asyncio
+async def test_all_battery_status_values_map_to_shared_inverter_state(
+    anker_status, inverter_state
+):
+    client = _fake_client()
+    buf = [0] * 51
+    buf[1] = anker_status
+    client.async_read_input_block = AsyncMock(return_value=buf)
+
+    snap = await _driver(client=client).read_telemetry(["battery_status"])
+
+    assert snap["inverter_state"] == inverter_state
 
 
 @pytest.mark.asyncio

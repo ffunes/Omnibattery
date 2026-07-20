@@ -11,6 +11,7 @@
 - **Kept all fixes consolidated in 1.0.1b1 through the gateway rollback**, including peak-shaving idle enforcement, commanded-charge gating for top-of-charge cutoff detection, post-taper non-responsive recovery and predictive schedule sizing capped by real battery headroom. The Home Assistant startup background-task fix and verified Venus v3 RS485 switch transitions also remain.
 
 ### Fixed
+- **Anker telemetry now satisfies the shared control contract**: `internal_temperature` aliases the device temperature so thermal derating works, `ac_power` is derived with the common sign convention so daily home energy includes the Solarbank, and `inverter_state` is normalized from battery status for BMS-cutoff and non-delivery diagnostics. Existing Anker sensor entity IDs remain available.
 - **PD could remain unable to charge at minimum SOC with a slow or temporarily stalled grid sensor** (#117): stale safety recalculations no longer erase an armed charge/discharge direction-flip timer. Grid sensors updating every 10 seconds or more are now explicitly unsupported in setup guidance and raise a Home Assistant Repairs issue after three consecutive slow intervals; the issue clears after the sensor returns to a supported cadence.
 
 ## [1.0.1b4] - 2026-07-18

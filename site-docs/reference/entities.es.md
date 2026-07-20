@@ -8,9 +8,11 @@ La integración crea automáticamente entidades para cada batería configurada y
 |---|---|---|
 | `sensor.*_battery_soc` | Estado de carga | % |
 | `sensor.*_battery_power` | Potencia actual | W |
+| `sensor.*_ac_power` | Potencia en el lado AC; en Anker se deriva de la potencia de batería con la convención de signo común | W |
 | `sensor.*_battery_voltage` | Tensión | V |
 | `sensor.*_battery_current` | Corriente | A |
 | `sensor.*_battery_temperature` | Temperatura | °C |
+| `sensor.*_internal_temperature` | Temperatura interna usada por la protección térmica; en Anker es un alias de `temperature` | °C |
 | `sensor.*_total_charging_energy` | Energía total cargada | kWh |
 | `sensor.*_total_discharging_energy` | Energía total descargada | kWh |
 | `sensor.*_total_daily_charging_energy` | Energía cargada hoy (registro diario en Marstek; derivada del contador acumulado en Anker; integrada en Zendure) | kWh |

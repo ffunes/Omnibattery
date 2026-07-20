@@ -39,6 +39,15 @@ _ADDR_BATTERY_SOC = 10014
 _HW_MAX_POWER_W = 3500
 _MIN_OPERATING_POWER_W = 100
 
+# Normalize Anker's battery-status codes to the shared Marstek inverter-state
+# contract consumed by the controller and dashboard.
+_INVERTER_STATE_BY_BATTERY_STATUS: dict[int, int] = {
+    0: 1,  # Anker Standby -> shared Standby
+    1: 2,  # Anker Charging -> shared Charge
+    2: 3,  # Anker Discharging -> shared Discharge
+    3: 0,  # Anker Sleep -> shared Sleep
+}
+
 # Official batch_read_ranges (do not invent other blocks / FCs).
 _BATCH_READ_RANGES: dict[str, list[tuple[int, int]]] = {
     # FC04 input
@@ -94,12 +103,22 @@ SENSOR_DEFINITIONS: list[dict] = [
     {"key": "battery_power", "name": "Battery Power", "unit": "W",
      "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
      "scan_interval": "high", "enabled_by_default": True},
+    # Shared AC-side convention used by system aggregates and daily home energy:
+    # negative charge / positive discharge. Derived from battery_power.
+    {"key": "ac_power", "name": "AC Power", "unit": "W",
+     "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
+     "scan_interval": "high", "enabled_by_default": True},
     {"key": "grid_power", "name": "Grid Power", "unit": "W",
      "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
      "scan_interval": "high", "enabled_by_default": True},
     {"key": "temperature", "name": "Temperature", "unit": "°C",
      "device_class": "temperature", "state_class": "measurement", "scale": 0.1, "precision": 1,
      "scan_interval": "low", "enabled_by_default": True},
+    # Common key consumed by temperature derating and the dashboard. Keep the
+    # original Anker `temperature` entity for entity-ID compatibility.
+    {"key": "internal_temperature", "name": "Internal Temperature", "unit": "°C",
+     "device_class": "temperature", "state_class": "measurement", "scale": 0.1,
+     "precision": 1, "scan_interval": "low", "enabled_by_default": True},
     {"key": "battery_status", "name": "Battery Status", "unit": None,
      "device_class": None, "state_class": None, "scale": 1, "precision": 0,
      "icon": "mdi:battery", "scan_interval": "medium", "enabled_by_default": True,
@@ -109,6 +128,15 @@ SENSOR_DEFINITIONS: list[dict] = [
          1: "Charging",
          2: "Discharging",
          3: "Sleep",
+     }},
+    {"key": "inverter_state", "name": "Inverter State", "unit": None,
+     "device_class": None, "state_class": None, "scale": 1, "precision": 0,
+     "icon": "mdi:state-machine", "scan_interval": "medium", "enabled_by_default": True,
+     "states": {
+         0: "Sleep",
+         1: "Standby",
+         2: "Charge",
+         3: "Discharge",
      }},
     {"key": "operating_mode", "name": "Operating Mode", "unit": None,
      "device_class": None, "state_class": None, "scale": 1, "precision": 0,
@@ -367,6 +395,21 @@ class AnkerModbusDriver(BatteryDriver):
                     snapshot[field["key"]] = capped or _HW_MAX_POWER_W
                     self._dynamic_max_discharge_w = snapshot[field["key"]]
 
+        # Publish semantic aliases expected by the brand-agnostic entity and
+        # control layers. Values remain raw here; coordinator scaling is applied
+        # independently using each derived sensor definition above.
+        battery_power = snapshot.get("battery_power")
+        if isinstance(battery_power, (int, float)):
+            snapshot["ac_power"] = -battery_power
+        temperature = snapshot.get("temperature")
+        if isinstance(temperature, (int, float)):
+            snapshot["internal_temperature"] = temperature
+        battery_status = snapshot.get("battery_status")
+        if isinstance(battery_status, (int, float)):
+            inverter_state = _INVERTER_STATE_BY_BATTERY_STATUS.get(int(battery_status))
+            if inverter_state is not None:
+                snapshot["inverter_state"] = inverter_state
+
         return snapshot
 
     # --- control ------------------------------------------------------------
@@ -481,6 +524,11 @@ class AnkerModbusDriver(BatteryDriver):
             "discharging_cutoff_capacity",
             "operating_mode",
             "commanded_net_power",
+            # Sources for normalized control telemetry. Keep polling them even if
+            # the user disables the original Anker-facing sensor entities.
+            "battery_power",
+            "battery_status",
+            "temperature",
         })
 
     async def apply_config(
