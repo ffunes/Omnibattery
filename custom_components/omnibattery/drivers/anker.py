@@ -497,28 +497,36 @@ class AnkerModbusDriver(BatteryDriver):
         port: int = 502,
         slave_id: int = 1,
     ) -> tuple[bool, dict[str, int]]:
-        """Probe connectivity and read device power caps when available.
+        """Probe connectivity and read hardware power caps when available.
 
-        Returns ``(ok, caps)`` where ``caps`` may include ``max_charge_power`` and
-        ``max_discharge_power`` from input registers 10036/10038 (used to
-        pre-populate the setup limits step).
+        Returns ``(ok, caps)`` where ``caps`` may include
+        ``device_max_charge_power`` / ``device_max_discharge_power`` from input
+        registers 10036/10038. Those are Anker's internal hardware ceilings
+        (often 3500 W), not a user soft limit from the Anker app — use them to
+        size the setup slider maximum, not as the soft-limit default when a
+        prior ``user_max_*`` exists.
         """
         client = AnkerModbusClient(host, port, slave_id=slave_id, timeout=5.0)
         try:
             if not await client.async_connect():
                 return False, {}
             client.unit_id = slave_id
-            drv = cls(host, port, slave_id, client=client)
-            snap = await drv.read_telemetry(
-                ["battery_soc", "max_charge_power", "max_discharge_power"]
-            )
-            if snap.get("battery_soc") is None:
+            # Short dedicated reads: a truncated 10000–10050 batch can still
+            # return SOC (offset 14) while missing caps at 10036/10038.
+            soc = await client.async_read_input_register(_ADDR_BATTERY_SOC, "uint16")
+            if soc is None:
                 return False, {}
             caps: dict[str, int] = {}
-            for key in ("max_charge_power", "max_discharge_power"):
-                raw = snap.get(key)
-                if isinstance(raw, (int, float)) and int(raw) > 0:
-                    caps[key] = max(100, min(_HW_MAX_POWER_W, int(raw)))
+            charge = await client.async_read_input_register(10036, "int32")
+            discharge = await client.async_read_input_register(10038, "int32")
+            if isinstance(charge, (int, float)) and int(charge) > 0:
+                caps["device_max_charge_power"] = max(
+                    100, min(_HW_MAX_POWER_W, int(charge))
+                )
+            if isinstance(discharge, (int, float)) and int(discharge) > 0:
+                caps["device_max_discharge_power"] = max(
+                    100, min(_HW_MAX_POWER_W, int(discharge))
+                )
             return True, caps
         finally:
             await client.async_close()
