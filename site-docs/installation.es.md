@@ -6,8 +6,8 @@
 
 | Componente | Descripción |
 |---|---|
-| Batería | Marstek Venus E v2/v3, Venus A, Venus D **o** Zendure SolarFlow 2400 AC+ / AC Pro |
-| Conversor Modbus | Dispositivo RS485 → Modbus TCP (p. ej. Elfin-EW11) — **solo necesario para Marstek Venus E v2**. Las Venus E v3, Venus A y Venus D se conectan por Ethernet y soportan Modbus TCP de forma nativa. No necesario para Zendure (HTTP local). |
+| Batería | Marstek Venus E v2/v3, Venus A, Venus D **o** Zendure SolarFlow 2400 AC+ / AC Pro **o** Anker SOLIX Solarbank Max AC |
+| Conversor Modbus | Dispositivo RS485 → Modbus TCP (p. ej. Elfin-EW11) — **solo necesario para Marstek Venus E v2**. Las Venus E v3, Venus A y Venus D se conectan por Ethernet y soportan Modbus TCP de forma nativa. Anker Solarbank Max AC usa Modbus TCP nativo (activar en la app Anker bajo Third-Party Control; solo un cliente Modbus a la vez). No necesario para Zendure (HTTP local). |
 | Adaptador serie *(opcional)* | Adaptador USB–RS485 para conexión serie directa (Modbus RTU) a baterías Marstek. |
 | Sensor de red | Sensor HA que mide el consumo total de la red (p. ej. Shelly EM3, Neurio, contador inteligente) |
 

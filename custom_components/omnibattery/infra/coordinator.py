@@ -23,6 +23,7 @@ from ..const import (
 from ..drivers.esphome import EsphomeEntityDriver
 from ..drivers.marstek import MarstekModbusDriver
 from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
+from ..drivers.anker import AnkerModbusDriver
 from ..drivers.base import SetpointResult
 from .alarm_notifier import AlarmNotifier
 
@@ -114,7 +115,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.serial_port = serial_port
         self.consumption_sensor = consumption_sensor
         self.brand = brand
-        if self.brand == "zendure":
+        if self.brand in ("zendure", "anker"):
             full_charge_voltage_taper_enabled = False
             active_balance_mode_enabled = False
 
@@ -246,6 +247,14 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             self.driver = EsphomeEntityDriver(
                 hass,
                 esphome_device_id or self.host,
+                max_charge_power_w=self.max_charge_power,
+                max_discharge_power_w=self.max_discharge_power,
+            )
+        elif self.brand == "anker":
+            self.driver = AnkerModbusDriver(
+                self.host,
+                self.port,
+                self.slave_id,
                 max_charge_power_w=self.max_charge_power,
                 max_discharge_power_w=self.max_discharge_power,
             )

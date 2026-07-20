@@ -14,10 +14,13 @@ flowchart TD
 
     DRV --> M[MarstekModbusDriver\nModbus TCP/RTU]
     DRV --> Z[ZendureLocalDriver\nlocal HTTP]
+    DRV --> A[AnkerModbusDriver\nModbus TCP]
     DRV2 --> M
     DRV2 --> Z
+    DRV2 --> A
     M --> BAT1[Marstek battery]
     Z --> BAT2[Zendure battery]
+    A --> BAT3[Anker Solarbank]
 ```
 
 The control loop and the coordinator never talk to the hardware directly: every
@@ -40,8 +43,10 @@ subpackages by responsibility.
 | `drivers/base.py` | `BatteryDriver`, `DriverCapabilities` | The driver contract and the static-traits dataclass |
 | `drivers/marstek.py` | `MarstekModbusDriver` | Marstek Venus (v2/v3/vA/vD) over Modbus TCP / RTU |
 | `drivers/zendure.py` | `ZendureLocalDriver` | Zendure SolarFlow over local HTTP |
+| `drivers/anker.py` | `AnkerModbusDriver` | Anker SOLIX Solarbank Max AC over Modbus TCP (FC03/FC04 reads) |
 | `infra/coordinator.py` | `MarstekVenusDataUpdateCoordinator` | Periodic telemetry polling (via the driver), entity updates |
 | `infra/modbus_client.py` | `MarstekModbusClient` | Async Modbus TCP/RTU transport via pymodbus, retries with backoff |
+| `infra/anker_modbus_client.py` | `AnkerModbusClient` | Async Modbus TCP for Anker (FC03/FC04 reads, FC06/FC16 writes) |
 | `infra/external_loads.py` | — | Excluded-device load adjustment and solar-surplus crediting |
 | `infra/alarm_notifier.py` | `AlarmNotifier` | Alarm/fault bit-delta detection and HA persistent notification formatting |
 | `infra/entity_naming.py` | — | Translation-key based entity IDs and registry migrations |
@@ -108,7 +113,7 @@ these from `coordinator.capabilities`:
 
 The coordinator selects the driver from the configured brand
 ([`infra/coordinator.py`](https://github.com/ffunes/omnibattery/blob/main/custom_components/omnibattery/infra/coordinator.py)):
-`zendure` → `ZendureLocalDriver`, otherwise `MarstekModbusDriver`. The driver
+`zendure` → `ZendureLocalDriver`, `anker` → `AnkerModbusDriver`, `esphome` → `EsphomeEntityDriver`, otherwise `MarstekModbusDriver`. The driver
 also owns its version's register/entity definition lists, which the platform
 setups read back instead of branching on the version string.
 

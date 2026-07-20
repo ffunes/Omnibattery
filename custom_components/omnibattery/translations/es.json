@@ -37,7 +37,7 @@
           "brand": "Marca de la batería"
         },
         "data_description": {
-          "brand": "Selecciona el fabricante de la batería. Marstek Venus usa Modbus TCP. Zendure SolarFlow usa HTTP local (requiere HEMS activado en la app Zendure)."
+          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (enable HEMS in the Zendure app first). Anker SOLIX Solarbank Max AC: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time)."
         }
       },
       "battery_connection": {
@@ -485,6 +485,22 @@
           "port": "Puerto HTTP (por defecto 80)"
         }
       },
+      "reconfigure_battery_anker": {
+        "title": "Reconfigure battery {battery_num} — Connection (Anker)",
+        "description": "Update connection details for Anker SOLIX Solarbank Max AC battery {battery_num}. All other settings are preserved.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "New IP address shown in the Anker app under Third-Party Control",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Modbus slave/unit id (default 1)"
+        }
+      },
       "reconfigure_battery_esphome": {
         "title": "Reconfigurar batería {battery_num} — Conexión (LilyGo/ESPHome)",
         "description": "Actualiza el dispositivo ESPHome de la batería Marstek {battery_num}. El resto de ajustes se conservan.",
@@ -502,6 +518,22 @@
         "description": "Se encontró una copia de seguridad de {count} configuración(es) anterior(es) (conexión, opciones y ajuste). ¿Restaurarla para recuperar todo sin configurarlo de nuevo? Tus entidades e histórico se reconectarán automáticamente.",
         "data": {
           "restore": "Restaurar la configuración anterior"
+        }
+      },
+      "battery_connection_anker": {
+        "title": "Configure battery {battery_num} — Connection (Anker)",
+        "description": "Enter connection details for Anker SOLIX Solarbank Max AC battery {battery_num}. Enable Modbus TCP under Third-Party Control in the Anker app first. Only one Modbus client can connect at a time.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address shown in the Anker app under Third-Party Control",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Modbus slave/unit id (default 1)"
         }
       }
     },
@@ -579,7 +611,7 @@
           "brand": "Marca de la batería"
         },
         "data_description": {
-          "brand": "Selecciona el fabricante de la batería. Marstek Venus usa Modbus TCP. Zendure SolarFlow usa HTTP local (requiere HEMS activado en la app Zendure)."
+          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (enable HEMS in the Zendure app first). Anker SOLIX Solarbank Max AC: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time)."
         }
       },
       "battery_connection": {
@@ -989,6 +1021,22 @@
           "hourly_balance_max_offset_w": "Desplazamiento de potencia máximo que el controlador puede aplicar. El slider está limitado a la potencia combinada de las baterías.",
           "hourly_balance_deadband_wh": "Tolerancia alrededor del objetivo. No se aplica corrección si el balance neto está dentro de ±N kWh del objetivo. 0 = corrección exacta.",
           "hourly_balance_hysteresis_w": "Cambio mínimo en el desplazamiento necesario para aplicar una nueva corrección. Evita micro-ajustes cada ciclo. 0 = aplicar siempre. Por defecto: 15 W."
+        }
+      },
+      "battery_connection_anker": {
+        "title": "Configure battery {battery_num} — Connection (Anker)",
+        "description": "Modify connection details for Anker SOLIX Solarbank Max AC battery {battery_num}. Enable Modbus TCP under Third-Party Control in the Anker app first. Only one Modbus client can connect at a time.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address shown in the Anker app under Third-Party Control",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Modbus slave/unit id (default 1)"
         }
       }
     },
