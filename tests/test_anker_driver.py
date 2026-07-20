@@ -47,6 +47,7 @@ def test_capabilities():
     assert caps.has_rs485_control is False
     assert caps.has_mppt_pv is False
     assert caps.has_energy_counters is True
+    assert caps.has_daily_energy_counters is False
     assert caps.max_charge_power_w == 3500
     assert caps.max_discharge_power_w == 3500
     assert caps.min_charge_power_w == 100

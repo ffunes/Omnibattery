@@ -216,6 +216,7 @@ class AnkerModbusDriver(BatteryDriver):
             has_alarm_registers=False,
             has_rs485_control=False,
             has_energy_counters=True,
+            has_daily_energy_counters=False,
             setpoint_confirm_reliable=False,
             actuator_latency_s=1.0,
         )

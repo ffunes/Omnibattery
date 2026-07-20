@@ -78,6 +78,12 @@ class DriverCapabilities:
     # register-backed drivers need no change.
     has_energy_counters: bool = True
 
+    # True if the hardware also reports counters that reset every day. Some
+    # devices (Anker) expose only lifetime charge/discharge totals; for those the
+    # entity layer derives daily values from the cumulative counter deltas.
+    # Defaults True for backward compatibility with the Marstek register maps.
+    has_daily_energy_counters: bool = True
+
     # True if a setpoint readback reliably reflects the just-written command on the
     # confirmation cycle. Register batteries (Marstek) echo the written value at
     # once. A driver whose device applies writes with latency (Zendure: the HTTP

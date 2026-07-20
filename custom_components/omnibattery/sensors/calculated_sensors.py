@@ -356,6 +356,161 @@ SYNTHETIC_ENERGY_SENSOR_DEFINITIONS: list[dict] = [
      "precision": 2, "icon": "mdi:battery-minus-variant"},
 ]
 
+# Daily energy derived from lifetime hardware counters. Anker reports accurate
+# cumulative charge/discharge energy but has no registers that reset at midnight.
+# Keep this separate from SyntheticEnergySensor: using hardware counter deltas is
+# more accurate than integrating instantaneous power at poll cadence.
+CUMULATIVE_DAILY_ENERGY_SENSOR_DEFINITIONS: list[dict] = [
+    {"key": "total_daily_charging_energy", "source_key": "total_charging_energy",
+     "unit": "kWh", "device_class": "energy", "state_class": "total_increasing",
+     "precision": 2, "icon": "mdi:battery-plus-variant"},
+    {"key": "total_daily_discharging_energy", "source_key": "total_discharging_energy",
+     "unit": "kWh", "device_class": "energy", "state_class": "total_increasing",
+     "precision": 2, "icon": "mdi:battery-minus-variant"},
+]
+
+
+@dataclass
+class _CumulativeDailyEnergyData(ExtraStoredData):
+    """Persisted daily accumulator backed by a lifetime hardware counter."""
+
+    kwh: float
+    last_total: float | None
+    reset_date: str
+
+    def as_dict(self) -> dict:
+        """Serialize for Home Assistant's restore-state store."""
+        return {
+            "kwh": self.kwh,
+            "last_total": self.last_total,
+            "reset_date": self.reset_date,
+        }
+
+    @classmethod
+    def from_dict(cls, restored: dict) -> "_CumulativeDailyEnergyData | None":
+        """Rebuild persisted state, rejecting incomplete or malformed data."""
+        try:
+            last_total = restored.get("last_total")
+            return cls(
+                kwh=float(restored["kwh"]),
+                last_total=float(last_total) if last_total is not None else None,
+                reset_date=str(restored["reset_date"]),
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def update(self, total: float, today: str) -> None:
+        """Accumulate a lifetime-counter sample into the current local day."""
+        if today != self.reset_date:
+            # The first sample after midnight becomes the new baseline. During
+            # normal operation this loses at most one cumulative-counter poll
+            # interval (30 s); after a long offline period no exact split is possible.
+            self.kwh = 0.0
+            self.last_total = total
+            self.reset_date = today
+            return
+
+        if self.last_total is None:
+            self.last_total = total
+            return
+
+        delta = total - self.last_total
+        self.last_total = total
+        if delta >= 0:
+            self.kwh += delta
+        # A negative delta means the lifetime counter reset or wrapped. Preserve
+        # today's accumulated value and use the new reading as the next baseline.
+
+
+class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
+    """Daily charge/discharge energy derived from a lifetime hardware counter."""
+
+    def __init__(
+        self, coordinator: MarstekVenusDataUpdateCoordinator, definition: dict
+    ) -> None:
+        """Initialize the derived daily energy sensor."""
+        super().__init__(coordinator)
+        self.definition = definition
+        self._attr_has_entity_name = True
+        self._attr_translation_key = definition["key"]
+        self._attr_unique_id = f"{coordinator.device_key}_{definition['key']}"
+        self.entity_id = english_entity_id("sensor", coordinator.name, definition["key"])
+        self._attr_device_class = definition.get("device_class")
+        self._attr_state_class = definition.get("state_class")
+        self._attr_native_unit_of_measurement = definition.get("unit")
+        self._attr_icon = definition.get("icon")
+        self._attr_suggested_display_precision = definition.get("precision")
+        self._attr_should_poll = False
+
+        self._key = definition["key"]
+        self._source_key = definition["source_key"]
+        self._precision = definition.get("precision", 2)
+        self._energy_data = _CumulativeDailyEnergyData(
+            kwh=0.0,
+            last_total=None,
+            reset_date=dt_util.now().date().isoformat(),
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Restore today's accumulator and cumulative-counter baseline."""
+        await super().async_added_to_hass()
+        stored = await self.async_get_last_extra_data()
+        restored = _CumulativeDailyEnergyData.from_dict(stored.as_dict()) if stored else None
+        today = dt_util.now().date().isoformat()
+        if restored is not None and restored.reset_date == today:
+            self._energy_data = restored
+        else:
+            self._energy_data = _CumulativeDailyEnergyData(0.0, None, today)
+        self._publish_daily()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Consume the newest hardware total and publish the daily delta."""
+        self._accumulate()
+        self._publish_daily()
+        super()._handle_coordinator_update()
+
+    def _accumulate(self) -> None:
+        data = self.coordinator.data
+        if not data:
+            return
+        raw_total = data.get(self._source_key)
+        try:
+            total = float(raw_total)
+        except (TypeError, ValueError):
+            return
+        if total < 0:
+            return
+        self._energy_data.update(total, dt_util.now().date().isoformat())
+
+    def _publish_daily(self) -> None:
+        """Make the derived key available to system aggregates and the panel."""
+        if self.coordinator.data is not None:
+            self.coordinator.data[self._key] = self._energy_data.kwh
+
+    @property
+    def native_value(self) -> float:
+        """Return energy accumulated since local midnight."""
+        return round(self._energy_data.kwh, self._precision)
+
+    @property
+    def extra_restore_state_data(self) -> _CumulativeDailyEnergyData:
+        """Persist raw precision and the last observed lifetime total."""
+        return self._energy_data
+
+    @property
+    def extra_state_attributes(self):
+        """Expose reset metadata useful when diagnosing daily totals."""
+        return {
+            "reset_date": self._energy_data.reset_date,
+            "source": self._source_key,
+        }
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return self.coordinator.battery_device_info
+
 
 @dataclass
 class _SyntheticEnergyData(ExtraStoredData):

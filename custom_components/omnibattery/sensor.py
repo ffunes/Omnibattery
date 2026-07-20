@@ -101,9 +101,11 @@ from .sensors.calculated_sensors import (
     MarstekVenusSolarPowerSensor,
     MarstekVenusBatteryCellPowerSensor,
     SyntheticEnergySensor,
+    CumulativeDailyEnergySensor,
     SyntheticCapacitySensor,
     ZendurePackSensor,
     SYNTHETIC_ENERGY_SENSOR_DEFINITIONS,
+    CUMULATIVE_DAILY_ENERGY_SENSOR_DEFINITIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -153,6 +155,9 @@ async def async_setup_entry(
             for definition in SYNTHETIC_ENERGY_SENSOR_DEFINITIONS:
                 entities.append(SyntheticEnergySensor(coordinator, definition))
             entities.append(SyntheticCapacitySensor(coordinator))
+        elif not coordinator.capabilities.has_daily_energy_counters:
+            for definition in CUMULATIVE_DAILY_ENERGY_SENSOR_DEFINITIONS:
+                entities.append(CumulativeDailyEnergySensor(coordinator, definition))
         pack_specs = getattr(coordinator.driver, "pack_field_specs", None)
         if pack_specs:
             data = coordinator.data or {}

@@ -13,6 +13,8 @@ The integration automatically creates entities for each configured battery and a
 | `sensor.*_battery_temperature` | Temperature | °C |
 | `sensor.*_total_charging_energy` | Total charging energy | kWh |
 | `sensor.*_total_discharging_energy` | Total discharging energy | kWh |
+| `sensor.*_total_daily_charging_energy` | Energy charged today (daily register on Marstek; derived from the cumulative counter on Anker; integrated on Zendure) | kWh |
+| `sensor.*_total_daily_discharging_energy` | Energy discharged today (daily register on Marstek; derived from the cumulative counter on Anker; integrated on Zendure) | kWh |
 | `sensor.*_battery_cycle_count` | Cycle count (register, v3/vA/vD) | — |
 | `sensor.*_battery_cycle_count_calc` | Calculated cycle count (all versions) | — |
 | `sensor.*_max_cell_voltage` | Max cell voltage (v3/vA/vD) | V |

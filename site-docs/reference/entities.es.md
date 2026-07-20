@@ -13,6 +13,8 @@ La integración crea automáticamente entidades para cada batería configurada y
 | `sensor.*_battery_temperature` | Temperatura | °C |
 | `sensor.*_total_charging_energy` | Energía total cargada | kWh |
 | `sensor.*_total_discharging_energy` | Energía total descargada | kWh |
+| `sensor.*_total_daily_charging_energy` | Energía cargada hoy (registro diario en Marstek; derivada del contador acumulado en Anker; integrada en Zendure) | kWh |
+| `sensor.*_total_daily_discharging_energy` | Energía descargada hoy (registro diario en Marstek; derivada del contador acumulado en Anker; integrada en Zendure) | kWh |
 | `sensor.*_battery_cycle_count` | Ciclos (registros, v3/vA/vD) | — |
 | `sensor.*_battery_cycle_count_calc` | Ciclos calculados (todos) | — |
 | `sensor.*_max_cell_voltage` | Tensión máx. de celda (v3/vA/vD) | V |

@@ -4,6 +4,7 @@
 
 ### Added
 - **Optional minimum arbitrage margin for dynamic pricing** (#115): charging slots can now be filtered by the expected discharge price, a configurable round-trip efficiency and the required minimum margin, avoiding battery cycles whose price spread would not cover conversion losses. It is disabled by default and combines with the existing maximum charge-price threshold, with the stricter ceiling taking precedence; both new settings are available from the Control tab and evaluation notifications explain when the gate blocks charging.
+- **Daily charge/discharge energy for Anker Solarbank Max AC**: derives per-battery daily counters from the hardware lifetime totals, restores the current day's value across Home Assistant restarts and safely rebases if the device counter resets. System daily-energy aggregates and dashboard cards now receive real Anker values instead of falling back to zero.
 
 ### Changed
 - **Rolled back the issue #77 beta gateway workarounds**: the reporter confirmed that switching the Waveshare gateway to multi-host non-storage mode eliminated the communication failures. The queued-gateway compatibility added in the 1.0.1 betas has been removed; the tolerant power ACK remains unchanged from the published 1.0.0 release.

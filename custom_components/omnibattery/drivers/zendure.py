@@ -277,6 +277,7 @@ class ZendureLocalDriver(BatteryDriver):
             has_alarm_registers=True,    # faultLevel + is_error
             has_rs485_control=False,
             has_energy_counters=False,   # no kWh / capacity in the report; synthesised
+            has_daily_energy_counters=False,
             setpoint_confirm_reliable=False,  # HTTP report echoes the previous limit for ~2 s
             actuator_latency_s=3.0,      # HTTP write + ~2-3 s engage/echo latency
         )

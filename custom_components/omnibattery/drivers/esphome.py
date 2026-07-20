@@ -243,6 +243,7 @@ class EsphomeEntityDriver(BatteryDriver):
             has_alarm_registers=False,    # firmware decodes alarms into its own binary sensors
             has_rs485_control=True,
             has_energy_counters=True,
+            has_daily_energy_counters=True,
             # State echoes ride the ESP's 3 s battery poll (plus delta filters),
             # so a readback right after a write compares against stale values.
             setpoint_confirm_reliable=False,

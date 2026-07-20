@@ -261,6 +261,7 @@ class MarstekModbusDriver(BatteryDriver):
             has_alarm_registers="alarm_status" in self._telemetry_index,
             has_rs485_control=REGISTER_MAP.get(version, {}).get("rs485_control") is not None,
             has_energy_counters=True,  # battery_total_energy + total_*_energy registers
+            has_daily_energy_counters=True,
             # v3/vA/vD pace at 150 ms/frame through a single TCP slot, so a setpoint
             # write + the inverter engaging settles slower than v2's 50 ms/frame.
             actuator_latency_s=0.8 if self._is_v3_family else 0.3,
