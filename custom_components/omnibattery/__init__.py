@@ -3443,21 +3443,21 @@ class ChargeDischargeController:
                         )
                 actual_power = result.battery_power_w
                 _LOGGER.debug(
-                    "[%s] Power ACK: force=%d charge=%dW discharge=%dW battery=%dW",
+                    "[%s] Power ACK: force=%d charge=%dW discharge=%dW battery=%sW",
                     coordinator.name,
                     expected_force_mode,
                     int(charge_power),
                     int(discharge_power),
                     actual_power,
                 )
-                if charge_power > 0:
+                if charge_power > 0 and actual_power is not None:
                     self._log_low_power_delivery(
                         coordinator,
                         command="charge",
                         commanded_power=charge_power,
                         actual_power=actual_power,
                     )
-                elif discharge_power > 0:
+                elif discharge_power > 0 and actual_power is not None:
                     self._log_low_power_delivery(
                         coordinator,
                         command="discharge",
@@ -3467,7 +3467,13 @@ class ChargeDischargeController:
                 # Detect non-responsive battery: ACK ok but not delivering discharge
                 # power. Register drivers reach this only on a readback cycle; slow
                 # actuators run the same judgment at poll time (see skip-write block).
-                if discharge_power >= 100 and charge_power == 0:
+                # Skip when delivered power is unknown (e.g. Anker write ACK without
+                # a successful battery_power sample).
+                if (
+                    discharge_power >= 100
+                    and charge_power == 0
+                    and actual_power is not None
+                ):
                     await self._check_non_delivery(
                         coordinator, discharge_power, actual_power, attempt=attempt,
                     )
@@ -5663,6 +5669,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator.commanded_discharge_power = coordinator.manual_set_discharge_power
         coordinator.user_max_charge_power = battery_config.get(
             "user_max_charge_power", coordinator.max_charge_power
+        )
+        coordinator.user_max_discharge_power = battery_config.get(
+            "user_max_discharge_power", coordinator.max_discharge_power
         )
         coordinator.active_balance_mode_started_ts = battery_config.get("active_balance_mode_started_ts")
         coordinator.active_balance_mode_run_date = battery_config.get("active_balance_mode_run_date")

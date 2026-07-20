@@ -23,6 +23,7 @@ from ..const import (
 from ..drivers.esphome import EsphomeEntityDriver
 from ..drivers.marstek import MarstekModbusDriver
 from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
+from ..drivers.anker import AnkerModbusDriver
 from ..drivers.base import SetpointResult
 from .alarm_notifier import AlarmNotifier
 
@@ -113,7 +114,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.serial_port = serial_port
         self.consumption_sensor = consumption_sensor
         self.brand = brand
-        if self.brand == "zendure":
+        if self.brand in ("zendure", "anker"):
             full_charge_voltage_taper_enabled = False
             active_balance_mode_enabled = False
 
@@ -156,9 +157,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.commanded_charge_power = 0
         self.commanded_discharge_power = 0
         # Software charge-power ceiling for drivers whose reported max_charge_power
-        # is a read-only device cap (Zendure chargeMaxLimit). Caps PD allocation
-        # below the device limit; default = device max (no extra cap). Persisted.
+        # is a read-only device cap (Zendure chargeMaxLimit / Anker 10036). Caps PD
+        # allocation below the device limit; default = device max (no extra cap).
+        # Persisted. Same idea for discharge on Anker (10038).
         self.user_max_charge_power = max_charge_power
+        self.user_max_discharge_power = max_discharge_power
         self.allow_charge = allow_charge
         self.allow_discharge = allow_discharge
         self.active_balance_mode_enabled = active_balance_mode_enabled
@@ -248,6 +251,14 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 max_charge_power_w=self.max_charge_power,
                 max_discharge_power_w=self.max_discharge_power,
             )
+        elif self.brand == "anker":
+            self.driver = AnkerModbusDriver(
+                self.host,
+                self.port,
+                self.slave_id,
+                max_charge_power_w=self.max_charge_power,
+                max_discharge_power_w=self.max_discharge_power,
+            )
         else:
             self.driver = MarstekModbusDriver(
                 self.host, self.port, self.battery_version, self.slave_id,
@@ -318,10 +329,30 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
     @property
     def needs_software_max_charge(self) -> bool:
-        """True when max_charge_power is a read-only device cap rather than a
-        writable register, so a software ceiling entity governs it (e.g. Zendure
-        chargeMaxLimit)."""
-        return not any(d["key"] == "max_charge_power" for d in self.number_definitions)
+        """True when max_charge_power has no writable register and no sensor.
+
+        Zendure exposes chargeMaxLimit only as telemetry, so a software ceiling
+        number entity governs it. Anker exposes 10036 as a read-only sensor —
+        PD follows the device value directly, with no soft-max entity.
+        """
+        if any(d["key"] == "max_charge_power" for d in self.number_definitions):
+            return False
+        if any(d["key"] == "max_charge_power" for d in self.sensor_definitions):
+            return False
+        return True
+
+    @property
+    def needs_software_max_discharge(self) -> bool:
+        """True when max_discharge_power has no writable register and no sensor.
+
+        Anker exposes 10038 as a read-only sensor (no soft-max entity). Zendure
+        exposes inverse_max_power as a writable number, so it reports False.
+        """
+        if any(d["key"] == "max_discharge_power" for d in self.number_definitions):
+            return False
+        if any(d["key"] == "max_discharge_power" for d in self.sensor_definitions):
+            return False
+        return True
 
     @property
     def is_available(self) -> bool:
@@ -351,8 +382,16 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         return {
             "identifiers": {(DOMAIN, f"{self.device_key}")},
             "name": self.name,
-            "manufacturer": "Zendure" if self.brand == "zendure" else "Marstek",
-            "model": self.driver.model_label or ("Zendure" if self.brand == "zendure" else "Venus"),
+            "manufacturer": (
+                "Zendure" if self.brand == "zendure"
+                else "Anker" if self.brand == "anker"
+                else "Marstek"
+            ),
+            "model": self.driver.model_label or (
+                "Zendure" if self.brand == "zendure"
+                else "Solarbank Max AC" if self.brand == "anker"
+                else "Venus"
+            ),
         }
 
     async def connect(self) -> bool:
@@ -581,7 +620,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             fetch_keys = []
             for key in group.keys:
                 sensor = self._def_by_key.get(key, {})
-                entity_type = self._get_entity_type(sensor)
+                entity_type = self._get_entity_type(sensor, fallback_key=key)
                 registry_entry = None
                 for unique_id in (
                     f"{self.device_key}_{key}",   # current format (post-migration)
@@ -772,15 +811,19 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             self.min_soc = int(self.data["min_soc"])
         if "max_charge_power" in self.data:
             device_cap = int(self.data["max_charge_power"])
-            # When max_charge_power is a read-only device cap (Zendure), honour the
-            # user's software ceiling on top of it; otherwise the polled register
-            # value is itself the user setting.
+            # When max_charge_power is a soft-capped telemetry value (Zendure),
+            # honour the user's software ceiling on top of it; otherwise the
+            # polled register/sensor value is itself the effective limit.
             self.max_charge_power = (
                 min(device_cap, self.user_max_charge_power)
                 if self.needs_software_max_charge else device_cap
             )
         if "max_discharge_power" in self.data:
-            self.max_discharge_power = int(self.data["max_discharge_power"])
+            device_cap = int(self.data["max_discharge_power"])
+            self.max_discharge_power = (
+                min(device_cap, self.user_max_discharge_power)
+                if self.needs_software_max_discharge else device_cap
+            )
 
         if updated_data:
             _LOGGER.debug(
@@ -798,9 +841,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         return self.data
 
-    def _get_entity_type(self, sensor_definition: dict) -> str:
-        """Determine entity type based on sensor definition."""
-        key = sensor_definition["key"]
+    def _get_entity_type(self, sensor_definition: dict, fallback_key: str | None = None) -> str:
+        """Determine entity type based on sensor definition.
+
+        Telemetry-only keys (present in driver field/read groups but not in any
+        entity definition list — e.g. Anker max_charge/discharge power caps used
+        for soft-max clamping) resolve via ``fallback_key`` and default to
+        ``sensor`` so the poll loop does not KeyError on an empty stub dict.
+        """
+        key = sensor_definition.get("key", fallback_key)
+        if not key:
+            return "sensor"
 
         # Check which definition list this sensor belongs to by key
         if key in [s["key"] for s in self.sensor_definitions]:
@@ -814,7 +865,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         elif key in [s["key"] for s in self.binary_sensor_definitions]:
             return "binary_sensor"
         else:
-            # Default to sensor if not found
+            # Default to sensor if not found (telemetry-only / soft-max keys)
             return "sensor"
 
     async def write_control(self, key: str, value: int, do_refresh: bool = True):

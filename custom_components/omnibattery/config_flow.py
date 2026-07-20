@@ -102,8 +102,37 @@ from .const import (
 from .drivers.esphome import EsphomeEntityDriver
 from .drivers.marstek import MarstekModbusDriver
 from .drivers.zendure import ZendureLocalDriver, detect_model as _detect_zendure_model
+from .drivers.anker import AnkerModbusDriver
 
 _ZENDURE_MAX_POWER_W = 2400
+_ANKER_MAX_POWER_W = 3500
+
+
+def _anker_apply_probe_caps(battery_data: dict, caps: dict) -> None:
+    """Store Anker hardware ceilings from probe for config seeding."""
+    for src, dst in (
+        ("device_max_charge_power", "device_max_charge_power"),
+        ("device_max_discharge_power", "device_max_discharge_power"),
+    ):
+        if src in caps:
+            battery_data[dst] = int(caps[src])
+
+
+def _anker_power_ceilings(battery_data: dict) -> tuple[int, int]:
+    """Hardware max charge/discharge from probe, falling back to the static envelope."""
+    charge = int(battery_data.get("device_max_charge_power") or _ANKER_MAX_POWER_W)
+    discharge = int(battery_data.get("device_max_discharge_power") or _ANKER_MAX_POWER_W)
+    return (
+        max(100, min(_ANKER_MAX_POWER_W, charge)),
+        max(100, min(_ANKER_MAX_POWER_W, discharge)),
+    )
+
+
+def _seed_software_power_limits(merged: dict, brand: str) -> None:
+    """Persist soft-max keys for Zendure (read-only chargeMaxLimit + software ceiling)."""
+    if brand != "zendure":
+        return
+    merged["user_max_charge_power"] = int(merged["max_charge_power"])
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -492,6 +521,9 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         if brand == "zendure":
             _LOGGER.info("Probing Zendure device at %s:%s", host, port)
             result, _ = await ZendureLocalDriver.probe(host, port)
+        elif brand == "anker":
+            _LOGGER.info("Probing Anker Solarbank at %s:%s slave %s", host, port, slave_id)
+            result, _ = await AnkerModbusDriver.probe(host, port, slave_id)
         elif serial_port:
             _LOGGER.info("Probing Marstek %s over serial %s slave %s", version, serial_port, slave_id)
             result = await MarstekModbusDriver.probe(host, port, version, slave_id, serial_port=serial_port)
@@ -648,6 +680,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 return await self.async_step_battery_connection_zendure()
             if brand == "esphome":
                 return await self.async_step_battery_connection_esphome()
+            if brand == "anker":
+                return await self.async_step_battery_connection_anker()
             return await self.async_step_battery_connection()
 
         return self.async_show_form(
@@ -660,6 +694,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                                 {"value": "marstek", "label": "Marstek Venus"},
                                 {"value": "zendure", "label": "Zendure SolarFlow"},
                                 {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
+                                {"value": "anker", "label": "Anker SOLIX Solarbank Max AC"},
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )),
@@ -816,6 +851,47 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             description_placeholders=placeholders,
         )
 
+
+    async def async_step_battery_connection_anker(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Step 3b (Anker): Connection details for Solarbank Max AC."""
+        errors = {}
+        battery_num = self.battery_index + 1
+
+        if user_input is not None:
+            host = user_input[CONF_HOST]
+            port = int(user_input.get(CONF_PORT, 502))
+            slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
+            ok, caps = await AnkerModbusDriver.probe(host, port, slave_id)
+            if not ok:
+                errors["base"] = "cannot_connect"
+            else:
+                self._current_battery_data.update({
+                    CONF_NAME: user_input[CONF_NAME],
+                    CONF_HOST: host,
+                    CONF_PORT: port,
+                    CONF_SLAVE_ID: slave_id,
+                    "brand": "anker",
+                })
+                _anker_apply_probe_caps(self._current_battery_data, caps)
+                return await self.async_step_battery_limits()
+
+        return self.async_show_form(
+            step_id="battery_connection_anker",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_NAME, default=f"Anker Solarbank {battery_num}"): str,
+                    vol.Required(CONF_HOST): str,
+                    vol.Optional(CONF_PORT, default=502): int,
+                    vol.Required(CONF_SLAVE_ID, default=DEFAULT_SLAVE_ID):
+                        vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
+                }
+            ),
+            errors=errors,
+            description_placeholders={"battery_num": str(battery_num)},
+        )
+
     async def async_step_battery_limits(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -824,18 +900,40 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         brand = self._current_battery_data.get("brand", "marstek")
         if brand == "zendure":
             max_power = _ZENDURE_MAX_POWER_W
+            max_charge_power = max_power
+            max_discharge_power = max_power
+        elif brand == "anker":
+            max_charge_power, max_discharge_power = _anker_power_ceilings(
+                self._current_battery_data
+            )
+            max_power = max(max_charge_power, max_discharge_power)
         else:
             battery_version = self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
             max_power = MAX_POWER_BY_VERSION.get(battery_version, 2500)
-        # Zendure's minSoc accepts 5–50 %; Marstek's discharge floor is 12–30 %.
-        soc_min_lo, soc_min_hi = (5, 50) if brand == "zendure" else (12, 30)
+            max_charge_power = max_power
+            max_discharge_power = max_power
+        # Zendure's minSoc accepts 5–50 %; Anker discharge limit is 0–20 %;
+        # Marstek's discharge floor is 12–30 %.
+        if brand == "zendure":
+            soc_min_lo, soc_min_hi = 5, 50
+        elif brand == "anker":
+            soc_min_lo, soc_min_hi = 0, 20
+        else:
+            soc_min_lo, soc_min_hi = 12, 30
 
         if user_input is not None:
             merged = dict(self._current_battery_data)
-            merged["max_charge_power"] = int(user_input["max_charge_power"])
-            merged["max_discharge_power"] = int(user_input["max_discharge_power"])
+            if brand == "anker":
+                # Power caps are device sensors (10036/10038), not setup inputs.
+                charge_w, discharge_w = _anker_power_ceilings(self._current_battery_data)
+                merged["max_charge_power"] = charge_w
+                merged["max_discharge_power"] = discharge_w
+            else:
+                merged["max_charge_power"] = int(user_input["max_charge_power"])
+                merged["max_discharge_power"] = int(user_input["max_discharge_power"])
             merged["max_soc"] = int(user_input["max_soc"])
             merged["min_soc"] = int(user_input["min_soc"])
+            _seed_software_power_limits(merged, brand)
             # Hysteresis is mandatory; floor the percent against SOC drift.
             merged["enable_charge_hysteresis"] = True
             merged["charge_hysteresis_percent"] = max(
@@ -844,7 +942,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             )
             merged["backup_offgrid_threshold"] = int(user_input.get("backup_offgrid_threshold", 50))
             merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-                False if brand == "zendure"
+                False if brand in ("zendure", "anker")
                 else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
             )
             if brand == "zendure":
@@ -857,21 +955,33 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 return await self.async_step_time_slots()
             return await self.async_step_battery_brand()
 
-        _schema: dict = {
-            vol.Required("max_charge_power", default=max_power):
-                NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
-            vol.Required("max_discharge_power", default=max_power):
-                NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
+        _schema: dict = {}
+        if brand != "anker":
+            default_charge = max(
+                100,
+                min(max_power, int(self._current_battery_data.get("max_charge_power", max_power))),
+            )
+            default_discharge = max(
+                100,
+                min(max_power, int(self._current_battery_data.get("max_discharge_power", max_power))),
+            )
+            _schema[vol.Required("max_charge_power", default=default_charge)] = NumberSelector(
+                NumberSelectorConfig(min=100, max=max_charge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
+            )
+            _schema[vol.Required("max_discharge_power", default=default_discharge)] = NumberSelector(
+                NumberSelectorConfig(min=100, max=max_discharge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
+            )
+        _schema.update({
             vol.Required("max_soc", default=100):
                 NumberSelector(NumberSelectorConfig(min=80, max=100, step=1, mode=NumberSelectorMode.SLIDER)),
-            vol.Required("min_soc", default=12):
+            vol.Required("min_soc", default=12 if brand != "anker" else 10):
                 NumberSelector(NumberSelectorConfig(min=soc_min_lo, max=soc_min_hi, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("charge_hysteresis_percent", default=DEFAULT_CHARGE_HYSTERESIS_PERCENT):
                 NumberSelector(NumberSelectorConfig(min=MIN_CHARGE_HYSTERESIS_PERCENT, max=MAX_CHARGE_HYSTERESIS_PERCENT, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("backup_offgrid_threshold", default=50):
                 NumberSelector(NumberSelectorConfig(min=0, max=500, step=10, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
-        }
-        if brand != "zendure":
+        })
+        if brand not in ("zendure", "anker"):
             _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)] = bool
         if brand == "zendure":
             _schema[vol.Optional("battery_capacity_kwh", default=0.0)] = NumberSelector(
@@ -1511,6 +1621,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             return await self.async_step_reconfigure_battery_zendure(user_input)
         if current.get("brand", "marstek") == "esphome":
             return await self.async_step_reconfigure_battery_esphome(user_input)
+        if current.get("brand", "marstek") == "anker":
+            return await self.async_step_reconfigure_battery_anker(user_input)
 
         errors = {}
 
@@ -1733,6 +1845,75 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             description_placeholders=placeholders,
         )
 
+
+    async def async_step_reconfigure_battery_anker(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Update connection settings for an Anker battery during reconfiguration."""
+        entry = self._get_reconfigure_entry()
+        current_batteries = entry.data.get("batteries", [])
+        battery_num = self.battery_index + 1
+        current = (
+            current_batteries[self.battery_index]
+            if self.battery_index < len(current_batteries)
+            else {}
+        )
+        errors = {}
+
+        if user_input is not None:
+            new_host = user_input[CONF_HOST]
+            new_port = int(user_input.get(CONF_PORT, 502))
+            slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
+            ok, _ = await AnkerModbusDriver.probe(new_host, new_port, slave_id)
+            if not ok:
+                errors["base"] = "cannot_connect"
+            else:
+                old_host = current.get(CONF_HOST)
+                old_port = current.get(CONF_PORT)
+
+                if old_host and old_port and (old_host != new_host or old_port != new_port):
+                    self._migrate_battery_registry_ids(
+                        entry, old_host, old_port, new_host, new_port
+                    )
+
+                updated = dict(current)
+                updated[CONF_NAME] = user_input[CONF_NAME]
+                updated[CONF_HOST] = new_host
+                updated[CONF_PORT] = new_port
+                updated[CONF_SLAVE_ID] = slave_id
+                updated["brand"] = "anker"
+                self._reconfigure_batteries.append(updated)
+                self.battery_index += 1
+
+                if self.battery_index >= len(current_batteries):
+                    return self.async_update_reload_and_abort(
+                        entry,
+                        data_updates={"batteries": self._reconfigure_batteries},
+                    )
+                return await self.async_step_reconfigure_battery()
+
+        defaults = {
+            CONF_NAME: current.get(CONF_NAME, f"Anker Solarbank {battery_num}"),
+            CONF_HOST: current.get(CONF_HOST, ""),
+            CONF_PORT: current.get(CONF_PORT, 502),
+            CONF_SLAVE_ID: current.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
+        }
+
+        return self.async_show_form(
+            step_id="reconfigure_battery_anker",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str,
+                    vol.Required(CONF_HOST, default=defaults[CONF_HOST]): str,
+                    vol.Required(CONF_PORT, default=defaults[CONF_PORT]): int,
+                    vol.Required(CONF_SLAVE_ID, default=defaults[CONF_SLAVE_ID]):
+                        vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
+                }
+            ),
+            errors=errors,
+            description_placeholders={"battery_num": str(battery_num)},
+        )
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
@@ -1753,6 +1934,7 @@ class OptionsFlowHandler(OptionsFlow):
         self._pending_slot_step_a: dict | None = None  # Buffer between slot step A and step B
         _LOGGER.info("OptionsFlowHandler initialized successfully for entry: %s", config_entry.entry_id)
 
+
     async def _test_connection(
         self,
         host: str,
@@ -1772,6 +1954,11 @@ class OptionsFlowHandler(OptionsFlow):
         if brand == "zendure":
             _LOGGER.info("Probing Zendure device at %s:%s", host, port)
             ok, _ = await ZendureLocalDriver.probe(host, port)
+            return ok
+
+        if brand == "anker":
+            _LOGGER.info("Probing Anker Solarbank at %s:%s slave %s", host, port, slave_id)
+            ok, _ = await AnkerModbusDriver.probe(host, port, slave_id)
             return ok
 
         # Marstek: handle single-connection-slot constraint.
@@ -1943,6 +2130,8 @@ class OptionsFlowHandler(OptionsFlow):
                 return await self.async_step_battery_connection_zendure()
             if brand == "esphome":
                 return await self.async_step_battery_connection_esphome()
+            if brand == "anker":
+                return await self.async_step_battery_connection_anker()
             return await self.async_step_battery_connection()
 
         return self.async_show_form(
@@ -1955,6 +2144,7 @@ class OptionsFlowHandler(OptionsFlow):
                                 {"value": "marstek", "label": "Marstek Venus"},
                                 {"value": "zendure", "label": "Zendure SolarFlow"},
                                 {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
+                                {"value": "anker", "label": "Anker SOLIX Solarbank Max AC"},
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )),
@@ -2165,6 +2355,67 @@ class OptionsFlowHandler(OptionsFlow):
             description_placeholders=placeholders,
         )
 
+
+    async def async_step_battery_connection_anker(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Configure connection details for an Anker Solarbank Max AC."""
+        errors = {}
+
+        try:
+            battery_num = self.battery_index + 1
+            current_batteries = self.config_entry.data.get("batteries", [])
+
+            if user_input is not None:
+                host = user_input[CONF_HOST]
+                port = int(user_input.get(CONF_PORT, 502))
+                slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
+                ok, caps = await AnkerModbusDriver.probe(host, port, slave_id)
+                if not ok:
+                    errors["base"] = "cannot_connect"
+                else:
+                    self._current_battery_data.update({
+                        CONF_NAME: user_input[CONF_NAME],
+                        CONF_HOST: host,
+                        CONF_PORT: port,
+                        CONF_SLAVE_ID: slave_id,
+                        "brand": "anker",
+                    })
+                    _anker_apply_probe_caps(self._current_battery_data, caps)
+                    return await self.async_step_battery_limits()
+
+            if self.battery_index < len(current_batteries):
+                current_battery = current_batteries[self.battery_index]
+                defaults = {
+                    CONF_NAME: current_battery.get(CONF_NAME, f"Anker Solarbank {battery_num}"),
+                    CONF_HOST: current_battery.get(CONF_HOST, ""),
+                    CONF_PORT: current_battery.get(CONF_PORT, 502),
+                    CONF_SLAVE_ID: current_battery.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
+                }
+            else:
+                defaults = {
+                    CONF_NAME: f"Anker Solarbank {battery_num}",
+                    CONF_HOST: "",
+                    CONF_PORT: 502,
+                    CONF_SLAVE_ID: DEFAULT_SLAVE_ID,
+                }
+        except Exception as e:
+            _LOGGER.error("Error in options flow battery_connection_anker step: %s", e, exc_info=True)
+            return self.async_abort(reason="unknown_error")
+
+        return self.async_show_form(
+            step_id="battery_connection_anker",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str,
+                    vol.Required(CONF_HOST, default=defaults[CONF_HOST]): str,
+                    vol.Optional(CONF_PORT, default=defaults[CONF_PORT]): int,
+                    vol.Required(CONF_SLAVE_ID, default=defaults[CONF_SLAVE_ID]):
+                        vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
+                }
+            ),
+            errors=errors,
+            description_placeholders={"battery_num": str(battery_num)},
+        )
+
     async def async_step_battery_limits(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Configure power and SOC limits for the current battery."""
         try:
@@ -2172,11 +2423,26 @@ class OptionsFlowHandler(OptionsFlow):
             brand = self._current_battery_data.get("brand", "marstek")
             if brand == "zendure":
                 max_power = _ZENDURE_MAX_POWER_W
+                max_charge_power = max_power
+                max_discharge_power = max_power
+            elif brand == "anker":
+                max_charge_power, max_discharge_power = _anker_power_ceilings(
+                    self._current_battery_data
+                )
+                max_power = max(max_charge_power, max_discharge_power)
             else:
                 battery_version = self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
                 max_power = MAX_POWER_BY_VERSION.get(battery_version, 2500)
-            # Zendure's minSoc accepts 5–50 %; Marstek's discharge floor is 12–30 %.
-            soc_min_lo, soc_min_hi = (5, 50) if brand == "zendure" else (12, 30)
+                max_charge_power = max_power
+                max_discharge_power = max_power
+            # Zendure's minSoc accepts 5–50 %; Anker discharge limit is 0–20 %;
+            # Marstek's discharge floor is 12–30 %.
+            if brand == "zendure":
+                soc_min_lo, soc_min_hi = 5, 50
+            elif brand == "anker":
+                soc_min_lo, soc_min_hi = 0, 20
+            else:
+                soc_min_lo, soc_min_hi = 12, 30
             current_batteries = self.config_entry.data.get("batteries", [])
 
             if user_input is not None:
@@ -2186,10 +2452,16 @@ class OptionsFlowHandler(OptionsFlow):
                     merged.update(self._current_battery_data)
                 else:
                     merged = dict(self._current_battery_data)
-                merged["max_charge_power"] = int(user_input["max_charge_power"])
-                merged["max_discharge_power"] = int(user_input["max_discharge_power"])
+                if brand == "anker":
+                    charge_w, discharge_w = _anker_power_ceilings(merged)
+                    merged["max_charge_power"] = charge_w
+                    merged["max_discharge_power"] = discharge_w
+                else:
+                    merged["max_charge_power"] = int(user_input["max_charge_power"])
+                    merged["max_discharge_power"] = int(user_input["max_discharge_power"])
                 merged["max_soc"] = int(user_input["max_soc"])
                 merged["min_soc"] = int(user_input["min_soc"])
+                _seed_software_power_limits(merged, brand)
                 # Hysteresis is mandatory; floor the percent against SOC drift.
                 merged["enable_charge_hysteresis"] = True
                 merged["charge_hysteresis_percent"] = max(
@@ -2198,7 +2470,7 @@ class OptionsFlowHandler(OptionsFlow):
                 )
                 merged["backup_offgrid_threshold"] = int(user_input.get("backup_offgrid_threshold", 50))
                 merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-                    False if brand == "zendure"
+                    False if brand in ("zendure", "anker")
                     else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
                 )
                 if brand == "zendure":
@@ -2218,7 +2490,7 @@ class OptionsFlowHandler(OptionsFlow):
                     "max_charge_power": min(current_battery.get("max_charge_power", max_power), max_power),
                     "max_discharge_power": min(current_battery.get("max_discharge_power", max_power), max_power),
                     "max_soc": current_battery.get("max_soc", 100),
-                    "min_soc": current_battery.get("min_soc", 12),
+                    "min_soc": current_battery.get("min_soc", 12 if brand != "anker" else 10),
                     "charge_hysteresis_percent": max(
                         MIN_CHARGE_HYSTERESIS_PERCENT,
                         int(current_battery.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
@@ -2232,10 +2504,22 @@ class OptionsFlowHandler(OptionsFlow):
                 }
             else:
                 defaults = {
-                    "max_charge_power": max_power,
-                    "max_discharge_power": max_power,
+                    "max_charge_power": max(
+                        100,
+                        min(
+                            max_power,
+                            int(self._current_battery_data.get("max_charge_power", max_power)),
+                        ),
+                    ),
+                    "max_discharge_power": max(
+                        100,
+                        min(
+                            max_power,
+                            int(self._current_battery_data.get("max_discharge_power", max_power)),
+                        ),
+                    ),
                     "max_soc": 100,
-                    "min_soc": 12,
+                    "min_soc": 10 if brand == "anker" else 12,
                     "charge_hysteresis_percent": DEFAULT_CHARGE_HYSTERESIS_PERCENT,
                     "backup_offgrid_threshold": 50,
                     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED: DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
@@ -2245,11 +2529,15 @@ class OptionsFlowHandler(OptionsFlow):
             _LOGGER.error("Error in options flow battery_limits step: %s", e, exc_info=True)
             return self.async_abort(reason="unknown_error")
 
-        _schema: dict = {
-            vol.Required("max_charge_power", default=defaults["max_charge_power"]):
-                NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
-            vol.Required("max_discharge_power", default=defaults["max_discharge_power"]):
-                NumberSelector(NumberSelectorConfig(min=100, max=max_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
+        _schema: dict = {}
+        if brand != "anker":
+            _schema[vol.Required("max_charge_power", default=defaults["max_charge_power"])] = NumberSelector(
+                NumberSelectorConfig(min=100, max=max_charge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
+            )
+            _schema[vol.Required("max_discharge_power", default=defaults["max_discharge_power"])] = NumberSelector(
+                NumberSelectorConfig(min=100, max=max_discharge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
+            )
+        _schema.update({
             vol.Required("max_soc", default=defaults["max_soc"]):
                 NumberSelector(NumberSelectorConfig(min=80, max=100, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("min_soc", default=max(soc_min_lo, min(soc_min_hi, defaults["min_soc"]))):
@@ -2258,8 +2546,8 @@ class OptionsFlowHandler(OptionsFlow):
                 NumberSelector(NumberSelectorConfig(min=MIN_CHARGE_HYSTERESIS_PERCENT, max=MAX_CHARGE_HYSTERESIS_PERCENT, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("backup_offgrid_threshold", default=defaults["backup_offgrid_threshold"]):
                 NumberSelector(NumberSelectorConfig(min=0, max=500, step=10, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
-        }
-        if brand != "zendure":
+        })
+        if brand not in ("zendure", "anker"):
             _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=defaults[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED])] = bool
         if brand == "zendure":
             _schema[vol.Optional("battery_capacity_kwh", default=defaults["battery_capacity_kwh"])] = NumberSelector(

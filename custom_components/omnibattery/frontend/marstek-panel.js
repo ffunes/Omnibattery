@@ -561,7 +561,7 @@ const BAT_CONTROLS = [
   // the Marstek backup_function switch; only one exists per device.
   { key: "grid_off_mode", domain: "select", lk: "bcOffgridMode", icon: "mdi:transmission-tower-off" },
   // Cell-maintenance switches (Marstek only): 100% charge voltage taper and active
-  // balancing. Both default-enabled per battery; absent on Zendure.
+  // balancing. Both default-enabled per battery; absent on Zendure/Anker.
   { key: "full_charge_voltage_taper", domain: "switch", lk: "bcVoltageTaper", icon: "mdi:battery-clock" },
   { key: "active_balance_mode", domain: "switch", lk: "bcActiveBalance", icon: "mdi:battery-sync" },
 ];
