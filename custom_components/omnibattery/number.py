@@ -70,8 +70,9 @@ async def async_setup_entry(
             entities.append(MarstekManualSetPowerNumber(coordinator, "charge"))
             entities.append(MarstekManualSetPowerNumber(coordinator, "discharge"))
 
-        # Drivers whose max_charge_power is a read-only device cap (Zendure/Anker)
-        # get a software charge-power ceiling instead of the writable register entity.
+        # Drivers whose max_charge_power is telemetry-only with no sensor entity
+        # (Zendure chargeMaxLimit) get a software charge-power ceiling. Anker
+        # exposes 10036/10038 as sensors instead — no soft-max numbers.
         if coordinator.needs_software_max_charge:
             entities.append(MarstekSoftMaxChargeNumber(coordinator))
         if coordinator.needs_software_max_discharge:
@@ -690,8 +691,8 @@ class MarstekManualSetPowerNumber(CoordinatorEntity, NumberEntity):
 
 
 class MarstekSoftMaxChargeNumber(CoordinatorEntity, NumberEntity):
-    """Software charge-power ceiling for drivers whose reported max_charge_power
-    is a read-only device cap (Zendure chargeMaxLimit / Anker 10036).
+    """Software charge-power ceiling for drivers whose max_charge_power is
+    telemetry-only with no sensor entity (Zendure chargeMaxLimit).
 
     Stores a user limit on the coordinator; the poll loop applies
     min(device_cap, user limit) to coordinator.max_charge_power, which the PD
@@ -740,10 +741,9 @@ class MarstekSoftMaxChargeNumber(CoordinatorEntity, NumberEntity):
 
 
 class MarstekSoftMaxDischargeNumber(CoordinatorEntity, NumberEntity):
-    """Software discharge-power ceiling for drivers whose reported max_discharge_power
-    is a read-only device cap (Anker 10038).
-
-    Mirrors :class:`MarstekSoftMaxChargeNumber` for the discharge direction.
+    """Software discharge-power ceiling when max_discharge_power has no register
+    or sensor entity. Anker exposes 10038 as a sensor (no soft-max); this
+    remains for drivers that need a software discharge ceiling.
     """
 
     def __init__(self, coordinator: MarstekVenusDataUpdateCoordinator) -> None:

@@ -58,17 +58,17 @@ def test_model_label():
     assert _driver().model_label == "Solarbank Max AC"
 
 
-def test_power_caps_are_telemetry_not_sensors():
-    """Hardware max charge/discharge (10036/10038) must stay off SENSOR_DEFINITIONS
-    so the soft-max number entities can own the user-facing Max. Laadvermogen /
-    Max. Ontlaadvermogen unique_ids."""
+def test_power_caps_are_read_only_sensors():
+    """Hardware max charge/discharge (10036/10038) are sensors only — not
+    writable numbers and not setup sliders. Soft-max entities must not claim
+    the same unique_ids."""
     from custom_components.omnibattery.drivers import anker as anker_mod
 
     sensor_keys = {d["key"] for d in anker_mod.SENSOR_DEFINITIONS}
     number_keys = {d["key"] for d in anker_mod.NUMBER_DEFINITIONS}
     field_keys = {f["key"] for f in anker_mod._FIELD_SPECS}
-    assert "max_charge_power" not in sensor_keys
-    assert "max_discharge_power" not in sensor_keys
+    assert "max_charge_power" in sensor_keys
+    assert "max_discharge_power" in sensor_keys
     assert "max_charge_power" not in number_keys
     assert "max_discharge_power" not in number_keys
     assert "max_charge_power" in field_keys

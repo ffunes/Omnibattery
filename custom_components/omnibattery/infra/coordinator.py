@@ -341,17 +341,30 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
     @property
     def needs_software_max_charge(self) -> bool:
-        """True when max_charge_power is a read-only device cap rather than a
-        writable register, so a software ceiling entity governs it (e.g. Zendure
-        chargeMaxLimit, Anker 10036)."""
-        return not any(d["key"] == "max_charge_power" for d in self.number_definitions)
+        """True when max_charge_power has no writable register and no sensor.
+
+        Zendure exposes chargeMaxLimit only as telemetry, so a software ceiling
+        number entity governs it. Anker exposes 10036 as a read-only sensor —
+        PD follows the device value directly, with no soft-max entity.
+        """
+        if any(d["key"] == "max_charge_power" for d in self.number_definitions):
+            return False
+        if any(d["key"] == "max_charge_power" for d in self.sensor_definitions):
+            return False
+        return True
 
     @property
     def needs_software_max_discharge(self) -> bool:
-        """True when max_discharge_power is a read-only device cap rather than a
-        writable register (e.g. Anker 10038). Zendure exposes inverse_max_power
-        as a writable number instead, so it reports False."""
-        return not any(d["key"] == "max_discharge_power" for d in self.number_definitions)
+        """True when max_discharge_power has no writable register and no sensor.
+
+        Anker exposes 10038 as a read-only sensor (no soft-max entity). Zendure
+        exposes inverse_max_power as a writable number, so it reports False.
+        """
+        if any(d["key"] == "max_discharge_power" for d in self.number_definitions):
+            return False
+        if any(d["key"] == "max_discharge_power" for d in self.sensor_definitions):
+            return False
+        return True
 
     @property
     def is_available(self) -> bool:
@@ -810,9 +823,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             self.min_soc = int(self.data["min_soc"])
         if "max_charge_power" in self.data:
             device_cap = int(self.data["max_charge_power"])
-            # When max_charge_power is a read-only device cap (Zendure/Anker), honour
-            # the user's software ceiling on top of it; otherwise the polled register
-            # value is itself the user setting.
+            # When max_charge_power is a soft-capped telemetry value (Zendure),
+            # honour the user's software ceiling on top of it; otherwise the
+            # polled register/sensor value is itself the effective limit.
             self.max_charge_power = (
                 min(device_cap, self.user_max_charge_power)
                 if self.needs_software_max_charge else device_cap

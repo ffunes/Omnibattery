@@ -123,11 +123,16 @@ SENSOR_DEFINITIONS: list[dict] = [
          6: "Smart Mode",
          7: "Dynamic Pricing",
      }},
-    # max_charge_power / max_discharge_power (10036/10038) stay in _FIELD_SPECS
-    # for telemetry + soft-max clamping only — they are internal device caps in
-    # the official YAML, not user-facing sensors. Exposing them as sensors stole
-    # the unique_id from MarstekSoftMaxChargeNumber and showed the hardware
-    # ceiling (3500 W) instead of the configured user limit.
+    # Hardware ceilings (official YAML internal:true) — read-only sensors.
+    # Not writable and not configurable in setup; PD uses the polled values.
+    {"key": "max_charge_power", "name": "Max Charge Power", "unit": "W",
+     "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
+     "icon": "mdi:battery-charging-high", "scan_interval": "medium",
+     "enabled_by_default": True},
+    {"key": "max_discharge_power", "name": "Max Discharge Power", "unit": "W",
+     "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
+     "icon": "mdi:battery-arrow-down-outline", "scan_interval": "medium",
+     "enabled_by_default": True},
     {"key": "battery_total_energy", "name": "Battery Total Energy", "unit": "kWh",
      "device_class": "energy", "state_class": "total", "scale": 0.1, "precision": 2,
      "scan_interval": "low", "enabled_by_default": True},
@@ -501,10 +506,8 @@ class AnkerModbusDriver(BatteryDriver):
 
         Returns ``(ok, caps)`` where ``caps`` may include
         ``device_max_charge_power`` / ``device_max_discharge_power`` from input
-        registers 10036/10038. Those are Anker's internal hardware ceilings
-        (often 3500 W), not a user soft limit from the Anker app — use them to
-        size the setup slider maximum, not as the soft-limit default when a
-        prior ``user_max_*`` exists.
+        registers 10036/10038 (Anker hardware ceilings). Used to seed the
+        battery config envelope; the live values are exposed as sensors.
         """
         client = AnkerModbusClient(host, port, slave_id=slave_id, timeout=5.0)
         try:
