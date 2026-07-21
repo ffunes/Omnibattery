@@ -246,7 +246,11 @@ class AnkerModbusDriver(BatteryDriver):
             has_energy_counters=True,
             has_daily_energy_counters=False,
             setpoint_confirm_reliable=False,
-            actuator_latency_s=1.0,
+            # Above FAST_ACTUATOR_MAX_LATENCY_S (1.5): skip immediate post-write
+            # power sampling. Anker ramps over a few seconds; treating it as fast
+            # produced false non_delivery (ACK ok, actual=0W) and 5-minute pool
+            # exclusions. Poll-time judgment uses DISCHARGE_ENGAGE_GRACE_S instead.
+            actuator_latency_s=2.5,
         )
 
     def _build_read_groups(self) -> list[ReadGroup]:
@@ -476,23 +480,17 @@ class AnkerModbusDriver(BatteryDriver):
         self._last_net_power_w = net
         applied = {"commanded_net_power": net, "operating_mode": _OPERATING_MODE_THIRD_PARTY}
         # Register 10071 is never_read_device — Modbus write success is the ACK.
-        # Returning confirmed=False made the control loop treat every readback
-        # cycle as ack_mismatch (Anker is a "fast" actuator so read_back is
-        # periodically True). When read_back is requested, also sample delivered
-        # power from input 10008 for non-delivery detection.
-        battery_power_w: Optional[int] = None
-        if read_back:
-            snap = await self.read_telemetry(["battery_power"])
-            raw = snap.get("battery_power")
-            if raw is not None:
-                battery_power_w = int(raw)
-                applied["battery_power"] = battery_power_w
+        # Do not sample battery_power here for delivery evidence: Anker often still
+        # reports 0 W in the first second after a write, which the control loop
+        # treated as non_delivery. Delivered power is judged on the next poll
+        # (slow-actuator path + engage grace).
+        _ = read_back
         return SetpointResult(
             ok=True,
             net_power_w=net,
             confirmed=True,
             exact=True,
-            battery_power_w=battery_power_w,
+            battery_power_w=None,
             applied=applied,
         )
 
