@@ -53,6 +53,9 @@ def test_capabilities():
     assert caps.min_charge_power_w == 100
     assert caps.min_discharge_power_w == 100
     assert caps.setpoint_confirm_reliable is False
+    # Must exceed FAST_ACTUATOR_MAX_LATENCY_S (1.5) so post-write power
+    # sampling is not used for non_delivery judgments.
+    assert caps.actuator_latency_s > 1.5
 
 
 def test_model_label():
@@ -259,7 +262,11 @@ async def test_apply_setpoint_charge_writes_negative_wire_value():
     assert result.ok is True
     assert result.net_power_w == 500
     assert result.confirmed is True
+    assert result.battery_power_w is None
     client.async_write_registers_int32.assert_awaited_with(10071, -500)
+    # Immediate telemetry sample must not run — 0 W right after write
+    # falsely tripped non_delivery in the control loop.
+    client.async_read_input_block.assert_not_awaited()
 
 
 @pytest.mark.asyncio
