@@ -3543,10 +3543,23 @@ class ChargeDischargeController:
         silently stalled registerless battery in a pool is excluded, not
         re-commanded forever.
         """
+        if not coordinator.capabilities.detect_power_non_delivery:
+            # Drivers like Anker: write ACK is authoritative; battery_power is not
+            # a trustworthy delivery signal under third-party control.
+            return
         actual_abs = abs(actual_power)
         if actual_abs >= 0.10 * discharge_power:
             self._non_responsive.clear(coordinator)
             return
+        # Status-based delivery: shared inverter_state Discharge (3) means the
+        # unit is engaged even if the power register still reads near zero.
+        inv_state = coordinator.data.get("inverter_state") if coordinator.data else None
+        try:
+            if inv_state is not None and int(inv_state) == 3:
+                self._non_responsive.clear(coordinator)
+                return
+        except (TypeError, ValueError):
+            pass
         engage_started = self._discharge_engage_started.get(coordinator)
         within_engage_grace = (
             engage_started is not None

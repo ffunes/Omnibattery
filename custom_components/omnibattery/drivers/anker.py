@@ -251,6 +251,9 @@ class AnkerModbusDriver(BatteryDriver):
             # produced false non_delivery (ACK ok, actual=0W) and 5-minute pool
             # exclusions. Poll-time judgment uses DISCHARGE_ENGAGE_GRACE_S instead.
             actuator_latency_s=2.5,
+            # Input 10008 is not a reliable delivery oracle under third-party
+            # control — do not exclude the battery from the PD pool on ~0 W.
+            detect_power_non_delivery=False,
         )
 
     def _build_read_groups(self) -> list[ReadGroup]:

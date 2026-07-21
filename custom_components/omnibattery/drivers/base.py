@@ -104,6 +104,13 @@ class DriverCapabilities:
     # actuator can take seconds. Defaults to the fast (register) case.
     actuator_latency_s: float = 0.5
 
+    # True when battery_power telemetry is reliable enough to exclude a unit from
+    # the pool for ACK-ok / ~0 W non-delivery. Anker's third-party setpoint path
+    # often leaves input 10008 at 0 W even while the unit is following the command,
+    # so exclusion based on that sample is a false positive (no RS485 wake either).
+    # Defaults True so Marstek/Zendure keep pool protection.
+    detect_power_non_delivery: bool = True
+
     # Minimum reliable operating power (watts, per unit) below which the hardware
     # will not sustain a non-zero charge/discharge. Marstek v2/v3 report 800 W (the
     # max_charge/discharge_power register floor); vA/vD/Zendure have no such floor

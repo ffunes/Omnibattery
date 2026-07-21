@@ -56,6 +56,7 @@ def test_capabilities():
     # Must exceed FAST_ACTUATOR_MAX_LATENCY_S (1.5) so post-write power
     # sampling is not used for non_delivery judgments.
     assert caps.actuator_latency_s > 1.5
+    assert caps.detect_power_non_delivery is False
 
 
 def test_model_label():
