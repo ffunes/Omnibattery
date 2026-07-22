@@ -8,6 +8,7 @@
 
 ### Fixed
 - **HACS Nordpool sensors configured to display cents were treated as major currency units**: `price_in_cents: true` is now detected explicitly and both forecast slots and the live price are normalized to major currency/kWh before scheduling, threshold checks, arbitrage calculations and diagnostics. The HACS energy scale (`MWh`, `kWh` or `Wh`) is normalized at the same boundary, so Omnibattery thresholds consistently remain in currency/kWh.
+- **Solar Charge Delay unlocked too early when only its 30% safety cushion was missing** (#137): when the remaining net solar still covers the battery's bare energy need, price-driven predictive modes now hold the delay until the cheapest feasible hour, bounded by both the unfactored energy-balance crossing and the time-backup edge. Genuine energy deficits still unlock immediately, as do setups without usable price data or a price-driven mode. Thanks to @syphernl.
 - **Time-slot naming in the configuration and options flows**: renamed the section from "Discharge time slots" to "Time slots" because each slot can independently control both charging and discharging. Updated all six translations, dashboard help text, and the English and Spanish documentation to use the same terminology.
 
 ## [1.0.1b5] - 2026-07-20
