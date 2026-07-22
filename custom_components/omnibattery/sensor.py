@@ -101,9 +101,11 @@ from .sensors.calculated_sensors import (
     MarstekVenusSolarPowerSensor,
     MarstekVenusBatteryCellPowerSensor,
     SyntheticEnergySensor,
+    CumulativeDailyEnergySensor,
     SyntheticCapacitySensor,
     ZendurePackSensor,
     SYNTHETIC_ENERGY_SENSOR_DEFINITIONS,
+    CUMULATIVE_DAILY_ENERGY_SENSOR_DEFINITIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -153,6 +155,9 @@ async def async_setup_entry(
             for definition in SYNTHETIC_ENERGY_SENSOR_DEFINITIONS:
                 entities.append(SyntheticEnergySensor(coordinator, definition))
             entities.append(SyntheticCapacitySensor(coordinator))
+        elif not coordinator.capabilities.has_daily_energy_counters:
+            for definition in CUMULATIVE_DAILY_ENERGY_SENSOR_DEFINITIONS:
+                entities.append(CumulativeDailyEnergySensor(coordinator, definition))
         pack_specs = getattr(coordinator.driver, "pack_field_specs", None)
         if pack_specs:
             data = coordinator.data or {}
@@ -289,7 +294,15 @@ class MarstekVenusSensor(CoordinatorEntity, SensorEntity):
         
         # Map numeric values to state names if available
         if "states" in self.definition:
-            return self.definition["states"].get(value, value)
+            states = self.definition["states"]
+            if value in states:
+                return states[value]
+            # Coordinators may store ints as floats after scale/round; try int key.
+            try:
+                ivalue = int(value)
+            except (TypeError, ValueError):
+                return value
+            return states.get(ivalue, value)
         
         # For bit-described values, show which bits are active
         if "bit_descriptions" in self.definition:
@@ -1264,13 +1277,19 @@ class NonResponsiveBatteriesSensor(SensorEntity):
         now = dt_util.utcnow()
         attrs = {}
         for coordinator in self._coordinators:
+            # Use the tracker's authoritative check here as well as in the
+            # controller pool. It expires cooldowns before attributes are built,
+            # preventing state="None" alongside excluded=true/0 minutes.
+            currently_excluded = self._controller._non_responsive.is_excluded(
+                coordinator
+            )
             info = self._controller._non_responsive_batteries.get(coordinator)
             unreachable = (
                 not coordinator.is_available
                 and not getattr(coordinator, "_is_shutting_down", False)
                 and getattr(coordinator, "_consecutive_failures", 0) > 0
             )
-            if info and info.get("excluded_at") is not None:
+            if currently_excluded and info:
                 cooldown_min = self._controller._non_responsive.cooldown_min
                 elapsed_min = (now - info["excluded_at"]).total_seconds() / 60
                 remaining_min = max(0.0, cooldown_min - elapsed_min)

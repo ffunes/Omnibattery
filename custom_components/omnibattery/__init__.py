@@ -13,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.core import CoreState, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.event import async_track_time_interval, async_track_time_change, async_track_state_change_event, async_call_later
 from homeassistant.util import dt as dt_util
@@ -105,6 +106,9 @@ from .const import (
     CONF_PRICE_INTEGRATION_TYPE,
     CONF_MAX_PRICE_THRESHOLD,
     CONF_DISCHARGE_PRICE_THRESHOLD,
+    CONF_MIN_ARBITRAGE_MARGIN,
+    CONF_ROUND_TRIP_EFFICIENCY,
+    DEFAULT_ROUND_TRIP_EFFICIENCY,
     CONF_AVERAGE_PRICE_SENSOR,
     CONF_DP_PRICE_DISCHARGE_CONTROL,
     CONF_RT_PRICE_DISCHARGE_CONTROL,
@@ -140,6 +144,8 @@ from .const import (
     FEEDFORWARD_COOLDOWN_S,
     FEEDFORWARD_PULSE_GUARD_S,
     PD_ZERO_CROSS_MIN_HOLD_S,
+    MAX_SUPPORTED_SENSOR_INTERVAL_S,
+    SLOW_SENSOR_WARN_INTERVALS,
     FAST_ACTUATOR_MAX_LATENCY_S,
     DISCHARGE_ENGAGE_GRACE_S,
     IDLE_RUNAWAY_POWER_W,
@@ -456,6 +462,9 @@ class ChargeDischargeController:
         self._max_stale_cycles = 15             # safety valve: ~30s before forcing recalculation
         self._control_lock = asyncio.Lock()     # serialize control cycle across timer + sensor-event triggers
         self._grid_at_min_soc_last_ts = None     # last accumulation timestamp for grid-at-min-soc kWh integration
+        self._slow_sensor_warned = False        # one-shot warning/repair for unsupported sensor cadence
+        self._slow_sensor_intervals = 0         # consecutive unsupported sensor intervals
+        self._fast_sensor_intervals = 0         # consecutive supported intervals used to clear the repair
 
         # Normal high-SOC charge protection. These must exist before the first
         # capacity calculation because _battery_power_limit() reads them.
@@ -589,8 +598,13 @@ class ChargeDischargeController:
         self.price_integration_type = config_entry.data.get(CONF_PRICE_INTEGRATION_TYPE, PRICE_INTEGRATION_NORDPOOL)
         self.max_price_threshold = config_entry.data.get(CONF_MAX_PRICE_THRESHOLD, None)
         self.discharge_price_threshold = config_entry.data.get(CONF_DISCHARGE_PRICE_THRESHOLD, None)
+        self.min_arbitrage_margin = config_entry.data.get(CONF_MIN_ARBITRAGE_MARGIN, None)
+        self.round_trip_efficiency = config_entry.data.get(
+            CONF_ROUND_TRIP_EFFICIENCY, DEFAULT_ROUND_TRIP_EFFICIENCY
+        )
         self.dp_price_discharge_control: bool = config_entry.data.get(CONF_DP_PRICE_DISCHARGE_CONTROL, False)
         self._dp_daily_avg_price: Optional[float] = None  # Computed from price slots in _evaluate_dynamic_pricing
+        self._dp_arbitrage_ceiling: Optional[float] = None  # Set per evaluation when the margin gate is on
         # Tibber is service-based (no price sensor): the engine polls tibber.get_prices
         # and caches the parsed slots here.
         self._tibber_price_slots: list = []
@@ -1138,6 +1152,10 @@ class ChargeDischargeController:
         self.price_integration_type = self.config_entry.data.get(CONF_PRICE_INTEGRATION_TYPE, PRICE_INTEGRATION_NORDPOOL)
         self.max_price_threshold = self.config_entry.data.get(CONF_MAX_PRICE_THRESHOLD, None)
         self.discharge_price_threshold = self.config_entry.data.get(CONF_DISCHARGE_PRICE_THRESHOLD, None)
+        self.min_arbitrage_margin = self.config_entry.data.get(CONF_MIN_ARBITRAGE_MARGIN, None)
+        self.round_trip_efficiency = self.config_entry.data.get(
+            CONF_ROUND_TRIP_EFFICIENCY, DEFAULT_ROUND_TRIP_EFFICIENCY
+        )
         self.capacity_protection_enabled = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_ENABLED, False)
         self.capacity_protection_soc_threshold = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_SOC_THRESHOLD, DEFAULT_CAPACITY_PROTECTION_SOC)
         self.capacity_protection_limit = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_LIMIT, DEFAULT_CAPACITY_PROTECTION_LIMIT)
@@ -3110,12 +3128,18 @@ class ChargeDischargeController:
         ignore_discharge_blockers: set[str] | None = None,
         bypass_blockers: bool = False,
         force_write: bool = False,
+        preserve_non_responsive_episode: bool = False,
     ) -> bool:
         """Set charge/discharge power for a single battery with ACK verification.
 
         ``force_write`` bypasses the bus-load skip-write so the command is always
         written, even when the battery's set-points already match — used by the
         non-responsive recovery to re-pin a battery that has slipped its control.
+
+        ``preserve_non_responsive_episode`` is used only for the recovery path's
+        internal standby write. That write is not a real direction decision and
+        must not make the following discharge command clear the active failure
+        episode and its already-consumed wake attempt.
 
         Returns True if command was acknowledged, False otherwise.
         """
@@ -3224,7 +3248,11 @@ class ChargeDischargeController:
         # so the flip is seen even on a cycle that skips the write, and the tracker
         # is reset on the flip so a stale count from a prior session can't carry over.
         net_sign = 1 if net_power > 0 else -1 if net_power < 0 else 0
-        if net_sign == -1 and self._last_commanded_net_sign.get(coordinator) != -1:
+        if (
+            not preserve_non_responsive_episode
+            and net_sign == -1
+            and self._last_commanded_net_sign.get(coordinator) != -1
+        ):
             self._discharge_engage_started[coordinator] = dt_util.utcnow()
             self._non_responsive.clear(coordinator)
         # Mirror stamp for the opposite transition: a flip from a move into idle
@@ -3232,9 +3260,14 @@ class ChargeDischargeController:
         # battery idle from the start (no prior commanded move) gets no grace —
         # there is no ramp-down to wait out, and a genuine runaway found at
         # startup (the original #434 case) should trip immediately.
-        if net_sign == 0 and self._last_commanded_net_sign.get(coordinator, 0) != 0:
+        if (
+            not preserve_non_responsive_episode
+            and net_sign == 0
+            and self._last_commanded_net_sign.get(coordinator, 0) != 0
+        ):
             self._idle_commanded_started[coordinator] = dt_util.utcnow()
-        self._last_commanded_net_sign[coordinator] = net_sign
+        if not preserve_non_responsive_episode:
+            self._last_commanded_net_sign[coordinator] = net_sign
         if net_sign != 0:
             # Commanding a move ends any idle-runaway episode.
             self._idle_runaway_handled.pop(coordinator, None)
@@ -3261,15 +3294,7 @@ class ChargeDischargeController:
         # drops and we fall through to a real write so the tracker keeps seeing it.
         data = coordinator.data or {}
         current_net = coordinator.driver.net_power_from_data(data)
-        # Queued-gateway mode re-asserts the setpoint every cycle (skip disabled)
-        # so a dropped write on a lossy queueing gateway self-heals next cycle the
-        # way the legacy MVEM path did; skip-if-unchanged would starve it (#77).
-        if (
-            not force_write
-            and not coordinator.queued_gateway_compatibility
-            and current_net is not None
-            and current_net == net_power
-        ):
+        if not force_write and current_net is not None and current_net == net_power:
             skip_write = True
             if net_power == 0:
                 # Commanded idle but the battery is actually discharging means it
@@ -3331,7 +3356,7 @@ class ChargeDischargeController:
                 batt_power = data.get("battery_power")
                 skip_write = (
                     batt_power is not None
-                    and abs(float(batt_power)) >= 0.10 * abs(net_power)
+                    and float(batt_power) <= -0.10 * abs(net_power)
                 )
                 # Slow actuators (Zendure HTTP) never read back per-write, so the
                 # ACK-path non-delivery detection further down never runs for them.
@@ -3387,21 +3412,16 @@ class ChargeDischargeController:
         # Attempt the setpoint + verify, with one retry on failure.
         # last_fail_reason carries the most specific failure category seen across
         # both attempts so the non-responsive tracker can surface *why*.
-        # Queued-gateway mode uses a single attempt: an immediate resend re-issues
-        # the write under fresh transaction IDs and re-creates the orphan late-reply
-        # mismatch the transport layer avoids (#77). Recovery is left to the next
-        # control cycle, which re-asserts because skip-if-unchanged is disabled here.
         last_fail_reason: str | None = None
-        max_attempts = 1 if coordinator.queued_gateway_compatibility else 2
-        for attempt in range(max_attempts):
+        for attempt in range(2):
             result = await coordinator.apply_power(net_power, read_back=read_back)
 
             if not result.ok:
                 last_fail_reason = result.failure_reason or "comm_failure"
                 if not coordinator._is_shutting_down:
                     _LOGGER.warning(
-                        "[%s] Power write/feedback failed (attempt %d/%d, reason=%s)",
-                        coordinator.name, attempt + 1, max_attempts, last_fail_reason
+                        "[%s] Power write/feedback failed (attempt %d/2, reason=%s)",
+                        coordinator.name, attempt + 1, last_fail_reason
                     )
                 continue
 
@@ -3438,21 +3458,21 @@ class ChargeDischargeController:
                         )
                 actual_power = result.battery_power_w
                 _LOGGER.debug(
-                    "[%s] Power ACK: force=%d charge=%dW discharge=%dW battery=%dW",
+                    "[%s] Power ACK: force=%d charge=%dW discharge=%dW battery=%sW",
                     coordinator.name,
                     expected_force_mode,
                     int(charge_power),
                     int(discharge_power),
                     actual_power,
                 )
-                if charge_power > 0:
+                if charge_power > 0 and actual_power is not None:
                     self._log_low_power_delivery(
                         coordinator,
                         command="charge",
                         commanded_power=charge_power,
                         actual_power=actual_power,
                     )
-                elif discharge_power > 0:
+                elif discharge_power > 0 and actual_power is not None:
                     self._log_low_power_delivery(
                         coordinator,
                         command="discharge",
@@ -3462,7 +3482,13 @@ class ChargeDischargeController:
                 # Detect non-responsive battery: ACK ok but not delivering discharge
                 # power. Register drivers reach this only on a readback cycle; slow
                 # actuators run the same judgment at poll time (see skip-write block).
-                if discharge_power >= 100 and charge_power == 0:
+                # Skip when delivered power is unknown (e.g. Anker write ACK without
+                # a successful battery_power sample).
+                if (
+                    discharge_power >= 100
+                    and charge_power == 0
+                    and actual_power is not None
+                ):
                     await self._check_non_delivery(
                         coordinator, discharge_power, actual_power, attempt=attempt,
                     )
@@ -3471,7 +3497,7 @@ class ChargeDischargeController:
             # Readback happened but the set-points did not match (mismatch), or the
             # confirmation read never followed (feedback_timeout). Both retryable.
             last_fail_reason = result.failure_reason or "ack_mismatch"
-            if attempt + 1 < max_attempts:
+            if attempt == 0:
                 # On a driver whose readback lags the write (Zendure HTTP echoes the
                 # previous limit for ~2 s), a first-attempt mismatch is expected
                 # echo/engage latency that the retry resolves — log it at debug, not
@@ -3511,9 +3537,9 @@ class ChargeDischargeController:
                 coordinator, last_fail_reason or "comm_failure"
             )
             _LOGGER.error(
-                "[%s] Power command failed after %d attempt(s) (reason=%s). "
+                "[%s] Power command failed after 2 attempts (reason=%s). "
                 "Battery may not have received command.",
-                coordinator.name, max_attempts, last_fail_reason or "comm_failure"
+                coordinator.name, last_fail_reason or "comm_failure"
             )
         return False
 
@@ -3532,8 +3558,8 @@ class ChargeDischargeController:
         silently stalled registerless battery in a pool is excluded, not
         re-commanded forever.
         """
-        actual_abs = abs(actual_power)
-        if actual_abs >= 0.10 * discharge_power:
+        delivered_discharge = max(0.0, -float(actual_power))
+        if delivered_discharge >= 0.10 * discharge_power:
             self._non_responsive.clear(coordinator)
             return
         engage_started = self._discharge_engage_started.get(coordinator)
@@ -3590,7 +3616,7 @@ class ChargeDischargeController:
         # and must reach the wake/reconnect recovery path (issue #26).
         reason = "standby_no_delivery" if is_standby else "non_delivery"
         outcome = self._non_responsive.record_non_delivery(
-            coordinator, discharge_power, actual_abs,
+            coordinator, discharge_power, delivered_discharge,
             reason=reason, retry_attempted=attempt > 0,
         )
         # First threshold-cross: a one-shot wake nudge (reconnect/re-assert), but
@@ -3637,8 +3663,11 @@ class ChargeDischargeController:
             ok = await coordinator.async_reconnect_fresh()
             await self._set_battery_power(
                 coordinator, 0, 0, bypass_blockers=True, force_write=True,
+                preserve_non_responsive_episode=True,
             )
-            return ok
+            return ok and getattr(
+                coordinator, "_last_rs485_reenable_success", True
+            ) is not False
         _LOGGER.info(
             "[%s] Non-delivery — re-asserting RS485 control + forcing standby",
             coordinator.name,
@@ -3658,8 +3687,11 @@ class ChargeDischargeController:
             ok = await coordinator.async_reconnect_fresh()
         await self._set_battery_power(
             coordinator, 0, 0, bypass_blockers=True, force_write=True,
+            preserve_non_responsive_episode=True,
         )
-        return ok
+        return ok and getattr(
+            coordinator, "_last_rs485_reenable_success", True
+        ) is not False
 
     # =========================================================================
     # DYNAMIC PRICING / REAL-TIME PRICE: delegators to PricingManager
@@ -4349,7 +4381,7 @@ class ChargeDischargeController:
         )
         return held_power
 
-    def _apply_zero_cross_hold(self, new_power, error):
+    def _apply_zero_cross_hold(self, new_power, error, stale_recalc=False):
         """ZERO-CROSS HOLD (direction-flip dwell).
 
         On a downward load step the discharging battery keeps delivering its old
@@ -4374,8 +4406,17 @@ class ChargeDischargeController:
         min-power floor, so a suppressed flip can never be bootstrapped up to
         pd_min_charge_power; the relay dwell downstream then decides whether the
         previous battery holds at minimum power or drops to 0.
+
+        ``stale_recalc`` marks the safety recalculation that runs on a silent
+        sensor: its 0 W command is the frozen previous command, not a fresh idle
+        decision, so the armed timer must survive it.
         """
         requested_sign = 1 if new_power > 0 else (-1 if new_power < 0 else 0)
+        if stale_recalc and requested_sign == 0 and self._zero_cross_since is not None:
+            # Issue #117: on a sensor slower than the stale window (~30s), every
+            # stale recalc in between cleared the timer, so the flip re-armed at
+            # 0.0s on each fresh sample and could never accumulate the window.
+            return new_power
         if (
             self.last_output_sign == 0
             or requested_sign == 0
@@ -4411,6 +4452,59 @@ class ChargeDischargeController:
             new_power, error, held_s, window_s,
         )
         return 0
+
+    def _check_sensor_cadence(self, sensor_elapsed_s):
+        """Raise a repair when the main sensor cadence is unsupported.
+
+        Sensor compatibility is deliberately independent from the stale watchdog:
+        the former is a control-quality contract, while the latter rechecks structural
+        state after an unexpected telemetry outage. Only positive, real update intervals
+        reach the debounce; watchdog ticks report 0 and must not reset its streak.
+
+        Debounced over consecutive intervals: a single long gap is far more likely to be
+        an outage or a restart than the configured cadence, because the stored sensor
+        timestamp is not advanced while the sensor reads unavailable, so the first sample
+        after any downtime measures the whole gap.
+        """
+        if sensor_elapsed_s is None or sensor_elapsed_s <= 0:
+            return
+
+        issue_id = f"slow_main_sensor_{self.config_entry.entry_id}"
+        if sensor_elapsed_s < MAX_SUPPORTED_SENSOR_INTERVAL_S:
+            self._slow_sensor_intervals = 0
+            self._fast_sensor_intervals += 1
+            if self._fast_sensor_intervals == SLOW_SENSOR_WARN_INTERVALS:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+                self._slow_sensor_warned = False
+            return
+
+        self._fast_sensor_intervals = 0
+        self._slow_sensor_intervals += 1
+        if self._slow_sensor_intervals < SLOW_SENSOR_WARN_INTERVALS or self._slow_sensor_warned:
+            return
+        self._slow_sensor_warned = True
+        _LOGGER.warning(
+            "Main sensor %s updates every ~%.0fs; intervals of %.0fs or more are "
+            "unsupported. Configure a faster grid power sensor (~1-2s recommended).",
+            self.consumption_sensor,
+            sensor_elapsed_s,
+            MAX_SUPPORTED_SENSOR_INTERVAL_S,
+        )
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            is_persistent=True,
+            issue_domain=DOMAIN,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="slow_main_sensor",
+            translation_placeholders={
+                "sensor": self.consumption_sensor,
+                "observed_interval": f"{sensor_elapsed_s:.0f}",
+                "max_interval": f"{MAX_SUPPORTED_SENSOR_INTERVAL_S:.0f}",
+            },
+        )
 
     async def _run_control_cycle(self, now=None):
         """Update the charge/discharge power of the batteries."""
@@ -4550,6 +4644,12 @@ class ChargeDischargeController:
             (sensor_update_time - previous_update_time).total_seconds()
             if previous_update_time is not None else None
         )
+
+        # Watchdog ticks have elapsed=0 and are not cadence observations. Feeding
+        # them into the debounce reset the slow streak between every pair of real
+        # samples, so a 60 s sensor could never reach the warning threshold.
+        if not is_stale:
+            self._check_sensor_cadence(sensor_elapsed_s)
 
         # Generic safety recalc on a silent sensor must re-evaluate structural state
         # (SOC/limits/blockers) but must NOT integrate the P term: the grid error is
@@ -4860,7 +4960,9 @@ class ChargeDischargeController:
         # settle window before it becomes a real opposite-direction command (see
         # _apply_zero_cross_hold). Must run before _apply_min_power so a clamped
         # flip cannot be raised to the minimum charge power.
-        new_power = self._apply_zero_cross_hold(new_power, error)
+        new_power = self._apply_zero_cross_hold(
+            new_power, error, stale_recalc=stale_safety_recalc
+        )
 
         # Final commanded direction (feeds last_output_sign at end of cycle). In the
         # PD path the hysteresis inside _compute_pd_new_power already zeroed new_power
@@ -5023,6 +5125,12 @@ class ChargeDischargeController:
                         await self._consumption_tracker.maybe_save_grid_at_min_soc_history()
 
         if not available_batteries:
+            # NOTE: this path ends the cycle before the end-of-cycle PD state update,
+            # so last_output_sign stays latched at the last real flow direction. That
+            # is deliberate: the battery may still be ramping down (or the 0W write may
+            # not have landed on an unreachable battery), so the next flip must still
+            # prove itself against the zero-cross settle window. Issue #117 was the
+            # settle timer being cleared underneath that latch, not the latch itself.
             _LOGGER.debug("ChargeDischargeController: No available batteries, setting all to 0.")
             for coordinator in self.coordinators:
                 if self._is_active_balance_mode_running(coordinator):
@@ -5484,6 +5592,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+def _device_owns_initial_config(brand: str) -> bool:
+    """Return whether setup must preserve configuration stored by the device."""
+    return brand == "zendure"
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Omnibattery from a config entry."""
     hass.data.setdefault(DOMAIN, {})
@@ -5492,7 +5605,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_frontend_panel(hass, entry)
 
     # Migration: Add default version for existing installations
-    from .const import CONF_BATTERY_VERSION, DEFAULT_VERSION, CONF_SLAVE_ID, DEFAULT_SLAVE_ID, CONF_SERIAL_PORT, CONF_QUEUED_GATEWAY_COMPATIBILITY
+    from .const import CONF_BATTERY_VERSION, DEFAULT_VERSION, CONF_SLAVE_ID, DEFAULT_SLAVE_ID, CONF_SERIAL_PORT
 
     for battery_config in entry.data["batteries"]:
         if CONF_BATTERY_VERSION not in battery_config:
@@ -5565,9 +5678,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             brand=battery_config.get("brand", "marstek"),
             zendure_model=battery_config.get("zendure_model", "2400ac_pro"),
             serial_port=battery_config.get(CONF_SERIAL_PORT) or None,
-            queued_gateway_compatibility=battery_config.get(
-                CONF_QUEUED_GATEWAY_COMPATIBILITY, False
-            ),
             esphome_device_id=battery_config.get("esphome_device_id"),
         )
 
@@ -5585,6 +5695,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator.commanded_discharge_power = coordinator.manual_set_discharge_power
         coordinator.user_max_charge_power = battery_config.get(
             "user_max_charge_power", coordinator.max_charge_power
+        )
+        coordinator.user_max_discharge_power = battery_config.get(
+            "user_max_discharge_power", coordinator.max_discharge_power
         )
         coordinator.active_balance_mode_started_ts = battery_config.get("active_balance_mode_started_ts")
         coordinator.active_balance_mode_run_date = battery_config.get("active_balance_mode_run_date")
@@ -5661,7 +5774,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 # device-set values on every restart and re-arm the full-charge
                 # taper/hysteresis machinery. The device is the source of truth and
                 # the coordinator syncs soc_set/min_soc back from the poll.
-                if coordinator.needs_software_manual_control:
+                if _device_owns_initial_config(coordinator.brand):
                     _LOGGER.info("Skipping initial SOC config write for %s (registerless driver; device flash holds the user values)",
                                battery_config[CONF_NAME])
                 else:
