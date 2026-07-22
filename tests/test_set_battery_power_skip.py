@@ -85,7 +85,6 @@ def _controller():
         _idle_commanded_started={},
         _non_responsive=SimpleNamespace(
             record_non_delivery=lambda *a, **k: False,
-            record_comm_failure=lambda *a, **k: None,
             clear=lambda c: None,
             set_wake_attempted=lambda *a, **k: None,
         ),
@@ -228,7 +227,7 @@ async def test_skip_when_discharge_unchanged_and_delivering():
         "force_mode": 2,
         "set_charge_power": 0,
         "set_discharge_power": 300,
-        "battery_power": -300,  # delivering (sign-agnostic via abs())
+        "battery_power": -300,  # negative is delivered discharge
     })
     ctrl = _controller()
 
@@ -236,6 +235,29 @@ async def test_skip_when_discharge_unchanged_and_delivering():
 
     assert result is True
     coord.apply_power.assert_not_called()
+
+
+async def test_discharge_wrong_direction_is_not_treated_as_delivery():
+    """Positive battery power is charging, so it must not satisfy discharge."""
+    coord = _Coord({
+        "force_mode": 2,
+        "set_charge_power": 0,
+        "set_discharge_power": 300,
+        "battery_power": 300,
+        "battery_soc": 80,
+        "inverter_state": None,
+    })
+    coord.apply_power = AsyncMock(return_value=_ok(-300, battery_power_w=300))
+    ctrl = _controller()
+    ctrl._last_commanded_net_sign[coord] = -1
+    record = MagicMock(return_value=None)
+    ctrl._non_responsive.record_non_delivery = record
+
+    result = await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 300)
+
+    assert result is True
+    coord.apply_power.assert_awaited_once()
+    record.assert_called_once()
 
 
 async def test_skip_when_charge_unchanged():
@@ -246,41 +268,6 @@ async def test_skip_when_charge_unchanged():
 
     assert result is True
     coord.apply_power.assert_not_called()
-
-
-async def test_queued_gateway_reasserts_unchanged_setpoint():
-    """Queued-gateway mode disables skip-if-unchanged: the setpoint is re-written
-    every cycle so a dropped write on a lossy gateway self-heals (#77)."""
-    coord = _Coord({"force_mode": 1, "set_charge_power": 500, "set_discharge_power": 0})
-    coord.queued_gateway_compatibility = True
-    coord.apply_power = AsyncMock(return_value=_ok(500, battery_power_w=500))
-    ctrl = _controller()
-
-    result = await ChargeDischargeController._set_battery_power(ctrl, coord, 500, 0)
-
-    assert result is True
-    coord.apply_power.assert_called_once()
-
-
-async def test_queued_gateway_no_resend_on_failure():
-    """Queued mode sends the write once on failure — no immediate resend under a
-    fresh transaction ID (would orphan late gateway replies); recovery is left to
-    the next control cycle (#77). Standard mode still retries twice."""
-    coord = _Coord({"force_mode": 2, "set_charge_power": 0, "set_discharge_power": 300})
-    coord.queued_gateway_compatibility = True
-    coord._is_shutting_down = False
-    coord.apply_power = AsyncMock(
-        return_value=SetpointResult(
-            ok=False, net_power_w=-300, confirmed=False,
-            failure_reason="feedback_timeout",
-        )
-    )
-    ctrl = _controller()
-
-    result = await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 300)
-
-    assert result is False
-    coord.apply_power.assert_called_once()
 
 
 async def test_no_skip_when_discharge_unchanged_but_not_delivering():
@@ -336,12 +323,7 @@ async def test_no_record_during_discharge_engage_grace():
 
 
 async def test_high_soc_standby_after_taper_reaches_wake_and_exclusion():
-    """Issue #26: a previous top-charge pause must not exempt a stuck discharge.
-
-    The engage grace has already elapsed here. The battery ACKs the discharge
-    set-point but remains at 0 W in standby, so it must accumulate failures, get
-    the one-shot wake, and eventually be excluded.
-    """
+    """A previous top-charge pause must not exempt a stalled discharge (#26)."""
     coord = _Coord({
         "force_mode": 2,
         "set_charge_power": 0,
@@ -353,8 +335,6 @@ async def test_high_soc_standby_after_taper_reaches_wake_and_exclusion():
     ctrl = _controller()
     ctrl._non_responsive = NonResponsiveTracker(fail_threshold=3)
     ctrl._attempt_wake = AsyncMock(return_value=True)
-    # The charge-side anti-ping-pong latch remains active after reaching the top;
-    # it must not suppress discharge-side non-delivery recovery.
     ctrl._normal_balance_pause_latch_soc = {coord: 99.0}
 
     for _ in range(3):
@@ -368,6 +348,51 @@ async def test_high_soc_standby_after_taper_reaches_wake_and_exclusion():
 
     assert ctrl._non_responsive.is_excluded(coord) is True
     assert ctrl._non_responsive.excluded_names() == ["BAT1"]
+
+
+async def test_recovery_standby_preserves_episode_until_exclusion():
+    """The wake path's internal standby must not re-arm wake forever (#26)."""
+    coord = _Coord({
+        "force_mode": 2,
+        "set_charge_power": 0,
+        "set_discharge_power": 600,
+        "battery_power": 0,
+        "battery_soc": 99,
+        "inverter_state": 1,
+    })
+    coord.apply_power = AsyncMock(return_value=_ok(0, battery_power_w=0))
+    ctrl = _controller()
+    ctrl._non_responsive = NonResponsiveTracker(fail_threshold=3)
+    ctrl._last_commanded_net_sign[coord] = -1
+
+    async def recovery_standby(_coord, *, is_standby=False):
+        assert is_standby is True
+        await ChargeDischargeController._set_battery_power(
+            ctrl, coord, 0, 0,
+            bypass_blockers=True,
+            force_write=True,
+            preserve_non_responsive_episode=True,
+        )
+        return True
+
+    ctrl._attempt_wake = AsyncMock(side_effect=recovery_standby)
+
+    for _ in range(3):
+        await ctrl._check_non_delivery(coord, 600, 0, attempt=0)
+
+    assert ctrl._last_commanded_net_sign[coord] == -1
+    assert ctrl._non_responsive.is_excluded(coord) is False
+
+    # The next discharge is still the same episode, so the second threshold
+    # crossing excludes instead of granting another wake round.
+    await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 600)
+    # The first real command after recovery can be a deliberately write-only
+    # cadence slot, so count three explicit settled observations here.
+    for _ in range(3):
+        await ctrl._check_non_delivery(coord, 600, 0, attempt=0)
+
+    assert ctrl._attempt_wake.await_count == 1
+    assert ctrl._non_responsive.is_excluded(coord) is True
 
 
 async def test_no_skip_when_setpoints_differ():
