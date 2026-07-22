@@ -26,7 +26,9 @@ from custom_components.omnibattery.const import (
     PREDICTIVE_MODE_TIME_SLOT,
 )
 from custom_components.omnibattery.pricing import PriceSlot
+from custom_components.omnibattery.pricing import engine as pricing_engine
 from custom_components.omnibattery.pricing.engine import PricingManager
+from custom_components.omnibattery.pricing.nordpool import OfficialNordPoolSource
 
 
 # ----------------------------------------------------------------------
@@ -90,6 +92,39 @@ def test_price_unit_ckw_is_chf():
 
 def test_price_unit_default_is_eur():
     assert _mgr(_controller(price_integration_type=PRICE_INTEGRATION_NORDPOOL))._get_price_unit() == "€/kWh"
+
+
+def test_price_unit_uses_configured_nordpool_currency():
+    state = SimpleNamespace(attributes={"unit_of_measurement": "SEK/kWh"})
+    hass = SimpleNamespace(states=SimpleNamespace(get=lambda _entity_id: state))
+    ctrl = _controller(
+        price_integration_type=PRICE_INTEGRATION_NORDPOOL,
+        price_sensor="sensor.nord_pool_se3_current_price",
+    )
+
+    assert PricingManager(hass, ctrl)._get_price_unit() == "SEK/kWh"
+
+
+def test_hacs_nordpool_current_price_and_unit_are_normalized_from_cents():
+    state = SimpleNamespace(
+        state="12.5",
+        attributes={
+            "price_in_cents": True,
+            "unit": "kWh",
+            "currency": "EUR",
+            "unit_of_measurement": "c/kWh",
+            "raw_today": [],
+        },
+    )
+    hass = SimpleNamespace(states=SimpleNamespace(get=lambda _entity_id: state))
+    ctrl = _controller(
+        price_integration_type=PRICE_INTEGRATION_NORDPOOL,
+        price_sensor="sensor.nordpool_kwh_nl_eur",
+    )
+    manager = PricingManager(hass, ctrl)
+
+    assert manager._get_current_price() == 0.125
+    assert manager._get_price_unit() == "€/kWh"
 
 
 # ----------------------------------------------------------------------
@@ -411,3 +446,120 @@ def test_tibber_refresh_requests_through_day_after_tomorrow():
     end = dt_util.parse_datetime(services.calls[0]["end"])
     assert end == dt_util.start_of_local_day() + timedelta(days=2)
     assert ctrl._price_based_discharge_blocked is False
+
+
+# ----------------------------------------------------------------------
+# Official Nord Pool service provider
+# ----------------------------------------------------------------------
+
+class _FakeNordPoolServices:
+    """Records the official service request and returns one current-day area."""
+
+    def __init__(self, response=None):
+        self.calls: list = []
+        self.response = response or {}
+
+    def has_service(self, domain, service):
+        return domain == "nordpool" and service == "get_prices_for_date"
+
+    async def async_call(self, domain, service, data, blocking=True, return_response=True):
+        self.calls.append((domain, service, data))
+        return self.response
+
+
+def test_official_nordpool_refresh_requests_today_and_selected_area(monkeypatch):
+    import asyncio
+    from homeassistant.util import dt as dt_util
+
+    now = datetime.now()
+    services = _FakeNordPoolServices(
+        {
+            "ES": [
+                {
+                    "start": (now - timedelta(minutes=15)).isoformat(),
+                    "end": (now + timedelta(minutes=15)).isoformat(),
+                    "price": 123.45,
+                }
+            ]
+        }
+    )
+    hass = SimpleNamespace(
+        services=services,
+        states=SimpleNamespace(get=lambda _entity_id: SimpleNamespace(attributes={})),
+    )
+    source = [OfficialNordPoolSource("nordpool-entry", "ES")]
+    monkeypatch.setattr(
+        pricing_engine,
+        "resolve_official_nordpool_source",
+        lambda *_args: source[0],
+    )
+    ctrl = _controller(
+        price_sensor="sensor.nord_pool_es_current_price",
+        _nordpool_price_slots=[],
+        _nordpool_prices_fetched_at=None,
+    )
+    manager = PricingManager(hass, ctrl)
+
+    asyncio.run(manager._maybe_refresh_nordpool_prices(force=True))
+    asyncio.run(manager._maybe_refresh_nordpool_prices())
+
+    assert len(services.calls) == 1
+    domain, service, data = services.calls[0]
+    assert (domain, service) == ("nordpool", "get_prices_for_date")
+    assert data == {
+        "config_entry": "nordpool-entry",
+        "date": dt_util.now().date(),
+        "areas": ["ES"],
+    }
+    assert len(ctrl._nordpool_price_slots) == 1
+    assert ctrl._nordpool_price_slots[0].price == 0.12345
+    assert manager._get_current_price() == 0.12345
+
+    # A hot-reload that selects another official market area must invalidate
+    # the otherwise-fresh hourly cache immediately.
+    source[0] = OfficialNordPoolSource("nordpool-entry", "FR")
+    services.response = {
+        "FR": [
+            {
+                "start": (now - timedelta(minutes=15)).isoformat(),
+                "end": (now + timedelta(minutes=15)).isoformat(),
+                "price": 200.0,
+            }
+        ]
+    }
+    asyncio.run(manager._maybe_refresh_nordpool_prices())
+
+    assert len(services.calls) == 2
+    assert services.calls[1][2]["areas"] == ["FR"]
+    assert ctrl._nordpool_price_slots[0].price == 0.2
+
+
+def test_hacs_nordpool_raw_today_does_not_call_official_service():
+    import asyncio
+
+    services = _FakeNordPoolServices()
+    state = SimpleNamespace(
+        state="0.10",
+        attributes={
+            "raw_today": [
+                {
+                    "start": datetime.now(),
+                    "end": datetime.now() + timedelta(hours=1),
+                    "value": 0.10,
+                }
+            ]
+        },
+    )
+    hass = SimpleNamespace(
+        services=services,
+        states=SimpleNamespace(get=lambda _entity_id: state),
+    )
+    ctrl = _controller(
+        price_sensor="sensor.nordpool_kwh_es_eur",
+        _nordpool_price_slots=[],
+        _nordpool_prices_fetched_at=None,
+    )
+
+    asyncio.run(PricingManager(hass, ctrl)._maybe_refresh_nordpool_prices(force=True))
+
+    assert services.calls == []

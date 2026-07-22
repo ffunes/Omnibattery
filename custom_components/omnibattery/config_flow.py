@@ -103,6 +103,7 @@ from .drivers.esphome import EsphomeEntityDriver
 from .drivers.marstek import MarstekModbusDriver
 from .drivers.zendure import ZendureLocalDriver, detect_model as _detect_zendure_model
 from .drivers.anker import AnkerModbusDriver
+from .pricing.nordpool import is_official_nordpool_sensor
 
 _ZENDURE_MAX_POWER_W = 2400
 _ANKER_MAX_POWER_W = 3500
@@ -1396,7 +1397,14 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                             if not prices or not isinstance(prices, (list, tuple)) or len(prices) == 0:
                                 errors[CONF_PRICE_SENSOR] = "no_price_data"
                         else:  # Nordpool
-                            if "raw_today" not in attrs:
+                            if (
+                                "raw_today" not in attrs
+                                and not is_official_nordpool_sensor(
+                                    self.hass,
+                                    price_sensor,
+                                    attrs,
+                                )
+                            ):
                                 errors[CONF_PRICE_SENSOR] = "no_price_data"
 
                 # Validate solar forecast sensor if not global
@@ -3039,7 +3047,14 @@ class OptionsFlowHandler(OptionsFlow):
                             if not prices or not isinstance(prices, (list, tuple)) or len(prices) == 0:
                                 errors[CONF_PRICE_SENSOR] = "no_price_data"
                         else:  # Nordpool
-                            if "raw_today" not in attrs:
+                            if (
+                                "raw_today" not in attrs
+                                and not is_official_nordpool_sensor(
+                                    self.hass,
+                                    price_sensor,
+                                    attrs,
+                                )
+                            ):
                                 errors[CONF_PRICE_SENSOR] = "no_price_data"
 
                 if has_global_sensor:

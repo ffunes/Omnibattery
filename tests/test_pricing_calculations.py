@@ -161,6 +161,51 @@ def test_parse_nordpool():
     assert all(isinstance(s, PriceSlot) for s in slots)
 
 
+def test_parse_hacs_nordpool_normalizes_cents_to_major_currency_per_kwh():
+    attrs = {
+        "price_in_cents": True,
+        "unit": "kWh",
+        "currency": "EUR",
+        "raw_today": [
+            {"start": _DAY, "end": _DAY + timedelta(hours=1), "value": 12.5},
+        ],
+    }
+
+    slots = calculations.parse_nordpool_prices(attrs)
+
+    assert [s.price for s in slots] == [0.125]
+
+
+def test_hacs_nordpool_normalizes_energy_scale_to_per_kwh():
+    assert calculations.normalize_nordpool_hacs_price(125.0, {"unit": "MWh"}) == 0.125
+    assert calculations.normalize_nordpool_hacs_price(0.000125, {"unit": "Wh"}) == 0.125
+
+
+def test_parse_official_nordpool_service_prices_converts_mwh_to_kwh():
+    response = {
+        "ES": [
+            {
+                "start": "2999-01-01T00:00:00",
+                "end": "2999-01-01T00:15:00",
+                "price": 125.5,
+            }
+        ],
+        "FR": [
+            {
+                "start": "2999-01-01T00:00:00",
+                "end": "2999-01-01T00:15:00",
+                "price": 999.0,
+            }
+        ],
+    }
+
+    slots = calculations.parse_nordpool_service_prices(response, "ES")
+
+    assert len(slots) == 1
+    assert slots[0].price == 0.1255
+    assert slots[0].end - slots[0].start == timedelta(minutes=15)
+
+
 def test_parse_pvpc():
     attrs = {"price_00h": 0.11, "price_01h": 0.12, "price_02h": "0.13"}
     slots = calculations.parse_pvpc_prices(attrs)

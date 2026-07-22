@@ -609,6 +609,11 @@ class ChargeDischargeController:
         # and caches the parsed slots here.
         self._tibber_price_slots: list = []
         self._tibber_prices_fetched_at: Optional[datetime] = None
+        # The official Nord Pool integration exposes the daily profile through
+        # nordpool.get_prices_for_date rather than raw_today sensor attributes.
+        self._nordpool_price_slots: list = []
+        self._nordpool_prices_fetched_at: Optional[datetime] = None
+        self._nordpool_price_source_key: Optional[tuple] = None
 
         # Price-based discharge control flag (set each cycle by pricing handlers, consumed by PD section)
         self._price_based_discharge_blocked: bool = False

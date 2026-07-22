@@ -360,12 +360,7 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
 
         # Real-time price attributes
         if self.controller.predictive_charging_mode == "realtime_price":
-            price_state = self.controller.hass.states.get(self.controller.price_sensor) if self.controller.price_sensor else None
-            if price_state is not None:
-                try:
-                    attrs["current_price"] = float(price_state.state)
-                except (ValueError, TypeError):
-                    attrs["current_price"] = None
+            attrs["current_price"] = self.controller._pricing_mgr._get_current_price()
             threshold = None
             if self.controller.average_price_sensor:
                 avg_state = self.controller.hass.states.get(self.controller.average_price_sensor)

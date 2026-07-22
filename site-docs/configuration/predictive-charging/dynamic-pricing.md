@@ -4,7 +4,7 @@ Automatically selects the **cheapest hours of the day** to cover the calculated 
 
 ## Compatible price integrations
 
-- **Nordpool**
+- **Nord Pool** — both the official Home Assistant integration and the HACS integration
 - **PVPC** (ESIOS REE, Spain)
 - **CKW** (Switzerland)
 - **EPEX Spot** (e.g. aWATTar)
@@ -14,12 +14,15 @@ Automatically selects the **cheapest hours of the day** to cover the calculated 
 !!! note "Tibber needs no sensor"
     Selecting **Tibber** as the price integration leaves the *Electricity price sensor* field unused — the engine calls the `tibber.get_prices` service (today's prices, plus tomorrow's after ~13:00), caches the slots and refreshes hourly. The official Tibber integration must be configured in HA.
 
+!!! note "Official Nord Pool and HACS are selected the same way"
+    Select **Nordpool** and choose a price entity from the provider. A HACS sensor continues to be read from its `raw_today` / `raw_tomorrow` attributes. If that sensor has `price_in_cents: true`, Omnibattery automatically converts its slots and current price to major currency/kWh, so thresholds must still be entered in €/kWh (or the corresponding major currency), not cents. For an entity from Home Assistant's official Nord Pool integration, Omnibattery automatically resolves its market area, calls `nordpool.get_prices_for_date` for today, converts the returned currency/MWh values to currency/kWh, and refreshes the cache hourly. No separate provider option or template sensor is needed.
+
 ## Configuration
 
 | Field | Description |
 |---|---|
-| **Price integration type** | Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e |
-| **Electricity price sensor** | HA entity with the current price (and hourly forecast attributes) |
+| **Price integration type** | Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e / Tibber |
+| **Electricity price sensor** | HA price entity. For Nord Pool, select either an official-integration entity or the existing HACS sensor; unused for Tibber |
 | **Max price threshold (€)** | (Optional) Price ceiling; does not charge even during "cheap" hours if the price exceeds this value. Also used as the discharge threshold when price-based discharge control is enabled |
 | **Only discharge when price is above threshold** | (Optional) Price-gated discharge — see below |
 | **Discharge price floor (€)** | (Optional) Separate floor for price-gated discharge — opens an idle band between the charge ceiling and this floor. Empty = reuse the max price threshold for both. See [Separate discharge price floor](#separate-discharge-price-floor) |

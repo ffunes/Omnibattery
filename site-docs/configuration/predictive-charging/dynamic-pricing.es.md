@@ -4,7 +4,7 @@ Selecciona automáticamente las **horas más baratas del día** para cubrir el d
 
 ## Integraciones de precio compatibles
 
-- **Nordpool**
+- **Nord Pool** — tanto la integración oficial de Home Assistant como la integración de HACS
 - **PVPC** (ESIOS REE, España)
 - **CKW** (Suiza)
 - **EPEX Spot** (p. ej. aWATTar)
@@ -14,12 +14,15 @@ Selecciona automáticamente las **horas más baratas del día** para cubrir el d
 !!! note "Tibber no necesita sensor"
     Al elegir **Tibber** como integración de precios, el campo *Sensor de precio* queda sin usar — el motor llama al servicio `tibber.get_prices` (precios de hoy y, tras las ~13:00, los de mañana), cachea los slots y refresca cada hora. La integración oficial de Tibber debe estar configurada en HA.
 
+!!! note "Nord Pool oficial y HACS se configuran igual"
+    Selecciona **Nordpool** y elige una entidad de precios del proveedor. Los sensores de HACS se siguen leyendo desde sus atributos `raw_today` / `raw_tomorrow`. Si el sensor tiene `price_in_cents: true`, Omnibattery convierte automáticamente sus slots y el precio actual a moneda principal/kWh; por tanto, los umbrales se siguen introduciendo en €/kWh (o la moneda principal correspondiente), no en céntimos. Si la entidad pertenece a la integración oficial de Nord Pool de Home Assistant, Omnibattery resuelve automáticamente su área de mercado, llama a `nordpool.get_prices_for_date` para el día actual, convierte los valores de moneda/MWh a moneda/kWh y refresca la caché cada hora. No hace falta elegir otro proveedor ni crear un sensor de plantilla.
+
 ## Configuración
 
 | Campo | Descripción |
 |---|---|
-| **Tipo de integración de precios** | Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e |
-| **Sensor de precio** | Entidad HA con el precio actual (y atributos de previsión horaria) |
+| **Tipo de integración de precios** | Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e / Tibber |
+| **Sensor de precio** | Entidad de precios de HA. Para Nord Pool, selecciona una entidad oficial o el sensor existente de HACS; Tibber no usa este campo |
 | **Umbral máximo de precio** | (Opcional) Precio techo; no carga aunque la hora sea "barata" si supera este valor. También se usa como umbral de descarga cuando el control de descarga por precio está activado |
 | **Descargar solo cuando el precio supere el umbral** | (Opcional) Descarga condicionada al precio actual — ver abajo |
 | **Suelo de precio de descarga (€)** | (Opcional) Suelo separado para la descarga condicionada — abre una banda de reposo entre el techo de carga y este suelo. Vacío = reutiliza el umbral máximo para ambos. Ver [Suelo de precio de descarga separado](#suelo-de-precio-de-descarga-separado) |
