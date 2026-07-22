@@ -32,6 +32,9 @@ Every time the sensor value changes by more than 0.05 kWh, the integration re-ev
 
 Once the delay is unlocked it stays unlocked for the rest of the day.
 
+!!! note "Cushion-only shortfall waits for the cheapest hour"
+    The energy-balance unlock fires at `net_solar < energy_needed × 1.3`, where the 30 % is a safety cushion rather than the target itself. When only that cushion is missing (`net_solar` is still at or above the bare `energy_needed`) and predictive charging runs in a price-driven mode, the delay does not release on the spot: it holds for the cheapest remaining hour, bounded by the moment the unfactored balance is projected to break. Self-charging then lands in the midday price trough instead of the morning export peak, and the SOC target stays reachable. A genuine deficit (`net_solar < energy_needed`) still unlocks immediately, as does any day without usable price data.
+
 !!! note "Transient forecast gaps and manual re-evaluation"
     A configured forecast sensor that reads `unavailable`/`unknown` for a moment — while it refreshes, or during the window after a Home Assistant restart before all sensors have loaded — no longer disables the delay for the whole day. The delay is held through a short grace window (sensor state `Waiting for forecast`) and only unlocks if the sensor stays unavailable past it. If the delay did already unlock and you want it back the same day, **toggle the Solar Charge Delay switch off and then on**: that re-evaluates the delay from scratch instead of waiting for the midnight reset.
 
