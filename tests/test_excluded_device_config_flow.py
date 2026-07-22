@@ -22,6 +22,20 @@ def _schema_fields(result) -> set[str]:
     return {marker.schema for marker in result["data_schema"].schema}
 
 
+def _options_flow(entry: SimpleNamespace) -> OptionsFlowHandler:
+    """Initialize an options flow as Home Assistant's flow manager does."""
+    flow = OptionsFlowHandler(entry)
+    flow.hass = SimpleNamespace(
+        config_entries=SimpleNamespace(
+            async_get_known_entry=lambda entry_id: (
+                entry if entry_id == entry.entry_id else None
+            )
+        )
+    )
+    flow.handler = entry.entry_id
+    return flow
+
+
 async def test_initial_flow_exposes_and_saves_excluded_device_controls():
     flow = MarstekVenusConfigFlow()
 
@@ -60,8 +74,7 @@ async def test_options_flow_restores_and_saves_excluded_device_controls():
             ]
         },
     )
-    flow = OptionsFlowHandler(entry)
-    flow._config_entry = entry
+    flow = _options_flow(entry)
 
     form = await flow.async_step_add_excluded_device()
     defaults = _schema_defaults(form)
@@ -96,8 +109,7 @@ async def test_options_flow_prefills_legacy_no_telemetry_sensor():
             ]
         },
     )
-    flow = OptionsFlowHandler(entry)
-    flow._config_entry = entry
+    flow = _options_flow(entry)
 
     form = await flow.async_step_add_excluded_device()
 
