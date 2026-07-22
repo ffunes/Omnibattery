@@ -1,0 +1,3300 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Home Assistant custom integration for pluggable solar batteries (Marstek Venus and Zendure SolarFlow)">
+      
+      
+        <meta name="author" content="ffunes">
+      
+      
+        <link rel="canonical" href="https://ffunes.github.io/omnibattery/reference/driver-requirements-template/">
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../modbus-registers/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../../es/reference/driver-requirements-template/" hreflang="es">
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Battery driver requirements - Omnibattery</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="green">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#battery-driver-requirements-template" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Omnibattery" class="md-header__button md-logo" aria-label="Omnibattery" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Omnibattery
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Battery driver requirements
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="green"  aria-label="Cambiar a modo oscuro / Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Cambiar a modo oscuro / Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="green"  aria-label="Cambiar a modo claro / Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Cambiar a modo claro / Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../../es/reference/driver-requirements-template/" hreflang="es" class="md-select__link">
+              Español
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ffunes/omnibattery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ffunes/omnibattery
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Installation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../configuration/" class="md-tabs__link">
+          
+  
+  
+  Configuration
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../features/pd-controller/" class="md-tabs__link">
+          
+  
+  
+  Features
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../architecture/" class="md-tabs__link">
+          
+  
+  
+  Technical reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../troubleshooting/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Troubleshooting
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../changelog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Omnibattery" class="md-nav__button md-logo" aria-label="Omnibattery" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Omnibattery
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ffunes/omnibattery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ffunes/omnibattery
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Configuration
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/main-sensor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Main sensor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/batteries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Batteries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/time-slots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time slots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/excluded-devices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excluded devices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Predictive charging
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Predictive charging
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/predictive-charging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/predictive-charging/time-slot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time Slot mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/predictive-charging/dynamic-pricing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic Pricing mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/predictive-charging/real-time-price/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Real-Time Price mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/pd-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PD Controller
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/multi-battery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-battery management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/consumption-estimate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily consumption estimate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/weekly-full-charge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weekly full charge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/cell-balance-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cell balance monitor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/peak-shaving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peak shaving
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/solar-charge-delay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solar charge delay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/load-exclusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Load exclusion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/hourly-net-balance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hourly net balance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technical reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Technical reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Battery driver requirements
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Battery driver requirements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#assessment-outcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assessment outcome
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-device-and-documentation-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Device and documentation evidence
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Device and documentation evidence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#firmware-compatibility-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Firmware compatibility matrix
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transport-and-access-worksheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transport and access worksheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-admission-gate-for-automatic-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Admission gate for automatic control
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-omnibattery-canonical-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Omnibattery canonical contract
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Omnibattery canonical contract">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#minimum-driver-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimum driver surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#declared-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declared capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-minimum-telemetry-and-control-levers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Minimum telemetry and control levers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Minimum telemetry and control levers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#blocking-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Blocking core
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-feature-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional feature inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-reference-behaviour-marstek-venus-e-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Reference behaviour: Marstek Venus E v3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-accepted-substitutions-the-zendure-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Accepted substitutions: the Zendure pattern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-feature-degradation-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Feature degradation matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-telemetry-mapping-worksheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Telemetry mapping worksheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-control-mapping-worksheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Control mapping worksheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-minimum-acceptance-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Minimum acceptance tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-copyable-decision-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Copyable decision report
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-post-approval-implementation-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Post-approval implementation checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modbus-registers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modbus registers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HA entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#assessment-outcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assessment outcome
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-device-and-documentation-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Device and documentation evidence
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Device and documentation evidence">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#firmware-compatibility-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Firmware compatibility matrix
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transport-and-access-worksheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transport and access worksheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-admission-gate-for-automatic-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Admission gate for automatic control
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-omnibattery-canonical-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Omnibattery canonical contract
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Omnibattery canonical contract">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#minimum-driver-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimum driver surface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#declared-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declared capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-minimum-telemetry-and-control-levers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Minimum telemetry and control levers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Minimum telemetry and control levers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#blocking-core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Blocking core
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-feature-inputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional feature inputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-reference-behaviour-marstek-venus-e-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Reference behaviour: Marstek Venus E v3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-accepted-substitutions-the-zendure-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Accepted substitutions: the Zendure pattern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-feature-degradation-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Feature degradation matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-telemetry-mapping-worksheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Telemetry mapping worksheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-control-mapping-worksheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Control mapping worksheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-minimum-acceptance-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Minimum acceptance tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-copyable-decision-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Copyable decision report
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-post-approval-implementation-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Post-approval implementation checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/reference/driver-requirements-template.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="battery-driver-requirements-template">Battery driver requirements template<a class="headerlink" href="#battery-driver-requirements-template" title="Permanent link">&para;</a></h1>
+<p>Use this template to audit a battery manufacturer's official development
+documentation before implementing an Omnibattery driver. <strong>Marstek Venus E v3</strong>
+is the functional reference, but another brand does not need the same registers
+or modes. It must satisfy the same semantic contract: report the battery's real
+state and accept a safe signed net-power command.</p>
+<p>Complete one assessment per manufacturer, model and firmware family.</p>
+<h2 id="assessment-outcome">Assessment outcome<a class="headerlink" href="#assessment-outcome" title="Permanent link">&para;</a></h2>
+<p>Requirement levels:</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>B</strong></td>
+<td>Blocking. Automatic control must not be enabled without it.</td>
+</tr>
+<tr>
+<td><strong>R</strong></td>
+<td>Required for a robust production integration. A provisional exception needs a documented mitigation.</td>
+</tr>
+<tr>
+<td><strong>O</strong></td>
+<td>Optional. Its absence removes specific entities or features, not core control.</td>
+</tr>
+</tbody>
+</table>
+<p>Source classifications:</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>N</strong></td>
+<td>Native device value or control.</td>
+</tr>
+<tr>
+<td><strong>D</strong></td>
+<td>Derived by the driver from native data.</td>
+</tr>
+<tr>
+<td><strong>C</strong></td>
+<td>User-configured or validated model constant.</td>
+</tr>
+<tr>
+<td><strong>X</strong></td>
+<td>Unsupported; the dependent entity or feature is omitted.</td>
+</tr>
+</tbody>
+</table>
+<p>Final verdict:</p>
+<ul>
+<li><strong>SUITABLE</strong>: every B and R requirement is covered.</li>
+<li><strong>SUITABLE WITH LIMITATIONS</strong>: every B requirement is covered, but an R or O
+  item is missing. Disabled features and residual risks are listed.</li>
+<li><strong>NOT SUITABLE</strong>: a B item is missing, command semantics cannot be confirmed,
+  or control depends on an unstable or unauthorised interface.</li>
+</ul>
+<h2 id="1-device-and-documentation-evidence">1. Device and documentation evidence<a class="headerlink" href="#1-device-and-documentation-evidence" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Manufacturer</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Commercial model</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Device-reported model</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Verified firmware range</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Region/hardware variant</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Rated capacity and power</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Coupling type</td>
+<td><code>AC / DC / hybrid</code></td>
+</tr>
+<tr>
+<td>Official document, revision and date</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>URL or archived file</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Manufacturer support channel</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Hardware used for validation</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Test date</td>
+<td><code>...</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>[ ] The interface is published or authorised by the manufacturer.</li>
+<li>[ ] Applicable models and firmware versions are explicitly known.</li>
+<li>[ ] Real request/response examples have been retained without secrets.</li>
+<li>[ ] Every field documents type, unit, scale, sign, range and sentinels.</li>
+<li>[ ] Every write documents range, step, persistence and error response.</li>
+<li>[ ] Rate, concurrency and request-size limits are known.</li>
+<li>[ ] Restart, disconnect and Omnibattery shutdown behaviour is known.</li>
+</ul>
+<h3 id="firmware-compatibility-matrix">Firmware compatibility matrix<a class="headerlink" href="#firmware-compatibility-matrix" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Firmware</th>
+<th>Transport</th>
+<th>Read</th>
+<th>Write</th>
+<th>Known differences</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>yes/no</code></td>
+<td><code>yes/no</code></td>
+<td><code>...</code></td>
+<td><code>tested/untested</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="transport-and-access-worksheet">Transport and access worksheet<a class="headerlink" href="#transport-and-access-worksheet" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Scope</td>
+<td><code>local / cloud / both</code></td>
+</tr>
+<tr>
+<td>Protocol and version</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Address, port, endpoint or topic</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Discovery</td>
+<td><code>manual / mDNS / broadcast / cloud / ...</code></td>
+</tr>
+<tr>
+<td>Authentication and renewal</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Encryption/TLS and certificate validation</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Unit/device identifier</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Recommended timeout and retry policy</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Maximum simultaneous connections</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Read/write rate limit</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Ordering/atomicity of multi-write commands</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Telemetry timestamp, sequence or TTL</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Volatile versus persistent commands</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Behaviour without network/cloud</td>
+<td><code>...</code></td>
+</tr>
+</tbody>
+</table>
+<p>A cloud-only API is not automatically rejected, but its latency, token expiry,
+quotas and outage behaviour must allow safe idle and stable control cadence.
+These constraints are part of the verdict, not merely implementation detail.</p>
+<h2 id="2-admission-gate-for-automatic-control">2. Admission gate for automatic control<a class="headerlink" href="#2-admission-gate-for-automatic-control" title="Permanent link">&para;</a></h2>
+<p>Every item below is blocking:</p>
+<ul>
+<li>[ ] A programmable transport supports controlled connect, reconnect and close.</li>
+<li>[ ] Real, fresh battery SOC can be read as a percentage.</li>
+<li>[ ] Real battery power is available directly or can be derived from simultaneous measurements.</li>
+<li>[ ] The device accepts power-limited charging commands.</li>
+<li>[ ] The device accepts power-limited discharging commands.</li>
+<li>[ ] The device accepts and holds a safe idle command (<code>0 W</code>).</li>
+<li>[ ] Safe per-unit charge and discharge maxima are known.</li>
+<li>[ ] The manufacturer's independent BMS protections remain active under external control.</li>
+<li>[ ] The required write cadence neither wears flash nor violates API limits.</li>
+<li>[ ] Stale or lost communications can be detected without reusing old data forever.</li>
+</ul>
+<p>Without SOC, measured power, either direction, or reliable idle, the driver is
+<strong>NOT SUITABLE</strong> for bidirectional automatic control. A monitoring-only mode may
+still be considered but is not full support.</p>
+<h2 id="3-omnibattery-canonical-contract">3. Omnibattery canonical contract<a class="headerlink" href="#3-omnibattery-canonical-contract" title="Permanent link">&para;</a></h2>
+<p>The driver translates vendor protocol details into
+<code>drivers/base.py::BatteryDriver</code>; registers, endpoints, topics and proprietary
+names must not leak into the control layer.</p>
+<p>Mandatory conventions:</p>
+<ul>
+<li>Signed net power: <code>+W</code> charges, <code>-W</code> discharges, <code>0 W</code> idles.</li>
+<li><code>battery_power</code> follows the same convention and is a measurement, not merely
+  the last requested setpoint.</li>
+<li>Final units are W, kWh, %, V and °C.</li>
+<li>Failed values are omitted or unknown; never invent zero when zero is valid.</li>
+<li><code>apply_setpoint()</code> clamps to the device envelope and always returns a coherent
+  <code>SetpointResult</code>, even without immediate readback.</li>
+</ul>
+<h3 id="minimum-driver-surface">Minimum driver surface<a class="headerlink" href="#minimum-driver-surface" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Requirement</th>
+<th>Level</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Identity/capabilities</td>
+<td><code>capabilities</code>, <code>model_label</code>, and stable <code>serial</code> when available</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Lifecycle</td>
+<td><code>connected</code>, <code>connect()</code>, <code>close()</code>, <code>set_shutting_down()</code></td>
+<td>B</td>
+</tr>
+<tr>
+<td>Read</td>
+<td><code>read_groups</code>, <code>read_telemetry(keys)</code>; cache push data</td>
+<td>B</td>
+</tr>
+<tr>
+<td>Net control</td>
+<td><code>apply_setpoint(+W/-W/0)</code></td>
+<td>B</td>
+</tr>
+<tr>
+<td>Entity controls</td>
+<td><code>write_control(key, value)</code>; return <code>False</code> for unsupported keys</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Command echo</td>
+<td><code>net_power_from_data(data)</code>; <code>None</code> is allowed when no echo exists</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Dependencies</td>
+<td><code>control_dependency_keys</code> for data polled even if its entity is disabled</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Configuration</td>
+<td><code>apply_config(...)</code>, explicitly skipping inapplicable settings</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Shutdown</td>
+<td><code>standby()</code> leaves the device safe before close</td>
+<td>B</td>
+</tr>
+<tr>
+<td>Charge cutoff</td>
+<td><code>set_charge_cutoff()</code> or controlled <code>False</code> for software enforcement</td>
+<td>O/conditional</td>
+</tr>
+<tr>
+<td>External-control gate</td>
+<td><code>set_rs485_control()</code>/<code>get_rs485_control()</code> or equivalent when required</td>
+<td>B/conditional</td>
+</tr>
+</tbody>
+</table>
+<p>The coordinator currently calls some semantic methods that are not yet abstract
+on the base class; a new driver must still implement them.</p>
+<h3 id="declared-capabilities">Declared capabilities<a class="headerlink" href="#declared-capabilities" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th><code>DriverCapabilities</code></th>
+<th style="text-align: right;">Value</th>
+<th>Evidence/rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hardware_soc_cutoff</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>has_force_mode</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>push_telemetry</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>max_charge_power_w</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>max_discharge_power_w</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>min_charge_power_w</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>min_discharge_power_w</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>has_mppt_pv</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>has_alarm_registers</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>has_rs485_control</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>has_energy_counters</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>setpoint_confirm_reliable</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>actuator_latency_s</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td>Worst case, not average</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-minimum-telemetry-and-control-levers">4. Minimum telemetry and control levers<a class="headerlink" href="#4-minimum-telemetry-and-control-levers" title="Permanent link">&para;</a></h2>
+<h3 id="blocking-core">Blocking core<a class="headerlink" href="#blocking-core" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Omnibattery key/operation</th>
+<th>Level</th>
+<th>Vendor requirement</th>
+<th>Accepted substitute</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>battery_soc</code></td>
+<td>B</td>
+<td>Fresh real SOC, 0–100%</td>
+<td>A simple voltage estimate is not full support</td>
+</tr>
+<tr>
+<td><code>battery_power</code></td>
+<td>B</td>
+<td>Instantaneous power in both directions</td>
+<td>D formula from simultaneous validated flows</td>
+</tr>
+<tr>
+<td><code>apply_setpoint(+W)</code></td>
+<td>B</td>
+<td>Power-limited charge</td>
+<td>Mode + limit or one signed property</td>
+</tr>
+<tr>
+<td><code>apply_setpoint(-W)</code></td>
+<td>B</td>
+<td>Power-limited discharge</td>
+<td>Mode + limit or one signed property</td>
+</tr>
+<tr>
+<td><code>apply_setpoint(0)</code> / <code>standby()</code></td>
+<td>B</td>
+<td>Held idle without autonomous import/export</td>
+<td>Documented zero-limit/mode sequence</td>
+</tr>
+<tr>
+<td>Maximum power</td>
+<td>B</td>
+<td>Per-model values or device readings</td>
+<td>C values bounded by official maxima</td>
+</tr>
+<tr>
+<td>Availability/freshness</td>
+<td>B</td>
+<td>Error, timestamp or equivalent</td>
+<td>Driver cache expiry timer</td>
+</tr>
+<tr>
+<td>Setpoint echo</td>
+<td>R</td>
+<td>Applied/accepted mode and limit</td>
+<td>Intent cache only optimises; it is not measured power</td>
+</tr>
+<tr>
+<td>Actuator latency</td>
+<td>R</td>
+<td>Write-to-application-to-telemetry delay</td>
+<td>Hardware measurement with conservative margin</td>
+</tr>
+<tr>
+<td>Reliable minimum power</td>
+<td>R</td>
+<td>Sustainable non-zero minimum and command step</td>
+<td>Validated per-model C constant</td>
+</tr>
+</tbody>
+</table>
+<h3 id="optional-feature-inputs">Optional feature inputs<a class="headerlink" href="#optional-feature-inputs" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Canonical key</th>
+<th>Level</th>
+<th>Enables</th>
+<th>If absent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>battery_total_energy</code></td>
+<td>R</td>
+<td>Stored energy, allocation and predictive charging</td>
+<td>User-configured C capacity</td>
+</tr>
+<tr>
+<td>Charge/discharge energy totals</td>
+<td>O</td>
+<td>Energy and cumulative efficiency</td>
+<td>Integrate <code>battery_power</code> with persistence</td>
+</tr>
+<tr>
+<td><code>max_cell_voltage</code></td>
+<td>O</td>
+<td>100% taper/pause, recalibration and balance</td>
+<td>Disable voltage-dependent features</td>
+</tr>
+<tr>
+<td><code>min_cell_voltage</code></td>
+<td>O</td>
+<td>Cell delta and balance monitor</td>
+<td>Do not expose delta/balance</td>
+</tr>
+<tr>
+<td><code>internal_temperature</code></td>
+<td>O</td>
+<td>Thermal derating</td>
+<td>Do not enable temperature limiting</td>
+</tr>
+<tr>
+<td><code>inverter_state</code></td>
+<td>O</td>
+<td>Extra standby/BMS-cut confirmation</td>
+<td>Use measured power only; omit dependent detections</td>
+</tr>
+<tr>
+<td><code>ac_offgrid_power</code></td>
+<td>O</td>
+<td>Backup-load exclusion from PD</td>
+<td>Disable automatic backup exclusion</td>
+</tr>
+<tr>
+<td>Backup mode/control</td>
+<td>O</td>
+<td>Observe/control backup behaviour</td>
+<td>Omit entity and specific logic</td>
+</tr>
+<tr>
+<td>MPPT/PV power</td>
+<td>O</td>
+<td>DC production and plane efficiency</td>
+<td><code>has_mppt_pv=False</code></td>
+</tr>
+<tr>
+<td>Alarm/fault state</td>
+<td>O</td>
+<td>System alarm notifications</td>
+<td>Omit dependent sensor/notifier</td>
+</tr>
+<tr>
+<td>Battery voltage</td>
+<td>O</td>
+<td>Diagnostics</td>
+<td>Omit entity</td>
+</tr>
+<tr>
+<td>Identity, firmware, RSSI</td>
+<td>O</td>
+<td>Diagnostics/support</td>
+<td>Omit entities; prefer stable serial when available</td>
+</tr>
+<tr>
+<td>Hardware SOC cutoff</td>
+<td>O</td>
+<td>Autonomous persistent SOC limits</td>
+<td>Software enforcement</td>
+</tr>
+<tr>
+<td>Writable power cap</td>
+<td>O</td>
+<td>Persistent device configuration</td>
+<td>Software cap without a fake hardware entity</td>
+</tr>
+<tr>
+<td>External-control gate</td>
+<td>Conditional</td>
+<td>Enables/restores external control</td>
+<td>Required only when setpoints depend on it</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-reference-behaviour-marstek-venus-e-v3">5. Reference behaviour: Marstek Venus E v3<a class="headerlink" href="#5-reference-behaviour-marstek-venus-e-v3" title="Permanent link">&para;</a></h2>
+<p>The v3 is a behavioural reference, not a required protocol shape:</p>
+<table>
+<thead>
+<tr>
+<th>Semantics</th>
+<th>v3 reference implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SOC</td>
+<td><code>battery_soc</code>, register <code>37005</code>, <code>uint16</code>, <code>%</code></td>
+</tr>
+<tr>
+<td>Measured power</td>
+<td><code>battery_power</code>, register <code>30001</code>, <code>int16</code>; positive charge, negative discharge</td>
+</tr>
+<tr>
+<td>Charge</td>
+<td>Discharge setpoint 0, charge setpoint W, force mode charge</td>
+</tr>
+<tr>
+<td>Discharge</td>
+<td>Discharge setpoint W, charge setpoint 0, force mode discharge</td>
+</tr>
+<tr>
+<td>Idle</td>
+<td>Both setpoints 0 and force mode stop</td>
+</tr>
+<tr>
+<td>Power envelope</td>
+<td>Setpoints 0–2500 W, documented 50 W step; installation caps are separate</td>
+</tr>
+<tr>
+<td>Declared minimum</td>
+<td>800 W in v3 power-limit definitions</td>
+</tr>
+<tr>
+<td>External control</td>
+<td>RS485 control gate with device-specific commands</td>
+</tr>
+<tr>
+<td>SOC cutoff</td>
+<td>No v3 cutoff registers; Omnibattery enforces min/max SOC in software</td>
+</tr>
+<tr>
+<td>Confirmation</td>
+<td>Mode, setpoint and measured-power readback with ramp tolerance</td>
+</tr>
+<tr>
+<td>Transport</td>
+<td>Polled Modbus with a single TCP slot and model-specific pacing</td>
+</tr>
+</tbody>
+</table>
+<p><code>force_mode</code> is therefore not mandatory. A signed limit, two directional limits
+or different vendor enum may implement the same contract.</p>
+<h2 id="6-accepted-substitutions-the-zendure-pattern">6. Accepted substitutions: the Zendure pattern<a class="headerlink" href="#6-accepted-substitutions-the-zendure-pattern" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Vendor difference</th>
+<th>Valid driver adaptation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No direct <code>battery_power</code></td>
+<td>Derive <code>outputPackPower - packInputPower</code> after validating sign and simultaneity</td>
+</tr>
+<tr>
+<td>No kWh counters</td>
+<td>Integrate <code>battery_power</code> and persist synthetic totals</td>
+</tr>
+<tr>
+<td>No nominal capacity</td>
+<td>Let the user configure <code>battery_total_energy</code></td>
+</tr>
+<tr>
+<td>No Marstek force mode</td>
+<td>Map net power to <code>acMode</code> plus input/output limits</td>
+</tr>
+<tr>
+<td>Read-only charge cap</td>
+<td>Combine the device cap with a user software ceiling</td>
+</tr>
+<tr>
+<td>Cells reported per pack</td>
+<td>Derive global extremes and optionally expose per-pack keys</td>
+</tr>
+<tr>
+<td>Multi-second readback lag</td>
+<td>Set unreliable confirmation and conservative actuator latency capabilities</td>
+</tr>
+<tr>
+<td>Frequent writes may touch flash</td>
+<td>Use volatile setpoints and explicit persistent configuration writes</td>
+</tr>
+</tbody>
+</table>
+<p>Accept a substitute only when its sign, timing, range and persistence have been
+tested. Configured values must be labelled as configuration, not device
+telemetry. Do not fabricate SOC, alarms, temperature, cell voltages or delivered
+power without a reliable physical source; a command cache records intent only.</p>
+<h2 id="7-feature-degradation-matrix">7. Feature degradation matrix<a class="headerlink" href="#7-feature-degradation-matrix" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Minimum dependencies</th>
+<th>Alternative</th>
+<th>Model status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PD charge/discharge</td>
+<td>SOC, measured power, ±W/0 control, limits</td>
+<td>None for full support</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Multi-battery</td>
+<td>Core per unit; capacity improves energy allocation</td>
+<td>C capacity</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Min/max SOC</td>
+<td>SOC + idle command</td>
+<td>Hardware or software</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Predictive/pricing charge</td>
+<td>SOC + kWh capacity + charge control</td>
+<td>C capacity</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Energy/cycles/efficiency</td>
+<td>Counters or timestamped power</td>
+<td>D integration</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>100% taper/protection</td>
+<td>Max cell voltage, SOC and power</td>
+<td>No equivalent</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Balance monitoring</td>
+<td>Max + min cell voltage</td>
+<td>D extremes from cells/packs</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Weekly full charge</td>
+<td>SOC, power and control; cutoff if available</td>
+<td>Software cutoff</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Thermal limit</td>
+<td>Internal temperature</td>
+<td>None</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Backup exclusion</td>
+<td>Off-grid power and backup state/mode</td>
+<td>None reliable</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>MPPT/DC production</td>
+<td>Per-channel or total DC power</td>
+<td>D sum</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Alarms</td>
+<td>Official fault bits/codes</td>
+<td>None</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Synthetic-energy identity</td>
+<td>Power + stable device ID</td>
+<td>Less-stable device key</td>
+<td><code>...</code></td>
+</tr>
+</tbody>
+</table>
+<p>Unsupported features must be gated by capabilities, entity definitions or
+configuration. They must not receive fabricated zero values.</p>
+<h2 id="8-telemetry-mapping-worksheet">8. Telemetry mapping worksheet<a class="headerlink" href="#8-telemetry-mapping-worksheet" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Omnibattery key</th>
+<th>B/R/O</th>
+<th>Vendor field/register/topic</th>
+<th>R/W</th>
+<th>Type/endian</th>
+<th>Scale/final unit</th>
+<th>Range/sentinels</th>
+<th>Cadence/TTL</th>
+<th>N/D/C/X</th>
+<th>Evidence</th>
+<th>Tested</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>battery_soc</code></td>
+<td>B</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → %</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>battery_power</code></td>
+<td>B</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → W; +charge/-discharge</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Setpoint state/echo</td>
+<td>R</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>battery_total_energy</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td>R/C</td>
+<td><code>...</code></td>
+<td><code>... → kWh</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Charge/discharge totals</td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → kWh</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Max/min cell voltage</td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → V</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>internal_temperature</code></td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → °C</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>inverter_state</code></td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td>enum</td>
+<td><code>map: ...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>ac_offgrid_power</code></td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → W</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Alarms/faults</td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td>bitmap/enum</td>
+<td><code>map: ...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>MPPT/PV</td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → W</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Identity/firmware</td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td>string</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+</tbody>
+</table>
+<h2 id="9-control-mapping-worksheet">9. Control mapping worksheet<a class="headerlink" href="#9-control-mapping-worksheet" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Semantic operation</th>
+<th>B/R/O</th>
+<th>Vendor fields/commands</th>
+<th>Sequence</th>
+<th>Range/step</th>
+<th>Volatile/persistent</th>
+<th>ACK/readback</th>
+<th>Timeout/latency</th>
+<th>Safe failure state</th>
+<th>Evidence</th>
+<th>Tested</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Connect/authenticate</td>
+<td>B</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>—</td>
+<td>—</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>no control</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Charge at W</td>
+<td>B</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Discharge at W</td>
+<td>B</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Idle at 0 W</td>
+<td>B</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Max charge/discharge</td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>C limit</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Max/min SOC cutoff</td>
+<td>O</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>software</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Enable external control</td>
+<td>Cond.</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>restore control</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Restore vendor control</td>
+<td>Cond.</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>—</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Other UI controls</td>
+<td>O</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>omit entity</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+</tbody>
+</table>
+<h2 id="10-minimum-acceptance-tests">10. Minimum acceptance tests<a class="headerlink" href="#10-minimum-acceptance-tests" title="Permanent link">&para;</a></h2>
+<p>Transport and data:</p>
+<ul>
+<li>[ ] Connect, read identity/SOC and close without leaking resources.</li>
+<li>[ ] Reconnect after timeout, device restart and temporary network loss.</li>
+<li>[ ] Reject partial replies, sentinels and out-of-range values.</li>
+<li>[ ] Expire push caches or last-known data when updates stop.</li>
+<li>[ ] Preserve units and sign in charge, discharge and idle.</li>
+<li>[ ] Respect mutual exclusion when the device allows one connection only.</li>
+</ul>
+<p>Control:</p>
+<ul>
+<li>[ ] Positive, negative and zero setpoints work and clamp safely.</li>
+<li>[ ] Charge↔discharge and movement→idle transitions work.</li>
+<li>[ ] Repeated commands are idempotent and do not wear flash.</li>
+<li>[ ] A partially failed multi-write command converges to idle or another defined
+  safe state, and required write ordering has been verified.</li>
+<li>[ ] Readback distinguishes accepted intent from delivered power.</li>
+<li>[ ] Normal and worst-case latency are measured; the conservative value is declared.</li>
+<li>[ ] Failed writes return a reason and do not update cache as confirmed.</li>
+<li>[ ] Max/min SOC cases remain safe.</li>
+<li>[ ] Shutdown calls <code>standby()</code> and restores vendor control when applicable.</li>
+</ul>
+<p>Substitution and degradation:</p>
+<ul>
+<li>[ ] Every D formula has boundary and sign unit tests.</li>
+<li>[ ] Synthetic energy survives restart and skips telemetry gaps.</li>
+<li>[ ] C capacity is range-validated and labelled as configured.</li>
+<li>[ ] X features create no entities or decisions with fake values.</li>
+<li>[ ] The driver works in a mixed-brand battery pool.</li>
+</ul>
+<p>Expected code coverage includes lifecycle, read groups, scaling, missing keys,
+all setpoint paths, clamping, failures, delayed/no readback,
+<code>net_power_from_data</code>, dependency keys, configuration, standby, model detection,
+and the supported firmware matrix.</p>
+<h2 id="11-copyable-decision-report">11. Copyable decision report<a class="headerlink" href="#11-copyable-decision-report" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Manufacturer/model:
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Firmware tested:
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Official documentation (revision/date/link):
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Verdict: SUITABLE / SUITABLE WITH LIMITATIONS / NOT SUITABLE
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>Blocking items:
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>- Real SOC: N/D/C/X — evidence:
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>- Real power: N/D/C/X — evidence/formula:
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>- Adjustable charge: yes/no — range/step:
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>- Adjustable discharge: yes/no — range/step:
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>- Safe idle: yes/no — sequence:
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>- Safe limits: source/values:
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>- Freshness and connection loss: mechanism:
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>Omnibattery adaptations:
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>- Derived data:
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>- User-configured data:
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>- Software-enforced limits:
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>Disabled features:
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>-
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>Open risks:
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>-
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>Pending hardware tests:
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>-
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>Approval owner and date:
+</code></pre></div>
+<h2 id="12-post-approval-implementation-checklist">12. Post-approval implementation checklist<a class="headerlink" href="#12-post-approval-implementation-checklist" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] Create the driver without leaking vendor details outside <code>drivers/</code>.</li>
+<li>[ ] Add brand/model selection and detection to the config flow.</li>
+<li>[ ] Instantiate the driver in the coordinator and declare capabilities.</li>
+<li>[ ] Define only supported entities and translations.</li>
+<li>[ ] Add configuration fields for C values such as nominal capacity.</li>
+<li>[ ] Capability-gate every feature that depends on an X key.</li>
+<li>[ ] Add driver unit tests and mixed-brand integration tests.</li>
+<li>[ ] Document device prerequisites, firmware and limitations.</li>
+<li>[ ] Redact credentials, tokens and sensitive serials from diagnostics.</li>
+</ul>
+<p>Document approval allows implementation to start; it does not replace hardware
+validation. Sign, scale, latency, internal clamps and firmware-specific behaviour
+must all be verified before declaring stable support.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../architecture/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Architecture">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Architecture
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../modbus-registers/" class="md-footer__link md-footer__link--next" aria-label="Next: Modbus registers">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Modbus registers
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/ffunes/omnibattery" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://buymeacoffee.com/ffunes" target="_blank" rel="noopener" title="buymeacoffee.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M152-16c-13.3 0-24 10.7-24 24 0 38.9 23.4 59.4 39.1 73.1l1.1 1C184.5 96.4 192 103.9 192 120c0 13.3 10.7 24 24 24s24-10.7 24-24c0-38.9-23.4-59.4-39.1-73.1l-1.1-1C183.5 31.7 176 24.1 176 8c0-13.3-10.7-24-24-24M96 192c-17.7 0-32 14.3-32 32v192c0 53 43 96 96 96h192c41.8 0 77.4-26.7 90.5-64h5.5c70.7 0 128-57.3 128-128s-57.3-128-128-128zm352 192V256c35.3 0 64 28.7 64 64s-28.7 64-64 64M288 8c0-13.3-10.7-24-24-24S240-5.3 240 8c0 38.9 23.4 59.4 39.1 73.1l1.1 1C296.5 96.4 304 103.9 304 120c0 13.3 10.7 24 24 24s24-10.7 24-24c0-38.9-23.4-59.4-39.1-73.1l-1.1-1C295.5 31.7 288 24.1 288 8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "navigation.footer", "toc.follow", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

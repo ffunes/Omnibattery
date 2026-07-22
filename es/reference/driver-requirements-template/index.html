@@ -1,0 +1,3511 @@
+
+<!doctype html>
+<html lang="es" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Home Assistant custom integration for pluggable solar batteries (Marstek Venus and Zendure SolarFlow)">
+      
+      
+        <meta name="author" content="ffunes">
+      
+      
+        <link rel="canonical" href="https://ffunes.github.io/omnibattery/es/reference/driver-requirements-template/">
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../modbus-registers/">
+      
+      
+        
+          <link rel="alternate" href="../../../reference/driver-requirements-template/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="es">
+        
+      
+      
+      <link rel="icon" href="../../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Requisitos para drivers de batería - Omnibattery</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="green">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#plantilla-de-requisitos-para-integrar-un-driver-de-bateria" class="md-skip">
+          Saltar a contenido
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Cabecera">
+    <a href="../../" title="Omnibattery" class="md-header__button md-logo" aria-label="Omnibattery" data-md-component="logo">
+      
+  <img src="../../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Omnibattery
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Requisitos para drivers de batería
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="green"  aria-label="Cambiar a modo oscuro / Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Cambiar a modo oscuro / Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="green"  aria-label="Cambiar a modo claro / Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Cambiar a modo claro / Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Seleccionar idioma">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../reference/driver-requirements-template/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="es" class="md-select__link">
+              Español
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Búsqueda" placeholder="Búsqueda" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Buscar">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Limpiar" aria-label="Limpiar" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Inicializando búsqueda
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ffunes/omnibattery" title="Ir al repositorio" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ffunes/omnibattery
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Pestañas" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Inicio
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../installation/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Instalación
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../configuration/" class="md-tabs__link">
+          
+  
+  
+  Configuración
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../features/pd-controller/" class="md-tabs__link">
+          
+  
+  
+  Funcionalidades
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../architecture/" class="md-tabs__link">
+          
+  
+  
+  Referencia técnica
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../troubleshooting/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Solución de problemas
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../changelog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navegación" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../" title="Omnibattery" class="md-nav__button md-logo" aria-label="Omnibattery" data-md-component="logo">
+      
+  <img src="../../../assets/logo.png" alt="logo">
+
+    </a>
+    Omnibattery
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ffunes/omnibattery" title="Ir al repositorio" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ffunes/omnibattery
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inicio
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Instalación
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuración
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Configuración
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resumen
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/main-sensor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensor principal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/batteries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Baterías
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/time-slots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Franjas horarias
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/excluded-devices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dispositivos excluidos
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Carga predictiva
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Carga predictiva
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/predictive-charging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resumen
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/predictive-charging/time-slot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modo Franja Horaria
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/predictive-charging/dynamic-pricing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modo Precio Dinámico
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/predictive-charging/real-time-price/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modo Precio en Tiempo Real
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Opciones avanzadas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Funcionalidades
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Funcionalidades
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/pd-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Controlador PD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/multi-battery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gestión multi-batería
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/consumption-estimate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Estimación de consumo diario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/weekly-full-charge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Carga semanal completa
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/cell-balance-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Monitor de equilibrio de celdas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/peak-shaving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peak shaving
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/solar-charge-delay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retraso de carga solar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/load-exclusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exclusión de cargas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/hourly-net-balance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Balance neto horario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Referencia técnica
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Referencia técnica
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Arquitectura
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Requisitos para drivers de batería
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Requisitos para drivers de batería
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Tabla de contenidos
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#resultado-de-la-evaluacion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resultado de la evaluación
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-identificacion-y-evidencia-documental" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Identificación y evidencia documental
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Identificación y evidencia documental">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#matriz-de-compatibilidad-de-firmware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matriz de compatibilidad de firmware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ficha-de-transporte-y-acceso" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ficha de transporte y acceso
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-puerta-de-entrada-minimos-para-control-automatico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Puerta de entrada: mínimos para control automático
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-contrato-canonico-de-omnibattery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Contrato canónico de Omnibattery
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Contrato canónico de Omnibattery">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#convenciones-obligatorias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convenciones obligatorias
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superficie-minima-del-driver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superficie mínima del driver
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capacidades-a-declarar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capacidades a declarar
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-mapa-minimo-de-palancas-y-telemetria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Mapa mínimo de palancas y telemetría
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Mapa mínimo de palancas y telemetría">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#nucleo-obligatorio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Núcleo obligatorio
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#telemetria-y-controles-que-amplian-funciones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Telemetría y controles que amplían funciones
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-referencia-marstek-venus-e-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Referencia: Marstek Venus E v3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-sustituciones-validas-patron-zendure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Sustituciones válidas: patrón Zendure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-matriz-de-degradacion-funcional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Matriz de degradación funcional
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-ficha-de-mapeo-de-telemetria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Ficha de mapeo de telemetría
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-ficha-de-mapeo-de-controles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Ficha de mapeo de controles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-pruebas-minimas-de-aceptacion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Pruebas mínimas de aceptación
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. Pruebas mínimas de aceptación">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#transporte-y-datos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transporte y datos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sustituciones-y-degradacion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sustituciones y degradación
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cobertura-de-codigo-esperada" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cobertura de código esperada
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-informe-de-decision-para-copiar-y-completar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Informe de decisión para copiar y completar
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-checklist-de-implementacion-despues-de-aprobar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Checklist de implementación después de aprobar
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modbus-registers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registros Modbus
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entidades HA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solución de problemas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Tabla de contenidos
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#resultado-de-la-evaluacion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resultado de la evaluación
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-identificacion-y-evidencia-documental" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Identificación y evidencia documental
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Identificación y evidencia documental">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#matriz-de-compatibilidad-de-firmware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matriz de compatibilidad de firmware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ficha-de-transporte-y-acceso" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ficha de transporte y acceso
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-puerta-de-entrada-minimos-para-control-automatico" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Puerta de entrada: mínimos para control automático
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-contrato-canonico-de-omnibattery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Contrato canónico de Omnibattery
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Contrato canónico de Omnibattery">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#convenciones-obligatorias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convenciones obligatorias
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superficie-minima-del-driver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superficie mínima del driver
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capacidades-a-declarar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capacidades a declarar
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-mapa-minimo-de-palancas-y-telemetria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Mapa mínimo de palancas y telemetría
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Mapa mínimo de palancas y telemetría">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#nucleo-obligatorio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Núcleo obligatorio
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#telemetria-y-controles-que-amplian-funciones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Telemetría y controles que amplían funciones
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-referencia-marstek-venus-e-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Referencia: Marstek Venus E v3
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-sustituciones-validas-patron-zendure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Sustituciones válidas: patrón Zendure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-matriz-de-degradacion-funcional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Matriz de degradación funcional
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-ficha-de-mapeo-de-telemetria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Ficha de mapeo de telemetría
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-ficha-de-mapeo-de-controles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Ficha de mapeo de controles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-pruebas-minimas-de-aceptacion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Pruebas mínimas de aceptación
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. Pruebas mínimas de aceptación">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#transporte-y-datos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transporte y datos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sustituciones-y-degradacion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sustituciones y degradación
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cobertura-de-codigo-esperada" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cobertura de código esperada
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-informe-de-decision-para-copiar-y-completar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Informe de decisión para copiar y completar
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-checklist-de-implementacion-despues-de-aprobar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Checklist de implementación después de aprobar
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/reference/driver-requirements-template.es.md" title="Editar esta página" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="plantilla-de-requisitos-para-integrar-un-driver-de-bateria">Plantilla de requisitos para integrar un driver de batería<a class="headerlink" href="#plantilla-de-requisitos-para-integrar-un-driver-de-bateria" title="Permanent link">&para;</a></h1>
+<p>Esta plantilla sirve para auditar la documentación oficial de una batería antes
+de desarrollar su driver para Omnibattery. La referencia funcional es <strong>Marstek
+Venus E v3</strong>, pero no se exige que otra marca copie sus registros ni sus modos.
+Lo que debe conservarse es el contrato semántico de Omnibattery: leer el estado
+real de la batería y ordenar una potencia neta segura.</p>
+<p>La plantilla debe completarse por combinación de <strong>marca, modelo y familia de
+firmware</strong>. Una API documentada para un modelo no se debe dar por válida para
+toda la gama.</p>
+<h2 id="resultado-de-la-evaluacion">Resultado de la evaluación<a class="headerlink" href="#resultado-de-la-evaluacion" title="Permanent link">&para;</a></h2>
+<p>Usa estas clasificaciones:</p>
+<table>
+<thead>
+<tr>
+<th>Código</th>
+<th>Significado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>B</strong></td>
+<td>Bloqueante. Sin esta capacidad no debe habilitarse el control automático.</td>
+</tr>
+<tr>
+<td><strong>R</strong></td>
+<td>Requerida para una integración robusta. Puede admitirse provisionalmente si el riesgo está documentado y mitigado.</td>
+</tr>
+<tr>
+<td><strong>O</strong></td>
+<td>Opcional. Su ausencia elimina entidades o funcionalidades concretas, pero no el control básico.</td>
+</tr>
+</tbody>
+</table>
+<p>Para el origen de cada dato o control:</p>
+<table>
+<thead>
+<tr>
+<th>Código</th>
+<th>Origen</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>N</strong></td>
+<td>Nativo: la batería lo expone directamente.</td>
+</tr>
+<tr>
+<td><strong>D</strong></td>
+<td>Derivado: el driver lo calcula a partir de datos nativos.</td>
+</tr>
+<tr>
+<td><strong>C</strong></td>
+<td>Configurado: lo aporta el usuario o una constante validada por modelo.</td>
+</tr>
+<tr>
+<td><strong>X</strong></td>
+<td>No soportado: la entidad o funcionalidad queda fuera.</td>
+</tr>
+</tbody>
+</table>
+<p>Dictamen final:</p>
+<ul>
+<li><strong>APTO</strong>: están cubiertos todos los requisitos B y R.</li>
+<li><strong>APTO CON LIMITACIONES</strong>: están cubiertos todos los B, pero falta algún R u
+  O. Deben enumerarse las funciones desactivadas y los riesgos residuales.</li>
+<li><strong>NO APTO</strong>: falta al menos un B, la documentación no permite confirmar la
+  semántica de los comandos o el control depende de una interfaz inestable/no
+  autorizada.</li>
+</ul>
+<h2 id="1-identificacion-y-evidencia-documental">1. Identificación y evidencia documental<a class="headerlink" href="#1-identificacion-y-evidencia-documental" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Valor a completar</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fabricante</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Modelo comercial</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Identificador devuelto por el equipo</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Firmware mínimo/máximo verificado</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Región o variante de hardware</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Capacidad y potencia nominales</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Tipo de acoplamiento</td>
+<td><code>AC / DC / híbrido</code></td>
+</tr>
+<tr>
+<td>Documento oficial, versión y fecha</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>URL o fichero archivado</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Contacto/canal de soporte del fabricante</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Equipo real usado para validar</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Fecha de la prueba</td>
+<td><code>...</code></td>
+</tr>
+</tbody>
+</table>
+<p>Documentar también:</p>
+<ul>
+<li>[ ] La interfaz está publicada o autorizada por el fabricante.</li>
+<li>[ ] Se conocen los modelos y firmwares a los que aplica.</li>
+<li>[ ] Se han guardado ejemplos reales de petición y respuesta, sin secretos.</li>
+<li>[ ] Cada campo tiene tipo, unidad, escala, signo, rango y valor centinela.</li>
+<li>[ ] Cada escritura tiene rango, granularidad, persistencia y respuesta de error.</li>
+<li>[ ] Se conocen límites de frecuencia, concurrencia y tamaño de petición.</li>
+<li>[ ] Se conoce qué ocurre al reiniciar, perder la conexión o cerrar Omnibattery.</li>
+</ul>
+<h3 id="matriz-de-compatibilidad-de-firmware">Matriz de compatibilidad de firmware<a class="headerlink" href="#matriz-de-compatibilidad-de-firmware" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Modelo</th>
+<th>Firmware</th>
+<th>Transporte</th>
+<th>Lectura</th>
+<th>Escritura</th>
+<th>Diferencias conocidas</th>
+<th>Estado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>sí/no</code></td>
+<td><code>sí/no</code></td>
+<td><code>...</code></td>
+<td><code>probado/no probado</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="ficha-de-transporte-y-acceso">Ficha de transporte y acceso<a class="headerlink" href="#ficha-de-transporte-y-acceso" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Aspecto</th>
+<th>Valor a completar</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Alcance</td>
+<td><code>local / cloud / ambos</code></td>
+</tr>
+<tr>
+<td>Protocolo y versión</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Dirección, puerto, endpoint o topic</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Descubrimiento</td>
+<td><code>manual / mDNS / broadcast / cloud / ...</code></td>
+</tr>
+<tr>
+<td>Autenticación y renovación</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Cifrado/TLS y validación de certificado</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Identificador de unidad/dispositivo</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Timeout y reintentos recomendados</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Máximo de conexiones simultáneas</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Límite de lecturas/escrituras</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Orden o atomicidad de escrituras múltiples</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Timestamp, secuencia o TTL de telemetría</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Comandos volátiles frente a persistentes</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Comportamiento sin red/cloud</td>
+<td><code>...</code></td>
+</tr>
+</tbody>
+</table>
+<p>Una API exclusivamente cloud no es un rechazo automático, pero su latencia,
+caducidad de token, cuotas y comportamiento durante una caída deben permitir un
+reposo seguro y una cadencia de control estable. Estas condiciones forman parte
+del dictamen, no son meros detalles de implementación.</p>
+<h2 id="2-puerta-de-entrada-minimos-para-control-automatico">2. Puerta de entrada: mínimos para control automático<a class="headerlink" href="#2-puerta-de-entrada-minimos-para-control-automatico" title="Permanent link">&para;</a></h2>
+<p>Todos los puntos siguientes son bloqueantes:</p>
+<ul>
+<li>[ ] Existe un transporte programático con conexión, reconexión y cierre
+  controlables (<code>Modbus TCP/RTU</code>, HTTP local, MQTT, API equivalente).</li>
+<li>[ ] Puede leerse un <strong>SOC real</strong> y actualizado en porcentaje.</li>
+<li>[ ] Puede obtenerse la <strong>potencia real de batería</strong>, directa o derivada de
+  medidas simultáneas, con la convención de signo de Omnibattery.</li>
+<li>[ ] Puede ordenarse una <strong>carga</strong> a potencia limitada.</li>
+<li>[ ] Puede ordenarse una <strong>descarga</strong> a potencia limitada.</li>
+<li>[ ] Puede ordenarse y mantener un estado de <strong>reposo</strong> (<code>0 W</code>) seguro.</li>
+<li>[ ] Se conocen los límites máximos seguros de carga y descarga por unidad.</li>
+<li>[ ] La protección BMS independiente del fabricante continúa activa bajo
+  control externo. Omnibattery no sustituye protecciones eléctricas del BMS.</li>
+<li>[ ] La cadencia de escritura necesaria no desgasta memoria flash ni incumple
+  límites de la API. Si hay comandos volátiles y persistentes, están distinguidos.</li>
+<li>[ ] Se puede detectar una comunicación obsoleta o perdida sin reutilizar datos
+  antiguos indefinidamente.</li>
+</ul>
+<p>Si falta SOC, potencia medida, una de las dos direcciones o un reposo fiable, el
+driver es <strong>NO APTO</strong> para el bucle automático bidireccional. Se puede estudiar
+un modo de solo monitorización, pero no debe presentarse como soporte completo.</p>
+<h2 id="3-contrato-canonico-de-omnibattery">3. Contrato canónico de Omnibattery<a class="headerlink" href="#3-contrato-canonico-de-omnibattery" title="Permanent link">&para;</a></h2>
+<p>El driver traduce el protocolo de la marca al contrato de
+<code>drivers/base.py::BatteryDriver</code>. La capa de control nunca debe conocer
+direcciones de registro, endpoints, topics ni nombres propietarios.</p>
+<h3 id="convenciones-obligatorias">Convenciones obligatorias<a class="headerlink" href="#convenciones-obligatorias" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Potencia neta: <code>+W</code> significa <strong>carga</strong>, <code>-W</code> significa <strong>descarga</strong> y <code>0 W</code>
+  significa reposo.</li>
+<li><code>battery_power</code> usa la misma convención y representa potencia <strong>medida</strong>, no
+  solamente el último setpoint solicitado.</li>
+<li>Potencia en <code>W</code>, energía/capacidad en <code>kWh</code>, SOC en <code>%</code>, tensión en <code>V</code> y
+  temperatura en <code>°C</code> después de aplicar escala.</li>
+<li>Un valor fallido se omite o se entrega como desconocido; nunca se inventa <code>0</code>
+  si cero es una medida válida.</li>
+<li><code>apply_setpoint()</code> limita el valor al sobre de potencia del equipo y devuelve
+  un <code>SetpointResult</code> coherente aunque el protocolo no tenga readback inmediato.</li>
+</ul>
+<h3 id="superficie-minima-del-driver">Superficie mínima del driver<a class="headerlink" href="#superficie-minima-del-driver" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Superficie</th>
+<th>Requisito</th>
+<th>Nivel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Identidad/capacidades</td>
+<td><code>capabilities</code>, <code>model_label</code> y, si existe, <code>serial</code> estable</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Ciclo de vida</td>
+<td><code>connected</code>, <code>connect()</code>, <code>close()</code>, <code>set_shutting_down()</code></td>
+<td>B</td>
+</tr>
+<tr>
+<td>Lectura</td>
+<td><code>read_groups</code> y <code>read_telemetry(keys)</code> con caché si la fuente es push</td>
+<td>B</td>
+</tr>
+<tr>
+<td>Control neto</td>
+<td><code>apply_setpoint(+W/-W/0)</code></td>
+<td>B</td>
+</tr>
+<tr>
+<td>Controles de entidad</td>
+<td><code>write_control(key, value)</code>; devuelve <code>False</code> para claves no soportadas</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Eco de orden</td>
+<td><code>net_power_from_data(data)</code>; puede devolver <code>None</code> si no hay eco</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Dependencias</td>
+<td><code>control_dependency_keys</code> para datos que deben leerse aunque su entidad esté deshabilitada</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Configuración</td>
+<td><code>apply_config(...)</code>, omitiendo de forma explícita los ajustes no aplicables</td>
+<td>R</td>
+</tr>
+<tr>
+<td>Parada</td>
+<td><code>standby()</code> que deje el equipo en un estado seguro antes de cerrar</td>
+<td>B</td>
+</tr>
+<tr>
+<td>Corte de carga</td>
+<td><code>set_charge_cutoff()</code> o retorno controlado <code>False</code> cuando se aplique por software</td>
+<td>O/condicional</td>
+</tr>
+<tr>
+<td>Puerta externa</td>
+<td><code>set_rs485_control()</code>/<code>get_rs485_control()</code> o equivalente si el equipo la necesita</td>
+<td>B/condicional</td>
+</tr>
+</tbody>
+</table>
+<p>Aunque algunos métodos semánticos todavía no estén declarados abstractos en la
+clase base, el coordinador los usa y el nuevo driver debe implementarlos.</p>
+<h3 id="capacidades-a-declarar">Capacidades a declarar<a class="headerlink" href="#capacidades-a-declarar" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th><code>DriverCapabilities</code></th>
+<th style="text-align: right;">Valor</th>
+<th>Evidencia/justificación</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hardware_soc_cutoff</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>has_force_mode</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>push_telemetry</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>max_charge_power_w</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>max_discharge_power_w</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>min_charge_power_w</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>min_discharge_power_w</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>has_mppt_pv</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>has_alarm_registers</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>has_rs485_control</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>has_energy_counters</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>setpoint_confirm_reliable</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td><code>actuator_latency_s</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td>Medida de peor caso, no promedio</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-mapa-minimo-de-palancas-y-telemetria">4. Mapa mínimo de palancas y telemetría<a class="headerlink" href="#4-mapa-minimo-de-palancas-y-telemetria" title="Permanent link">&para;</a></h2>
+<h3 id="nucleo-obligatorio">Núcleo obligatorio<a class="headerlink" href="#nucleo-obligatorio" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Clave/operación Omnibattery</th>
+<th>Nivel</th>
+<th>Qué debe aportar la marca</th>
+<th>Sustitución admitida</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>battery_soc</code></td>
+<td>B</td>
+<td>SOC real 0–100 %, con cadencia y antigüedad conocidas</td>
+<td>No se acepta una estimación simple por tensión como soporte completo</td>
+</tr>
+<tr>
+<td><code>battery_power</code></td>
+<td>B</td>
+<td>Potencia instantánea real en ambos sentidos</td>
+<td>Fórmula D a partir de flujos simultáneos y validados</td>
+</tr>
+<tr>
+<td><code>apply_setpoint(+W)</code></td>
+<td>B</td>
+<td>Orden de carga con límite de potencia</td>
+<td>Combinación de modo + límite o propiedad única</td>
+</tr>
+<tr>
+<td><code>apply_setpoint(-W)</code></td>
+<td>B</td>
+<td>Orden de descarga con límite de potencia</td>
+<td>Combinación de modo + límite o propiedad única</td>
+</tr>
+<tr>
+<td><code>apply_setpoint(0)</code> / <code>standby()</code></td>
+<td>B</td>
+<td>Reposo mantenido, sin quedar en un modo autónomo que exporte</td>
+<td>Secuencia documentada de modo y límites a cero</td>
+</tr>
+<tr>
+<td>Límites máx. de potencia</td>
+<td>B</td>
+<td>Valores por modelo o lectura del equipo</td>
+<td>Configuración C limitada por máximos oficiales</td>
+</tr>
+<tr>
+<td>Estado de conexión/frescura</td>
+<td>B</td>
+<td>Error, timestamp, disponibilidad o mecanismo equivalente</td>
+<td>Temporizador de caducidad en el driver</td>
+</tr>
+<tr>
+<td>Eco del setpoint</td>
+<td>R</td>
+<td>Modo/límite aplicado o aceptado</td>
+<td>Caché de orden solo para optimizar; no sustituye potencia medida</td>
+</tr>
+<tr>
+<td>Latencia de actuador</td>
+<td>R</td>
+<td>Tiempo escritura → aplicación → reflejo en telemetría</td>
+<td>Medición sobre equipo real y margen conservador</td>
+</tr>
+<tr>
+<td>Potencia mínima fiable</td>
+<td>R</td>
+<td>Mínimo no nulo sostenible y pasos aceptados</td>
+<td>Constante C por modelo, validada físicamente</td>
+</tr>
+</tbody>
+</table>
+<h3 id="telemetria-y-controles-que-amplian-funciones">Telemetría y controles que amplían funciones<a class="headerlink" href="#telemetria-y-controles-que-amplian-funciones" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Clave canónica</th>
+<th>Nivel</th>
+<th>Función que habilita</th>
+<th>Si falta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>battery_total_energy</code></td>
+<td>R</td>
+<td>Energía almacenada, reparto y carga predictiva</td>
+<td>Capacidad C introducida por el usuario</td>
+</tr>
+<tr>
+<td><code>total_charging_energy</code> / <code>total_discharging_energy</code></td>
+<td>O</td>
+<td>Energía y eficiencia acumuladas</td>
+<td>Integración D de <code>battery_power</code>, con persistencia</td>
+</tr>
+<tr>
+<td><code>max_cell_voltage</code></td>
+<td>O</td>
+<td>Taper y pausa segura al 100 %, recalibración y balance</td>
+<td>Desactivar las funciones dependientes de tensión de celda</td>
+</tr>
+<tr>
+<td><code>min_cell_voltage</code></td>
+<td>O</td>
+<td>Delta de celdas y monitor de balance</td>
+<td>No publicar delta/balance</td>
+</tr>
+<tr>
+<td><code>internal_temperature</code></td>
+<td>O</td>
+<td>Derating térmico de carga/descarga</td>
+<td>No habilitar el límite térmico</td>
+</tr>
+<tr>
+<td><code>inverter_state</code></td>
+<td>O</td>
+<td>Confirmación adicional de standby/corte BMS</td>
+<td>Usar solo potencia medida; omitir detecciones que exijan estado</td>
+</tr>
+<tr>
+<td><code>ac_offgrid_power</code></td>
+<td>O</td>
+<td>Detectar carga de backup y excluir la batería del PD</td>
+<td>Desactivar exclusión automática por backup</td>
+</tr>
+<tr>
+<td><code>backup_function</code> o equivalente</td>
+<td>O</td>
+<td>Saber/controlar el modo backup</td>
+<td>Omitir la entidad y su lógica específica</td>
+</tr>
+<tr>
+<td><code>mppt1_power</code>…<code>mppt4_power</code></td>
+<td>O</td>
+<td>Producción DC y eficiencia por plano</td>
+<td><code>has_mppt_pv=False</code>; no crear esas entidades</td>
+</tr>
+<tr>
+<td><code>alarm_status</code> / <code>fault_status</code></td>
+<td>O</td>
+<td>Alarmas de sistema</td>
+<td>No crear el sensor/notificador dependiente</td>
+</tr>
+<tr>
+<td><code>battery_voltage</code></td>
+<td>O</td>
+<td>Diagnóstico</td>
+<td>Omitir la entidad</td>
+</tr>
+<tr>
+<td>Identidad, firmware, RSSI</td>
+<td>O</td>
+<td>Diagnóstico y soporte</td>
+<td>Omitir entidades; preferir <code>serial</code> estable si existe</td>
+</tr>
+<tr>
+<td>Corte SOC hardware</td>
+<td>O</td>
+<td>Persistencia autónoma de límites SOC</td>
+<td><code>hardware_soc_cutoff=False</code> y corte por software</td>
+</tr>
+<tr>
+<td>Límite potencia escribible</td>
+<td>O</td>
+<td>Ajuste persistente en el equipo</td>
+<td>Límite C en software, sin fingir una entidad hardware</td>
+</tr>
+<tr>
+<td>Puerta de control externo</td>
+<td>Condicional</td>
+<td>Activar/devolver el control al firmware</td>
+<td>Solo obligatoria si los setpoints no funcionan sin ella</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-referencia-marstek-venus-e-v3">5. Referencia: Marstek Venus E v3<a class="headerlink" href="#5-referencia-marstek-venus-e-v3" title="Permanent link">&para;</a></h2>
+<p>La v3 define el comportamiento de referencia, no la forma obligatoria del
+protocolo:</p>
+<table>
+<thead>
+<tr>
+<th>Semántica</th>
+<th>Implementación v3 de referencia</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SOC</td>
+<td><code>battery_soc</code>, registro <code>37005</code>, <code>uint16</code>, <code>%</code></td>
+</tr>
+<tr>
+<td>Potencia medida</td>
+<td><code>battery_power</code>, registro <code>30001</code>, <code>int16</code>; positiva al cargar y negativa al descargar</td>
+</tr>
+<tr>
+<td>Orden de carga</td>
+<td><code>set_discharge_power=0</code>, <code>set_charge_power=W</code>, <code>force_mode=charge</code></td>
+</tr>
+<tr>
+<td>Orden de descarga</td>
+<td><code>set_discharge_power=W</code>, <code>set_charge_power=0</code>, <code>force_mode=discharge</code></td>
+</tr>
+<tr>
+<td>Reposo</td>
+<td>Ambos setpoints a <code>0</code> y <code>force_mode=stop</code></td>
+</tr>
+<tr>
+<td>Sobre de potencia</td>
+<td>Setpoints <code>0–2500 W</code>, paso documentado <code>50 W</code>; límites de instalación en <code>max_charge_power</code>/<code>max_discharge_power</code></td>
+</tr>
+<tr>
+<td>Potencia mínima declarada</td>
+<td><code>800 W</code> para los límites v3; se refleja en las capacidades del driver</td>
+</tr>
+<tr>
+<td>Control externo</td>
+<td><code>rs485_control_mode</code>, comandos específicos <code>0x55AA</code>/<code>0x55BB</code></td>
+</tr>
+<tr>
+<td>Corte SOC</td>
+<td>No hay registros de corte en v3; Omnibattery aplica min/max SOC por software</td>
+</tr>
+<tr>
+<td>Confirmación</td>
+<td>Readback de modo, setpoints y potencia; tolerancia durante la rampa</td>
+</tr>
+<tr>
+<td>Transporte</td>
+<td>Modbus, polling, un único slot TCP y pacing específico</td>
+</tr>
+</tbody>
+</table>
+<p>La consecuencia importante es que <strong><code>force_mode</code> no es obligatorio</strong>. Otra
+batería puede cumplir exactamente el mismo contrato mediante un único límite
+con signo, dos límites, un enum distinto o una API HTTP.</p>
+<h2 id="6-sustituciones-validas-patron-zendure">6. Sustituciones válidas: patrón Zendure<a class="headerlink" href="#6-sustituciones-validas-patron-zendure" title="Permanent link">&para;</a></h2>
+<p>Zendure demuestra qué ausencias se pueden resolver dentro de Omnibattery:</p>
+<table>
+<thead>
+<tr>
+<th>Ausencia/diferencia de la marca</th>
+<th>Adaptación válida del driver</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No existe <code>battery_power</code> directo</td>
+<td>Se deriva como <code>outputPackPower - packInputPower</code>, tras validar signo y simultaneidad</td>
+</tr>
+<tr>
+<td>No hay contadores kWh</td>
+<td>Omnibattery integra <code>battery_power</code> y persiste los totales sintéticos</td>
+</tr>
+<tr>
+<td>No se informa capacidad nominal</td>
+<td>El usuario configura <code>battery_total_energy</code> en kWh</td>
+</tr>
+<tr>
+<td>No existe <code>force_mode</code> Marstek</td>
+<td><code>acMode</code> + <code>inputLimit</code>/<code>outputLimit</code> implementan el setpoint neto</td>
+</tr>
+<tr>
+<td>El límite de carga es de solo lectura</td>
+<td>Se combina el máximo real del equipo con un techo de software del usuario</td>
+</tr>
+<tr>
+<td>Las celdas llegan como una lista de packs</td>
+<td>El driver calcula extremos globales y publica también claves por pack</td>
+</tr>
+<tr>
+<td>El readback tarda varios segundos</td>
+<td>Se declara <code>setpoint_confirm_reliable=False</code> y una <code>actuator_latency_s</code> conservadora</td>
+</tr>
+<tr>
+<td>La escritura frecuente podría tocar flash</td>
+<td>Los setpoints usan modo volátil; la configuración persistente usa escritura explícita a flash</td>
+</tr>
+</tbody>
+</table>
+<p>Reglas para aceptar una sustitución:</p>
+<ul>
+<li>[ ] La fórmula y la convención de signo están probadas con carga, descarga y reposo.</li>
+<li>[ ] Las entradas de una fórmula corresponden al mismo instante o su desfase es acotado.</li>
+<li>[ ] El dato derivado conserva unidad, rango y precisión suficientes.</li>
+<li>[ ] Los acumuladores se restauran tras reinicio y toleran huecos de telemetría.</li>
+<li>[ ] Un valor C queda identificado como configuración, no como lectura del equipo.</li>
+<li>[ ] La UI no crea una entidad hardware que en realidad no existe.</li>
+</ul>
+<p>No deben sintetizarse sin una fuente física fiable: SOC real, alarmas, temperatura,
+tensiones de celda ni confirmación de potencia entregada. Una caché del último
+comando representa <strong>intención</strong>, no estado real.</p>
+<h2 id="7-matriz-de-degradacion-funcional">7. Matriz de degradación funcional<a class="headerlink" href="#7-matriz-de-degradacion-funcional" title="Permanent link">&para;</a></h2>
+<p>Completarla antes de aprobar el desarrollo:</p>
+<table>
+<thead>
+<tr>
+<th>Funcionalidad</th>
+<th>Dependencias mínimas</th>
+<th>Alternativa</th>
+<th>Estado para este modelo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Control PD carga/descarga</td>
+<td>SOC, potencia medida, setpoint ±W/0, límites</td>
+<td>Ninguna para soporte completo</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Gestión multi-batería</td>
+<td>Lo anterior por unidad; capacidad mejora el reparto energético</td>
+<td>Capacidad C</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Límites min/max SOC</td>
+<td>SOC + mando de reposo</td>
+<td>Hardware o software</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Carga predictiva/precios</td>
+<td>SOC + capacidad kWh + control de carga</td>
+<td>Capacidad C</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Energía/ciclos/eficiencia</td>
+<td>Contadores o potencia con tiempo fiable</td>
+<td>Integración D</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Taper/protección al 100 %</td>
+<td><code>max_cell_voltage</code>, SOC y potencia</td>
+<td>Sin alternativa equivalente</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Monitor/diagnóstico de balance</td>
+<td><code>max_cell_voltage</code> + <code>min_cell_voltage</code></td>
+<td>Extremos D desde celdas/packs</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Carga semanal completa</td>
+<td>SOC, potencia y control; corte hardware si existe</td>
+<td>Corte software</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Límite térmico</td>
+<td>Temperatura interna</td>
+<td>Ninguna</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Exclusión por backup</td>
+<td>Potencia off-grid y estado/modo backup</td>
+<td>Ninguna fiable</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Producción MPPT/DC</td>
+<td>Potencia por MPPT o total DC</td>
+<td>Suma D de canales</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Alarmas</td>
+<td>Bits/códigos de fallo con tabla oficial</td>
+<td>Ninguna</td>
+<td><code>...</code></td>
+</tr>
+<tr>
+<td>Persistencia de energía sintética</td>
+<td>Potencia + identificador estable</td>
+<td>Clave de dispositivo menos estable</td>
+<td><code>...</code></td>
+</tr>
+</tbody>
+</table>
+<p>Una función marcada como no soportada debe quedar fuera mediante capacidades,
+definiciones de entidades o configuración. No debe recibir ceros ficticios.</p>
+<h2 id="8-ficha-de-mapeo-de-telemetria">8. Ficha de mapeo de telemetría<a class="headerlink" href="#8-ficha-de-mapeo-de-telemetria" title="Permanent link">&para;</a></h2>
+<p>Añadir una fila por cada clave. En “evidencia” indicar página/sección del manual
+y adjuntar una muestra real anonimizada.</p>
+<table>
+<thead>
+<tr>
+<th>Clave Omnibattery</th>
+<th>B/R/O</th>
+<th>Campo/registro/topic fabricante</th>
+<th>R/W</th>
+<th>Tipo/endian</th>
+<th>Escala y unidad final</th>
+<th>Rango/centinelas</th>
+<th>Cadencia/TTL</th>
+<th>N/D/C/X</th>
+<th>Evidencia</th>
+<th>Validado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>battery_soc</code></td>
+<td>B</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → %</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>battery_power</code></td>
+<td>B</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → W; +carga/-descarga</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Estado/eco de setpoint</td>
+<td>R</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>battery_total_energy</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td>R/C</td>
+<td><code>...</code></td>
+<td><code>... → kWh</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>total_charging_energy</code></td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → kWh</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>total_discharging_energy</code></td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → kWh</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>max_cell_voltage</code></td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → V</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>min_cell_voltage</code></td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → V</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>internal_temperature</code></td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → °C</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>inverter_state</code></td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td>enum</td>
+<td><code>mapa: ...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td><code>ac_offgrid_power</code></td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → W</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Alarmas/fallos</td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td>bitmap/enum</td>
+<td><code>mapa: ...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>MPPT/PV</td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>... → W</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Identidad/firmware</td>
+<td>O</td>
+<td><code>...</code></td>
+<td>R</td>
+<td>string</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+</tbody>
+</table>
+<h2 id="9-ficha-de-mapeo-de-controles">9. Ficha de mapeo de controles<a class="headerlink" href="#9-ficha-de-mapeo-de-controles" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Operación semántica</th>
+<th>B/R/O</th>
+<th>Campo(s)/comando(s) fabricante</th>
+<th>Secuencia</th>
+<th>Rango/paso</th>
+<th>Volátil/persistente</th>
+<th>ACK/readback</th>
+<th>Timeout/latencia</th>
+<th>Estado seguro al fallar</th>
+<th>Evidencia</th>
+<th>Validado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Conectar/autenticar</td>
+<td>B</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>—</td>
+<td>—</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>sin control</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Cargar a <code>W</code></td>
+<td>B</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Descargar a <code>W</code></td>
+<td>B</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Reposo <code>0 W</code></td>
+<td>B</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Límite máximo carga</td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>límite C</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Límite máximo descarga</td>
+<td>R</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>límite C</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Corte SOC máximo</td>
+<td>O</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>software</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Corte SOC mínimo</td>
+<td>O</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>software</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Activar control externo</td>
+<td>Cond.</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>devolver control</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Restablecer control del fabricante</td>
+<td>Cond.</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>—</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Otros controles UI</td>
+<td>O</td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td><code>...</code></td>
+<td>omitir entidad</td>
+<td><code>...</code></td>
+<td>[ ]</td>
+</tr>
+</tbody>
+</table>
+<h2 id="10-pruebas-minimas-de-aceptacion">10. Pruebas mínimas de aceptación<a class="headerlink" href="#10-pruebas-minimas-de-aceptacion" title="Permanent link">&para;</a></h2>
+<p>No basta con que el documento mencione una clave; debe verificarse sobre equipo
+real o simulador oficial representativo.</p>
+<h3 id="transporte-y-datos">Transporte y datos<a class="headerlink" href="#transporte-y-datos" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Conecta, lee identidad/SOC y cierra sin dejar recursos o sesiones abiertos.</li>
+<li>[ ] Reconecta después de timeout, reinicio del equipo y cambio temporal de red.</li>
+<li>[ ] Rechaza respuestas parciales, valores centinela y datos fuera de rango.</li>
+<li>[ ] Caduca la caché push o los últimos datos cuando deja de recibir mensajes.</li>
+<li>[ ] Mantiene las unidades y el signo en carga, descarga y reposo.</li>
+<li>[ ] Respeta exclusión mutua si el dispositivo solo admite una conexión.</li>
+</ul>
+<h3 id="control">Control<a class="headerlink" href="#control" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <code>+W</code>: carga, queda limitada al máximo y la potencia medida cambia de signo correcto.</li>
+<li>[ ] <code>-W</code>: descarga, queda limitada al máximo y la potencia medida cambia de signo correcto.</li>
+<li>[ ] <code>0 W</code>: detiene ambos sentidos y no vuelve solo a exportar/importar.</li>
+<li>[ ] Transiciones carga → descarga, descarga → carga y movimiento → reposo.</li>
+<li>[ ] Comandos repetidos son idempotentes y no desgastan flash.</li>
+<li>[ ] Si una orden usa varias escrituras, un fallo parcial converge a reposo o a
+  otro estado definido; se ha verificado el orden obligatorio.</li>
+<li>[ ] El readback distingue orden aceptada de potencia realmente entregada.</li>
+<li>[ ] Se mide latencia en caso normal y peor caso; se configura el valor conservador.</li>
+<li>[ ] Una escritura fallida devuelve razón y no actualiza la caché como confirmada.</li>
+<li>[ ] Al descargar con SOC mínimo y cargar con SOC máximo, el sistema queda seguro.</li>
+<li>[ ] Al cerrar Omnibattery se aplica <code>standby()</code> y, si procede, se devuelve el control al firmware.</li>
+</ul>
+<h3 id="sustituciones-y-degradacion">Sustituciones y degradación<a class="headerlink" href="#sustituciones-y-degradacion" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Cada fórmula D tiene pruebas unitarias con valores límite y signos.</li>
+<li>[ ] Energía sintética sobrevive a reinicios y no integra durante huecos de datos.</li>
+<li>[ ] La capacidad C se valida contra rangos razonables y aparece como configurada.</li>
+<li>[ ] Las funciones X no crean entidades, avisos ni decisiones con valores ficticios.</li>
+<li>[ ] El driver convive con otra marca en un pool multi-batería.</li>
+</ul>
+<h3 id="cobertura-de-codigo-esperada">Cobertura de código esperada<a class="headerlink" href="#cobertura-de-codigo-esperada" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Contrato del driver: conexión, grupos de lectura, escalado y claves ausentes.</li>
+<li>[ ] <code>apply_setpoint</code>: carga, descarga, cero, clamp, fallo, ACK tardío y sin readback.</li>
+<li>[ ] <code>net_power_from_data</code> y <code>control_dependency_keys</code>.</li>
+<li>[ ] Configuración/cortes/standby y puerta de control condicional.</li>
+<li>[ ] Detección de modelo y validación del flujo de configuración.</li>
+<li>[ ] Matriz de firmware/modelo soportado y no soportado.</li>
+</ul>
+<h2 id="11-informe-de-decision-para-copiar-y-completar">11. Informe de decisión para copiar y completar<a class="headerlink" href="#11-informe-de-decision-para-copiar-y-completar" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Marca/modelo:
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Firmware probado:
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Documentación oficial (versión/fecha/enlace):
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Dictamen: APTO / APTO CON LIMITACIONES / NO APTO
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>Bloqueantes B:
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>- SOC real: N/D/C/X — evidencia:
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>- Potencia real: N/D/C/X — evidencia/fórmula:
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>- Carga regulable: sí/no — rango/paso:
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>- Descarga regulable: sí/no — rango/paso:
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>- Reposo seguro: sí/no — secuencia:
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>- Límites seguros: origen/valores:
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>- Frescura y pérdida de conexión: mecanismo:
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>Adaptaciones en Omnibattery:
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>- Datos derivados:
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>- Datos configurados por usuario:
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>- Límites aplicados por software:
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>Funcionalidades excluidas:
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>-
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>Riesgos abiertos:
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>-
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>Pruebas en hardware pendientes:
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>-
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>Responsable de aprobación y fecha:
+</code></pre></div>
+<h2 id="12-checklist-de-implementacion-despues-de-aprobar">12. Checklist de implementación después de aprobar<a class="headerlink" href="#12-checklist-de-implementacion-despues-de-aprobar" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[ ] Crear el driver sin filtrar detalles propietarios fuera de <code>drivers/</code>.</li>
+<li>[ ] Añadir selección/detección de marca y modelo en el flujo de configuración.</li>
+<li>[ ] Instanciar el driver en el coordinador y declarar correctamente capacidades.</li>
+<li>[ ] Definir solo las entidades realmente soportadas y sus traducciones.</li>
+<li>[ ] Añadir campos de configuración para valores C, como capacidad nominal.</li>
+<li>[ ] Desactivar por capacidad las funciones que dependan de claves X.</li>
+<li>[ ] Añadir pruebas unitarias del driver y pruebas de integración multi-marca.</li>
+<li>[ ] Documentar prerrequisitos del equipo, firmwares y limitaciones conocidas.</li>
+<li>[ ] Actualizar diagnósticos ocultando credenciales, tokens y números de serie sensibles.</li>
+</ul>
+<p>La aprobación documental autoriza iniciar el driver, pero no sustituye la prueba
+en hardware. Una clave que aparece en el manual puede tener signo invertido,
+escala distinta, latencia, clamp interno o comportamiento diferente según
+firmware; todo ello debe quedar validado antes de declarar soporte estable.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Volver al principio
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Pie" >
+        
+          
+          <a href="../architecture/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Arquitectura">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Anterior
+              </span>
+              <div class="md-ellipsis">
+                Arquitectura
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../modbus-registers/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Registros Modbus">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Siguiente
+              </span>
+              <div class="md-ellipsis">
+                Registros Modbus
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/ffunes/omnibattery" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://buymeacoffee.com/ffunes" target="_blank" rel="noopener" title="buymeacoffee.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M152-16c-13.3 0-24 10.7-24 24 0 38.9 23.4 59.4 39.1 73.1l1.1 1C184.5 96.4 192 103.9 192 120c0 13.3 10.7 24 24 24s24-10.7 24-24c0-38.9-23.4-59.4-39.1-73.1l-1.1-1C183.5 31.7 176 24.1 176 8c0-13.3-10.7-24-24-24M96 192c-17.7 0-32 14.3-32 32v192c0 53 43 96 96 96h192c41.8 0 77.4-26.7 90.5-64h5.5c70.7 0 128-57.3 128-128s-57.3-128-128-128zm352 192V256c35.3 0 64 28.7 64 64s-28.7 64-64 64M288 8c0-13.3-10.7-24-24-24S240-5.3 240 8c0 38.9 23.4 59.4 39.1 73.1l1.1 1C296.5 96.4 304 103.9 304 120c0 13.3 10.7 24 24 24s24-10.7 24-24c0-38.9-23.4-59.4-39.1-73.1l-1.1-1C295.5 31.7 288 24.1 288 8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "navigation.footer", "toc.follow", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "content.action.edit"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copiado al portapapeles", "clipboard.copy": "Copiar al portapapeles", "search.result.more.one": "1 m\u00e1s en esta p\u00e1gina", "search.result.more.other": "# m\u00e1s en esta p\u00e1gina", "search.result.none": "No se encontraron documentos", "search.result.one": "1 documento encontrado", "search.result.other": "# documentos encontrados", "search.result.placeholder": "Teclee para comenzar b\u00fasqueda", "search.result.term.missing": "Falta", "select.version": "Seleccionar versi\u00f3n"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
