@@ -1,8 +1,7 @@
 blank_issues_enabled: false
 contact_links:
-  - name: 💡 Feature Request / Idea
-    url: https://github.com/ffunes/Marstek-Venus-Energy-Manager/discussions/categories/feature-ideas
+  - name: 💡 General Feature Request / Idea
+    url: https://github.com/ffunes/Omnibattery/discussions/categories/feature-ideas
     about: >
-      Feature requests go through community voting. Post your idea in Discussions
-      so others can vote on it. Ideas with enough support get prioritized for
-      development.
+      General ideas go through community voting in Discussions. To request support
+      for a new battery model, use the Battery Support form above instead.

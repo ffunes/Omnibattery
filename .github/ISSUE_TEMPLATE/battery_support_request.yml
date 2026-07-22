@@ -1,0 +1,158 @@
+name: "🔋 New battery support"
+description: "Request support for a new battery brand or model"
+title: "[BATTERY SUPPORT] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## New battery support request
+
+        Thank you for helping us assess a new battery integration. You do not need technical knowledge: fill in what you know and select **I don't know** where appropriate.
+
+        The most important information is the manufacturer's **developer documentation**: a local API, Modbus/RS485 protocol, MQTT topics, HTTP API, or another interface that allows the battery to be monitored and controlled. A user manual or commercial product page usually does not contain this information.
+
+        > Do not publish passwords, tokens, API keys, complete serial numbers, or personal information.
+
+  - type: textarea
+    id: device
+    attributes:
+      label: Requested battery
+      description: Copy the name shown on the label, packaging, or manufacturer app. Complete everything you know.
+      placeholder: |
+        Manufacturer: Marstek, Zendure, EcoFlow...
+        Exact model:
+        Firmware version:
+        Official product page: https://...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: requested_support
+    attributes:
+      label: What kind of support are you requesting?
+      options:
+        - "Full control: charging, discharging, and monitoring"
+        - "Monitoring only"
+        - "One specific feature"
+        - "I don't know"
+    validations:
+      required: true
+
+  - type: textarea
+    id: development_documentation
+    attributes:
+      label: Developer documentation
+      description: |
+        Provide links to official technical documentation: an API, Modbus register map, RS485 protocol, MQTT topics, HTTP endpoints, SDK, or developer portal.
+        If only a PDF is available, you can drag it into this field. If you cannot find any developer documentation, write **I could not find it** and, if possible, explain where you looked.
+      placeholder: |
+        Official documentation: https://...
+        Document name and version: ...
+        Or: I could not find it; I checked...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: documentation_access
+    attributes:
+      label: Documentation access
+      options:
+        - "Publicly available without an account"
+        - "Requires a free account"
+        - "Requires manufacturer approval or an NDA"
+        - "I only have a PDF or local copy"
+        - "I could not find developer documentation"
+        - "I don't know"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: connection_methods
+    attributes:
+      label: Known connection methods
+      description: Select everything mentioned on the device, in the app, or in the documentation.
+      options:
+        - label: "Local network over Ethernet or Wi-Fi"
+        - label: "Modbus TCP"
+        - label: "RS485 / Modbus RTU"
+        - label: "MQTT"
+        - label: "Local HTTP API"
+        - label: "Cloud / Internet API"
+        - label: "Bluetooth, USB, or serial port"
+        - label: "I don't know"
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Blocking requirements checklist
+
+        Select only the capabilities you can clearly find in the documentation. **You do not need to understand the names in parentheses**; they are the internal keys Omnibattery needs. Leave anything you are unsure about unchecked.
+
+  - type: checkboxes
+    id: blocking_capabilities
+    attributes:
+      label: Capabilities found in the documentation
+      description: These are the minimum controls and measurements required to operate the battery safely.
+      options:
+        - label: "Read the real battery percentage — SOC (`battery_soc`)"
+        - label: "Read actual charging and discharging power in W (`battery_power`)"
+        - label: "Command a specific charging power (`apply_setpoint +W`)"
+        - label: "Command a specific discharging power (`apply_setpoint -W`)"
+        - label: "Stop charging and discharging and remain idle at 0 W (`standby`)"
+        - label: "Determine the safe maximum charging and discharging power"
+        - label: "Detect when the connection or telemetry is no longer updating"
+        - label: "Enable external control, if the device requires it"
+        - label: "Determine whether commands are temporary or stored in device memory"
+        - label: "I cannot identify these capabilities"
+
+  - type: textarea
+    id: technical_clues
+    attributes:
+      label: Technical references and useful clues
+      description: Optional. Include page numbers, field names, or links to projects that already communicate with this battery. You may also attach screenshots with sensitive information removed.
+      placeholder: |
+        SOC: page 12, register 1234
+        Power: batteryPower field
+        Control: /device/control endpoint
+        Existing project: https://github.com/...
+
+  - type: dropdown
+    id: hardware_access
+    attributes:
+      label: Do you have access to the battery for testing?
+      description: A driver must be tested on real hardware to validate signs, limits, and commands.
+      options:
+        - "Yes, I can test versions and share results"
+        - "Yes, with step-by-step instructions"
+        - "I may be able to contact someone who owns one"
+        - "No"
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: What would you like to achieve?
+      description: Explain it in your own words. For example, charge from surplus solar, track household consumption, or use several batteries together.
+      placeholder: "I would like Omnibattery to..."
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Confirmations
+      options:
+        - label: "I have searched for existing requests for this brand and model."
+          required: true
+        - label: "I have removed passwords, tokens, API keys, complete serial numbers, and other sensitive information."
+          required: true
+        - label: "I understand that available documentation does not guarantee integration or a development date."
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        The maintainer will use this information to complete the [driver requirements assessment](https://github.com/ffunes/Omnibattery/blob/main/site-docs/reference/driver-requirements-template.md) and determine whether the model is suitable, suitable with limitations, or not suitable.

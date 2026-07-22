@@ -644,3 +644,106 @@ def test_window_release_now_when_current_window_cheapest():
     slots = [_slot(11, 0.10), _slot(12, 0.10), _slot(13, 0.30), _slot(14, 0.30)]
     mgr = _make_mgr(_price_ctrl(slots))
     assert mgr._price_optimal_release_h(11.0, 16.0, 2.0) == 11.0
+
+
+# ----------------------------------------------------------------------
+# energy_balance cushion: price-aware hold instead of an instant unlock
+# ----------------------------------------------------------------------
+
+def _at_hour(monkeypatch, hour):
+    """Freeze charge_delay's wall clock at ``hour`` (whole hours only)."""
+    import custom_components.omnibattery.control.charge_delay as cd
+
+    monkeypatch.setattr(
+        cd, "datetime", SimpleNamespace(now=lambda: SimpleNamespace(hour=hour, minute=0))
+    )
+
+
+def _cushion_mgr(forecast):
+    """Gate sitting in the cushion band at 09:00.
+
+    needed = (80-50)% x 10 kWh = 3.0 kWh, factored (x1.3) = 3.9 kWh.
+    remaining_consumption = 5.0 x 7/24 = 1.46 kWh.
+    """
+    ctrl = _controller(
+        coordinators=[_coord(soc=50, total_energy=10.0, min_soc=20)],
+        _consumption_tracker=_tracker(get_avg_daily_consumption=lambda: 5.0),
+        _solar_t_start=8.0,
+    )
+    return _make_mgr(ctrl, states={"sensor.forecast": _state(forecast)})
+
+
+def test_cushion_shortfall_holds_for_cheaper_hour(monkeypatch):
+    # net = 3.39: below the factored 3.9 edge but still above the bare 3.0 need
+    # -> hold for the cheaper hour instead of unlocking into the morning peak.
+    _at_hour(monkeypatch, 9)
+    mgr = _cushion_mgr(5.7)
+    mgr._price_optimal_release_h = lambda now_h, edge_h, charge_h=None: 12.0
+    assert mgr._should_delay_charge(80) is True
+    assert mgr._controller._charge_delay_status["estimated_unlock_time"] == "12:00"
+    assert "price" in mgr._controller._charge_delay_status["state"]
+
+
+def test_cushion_shortfall_unlocks_when_now_is_cheapest(monkeypatch):
+    _at_hour(monkeypatch, 9)
+    mgr = _cushion_mgr(5.7)
+    mgr._price_optimal_release_h = lambda now_h, edge_h, charge_h=None: now_h
+    assert mgr._should_delay_charge(80) is False
+    assert mgr._controller._charge_delay_status["unlock_reason"] == "energy_balance"
+
+
+def test_cushion_shortfall_unlocks_without_price_data(monkeypatch):
+    # No price data -> legacy instant unlock preserved.
+    _at_hour(monkeypatch, 9)
+    mgr = _cushion_mgr(5.7)
+    mgr._price_optimal_release_h = lambda now_h, edge_h, charge_h=None: None
+    assert mgr._should_delay_charge(80) is False
+    assert mgr._controller._charge_delay_status["unlock_reason"] == "energy_balance"
+
+
+def test_genuine_deficit_unlocks_without_consulting_prices(monkeypatch):
+    # net = 1.09 < needed 3.0: a real deficit, grid charging may be
+    # required -> unlock immediately, prices must not be able to hold it.
+    _at_hour(monkeypatch, 9)
+    mgr = _cushion_mgr(3.0)
+    called = []
+    mgr._price_optimal_release_h = lambda *a, **kw: called.append(1) or 12.0
+    assert mgr._should_delay_charge(80) is False
+    assert mgr._controller._charge_delay_status["unlock_reason"] == "energy_balance"
+    assert called == []
+
+
+def test_cushion_hold_window_never_passes_bare_balance_edge(monkeypatch):
+    # The edge handed to the price scorer is the BARE (x1.0) balance crossing,
+    # never the factored one, so the hold cannot eat into the target itself.
+    _at_hour(monkeypatch, 9)
+    mgr = _cushion_mgr(5.7)
+    edges = []
+    mgr._price_optimal_release_h = lambda now_h, edge_h, charge_h=None: edges.append(edge_h) or now_h
+    # Record what the gate actually asked the projection for, so the expected edge
+    # is built from the same inputs the code used (not a re-derived guess).
+    projections = []
+    real_estimate = mgr._estimate_energy_balance_unlock_h
+    def _spy(*args, **kwargs):
+        result = real_estimate(*args, **kwargs)
+        projections.append((args, kwargs, result))
+        return result
+    mgr._estimate_energy_balance_unlock_h = _spy
+    mgr._should_delay_charge(80)
+
+    bare = [p for p in projections if p[1].get("safety_factor") == 1.0]
+    assert len(bare) == 1, "the bare-balance projection must be requested exactly once"
+    bare_edge = bare[0][2]
+    time_backup_h = 16.0 - mgr._controller._charge_delay_status["charge_time_h"] - 0.5
+    assert edges == [pytest.approx(min(bare_edge, time_backup_h))]
+    assert edges[0] > 9.0  # there was room to wait at all
+
+
+def test_estimate_bare_edge_is_later_than_factored_edge():
+    ctrl = _controller(
+        _consumption_tracker=_tracker(consumption_window_hours_in_range=lambda a, b: 0.0),
+    )
+    mgr = _make_mgr(ctrl)
+    factored = mgr._estimate_energy_balance_unlock_h(10.0, 1.0, 8.0, 16.0, 8.0)
+    bare = mgr._estimate_energy_balance_unlock_h(10.0, 1.0, 8.0, 16.0, 8.0, safety_factor=1.0)
+    assert bare > factored

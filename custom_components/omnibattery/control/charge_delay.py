@@ -294,7 +294,8 @@ class ChargeDelayManager:
         3. No T_start detected and past fallback hour → unlock
         4. Past T_end with no active production → unlock
         5. Batteries already at target → unlock
-        6. Insufficient remaining solar energy → unlock
+        6. Insufficient remaining solar energy → unlock, unless only the safety
+           cushion is missing and a cheaper feasible hour lies ahead → hold
         7. Insufficient time before T_end → unlock
         8. Otherwise → keep delay active
         """
@@ -529,6 +530,38 @@ class ChargeDelayManager:
             )
 
         if energy_insufficient:
+            # Inside the safety cushion (energy_needed <= net_solar < needed × factor)
+            # the forecast still covers the target on its own; only the 30% margin is
+            # missing. Unlocking instantly there is the expensive branch: it dumps the
+            # whole self-charge into the morning export peak while the midday trough,
+            # when the same kWh would cost a fraction of the forgone teruglever
+            # revenue, is still ahead. Hold for the cheapest feasible hour instead,
+            # bounded by the moment the BARE balance (no safety factor) is projected
+            # to break, so the SOC target stays reachable and the cushion is the only
+            # thing spent. Genuine deficits (net < needed) still unlock immediately.
+            if net_solar_for_battery >= energy_needed_kwh:
+                cushion_edge_h = self._estimate_energy_balance_unlock_h(
+                    forecast_today,
+                    energy_needed_kwh,
+                    ctrl._solar_t_start,
+                    t_end,
+                    now_h,
+                    safety_factor=1.0,
+                )
+                edge_h = (
+                    time_backup_unlock_h
+                    if cushion_edge_h is None
+                    else min(time_backup_unlock_h, cushion_edge_h)
+                )
+                release_h = self._price_hold_release_h(now_h, edge_h, charge_time_h)
+                if release_h is not None and now_h + 1e-6 < release_h:
+                    _LOGGER.info(
+                        "Charge Delay: Cushion-only shortfall (net=%.1f >= needed=%.1f, "
+                        "factored=%.1f) - holding for cheaper hour %.2fh (edge %.2fh)",
+                        net_solar_for_battery, energy_needed_kwh,
+                        energy_needed_kwh * DELAY_SAFETY_FACTOR, release_h, edge_h,
+                    )
+                    return True
             _LOGGER.info(
                 "Charge Delay: Insufficient solar (net=%.1f < needed=%.1f) - unlocking (reason: energy_balance)",
                 net_solar_for_battery, energy_needed_kwh * DELAY_SAFETY_FACTOR
@@ -555,12 +588,10 @@ class ChargeDelayManager:
         # charge_time_h is passed so the scorer weights the WHOLE charge window, not
         # just the starting slot (a cheap start followed by pricey hours can cost
         # more export than a slightly dearer start sitting in a sustained trough).
-        release_h = self._price_optimal_release_h(now_h, est_unlock_h, charge_time_h)
+        release_h = self._price_hold_release_h(now_h, est_unlock_h, charge_time_h)
         if release_h is not None:
             if now_h + 1e-6 < release_h:
                 # A cheaper feasible hour lies ahead, keep holding for it.
-                status["estimated_unlock_time"] = _h_to_hhmm(release_h)
-                status["state"] = f"Delayed (price, {_h_to_hhmm(release_h)} est.)"
                 return True
             # Current hour is the cheapest feasible export hour, release now.
             _LOGGER.info(
@@ -573,6 +604,33 @@ class ChargeDelayManager:
         # All checks passed - keep delay active
         status["state"] = f"Delayed ({status['estimated_unlock_time']} est.)"
         return True
+
+    def _price_hold_release_h(
+        self, now_h: float, edge_h: float, charge_h: float | None = None
+    ) -> float | None:
+        """Pick the cheapest start in ``[now_h, edge_h]`` and mark the hold.
+
+        Thin wrapper around :meth:`_price_optimal_release_h` shared by the two
+        callers that can hold the delay for a cheaper hour (the cushion-only
+        shortfall and the feasible-window release), so the held status is written
+        in exactly one place.
+
+        Returns the chosen start hour: a value greater than ``now_h`` means the
+        delay is being held (the status dict has been updated to say so),
+        ``now_h`` means the current hour is already the cheapest, and ``None``
+        means there is no price-based decision to make (no usable price data, or
+        no room left before the edge).
+        """
+        if edge_h <= now_h:
+            return None
+        release_h = self._price_optimal_release_h(now_h, edge_h, charge_h)
+        if release_h is None or now_h + 1e-6 >= release_h:
+            return release_h
+        ctrl = self._controller
+        hhmm = ctrl._consumption_tracker.h_to_hhmm(release_h)
+        ctrl._charge_delay_status["estimated_unlock_time"] = hhmm
+        ctrl._charge_delay_status["state"] = f"Delayed (price, {hhmm} est.)"
+        return release_h
 
     def _price_optimal_release_h(
         self, now_h: float, edge_h: float, charge_h: float | None = None
@@ -712,11 +770,17 @@ class ChargeDelayManager:
         t_start: float,
         t_end: float,
         now_h: float,
+        safety_factor: float = DELAY_SAFETY_FACTOR,
     ) -> float | None:
         """Estimate when the energy balance condition will trigger the delay unlock.
 
         Binary-searches for the earliest time t >= now_h where:
-          remaining_solar(t) - remaining_consumption(t) < energy_needed × DELAY_SAFETY_FACTOR
+          remaining_solar(t) - remaining_consumption(t) < energy_needed × safety_factor
+
+        ``safety_factor`` defaults to :data:`DELAY_SAFETY_FACTOR` (the real unlock
+        edge). Callers pass ``1.0`` to project the BARE balance edge instead: the
+        last moment the forecast still covers the target with no cushion left,
+        which bounds how long the cushion-only price hold may wait.
 
         Returns the estimated hour as float, or None if it cannot be estimated.
         """
@@ -729,7 +793,7 @@ class ChargeDelayManager:
         # measured over the configured consumption window, not daylight hours.
         avg_consumption = ctrl._consumption_tracker.get_avg_daily_consumption()
         window_hours_per_day = ctrl._consumption_tracker.get_consumption_window_hours_per_day()
-        threshold = energy_needed_kwh * DELAY_SAFETY_FACTOR
+        threshold = energy_needed_kwh * safety_factor
 
         def net_solar_at(t: float) -> float:
             """Net solar available for battery at time t."""

@@ -82,6 +82,7 @@ plugins:
             Hourly net balance: Balance neto horario
             Technical reference: Referencia técnica
             Architecture: Arquitectura
+            Battery driver requirements: Requisitos para drivers de batería
             Modbus registers: Registros Modbus
             HA entities: Entidades HA
             Troubleshooting: Solución de problemas
@@ -146,6 +147,7 @@ nav:
       - Hourly net balance: features/hourly-net-balance.md
   - Technical reference:
       - Architecture: reference/architecture.md
+      - Battery driver requirements: reference/driver-requirements-template.md
       - Modbus registers: reference/modbus-registers.md
       - HA entities: reference/entities.md
   - Troubleshooting: troubleshooting.md
