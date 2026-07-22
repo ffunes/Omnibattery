@@ -23,6 +23,7 @@ from ..const import (
 from ..drivers.esphome import EsphomeEntityDriver
 from ..drivers.marstek import MarstekModbusDriver
 from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
+from ..drivers.anker import AnkerModbusDriver
 from ..drivers.base import SetpointResult
 from .alarm_notifier import AlarmNotifier
 
@@ -33,6 +34,21 @@ _LOGGER = logging.getLogger(__name__)
 # group is boosted to the transient fast-poll cadence only if it contains one of
 # these — the burst poll must not accelerate unrelated registers.
 _DELIVERED_POWER_KEYS = frozenset({"ac_power", "battery_power"})
+
+# Register groups that directly govern control safety. A device can keep its BMS
+# registers alive while the inverter-facing groups are frozen; treating one BMS
+# success as proof that the whole connection is healthy leaves stale SOC/power and
+# set-point echoes in the control loop indefinitely (issue #26).
+_CRITICAL_CONTROL_KEYS = frozenset({
+    "ac_power",
+    "battery_power",
+    "battery_soc",
+    "force_mode",
+    "inverter_state",
+    "set_charge_power",
+    "set_discharge_power",
+})
+_CRITICAL_GROUP_FAILURES_BEFORE_RECONNECT = 3
 
 
 def group_scan_interval_s(
@@ -95,7 +111,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  brand: str = "marstek",
                  zendure_model: str = ZENDURE_MODEL_2400AC_PRO,
                  serial_port: str | None = None,
-                 queued_gateway_compatibility: bool = False,
                  esphome_device_id: str | None = None) -> None:
         """Initialize the data update coordinator."""
         super().__init__(
@@ -114,7 +129,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.serial_port = serial_port
         self.consumption_sensor = consumption_sensor
         self.brand = brand
-        if self.brand == "zendure":
+        if self.brand in ("zendure", "anker"):
             full_charge_voltage_taper_enabled = False
             active_balance_mode_enabled = False
 
@@ -157,9 +172,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.commanded_charge_power = 0
         self.commanded_discharge_power = 0
         # Software charge-power ceiling for drivers whose reported max_charge_power
-        # is a read-only device cap (Zendure chargeMaxLimit). Caps PD allocation
-        # below the device limit; default = device max (no extra cap). Persisted.
+        # is a read-only device cap (Zendure chargeMaxLimit / Anker 10036). Caps PD
+        # allocation below the device limit; default = device max (no extra cap).
+        # Persisted. Same idea for discharge on Anker (10038).
         self.user_max_charge_power = max_charge_power
+        self.user_max_discharge_power = max_discharge_power
         self.allow_charge = allow_charge
         self.allow_discharge = allow_discharge
         self.active_balance_mode_enabled = active_balance_mode_enabled
@@ -207,9 +224,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # path, surfaced by health_snapshot / diagnostics). Initialised here so a
         # read before the first write returns None rather than raising.
         self._last_write_failure_reason = None
+        self._last_rs485_reenable_success = None
 
         # Timestamp-based update tracking
         self._last_update_times = {}
+        self._critical_group_failures = {}
         # Last-written select values that override buggy register readbacks.
         # Repopulated from persisted battery_config after construction; initialised
         # here so get_shadow_select before that assignment returns None instead of
@@ -249,24 +268,21 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 max_charge_power_w=self.max_charge_power,
                 max_discharge_power_w=self.max_discharge_power,
             )
+        elif self.brand == "anker":
+            self.driver = AnkerModbusDriver(
+                self.host,
+                self.port,
+                self.slave_id,
+                max_charge_power_w=self.max_charge_power,
+                max_discharge_power_w=self.max_discharge_power,
+            )
         else:
             self.driver = MarstekModbusDriver(
                 self.host, self.port, self.battery_version, self.slave_id,
                 max_charge_power_w=self.max_charge_power,
                 max_discharge_power_w=self.max_discharge_power,
                 serial_port=self.serial_port,
-                queued_gateway_compatibility=queued_gateway_compatibility,
             )
-
-        # Effective queued-gateway mode (mirrors the transport client's own
-        # narrowing: Marstek Modbus TCP only — v3-family and serial are excluded;
-        # non-Marstek drivers expose no such flag). Drives the control loop's
-        # re-assert-every-cycle so a dropped write on a lossy queueing gateway
-        # self-heals like the legacy MVEM path instead of skip-if-unchanged
-        # starving it (issue #77).
-        self.queued_gateway_compatibility = bool(
-            getattr(self.driver, "queued_gateway_compatibility", False)
-        )
 
         # Fast key -> definition lookup so the poll loop can scale each raw value by
         # its definition's scale/precision/state_class. The driver returns raw
@@ -330,10 +346,31 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
     @property
     def needs_software_max_charge(self) -> bool:
-        """True when max_charge_power is a read-only device cap rather than a
-        writable register, so a software ceiling entity governs it (e.g. Zendure
-        chargeMaxLimit)."""
-        return not any(d["key"] == "max_charge_power" for d in self.number_definitions)
+        """True when max_charge_power has no writable register and no sensor.
+
+        Zendure exposes chargeMaxLimit only as telemetry, so a software ceiling
+        number entity governs it. Anker exposes 10036 as a read-only sensor —
+        PD follows the device value directly, with no soft-max entity.
+        """
+        if any(d["key"] == "max_charge_power" for d in self.number_definitions):
+            return False
+        if any(d["key"] == "max_charge_power" for d in self.sensor_definitions):
+            return False
+        return True
+
+    @property
+    def needs_software_max_discharge(self) -> bool:
+        """True when max_discharge_power has no writable register and no sensor.
+
+        Anker exposes 10038 as a read-only sensor (no soft-max entity). Zendure
+        exposes inverse_max_power as a writable number, so it reports False.
+        """
+        writable_keys = {d["key"] for d in self.number_definitions}
+        if {"max_discharge_power", "inverse_max_power"} & writable_keys:
+            return False
+        if any(d["key"] == "max_discharge_power" for d in self.sensor_definitions):
+            return False
+        return True
 
     @property
     def is_available(self) -> bool:
@@ -363,8 +400,16 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         return {
             "identifiers": {(DOMAIN, f"{self.device_key}")},
             "name": self.name,
-            "manufacturer": "Zendure" if self.brand == "zendure" else "Marstek",
-            "model": self.driver.model_label or ("Zendure" if self.brand == "zendure" else "Venus"),
+            "manufacturer": (
+                "Zendure" if self.brand == "zendure"
+                else "Anker" if self.brand == "anker"
+                else "Marstek"
+            ),
+            "model": self.driver.model_label or (
+                "Zendure" if self.brand == "zendure"
+                else "Solarbank Max AC" if self.brand == "anker"
+                else "Venus"
+            ),
         }
 
     async def connect(self) -> bool:
@@ -403,7 +448,12 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 self._consecutive_failures = 0
                 self._is_connected = True
                 self._suspension_reset_time = None
+                # Force every group to be read again over the new client and
+                # start a fresh partial-staleness episode.
+                getattr(self, "_last_update_times", {}).clear()
+                getattr(self, "_critical_group_failures", {}).clear()
                 _LOGGER.info("[%s] Fresh reconnection successful", self.name)
+                self._last_rs485_reenable_success = None
 
                 # Re-enable RS485 control mode after reconnection.
                 # A new TCP connection may reset the battery's RS485 state,
@@ -411,10 +461,15 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 # Skip if the user explicitly disabled RS485 via the switch.
                 # Already inside self.lock, so call the driver directly (the
                 # set_rs485_control wrapper would re-acquire the lock and deadlock).
-                if not self.rs485_user_disabled:
+                if (
+                    self.capabilities.has_rs485_control
+                    and not self.rs485_user_disabled
+                ):
                     if await self.driver.set_rs485_control(True):
+                        self._last_rs485_reenable_success = True
                         _LOGGER.info("[%s] RS485 control mode re-enabled after reconnection", self.name)
                     else:
+                        self._last_rs485_reenable_success = False
                         _LOGGER.warning("[%s] Failed to re-enable RS485 after reconnection", self.name)
             else:
                 self._is_connected = False
@@ -523,6 +578,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         now = utcnow()
         updated_data = {}
+        critical_groups_attempted = set()
+        critical_groups_succeeded = set()
 
         if self._is_shutting_down:
             _LOGGER.debug("[%s] Shutdown in progress, skipping poll", self.name)
@@ -593,7 +650,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             fetch_keys = []
             for key in group.keys:
                 sensor = self._def_by_key.get(key, {})
-                entity_type = self._get_entity_type(sensor)
+                entity_type = self._get_entity_type(sensor, fallback_key=key)
                 registry_entry = None
                 for unique_id in (
                     f"{self.device_key}_{key}",   # current format (post-migration)
@@ -639,6 +696,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
             # Lock ensures reads don't interleave with control loop writes.
             sensors_attempted += 1
+            critical_keys_requested = _CRITICAL_CONTROL_KEYS.intersection(fetch_keys)
+            if critical_keys_requested:
+                critical_groups_attempted.add(group.keys)
             try:
                 async with self.lock:
                     # The driver resolves the logical keys to their registers (using
@@ -658,6 +718,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 if not self._is_shutting_down:
                     _LOGGER.warning("[%s] Failed to read %s", self.name, list(fetch_keys))
                 continue
+
+            if critical_keys_requested.intersection(snapshot):
+                critical_groups_succeeded.add(group.keys)
 
             sensors_succeeded += 1
             stored = 0
@@ -698,6 +761,21 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             if stored:
                 self._last_update_times[group.keys] = now
 
+        # Track critical groups independently from overall connection health.
+        # Any successful BMS group still keeps the TCP connection available, but
+        # it must no longer hide a repeatedly failing inverter/SOC/control group.
+        for group_keys in critical_groups_attempted:
+            if group_keys in critical_groups_succeeded:
+                self._critical_group_failures.pop(group_keys, None)
+            else:
+                self._critical_group_failures[group_keys] = (
+                    self._critical_group_failures.get(group_keys, 0) + 1
+                )
+
+        stale_critical_groups = [
+            keys for keys, failures in self._critical_group_failures.items()
+            if failures >= _CRITICAL_GROUP_FAILURES_BEFORE_RECONNECT
+        ]
         # === CONNECTION HEALTH TRACKING ===
         # Only track failures when we actually attempted reads (not when all sensors
         # were simply skipped because their polling interval hasn't elapsed yet)
@@ -742,6 +820,19 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                     self.name, self._consecutive_failures
                 )
 
+        # Run the partial-staleness recovery after the aggregate health decision,
+        # so a failed reconnect cannot be overwritten by an unrelated successful
+        # BMS read from the old polling pass above.
+        if stale_critical_groups:
+            _LOGGER.warning(
+                "[%s] Critical telemetry groups failed %d consecutive polls: %s; "
+                "attempting fresh reconnection",
+                self.name,
+                _CRITICAL_GROUP_FAILURES_BEFORE_RECONNECT,
+                stale_critical_groups,
+            )
+            await self.async_reconnect_fresh()
+
         # Defensive check
         if self.data is None:
             self.data = {}
@@ -784,15 +875,19 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             self.min_soc = int(self.data["min_soc"])
         if "max_charge_power" in self.data:
             device_cap = int(self.data["max_charge_power"])
-            # When max_charge_power is a read-only device cap (Zendure), honour the
-            # user's software ceiling on top of it; otherwise the polled register
-            # value is itself the user setting.
+            # When max_charge_power is a soft-capped telemetry value (Zendure),
+            # honour the user's software ceiling on top of it; otherwise the
+            # polled register/sensor value is itself the effective limit.
             self.max_charge_power = (
                 min(device_cap, self.user_max_charge_power)
                 if self.needs_software_max_charge else device_cap
             )
         if "max_discharge_power" in self.data:
-            self.max_discharge_power = int(self.data["max_discharge_power"])
+            device_cap = int(self.data["max_discharge_power"])
+            self.max_discharge_power = (
+                min(device_cap, self.user_max_discharge_power)
+                if self.needs_software_max_discharge else device_cap
+            )
 
         if updated_data:
             _LOGGER.debug(
@@ -810,9 +905,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         return self.data
 
-    def _get_entity_type(self, sensor_definition: dict) -> str:
-        """Determine entity type based on sensor definition."""
-        key = sensor_definition["key"]
+    def _get_entity_type(self, sensor_definition: dict, fallback_key: str | None = None) -> str:
+        """Determine entity type based on sensor definition.
+
+        Telemetry-only keys (present in driver field/read groups but not in any
+        entity definition list — e.g. Anker max_charge/discharge power caps used
+        for soft-max clamping) resolve via ``fallback_key`` and default to
+        ``sensor`` so the poll loop does not KeyError on an empty stub dict.
+        """
+        key = sensor_definition.get("key", fallback_key)
+        if not key:
+            return "sensor"
 
         # Check which definition list this sensor belongs to by key
         if key in [s["key"] for s in self.sensor_definitions]:
@@ -826,7 +929,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         elif key in [s["key"] for s in self.binary_sensor_definitions]:
             return "binary_sensor"
         else:
-            # Default to sensor if not found
+            # Default to sensor if not found (telemetry-only / soft-max keys)
             return "sensor"
 
     async def write_control(self, key: str, value: int, do_refresh: bool = True):
