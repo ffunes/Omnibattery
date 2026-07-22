@@ -203,7 +203,8 @@
         "title": "Speciaal apparaat {device_num}",
         "description": "Configureer hoe de batterij dit apparaat moet beheren.",
         "data": {
-          "power_sensor": "Apparaatsensor",
+          "power_sensor": "Vermogenssensor apparaat",
+          "activity_sensor": "Apparaat actief / EV-laadsensor",
           "included_in_consumption": "Verbruik is opgenomen in huisverbruikssensor",
           "allow_solar_surplus": "Zonne-overschot gebruiken toestaan (batterij niet laden)",
           "dynamic_power_control": "Apparaat heeft dynamische vermogensregeling",
@@ -211,12 +212,13 @@
           "ev_charger_no_telemetry": "EV-lader zonder vermogenstelemetrie"
         },
         "data_description": {
-          "power_sensor": "Vermogenssensor (W) van het apparaat. Voor EV-laders zonder vermogenstelemetrie selecteert u de statussensor die 'Charging' aangeeft wanneer het voertuig laadt.",
+          "power_sensor": "Numerieke vermogenssensor (W) van het apparaat. Optioneel voor EV-laders zonder telemetrie; bestaande configuraties met de statussensor in dit veld blijven ondersteund.",
+          "activity_sensor": "Status- of binaire sensor die 'on' of een laadstatus meldt wanneer het apparaat vermogen vraagt. Vereist voor dynamische vermogensregeling en voor een nieuwe EV-lader zonder telemetrie.",
           "included_in_consumption": "✓ AANGEVINKT = Huissensor bevat dit apparaat AL → Batterij zal het NIET voeden (uitgesloten). ✗ NIET AANGEVINKT = Huissensor ziet het niet → Batterij zal het voeden (extra)",
           "allow_solar_surplus": "Indien aangevinkt, kan het apparaat energie rechtstreeks van de zonnepanelen (overschot) verbruiken zonder dat de batterij probeert te compenseren. Aanbevolen voor apparaten met hoog verbruik zoals EV-laders.",
-          "dynamic_power_control": "Schakel dit in voor apparaten die hun vraag automatisch via de netmeter regelen, zoals een wallbox op zonne-overschot. Omnibattery laat het laden van de batterij kort wijken zodat het apparaat eerst kan reageren en gebruikt daarna alleen het werkelijk resterende overschot.",
+          "dynamic_power_control": "Schakel dit in voor apparaten die hun vraag automatisch via de netmeter regelen. Met een activiteitssensor wijkt Omnibattery voordat vermogen verschijnt; anders reageert het op de vermogenssensor. Daarna wordt alleen het werkelijk resterende overschot gebruikt.",
           "cover_home_when_active": "Vereist Zonne-overschot en een sensor voor zonneproductie. De batterij mag het eigen huisverbruik dekken terwijl dit apparaat actief is; alleen het netaandeel van het apparaat blijft uitgesloten.",
-          "ev_charger_no_telemetry": "✓ AANGEVINKT = De geselecteerde sensor geeft de laadstatus aan ('Charging'). Wanneer EV-laden wordt gedetecteerd, pauzeert de batterij 5 minuten zodat het voertuig maximale stroom kan trekken; daarna mag de batterij alleen laden met zonne-overschot en ontlaadt nooit terwijl de EV laadt."
+          "ev_charger_no_telemetry": "✓ AANGEVINKT = Gebruikt de sensor Apparaat actief / EV-laden in plaats van numerieke telemetrie. Bestaande configuraties met deze sensor in het vermogensveld blijven werken. Bij gedetecteerd laden pauzeert de batterij 5 minuten; daarna laadt ze alleen met zonne-overschot en ontlaadt nooit voor de EV."
         }
       },
       "add_more_excluded_devices": {
@@ -556,7 +558,9 @@
       "no_price_data": "De geselecteerde sensor heeft niet de verwachte prijsattributen. Nordpool: heeft `raw_today` nodig. PVPC: heeft `price_00h` … `price_23h` nodig. CKW: heeft het attribuut `prices` met een lijst van slots nodig. EPEX: heeft het attribuut `data` met een lijst van slots nodig. ENTSO-e: heeft het attribuut `prices_today` met een lijst van slots nodig.",
       "tibber_unavailable": "De Tibber-integratie is niet geïnstalleerd, of de service `tibber.get_prices` is niet beschikbaar. Installeer en configureer eerst Tibber.",
       "discharge_below_charge": "De ontlaad-prijsondergrens mag niet lager zijn dan de maximale (laad)prijsdrempel. Stel deze gelijk of hoger in, of laat leeg om de laaddrempel te hergebruiken.",
-      "host_or_serial_required": "Voer een IP-adres (TCP) of een pad naar een seriële poort (Modbus RTU) in."
+      "host_or_serial_required": "Voer een IP-adres (TCP) of een pad naar een seriële poort (Modbus RTU) in.",
+      "missing_power_sensor": "Selecteer een vermogenssensor, of activeer EV-lader zonder telemetrie en selecteer een activiteitssensor.",
+      "missing_activity_sensor": "Selecteer een sensor Apparaat actief / EV-laden voor dynamische vermogensregeling of een lader zonder telemetrie."
     },
     "abort": {
       "already_configured": "Deze integratie is al geconfigureerd.",
@@ -777,7 +781,8 @@
         "title": "Speciaal apparaat {device_num}",
         "description": "Configureer hoe de batterij dit apparaat moet beheren.",
         "data": {
-          "power_sensor": "Apparaatsensor",
+          "power_sensor": "Vermogenssensor apparaat",
+          "activity_sensor": "Apparaat actief / EV-laadsensor",
           "included_in_consumption": "Verbruik is opgenomen in huisverbruikssensor",
           "allow_solar_surplus": "Zonne-overschot gebruiken toestaan (batterij niet laden)",
           "dynamic_power_control": "Apparaat heeft dynamische vermogensregeling",
@@ -785,12 +790,13 @@
           "ev_charger_no_telemetry": "EV-lader zonder vermogenstelemetrie"
         },
         "data_description": {
-          "power_sensor": "Vermogenssensor (W) van het apparaat. Voor EV-laders zonder vermogenstelemetrie selecteert u de statussensor die 'Charging' aangeeft wanneer het voertuig laadt.",
+          "power_sensor": "Numerieke vermogenssensor (W) van het apparaat. Optioneel voor EV-laders zonder telemetrie; bestaande configuraties met de statussensor in dit veld blijven ondersteund.",
+          "activity_sensor": "Status- of binaire sensor die 'on' of een laadstatus meldt wanneer het apparaat vermogen vraagt. Vereist voor dynamische vermogensregeling en voor een nieuwe EV-lader zonder telemetrie.",
           "included_in_consumption": "✓ AANGEVINKT = Huissensor bevat dit apparaat AL → Batterij zal het NIET voeden (uitgesloten). ✗ NIET AANGEVINKT = Huissensor ziet het niet → Batterij zal het voeden (extra)",
           "allow_solar_surplus": "Indien aangevinkt, kan het apparaat energie rechtstreeks van de zonnepanelen (overschot) verbruiken zonder dat de batterij probeert te compenseren. Aanbevolen voor apparaten met hoog verbruik zoals EV-laders.",
-          "dynamic_power_control": "Schakel dit in voor apparaten die hun vraag automatisch via de netmeter regelen, zoals een wallbox op zonne-overschot. Omnibattery laat het laden van de batterij kort wijken zodat het apparaat eerst kan reageren en gebruikt daarna alleen het werkelijk resterende overschot.",
+          "dynamic_power_control": "Schakel dit in voor apparaten die hun vraag automatisch via de netmeter regelen. Met een activiteitssensor wijkt Omnibattery voordat vermogen verschijnt; anders reageert het op de vermogenssensor. Daarna wordt alleen het werkelijk resterende overschot gebruikt.",
           "cover_home_when_active": "Vereist Zonne-overschot en een sensor voor zonneproductie. De batterij mag het eigen huisverbruik dekken terwijl dit apparaat actief is; alleen het netaandeel van het apparaat blijft uitgesloten.",
-          "ev_charger_no_telemetry": "✓ AANGEVINKT = De geselecteerde sensor geeft de laadstatus aan ('Charging'). Wanneer EV-laden wordt gedetecteerd, pauzeert de batterij 5 minuten zodat het voertuig maximale stroom kan trekken; daarna mag de batterij alleen laden met zonne-overschot en ontlaadt nooit terwijl de EV laadt."
+          "ev_charger_no_telemetry": "✓ AANGEVINKT = Gebruikt de sensor Apparaat actief / EV-laden in plaats van numerieke telemetrie. Bestaande configuraties met deze sensor in het vermogensveld blijven werken. Bij gedetecteerd laden pauzeert de batterij 5 minuten; daarna laadt ze alleen met zonne-overschot en ontlaadt nooit voor de EV."
         }
       },
       "add_more_excluded_devices": {
@@ -1061,7 +1067,9 @@
       "no_price_data": "De geselecteerde sensor heeft niet de verwachte prijsattributen. Nordpool: heeft `raw_today` nodig. PVPC: heeft `price_00h` … `price_23h` nodig. CKW: heeft het attribuut `prices` met een lijst van slots nodig. EPEX: heeft het attribuut `data` met een lijst van slots nodig. ENTSO-e: heeft het attribuut `prices_today` met een lijst van slots nodig.",
       "tibber_unavailable": "De Tibber-integratie is niet geïnstalleerd, of de service `tibber.get_prices` is niet beschikbaar. Installeer en configureer eerst Tibber.",
       "discharge_below_charge": "De ontlaad-prijsondergrens mag niet lager zijn dan de maximale (laad)prijsdrempel. Stel deze gelijk of hoger in, of laat leeg om de laaddrempel te hergebruiken.",
-      "host_or_serial_required": "Voer een IP-adres (TCP) of een pad naar een seriële poort (Modbus RTU) in."
+      "host_or_serial_required": "Voer een IP-adres (TCP) of een pad naar een seriële poort (Modbus RTU) in.",
+      "missing_power_sensor": "Selecteer een vermogenssensor, of activeer EV-lader zonder telemetrie en selecteer een activiteitssensor.",
+      "missing_activity_sensor": "Selecteer een sensor Apparaat actief / EV-laden voor dynamische vermogensregeling of een lader zonder telemetrie."
     }
   },
   "selector": {

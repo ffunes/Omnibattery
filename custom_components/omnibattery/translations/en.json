@@ -197,7 +197,8 @@
         "title": "Special Device {device_num}",
         "description": "Configure how the battery should manage this device.",
         "data": {
-          "power_sensor": "Device sensor",
+          "power_sensor": "Device power sensor",
+          "activity_sensor": "Device active / EV charging sensor",
           "included_in_consumption": "Consumption is included in home consumption sensor",
           "allow_solar_surplus": "Allow to use solar surplus (do not charge battery)",
           "dynamic_power_control": "Device has dynamic power control",
@@ -205,12 +206,13 @@
           "ev_charger_no_telemetry": "EV charger without power telemetry"
         },
         "data_description": {
-          "power_sensor": "Power sensor (W) for the device. For EV chargers without power telemetry, select the state sensor that reads 'Charging' when the vehicle is charging.",
+          "power_sensor": "Numeric power sensor (W) for the device. Optional for EV chargers without power telemetry; existing configurations that stored the charging-state sensor here remain supported.",
+          "activity_sensor": "State or binary sensor that becomes 'on' or reports 'Charging'/'Cargando' when the device requests power. Required for Dynamic Power Control and for a new EV charger without power telemetry.",
           "included_in_consumption": "✓ CHECKED = Home sensor ALREADY includes this device → Battery will NOT power it (excluded). ✗ UNCHECKED = Home sensor doesn't see it → Battery WILL power it (additional)",
           "allow_solar_surplus": "If checked, the device will be able to consume energy directly from solar panels (surplus) without the battery trying to compensate. Recommended for high consumption devices like EV chargers.",
-          "dynamic_power_control": "Enable for devices that automatically adjust their own demand from the grid meter, such as a solar-surplus wallbox. Omnibattery briefly yields battery charging so the device can react first, then uses genuine leftover export.",
+          "dynamic_power_control": "Enable for devices that automatically adjust their own demand from the grid meter, such as a solar-surplus wallbox. If an activity sensor is configured, Omnibattery yields before power appears; otherwise it reacts to the power sensor. It then uses genuine leftover export.",
           "cover_home_when_active": "Requires Solar Surplus and a solar-production sensor. The battery may cover the home's own load while this device is active; only the device's grid share stays excluded.",
-          "ev_charger_no_telemetry": "✓ CHECKED = The selected sensor reports the charging state ('Charging'/'Cargando'). When EV charging is detected, the battery pauses for 5 minutes so the vehicle can draw full power; afterwards the battery may only charge from solar surplus and will never discharge while the EV is charging."
+          "ev_charger_no_telemetry": "✓ CHECKED = Use the Activity / EV charging sensor instead of numeric power telemetry. Existing configurations that placed this state sensor in Device power sensor continue to work. When charging is detected, the battery pauses for 5 minutes; afterwards it may only charge from solar surplus and never discharges for the EV."
         }
       },
       "add_more_excluded_devices": {
@@ -550,7 +552,9 @@
       "no_price_data": "Selected sensor does not have the expected price attributes. Nordpool: needs `raw_today` attribute. PVPC: needs `price_00h` … `price_23h` attributes. CKW: needs `prices` attribute with a list of slots. EPEX: needs `data` attribute with a list of slots. ENTSO-e: needs `prices_today` attribute with a list of slots.",
       "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
       "discharge_below_charge": "The discharge price floor cannot be below the maximum (charge) price threshold. Set it equal or higher, or leave it empty to reuse the charge threshold.",
-      "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU)."
+      "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU).",
+      "missing_power_sensor": "Select a device power sensor, or enable EV charger without power telemetry and select an activity sensor.",
+      "missing_activity_sensor": "Select an Activity / EV charging sensor for Dynamic Power Control or an EV charger without power telemetry."
     },
     "abort": {
       "already_configured": "This integration is already configured.",
@@ -765,7 +769,8 @@
         "title": "Special Device {device_num}",
         "description": "Configure how the battery should manage this device.",
         "data": {
-          "power_sensor": "Device sensor",
+          "power_sensor": "Device power sensor",
+          "activity_sensor": "Device active / EV charging sensor",
           "included_in_consumption": "Consumption is included in home consumption sensor",
           "allow_solar_surplus": "Allow to use solar surplus (do not charge battery)",
           "dynamic_power_control": "Device has dynamic power control",
@@ -773,12 +778,13 @@
           "ev_charger_no_telemetry": "EV charger without power telemetry"
         },
         "data_description": {
-          "power_sensor": "Power sensor (W) for the device. For EV chargers without power telemetry, select the state sensor that reads 'Charging' when the vehicle is charging.",
+          "power_sensor": "Numeric power sensor (W) for the device. Optional for EV chargers without power telemetry; existing configurations that stored the charging-state sensor here remain supported.",
+          "activity_sensor": "State or binary sensor that becomes 'on' or reports 'Charging'/'Cargando' when the device requests power. Required for Dynamic Power Control and for a new EV charger without power telemetry.",
           "included_in_consumption": "✓ CHECKED = Home sensor ALREADY includes this device → Battery will NOT power it (excluded). ✗ UNCHECKED = Home sensor doesn't see it → Battery WILL power it (additional)",
           "allow_solar_surplus": "If checked, the device will be able to consume energy directly from solar panels (surplus) without the battery trying to compensate. Recommended for high consumption devices like EV chargers.",
-          "dynamic_power_control": "Enable for devices that automatically adjust their own demand from the grid meter, such as a solar-surplus wallbox. Omnibattery briefly yields battery charging so the device can react first, then uses genuine leftover export.",
+          "dynamic_power_control": "Enable for devices that automatically adjust their own demand from the grid meter, such as a solar-surplus wallbox. If an activity sensor is configured, Omnibattery yields before power appears; otherwise it reacts to the power sensor. It then uses genuine leftover export.",
           "cover_home_when_active": "Requires Solar Surplus and a solar-production sensor. The battery may cover the home's own load while this device is active; only the device's grid share stays excluded.",
-          "ev_charger_no_telemetry": "✓ CHECKED = The selected sensor reports the charging state ('Charging'/'Cargando'). When EV charging is detected, the battery pauses for 5 minutes so the vehicle can draw full power; afterwards the battery may only charge from solar surplus and will never discharge while the EV is charging."
+          "ev_charger_no_telemetry": "✓ CHECKED = Use the Activity / EV charging sensor instead of numeric power telemetry. Existing configurations that placed this state sensor in Device power sensor continue to work. When charging is detected, the battery pauses for 5 minutes; afterwards it may only charge from solar surplus and never discharges for the EV."
         }
       },
       "add_more_excluded_devices": {
@@ -1049,7 +1055,9 @@
       "no_price_data": "Selected sensor does not have the expected price attributes. Nordpool: needs `raw_today` attribute. PVPC: needs `price_00h` … `price_23h` attributes. CKW: needs `prices` attribute with a list of slots. EPEX: needs `data` attribute with a list of slots. ENTSO-e: needs `prices_today` attribute with a list of slots.",
       "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
       "discharge_below_charge": "The discharge price floor cannot be below the maximum (charge) price threshold. Set it equal or higher, or leave it empty to reuse the charge threshold.",
-      "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU)."
+      "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU).",
+      "missing_power_sensor": "Select a device power sensor, or enable EV charger without power telemetry and select an activity sensor.",
+      "missing_activity_sensor": "Select an Activity / EV charging sensor for Dynamic Power Control or an EV charger without power telemetry."
     }
   },
   "selector": {

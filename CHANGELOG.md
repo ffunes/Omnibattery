@@ -3,7 +3,7 @@
 ## [1.0.1b6] - 2026-07-21
 
 ### Added
-- **Dynamic power control for telemetry excluded devices**: a new per-device setup option and runtime switch lets flexible loads such as self-regulating wallboxes claim changing PV surplus before battery charging. It uses the existing device power sensor, yields battery charge on startup and meaningful solar rises, holds short device pauses for five minutes, and then lets the battery absorb genuine residual export without requiring connection or maximum-power sensors. The existing Cover Home setting is now also available in both the initial and options flows.
+- **Dynamic power control for telemetry excluded devices**: a new per-device setup option and runtime switch lets flexible loads such as self-regulating wallboxes claim changing PV surplus before battery charging. It uses the existing device power sensor, yields battery charge on startup and meaningful solar rises, holds short device pauses for five minutes, and then lets the battery absorb genuine residual export. A shared device-active / EV-charging state sensor closes the cold-start gap before measured demand appears and also serves new no-telemetry EV setups; legacy no-telemetry setups that stored their state sensor in the old device-sensor field remain fully compatible. The existing Cover Home setting is now also available in both the initial and options flows.
 
 ### Fixed
 - **Time-slot naming in the configuration and options flows**: renamed the section from "Discharge time slots" to "Time slots" because each slot can independently control both charging and discharging. Updated all six translations, dashboard help text, and the English and Spanish documentation to use the same terminology.

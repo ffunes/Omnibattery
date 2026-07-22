@@ -203,7 +203,8 @@
         "title": "Spezielles Gerät {device_num}",
         "description": "Konfigurieren Sie, wie die Batterie dieses Gerät verwalten soll.",
         "data": {
-          "power_sensor": "Gerätesensor",
+          "power_sensor": "Geräte-Leistungssensor",
+          "activity_sensor": "Gerät aktiv / EV-Ladestatussensor",
           "included_in_consumption": "Verbrauch ist im Hausverbrauchssensor enthalten",
           "allow_solar_surplus": "Solarüberschuss nutzen erlauben (Batterie nicht laden)",
           "dynamic_power_control": "Gerät hat dynamische Leistungsregelung",
@@ -211,12 +212,13 @@
           "ev_charger_no_telemetry": "EV-Ladestation ohne Leistungstelemetrie"
         },
         "data_description": {
-          "power_sensor": "Leistungssensor (W) des Geräts. Für EV-Ladestationen ohne Leistungstelemetrie den Statussensor auswählen, der 'Charging' anzeigt, wenn das Fahrzeug lädt.",
+          "power_sensor": "Numerischer Leistungssensor (W) des Geräts. Für EV-Ladestationen ohne Leistungstelemetrie optional; bestehende Konfigurationen mit dem Statussensor in diesem Feld bleiben kompatibel.",
+          "activity_sensor": "Status- oder Binärsensor, der 'on' oder einen Ladestatus meldet, wenn das Gerät Leistung anfordert. Für die dynamische Leistungsregelung und neue EV-Ladestationen ohne Telemetrie erforderlich.",
           "included_in_consumption": "✓ AKTIVIERT = Haussensor enthält dieses Gerät BEREITS → Batterie wird es NICHT versorgen (ausgeschlossen). ✗ DEAKTIVIERT = Haussensor sieht es nicht → Batterie wird es versorgen (zusätzlich)",
           "allow_solar_surplus": "Wenn aktiviert, kann das Gerät Energie direkt von den Solarmodulen (Überschuss) verbrauchen, ohne dass die Batterie versucht zu kompensieren. Empfohlen für Geräte mit hohem Verbrauch wie EV-Ladestationen.",
-          "dynamic_power_control": "Für Geräte aktivieren, die ihren Bedarf über den Netzzähler automatisch regeln, etwa eine Überschuss-Wallbox. Omnibattery gibt die Batterieladung kurz frei, damit das Gerät zuerst reagieren kann, und nutzt anschließend nur den tatsächlich verbleibenden Überschuss.",
+          "dynamic_power_control": "Für Geräte aktivieren, die ihren Bedarf über den Netzzähler automatisch regeln. Mit Aktivitätssensor gibt Omnibattery Vorrang, bevor Leistung erscheint; andernfalls reagiert es auf den Leistungssensor. Danach wird nur der tatsächlich verbleibende Überschuss genutzt.",
           "cover_home_when_active": "Erfordert Solarüberschuss und einen Solarleistungssensor. Die Batterie darf den eigenen Hausverbrauch decken, während dieses Gerät aktiv ist; nur der Netzanteil des Geräts bleibt ausgeschlossen.",
-          "ev_charger_no_telemetry": "✓ AKTIVIERT = Der ausgewählte Sensor meldet den Ladezustand ('Charging'). Wenn ein EV-Ladevorgang erkannt wird, hält die Batterie 5 Minuten an, damit das Fahrzeug volle Leistung beziehen kann; danach darf die Batterie nur mit Solarüberschuss laden und entlädt sich nie, solange das EV lädt."
+          "ev_charger_no_telemetry": "✓ AKTIVIERT = Nutzt den Sensor Gerät aktiv / EV-Ladestatus statt numerischer Telemetrie. Bestehende Konfigurationen mit diesem Sensor im Leistungsfeld funktionieren weiter. Bei erkanntem Laden pausiert die Batterie 5 Minuten; danach lädt sie nur mit Solarüberschuss und entlädt nie für das EV."
         }
       },
       "add_more_excluded_devices": {
@@ -556,7 +558,9 @@
       "no_price_data": "Keine Preisdaten vom Sensor verfügbar. Nordpool: benötigt `raw_today`. PVPC: benötigt `price_00h` … `price_23h`. CKW: benötigt das Attribut `prices` mit einer Slot-Liste. EPEX: benötigt das Attribut `data` mit einer Slot-Liste. ENTSO-e: benötigt das Attribut `prices_today` mit einer Slot-Liste.",
       "tibber_unavailable": "Die Tibber-Integration ist nicht installiert oder ihr Dienst `tibber.get_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst Tibber.",
       "discharge_below_charge": "Die Entlade-Preisuntergrenze darf nicht unter dem maximalen (Lade-)Preis liegen. Setze sie gleich oder höher oder lass sie leer, um den Ladeschwellenwert wiederzuverwenden.",
-      "host_or_serial_required": "Gib entweder eine IP-Adresse (TCP) oder einen seriellen Port-Pfad (Modbus RTU) ein."
+      "host_or_serial_required": "Gib entweder eine IP-Adresse (TCP) oder einen seriellen Port-Pfad (Modbus RTU) ein.",
+      "missing_power_sensor": "Wähle einen Geräte-Leistungssensor oder aktiviere EV-Ladestation ohne Telemetrie und wähle einen Aktivitätssensor.",
+      "missing_activity_sensor": "Wähle für die dynamische Leistungsregelung oder eine EV-Ladestation ohne Telemetrie einen Sensor Gerät aktiv / EV-Ladestatus."
     },
     "abort": {
       "already_configured": "Diese Integration ist bereits konfiguriert.",
@@ -777,7 +781,8 @@
         "title": "Spezielles Gerät {device_num}",
         "description": "Konfigurieren Sie, wie die Batterie dieses Gerät verwalten soll.",
         "data": {
-          "power_sensor": "Gerätesensor",
+          "power_sensor": "Geräte-Leistungssensor",
+          "activity_sensor": "Gerät aktiv / EV-Ladestatussensor",
           "included_in_consumption": "Verbrauch ist im Hausverbrauchssensor enthalten",
           "allow_solar_surplus": "Solarüberschuss nutzen erlauben (Batterie nicht laden)",
           "dynamic_power_control": "Gerät hat dynamische Leistungsregelung",
@@ -785,12 +790,13 @@
           "ev_charger_no_telemetry": "EV-Ladestation ohne Leistungstelemetrie"
         },
         "data_description": {
-          "power_sensor": "Leistungssensor (W) des Geräts. Für EV-Ladestationen ohne Leistungstelemetrie den Statussensor auswählen, der 'Charging' anzeigt, wenn das Fahrzeug lädt.",
+          "power_sensor": "Numerischer Leistungssensor (W) des Geräts. Für EV-Ladestationen ohne Leistungstelemetrie optional; bestehende Konfigurationen mit dem Statussensor in diesem Feld bleiben kompatibel.",
+          "activity_sensor": "Status- oder Binärsensor, der 'on' oder einen Ladestatus meldet, wenn das Gerät Leistung anfordert. Für die dynamische Leistungsregelung und neue EV-Ladestationen ohne Telemetrie erforderlich.",
           "included_in_consumption": "✓ AKTIVIERT = Haussensor enthält dieses Gerät BEREITS → Batterie wird es NICHT versorgen (ausgeschlossen). ✗ DEAKTIVIERT = Haussensor sieht es nicht → Batterie wird es versorgen (zusätzlich)",
           "allow_solar_surplus": "Wenn aktiviert, kann das Gerät Energie direkt von den Solarmodulen (Überschuss) verbrauchen, ohne dass die Batterie versucht zu kompensieren. Empfohlen für Geräte mit hohem Verbrauch wie EV-Ladestationen.",
-          "dynamic_power_control": "Für Geräte aktivieren, die ihren Bedarf über den Netzzähler automatisch regeln, etwa eine Überschuss-Wallbox. Omnibattery gibt die Batterieladung kurz frei, damit das Gerät zuerst reagieren kann, und nutzt anschließend nur den tatsächlich verbleibenden Überschuss.",
+          "dynamic_power_control": "Für Geräte aktivieren, die ihren Bedarf über den Netzzähler automatisch regeln. Mit Aktivitätssensor gibt Omnibattery Vorrang, bevor Leistung erscheint; andernfalls reagiert es auf den Leistungssensor. Danach wird nur der tatsächlich verbleibende Überschuss genutzt.",
           "cover_home_when_active": "Erfordert Solarüberschuss und einen Solarleistungssensor. Die Batterie darf den eigenen Hausverbrauch decken, während dieses Gerät aktiv ist; nur der Netzanteil des Geräts bleibt ausgeschlossen.",
-          "ev_charger_no_telemetry": "✓ AKTIVIERT = Der ausgewählte Sensor meldet den Ladezustand ('Charging'). Wenn ein EV-Ladevorgang erkannt wird, hält die Batterie 5 Minuten an, damit das Fahrzeug volle Leistung beziehen kann; danach darf die Batterie nur mit Solarüberschuss laden und entlädt sich nie, solange das EV lädt."
+          "ev_charger_no_telemetry": "✓ AKTIVIERT = Nutzt den Sensor Gerät aktiv / EV-Ladestatus statt numerischer Telemetrie. Bestehende Konfigurationen mit diesem Sensor im Leistungsfeld funktionieren weiter. Bei erkanntem Laden pausiert die Batterie 5 Minuten; danach lädt sie nur mit Solarüberschuss und entlädt nie für das EV."
         }
       },
       "add_more_excluded_devices": {
@@ -1061,7 +1067,9 @@
       "no_price_data": "Keine Preisdaten vom Sensor verfügbar. Nordpool: benötigt `raw_today`. PVPC: benötigt `price_00h` … `price_23h`. CKW: benötigt das Attribut `prices` mit einer Slot-Liste. EPEX: benötigt das Attribut `data` mit einer Slot-Liste. ENTSO-e: benötigt das Attribut `prices_today` mit einer Slot-Liste.",
       "tibber_unavailable": "Die Tibber-Integration ist nicht installiert oder ihr Dienst `tibber.get_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst Tibber.",
       "discharge_below_charge": "Die Entlade-Preisuntergrenze darf nicht unter dem maximalen (Lade-)Preis liegen. Setze sie gleich oder höher oder lass sie leer, um den Ladeschwellenwert wiederzuverwenden.",
-      "host_or_serial_required": "Gib entweder eine IP-Adresse (TCP) oder einen seriellen Port-Pfad (Modbus RTU) ein."
+      "host_or_serial_required": "Gib entweder eine IP-Adresse (TCP) oder einen seriellen Port-Pfad (Modbus RTU) ein.",
+      "missing_power_sensor": "Wähle einen Geräte-Leistungssensor oder aktiviere EV-Ladestation ohne Telemetrie und wähle einen Aktivitätssensor.",
+      "missing_activity_sensor": "Wähle für die dynamische Leistungsregelung oder eine EV-Ladestation ohne Telemetrie einen Sensor Gerät aktiv / EV-Ladestatus."
     }
   },
   "selector": {

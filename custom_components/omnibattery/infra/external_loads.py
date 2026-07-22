@@ -38,11 +38,11 @@ _CHARGING_SUBSTRINGS: frozenset[str] = frozenset({
     "lading",    # NO/DA: lading, oplading
 })
 
-# Dynamic power control uses only the excluded device's existing power sensor.
-# A short initial yield lets the external controller (typically a wallbox with
-# its own grid CT) claim the available export before Omnibattery resumes on any
-# residual.  Brief zero-power pauses are latched so a cloud or phase change does
-# not let the battery steal the surplus and prevent the device from restarting.
+# Dynamic power control always uses the excluded device's power sensor. An
+# optional activity sensor can announce demand before numeric power appears,
+# solving the cold-start deadlock without an external automation. A short yield
+# then lets the external controller claim export before Omnibattery resumes on
+# any residual. Brief zero-power pauses are latched for sensor-less setups.
 DYNAMIC_CONTROL_ACTIVE_POWER_W = 100.0
 DYNAMIC_CONTROL_HOLD = timedelta(minutes=5)
 DYNAMIC_CONTROL_INITIAL_YIELD = timedelta(seconds=30)
@@ -83,12 +83,27 @@ class ExternalLoads:
         self._dynamic_solar_reference_w.pop(key, None)
         self._dynamic_was_drawing.pop(key, None)
 
+    @staticmethod
+    def _state_is_active(state: Any) -> bool:
+        """Return whether a state/binary sensor reports EV charging or demand."""
+        if state is None or state.state in ("unknown", "unavailable"):
+            return False
+        value = str(state.state).lower().strip()
+        return value in {"on", "true", "1"} or any(
+            substring in value for substring in _CHARGING_SUBSTRINGS
+        )
+
+    def _activity_sensor_is_active(self, sensor_id: str | None) -> bool:
+        """Read one optional device-activity entity."""
+        return bool(sensor_id) and self._state_is_active(self._hass.states.get(sensor_id))
+
     def refresh_dynamic_power_control(self) -> dict[str, Any]:
         """Refresh dynamic-load latches and return the current charge block.
 
-        This mode deliberately does not ask for another HA entity.  Activity is
-        inferred from the excluded device's existing numeric power sensor:
+        Activity is inferred from the existing numeric power sensor. An optional
+        activity sensor may request priority before numeric demand appears:
 
+        * active state before demand: charging stays blocked until load appears;
         * first detection (>100 W): battery charging yields for 30 seconds;
         * while drawing: charging may resume for genuine residual export;
         * a >=200 W solar rise starts a new 20-second yield;
@@ -112,7 +127,10 @@ class ExternalLoads:
 
         for index, device in enumerate(self._config_entry.data.get("excluded_devices", [])):
             sensor_id = device.get("power_sensor")
+            activity_sensor_id = device.get("activity_sensor")
             key = f"{index}:{sensor_id or ''}"
+            if activity_sensor_id:
+                key = f"{key}:{activity_sensor_id}"
             eligible = (
                 device.get("enabled", True)
                 and not device.get("ev_charger_no_telemetry", False)
@@ -128,6 +146,7 @@ class ExternalLoads:
             eligible_keys.add(key)
             device_power = self._read_sensor_w_opt(sensor_id)
             drawing = device_power is not None and device_power > DYNAMIC_CONTROL_ACTIVE_POWER_W
+            activity_requested = self._activity_sensor_is_active(activity_sensor_id)
             was_drawing = self._dynamic_was_drawing.get(key, False)
 
             if drawing:
@@ -185,8 +204,21 @@ class ExternalLoads:
                     )
                 else:
                     phases[sensor_id] = "monitoring_residual"
+            elif activity_requested:
+                # The wallbox/controller says it wants power but its numeric
+                # sensor is still idle. Keep the battery out of the way until
+                # demand appears; the normal 30-second yield starts afterwards.
+                self._dynamic_was_drawing[key] = False
+                priority_devices.append(sensor_id)
+                blocked_devices.append(sensor_id)
+                phases[sensor_id] = "waiting_for_load"
             else:
                 self._dynamic_was_drawing[key] = False
+                if activity_sensor_id:
+                    # An explicit inactive state is authoritative: unlike the
+                    # power-only fallback, there is no possible restart to hold.
+                    self._clear_dynamic_power_control_state(key)
+                    continue
                 hold_until = self._dynamic_hold_until.get(key)
                 if hold_until is not None and now < hold_until:
                     priority_devices.append(sensor_id)
@@ -483,7 +515,10 @@ class ExternalLoads:
             if not device.get("ev_charger_no_telemetry", False):
                 continue
 
-            sensor_id = device.get("power_sensor")
+            # New entries have a dedicated activity sensor. Legacy no-telemetry
+            # entries stored that same state entity in power_sensor, so retain
+            # it as a transparent fallback indefinitely.
+            sensor_id = device.get("activity_sensor") or device.get("power_sensor")
             if not sensor_id:
                 continue
 
@@ -491,8 +526,7 @@ class ExternalLoads:
             if state is None or state.state in ("unknown", "unavailable"):
                 continue
 
-            state_lower = state.state.lower().strip()
-            is_charging = any(sub in state_lower for sub in _CHARGING_SUBSTRINGS)
+            is_charging = self._state_is_active(state)
 
             prev_charging = self._controller._ev_charging_states.get(sensor_id, False)
 

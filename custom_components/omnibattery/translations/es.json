@@ -203,7 +203,8 @@
         "title": "Dispositivo especial {device_num}",
         "description": "Configura cómo debe gestionar la batería este dispositivo.",
         "data": {
-          "power_sensor": "Sensor del dispositivo",
+          "power_sensor": "Sensor de potencia del dispositivo",
+          "activity_sensor": "Sensor de dispositivo activo / carga del VE",
           "included_in_consumption": "El consumo está incluido en el sensor de consumo del hogar",
           "allow_solar_surplus": "Permitir usar excedente solar (no cargar batería)",
           "dynamic_power_control": "El dispositivo tiene control dinámico de potencia",
@@ -211,12 +212,13 @@
           "ev_charger_no_telemetry": "Cargador VE sin telemetría de potencia"
         },
         "data_description": {
-          "power_sensor": "Sensor de potencia (W) del dispositivo. Para cargadores VE sin telemetría, selecciona el sensor de estado que indica 'Charging'/'Cargando' cuando el vehículo está cargando.",
+          "power_sensor": "Sensor numérico de potencia (W) del dispositivo. Es opcional para cargadores VE sin telemetría; las configuraciones existentes que guardaron aquí el sensor de estado siguen siendo compatibles.",
+          "activity_sensor": "Sensor de estado o binario que pasa a 'on' o indica 'Charging'/'Cargando' cuando el dispositivo solicita potencia. Es obligatorio para Control Dinámico de Potencia y para un nuevo cargador VE sin telemetría.",
           "included_in_consumption": "✓ MARCADO = El sensor de consumo del hogar YA incluye este dispositivo → La batería NO lo alimentará (excluido). ✗ DESMARCADO = El sensor del hogar NO lo ve → La batería SÍ lo alimentará (adicional)",
           "allow_solar_surplus": "Si se marca, el dispositivo podrá consumir energía directamente de los paneles solares (excedente) sin que la batería intente compensarlo. Se recomienda marcar para dispositivos de gran consumo como cargadores de VE.",
-          "dynamic_power_control": "Actívalo para dispositivos que ajustan automáticamente su propia demanda mediante el contador de red, como una wallbox por excedente. Omnibattery cede brevemente la carga de batería para que el dispositivo reaccione primero y después utiliza el excedente sobrante real.",
+          "dynamic_power_control": "Actívalo para dispositivos que ajustan automáticamente su demanda mediante el contador de red, como una wallbox por excedente. Si se configura un sensor de actividad, Omnibattery cede antes de que aparezca potencia; si no, reacciona al sensor de potencia. Después utiliza el excedente sobrante real.",
           "cover_home_when_active": "Requiere Excedente Solar y un sensor de producción solar. La batería puede cubrir el consumo propio del hogar mientras este dispositivo está activo; solo permanece excluida la parte de red del dispositivo.",
-          "ev_charger_no_telemetry": "✓ MARCADO = El sensor seleccionado indica el estado de carga ('Charging'/'Cargando'). Cuando se detecta que el VE empieza a cargar, la batería se detiene 5 minutos para que el vehículo reciba toda la potencia disponible; después la batería solo puede cargar con excedente solar y nunca descargará mientras el VE esté cargando."
+          "ev_charger_no_telemetry": "✓ MARCADO = Usa el sensor de dispositivo activo / carga del VE en lugar de telemetría numérica. Las configuraciones existentes que colocaron este sensor en Sensor de potencia siguen funcionando. Al detectar carga, la batería se detiene 5 minutos; después solo puede cargar con excedente solar y nunca descarga para el VE."
         }
       },
       "add_more_excluded_devices": {
@@ -556,7 +558,9 @@
       "no_price_data": "El sensor seleccionado no tiene los atributos de precio esperados. Nordpool: necesita `raw_today`. PVPC: necesita `price_00h` … `price_23h`. CKW: necesita el atributo `prices` con una lista de franjas. EPEX: necesita el atributo `data` con una lista de franjas. ENTSO-e: necesita el atributo `prices_today` con una lista de franjas.",
       "tibber_unavailable": "La integración Tibber no está instalada, o su servicio `tibber.get_prices` no está disponible. Instala y configura Tibber primero.",
       "discharge_below_charge": "El precio mínimo de descarga no puede ser inferior al precio máximo (de carga). Ponlo igual o superior, o déjalo vacío para reutilizar el umbral de carga.",
-      "host_or_serial_required": "Introduce una dirección IP (TCP) o la ruta de un puerto serie (Modbus RTU)."
+      "host_or_serial_required": "Introduce una dirección IP (TCP) o la ruta de un puerto serie (Modbus RTU).",
+      "missing_power_sensor": "Selecciona un sensor de potencia, o activa Cargador VE sin telemetría y selecciona un sensor de actividad.",
+      "missing_activity_sensor": "Selecciona un sensor de dispositivo activo / carga del VE para Control Dinámico de Potencia o un cargador sin telemetría."
     },
     "abort": {
       "already_configured": "Esta integración ya está configurada.",
@@ -777,7 +781,8 @@
         "title": "Dispositivo especial {device_num}",
         "description": "Configura cómo debe gestionar la batería este dispositivo.",
         "data": {
-          "power_sensor": "Sensor del dispositivo",
+          "power_sensor": "Sensor de potencia del dispositivo",
+          "activity_sensor": "Sensor de dispositivo activo / carga del VE",
           "included_in_consumption": "El consumo está incluido en el sensor de consumo del hogar",
           "allow_solar_surplus": "Permitir usar excedente solar (no cargar batería)",
           "dynamic_power_control": "El dispositivo tiene control dinámico de potencia",
@@ -785,12 +790,13 @@
           "ev_charger_no_telemetry": "Cargador VE sin telemetría de potencia"
         },
         "data_description": {
-          "power_sensor": "Sensor de potencia (W) del dispositivo. Para cargadores VE sin telemetría, selecciona el sensor de estado que indica 'Charging'/'Cargando' cuando el vehículo está cargando.",
+          "power_sensor": "Sensor numérico de potencia (W) del dispositivo. Es opcional para cargadores VE sin telemetría; las configuraciones existentes que guardaron aquí el sensor de estado siguen siendo compatibles.",
+          "activity_sensor": "Sensor de estado o binario que pasa a 'on' o indica 'Charging'/'Cargando' cuando el dispositivo solicita potencia. Es obligatorio para Control Dinámico de Potencia y para un nuevo cargador VE sin telemetría.",
           "included_in_consumption": "✓ MARCADO = El sensor de consumo del hogar YA incluye este dispositivo → La batería NO lo alimentará (excluido). ✗ DESMARCADO = El sensor del hogar NO lo ve → La batería SÍ lo alimentará (adicional)",
           "allow_solar_surplus": "Si se marca, el dispositivo podrá consumir energía directamente de los paneles solares (excedente) sin que la batería intente compensarlo. Se recomienda marcar para dispositivos de gran consumo como cargadores de VE.",
-          "dynamic_power_control": "Actívalo para dispositivos que ajustan automáticamente su propia demanda mediante el contador de red, como una wallbox por excedente. Omnibattery cede brevemente la carga de batería para que el dispositivo reaccione primero y después utiliza el excedente sobrante real.",
+          "dynamic_power_control": "Actívalo para dispositivos que ajustan automáticamente su demanda mediante el contador de red, como una wallbox por excedente. Si se configura un sensor de actividad, Omnibattery cede antes de que aparezca potencia; si no, reacciona al sensor de potencia. Después utiliza el excedente sobrante real.",
           "cover_home_when_active": "Requiere Excedente Solar y un sensor de producción solar. La batería puede cubrir el consumo propio del hogar mientras este dispositivo está activo; solo permanece excluida la parte de red del dispositivo.",
-          "ev_charger_no_telemetry": "✓ MARCADO = El sensor seleccionado indica el estado de carga ('Charging'/'Cargando'). Cuando se detecta que el VE empieza a cargar, la batería se detiene 5 minutos para que el vehículo reciba toda la potencia disponible; después la batería solo puede cargar con excedente solar y nunca descargará mientras el VE esté cargando."
+          "ev_charger_no_telemetry": "✓ MARCADO = Usa el sensor de dispositivo activo / carga del VE en lugar de telemetría numérica. Las configuraciones existentes que colocaron este sensor en Sensor de potencia siguen funcionando. Al detectar carga, la batería se detiene 5 minutos; después solo puede cargar con excedente solar y nunca descarga para el VE."
         }
       },
       "add_more_excluded_devices": {
@@ -1061,7 +1067,9 @@
       "no_price_data": "El sensor seleccionado no tiene los atributos de precio esperados. Nordpool: necesita `raw_today`. PVPC: necesita `price_00h` … `price_23h`. CKW: necesita el atributo `prices` con una lista de franjas. EPEX: necesita el atributo `data` con una lista de franjas. ENTSO-e: necesita el atributo `prices_today` con una lista de franjas.",
       "tibber_unavailable": "La integración Tibber no está instalada, o su servicio `tibber.get_prices` no está disponible. Instala y configura Tibber primero.",
       "discharge_below_charge": "El precio mínimo de descarga no puede ser inferior al precio máximo (de carga). Ponlo igual o superior, o déjalo vacío para reutilizar el umbral de carga.",
-      "host_or_serial_required": "Introduce una dirección IP (TCP) o la ruta de un puerto serie (Modbus RTU)."
+      "host_or_serial_required": "Introduce una dirección IP (TCP) o la ruta de un puerto serie (Modbus RTU).",
+      "missing_power_sensor": "Selecciona un sensor de potencia, o activa Cargador VE sin telemetría y selecciona un sensor de actividad.",
+      "missing_activity_sensor": "Selecciona un sensor de dispositivo activo / carga del VE para Control Dinámico de Potencia o un cargador sin telemetría."
     }
   },
   "selector": {

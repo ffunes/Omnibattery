@@ -372,6 +372,43 @@ def _dynamic_device(**overrides):
     return _device(**values)
 
 
+@pytest.mark.parametrize(
+    "activity_state",
+    [
+        "on",
+        "true",
+        "1",
+        "Charging",
+        "Chargement",
+        "Cargando",
+        "Carregant",
+        "Carregando",
+        "Laden",
+        "Ladend",
+        "Caricando",
+        "In carica",
+        "Laddar",
+        "Laddning",
+        "Lading",
+        "Oplading",
+    ],
+)
+def test_activity_languages_are_shared_by_dynamic_and_no_telemetry(activity_state):
+    """Both excluded-load modes must use the same multilingual detector."""
+    state = _state(activity_state)
+    dynamic_loads = _controller(
+        [_dynamic_device(activity_sensor="sensor.ev_state")],
+        {"sensor.dev": _state(0), "sensor.ev_state": state},
+    )
+    no_telemetry_loads = _controller(
+        [_ev_device(activity_sensor="sensor.ev_state")],
+        {"sensor.ev_state": state},
+    )
+
+    assert dynamic_loads.refresh_dynamic_power_control()["charge_blocked"] is True
+    assert no_telemetry_loads.check_ev_charger_state() == (True, False)
+
+
 def test_dynamic_control_first_load_starts_initial_yield():
     loads = _controller(
         [_dynamic_device()],
@@ -386,6 +423,60 @@ def test_dynamic_control_first_load_starts_initial_yield():
     assert status["devices"] == ["sensor.dev"]
     assert status["phases"] == {"sensor.dev": "yielding"}
     assert 0 < status["yield_remaining_s"] <= 30
+
+
+@pytest.mark.parametrize("activity_state", ["on", "Charging", "Cargando"])
+def test_dynamic_control_activity_sensor_blocks_before_power(activity_state):
+    loads = _controller(
+        [_dynamic_device(activity_sensor="binary_sensor.ev_active")],
+        {
+            "sensor.dev": _state(0),
+            "binary_sensor.ev_active": _state(activity_state),
+        },
+    )
+
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["active"] is True
+    assert status["charge_blocked"] is True
+    assert status["phases"] == {"sensor.dev": "waiting_for_load"}
+
+
+def test_dynamic_control_activity_sensor_yields_when_power_appears():
+    states = {
+        "sensor.dev": _state(0),
+        "binary_sensor.ev_active": _state("on"),
+    }
+    loads = _controller(
+        [_dynamic_device(activity_sensor="binary_sensor.ev_active")],
+        states,
+    )
+    loads.refresh_dynamic_power_control()
+
+    states["sensor.dev"] = _state(1500)
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["charge_blocked"] is True
+    assert status["phases"] == {"sensor.dev": "yielding"}
+    assert 0 < status["yield_remaining_s"] <= 30
+
+
+def test_dynamic_control_inactive_activity_sensor_releases_immediately():
+    states = {
+        "sensor.dev": _state(0),
+        "binary_sensor.ev_active": _state("on"),
+    }
+    loads = _controller(
+        [_dynamic_device(activity_sensor="binary_sensor.ev_active")],
+        states,
+    )
+    assert loads.refresh_dynamic_power_control()["charge_blocked"] is True
+
+    states["binary_sensor.ev_active"] = _state("off")
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["active"] is False
+    assert status["charge_blocked"] is False
 
 
 @pytest.mark.parametrize("overrides", [
@@ -586,6 +677,28 @@ def test_ev_idle_does_nothing():
 
 def test_ev_spanish_cargando_detected():
     loads = _controller([_ev_device()], {"sensor.ev": _state("Cargando")})
+    assert loads.check_ev_charger_state() == (True, False)
+
+
+def test_ev_uses_dedicated_activity_sensor():
+    device = _ev_device(
+        power_sensor="sensor.legacy_idle",
+        activity_sensor="binary_sensor.ev_charging",
+    )
+    loads = _controller(
+        [device],
+        {
+            "sensor.legacy_idle": _state("idle"),
+            "binary_sensor.ev_charging": _state("on"),
+        },
+    )
+
+    assert loads.check_ev_charger_state() == (True, False)
+
+
+def test_ev_legacy_power_sensor_state_remains_supported():
+    loads = _controller([_ev_device()], {"sensor.ev": _state("charging")})
+
     assert loads.check_ev_charger_state() == (True, False)
 
 

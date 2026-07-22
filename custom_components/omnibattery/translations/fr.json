@@ -203,7 +203,8 @@
         "title": "Appareil spécial {device_num}",
         "description": "Configurez comment la batterie doit gérer cet appareil.",
         "data": {
-          "power_sensor": "Capteur de l'appareil",
+          "power_sensor": "Capteur de puissance de l'appareil",
+          "activity_sensor": "Capteur appareil actif / charge VE",
           "included_in_consumption": "La consommation est incluse dans le capteur de consommation domestique",
           "allow_solar_surplus": "Autoriser l'utilisation du surplus solaire (ne pas charger la batterie)",
           "dynamic_power_control": "L'appareil a un contrôle dynamique de puissance",
@@ -211,12 +212,13 @@
           "ev_charger_no_telemetry": "Chargeur VE sans télémétrie de puissance"
         },
         "data_description": {
-          "power_sensor": "Capteur de puissance (W) de l'appareil. Pour les chargeurs VE sans télémétrie de puissance, sélectionnez le capteur d'état qui indique 'Charging' lorsque le véhicule charge.",
+          "power_sensor": "Capteur numérique de puissance (W) de l'appareil. Facultatif pour les chargeurs VE sans télémétrie ; les configurations existantes ayant enregistré ici le capteur d'état restent compatibles.",
+          "activity_sensor": "Capteur d'état ou binaire qui passe à 'on' ou indique la charge lorsque l'appareil demande de la puissance. Requis pour le contrôle dynamique et pour un nouveau chargeur VE sans télémétrie.",
           "included_in_consumption": "✓ COCHÉ = Le capteur domestique INCLUT déjà cet appareil → La batterie ne l'alimentera PAS (exclu). ✗ DÉCOCHÉ = Le capteur domestique ne le voit pas → La batterie l'alimentera (additionnel)",
           "allow_solar_surplus": "Si coché, l'appareil pourra consommer l'énergie directement des panneaux solaires (surplus) sans que la batterie essaie de compenser. Recommandé pour les appareils à forte consommation comme les chargeurs de VE.",
-          "dynamic_power_control": "À activer pour les appareils qui ajustent automatiquement leur demande à partir du compteur réseau, comme une wallbox sur surplus. Omnibattery cède brièvement la charge de la batterie afin que l'appareil réagisse en premier, puis utilise uniquement le surplus réellement restant.",
+          "dynamic_power_control": "À activer pour les appareils qui ajustent automatiquement leur demande à partir du compteur réseau. Avec un capteur d'activité, Omnibattery cède avant l'apparition de puissance ; sinon il réagit au capteur de puissance. Il utilise ensuite uniquement le surplus réellement restant.",
           "cover_home_when_active": "Nécessite Surplus Solaire et un capteur de production solaire. La batterie peut couvrir la consommation propre de la maison pendant que cet appareil est actif ; seule la part réseau de l'appareil reste exclue.",
-          "ev_charger_no_telemetry": "✓ COCHÉ = Le capteur sélectionné indique l'état de charge ('Charging'). Lorsqu'une charge VE est détectée, la batterie s'arrête 5 minutes afin que le véhicule puisse tirer toute la puissance disponible ; ensuite la batterie ne peut charger qu'avec le surplus solaire et ne se déchargera jamais pendant que le VE charge."
+          "ev_charger_no_telemetry": "✓ COCHÉ = Utilise le capteur appareil actif / charge VE au lieu d'une télémétrie numérique. Les configurations existantes ayant placé ce capteur dans le champ de puissance continuent de fonctionner. À la détection de charge, la batterie s'arrête 5 minutes ; ensuite elle charge seulement avec le surplus solaire et ne se décharge jamais pour le VE."
         }
       },
       "add_more_excluded_devices": {
@@ -556,7 +558,9 @@
       "no_price_data": "Le capteur sélectionné ne possède pas les attributs de prix attendus. Nordpool : nécessite `raw_today`. PVPC : nécessite `price_00h` … `price_23h`. CKW : nécessite l'attribut `prices` avec une liste de créneaux. EPEX : nécessite l'attribut `data` avec une liste de créneaux. ENTSO-e : nécessite l'attribut `prices_today` avec une liste de créneaux.",
       "tibber_unavailable": "L'intégration Tibber n'est pas installée, ou son service `tibber.get_prices` est indisponible. Installez et configurez d'abord Tibber.",
       "discharge_below_charge": "Le prix plancher de décharge ne peut pas être inférieur au prix maximal (de charge). Définissez-le égal ou supérieur, ou laissez-le vide pour réutiliser le seuil de charge.",
-      "host_or_serial_required": "Saisissez soit une adresse IP (TCP), soit le chemin d'un port série (Modbus RTU)."
+      "host_or_serial_required": "Saisissez soit une adresse IP (TCP), soit le chemin d'un port série (Modbus RTU).",
+      "missing_power_sensor": "Sélectionnez un capteur de puissance, ou activez Chargeur VE sans télémétrie et sélectionnez un capteur d'activité.",
+      "missing_activity_sensor": "Sélectionnez un capteur appareil actif / charge VE pour le contrôle dynamique ou un chargeur sans télémétrie."
     },
     "abort": {
       "already_configured": "Cette intégration est déjà configurée.",
@@ -777,7 +781,8 @@
         "title": "Appareil spécial {device_num}",
         "description": "Configurez comment la batterie doit gérer cet appareil.",
         "data": {
-          "power_sensor": "Capteur de l'appareil",
+          "power_sensor": "Capteur de puissance de l'appareil",
+          "activity_sensor": "Capteur appareil actif / charge VE",
           "included_in_consumption": "La consommation est incluse dans le capteur de consommation domestique",
           "allow_solar_surplus": "Autoriser l'utilisation du surplus solaire (ne pas charger la batterie)",
           "dynamic_power_control": "L'appareil a un contrôle dynamique de puissance",
@@ -785,12 +790,13 @@
           "ev_charger_no_telemetry": "Chargeur VE sans télémétrie de puissance"
         },
         "data_description": {
-          "power_sensor": "Capteur de puissance (W) de l'appareil. Pour les chargeurs VE sans télémétrie de puissance, sélectionnez le capteur d'état qui indique 'Charging' lorsque le véhicule charge.",
+          "power_sensor": "Capteur numérique de puissance (W) de l'appareil. Facultatif pour les chargeurs VE sans télémétrie ; les configurations existantes ayant enregistré ici le capteur d'état restent compatibles.",
+          "activity_sensor": "Capteur d'état ou binaire qui passe à 'on' ou indique la charge lorsque l'appareil demande de la puissance. Requis pour le contrôle dynamique et pour un nouveau chargeur VE sans télémétrie.",
           "included_in_consumption": "✓ COCHÉ = Le capteur domestique INCLUT déjà cet appareil → La batterie ne l'alimentera PAS (exclu). ✗ DÉCOCHÉ = Le capteur domestique ne le voit pas → La batterie l'alimentera (additionnel)",
           "allow_solar_surplus": "Si coché, l'appareil pourra consommer l'énergie directement des panneaux solaires (surplus) sans que la batterie essaie de compenser. Recommandé pour les appareils à forte consommation comme les chargeurs de VE.",
-          "dynamic_power_control": "À activer pour les appareils qui ajustent automatiquement leur demande à partir du compteur réseau, comme une wallbox sur surplus. Omnibattery cède brièvement la charge de la batterie afin que l'appareil réagisse en premier, puis utilise uniquement le surplus réellement restant.",
+          "dynamic_power_control": "À activer pour les appareils qui ajustent automatiquement leur demande à partir du compteur réseau. Avec un capteur d'activité, Omnibattery cède avant l'apparition de puissance ; sinon il réagit au capteur de puissance. Il utilise ensuite uniquement le surplus réellement restant.",
           "cover_home_when_active": "Nécessite Surplus Solaire et un capteur de production solaire. La batterie peut couvrir la consommation propre de la maison pendant que cet appareil est actif ; seule la part réseau de l'appareil reste exclue.",
-          "ev_charger_no_telemetry": "✓ COCHÉ = Le capteur sélectionné indique l'état de charge ('Charging'). Lorsqu'une charge VE est détectée, la batterie s'arrête 5 minutes afin que le véhicule puisse tirer toute la puissance disponible ; ensuite la batterie ne peut charger qu'avec le surplus solaire et ne se déchargera jamais pendant que le VE charge."
+          "ev_charger_no_telemetry": "✓ COCHÉ = Utilise le capteur appareil actif / charge VE au lieu d'une télémétrie numérique. Les configurations existantes ayant placé ce capteur dans le champ de puissance continuent de fonctionner. À la détection de charge, la batterie s'arrête 5 minutes ; ensuite elle charge seulement avec le surplus solaire et ne se décharge jamais pour le VE."
         }
       },
       "add_more_excluded_devices": {
@@ -1061,7 +1067,9 @@
       "no_price_data": "Le capteur sélectionné ne possède pas les attributs de prix attendus. Nordpool : nécessite `raw_today`. PVPC : nécessite `price_00h` … `price_23h`. CKW : nécessite l'attribut `prices` avec une liste de créneaux. EPEX : nécessite l'attribut `data` avec une liste de créneaux. ENTSO-e : nécessite l'attribut `prices_today` avec une liste de créneaux.",
       "tibber_unavailable": "L'intégration Tibber n'est pas installée, ou son service `tibber.get_prices` est indisponible. Installez et configurez d'abord Tibber.",
       "discharge_below_charge": "Le prix plancher de décharge ne peut pas être inférieur au prix maximal (de charge). Définissez-le égal ou supérieur, ou laissez-le vide pour réutiliser le seuil de charge.",
-      "host_or_serial_required": "Saisissez soit une adresse IP (TCP), soit le chemin d'un port série (Modbus RTU)."
+      "host_or_serial_required": "Saisissez soit une adresse IP (TCP), soit le chemin d'un port série (Modbus RTU).",
+      "missing_power_sensor": "Sélectionnez un capteur de puissance, ou activez Chargeur VE sans télémétrie et sélectionnez un capteur d'activité.",
+      "missing_activity_sensor": "Sélectionnez un capteur appareil actif / charge VE pour le contrôle dynamique ou un chargeur sans télémétrie."
     }
   },
   "selector": {

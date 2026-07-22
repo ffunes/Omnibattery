@@ -965,6 +965,12 @@ class WeeklyFullChargeDelaySwitch(SwitchEntity):
         }
 
 
+def _excluded_device_friendly_name(device: dict) -> str:
+    """Derive a readable name from either excluded-device sensor field."""
+    sensor_id = device.get("power_sensor") or device.get("activity_sensor") or "device"
+    return sensor_id.split(".", 1)[-1].replace("_", " ").title()
+
+
 class ExcludedDeviceEnabledSwitch(SwitchEntity):
     """Switch to enable/disable an individual excluded device at runtime.
 
@@ -979,8 +985,7 @@ class ExcludedDeviceEnabledSwitch(SwitchEntity):
         self._device_index = index
 
         device = entry.data.get("excluded_devices", [])[index]
-        sensor_id = device.get("power_sensor", "")
-        friendly = sensor_id.replace("sensor.", "").replace("_", " ").title()
+        friendly = _excluded_device_friendly_name(device)
 
         self._attr_has_entity_name = True
         self._attr_translation_key = "excluded_device_enabled"
@@ -1061,9 +1066,8 @@ class ExcludedDeviceSolarSurplusSwitch(SwitchEntity):
         self._device_index = index
 
         device = entry.data.get("excluded_devices", [])[index]
-        sensor_id = device.get("power_sensor", "")
-        # Derive a friendly name from the sensor entity ID
-        friendly = sensor_id.replace("sensor.", "").replace("_", " ").title()
+        # Derive a friendly name from the configured sensor entity ID.
+        friendly = _excluded_device_friendly_name(device)
 
         self._attr_has_entity_name = True
         self._attr_translation_key = "excluded_device_solar_surplus"
@@ -1139,8 +1143,7 @@ class ExcludedDeviceDynamicPowerControlSwitch(SwitchEntity):
         self._device_index = index
 
         device = entry.data.get("excluded_devices", [])[index]
-        sensor_id = device.get("power_sensor", "")
-        friendly = sensor_id.replace("sensor.", "").replace("_", " ").title()
+        friendly = _excluded_device_friendly_name(device)
 
         self._attr_has_entity_name = True
         self._attr_translation_key = "excluded_device_dynamic_power_control"
@@ -1167,6 +1170,7 @@ class ExcludedDeviceDynamicPowerControlSwitch(SwitchEntity):
         device = devices[self._device_index]
         return {
             "power_sensor": device.get("power_sensor", ""),
+            "activity_sensor": device.get("activity_sensor", ""),
             "allow_solar_surplus": device.get("allow_solar_surplus", False),
             "included_in_consumption": device.get("included_in_consumption", True),
         }
@@ -1224,8 +1228,7 @@ class ExcludedDeviceCoverHomeSwitch(SwitchEntity):
         self._device_index = index
 
         device = entry.data.get("excluded_devices", [])[index]
-        sensor_id = device.get("power_sensor", "")
-        friendly = sensor_id.replace("sensor.", "").replace("_", " ").title()
+        friendly = _excluded_device_friendly_name(device)
 
         self._attr_has_entity_name = True
         self._attr_translation_key = "excluded_device_cover_home"

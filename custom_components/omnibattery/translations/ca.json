@@ -203,7 +203,8 @@
         "title": "Dispositiu especial {device_num}",
         "description": "Configura com ha de gestionar la bateria aquest dispositiu.",
         "data": {
-          "power_sensor": "Sensor del dispositiu",
+          "power_sensor": "Sensor de potència del dispositiu",
+          "activity_sensor": "Sensor de dispositiu actiu / càrrega del VE",
           "included_in_consumption": "El consum està inclòs al sensor de consum de la llar",
           "allow_solar_surplus": "Permet l'ús d'excedent solar (no carregar bateria)",
           "dynamic_power_control": "El dispositiu té control dinàmic de potència",
@@ -211,12 +212,13 @@
           "ev_charger_no_telemetry": "Carregador VE sense telemetria de potència"
         },
         "data_description": {
-          "power_sensor": "Sensor de potència (W) del dispositiu. Per a carregadors VE sense telemetria, selecciona el sensor d'estat que indica 'Charging'/'Carregant' quan el vehicle s'està carregant.",
+          "power_sensor": "Sensor numèric de potència (W) del dispositiu. És opcional per a carregadors VE sense telemetria; les configuracions existents que hi van desar el sensor d'estat continuen sent compatibles.",
+          "activity_sensor": "Sensor d'estat o binari que passa a 'on' o indica 'Charging'/'Carregant' quan el dispositiu demana potència. És obligatori per al Control Dinàmic de Potència i per a un carregador VE nou sense telemetria.",
           "included_in_consumption": "✓ MARCAT = El sensor de consum de la llar JA inclou aquest dispositiu → La bateria NO l'alimentarà (exclòs). ✗ DESMARCAT = El sensor de la llar NO el veu → La bateria SÍ l'alimentarà (addicional)",
           "allow_solar_surplus": "Si es marca, el dispositiu podrà consumir energia directament dels panells solars (excedent) sense que la bateria intenti compensar-ho. Es recomana marcar per a dispositius de gran consum com carregadors de VE.",
-          "dynamic_power_control": "Activa-ho per a dispositius que ajusten automàticament la seva demanda mitjançant el comptador de xarxa, com una wallbox per excedent. Omnibattery cedeix breument la càrrega de la bateria perquè el dispositiu reaccioni primer i després utilitza l'excedent sobrant real.",
+          "dynamic_power_control": "Activa-ho per a dispositius que ajusten automàticament la demanda mitjançant el comptador de xarxa. Amb un sensor d'activitat, Omnibattery cedeix abans que aparegui potència; sense aquest sensor, reacciona al sensor de potència. Després utilitza l'excedent sobrant real.",
           "cover_home_when_active": "Requereix Excedent Solar i un sensor de producció solar. La bateria pot cobrir el consum propi de la llar mentre aquest dispositiu està actiu; només queda exclosa la part de xarxa del dispositiu.",
-          "ev_charger_no_telemetry": "✓ MARCAT = El sensor seleccionat indica l'estat de càrrega ('Charging'/'Carregant'). Quan es detecta que el VE comença a carregar, la bateria s'atura 5 minuts perquè el vehicle rebi tota la potència disponible; després la bateria només pot carregar amb excedent solar i mai descarregarà mentre el VE estigui carregant."
+          "ev_charger_no_telemetry": "✓ MARCAT = Utilitza el sensor de dispositiu actiu / càrrega del VE en lloc de telemetria numèrica. Les configuracions existents que van posar aquest sensor al camp de potència continuen funcionant. En detectar càrrega, la bateria s'atura 5 minuts; després només pot carregar amb excedent solar i mai descarrega per al VE."
         }
       },
       "add_more_excluded_devices": {
@@ -556,7 +558,9 @@
       "no_price_data": "El sensor seleccionat no té els atributs de preu esperats. Nordpool: necessita `raw_today`. PVPC: necessita `price_00h` … `price_23h`. CKW: necessita l'atribut `prices` amb una llista de franges. EPEX: necessita l'atribut `data` amb una llista de franges. ENTSO-e: necessita l'atribut `prices_today` amb una llista de franges.",
       "tibber_unavailable": "La integració Tibber no està instal·lada, o el seu servei `tibber.get_prices` no està disponible. Instal·la i configura Tibber primer.",
       "discharge_below_charge": "El preu mínim de descàrrega no pot ser inferior al preu màxim (de càrrega). Posa'l igual o superior, o deixa'l buit per reutilitzar el llindar de càrrega.",
-      "host_or_serial_required": "Introdueix una adreça IP (TCP) o la ruta d'un port sèrie (Modbus RTU)."
+      "host_or_serial_required": "Introdueix una adreça IP (TCP) o la ruta d'un port sèrie (Modbus RTU).",
+      "missing_power_sensor": "Selecciona un sensor de potència, o activa Carregador VE sense telemetria i selecciona un sensor d'activitat.",
+      "missing_activity_sensor": "Selecciona un sensor de dispositiu actiu / càrrega del VE per al Control Dinàmic de Potència o un carregador sense telemetria."
     },
     "abort": {
       "already_configured": "Aquesta integració ja està configurada.",
@@ -777,7 +781,8 @@
         "title": "Dispositiu exclòs {device_num}",
         "description": "Configura com ha de gestionar la bateria aquest dispositiu.",
         "data": {
-          "power_sensor": "Sensor del dispositiu",
+          "power_sensor": "Sensor de potència del dispositiu",
+          "activity_sensor": "Sensor de dispositiu actiu / càrrega del VE",
           "included_in_consumption": "El consum està inclòs al sensor de consum de la llar",
           "allow_solar_surplus": "Permetre usar excedent solar (no carregar bateria)",
           "dynamic_power_control": "El dispositiu té control dinàmic de potència",
@@ -785,12 +790,13 @@
           "ev_charger_no_telemetry": "Carregador VE sense telemetria de potència"
         },
         "data_description": {
-          "power_sensor": "Sensor de potència (W) del dispositiu. Per a carregadors VE sense telemetria, selecciona el sensor d'estat que indica 'Charging'/'Carregant' quan el vehicle s'està carregant.",
+          "power_sensor": "Sensor numèric de potència (W) del dispositiu. És opcional per a carregadors VE sense telemetria; les configuracions existents que hi van desar el sensor d'estat continuen sent compatibles.",
+          "activity_sensor": "Sensor d'estat o binari que passa a 'on' o indica 'Charging'/'Carregant' quan el dispositiu demana potència. És obligatori per al Control Dinàmic de Potència i per a un carregador VE nou sense telemetria.",
           "included_in_consumption": "✓ MARCAT = El sensor de consum de la llar JA inclou aquest dispositiu → La bateria NO l'alimentarà (exclòs). ✗ DESMARCAT = El sensor de la llar NO el veu → La bateria SÍ l'alimentarà (addicional)",
           "allow_solar_surplus": "Si es marca, el dispositiu podrà consumir energia directament dels panells solars (excedent) sense que la bateria intenti compensar-ho. Es recomana marcar per a dispositius de gran consum com carregadors de VE.",
-          "dynamic_power_control": "Activa-ho per a dispositius que ajusten automàticament la seva demanda mitjançant el comptador de xarxa, com una wallbox per excedent. Omnibattery cedeix breument la càrrega de la bateria perquè el dispositiu reaccioni primer i després utilitza l'excedent sobrant real.",
+          "dynamic_power_control": "Activa-ho per a dispositius que ajusten automàticament la demanda mitjançant el comptador de xarxa. Amb un sensor d'activitat, Omnibattery cedeix abans que aparegui potència; sense aquest sensor, reacciona al sensor de potència. Després utilitza l'excedent sobrant real.",
           "cover_home_when_active": "Requereix Excedent Solar i un sensor de producció solar. La bateria pot cobrir el consum propi de la llar mentre aquest dispositiu està actiu; només queda exclosa la part de xarxa del dispositiu.",
-          "ev_charger_no_telemetry": "✓ MARCAT = El sensor seleccionat indica l'estat de càrrega ('Charging'/'Carregant'). Quan es detecta que el VE comença a carregar, la bateria s'atura 5 minuts perquè el vehicle rebi tota la potència disponible; després la bateria només pot carregar amb excedent solar i mai descarregarà mentre el VE estigui carregant."
+          "ev_charger_no_telemetry": "✓ MARCAT = Utilitza el sensor de dispositiu actiu / càrrega del VE en lloc de telemetria numèrica. Les configuracions existents que van posar aquest sensor al camp de potència continuen funcionant. En detectar càrrega, la bateria s'atura 5 minuts; després només pot carregar amb excedent solar i mai descarrega per al VE."
         }
       },
       "add_more_excluded_devices": {
@@ -1061,7 +1067,9 @@
       "no_price_data": "El sensor seleccionat no té els atributs de preu esperats. Nordpool: necessita `raw_today`. PVPC: necessita `price_00h` … `price_23h`. CKW: necessita l'atribut `prices` amb una llista de franges. EPEX: necessita l'atribut `data` amb una llista de franges. ENTSO-e: necessita l'atribut `prices_today` amb una llista de franges.",
       "tibber_unavailable": "La integració Tibber no està instal·lada, o el seu servei `tibber.get_prices` no està disponible. Instal·la i configura Tibber primer.",
       "discharge_below_charge": "El preu mínim de descàrrega no pot ser inferior al preu màxim (de càrrega). Posa'l igual o superior, o deixa'l buit per reutilitzar el llindar de càrrega.",
-      "host_or_serial_required": "Introdueix una adreça IP (TCP) o la ruta d'un port sèrie (Modbus RTU)."
+      "host_or_serial_required": "Introdueix una adreça IP (TCP) o la ruta d'un port sèrie (Modbus RTU).",
+      "missing_power_sensor": "Selecciona un sensor de potència, o activa Carregador VE sense telemetria i selecciona un sensor d'activitat.",
+      "missing_activity_sensor": "Selecciona un sensor de dispositiu actiu / càrrega del VE per al Control Dinàmic de Potència o un carregador sense telemetria."
     }
   },
   "selector": {

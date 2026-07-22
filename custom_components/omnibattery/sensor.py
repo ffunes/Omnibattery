@@ -941,6 +941,7 @@ class ConfigurationSummarySensor(SensorEntity):
         for i, dev in enumerate(excluded):
             n = i + 1
             attrs[f"excluded_device_{n}_sensor"] = dev.get("power_sensor")
+            attrs[f"excluded_device_{n}_activity_sensor"] = dev.get("activity_sensor")
             attrs[f"excluded_device_{n}_enabled"] = dev.get("enabled", True)
             attrs[f"excluded_device_{n}_included_in_consumption"] = dev.get("included_in_consumption", True)
             attrs[f"excluded_device_{n}_allow_solar_surplus"] = dev.get("allow_solar_surplus", False)
