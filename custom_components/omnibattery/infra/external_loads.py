@@ -13,7 +13,7 @@ compatibility with the rest of the control loop:
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.util import dt as dt_util
@@ -38,6 +38,18 @@ _CHARGING_SUBSTRINGS: frozenset[str] = frozenset({
     "lading",    # NO/DA: lading, oplading
 })
 
+# Strict solar priority uses only the excluded device's existing power sensor.
+# A short initial yield lets the external controller (typically a wallbox with
+# its own grid CT) claim the available export before Omnibattery resumes on any
+# residual.  Brief zero-power pauses are latched so a cloud or phase change does
+# not let the battery steal the surplus and prevent the device from restarting.
+STRICT_PRIORITY_ACTIVE_POWER_W = 100.0
+STRICT_PRIORITY_HOLD = timedelta(minutes=5)
+STRICT_PRIORITY_INITIAL_YIELD = timedelta(seconds=30)
+STRICT_PRIORITY_REYIELD = timedelta(seconds=20)
+STRICT_PRIORITY_SOLAR_STEP_W = 200.0
+STRICT_PRIORITY_FALLBACK_PROBE = timedelta(minutes=5)
+
 
 class ExternalLoads:
     """Manages excluded-device and EV-charger load adjustments."""
@@ -51,6 +63,159 @@ class ExternalLoads:
         self._hass = hass
         self._config_entry = config_entry
         self._controller = controller
+        self._strict_hold_until: dict[str, datetime] = {}
+        self._strict_yield_until: dict[str, datetime] = {}
+        self._strict_next_probe: dict[str, datetime] = {}
+        self._strict_solar_reference_w: dict[str, float] = {}
+        self._strict_was_drawing: dict[str, bool] = {}
+        self.strict_priority_status: dict[str, Any] = {
+            "active": False,
+            "charge_blocked": False,
+            "devices": [],
+            "phases": {},
+        }
+
+    def _clear_strict_priority_state(self, key: str) -> None:
+        """Forget the runtime latch/probe state for one excluded device."""
+        self._strict_hold_until.pop(key, None)
+        self._strict_yield_until.pop(key, None)
+        self._strict_next_probe.pop(key, None)
+        self._strict_solar_reference_w.pop(key, None)
+        self._strict_was_drawing.pop(key, None)
+
+    def refresh_strict_solar_priority(self) -> dict[str, Any]:
+        """Refresh strict-priority latches and return the current charge block.
+
+        This mode deliberately does not ask for another HA entity.  Activity is
+        inferred from the excluded device's existing numeric power sensor:
+
+        * first detection (>100 W): battery charging yields for 30 seconds;
+        * while drawing: charging may resume for genuine residual export;
+        * a >=200 W solar rise starts a new 20-second yield;
+        * without a solar sensor, a 20-second probe runs every five minutes;
+        * when power drops: charging remains blocked for five minutes so the
+          external controller can restart after clouds or a phase transition.
+
+        Only devices with both Allow Solar Surplus and Strict Solar Priority ON
+        participate.  The returned mapping is also exposed in diagnostics.
+        """
+        now = dt_util.utcnow()
+        solar_sensor_id = getattr(self._controller, "solar_production_sensor", None)
+        solar_w = self._read_sensor_w_opt(solar_sensor_id) if solar_sensor_id else None
+
+        eligible_keys: set[str] = set()
+        priority_devices: list[str] = []
+        blocked_devices: list[str] = []
+        phases: dict[str, str] = {}
+        max_hold_remaining = 0
+        max_yield_remaining = 0
+
+        for index, device in enumerate(self._config_entry.data.get("excluded_devices", [])):
+            sensor_id = device.get("power_sensor")
+            key = f"{index}:{sensor_id or ''}"
+            eligible = (
+                device.get("enabled", True)
+                and not device.get("ev_charger_no_telemetry", False)
+                and device.get("included_in_consumption", True)
+                and device.get("allow_solar_surplus", False)
+                and device.get("strict_solar_priority", False)
+                and bool(sensor_id)
+            )
+            if not eligible:
+                self._clear_strict_priority_state(key)
+                continue
+
+            eligible_keys.add(key)
+            device_power = self._read_sensor_w_opt(sensor_id)
+            drawing = device_power is not None and device_power > STRICT_PRIORITY_ACTIVE_POWER_W
+            was_drawing = self._strict_was_drawing.get(key, False)
+
+            if drawing:
+                priority_devices.append(sensor_id)
+                self._strict_hold_until[key] = now + STRICT_PRIORITY_HOLD
+
+                if not was_drawing:
+                    self._strict_yield_until[key] = now + STRICT_PRIORITY_INITIAL_YIELD
+                    self._strict_next_probe[key] = now + STRICT_PRIORITY_FALLBACK_PROBE
+                    if solar_w is not None:
+                        self._strict_solar_reference_w[key] = solar_w
+                    _LOGGER.info(
+                        "Strict solar priority for %s: %.0fW detected, yielding battery charge for %ds",
+                        sensor_id,
+                        device_power,
+                        int(STRICT_PRIORITY_INITIAL_YIELD.total_seconds()),
+                    )
+
+                self._strict_was_drawing[key] = True
+                yield_until = self._strict_yield_until.get(key, now)
+
+                if solar_w is not None:
+                    reference_w = self._strict_solar_reference_w.get(key, solar_w)
+                    if solar_w < reference_w:
+                        # Follow reductions immediately so a later recovery can
+                        # trigger a fresh yield after a cumulative 200 W rise.
+                        self._strict_solar_reference_w[key] = solar_w
+                    elif now < yield_until:
+                        # The external controller is already being given room;
+                        # use the newest level as the next comparison baseline.
+                        self._strict_solar_reference_w[key] = solar_w
+                    elif solar_w - reference_w >= STRICT_PRIORITY_SOLAR_STEP_W:
+                        yield_until = now + STRICT_PRIORITY_REYIELD
+                        self._strict_yield_until[key] = yield_until
+                        self._strict_solar_reference_w[key] = solar_w
+                        _LOGGER.debug(
+                            "Strict solar priority for %s: solar rose %.0fW, re-yielding for %ds",
+                            sensor_id,
+                            solar_w - reference_w,
+                            int(STRICT_PRIORITY_REYIELD.total_seconds()),
+                        )
+                else:
+                    next_probe = self._strict_next_probe.get(key, now)
+                    if now >= next_probe and now >= yield_until:
+                        yield_until = now + STRICT_PRIORITY_REYIELD
+                        self._strict_yield_until[key] = yield_until
+                        self._strict_next_probe[key] = now + STRICT_PRIORITY_FALLBACK_PROBE
+
+                if now < yield_until:
+                    blocked_devices.append(sensor_id)
+                    phases[sensor_id] = "yielding"
+                    max_yield_remaining = max(
+                        max_yield_remaining,
+                        int((yield_until - now).total_seconds()),
+                    )
+                else:
+                    phases[sensor_id] = "monitoring_residual"
+            else:
+                self._strict_was_drawing[key] = False
+                hold_until = self._strict_hold_until.get(key)
+                if hold_until is not None and now < hold_until:
+                    priority_devices.append(sensor_id)
+                    blocked_devices.append(sensor_id)
+                    phases[sensor_id] = "restart_hold"
+                    max_hold_remaining = max(
+                        max_hold_remaining,
+                        int((hold_until - now).total_seconds()),
+                    )
+                else:
+                    self._clear_strict_priority_state(key)
+
+        # Remove runtime state for devices deleted or made ineligible since the
+        # previous options hot-reload.
+        known_keys = set(self._strict_hold_until) | set(self._strict_yield_until)
+        for stale_key in known_keys - eligible_keys:
+            self._clear_strict_priority_state(stale_key)
+
+        status = {
+            "active": bool(priority_devices),
+            "charge_blocked": bool(blocked_devices),
+            "devices": priority_devices,
+            "blocked_devices": blocked_devices,
+            "phases": phases,
+            "hold_remaining_s": max_hold_remaining,
+            "yield_remaining_s": max_yield_remaining,
+        }
+        self.strict_priority_status = status
+        return status
 
     @staticmethod
     def _exclusion_factor(device: dict) -> float:

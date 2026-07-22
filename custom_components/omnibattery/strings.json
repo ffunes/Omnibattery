@@ -1141,6 +1141,9 @@
       "excluded_device_solar_surplus": {
         "name": "{device} – Solar Surplus"
       },
+      "excluded_device_strict_solar_priority": {
+        "name": "{device} – Strict Solar Priority"
+      },
       "excluded_device_cover_home": {
         "name": "{device} – Cover Home"
       },

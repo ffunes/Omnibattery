@@ -47,6 +47,28 @@ The switch state is persisted in the config entry and survives restarts.
 
 ---
 
+## Strict solar priority
+
+Telemetry devices also get a **Strict Solar Priority** switch. It is designed
+for flexible loads such as wallboxes that regulate themselves from the same
+grid meter as Omnibattery. Enable it together with **Solar Surplus**.
+
+No additional entity is required. Omnibattery uses the configured device power
+sensor and automatically:
+
+- yields battery charging for 30 seconds when device demand rises above 100 W;
+- lets the external controller ramp up before the battery takes residual export;
+- yields again for 20 seconds after solar production rises by at least 200 W;
+- keeps battery charging blocked for 5 minutes after device power falls, allowing
+  a wallbox to restart after a cloud or phase transition;
+- probes every 5 minutes when no solar-production sensor is available.
+
+This mode cannot detect a vehicle that is connected but has never started
+drawing power. Detection begins with the first measured load above 100 W. It is
+not available for the state-only **EV charger without power telemetry** mode.
+
+---
+
 ## Exclusion % slider
 
 Exclusion is not all-or-nothing. Each excluded device also gets an **Exclusion %** slider (`<device> – Exclusion %`, `number.*_exclusion_pct`, 0–100 %, default `100`) controlling **how much** of its demand stays off the battery:

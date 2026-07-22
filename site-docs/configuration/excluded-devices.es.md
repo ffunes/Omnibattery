@@ -47,6 +47,29 @@ El estado del switch se persiste en la entrada de configuración y sobrevive rei
 
 ---
 
+## Prioridad solar estricta
+
+Los dispositivos con telemetría también disponen de un switch **Prioridad Solar
+Estricta**. Está pensado para cargas flexibles, como wallboxes, que se regulan
+mediante el mismo contador de red que Omnibattery. Debe activarse junto con
+**Excedente Solar**.
+
+No requiere ninguna entidad adicional. Omnibattery utiliza el sensor de potencia
+ya configurado y automáticamente:
+
+- cede la carga de batería durante 30 segundos cuando el dispositivo supera 100 W;
+- deja que el regulador externo aumente potencia antes de usar el excedente restante;
+- vuelve a ceder durante 20 segundos si la producción solar aumenta al menos 200 W;
+- bloquea la carga durante 5 minutos cuando desaparece el consumo, para permitir
+  que una wallbox reinicie tras una nube o un cambio de fase;
+- realiza una comprobación cada 5 minutos si no hay sensor de producción solar.
+
+Este modo no puede detectar un vehículo conectado que todavía nunca haya empezado
+a consumir. La detección comienza con la primera lectura superior a 100 W. No está
+disponible para el modo **Cargador VE sin telemetría de potencia**.
+
+---
+
 ## Slider de % de exclusión
 
 La exclusión no es todo o nada. Cada dispositivo excluido tiene además un slider de **% de exclusión** (`<dispositivo> – Exclusion %`, `number.*_exclusion_pct`, 0–100 %, por defecto `100`) que controla **cuánta** de su demanda se mantiene fuera de la batería:

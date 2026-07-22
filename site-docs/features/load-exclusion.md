@@ -47,6 +47,19 @@ automation:
 
 ![Excluded device power sensor in HA](../assets/screenshots/features/load-exclusion-entities.png){ width="700"  style="display: block; margin: 0 auto;"}
 
+### Strict Solar Priority switch
+
+For a wallbox or another flexible load with its own surplus controller, standard
+Solar Surplus can still leave two controllers settled at an undesirable split:
+the battery removes export before the wallbox has a chance to ramp up. **Strict
+Solar Priority** adds a small state machine around the normal exclusion logic.
+
+On first measured demand it blocks battery charging for 30 seconds. Charging may
+then resume only on the export the device left behind. A solar rise triggers a
+new 20-second yield, and a zero-power pause is held for 5 minutes so the battery
+does not prevent the device from restarting. It uses the existing device, grid
+and optional solar sensors; no maximum-demand or connection sensor is needed.
+
 ## EV charger without power telemetry
 
 For EV chargers that only expose a state sensor (no real-time power reading), a dedicated **EV charger without power telemetry** option is available. Instead of reading watts, the controller monitors the sensor state and reacts to any charging string (`Charging`, `Cargando`, etc.).

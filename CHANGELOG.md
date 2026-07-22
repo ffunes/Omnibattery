@@ -2,6 +2,9 @@
 
 ## [1.0.1b6] - 2026-07-21
 
+### Added
+- **Strict solar priority for telemetry excluded devices**: a new per-device runtime switch lets flexible loads such as self-regulating wallboxes claim changing PV surplus before battery charging. It uses the existing device power sensor, yields battery charge on startup and meaningful solar rises, holds short device pauses for five minutes, and then lets the battery absorb genuine residual export without requiring connection or maximum-power sensors.
+
 ### Fixed
 - **Time-slot naming in the configuration and options flows**: renamed the section from "Discharge time slots" to "Time slots" because each slot can independently control both charging and discharging. Updated all six translations, dashboard help text, and the English and Spanish documentation to use the same terminology.
 

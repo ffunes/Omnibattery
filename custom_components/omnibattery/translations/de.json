@@ -1159,6 +1159,9 @@
       "excluded_device_solar_surplus": {
         "name": "{device} – Solarüberschuss"
       },
+      "excluded_device_strict_solar_priority": {
+        "name": "{device} – Strikte Solarpriorität"
+      },
       "excluded_device_cover_home": {
         "name": "{device} – Haus decken"
       },

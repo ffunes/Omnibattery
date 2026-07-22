@@ -47,6 +47,21 @@ automation:
 
 ![Sensor de potencia de dispositivo excluido en HA](../assets/screenshots/features/load-exclusion-entities.png){ width="700"  style="display: block; margin: 0 auto;"}
 
+### Switch de prioridad solar estricta
+
+Con una wallbox u otra carga flexible que tenga su propio regulador de excedente,
+el modo Excedente Solar estándar todavía puede dejar ambos controladores en un
+reparto no deseado: la batería elimina la exportación antes de que la wallbox
+pueda aumentar potencia. **Prioridad Solar Estricta** añade una pequeña máquina
+de estados alrededor de la exclusión normal.
+
+Al detectar consumo por primera vez bloquea la carga de batería durante 30
+segundos. Después la batería solo puede aprovechar la exportación que el
+dispositivo deje libre. Una subida solar provoca una nueva cesión de 20 segundos
+y una pausa a 0 W se mantiene durante 5 minutos para no impedir el reinicio del
+dispositivo. Utiliza los sensores existentes de dispositivo, red y, si está
+configurado, solar; no exige sensores de potencia máxima ni de conexión.
+
 ## Cargador VE sin telemetría de potencia
 
 Para cargadores VE que solo exponen un sensor de estado (sin lectura de potencia en tiempo real), existe la opción **Cargador VE sin telemetría de potencia**. En lugar de leer vatios, el controlador monitoriza el estado del sensor y reacciona ante cualquier cadena de carga (`Charging`, `Cargando`, etc.).

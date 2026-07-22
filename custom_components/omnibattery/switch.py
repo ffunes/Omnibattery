@@ -153,6 +153,8 @@ async def async_setup_entry(
     for index in range(len(excluded_devices)):
         entities.append(ExcludedDeviceEnabledSwitch(hass, entry, index))
         entities.append(ExcludedDeviceSolarSurplusSwitch(hass, entry, index))
+        if not excluded_devices[index].get("ev_charger_no_telemetry", False):
+            entities.append(ExcludedDeviceStrictSolarPrioritySwitch(hass, entry, index))
         entities.append(ExcludedDeviceCoverHomeSwitch(hass, entry, index))
 
     async_add_entities(entities)
@@ -1115,6 +1117,83 @@ class ExcludedDeviceSolarSurplusSwitch(SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Disable solar surplus priority (battery charges normally)."""
         await self._update_solar_surplus(False)
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class ExcludedDeviceStrictSolarPrioritySwitch(SwitchEntity):
+    """Give a telemetry excluded device first claim on changing solar surplus."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, index: int) -> None:
+        """Initialize the strict solar-priority switch."""
+        self.hass = hass
+        self.entry = entry
+        self._device_index = index
+
+        device = entry.data.get("excluded_devices", [])[index]
+        sensor_id = device.get("power_sensor", "")
+        friendly = sensor_id.replace("sensor.", "").replace("_", " ").title()
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "excluded_device_strict_solar_priority"
+        self._attr_translation_placeholders = {"device": friendly}
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}strict_solar_priority_{index}"
+        self.entity_id = system_entity_id("switch", f"strict_solar_priority_{index}")
+        self._attr_icon = "mdi:ev-station"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if strict solar priority is enabled for this device."""
+        devices = self.entry.data.get("excluded_devices", [])
+        if self._device_index < len(devices):
+            return devices[self._device_index].get("strict_solar_priority", False)
+        return False
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return the feature prerequisites for troubleshooting."""
+        devices = self.entry.data.get("excluded_devices", [])
+        if self._device_index >= len(devices):
+            return {}
+        device = devices[self._device_index]
+        return {
+            "power_sensor": device.get("power_sensor", ""),
+            "allow_solar_surplus": device.get("allow_solar_surplus", False),
+            "included_in_consumption": device.get("included_in_consumption", True),
+        }
+
+    async def _update_strict_priority(self, enabled: bool) -> None:
+        """Persist strict_solar_priority in config_entry.data."""
+        new_data = dict(self.entry.data)
+        devices = [dict(d) for d in new_data.get("excluded_devices", [])]
+        if self._device_index < len(devices):
+            devices[self._device_index]["strict_solar_priority"] = enabled
+            new_data["excluded_devices"] = devices
+            self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+            _LOGGER.info(
+                "Strict solar priority for device %d (%s) %s",
+                self._device_index + 1,
+                devices[self._device_index].get("power_sensor", ""),
+                "enabled" if enabled else "disabled",
+            )
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable strict solar priority for this device."""
+        await self._update_strict_priority(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable strict solar priority for this device."""
+        await self._update_strict_priority(False)
 
     @property
     def device_info(self):
