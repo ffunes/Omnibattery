@@ -17,6 +17,7 @@ import pytest
 
 from homeassistant.util import dt as dt_util
 
+from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.infra.external_loads import ExternalLoads
 
 
@@ -359,6 +360,268 @@ def test_exclusion_pct_default_is_full_exclusion():
 
 
 # ----------------------------------------------------------------------
+# dynamic power control: one-sensor activity detection + yield/hold state
+# ----------------------------------------------------------------------
+
+def _dynamic_device(**overrides):
+    values = {
+        "allow_solar_surplus": True,
+        "dynamic_power_control": True,
+    }
+    values.update(overrides)
+    return _device(**values)
+
+
+@pytest.mark.parametrize(
+    "activity_state",
+    [
+        "on",
+        "true",
+        "1",
+        "Charging",
+        "Chargement",
+        "Cargando",
+        "Carregant",
+        "Carregando",
+        "Laden",
+        "Ladend",
+        "Caricando",
+        "In carica",
+        "Laddar",
+        "Laddning",
+        "Lading",
+        "Oplading",
+    ],
+)
+def test_activity_languages_are_shared_by_dynamic_and_no_telemetry(activity_state):
+    """Both excluded-load modes must use the same multilingual detector."""
+    state = _state(activity_state)
+    dynamic_loads = _controller(
+        [_dynamic_device(activity_sensor="sensor.ev_state")],
+        {"sensor.dev": _state(0), "sensor.ev_state": state},
+    )
+    no_telemetry_loads = _controller(
+        [_ev_device(activity_sensor="sensor.ev_state")],
+        {"sensor.ev_state": state},
+    )
+
+    assert dynamic_loads.refresh_dynamic_power_control()["charge_blocked"] is True
+    assert no_telemetry_loads.check_ev_charger_state() == (True, False)
+
+
+def test_dynamic_control_first_load_starts_initial_yield():
+    loads = _controller(
+        [_dynamic_device()],
+        {"sensor.dev": _state(3600), "sensor.solar": _state(5000)},
+        solar_production_sensor="sensor.solar",
+    )
+
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["active"] is True
+    assert status["charge_blocked"] is True
+    assert status["devices"] == ["sensor.dev"]
+    assert status["phases"] == {"sensor.dev": "yielding"}
+    assert 0 < status["yield_remaining_s"] <= 30
+
+
+@pytest.mark.parametrize("activity_state", ["on", "Charging", "Cargando"])
+def test_dynamic_control_activity_sensor_blocks_before_power(activity_state):
+    loads = _controller(
+        [_dynamic_device(activity_sensor="binary_sensor.ev_active")],
+        {
+            "sensor.dev": _state(0),
+            "binary_sensor.ev_active": _state(activity_state),
+        },
+    )
+
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["active"] is True
+    assert status["charge_blocked"] is True
+    assert status["phases"] == {"sensor.dev": "waiting_for_load"}
+
+
+def test_dynamic_control_activity_sensor_yields_when_power_appears():
+    states = {
+        "sensor.dev": _state(0),
+        "binary_sensor.ev_active": _state("on"),
+    }
+    loads = _controller(
+        [_dynamic_device(activity_sensor="binary_sensor.ev_active")],
+        states,
+    )
+    loads.refresh_dynamic_power_control()
+
+    states["sensor.dev"] = _state(1500)
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["charge_blocked"] is True
+    assert status["phases"] == {"sensor.dev": "yielding"}
+    assert 0 < status["yield_remaining_s"] <= 30
+
+
+def test_dynamic_control_inactive_activity_sensor_releases_immediately():
+    states = {
+        "sensor.dev": _state(0),
+        "binary_sensor.ev_active": _state("on"),
+    }
+    loads = _controller(
+        [_dynamic_device(activity_sensor="binary_sensor.ev_active")],
+        states,
+    )
+    assert loads.refresh_dynamic_power_control()["charge_blocked"] is True
+
+    states["binary_sensor.ev_active"] = _state("off")
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["active"] is False
+    assert status["charge_blocked"] is False
+
+
+@pytest.mark.parametrize("overrides", [
+    {"dynamic_power_control": False},
+    {"allow_solar_surplus": False},
+    {"included_in_consumption": False},
+    {"enabled": False},
+    {"ev_charger_no_telemetry": True},
+])
+def test_dynamic_control_requires_all_prerequisites(overrides):
+    device = _dynamic_device()
+    device.update(overrides)
+    loads = _controller([device], {"sensor.dev": _state(3600)})
+
+    assert loads.refresh_dynamic_power_control()["active"] is False
+
+
+def test_dynamic_control_allows_residual_after_initial_yield():
+    loads = _controller(
+        [_dynamic_device()],
+        {"sensor.dev": _state(3600), "sensor.solar": _state(5000)},
+        solar_production_sensor="sensor.solar",
+    )
+    loads.refresh_dynamic_power_control()
+    loads._dynamic_yield_until["0:sensor.dev"] = dt_util.utcnow() - timedelta(seconds=1)
+
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["active"] is True
+    assert status["charge_blocked"] is False
+    assert status["phases"] == {"sensor.dev": "monitoring_residual"}
+
+
+def test_dynamic_control_solar_rise_starts_new_yield():
+    states = {
+        "sensor.dev": _state(3600),
+        "sensor.solar": _state(5000),
+    }
+    loads = _controller(
+        [_dynamic_device()],
+        states,
+        solar_production_sensor="sensor.solar",
+    )
+    loads.refresh_dynamic_power_control()
+    loads._dynamic_yield_until["0:sensor.dev"] = dt_util.utcnow() - timedelta(seconds=1)
+    assert loads.refresh_dynamic_power_control()["charge_blocked"] is False
+
+    states["sensor.solar"] = _state(5250)
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["charge_blocked"] is True
+    assert status["phases"] == {"sensor.dev": "yielding"}
+    assert 0 < status["yield_remaining_s"] <= 20
+
+
+def test_dynamic_control_zero_power_is_held_for_restart():
+    states = {"sensor.dev": _state(3600)}
+    loads = _controller([_dynamic_device()], states)
+    loads.refresh_dynamic_power_control()
+
+    states["sensor.dev"] = _state(0)
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["active"] is True
+    assert status["charge_blocked"] is True
+    assert status["phases"] == {"sensor.dev": "restart_hold"}
+    assert 0 < status["hold_remaining_s"] <= 300
+
+
+def test_dynamic_control_restart_hold_expires_to_normal_operation():
+    states = {"sensor.dev": _state(3600)}
+    loads = _controller([_dynamic_device()], states)
+    loads.refresh_dynamic_power_control()
+    states["sensor.dev"] = _state(0)
+    loads._dynamic_hold_until["0:sensor.dev"] = dt_util.utcnow() - timedelta(seconds=1)
+
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["active"] is False
+    assert status["charge_blocked"] is False
+
+
+def test_dynamic_control_without_solar_uses_periodic_probe():
+    loads = _controller([_dynamic_device()], {"sensor.dev": _state(3600)})
+    loads.refresh_dynamic_power_control()
+    key = "0:sensor.dev"
+    loads._dynamic_yield_until[key] = dt_util.utcnow() - timedelta(seconds=1)
+    loads._dynamic_next_probe[key] = dt_util.utcnow() - timedelta(seconds=1)
+
+    status = loads.refresh_dynamic_power_control()
+
+    assert status["charge_blocked"] is True
+    assert status["phases"] == {"sensor.dev": "yielding"}
+
+
+def test_controller_registers_dynamic_control_charge_block():
+    status = {
+        "active": True,
+        "charge_blocked": True,
+        "devices": ["sensor.dev"],
+        "blocked_devices": ["sensor.dev"],
+        "phases": {"sensor.dev": "yielding"},
+        "hold_remaining_s": 0,
+        "yield_remaining_s": 25,
+    }
+    calls = []
+    controller = SimpleNamespace(
+        _external_loads=SimpleNamespace(refresh_dynamic_power_control=lambda: status),
+        set_charge_block=lambda *args, **kwargs: calls.append(("set", args, kwargs)),
+        remove_charge_block=lambda *args, **kwargs: calls.append(("remove", args, kwargs)),
+    )
+
+    ChargeDischargeController._refresh_dynamic_power_control_block(controller)
+
+    assert calls[0][0] == "set"
+    assert calls[0][1][:2] == (
+        "excluded_device_dynamic_power_control",
+        "dynamic_power_control",
+    )
+    assert calls[0][1][2]["devices"] == "sensor.dev"
+
+
+def test_controller_removes_dynamic_control_charge_block_when_idle():
+    status = {
+        "active": False,
+        "charge_blocked": False,
+        "devices": [],
+        "blocked_devices": [],
+        "phases": {},
+        "hold_remaining_s": 0,
+        "yield_remaining_s": 0,
+    }
+    calls = []
+    controller = SimpleNamespace(
+        _external_loads=SimpleNamespace(refresh_dynamic_power_control=lambda: status),
+        set_charge_block=lambda *args, **kwargs: calls.append(("set", args, kwargs)),
+        remove_charge_block=lambda *args, **kwargs: calls.append(("remove", args, kwargs)),
+    )
+
+    ChargeDischargeController._refresh_dynamic_power_control_block(controller)
+
+    assert calls == [("remove", ("excluded_device_dynamic_power_control",), {})]
+
+
+# ----------------------------------------------------------------------
 # check_ev_charger_state  (no-telemetry EV: 5-min pause then discharge-block)
 # Time-dependent: a frozen clock drives the pause window. Returns
 # (pause_active, ev_charging_active).
@@ -414,6 +677,28 @@ def test_ev_idle_does_nothing():
 
 def test_ev_spanish_cargando_detected():
     loads = _controller([_ev_device()], {"sensor.ev": _state("Cargando")})
+    assert loads.check_ev_charger_state() == (True, False)
+
+
+def test_ev_uses_dedicated_activity_sensor():
+    device = _ev_device(
+        power_sensor="sensor.legacy_idle",
+        activity_sensor="binary_sensor.ev_charging",
+    )
+    loads = _controller(
+        [device],
+        {
+            "sensor.legacy_idle": _state("idle"),
+            "binary_sensor.ev_charging": _state("on"),
+        },
+    )
+
+    assert loads.check_ev_charger_state() == (True, False)
+
+
+def test_ev_legacy_power_sensor_state_remains_supported():
+    loads = _controller([_ev_device()], {"sensor.ev": _state("charging")})
+
     assert loads.check_ev_charger_state() == (True, False)
 
 

@@ -13,7 +13,7 @@ compatibility with the rest of the control loop:
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.util import dt as dt_util
@@ -38,6 +38,18 @@ _CHARGING_SUBSTRINGS: frozenset[str] = frozenset({
     "lading",    # NO/DA: lading, oplading
 })
 
+# Dynamic power control always uses the excluded device's power sensor. An
+# optional activity sensor can announce demand before numeric power appears,
+# solving the cold-start deadlock without an external automation. A short yield
+# then lets the external controller claim export before Omnibattery resumes on
+# any residual. Brief zero-power pauses are latched for sensor-less setups.
+DYNAMIC_CONTROL_ACTIVE_POWER_W = 100.0
+DYNAMIC_CONTROL_HOLD = timedelta(minutes=5)
+DYNAMIC_CONTROL_INITIAL_YIELD = timedelta(seconds=30)
+DYNAMIC_CONTROL_REYIELD = timedelta(seconds=20)
+DYNAMIC_CONTROL_SOLAR_STEP_W = 200.0
+DYNAMIC_CONTROL_FALLBACK_PROBE = timedelta(minutes=5)
+
 
 class ExternalLoads:
     """Manages excluded-device and EV-charger load adjustments."""
@@ -51,6 +63,191 @@ class ExternalLoads:
         self._hass = hass
         self._config_entry = config_entry
         self._controller = controller
+        self._dynamic_hold_until: dict[str, datetime] = {}
+        self._dynamic_yield_until: dict[str, datetime] = {}
+        self._dynamic_next_probe: dict[str, datetime] = {}
+        self._dynamic_solar_reference_w: dict[str, float] = {}
+        self._dynamic_was_drawing: dict[str, bool] = {}
+        self.dynamic_power_control_status: dict[str, Any] = {
+            "active": False,
+            "charge_blocked": False,
+            "devices": [],
+            "phases": {},
+        }
+
+    def _clear_dynamic_power_control_state(self, key: str) -> None:
+        """Forget the runtime latch/probe state for one excluded device."""
+        self._dynamic_hold_until.pop(key, None)
+        self._dynamic_yield_until.pop(key, None)
+        self._dynamic_next_probe.pop(key, None)
+        self._dynamic_solar_reference_w.pop(key, None)
+        self._dynamic_was_drawing.pop(key, None)
+
+    @staticmethod
+    def _state_is_active(state: Any) -> bool:
+        """Return whether a state/binary sensor reports EV charging or demand."""
+        if state is None or state.state in ("unknown", "unavailable"):
+            return False
+        value = str(state.state).lower().strip()
+        return value in {"on", "true", "1"} or any(
+            substring in value for substring in _CHARGING_SUBSTRINGS
+        )
+
+    def _activity_sensor_is_active(self, sensor_id: str | None) -> bool:
+        """Read one optional device-activity entity."""
+        return bool(sensor_id) and self._state_is_active(self._hass.states.get(sensor_id))
+
+    def refresh_dynamic_power_control(self) -> dict[str, Any]:
+        """Refresh dynamic-load latches and return the current charge block.
+
+        Activity is inferred from the existing numeric power sensor. An optional
+        activity sensor may request priority before numeric demand appears:
+
+        * active state before demand: charging stays blocked until load appears;
+        * first detection (>100 W): battery charging yields for 30 seconds;
+        * while drawing: charging may resume for genuine residual export;
+        * a >=200 W solar rise starts a new 20-second yield;
+        * without a solar sensor, a 20-second probe runs every five minutes;
+        * when power drops: charging remains blocked for five minutes so the
+          external controller can restart after clouds or a phase transition.
+
+        Only devices with both Allow Solar Surplus and Dynamic Power Control ON
+        participate.  The returned mapping is also exposed in diagnostics.
+        """
+        now = dt_util.utcnow()
+        solar_sensor_id = getattr(self._controller, "solar_production_sensor", None)
+        solar_w = self._read_sensor_w_opt(solar_sensor_id) if solar_sensor_id else None
+
+        eligible_keys: set[str] = set()
+        priority_devices: list[str] = []
+        blocked_devices: list[str] = []
+        phases: dict[str, str] = {}
+        max_hold_remaining = 0
+        max_yield_remaining = 0
+
+        for index, device in enumerate(self._config_entry.data.get("excluded_devices", [])):
+            sensor_id = device.get("power_sensor")
+            activity_sensor_id = device.get("activity_sensor")
+            key = f"{index}:{sensor_id or ''}"
+            if activity_sensor_id:
+                key = f"{key}:{activity_sensor_id}"
+            eligible = (
+                device.get("enabled", True)
+                and not device.get("ev_charger_no_telemetry", False)
+                and device.get("included_in_consumption", True)
+                and device.get("allow_solar_surplus", False)
+                and device.get("dynamic_power_control", False)
+                and bool(sensor_id)
+            )
+            if not eligible:
+                self._clear_dynamic_power_control_state(key)
+                continue
+
+            eligible_keys.add(key)
+            device_power = self._read_sensor_w_opt(sensor_id)
+            drawing = device_power is not None and device_power > DYNAMIC_CONTROL_ACTIVE_POWER_W
+            activity_requested = self._activity_sensor_is_active(activity_sensor_id)
+            was_drawing = self._dynamic_was_drawing.get(key, False)
+
+            if drawing:
+                priority_devices.append(sensor_id)
+                self._dynamic_hold_until[key] = now + DYNAMIC_CONTROL_HOLD
+
+                if not was_drawing:
+                    self._dynamic_yield_until[key] = now + DYNAMIC_CONTROL_INITIAL_YIELD
+                    self._dynamic_next_probe[key] = now + DYNAMIC_CONTROL_FALLBACK_PROBE
+                    if solar_w is not None:
+                        self._dynamic_solar_reference_w[key] = solar_w
+                    _LOGGER.info(
+                        "Dynamic power control for %s: %.0fW detected, yielding battery charge for %ds",
+                        sensor_id,
+                        device_power,
+                        int(DYNAMIC_CONTROL_INITIAL_YIELD.total_seconds()),
+                    )
+
+                self._dynamic_was_drawing[key] = True
+                yield_until = self._dynamic_yield_until.get(key, now)
+
+                if solar_w is not None:
+                    reference_w = self._dynamic_solar_reference_w.get(key, solar_w)
+                    if solar_w < reference_w:
+                        # Follow reductions immediately so a later recovery can
+                        # trigger a fresh yield after a cumulative 200 W rise.
+                        self._dynamic_solar_reference_w[key] = solar_w
+                    elif now < yield_until:
+                        # The external controller is already being given room;
+                        # use the newest level as the next comparison baseline.
+                        self._dynamic_solar_reference_w[key] = solar_w
+                    elif solar_w - reference_w >= DYNAMIC_CONTROL_SOLAR_STEP_W:
+                        yield_until = now + DYNAMIC_CONTROL_REYIELD
+                        self._dynamic_yield_until[key] = yield_until
+                        self._dynamic_solar_reference_w[key] = solar_w
+                        _LOGGER.debug(
+                            "Dynamic power control for %s: solar rose %.0fW, re-yielding for %ds",
+                            sensor_id,
+                            solar_w - reference_w,
+                            int(DYNAMIC_CONTROL_REYIELD.total_seconds()),
+                        )
+                else:
+                    next_probe = self._dynamic_next_probe.get(key, now)
+                    if now >= next_probe and now >= yield_until:
+                        yield_until = now + DYNAMIC_CONTROL_REYIELD
+                        self._dynamic_yield_until[key] = yield_until
+                        self._dynamic_next_probe[key] = now + DYNAMIC_CONTROL_FALLBACK_PROBE
+
+                if now < yield_until:
+                    blocked_devices.append(sensor_id)
+                    phases[sensor_id] = "yielding"
+                    max_yield_remaining = max(
+                        max_yield_remaining,
+                        int((yield_until - now).total_seconds()),
+                    )
+                else:
+                    phases[sensor_id] = "monitoring_residual"
+            elif activity_requested:
+                # The wallbox/controller says it wants power but its numeric
+                # sensor is still idle. Keep the battery out of the way until
+                # demand appears; the normal 30-second yield starts afterwards.
+                self._dynamic_was_drawing[key] = False
+                priority_devices.append(sensor_id)
+                blocked_devices.append(sensor_id)
+                phases[sensor_id] = "waiting_for_load"
+            else:
+                self._dynamic_was_drawing[key] = False
+                if activity_sensor_id:
+                    # An explicit inactive state is authoritative: unlike the
+                    # power-only fallback, there is no possible restart to hold.
+                    self._clear_dynamic_power_control_state(key)
+                    continue
+                hold_until = self._dynamic_hold_until.get(key)
+                if hold_until is not None and now < hold_until:
+                    priority_devices.append(sensor_id)
+                    blocked_devices.append(sensor_id)
+                    phases[sensor_id] = "restart_hold"
+                    max_hold_remaining = max(
+                        max_hold_remaining,
+                        int((hold_until - now).total_seconds()),
+                    )
+                else:
+                    self._clear_dynamic_power_control_state(key)
+
+        # Remove runtime state for devices deleted or made ineligible since the
+        # previous options hot-reload.
+        known_keys = set(self._dynamic_hold_until) | set(self._dynamic_yield_until)
+        for stale_key in known_keys - eligible_keys:
+            self._clear_dynamic_power_control_state(stale_key)
+
+        status = {
+            "active": bool(priority_devices),
+            "charge_blocked": bool(blocked_devices),
+            "devices": priority_devices,
+            "blocked_devices": blocked_devices,
+            "phases": phases,
+            "hold_remaining_s": max_hold_remaining,
+            "yield_remaining_s": max_yield_remaining,
+        }
+        self.dynamic_power_control_status = status
+        return status
 
     @staticmethod
     def _exclusion_factor(device: dict) -> float:
@@ -318,7 +515,10 @@ class ExternalLoads:
             if not device.get("ev_charger_no_telemetry", False):
                 continue
 
-            sensor_id = device.get("power_sensor")
+            # New entries have a dedicated activity sensor. Legacy no-telemetry
+            # entries stored that same state entity in power_sensor, so retain
+            # it as a transparent fallback indefinitely.
+            sensor_id = device.get("activity_sensor") or device.get("power_sensor")
             if not sensor_id:
                 continue
 
@@ -326,8 +526,7 @@ class ExternalLoads:
             if state is None or state.state in ("unknown", "unavailable"):
                 continue
 
-            state_lower = state.state.lower().strip()
-            is_charging = any(sub in state_lower for sub in _CHARGING_SUBSTRINGS)
+            is_charging = self._state_is_active(state)
 
             prev_charging = self._controller._ev_charging_states.get(sensor_id, False)
 

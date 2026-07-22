@@ -47,9 +47,27 @@ automation:
 
 ![Excluded device power sensor in HA](../assets/screenshots/features/load-exclusion-entities.png){ width="700"  style="display: block; margin: 0 auto;"}
 
+### Dynamic Power Control switch
+
+For a wallbox or another flexible load with its own surplus controller, standard
+Solar Surplus can still leave two controllers settled at an undesirable split:
+the battery removes export before the wallbox has a chance to ramp up. **Dynamic
+Power Control** adds a small state machine around the normal exclusion logic.
+
+The device-active / EV-charging state sensor closes the cold-start gap:
+while it requests power but the wallbox still reads 0 W, battery charging stays
+blocked so the wallbox can see the export and start. It is required for new
+Dynamic Power Control configurations; existing sensor-less entries keep their
+measured-power fallback.
+
+On first measured demand it blocks battery charging for 30 seconds. Charging may
+then resume only on the export the device left behind. A solar rise triggers a
+new 20-second yield, and a zero-power pause is held for 5 minutes so the battery
+does not prevent the device from restarting. No maximum-demand sensor is needed.
+
 ## EV charger without power telemetry
 
-For EV chargers that only expose a state sensor (no real-time power reading), a dedicated **EV charger without power telemetry** option is available. Instead of reading watts, the controller monitors the sensor state and reacts to any charging string (`Charging`, `Cargando`, etc.).
+For EV chargers that only expose a state sensor (no real-time power reading), a dedicated **EV charger without power telemetry** option is available. The same device-active / EV-charging field is used. Legacy entries that stored this state sensor in the old device-sensor field continue to work unchanged.
 
 | Phase | Battery behaviour |
 |---|---|

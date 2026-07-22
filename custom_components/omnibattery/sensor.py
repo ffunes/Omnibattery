@@ -941,9 +941,13 @@ class ConfigurationSummarySensor(SensorEntity):
         for i, dev in enumerate(excluded):
             n = i + 1
             attrs[f"excluded_device_{n}_sensor"] = dev.get("power_sensor")
+            attrs[f"excluded_device_{n}_activity_sensor"] = dev.get("activity_sensor")
             attrs[f"excluded_device_{n}_enabled"] = dev.get("enabled", True)
             attrs[f"excluded_device_{n}_included_in_consumption"] = dev.get("included_in_consumption", True)
             attrs[f"excluded_device_{n}_allow_solar_surplus"] = dev.get("allow_solar_surplus", False)
+            attrs[f"excluded_device_{n}_dynamic_power_control"] = dev.get(
+                "dynamic_power_control", False
+            )
             attrs[f"excluded_device_{n}_exclusion_pct"] = dev.get("exclusion_pct", 100)
             attrs[f"excluded_device_{n}_ev_charger_no_telemetry"] = dev.get(
                 "ev_charger_no_telemetry", False
@@ -1179,6 +1183,12 @@ class IntegrationStatusSensor(SensorEntity):
         if overrides:
             attrs["setpoint_overrides"] = overrides
         attrs["capacity_protection"] = dict(c._capacity_protection_status)
+
+        external_loads = getattr(c, "_external_loads", None)
+        if external_loads is not None:
+            dynamic_status = dict(external_loads.dynamic_power_control_status)
+            if dynamic_status.get("active"):
+                attrs["dynamic_power_control"] = dynamic_status
 
         if c.predictive_charging_enabled:
             attrs["predictive_charging_mode"] = c.predictive_charging_mode

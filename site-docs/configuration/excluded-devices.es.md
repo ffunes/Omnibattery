@@ -12,9 +12,12 @@ Si tienes un cargador de vehículo eléctrico de 7 kW y una batería de 2,5 kW, 
 
 | Campo | Descripción |
 |---|---|
-| **Sensor del dispositivo** | Entidad HA que mide la potencia del dispositivo (p. ej. `sensor.wallbox_power`), o un sensor de estado para cargadores VE sin telemetría de potencia. |
+| **Sensor de potencia del dispositivo** | Entidad HA que mide la potencia numérica del dispositivo (p. ej. `sensor.wallbox_power`). Es opcional para un cargador VE sin telemetría. |
+| **Sensor de dispositivo activo / carga del VE** | Sensor de estado o binario que indica `on`, `Charging`, `Cargando` u otro estado reconocido de carga. Es obligatorio para Control Dinámico de Potencia y para configuraciones nuevas sin telemetría; en los demás casos es opcional. |
 | **Incluido en el consumo** | Marca si tu sensor principal **ya** incluye esta carga |
 | **Permitir excedente solar** | Si está activo, la batería no cargará para compensar este dispositivo cuando hay excedente solar. También puede activarse en tiempo real desde una entidad switch (ver más abajo). |
+| **El dispositivo tiene control dinámico de potencia** | Actívalo para una carga, como una wallbox por excedente, que ajuste su propia demanda mediante un contador de red. Requiere **Permitir excedente solar**. |
+| **Cubrir el hogar mientras el dispositivo está activo** | Permite que la batería cubra el consumo real del hogar mientras solo permanece excluida la parte de red del dispositivo. Requiere **Permitir excedente solar** y un sensor de producción solar. |
 | **Cargador VE sin telemetría de potencia** | Marca si el sensor es un sensor de estado que indica `Charging`/`Cargando` en lugar de un valor en vatios. Ver [Cargador VE sin telemetría](#cargador-ve-sin-telemetría-de-potencia) más abajo. |
 
 ### ¿Incluido en el consumo?
@@ -47,6 +50,33 @@ El estado del switch se persiste en la entrada de configuración y sobrevive rei
 
 ---
 
+## Control dinámico de potencia
+
+Los dispositivos con telemetría también disponen de un switch **Control Dinámico
+de Potencia**. Está pensado para cargas flexibles, como wallboxes, que se regulan
+mediante el mismo contador de red que Omnibattery. Debe activarse junto con
+**Excedente Solar**.
+
+El **Sensor de dispositivo activo / carga del VE** permite que Omnibattery ceda
+mientras la wallbox solicita potencia pero todavía marca 0 W, evitando el bloqueo
+de arranque en el que la batería absorbe toda la exportación. Automáticamente:
+
+- bloquea la carga de batería mientras el sensor de actividad solicita potencia
+  y la wallbox todavía marca 0 W;
+- cede la carga de batería durante 30 segundos cuando el dispositivo supera 100 W;
+- deja que el regulador externo aumente potencia antes de usar el excedente restante;
+- vuelve a ceder durante 20 segundos si la producción solar aumenta al menos 200 W;
+- bloquea la carga durante 5 minutos cuando desaparece el consumo, para permitir
+  que una wallbox reinicie tras una nube o un cambio de fase;
+- realiza una comprobación cada 5 minutos si no hay sensor de producción solar.
+
+Las entradas antiguas de Control Dinámico de Potencia sin sensor de actividad
+siguen usando como fallback la primera lectura superior a 100 W. Este control no
+está disponible para el modo **Cargador VE sin telemetría de potencia**, porque
+ese modo ya gestiona la batería directamente con el mismo sensor de actividad.
+
+---
+
 ## Slider de % de exclusión
 
 La exclusión no es todo o nada. Cada dispositivo excluido tiene además un slider de **% de exclusión** (`<dispositivo> – Exclusion %`, `number.*_exclusion_pct`, 0–100 %, por defecto `100`) que controla **cuánta** de su demanda se mantiene fuera de la batería:
@@ -63,7 +93,12 @@ Esto permite que la batería cubra *parte* de una carga grande en vez de todo o 
 
 Algunas integraciones de cargadores de vehículo eléctrico no exponen un sensor de potencia en tiempo real — solo informan del **estado de carga** (p. ej. `Charging`, `Idle`, `Disconnected`). Esta opción está diseñada para esos cargadores.
 
-Cuando está activa, el campo **Sensor del dispositivo** debe apuntar a la entidad de estado, no a un sensor de potencia. El controlador reconoce cualquier estado que contenga `charg` o `cargand` (sin distinguir mayúsculas), lo que cubre:
+En configuraciones nuevas, selecciona la entidad de estado en **Sensor de
+dispositivo activo / carga del VE**; el sensor numérico de potencia puede quedar
+vacío. Las configuraciones existentes que guardaron la entidad de estado en
+**Sensor de potencia del dispositivo** siguen siendo totalmente compatibles y
+se precargan automáticamente al editarlas. Se reconoce el estado binario `on` y
+palabras de carga sin distinguir mayúsculas, lo que cubre:
 
 - `Charging` (la mayoría de integraciones en inglés)
 - `Cargando`, `Cargando VE`, `Cargando Vehículo` (español)

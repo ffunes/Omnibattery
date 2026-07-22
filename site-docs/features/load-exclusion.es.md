@@ -47,9 +47,29 @@ automation:
 
 ![Sensor de potencia de dispositivo excluido en HA](../assets/screenshots/features/load-exclusion-entities.png){ width="700"  style="display: block; margin: 0 auto;"}
 
+### Switch de control dinámico de potencia
+
+Con una wallbox u otra carga flexible que tenga su propio regulador de excedente,
+el modo Excedente Solar estándar todavía puede dejar ambos controladores en un
+reparto no deseado: la batería elimina la exportación antes de que la wallbox
+pueda aumentar potencia. **Control Dinámico de Potencia** añade una pequeña máquina
+de estados alrededor de la exclusión normal.
+
+El sensor de dispositivo activo / carga del VE resuelve el bloqueo de
+arranque: mientras solicita potencia pero la wallbox todavía marca 0 W, la carga
+de batería permanece bloqueada para que la wallbox vea la exportación y arranque.
+Es obligatorio en nuevas configuraciones de Control Dinámico de Potencia; las
+entradas antiguas sin él conservan el fallback por potencia medida.
+
+Al detectar consumo por primera vez bloquea la carga de batería durante 30
+segundos. Después la batería solo puede aprovechar la exportación que el
+dispositivo deje libre. Una subida solar provoca una nueva cesión de 20 segundos
+y una pausa a 0 W se mantiene durante 5 minutos para no impedir el reinicio del
+dispositivo. No exige ningún sensor de potencia máxima.
+
 ## Cargador VE sin telemetría de potencia
 
-Para cargadores VE que solo exponen un sensor de estado (sin lectura de potencia en tiempo real), existe la opción **Cargador VE sin telemetría de potencia**. En lugar de leer vatios, el controlador monitoriza el estado del sensor y reacciona ante cualquier cadena de carga (`Charging`, `Cargando`, etc.).
+Para cargadores VE que solo exponen un sensor de estado (sin lectura de potencia en tiempo real), existe la opción **Cargador VE sin telemetría de potencia**. Se utiliza el mismo campo de dispositivo activo / carga del VE. Las entradas antiguas que guardaron ese estado en el campo anterior de sensor del dispositivo siguen funcionando sin cambios.
 
 | Fase | Comportamiento de la batería |
 |---|---|

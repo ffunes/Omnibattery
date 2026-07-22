@@ -1,9 +1,10 @@
 # Changelog
 
-## [1.0.1b6] - 2026-07-21
+## [1.0.1b6] - 2026-07-22
 
 ### Added
 - **Official Home Assistant Nord Pool support for dynamic pricing**: the existing Nordpool provider now detects official-integration entities, requests today's slots through `nordpool.get_prices_for_date`, selects the entity's market area, converts the service's currency/MWh response to currency/kWh and refreshes it hourly. Existing HACS Nordpool sensors continue using `raw_today` / `raw_tomorrow` without configuration changes.
+- **Dynamic power control for telemetry excluded devices**: a new per-device setup option and runtime switch lets flexible loads such as self-regulating wallboxes claim changing PV surplus before battery charging. It uses the existing device power sensor, yields battery charge on startup and meaningful solar rises, holds short device pauses for five minutes, and then lets the battery absorb genuine residual export. A shared device-active / EV-charging state sensor closes the cold-start gap before measured demand appears and also serves new no-telemetry EV setups; legacy no-telemetry setups that stored their state sensor in the old device-sensor field remain fully compatible. The existing Cover Home setting is now also available in both the initial and options flows.
 
 ### Fixed
 - **HACS Nordpool sensors configured to display cents were treated as major currency units**: `price_in_cents: true` is now detected explicitly and both forecast slots and the live price are normalized to major currency/kWh before scheduling, threshold checks, arbitrage calculations and diagnostics. The HACS energy scale (`MWh`, `kWh` or `Wh`) is normalized at the same boundary, so Omnibattery thresholds consistently remain in currency/kWh.

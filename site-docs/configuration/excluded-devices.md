@@ -12,9 +12,12 @@ If you have a 7 kW EV charger and a 2.5 kW battery, without exclusion the batter
 
 | Field | Description |
 |---|---|
-| **Device sensor** | HA entity measuring the device's power (e.g. `sensor.wallbox_power`), or a state sensor for EV chargers without power telemetry. |
+| **Device power sensor** | HA entity measuring the device's numeric power (e.g. `sensor.wallbox_power`). Optional for an EV charger without power telemetry. |
+| **Device active / EV charging sensor** | State or binary sensor that reports `on`, `Charging`, `Cargando`, or another recognised charging state. Required by Dynamic Power Control and by new no-telemetry configurations; otherwise optional. |
 | **Included in consumption** | Check if your main sensor **already** includes this load |
 | **Allow solar surplus** | If enabled, the battery will not charge to compensate this device when there is a solar surplus. Can also be toggled at runtime via a switch entity (see below). |
+| **Device has dynamic power control** | Enable for a load such as a surplus-controlled wallbox that adjusts its own demand from a grid meter. Requires **Allow solar surplus**. |
+| **Cover home while device is active** | Allow the battery to cover genuine household load while only the device's grid share remains excluded. Requires **Allow solar surplus** and a solar-production sensor. |
 | **EV charger without power telemetry** | Check if the sensor is a state sensor that reads `Charging` (or a localised equivalent) instead of a watt value. See [EV charger without power telemetry](#ev-charger-without-power-telemetry) below. |
 
 ### Included in consumption?
@@ -47,6 +50,32 @@ The switch state is persisted in the config entry and survives restarts.
 
 ---
 
+## Dynamic power control
+
+Telemetry devices also get a **Dynamic Power Control** switch. It is designed
+for flexible loads such as wallboxes that regulate themselves from the same
+grid meter as Omnibattery. Enable it together with **Solar Surplus**.
+
+The **Device active / EV charging sensor** lets Omnibattery yield while the wallbox is requesting
+power but still reads 0 W, avoiding the cold-start deadlock where the battery
+absorbs all export before the wallbox starts. Omnibattery automatically:
+
+- blocks battery charging while the optional activity sensor requests power but
+  the wallbox still reads 0 W;
+- yields battery charging for 30 seconds when device demand rises above 100 W;
+- lets the external controller ramp up before the battery takes residual export;
+- yields again for 20 seconds after solar production rises by at least 200 W;
+- keeps battery charging blocked for 5 minutes after device power falls, allowing
+  a wallbox to restart after a cloud or phase transition;
+- probes every 5 minutes when no solar-production sensor is available.
+
+Legacy sensor-less Dynamic Power Control entries still fall back to detection at
+the first measured load above 100 W. Dynamic Power Control is not available for
+the state-only **EV charger without power telemetry** mode because that mode
+already manages the battery directly from the same activity sensor.
+
+---
+
 ## Exclusion % slider
 
 Exclusion is not all-or-nothing. Each excluded device also gets an **Exclusion %** slider (`<device> – Exclusion %`, `number.*_exclusion_pct`, 0–100 %, default `100`) controlling **how much** of its demand stays off the battery:
@@ -63,7 +92,11 @@ This lets the battery cover *part* of a big load instead of all-or-nothing — f
 
 Some EV charger integrations do not expose a real-time power sensor — they only report a **charging state** (e.g. `Charging`, `Idle`, `Disconnected`). This option is designed for those chargers.
 
-When enabled, the **Device sensor** field must point to the state entity, not a power sensor. The controller recognises any state that contains `charg` or `cargand` (case-insensitive), covering:
+For new configurations, select the state entity in **Device active / EV charging
+sensor**; the numeric power sensor may be left empty. Existing configurations
+that stored the state entity in **Device power sensor** remain fully supported
+and are prefilled automatically when edited. Binary state `on` and charging
+words are recognised case-insensitively, covering:
 
 - `Charging` (most English-language integrations)
 - `Cargando`, `Cargando VE`, `Cargando Vehículo` (Spanish)

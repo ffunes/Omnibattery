@@ -1811,6 +1811,23 @@ class ChargeDischargeController:
         else:
             self.remove_discharge_block("ev_charging")
 
+    def _refresh_dynamic_power_control_block(self) -> None:
+        """Let self-regulating excluded loads react before battery charging."""
+        status = self._external_loads.refresh_dynamic_power_control()
+        if status["charge_blocked"]:
+            self.set_charge_block(
+                "excluded_device_dynamic_power_control",
+                "dynamic_power_control",
+                {
+                    "devices": ",".join(status["blocked_devices"]),
+                    "phases": status["phases"],
+                    "hold_remaining_s": status["hold_remaining_s"],
+                    "yield_remaining_s": status["yield_remaining_s"],
+                },
+            )
+        else:
+            self.remove_charge_block("excluded_device_dynamic_power_control")
+
     def _refresh_operation_blockers(self) -> None:
         """Refresh all runtime operation blockers for the current control cycle."""
         if (
@@ -1832,6 +1849,7 @@ class ChargeDischargeController:
         self._refresh_time_slot_blocks()
         self._apply_price_discharge_block()
         self._refresh_ev_blocks()
+        self._refresh_dynamic_power_control_block()
         self._refresh_user_battery_blocks()
         self._refresh_normal_balance_blocks()
         self._refresh_battery_charge_limit_blocks()

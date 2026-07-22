@@ -1153,13 +1153,33 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Step 8: Add an excluded device configuration."""
+        errors: dict[str, str] = {}
         if user_input is not None:
+            ev_no_telemetry = user_input.get("ev_charger_no_telemetry", False)
+            dynamic_power_control = user_input.get("dynamic_power_control", False)
+            power_sensor = user_input.get("power_sensor") or None
+            activity_sensor = user_input.get("activity_sensor") or None
+            if ev_no_telemetry:
+                # Existing entries used power_sensor for this state entity.
+                # New entries store it explicitly; runtime keeps the fallback.
+                activity_sensor = activity_sensor or power_sensor
+                if not activity_sensor:
+                    errors["activity_sensor"] = "missing_activity_sensor"
+            elif not power_sensor:
+                errors["power_sensor"] = "missing_power_sensor"
+            if dynamic_power_control and not activity_sensor:
+                errors["activity_sensor"] = "missing_activity_sensor"
+
+        if user_input is not None and not errors:
             # Save the excluded device
             excluded_device = {
-                "power_sensor": user_input["power_sensor"],
+                "power_sensor": power_sensor,
+                "activity_sensor": activity_sensor,
                 "included_in_consumption": user_input.get("included_in_consumption", True),
                 "allow_solar_surplus": user_input.get("allow_solar_surplus", False),
-                "ev_charger_no_telemetry": user_input.get("ev_charger_no_telemetry", False),
+                "dynamic_power_control": dynamic_power_control,
+                "cover_home_when_active": user_input.get("cover_home_when_active", False),
+                "ev_charger_no_telemetry": ev_no_telemetry,
             }
             self.excluded_devices.append(excluded_device)
 
@@ -1176,10 +1196,14 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             step_id="add_excluded_device",
             data_schema=vol.Schema(
                 {
-                    vol.Required("power_sensor"):
+                    vol.Optional("power_sensor"):
                         EntitySelector(EntitySelectorConfig(domain="sensor")),
+                    vol.Optional("activity_sensor"):
+                        EntitySelector(EntitySelectorConfig(domain=["sensor", "binary_sensor"])),
                     vol.Required("included_in_consumption", default=True): bool,
                     vol.Optional("allow_solar_surplus", default=False): bool,
+                    vol.Optional("dynamic_power_control", default=False): bool,
+                    vol.Optional("cover_home_when_active", default=False): bool,
                     vol.Optional("ev_charger_no_telemetry", default=False): bool,
                 }
             ),
@@ -1187,6 +1211,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 "device_num": str(device_num),
                 "description": f"Configure excluded device {device_num}"
             },
+            errors=errors or None,
         )
 
     async def async_step_add_more_excluded_devices(
@@ -2732,13 +2757,31 @@ class OptionsFlowHandler(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Add an excluded device configuration."""
+        errors: dict[str, str] = {}
         if user_input is not None:
+            ev_no_telemetry = user_input.get("ev_charger_no_telemetry", False)
+            dynamic_power_control = user_input.get("dynamic_power_control", False)
+            power_sensor = user_input.get("power_sensor") or None
+            activity_sensor = user_input.get("activity_sensor") or None
+            if ev_no_telemetry:
+                activity_sensor = activity_sensor or power_sensor
+                if not activity_sensor:
+                    errors["activity_sensor"] = "missing_activity_sensor"
+            elif not power_sensor:
+                errors["power_sensor"] = "missing_power_sensor"
+            if dynamic_power_control and not activity_sensor:
+                errors["activity_sensor"] = "missing_activity_sensor"
+
+        if user_input is not None and not errors:
             # Save the excluded device
             excluded_device = {
-                "power_sensor": user_input["power_sensor"],
+                "power_sensor": power_sensor,
+                "activity_sensor": activity_sensor,
                 "included_in_consumption": user_input.get("included_in_consumption", True),
                 "allow_solar_surplus": user_input.get("allow_solar_surplus", False),
-                "ev_charger_no_telemetry": user_input.get("ev_charger_no_telemetry", False),
+                "dynamic_power_control": dynamic_power_control,
+                "cover_home_when_active": user_input.get("cover_home_when_active", False),
+                "ev_charger_no_telemetry": ev_no_telemetry,
             }
             self.excluded_devices.append(excluded_device)
 
@@ -2758,22 +2801,46 @@ class OptionsFlowHandler(OptionsFlow):
             default_sensor = current_device.get("power_sensor", "")
             default_included = current_device.get("included_in_consumption", True)
             default_allow_solar_surplus = current_device.get("allow_solar_surplus", False)
+            default_dynamic_power_control = current_device.get("dynamic_power_control", False)
+            default_cover_home = current_device.get("cover_home_when_active", False)
             default_ev_no_telemetry = current_device.get("ev_charger_no_telemetry", False)
+            default_activity_sensor = current_device.get("activity_sensor", "")
+            if default_ev_no_telemetry and not default_activity_sensor:
+                # Legacy no-telemetry entries stored their state entity in the
+                # power_sensor field. Show it in the new field automatically.
+                default_activity_sensor = default_sensor
         else:
             default_sensor = ""
             default_included = True
             default_allow_solar_surplus = False
+            default_dynamic_power_control = False
+            default_cover_home = False
             default_ev_no_telemetry = False
+            default_activity_sensor = ""
 
         device_num += 1
+        power_sensor_field = (
+            vol.Optional("power_sensor", default=default_sensor)
+            if default_sensor
+            else vol.Optional("power_sensor")
+        )
+        activity_sensor_field = (
+            vol.Optional("activity_sensor", default=default_activity_sensor)
+            if default_activity_sensor
+            else vol.Optional("activity_sensor")
+        )
         return self.async_show_form(
             step_id="add_excluded_device",
             data_schema=vol.Schema(
                 {
-                    vol.Required("power_sensor", default=default_sensor):
+                    power_sensor_field:
                         EntitySelector(EntitySelectorConfig(domain="sensor")),
+                    activity_sensor_field:
+                        EntitySelector(EntitySelectorConfig(domain=["sensor", "binary_sensor"])),
                     vol.Required("included_in_consumption", default=default_included): bool,
                     vol.Optional("allow_solar_surplus", default=default_allow_solar_surplus): bool,
+                    vol.Optional("dynamic_power_control", default=default_dynamic_power_control): bool,
+                    vol.Optional("cover_home_when_active", default=default_cover_home): bool,
                     vol.Optional("ev_charger_no_telemetry", default=default_ev_no_telemetry): bool,
                 }
             ),
@@ -2781,6 +2848,7 @@ class OptionsFlowHandler(OptionsFlow):
                 "device_num": str(device_num),
                 "description": f"Configure special device {device_num}"
             },
+            errors=errors or None,
         )
 
     async def async_step_add_more_excluded_devices(
