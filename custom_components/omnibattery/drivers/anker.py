@@ -1,9 +1,15 @@
-"""Anker SOLIX Solarbank Max AC Modbus TCP driver.
+"""Anker SOLIX Solarbank Modbus TCP driver.
 
-Implements :class:`BatteryDriver` for the Solarbank Max AC over Modbus TCP.
+Implements :class:`BatteryDriver` for Solarbank Max AC, Solarbank 4 E5000 Pro,
+and Solarbank XE AC over Modbus TCP (identical register map; identity differs
+only by product code).
 
 Register map source of truth (FC03/FC04 batch ranges and write addresses):
 https://raw.githubusercontent.com/anker-charging/ha-anker-solix-official/refs/heads/main/custom_components/anker_solix_official/config/8fcbb87c685781b1d70d784a79eb923098955df2aaf199095ce7767bb70b913d.yaml
+(Solarbank Max AC; also aliases XE AC)
+
+https://raw.githubusercontent.com/anker-charging/ha-anker-solix-official/refs/heads/main/custom_components/anker_solix_official/config/58f0132b5f7979b2cfa43a0eb1fca770053288032386ff6a4da5ed2d72d4ea35.yaml
+(Solarbank 4 E5000 Pro — same map below ``product_info``)
 
 Sign conventions:
   Omnibattery net power: +charge / −discharge
@@ -36,8 +42,23 @@ _ADDR_CHARGE_SOC_LIMIT = 60000
 _ADDR_DISCHARGE_SOC_LIMIT = 60001
 _ADDR_BATTERY_SOC = 10014
 
+# Family continuous envelope (Max AC). Live caps come from 10036/10038; this is
+# only an upper clamp so peak/aggregate readings cannot inflate PD limits.
 _HW_MAX_POWER_W = 3500
 _MIN_OPERATING_POWER_W = 100
+
+# Official product_code_mapping (Max AC YAML + E5000 Pro YAML).
+_PRODUCT_LABELS: dict[str, str] = {
+    "DN7M": "Solarbank 4 E5000 Pro",
+    "DPM4": "Solarbank 4 E5000 Pro",
+    "DMWH": "Solarbank Max AC",
+    "DMXU": "Solarbank Max AC",
+    "E25H": "Solarbank Max AC",
+    "DNMS": "Solarbank XE AC",
+    "DPP4": "Solarbank XE AC",
+    "DNN3": "Solarbank XE AC",
+}
+_DEFAULT_MODEL_LABEL = "Solarbank Max AC"
 
 # Normalize Anker's battery-status codes to the shared Marstek inverter-state
 # contract consumed by the controller and dashboard.
@@ -68,6 +89,8 @@ _BATCH_READ_RANGES: dict[str, list[tuple[int, int]]] = {
 # Fields decoded from batch buffers. register_type must match the YAML range.
 # invert: negate value to Omnibattery +charge/−discharge convention.
 _FIELD_SPECS: list[dict] = [
+    {"key": "device_model", "address": 32768, "register_type": "input",
+     "data_type": "char", "count": 5},
     {"key": "battery_status", "address": 10001, "register_type": "input",
      "data_type": "uint16", "count": 1},
     {"key": "battery_power", "address": 10008, "register_type": "input",
@@ -207,8 +230,16 @@ def _clamp_soc(value: float, lo: int, hi: int) -> int:
     return max(lo, min(hi, int(round(value))))
 
 
+def _label_for_product_code(code: Optional[str]) -> str:
+    """Map an official product code to a short model label."""
+    if not code:
+        return _DEFAULT_MODEL_LABEL
+    key = str(code).strip().upper()
+    return _PRODUCT_LABELS.get(key, _DEFAULT_MODEL_LABEL)
+
+
 class AnkerModbusDriver(BatteryDriver):
-    """Modbus TCP driver for Anker SOLIX Solarbank Max AC."""
+    """Modbus TCP driver for Anker SOLIX Solarbank Max AC / 4 E5000 Pro / XE AC."""
 
     def __init__(
         self,
@@ -225,6 +256,7 @@ class AnkerModbusDriver(BatteryDriver):
         self._slave_id = slave_id
         self._client = client or AnkerModbusClient(host, port, slave_id=slave_id)
         self._last_net_power_w: Optional[int] = None
+        self._product_code: Optional[str] = None
         self._dynamic_max_charge_w = _HW_MAX_POWER_W
         self._dynamic_max_discharge_w = _HW_MAX_POWER_W
         # User limits are enforced upstream; capability envelope is hardware max.
@@ -277,7 +309,7 @@ class AnkerModbusDriver(BatteryDriver):
 
     @property
     def model_label(self) -> Optional[str]:
-        return "Solarbank Max AC"
+        return _label_for_product_code(self._product_code)
 
     @property
     def sensor_definitions(self) -> list[dict]:
@@ -332,7 +364,18 @@ class AnkerModbusDriver(BatteryDriver):
         # leave Solix app modes alone without reconnect fighting them.
         self._last_net_power_w = None
         self._client.unit_id = self._slave_id
+        await self._refresh_product_code()
         return True
+
+    async def _refresh_product_code(self) -> None:
+        """Read device_model (input 32768, 5 regs) for product-code → label."""
+        regs = await self._client.async_read_input_block(32768, 5)
+        if not regs:
+            return
+        value = decode_registers(regs, "char")
+        if isinstance(value, str) and value.strip():
+            code = value.strip().upper()
+            self._product_code = code[:4] if len(code) >= 4 else code
 
     async def close(self) -> None:
         await self._client.async_close()
@@ -379,10 +422,14 @@ class AnkerModbusDriver(BatteryDriver):
                 if field.get("invert"):
                     value = -int(value)
                 snapshot[field["key"]] = value
+                if field["key"] == "device_model" and isinstance(value, str) and value:
+                    # Official product codes are short SKUs prefixes (e.g. DN7M).
+                    code = value.strip().upper()
+                    self._product_code = code[:4] if len(code) >= 4 else code
                 if field["key"] == "max_charge_power" and isinstance(value, (int, float)):
-                    # Cap at the static envelope so peak/aggregate readings
-                    # (e.g. 7000 W) do not inflate the PD clamp beyond the
-                    # Solarbank Max AC continuous rating.
+                    # Cap at the static family envelope so peak/aggregate readings
+                    # (e.g. 7000 W) do not inflate the PD clamp beyond continuous
+                    # rating; live 10036/10038 still set the effective device cap.
                     capped = max(0, min(_HW_MAX_POWER_W, int(value)))
                     snapshot[field["key"]] = capped or _HW_MAX_POWER_W
                     self._dynamic_max_charge_w = snapshot[field["key"]]

@@ -6,7 +6,7 @@
 
 - Marstek Venus E and C (v2 and v3), Venus D and Venus A via Modbus TCP
 - Zendure Solarflow 2400 AC+, Solarflow 2400 Pro (Local API)
-- Anker SOLIX Solarbank Max AC via Modbus TCP
+- Anker SOLIX Solarbank Max AC and Solarbank 4 E5000 Pro via Modbus TCP
 
 It provides advanced energy management features including predictive grid charging, customizable time slots for discharge control, and device load exclusion logic.
 
@@ -52,8 +52,8 @@ Full documentation (configuration, features, entities, troubleshooting) is avail
 
 | Requirement | Details |
 |---|---|
-| Battery | Marstek Venus E v2/v3, Venus A, Venus D, Zendure Solarflow 2400 AC+, Solarflow 2400 Pro, Anker SOLIX Solarbank Max AC |
-| Modbus bridge | Elfin-EW11 or compatible RS485-to-TCP converter. Venus E v3, Venus A and Venus D can also be connected via Ethernet with native Modbus TCP support. Anker Solarbank Max AC uses native Modbus TCP (enable in the Anker app under Third-Party Control; only one Modbus client at a time). |
+| Battery | Marstek Venus E v2/v3, Venus A, Venus D, Zendure Solarflow 2400 AC+, Solarflow 2400 Pro, Anker SOLIX Solarbank Max AC / 4 E5000 Pro |
+| Modbus bridge | Elfin-EW11 or compatible RS485-to-TCP converter. Venus E v3, Venus A and Venus D can also be connected via Ethernet with native Modbus TCP support. Anker Solarbank Max AC and 4 E5000 Pro use native Modbus TCP (enable in the Anker app under Third-Party Control; only one Modbus client at a time). |
 | Wireless connection | Required for Zendure Solarflow 2400 AC+ and Solarflow 2400 Pro |
 | Grid sensor | HA sensor measuring total grid consumption (e.g. Shelly EM3, Neurio, smart meter) |
 | Network | Battery reachable by IP from Home Assistant |
