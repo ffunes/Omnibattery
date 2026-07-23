@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.1b7] - 2026-07-23
+
+### Fixed
+- **A battery stuck in Standby could reconnect forever without reaching final non-responsive exclusion** (#26): the recovery-only Standby write now preserves the active failure episode and its one-shot wake budget, so a battery that still does not discharge is excluded after the second threshold instead of restarting the cycle. Charging power can no longer be mistaken for delivered discharge, failed RS485 re-enables are reported as unsuccessful wake attempts, and cooldown diagnostics no longer show an expired battery as still excluded. Thanks to @engelsofta.
+- **Healthy BMS reads could hide failed inverter and control telemetry** (#26): safety-critical register groups are now tracked independently and trigger one fresh reconnect after three consecutive failures. A fresh client forces every telemetry group to refresh, without restoring the issue #77 beta queued-gateway workarounds.
+
 ## [1.0.1b6] - 2026-07-22
 
 ### Added
