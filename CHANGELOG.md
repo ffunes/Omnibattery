@@ -1,64 +1,34 @@
 # Changelog
 
-## [1.0.1b7] - 2026-07-23
+## [1.0.1rc1] - 2026-07-23
 
-### Fixed
-- **A battery stuck in Standby could reconnect forever without reaching final non-responsive exclusion** (#26): the recovery-only Standby write now preserves the active failure episode and its one-shot wake budget, so a battery that still does not discharge is excluded after the second threshold instead of restarting the cycle. Charging power can no longer be mistaken for delivered discharge, failed RS485 re-enables are reported as unsuccessful wake attempts, and cooldown diagnostics no longer show an expired battery as still excluded. Thanks to @engelsofta.
-- **Healthy BMS reads could hide failed inverter and control telemetry** (#26): safety-critical register groups are now tracked independently and trigger one fresh reconnect after three consecutive failures. A fresh client forces every telemetry group to refresh, without restoring the issue #77 beta queued-gateway workarounds.
-
-## [1.0.1b6] - 2026-07-22
+*Consolidates 1.0.1b1–1.0.1b7.*
 
 ### Added
-- **Official Home Assistant Nord Pool support for dynamic pricing**: the existing Nordpool provider now detects official-integration entities, requests today's slots through `nordpool.get_prices_for_date`, selects the entity's market area, converts the service's currency/MWh response to currency/kWh and refreshes it hourly. Existing HACS Nordpool sensors continue using `raw_today` / `raw_tomorrow` without configuration changes.
-- **Dynamic power control for telemetry excluded devices**: a new per-device setup option and runtime switch lets flexible loads such as self-regulating wallboxes claim changing PV surplus before battery charging. It uses the existing device power sensor, yields battery charge on startup and meaningful solar rises, holds short device pauses for five minutes, and then lets the battery absorb genuine residual export. A shared device-active / EV-charging state sensor closes the cold-start gap before measured demand appears and also serves new no-telemetry EV setups; legacy no-telemetry setups that stored their state sensor in the old device-sensor field remain fully compatible. The existing Cover Home setting is now also available in both the initial and options flows.
-
-### Fixed
-- **HACS Nordpool sensors configured to display cents were treated as major currency units**: `price_in_cents: true` is now detected explicitly and both forecast slots and the live price are normalized to major currency/kWh before scheduling, threshold checks, arbitrage calculations and diagnostics. The HACS energy scale (`MWh`, `kWh` or `Wh`) is normalized at the same boundary, so Omnibattery thresholds consistently remain in currency/kWh.
-- **Solar Charge Delay unlocked too early when only its 30% safety cushion was missing** (#137): when the remaining net solar still covers the battery's bare energy need, price-driven predictive modes now hold the delay until the cheapest feasible hour, bounded by both the unfactored energy-balance crossing and the time-backup edge. Genuine energy deficits still unlock immediately, as do setups without usable price data or a price-driven mode. Thanks to @syphernl.
-- **Time-slot naming in the configuration and options flows**: renamed the section from "Discharge time slots" to "Time slots" because each slot can independently control both charging and discharging. Updated all six translations, dashboard help text, and the English and Spanish documentation to use the same terminology.
-
-## [1.0.1b5] - 2026-07-20
-
-### Added
-- **Optional minimum arbitrage margin for dynamic pricing** (#115): charging slots can now be filtered by the expected discharge price, a configurable round-trip efficiency and the required minimum margin, avoiding battery cycles whose price spread would not cover conversion losses. It is disabled by default and combines with the existing maximum charge-price threshold, with the stricter ceiling taking precedence; both new settings are available from the Control tab and evaluation notifications explain when the gate blocks charging. Thanks to @syphernl.
 - **Anker SOLIX Solarbank Max AC driver**: adds native Modbus TCP support for monitoring and controlling the Solarbank Max AC through the same Omnibattery control loop, dashboard and Home Assistant entities as the other supported batteries. Thanks to Wouter Bouvy.
 - **Daily charge/discharge energy for Anker Solarbank Max AC**: derives per-battery daily counters from the hardware lifetime totals, restores the current day's value across Home Assistant restarts and safely rebases if the device counter resets. System daily-energy aggregates and dashboard cards now receive real Anker values instead of falling back to zero.
+- **Official Home Assistant Nord Pool support for dynamic pricing**: the existing Nordpool provider detects official-integration entities, requests today's slots through `nordpool.get_prices_for_date`, selects the entity's market area, converts currency/MWh to currency/kWh and refreshes hourly. Existing HACS Nordpool sensors continue using `raw_today` / `raw_tomorrow` without configuration changes.
+- **Dynamic power control for telemetry excluded devices**: a new per-device setup option and runtime switch lets flexible loads such as self-regulating wallboxes claim changing PV surplus before battery charging. A shared device-active / EV-charging state sensor closes the cold-start gap before measured demand appears and also serves new no-telemetry EV setups; legacy configurations remain compatible. Cover Home is now available in both the initial and options flows.
+- **Optional minimum arbitrage margin for dynamic pricing** (#115): charging slots can be filtered by expected discharge price, round-trip efficiency and the required minimum margin, avoiding cycles whose price spread would not cover conversion losses. It is disabled by default and combines with the existing maximum charge-price threshold. Thanks to @syphernl.
 
 ### Changed
-- **Rolled back the issue #77 beta gateway workarounds**: the reporter confirmed that switching the Waveshare gateway to multi-host non-storage mode eliminated the communication failures. The queued-gateway compatibility added in the 1.0.1 betas has been removed; the tolerant power ACK remains unchanged from the published 1.0.0 release.
-- **Kept all fixes consolidated in 1.0.1b1 through the gateway rollback**, including peak-shaving idle enforcement, commanded-charge gating for top-of-charge cutoff detection, post-taper non-responsive recovery and predictive schedule sizing capped by real battery headroom. The Home Assistant startup background-task fix and verified Venus v3 RS485 switch transitions also remain.
+- **Backup offgrid threshold range extended to 2500 W**: setup, options and the runtime Number entity now expose the same range, so large permanent offgrid loads can be configured consistently.
+- **Time-slot naming unified**: the configuration and options flows, dashboard help and documentation now call them “Time slots”, reflecting that each can independently control both charging and discharging.
 
 ### Fixed
-- **Venus A/D battery card mixed AC output with cell flow** (#93): the per-battery view now shows AC input/output and net battery charge/discharge separately, including the total MPPT contribution. The inverter-state chip is explicitly labelled as inverter mode, so simultaneous AC supply and DC battery charging no longer appear contradictory.
-- **Anker telemetry now satisfies the shared control contract**: `internal_temperature` aliases the device temperature so thermal derating works, `ac_power` is derived with the common sign convention so daily home energy includes the Solarbank, and `inverter_state` is normalized from battery status for BMS-cutoff and non-delivery diagnostics. Existing Anker sensor entity IDs remain available.
-- **PD could remain unable to charge at minimum SOC with a slow or temporarily stalled grid sensor** (#117): stale safety recalculations no longer erase an armed charge/discharge direction-flip timer. Grid sensors updating every 10 seconds or more are now explicitly unsupported in setup guidance and raise a Home Assistant Repairs issue after three consecutive slow intervals; the issue clears after the sensor returns to a supported cadence. Thanks to @syphernl.
-
-## [1.0.1b4] - 2026-07-18
-
-### Fixed
-- **Queued Modbus gateway compatibility reworked** (#77): the opt-in now sends each request once with a widened response window and no transaction-ID resend at any layer (both the transport and the control-loop retry send once), and re-asserts the setpoint each control cycle so a dropped write self-heals like the legacy MVEM path — fixing the transaction-ID mismatch flood on shared TCP-to-RTU gateways.
-
-## [1.0.1b3] - 2026-07-18
-
-### Fixed
-- **Slow Modbus gateways no longer block Home Assistant startup**: control cycles now run as background tasks, so a cycle stuck in gateway retries can't delay the rest of the boot ("Something is blocking Home Assistant from wrapping up the start up phase").
-
-## [1.0.1b2] - 2026-07-17
-
-### Fixed
-- **RS485 Control Mode switch could get stuck in either direction on Venus v3 batteries** (#92): switching it from OFF to ON now closes and recreates the battery connection before enabling RS485; both transitions use the RS485-specific command and read back register 42000 to confirm the requested state instead of trusting the write acknowledgement.
-- **Queued Modbus gateway compatibility now restores the proven MVEM retry path** (#77): the per-battery opt-in sends each request once per transaction ID with the normal response timeout, then retries failed, timed-out or incomplete transactions up to three times with a fresh ID. This keeps same-ID resends out of queued TCP-to-RTU gateways without giving up MVEM's recovery from occasional short or missing replies.
-
-## [1.0.1b1] - 2026-07-17
-
-### Added
-- **Experimental queued Modbus gateway compatibility** (#77): Venus v2 TCP connections can opt in per battery to send each transaction only once while keeping the full response window open. The default remains unchanged for direct connections, Elfin EW11 and every other v2 setup; enable the option only to test gateways that may queue pymodbus's same-ID resends as independent RTU requests.
-
-### Fixed
-- **Peak shaving could retain a small grid-charge command while conserving**: when SOC was below the peak-shaving threshold and household demand was below the peak limit, conservation stopped an existing discharge but left an existing charge command latched. The controller now forces the battery fully idle in this state while continuing to allow genuine solar-surplus charging.
-- **Charge stuck at the top voltage with the SOC below 100%** (voltage taper): an idle battery reads the same ≤10 W + Standby as a real BMS cutoff, which falsely latched the top-of-charge pause; the cutoff now only counts when we actually commanded the charge.
-- **Battery stayed in Standby after a tapered full charge without being detected** (#26): once the discharge engage grace expires, an ACKed command that still delivers no power now reaches the wake/reconnect and non-responsive exclusion flow.
-- **Dynamic pricing selected more charging slots than the battery could store** (discussion #87): charging hours are now calculated from the planned grid energy capped by the real per-battery headroom to `max_soc`, rather than the full household deficit. The same value drives the schedule and predictive SOC targets, including the configured grid-charge margin.
+- **A battery stuck in Standby could reconnect forever without reaching final non-responsive exclusion** (#26): recovery-only Standby writes now preserve the active failure episode and one-shot wake budget, so an unresponsive battery is excluded after the second threshold instead of restarting the cycle. Charging power can no longer be mistaken for delivered discharge, failed RS485 re-enables are reported as unsuccessful wake attempts, and cooldown diagnostics no longer show expired exclusions. Thanks to @engelsofta.
+- **Healthy BMS reads could hide failed inverter and control telemetry** (#26): safety-critical register groups are tracked independently and trigger one fresh reconnect after three consecutive failures.
+- **HACS Nordpool sensors configured to display cents were treated as major currency units**: `price_in_cents` and the energy scale (`MWh`, `kWh` or `Wh`) are normalized before scheduling, threshold checks, arbitrage calculations and diagnostics.
+- **Solar Charge Delay unlocked too early when only its 30% safety cushion was missing** (#137): price-driven predictive modes now hold the delay until the cheapest feasible hour when the remaining net solar still covers the bare battery need; genuine energy deficits still unlock immediately. Thanks to @syphernl.
+- **Venus A/D battery card mixed AC output with cell flow** (#93): the per-battery view now separates AC input/output from net cell charge/discharge, including MPPT contribution, and labels the inverter state explicitly. Thanks to @syphernl.
+- **Anker telemetry now satisfies the shared control contract**: it exposes the correct temperature, AC-power sign convention and normalized inverter state for thermal derating, daily home energy, BMS-cutoff and non-delivery diagnostics.
+- **PD could remain unable to charge at minimum SOC with a slow or temporarily stalled grid sensor** (#117): stale safety recalculations no longer erase an armed direction-flip timer. Unsupported sensors updating every 10 seconds or more are surfaced through setup guidance and Home Assistant Repairs. Thanks to @syphernl.
+- **Slow Modbus gateways no longer block Home Assistant startup**: control cycles run as background tasks, so retrying a gateway cannot delay the rest of the boot.
+- **RS485 Control Mode could get stuck in either direction on Venus v3 batteries** (#92): both transitions recreate the connection, use the RS485-specific command and confirm register 42000 instead of trusting the write acknowledgement.
+- **Peak shaving could retain a small grid-charge command while conserving**: when the SOC is below the protection threshold and household demand is below the peak limit, the controller now forces the battery idle while still allowing genuine solar-surplus charging.
+- **Voltage taper could falsely treat an idle battery as a BMS cutoff**: the top-of-charge cutoff now counts only when the integration actually commanded charging.
+- **A battery could remain in Standby after a tapered full charge without being detected** (#26): after the discharge-engagement grace period, an ACKed command with no delivered power enters the wake/reconnect and non-responsive exclusion flow.
+- **Dynamic pricing could select more charging slots than the battery could store** (discussion #87): planned grid energy is capped by each battery’s real headroom to `max_soc`, and that value now drives both scheduling and predictive SOC targets.
 
 ## [1.0.0] - 2026-07-13
 

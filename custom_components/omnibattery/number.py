@@ -674,7 +674,7 @@ class MarstekBackupThresholdNumber(CoordinatorEntity, NumberEntity):
         self._attr_icon = "mdi:transmission-tower-off"
         self._attr_native_unit_of_measurement = "W"
         self._attr_native_min_value = 0
-        self._attr_native_max_value = 500
+        self._attr_native_max_value = 2500
         self._attr_native_step = 10
         self._attr_should_poll = False
 

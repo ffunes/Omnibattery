@@ -14,7 +14,10 @@ import pytest
 
 from homeassistant.exceptions import ServiceValidationError
 
-from custom_components.omnibattery.number import MarstekPriceThresholdNumber
+from custom_components.omnibattery.number import (
+    MarstekBackupThresholdNumber,
+    MarstekPriceThresholdNumber,
+)
 
 
 def _entity(kind, data):
@@ -40,3 +43,13 @@ def test_no_sibling_threshold_skips_validation():
     e = _entity("discharge", {})  # no max_price_threshold
     with pytest.raises(AttributeError):  # hits hass.config_entries.* , not the guard
         asyncio.run(e.async_set_native_value(0.10))
+
+
+def test_backup_offgrid_threshold_range_matches_configuration_flow():
+    entity = MarstekBackupThresholdNumber(
+        SimpleNamespace(device_key="test_502", name="Test battery")
+    )
+
+    assert entity.native_min_value == 0
+    assert entity.native_max_value == 2500
+    assert entity.native_step == 10
