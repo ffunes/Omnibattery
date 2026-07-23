@@ -228,7 +228,7 @@ MANUAL_FORCE_MODE_OPTIONS = ["None", "Charge", "Discharge"]
 
 
 class MarstekManualForceModeSelect(CoordinatorEntity, SelectEntity):
-    """Software force mode for drivers without a force_mode register (Zendure).
+    """Software force mode for drivers without a force_mode register.
 
     Stores the choice on the coordinator; while the global Manual Mode switch is
     on, the controller drives the battery to the matching charge/discharge
@@ -272,6 +272,11 @@ class MarstekManualForceModeSelect(CoordinatorEntity, SelectEntity):
             self.coordinator.commanded_charge_power = 0
             self.coordinator.commanded_discharge_power = self.coordinator.manual_set_discharge_power
         else:
+            # Stop the active manual command once. The controller deliberately
+            # does not reassert 0 W on later idle cycles, so Anker users can then
+            # select another Solix operating mode without OmniBattery reverting it.
+            await self.coordinator.apply_power(0, read_back=False)
+            await self.coordinator.async_request_refresh()
             self.coordinator.commanded_charge_power = 0
             self.coordinator.commanded_discharge_power = 0
         self.coordinator.persist_battery_config("manual_force_mode", option)
