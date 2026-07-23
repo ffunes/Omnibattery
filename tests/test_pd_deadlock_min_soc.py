@@ -27,7 +27,7 @@ convention (see ``test_pd_zero_cross.py``).
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from homeassistant.helpers import issue_registry as ir
@@ -35,6 +35,7 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import (
+    MAX_SENSOR_STALE_S,
     PD_ZERO_CROSS_MIN_HOLD_S,
     SLOW_SENSOR_WARN_INTERVALS,
 )
@@ -122,11 +123,9 @@ def test_flip_accumulates_across_stale_cycles_on_slow_sensor():
 # --- slow-sensor cadence warning ------------------------------------------
 
 
-def _cadence_ctrl(*, max_stale_cycles=15, dt=2.0):
+def _cadence_ctrl():
     return SimpleNamespace(
-        _max_stale_cycles=max_stale_cycles,
-        dt=dt,
-        _slow_sensor_warned=False,
+        _slow_sensor_issue_created=False,
         _slow_sensor_intervals=0,
         _fast_sensor_intervals=0,
         consumption_sensor="sensor.grid_power",
@@ -155,7 +154,7 @@ def _capture_repairs(monkeypatch):
     return created, deleted
 
 
-def test_sustained_slow_cadence_warns_once_and_creates_repair(caplog, monkeypatch):
+def test_sustained_slow_cadence_creates_one_repair_without_log_spam(caplog, monkeypatch):
     ctrl = _cadence_ctrl()
     created, _ = _capture_repairs(monkeypatch)
 
@@ -163,17 +162,17 @@ def test_sustained_slow_cadence_warns_once_and_creates_repair(caplog, monkeypatc
         for _ in range(SLOW_SENSOR_WARN_INTERVALS + 3):
             _cadence(ctrl, 60.0)
 
-    assert caplog.text.count("intervals of 10s or more are unsupported") == 1
-    assert "sensor.grid_power" in caplog.text
+    assert caplog.text == ""
     assert len(created) == 1
     args, kwargs = created[0]
     assert args[2] == "slow_main_sensor_test-entry"
-    assert kwargs["severity"] is ir.IssueSeverity.ERROR
+    assert kwargs["severity"] is ir.IssueSeverity.WARNING
     assert kwargs["translation_key"] == "slow_main_sensor"
     assert kwargs["translation_placeholders"] == {
         "sensor": "sensor.grid_power",
         "observed_interval": "60",
-        "max_interval": "10",
+        "warning_interval": "10",
+        "stale_limit": "65",
     }
 
 
@@ -218,7 +217,7 @@ def test_first_sample_without_a_previous_timestamp_is_ignored():
     _cadence(ctrl, None)
 
     assert ctrl._slow_sensor_intervals == 0
-    assert ctrl._slow_sensor_warned is False
+    assert ctrl._slow_sensor_issue_created is False
 
 
 def test_watchdog_zero_intervals_do_not_reset_slow_streak(caplog, monkeypatch):
@@ -233,12 +232,12 @@ def test_watchdog_zero_intervals_do_not_reset_slow_streak(caplog, monkeypatch):
                 _cadence(ctrl, 0.0)
 
     assert len(created) == 1
-    assert "intervals of 10s or more are unsupported" in caplog.text
+    assert caplog.text == ""
 
 
-def test_compatibility_threshold_is_independent_of_watchdog(caplog, monkeypatch):
-    """A 12 s sensor is unsupported even though it is below the 30 s watchdog."""
-    ctrl = _cadence_ctrl(max_stale_cycles=15, dt=2.0)
+def test_slow_warning_threshold_is_independent_of_stale_tolerance(caplog, monkeypatch):
+    """A 12 s sensor is supported but still receives control-quality guidance."""
+    ctrl = _cadence_ctrl()
     created, _ = _capture_repairs(monkeypatch)
 
     with caplog.at_level(logging.WARNING):
@@ -246,10 +245,10 @@ def test_compatibility_threshold_is_independent_of_watchdog(caplog, monkeypatch)
             _cadence(ctrl, 12.0)
 
     assert len(created) == 1
-    assert "intervals of 10s or more are unsupported" in caplog.text
+    assert caplog.text == ""
 
 
-def test_repair_clears_after_sustained_supported_cadence(monkeypatch):
+def test_created_repair_is_not_cleared_or_recreated_during_same_run(monkeypatch):
     ctrl = _cadence_ctrl()
     created, deleted = _capture_repairs(monkeypatch)
 
@@ -259,6 +258,47 @@ def test_repair_clears_after_sustained_supported_cadence(monkeypatch):
         _cadence(ctrl, 2.0)
 
     assert len(created) == 1
+    for _ in range(SLOW_SENSOR_WARN_INTERVALS):
+        _cadence(ctrl, 60.0)
+
+    assert deleted == []
+    assert len(created) == 1
+    assert ctrl._slow_sensor_issue_created is True
+
+
+def test_persisted_repair_clears_after_fast_startup_cadence(monkeypatch):
+    ctrl = _cadence_ctrl()
+    created, deleted = _capture_repairs(monkeypatch)
+
+    for _ in range(SLOW_SENSOR_WARN_INTERVALS):
+        _cadence(ctrl, 2.0)
+
+    assert created == []
     assert len(deleted) == 1
-    assert deleted[-1][0][2] == "slow_main_sensor_test-entry"
-    assert ctrl._slow_sensor_warned is False
+    assert deleted[0][0][2] == "slow_main_sensor_test-entry"
+
+
+def test_grid_sample_is_authoritative_through_65_seconds():
+    ctrl = SimpleNamespace(_max_sensor_stale_s=MAX_SENSOR_STALE_S)
+    sample_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    is_authoritative = ChargeDischargeController._sensor_is_within_stale_tolerance(
+        ctrl,
+        sample_time,
+        sample_time + timedelta(seconds=MAX_SENSOR_STALE_S),
+    )
+
+    assert is_authoritative is True
+
+
+def test_grid_sample_becomes_stale_after_65_seconds():
+    ctrl = SimpleNamespace(_max_sensor_stale_s=MAX_SENSOR_STALE_S)
+    sample_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    is_authoritative = ChargeDischargeController._sensor_is_within_stale_tolerance(
+        ctrl,
+        sample_time,
+        sample_time + timedelta(seconds=MAX_SENSOR_STALE_S + 0.001),
+    )
+
+    assert is_authoritative is False

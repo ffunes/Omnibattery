@@ -33,7 +33,6 @@ def _ctrl(*, last_output_sign, previous_power=0, kp=0.35, hysteresis=60):
         previous_error=0.0,
         error_integral=0.0,
         _stale_cycles=0,
-        _max_stale_cycles=5,
         max_power_change_per_cycle=800,
         _should_log_rate_limiter=lambda change: False,
         _clear_rate_limiter_state=lambda: None,

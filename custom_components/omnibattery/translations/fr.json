@@ -2,7 +2,7 @@
   "issues": {
     "slow_main_sensor": {
       "title": "Le capteur de puissance réseau se met à jour trop lentement",
-      "description": "Le capteur réseau configuré {sensor} se met à jour environ toutes les {observed_interval} secondes. Omnibattery nécessite des mises à jour plus rapides que {max_interval} secondes (1-2 secondes recommandées). Avec un capteur plus lent, le contrôleur agit sur des données obsolètes et ne peut pas réguler de manière fiable. Configurez un capteur de puissance réseau temps réel plus rapide."
+      "description": "Le capteur réseau configuré {sensor} se met à jour environ toutes les {observed_interval} secondes. Des intervalles de {warning_interval} secondes ou plus sont plus lents que recommandé et peuvent réduire la qualité de régulation. Omnibattery suit la dernière mesure jusqu'à ce qu'elle date de plus de {stale_limit} secondes. Utilisez un capteur plus rapide si vous avez besoin d'un contrôle temps réel plus précis."
     }
   },
   "config": {
@@ -22,7 +22,7 @@
           "max_contracted_power": "Puissance maximale souscrite (W)"
         },
         "data_description": {
-          "consumption_sensor": "Capteur temps réel de puissance importée (+) ou exportée (-) vers le réseau. La cadence est critique : 1-2 secondes sont recommandées ; les intervalles de 10 secondes ou plus ne sont pas pris en charge et empêchent une régulation fiable.",
+          "consumption_sensor": "Capteur temps réel de puissance importée (+) ou exportée (-) vers le réseau. Des mises à jour toutes les 1-2 secondes sont recommandées. Les capteurs plus lents sont acceptés, mais les mesures retardées réduisent la qualité de régulation ; la dernière mesure est suivie pendant 65 secondes au maximum.",
           "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). S'il est configuré ici, il sera utilisé automatiquement pour la charge prédictive et le retard de charge solaire.",
           "solar_production_sensor": "Capteur de puissance de production photovoltaïque en temps réel (W/kW) d'un onduleur externe non raccordé aux entrées MPPT de la batterie. Utilisé pour afficher le nœud Solaire dans le diagramme de flux d'énergie du tableau de bord. Laissez vide si vos panneaux alimentent directement le MPPT de la batterie.",
           "meter_inverted": "Activez cette option si votre compteur utilise la convention opposée : positif = exportation, négatif = importation. L'unité (W/kW) est détectée automatiquement.",
@@ -600,7 +600,7 @@
           "max_contracted_power": "Puissance maximale souscrite (W)"
         },
         "data_description": {
-          "consumption_sensor": "Capteur temps réel de puissance importée (+) ou exportée (-) vers le réseau. La cadence est critique : 1-2 secondes sont recommandées ; les intervalles de 10 secondes ou plus ne sont pas pris en charge et empêchent une régulation fiable.",
+          "consumption_sensor": "Capteur temps réel de puissance importée (+) ou exportée (-) vers le réseau. Des mises à jour toutes les 1-2 secondes sont recommandées. Les capteurs plus lents sont acceptés, mais les mesures retardées réduisent la qualité de régulation ; la dernière mesure est suivie pendant 65 secondes au maximum.",
           "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). S'il est configuré ici, il sera utilisé automatiquement pour la charge prédictive et le retard de charge solaire.",
           "solar_production_sensor": "Capteur de puissance de production photovoltaïque en temps réel (W/kW) d'un onduleur externe non raccordé aux entrées MPPT de la batterie. Utilisé pour afficher le nœud Solaire dans le diagramme de flux d'énergie du tableau de bord. Laissez vide si vos panneaux alimentent directement le MPPT de la batterie.",
           "meter_inverted": "Activez cette option si votre compteur utilise la convention opposée : positif = exportation, négatif = importation. L'unité (W/kW) est détectée automatiquement.",

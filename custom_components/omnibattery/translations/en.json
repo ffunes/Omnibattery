@@ -2,7 +2,7 @@
   "issues": {
     "slow_main_sensor": {
       "title": "Grid power sensor updates too slowly",
-      "description": "The configured grid sensor {sensor} updates about every {observed_interval} seconds. Omnibattery requires updates faster than {max_interval} seconds (1-2 seconds recommended). With a slower sensor the controller acts on outdated data and cannot regulate reliably. Configure a faster real-time grid power sensor."
+      "description": "The configured grid sensor {sensor} updates about every {observed_interval} seconds. Updates every {warning_interval} seconds or more are slower than recommended and may reduce regulation quality. Omnibattery still follows the latest reading until it is more than {stale_limit} seconds old. Use a faster sensor if you need tighter real-time control."
     }
   },
   "config": {
@@ -22,7 +22,7 @@
           "max_contracted_power": "Maximum contracted power (W)"
         },
         "data_description": {
-          "consumption_sensor": "Real-time sensor for imported (+) or exported (-) grid power. Update cadence is critical: 1-2 seconds is recommended; intervals of 10 seconds or more are unsupported and prevent reliable regulation.",
+          "consumption_sensor": "Real-time sensor for imported (+) or exported (-) grid power. Updates every 1-2 seconds are recommended. Slower sensors are accepted, but delayed readings reduce regulation quality; the latest reading is followed for up to 65 seconds.",
           "solar_forecast_sensor": "Sensor providing solar production forecast in kWh (e.g., Solcast). If configured here, it will be used automatically for predictive charging and solar charge delay.",
           "solar_production_sensor": "Real-time PV production power sensor (W/kW) from an external inverter not wired through the battery MPPT inputs. Used to show the Solar node in the dashboard energy-flow diagram. Leave empty if your panels feed the battery MPPT directly.",
           "meter_inverted": "Enable this option if your meter uses the opposite convention: positive = export, negative = import. The unit (W/kW) is detected automatically.",
@@ -594,7 +594,7 @@
           "max_contracted_power": "Maximum contracted power (W)"
         },
         "data_description": {
-          "consumption_sensor": "Real-time sensor for imported (+) or exported (-) grid power. Update cadence is critical: 1-2 seconds is recommended; intervals of 10 seconds or more are unsupported and prevent reliable regulation.",
+          "consumption_sensor": "Real-time sensor for imported (+) or exported (-) grid power. Updates every 1-2 seconds are recommended. Slower sensors are accepted, but delayed readings reduce regulation quality; the latest reading is followed for up to 65 seconds.",
           "solar_forecast_sensor": "Sensor providing solar production forecast in kWh (e.g., Solcast). If configured here, it will be used automatically for predictive charging and solar charge delay.",
           "solar_production_sensor": "Real-time PV production power sensor (W/kW) from an external inverter not wired through the battery MPPT inputs. Used to show the Solar node in the dashboard energy-flow diagram. Leave empty if your panels feed the battery MPPT directly.",
           "meter_inverted": "Enable this option if your meter uses the opposite convention: positive = export, negative = import. The unit (W/kW) is detected automatically.",

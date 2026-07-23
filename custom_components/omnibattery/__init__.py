@@ -144,7 +144,8 @@ from .const import (
     FEEDFORWARD_COOLDOWN_S,
     FEEDFORWARD_PULSE_GUARD_S,
     PD_ZERO_CROSS_MIN_HOLD_S,
-    MAX_SUPPORTED_SENSOR_INTERVAL_S,
+    SLOW_SENSOR_WARNING_INTERVAL_S,
+    MAX_SENSOR_STALE_S,
     SLOW_SENSOR_WARN_INTERVALS,
     FAST_ACTUATOR_MAX_LATENCY_S,
     DISCHARGE_ENGAGE_GRACE_S,
@@ -459,12 +460,12 @@ class ChargeDischargeController:
         # Stale sensor detection
         self._last_sensor_update_time = None    # datetime of last real sensor change (HA last_updated)
         self._stale_cycles = 0                  # consecutive cycles without sensor change
-        self._max_stale_cycles = 15             # safety valve: ~30s before forcing recalculation
+        self._max_sensor_stale_s = MAX_SENSOR_STALE_S
         self._control_lock = asyncio.Lock()     # serialize control cycle across timer + sensor-event triggers
         self._grid_at_min_soc_last_ts = None     # last accumulation timestamp for grid-at-min-soc kWh integration
-        self._slow_sensor_warned = False        # one-shot warning/repair for unsupported sensor cadence
-        self._slow_sensor_intervals = 0         # consecutive unsupported sensor intervals
-        self._fast_sensor_intervals = 0         # consecutive supported intervals used to clear the repair
+        self._slow_sensor_issue_created = False  # at most one Repairs creation per controller run
+        self._slow_sensor_intervals = 0         # consecutive slow sensor intervals
+        self._fast_sensor_intervals = 0         # startup fast intervals used to clear an old repair
 
         # Normal high-SOC charge protection. These must exist before the first
         # capacity calculation because _battery_power_limit() reads them.
@@ -4196,7 +4197,7 @@ class ChargeDischargeController:
         # (dividing by a sub-second dt would amplify noise into a spike); the P-term and
         # rate-limiter scaling use a smaller floor so they stay accurate for sub-second
         # sensors (a 1 s floor there would over-weight fast cadences).
-        if self._stale_cycles > self._max_stale_cycles:
+        if stale_safety_recalc:
             # Safety valve: suppress derivative to avoid spike from stale data
             real_dt = self.dt
             scale_dt = self.dt
@@ -4443,7 +4444,7 @@ class ChargeDischargeController:
         """
         requested_sign = 1 if new_power > 0 else (-1 if new_power < 0 else 0)
         if stale_recalc and requested_sign == 0 and self._zero_cross_since is not None:
-            # Issue #117: on a sensor slower than the stale window (~30s), every
+            # Issue #117: on a sensor slower than the stale window, every
             # stale recalc in between cleared the timer, so the flip re-armed at
             # 0.0s on each fresh sample and could never accumulate the window.
             return new_power
@@ -4484,42 +4485,44 @@ class ChargeDischargeController:
         return 0
 
     def _check_sensor_cadence(self, sensor_elapsed_s):
-        """Raise a repair when the main sensor cadence is unsupported.
+        """Raise one repair per run when the main sensor cadence is slow.
 
-        Sensor compatibility is deliberately independent from the stale watchdog:
-        the former is a control-quality contract, while the latter rechecks structural
-        state after an unexpected telemetry outage. Only positive, real update intervals
-        reach the debounce; watchdog ticks report 0 and must not reset its streak.
+        Slow sensors remain supported up to the stale tolerance. The repair is
+        guidance about control quality, not a rejection of the sensor. Only positive,
+        real update intervals reach the debounce; watchdog ticks report 0 and must
+        not reset its streak.
 
         Debounced over consecutive intervals: a single long gap is far more likely to be
         an outage or a restart than the configured cadence, because the stored sensor
         timestamp is not advanced while the sensor reads unavailable, so the first sample
         after any downtime measures the whole gap.
+
+        Once created, the issue is left untouched for the rest of this controller run.
+        On the next integration/Home Assistant restart, sustained fast updates clear a
+        persisted issue. This prevents create/delete churn and repeated log messages.
         """
         if sensor_elapsed_s is None or sensor_elapsed_s <= 0:
             return
 
         issue_id = f"slow_main_sensor_{self.config_entry.entry_id}"
-        if sensor_elapsed_s < MAX_SUPPORTED_SENSOR_INTERVAL_S:
+        if sensor_elapsed_s < SLOW_SENSOR_WARNING_INTERVAL_S:
             self._slow_sensor_intervals = 0
             self._fast_sensor_intervals += 1
-            if self._fast_sensor_intervals == SLOW_SENSOR_WARN_INTERVALS:
+            if (
+                self._fast_sensor_intervals == SLOW_SENSOR_WARN_INTERVALS
+                and not self._slow_sensor_issue_created
+            ):
                 ir.async_delete_issue(self.hass, DOMAIN, issue_id)
-                self._slow_sensor_warned = False
             return
 
         self._fast_sensor_intervals = 0
         self._slow_sensor_intervals += 1
-        if self._slow_sensor_intervals < SLOW_SENSOR_WARN_INTERVALS or self._slow_sensor_warned:
+        if (
+            self._slow_sensor_intervals < SLOW_SENSOR_WARN_INTERVALS
+            or self._slow_sensor_issue_created
+        ):
             return
-        self._slow_sensor_warned = True
-        _LOGGER.warning(
-            "Main sensor %s updates every ~%.0fs; intervals of %.0fs or more are "
-            "unsupported. Configure a faster grid power sensor (~1-2s recommended).",
-            self.consumption_sensor,
-            sensor_elapsed_s,
-            MAX_SUPPORTED_SENSOR_INTERVAL_S,
-        )
+        self._slow_sensor_issue_created = True
         ir.async_create_issue(
             self.hass,
             DOMAIN,
@@ -4527,13 +4530,28 @@ class ChargeDischargeController:
             is_fixable=False,
             is_persistent=True,
             issue_domain=DOMAIN,
-            severity=ir.IssueSeverity.ERROR,
+            severity=ir.IssueSeverity.WARNING,
             translation_key="slow_main_sensor",
             translation_placeholders={
                 "sensor": self.consumption_sensor,
                 "observed_interval": f"{sensor_elapsed_s:.0f}",
-                "max_interval": f"{MAX_SUPPORTED_SENSOR_INTERVAL_S:.0f}",
+                "warning_interval": f"{SLOW_SENSOR_WARNING_INTERVAL_S:.0f}",
+                "stale_limit": f"{MAX_SENSOR_STALE_S:.0f}",
             },
+        )
+
+    def _sensor_age_seconds(self, sensor_update_time, now=None):
+        """Return the real age of the current grid sample."""
+        reference_time = now if isinstance(now, datetime) else dt_util.utcnow()
+        return max(0.0, (reference_time - sensor_update_time).total_seconds())
+
+    def _sensor_is_within_stale_tolerance(self, sensor_update_time, now=None):
+        """Return whether the latest grid sample must remain authoritative."""
+        return (
+            ChargeDischargeController._sensor_age_seconds(
+                self, sensor_update_time, now
+            )
+            <= self._max_sensor_stale_s
         )
 
     async def _run_control_cycle(self, now=None):
@@ -4688,19 +4706,20 @@ class ChargeDischargeController:
         stale_safety_recalc = False
         if is_stale:
             self._stale_cycles += 1
+            sensor_age_s = self._sensor_age_seconds(sensor_update_time, now)
             capacity_protection_must_recheck = (
                 self.previous_power < 0
                 and self._is_capacity_protection_soc_limited()
             )
             if (
-                self._stale_cycles <= self._max_stale_cycles
+                self._sensor_is_within_stale_tolerance(sensor_update_time, now)
                 and not capacity_protection_must_recheck
                 and not blocked_active_changed
             ):
                 if DEBUG_CONTROL_LOOP_DETAIL:
                     _LOGGER.debug(
-                        "ChargeDischargeController: Sensor stale (cycle %d/%d), maintaining last command %.1fW",
-                        self._stale_cycles, self._max_stale_cycles, self.previous_power
+                        "ChargeDischargeController: Sensor unchanged for %.1fs/%.1fs, maintaining last command %.1fW",
+                        sensor_age_s, self._max_sensor_stale_s, self.previous_power
                     )
                 return
             elif capacity_protection_must_recheck:
@@ -4711,8 +4730,8 @@ class ChargeDischargeController:
             else:
                 stale_safety_recalc = True
                 _LOGGER.debug(
-                    "ChargeDischargeController: Sensor stale for %d cycles (~%.0fs). Safety recalculation.",
-                    self._stale_cycles, self._stale_cycles * 2.0
+                    "ChargeDischargeController: Sensor stale for %.1fs. Safety recalculation.",
+                    sensor_age_s
                 )
         else:
             self._stale_cycles = 0

@@ -263,11 +263,16 @@ FEEDFORWARD_PULSE_GUARD_S = 30.0      # s: opposite-sign step this soon after a 
 # _apply_zero_cross_hold. Legitimate sustained surplus flips after the window.
 PD_ZERO_CROSS_MIN_HOLD_S = 5.0
 
-# Maximum supported interval for the grid-power sensor. This is a control-quality
-# contract and intentionally independent from the ~30 s stale watchdog: a 10+ s
-# feedback delay is already too slow for reliable real-time grid regulation even
-# though the watchdog has not fired yet. Recommended cadence is 1-2 s.
-MAX_SUPPORTED_SENSOR_INTERVAL_S = 10.0
+# A grid-power sensor at or above this interval is slow enough to warrant setup
+# guidance and a Repairs warning. Slow sensors remain supported: their latest
+# reading is authoritative until MAX_SENSOR_STALE_S has elapsed.
+SLOW_SENSOR_WARNING_INTERVAL_S = 10.0
+
+# Maximum age of the latest grid-power reading before the watchdog may perform a
+# stale safety recalculation. This is intentionally time-based rather than a
+# number of 2 s watchdog cycles, so scheduler phase and delayed cycles cannot
+# shorten the promised tolerance.
+MAX_SENSOR_STALE_S = 65.0
 
 # Consecutive real main-sensor intervals at the same cadence class before creating
 # or clearing the slow-sensor repair. Debouncing prevents a single outage/restart
