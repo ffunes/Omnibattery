@@ -2,8 +2,6 @@
 
 ## [1.0.1rc1] - 2026-07-23
 
-*Consolidates 1.0.1b1–1.0.1b7.*
-
 ### Added
 - **Anker SOLIX Solarbank Max AC driver**: adds native Modbus TCP support for monitoring and controlling the Solarbank Max AC through the same Omnibattery control loop, dashboard and Home Assistant entities as the other supported batteries. Thanks to Wouter Bouvy.
 - **Daily charge/discharge energy for Anker Solarbank Max AC**: derives per-battery daily counters from the hardware lifetime totals, restores the current day's value across Home Assistant restarts and safely rebases if the device counter resets. System daily-energy aggregates and dashboard cards now receive real Anker values instead of falling back to zero.
