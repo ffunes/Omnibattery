@@ -35,6 +35,20 @@ _LOGGER = logging.getLogger(__name__)
 # these — the burst poll must not accelerate unrelated registers.
 _DELIVERED_POWER_KEYS = frozenset({"ac_power", "battery_power"})
 
+# Register groups that directly govern control safety. During non-responsive
+# recovery, successful BMS reads must not hide a frozen inverter/SOC/control
+# group indefinitely (issue #26).
+_CRITICAL_CONTROL_KEYS = frozenset({
+    "ac_power",
+    "battery_power",
+    "battery_soc",
+    "force_mode",
+    "inverter_state",
+    "set_charge_power",
+    "set_discharge_power",
+})
+_CRITICAL_GROUP_FAILURES_BEFORE_RECONNECT = 3
+
 
 def group_scan_interval_s(
     group_keys: tuple[str, ...],
@@ -209,9 +223,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # path, surfaced by health_snapshot / diagnostics). Initialised here so a
         # read before the first write returns None rather than raising.
         self._last_write_failure_reason = None
+        self._last_rs485_reenable_success = None
 
         # Timestamp-based update tracking
         self._last_update_times = {}
+        self._critical_group_failures = {}
         # Last-written select values that override buggy register readbacks.
         # Repopulated from persisted battery_config after construction; initialised
         # here so get_shadow_select before that assignment returns None instead of
@@ -422,6 +438,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             "[%s] Creating fresh connection to %s:%s (consecutive failures: %d)",
             self.name, self.host, self.port, self._consecutive_failures
         )
+        self._last_rs485_reenable_success = None
 
         async with self.lock:
             # driver.connect() internally closes the old client and creates a new one
@@ -431,6 +448,10 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 self._consecutive_failures = 0
                 self._is_connected = True
                 self._suspension_reset_time = None
+                # A fresh client must refresh every telemetry group. Also start a
+                # new partial-staleness episode for the new connection.
+                getattr(self, "_last_update_times", {}).clear()
+                getattr(self, "_critical_group_failures", {}).clear()
                 _LOGGER.info("[%s] Fresh reconnection successful", self.name)
 
                 # Re-enable RS485 control mode after reconnection.
@@ -444,8 +465,10 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                     and not self.rs485_user_disabled
                 ):
                     if await self.driver.set_rs485_control(True):
+                        self._last_rs485_reenable_success = True
                         _LOGGER.info("[%s] RS485 control mode re-enabled after reconnection", self.name)
                     else:
+                        self._last_rs485_reenable_success = False
                         _LOGGER.warning("[%s] Failed to re-enable RS485 after reconnection", self.name)
             else:
                 self._is_connected = False
@@ -554,6 +577,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         now = utcnow()
         updated_data = {}
+        critical_groups_attempted = set()
+        critical_groups_succeeded = set()
 
         if self._is_shutting_down:
             _LOGGER.debug("[%s] Shutdown in progress, skipping poll", self.name)
@@ -670,6 +695,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
             # Lock ensures reads don't interleave with control loop writes.
             sensors_attempted += 1
+            critical_keys_requested = _CRITICAL_CONTROL_KEYS.intersection(fetch_keys)
+            if critical_keys_requested:
+                critical_groups_attempted.add(group.keys)
             try:
                 async with self.lock:
                     # The driver resolves the logical keys to their registers (using
@@ -689,6 +717,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 if not self._is_shutting_down:
                     _LOGGER.warning("[%s] Failed to read %s", self.name, list(fetch_keys))
                 continue
+
+            if critical_keys_requested.intersection(snapshot):
+                critical_groups_succeeded.add(group.keys)
 
             sensors_succeeded += 1
             stored = 0
@@ -729,7 +760,24 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             if stored:
                 self._last_update_times[group.keys] = now
 
+        # Aggregate connection health considers any successful group sufficient.
+        # Keep a separate streak for safety-critical groups so unrelated BMS
+        # telemetry cannot mask frozen control feedback.
+        for group_keys in critical_groups_attempted:
+            if group_keys in critical_groups_succeeded:
+                self._critical_group_failures.pop(group_keys, None)
+            else:
+                self._critical_group_failures[group_keys] = (
+                    self._critical_group_failures.get(group_keys, 0) + 1
+                )
+
+        stale_critical_groups = [
+            keys for keys, failures in self._critical_group_failures.items()
+            if failures >= _CRITICAL_GROUP_FAILURES_BEFORE_RECONNECT
+        ]
+
         # === CONNECTION HEALTH TRACKING ===
+        aggregate_reconnect_attempted = False
         # Only track failures when we actually attempted reads (not when all sensors
         # were simply skipped because their polling interval hasn't elapsed yet)
         if sensors_attempted == 0:
@@ -762,6 +810,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                     "[%s] %d consecutive failures - attempting fresh reconnection",
                     self.name, self._consecutive_failures
                 )
+                aggregate_reconnect_attempted = True
                 await self.async_reconnect_fresh()
 
             if self._consecutive_failures >= self._max_failures_before_suspend:
@@ -772,6 +821,18 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                     "Will retry in 2 minutes.",
                     self.name, self._consecutive_failures
                 )
+
+        # Recover partial staleness after the aggregate health decision so a
+        # successful unrelated group cannot overwrite the reconnect result.
+        if stale_critical_groups and not aggregate_reconnect_attempted:
+            _LOGGER.warning(
+                "[%s] Critical telemetry groups failed %d consecutive polls: %s; "
+                "attempting fresh reconnection",
+                self.name,
+                _CRITICAL_GROUP_FAILURES_BEFORE_RECONNECT,
+                stale_critical_groups,
+            )
+            await self.async_reconnect_fresh()
 
         # Defensive check
         if self.data is None:

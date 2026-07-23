@@ -42,6 +42,17 @@ async def test_standby_reconnects_fresh():
     ctrl._set_battery_power.assert_awaited_once()
 
 
+async def test_standby_reports_failed_rs485_reenable():
+    coord = _coord(_last_rs485_reenable_success=False)
+    ctrl = _controller()
+
+    result = await ChargeDischargeController._attempt_wake(
+        ctrl, coord, is_standby=True
+    )
+
+    assert result is False
+
+
 async def test_non_standby_reasserts_without_disabling():
     """Issue #434 regression guard: must never write RS485=False for an awake
     battery that might be exporting under its own internal logic."""
@@ -53,6 +64,19 @@ async def test_non_standby_reasserts_without_disabling():
     assert result is True
     coord.set_rs485_control.assert_awaited_once_with(True)
     ctrl._set_battery_power.assert_awaited_once()
+
+
+async def test_non_standby_live_reassert_ignores_old_reconnect_failure():
+    """A stale reconnect diagnostic must not poison a successful live reassert."""
+    coord = _coord(_last_rs485_reenable_success=False)
+    ctrl = _controller()
+
+    result = await ChargeDischargeController._attempt_wake(
+        ctrl, coord, is_standby=False
+    )
+
+    assert result is True
+    coord.async_reconnect_fresh.assert_not_awaited()
 
 
 async def test_non_standby_reconnects_fresh_when_reassert_does_not_take():

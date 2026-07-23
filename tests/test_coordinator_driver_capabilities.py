@@ -44,6 +44,8 @@ async def test_reconnect_skips_rs485_for_driver_without_capability():
         driver=driver,
         capabilities=SimpleNamespace(has_rs485_control=False),
         rs485_user_disabled=False,
+        _last_update_times={("battery_soc",): object()},
+        _critical_group_failures={("battery_soc",): 2},
     )
 
     result = await MarstekVenusDataUpdateCoordinator.async_reconnect_fresh(
@@ -52,3 +54,34 @@ async def test_reconnect_skips_rs485_for_driver_without_capability():
 
     assert result is True
     driver.connect.assert_awaited_once()
+    assert coordinator._last_update_times == {}
+    assert coordinator._critical_group_failures == {}
+    assert coordinator._last_rs485_reenable_success is None
+
+
+async def test_reconnect_records_failed_rs485_reenable():
+    driver = SimpleNamespace(
+        connect=AsyncMock(return_value=True),
+        set_rs485_control=AsyncMock(return_value=False),
+    )
+    coordinator = SimpleNamespace(
+        name="Marstek",
+        host="192.0.2.2",
+        port=502,
+        _consecutive_failures=1,
+        _is_connected=False,
+        _suspension_reset_time=object(),
+        lock=asyncio.Lock(),
+        driver=driver,
+        capabilities=SimpleNamespace(has_rs485_control=True),
+        rs485_user_disabled=False,
+        _last_update_times={},
+        _critical_group_failures={},
+    )
+
+    result = await MarstekVenusDataUpdateCoordinator.async_reconnect_fresh(
+        coordinator
+    )
+
+    assert result is True
+    assert coordinator._last_rs485_reenable_success is False
