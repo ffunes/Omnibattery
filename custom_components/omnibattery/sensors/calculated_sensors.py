@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from datetime import date, datetime
+from functools import partial
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -442,6 +444,19 @@ def _legacy_daily_energy_value(last_state: State | None, today: str) -> float | 
     return value if value >= 0 else None
 
 
+def _highest_daily_energy_value(states: list[State]) -> float | None:
+    """Return the highest valid daily-counter value from recorder states."""
+    values = []
+    for state in states:
+        try:
+            value = float(state.state)
+        except (TypeError, ValueError):
+            continue
+        if value >= 0:
+            values.append(value)
+    return max(values, default=None)
+
+
 class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
     """Daily charge/discharge energy derived from a lifetime hardware counter."""
 
@@ -479,17 +494,46 @@ class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity
         today = dt_util.now().date().isoformat()
         if restored is not None and restored.reset_date == today:
             self._energy_data = restored
-        else:
-            # On migration from v3's register sensor there is no extra restore
-            # payload yet. Seed the derived counter from the current-day state so
-            # upgrading mid-day does not discard energy already shown to the user.
-            legacy_value = _legacy_daily_energy_value(
-                await self.async_get_last_state(), today
-            )
-            self._energy_data = _CumulativeDailyEnergyData(
-                legacy_value or 0.0, None, today
-            )
+        # On migration from v3's register sensor there is no extra restore
+        # payload: that sensor did not inherit RestoreEntity. A previous release
+        # may also have persisted an initial zero before this recovery runs. Read
+        # today's recorder history in either case, taking its highest daily value.
+        # Daily counters are monotonically increasing within a day, so this retains
+        # the real value while ignoring unavailable states and later synthetic zero.
+        if self._energy_data.kwh == 0:
+            recovered_value = await self._recover_daily_value_from_recorder(today)
+            if recovered_value is None:
+                recovered_value = _legacy_daily_energy_value(
+                    await self.async_get_last_state(), today
+                )
+            if recovered_value is not None:
+                self._energy_data = _CumulativeDailyEnergyData(
+                    recovered_value, None, today
+                )
         self._publish_daily()
+
+    async def _recover_daily_value_from_recorder(self, today: str) -> float | None:
+        """Recover this entity's current-day state from Home Assistant Recorder."""
+        try:
+            from homeassistant.components.recorder import get_instance, history
+
+            local_tz = dt_util.get_time_zone(self.hass.config.time_zone) or dt_util.UTC
+            start = datetime.combine(
+                date.fromisoformat(today), datetime.min.time(), tzinfo=local_tz
+            )
+            query = partial(
+                history.state_changes_during_period,
+                self.hass,
+                start,
+                entity_id=self.entity_id,
+                include_start_time_state=False,
+            )
+            states_map = await get_instance(self.hass).async_add_executor_job(query)
+        except Exception as err:  # Recorder is optional and may not be ready at boot.
+            _LOGGER.debug("Could not recover %s from recorder: %s", self.entity_id, err)
+            return None
+
+        return _highest_daily_energy_value(states_map.get(self.entity_id, []))
 
     @callback
     def _handle_coordinator_update(self) -> None:

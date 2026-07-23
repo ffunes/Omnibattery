@@ -609,6 +609,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         dependency_keys_set = {dep_key for defn in all_definitions_for_deps
                             for dep_key in defn.get("dependency_keys", {}).values()
                             if dep_key}
+        # Daily energy derived from lifetime counters (Anker and Venus E v3)
+        # remains meaningful even when the user disables the lifetime-total
+        # entities in Home Assistant. Keep the source counters polling so the
+        # derived daily entities do not stay at zero.
+        if (
+            self.capabilities.has_energy_counters
+            and not self.capabilities.has_daily_energy_counters
+        ):
+            dependency_keys_set.update(
+                {"total_charging_energy", "total_discharging_energy"}
+            )
         # Cell voltage keys are always needed by the balance monitor
         dependency_keys_set.update({"max_cell_voltage", "min_cell_voltage"})
         # Control registers must keep polling even when the user disables their

@@ -9,6 +9,7 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.omnibattery.sensors.calculated_sensors import (
     _CumulativeDailyEnergyData,
+    _highest_daily_energy_value,
     _legacy_daily_energy_value,
 )
 
@@ -78,3 +79,14 @@ def test_legacy_daily_value_rejects_a_previous_day_state():
     state = State("sensor.battery_daily_charge", "1.7", last_updated=yesterday)
 
     assert _legacy_daily_energy_value(state, dt_util.now().date().isoformat()) is None
+
+
+def test_recorder_recovery_uses_highest_value_after_a_synthetic_zero():
+    now = dt_util.now()
+    states = [
+        State("sensor.battery_daily_charge", "1.7", last_updated=now),
+        State("sensor.battery_daily_charge", "0", last_updated=now),
+        State("sensor.battery_daily_charge", "unavailable", last_updated=now),
+    ]
+
+    assert _highest_daily_energy_value(states) == 1.7

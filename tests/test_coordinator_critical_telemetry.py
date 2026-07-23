@@ -57,7 +57,9 @@ def _coordinator(
         _is_connected=True,
         data={},
         async_reconnect_fresh=AsyncMock(return_value=True),
-        capabilities=SimpleNamespace(has_energy_counters=True),
+        capabilities=SimpleNamespace(
+            has_energy_counters=True, has_daily_energy_counters=True
+        ),
         battery_capacity_kwh=0,
         _alarm_notifier=SimpleNamespace(check=AsyncMock()),
     )
@@ -96,3 +98,54 @@ async def test_aggregate_and_critical_failures_trigger_only_one_reconnect():
         await MarstekVenusDataUpdateCoordinator._async_update_data(coordinator)
 
     coordinator.async_reconnect_fresh.assert_awaited_once()
+
+
+async def test_lifetime_energy_totals_are_dependencies_for_derived_daily_energy():
+    """Daily v3/Anker sensors must work when lifetime entities are disabled."""
+    total_group = ReadGroup("low", ("total_charging_energy",))
+    driver = SimpleNamespace(
+        read_groups=[total_group],
+        read_telemetry=AsyncMock(return_value={"total_charging_energy": 49100}),
+        control_dependency_keys=set(),
+    )
+    disabled_entry = SimpleNamespace(disabled=True, disabled_by="user")
+    registry = SimpleNamespace(
+        async_get_entity_id=lambda *args: "sensor.battery_total_charging_energy",
+        entities={"sensor.battery_total_charging_energy": disabled_entry},
+    )
+    coordinator = SimpleNamespace(
+        name="Battery",
+        host="192.0.2.10",
+        device_key="192.0.2.10_1",
+        driver=driver,
+        _def_by_key={
+            "total_charging_energy": {
+                "key": "total_charging_energy", "scale": 0.01,
+                "precision": 2, "state_class": "total_increasing",
+            },
+        },
+        _get_entity_type=lambda definition, fallback_key=None: "sensor",
+        _entity_registry=registry,
+        _is_shutting_down=False,
+        _suspension_reset_time=None,
+        _last_update_times={},
+        _critical_group_failures={},
+        boost_fast_poll_until=0.0,
+        lock=asyncio.Lock(),
+        _consecutive_failures=0,
+        _max_failures_before_reconnect=99,
+        _max_failures_before_suspend=100,
+        _is_connected=True,
+        data={},
+        async_reconnect_fresh=AsyncMock(return_value=True),
+        capabilities=SimpleNamespace(
+            has_energy_counters=True, has_daily_energy_counters=False
+        ),
+        battery_capacity_kwh=0,
+        _alarm_notifier=SimpleNamespace(check=AsyncMock()),
+    )
+
+    await MarstekVenusDataUpdateCoordinator._async_update_data(coordinator)
+
+    driver.read_telemetry.assert_awaited_once_with(["total_charging_energy"])
+    assert coordinator.data["total_charging_energy"] == 491.0
