@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
@@ -422,6 +422,26 @@ class _CumulativeDailyEnergyData(ExtraStoredData):
         # today's accumulated value and use the new reading as the next baseline.
 
 
+def _legacy_daily_energy_value(last_state: State | None, today: str) -> float | None:
+    """Return today's value from the daily-register entity this replaces.
+
+    The v3 migration keeps the entity ID but changes its implementation from a
+    Modbus register sensor to a derived sensor.  The old sensor has no extra
+    restore data, so retain its last numeric state if Home Assistant recorded it
+    today.  A state from an earlier local day must not leak into a new day's
+    counter.
+    """
+    if last_state is None:
+        return None
+    if dt_util.as_local(last_state.last_updated).date().isoformat() != today:
+        return None
+    try:
+        value = float(last_state.state)
+    except (TypeError, ValueError):
+        return None
+    return value if value >= 0 else None
+
+
 class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
     """Daily charge/discharge energy derived from a lifetime hardware counter."""
 
@@ -460,7 +480,15 @@ class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity
         if restored is not None and restored.reset_date == today:
             self._energy_data = restored
         else:
-            self._energy_data = _CumulativeDailyEnergyData(0.0, None, today)
+            # On migration from v3's register sensor there is no extra restore
+            # payload yet. Seed the derived counter from the current-day state so
+            # upgrading mid-day does not discard energy already shown to the user.
+            legacy_value = _legacy_daily_energy_value(
+                await self.async_get_last_state(), today
+            )
+            self._energy_data = _CumulativeDailyEnergyData(
+                legacy_value or 0.0, None, today
+            )
         self._publish_daily()
 
     @callback
