@@ -3151,12 +3151,17 @@ class ChargeDischargeController:
         ignore_discharge_blockers: set[str] | None = None,
         bypass_blockers: bool = False,
         force_write: bool = False,
+        preserve_non_responsive_episode: bool = False,
     ) -> bool:
         """Set charge/discharge power for a single battery with ACK verification.
 
         ``force_write`` bypasses the bus-load skip-write so the command is always
         written, even when the battery's set-points already match — used by the
         non-responsive recovery to re-pin a battery that has slipped its control.
+
+        ``preserve_non_responsive_episode`` marks the recovery path's internal
+        standby write. It must not turn the following discharge command into a
+        new episode that clears the existing failure count and wake budget.
 
         Returns True if command was acknowledged, False otherwise.
         """
@@ -3265,7 +3270,11 @@ class ChargeDischargeController:
         # so the flip is seen even on a cycle that skips the write, and the tracker
         # is reset on the flip so a stale count from a prior session can't carry over.
         net_sign = 1 if net_power > 0 else -1 if net_power < 0 else 0
-        if net_sign == -1 and self._last_commanded_net_sign.get(coordinator) != -1:
+        if (
+            not preserve_non_responsive_episode
+            and net_sign == -1
+            and self._last_commanded_net_sign.get(coordinator) != -1
+        ):
             self._discharge_engage_started[coordinator] = dt_util.utcnow()
             self._non_responsive.clear(coordinator)
         # Mirror stamp for the opposite transition: a flip from a move into idle
@@ -3273,9 +3282,14 @@ class ChargeDischargeController:
         # battery idle from the start (no prior commanded move) gets no grace —
         # there is no ramp-down to wait out, and a genuine runaway found at
         # startup (the original #434 case) should trip immediately.
-        if net_sign == 0 and self._last_commanded_net_sign.get(coordinator, 0) != 0:
+        if (
+            not preserve_non_responsive_episode
+            and net_sign == 0
+            and self._last_commanded_net_sign.get(coordinator, 0) != 0
+        ):
             self._idle_commanded_started[coordinator] = dt_util.utcnow()
-        self._last_commanded_net_sign[coordinator] = net_sign
+        if not preserve_non_responsive_episode:
+            self._last_commanded_net_sign[coordinator] = net_sign
         if net_sign != 0:
             # Commanding a move ends any idle-runaway episode.
             self._idle_runaway_handled.pop(coordinator, None)
@@ -3364,7 +3378,7 @@ class ChargeDischargeController:
                 batt_power = data.get("battery_power")
                 skip_write = (
                     batt_power is not None
-                    and abs(float(batt_power)) >= 0.10 * abs(net_power)
+                    and float(batt_power) <= -0.10 * abs(net_power)
                 )
                 # Slow actuators (Zendure HTTP) never read back per-write, so the
                 # ACK-path non-delivery detection further down never runs for them.
@@ -3566,8 +3580,8 @@ class ChargeDischargeController:
         silently stalled registerless battery in a pool is excluded, not
         re-commanded forever.
         """
-        actual_abs = abs(actual_power)
-        if actual_abs >= 0.10 * discharge_power:
+        delivered_discharge = max(0.0, -float(actual_power))
+        if delivered_discharge >= 0.10 * discharge_power:
             self._non_responsive.clear(coordinator)
             return
         engage_started = self._discharge_engage_started.get(coordinator)
@@ -3624,7 +3638,7 @@ class ChargeDischargeController:
         # and must reach the wake/reconnect recovery path (issue #26).
         reason = "standby_no_delivery" if is_standby else "non_delivery"
         outcome = self._non_responsive.record_non_delivery(
-            coordinator, discharge_power, actual_abs,
+            coordinator, discharge_power, delivered_discharge,
             reason=reason, retry_attempted=attempt > 0,
         )
         # First threshold-cross: a one-shot wake nudge (reconnect/re-assert), but
@@ -3671,8 +3685,11 @@ class ChargeDischargeController:
             ok = await coordinator.async_reconnect_fresh()
             await self._set_battery_power(
                 coordinator, 0, 0, bypass_blockers=True, force_write=True,
+                preserve_non_responsive_episode=True,
             )
-            return ok
+            return ok and getattr(
+                coordinator, "_last_rs485_reenable_success", True
+            ) is not False
         _LOGGER.info(
             "[%s] Non-delivery — re-asserting RS485 control + forcing standby",
             coordinator.name,
@@ -3684,15 +3701,22 @@ class ChargeDischargeController:
         # is why an HA restart recovers the battery. If the re-assert didn't
         # take, do that restart-equivalent here. Read error (None) is left to the
         # read-failure health path; only a definitive "still disabled" escalates.
+        reconnected = False
         if await coordinator.rs485_control_enabled() is False:
             _LOGGER.warning(
                 "[%s] RS485 re-assert didn't take over the live connection — "
                 "reconnecting fresh (restart-equivalent)", coordinator.name,
             )
             ok = await coordinator.async_reconnect_fresh()
+            reconnected = True
         await self._set_battery_power(
             coordinator, 0, 0, bypass_blockers=True, force_write=True,
+            preserve_non_responsive_episode=True,
         )
+        if reconnected and getattr(
+            coordinator, "_last_rs485_reenable_success", True
+        ) is False:
+            return False
         return ok
 
     # =========================================================================

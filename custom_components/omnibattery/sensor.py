@@ -1287,13 +1287,18 @@ class NonResponsiveBatteriesSensor(SensorEntity):
         now = dt_util.utcnow()
         attrs = {}
         for coordinator in self._coordinators:
+            # This check also expires a completed cooldown before attributes are
+            # rendered, avoiding state="None" with excluded=true/0 minutes.
+            currently_excluded = self._controller._non_responsive.is_excluded(
+                coordinator
+            )
             info = self._controller._non_responsive_batteries.get(coordinator)
             unreachable = (
                 not coordinator.is_available
                 and not getattr(coordinator, "_is_shutting_down", False)
                 and getattr(coordinator, "_consecutive_failures", 0) > 0
             )
-            if info and info.get("excluded_at") is not None:
+            if currently_excluded and info:
                 cooldown_min = self._controller._non_responsive.cooldown_min
                 elapsed_min = (now - info["excluded_at"]).total_seconds() / 60
                 remaining_min = max(0.0, cooldown_min - elapsed_min)
