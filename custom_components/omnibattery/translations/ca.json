@@ -1149,7 +1149,7 @@
         "name": "Reducció de Pics"
       },
       "backup_function": {
-        "name": "Funció de Còpia de Seguretat"
+        "name": "Funció de Reserva"
       },
       "rs485_control_mode": {
         "name": "Mode de Control RS485"
