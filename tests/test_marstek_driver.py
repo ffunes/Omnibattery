@@ -176,6 +176,19 @@ def test_capabilities_use_version_loaded_definitions():
     assert v2.has_alarm_registers is True
 
 
+def test_v3_daily_energy_is_derived_from_lifetime_counters():
+    """v3 avoids its unreliable daily registers, like Anker does."""
+    drv = MarstekModbusDriver("1.2.3.4", 502, "v3", client=_fake_client())
+
+    assert drv.capabilities.has_daily_energy_counters is False
+    assert {
+        definition["key"] for definition in drv.sensor_definitions
+    }.isdisjoint({"total_daily_charging_energy", "total_daily_discharging_energy"})
+
+    v2 = MarstekModbusDriver("1.2.3.4", 502, "v2", client=_fake_client())
+    assert v2.capabilities.has_daily_energy_counters is True
+
+
 # ----------------------------------------------------------------------
 # read_telemetry
 # ----------------------------------------------------------------------
