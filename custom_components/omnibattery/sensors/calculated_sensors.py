@@ -496,20 +496,20 @@ class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity
             self._energy_data = restored
         # On migration from v3's register sensor there is no extra restore
         # payload: that sensor did not inherit RestoreEntity. A previous release
-        # may also have persisted an initial zero before this recovery runs. Read
-        # today's recorder history in either case, taking its highest daily value.
-        # Daily counters are monotonically increasing within a day, so this retains
-        # the real value while ignoring unavailable states and later synthetic zero.
-        if self._energy_data.kwh == 0:
-            recovered_value = await self._recover_daily_value_from_recorder(today)
-            if recovered_value is None:
-                recovered_value = _legacy_daily_energy_value(
-                    await self.async_get_last_state(), today
-                )
-            if recovered_value is not None:
-                self._energy_data = _CumulativeDailyEnergyData(
-                    recovered_value, None, today
-                )
+        # may also have persisted a small post-migration value before this
+        # recovery runs. Read today's recorder history in either case and keep
+        # the greater value: daily counters are monotonic within a day, so this
+        # preserves the old reading plus any value already accumulated by the new
+        # implementation while ignoring unavailable states and later zeroes.
+        recovered_value = await self._recover_daily_value_from_recorder(today)
+        if recovered_value is None:
+            recovered_value = _legacy_daily_energy_value(
+                await self.async_get_last_state(), today
+            )
+        if recovered_value is not None and recovered_value > self._energy_data.kwh:
+            self._energy_data = _CumulativeDailyEnergyData(
+                recovered_value, self._energy_data.last_total, today
+            )
         self._publish_daily()
 
     async def _recover_daily_value_from_recorder(self, today: str) -> float | None:

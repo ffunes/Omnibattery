@@ -81,11 +81,11 @@ def test_legacy_daily_value_rejects_a_previous_day_state():
     assert _legacy_daily_energy_value(state, dt_util.now().date().isoformat()) is None
 
 
-def test_recorder_recovery_uses_highest_value_after_a_synthetic_zero():
+def test_recorder_recovery_uses_highest_value_after_a_partial_new_total():
     now = dt_util.now()
     states = [
         State("sensor.battery_daily_charge", "1.7", last_updated=now),
-        State("sensor.battery_daily_charge", "0", last_updated=now),
+        State("sensor.battery_daily_charge", "0.2", last_updated=now),
         State("sensor.battery_daily_charge", "unavailable", last_updated=now),
     ]
 
