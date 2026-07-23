@@ -227,7 +227,7 @@ async def test_skip_when_discharge_unchanged_and_delivering():
         "force_mode": 2,
         "set_charge_power": 0,
         "set_discharge_power": 300,
-        "battery_power": -300,  # delivering (sign-agnostic via abs())
+        "battery_power": -300,  # negative is delivered discharge
     })
     ctrl = _controller()
 
@@ -235,6 +235,29 @@ async def test_skip_when_discharge_unchanged_and_delivering():
 
     assert result is True
     coord.apply_power.assert_not_called()
+
+
+async def test_discharge_wrong_direction_is_not_treated_as_delivery():
+    """Positive battery power is charging, so it must not satisfy discharge."""
+    coord = _Coord({
+        "force_mode": 2,
+        "set_charge_power": 0,
+        "set_discharge_power": 300,
+        "battery_power": 300,
+        "battery_soc": 80,
+        "inverter_state": None,
+    })
+    coord.apply_power = AsyncMock(return_value=_ok(-300, battery_power_w=300))
+    ctrl = _controller()
+    ctrl._last_commanded_net_sign[coord] = -1
+    record = MagicMock(return_value=None)
+    ctrl._non_responsive.record_non_delivery = record
+
+    result = await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 300)
+
+    assert result is True
+    coord.apply_power.assert_awaited_once()
+    record.assert_called_once()
 
 
 async def test_skip_when_charge_unchanged():
@@ -325,6 +348,50 @@ async def test_high_soc_standby_after_taper_reaches_wake_and_exclusion():
 
     assert ctrl._non_responsive.is_excluded(coord) is True
     assert ctrl._non_responsive.excluded_names() == ["BAT1"]
+
+
+async def test_recovery_standby_preserves_episode_until_exclusion():
+    """The wake path's internal standby must not re-arm wake forever (#26)."""
+    coord = _Coord({
+        "force_mode": 2,
+        "set_charge_power": 0,
+        "set_discharge_power": 600,
+        "battery_power": 0,
+        "battery_soc": 99,
+        "inverter_state": 1,
+    })
+    coord.apply_power = AsyncMock(return_value=_ok(0, battery_power_w=0))
+    ctrl = _controller()
+    ctrl._non_responsive = NonResponsiveTracker(fail_threshold=3)
+    ctrl._last_commanded_net_sign[coord] = -1
+
+    async def recovery_standby(_coord, *, is_standby=False):
+        assert is_standby is True
+        await ChargeDischargeController._set_battery_power(
+            ctrl,
+            coord,
+            0,
+            0,
+            bypass_blockers=True,
+            force_write=True,
+            preserve_non_responsive_episode=True,
+        )
+        return True
+
+    ctrl._attempt_wake = AsyncMock(side_effect=recovery_standby)
+
+    for _ in range(3):
+        await ctrl._check_non_delivery(coord, 600, 0, attempt=0)
+
+    assert ctrl._last_commanded_net_sign[coord] == -1
+    assert ctrl._non_responsive.is_excluded(coord) is False
+
+    await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 600)
+    for _ in range(3):
+        await ctrl._check_non_delivery(coord, 600, 0, attempt=0)
+
+    assert ctrl._attempt_wake.await_count == 1
+    assert ctrl._non_responsive.is_excluded(coord) is True
 
 
 async def test_no_skip_when_setpoints_differ():
