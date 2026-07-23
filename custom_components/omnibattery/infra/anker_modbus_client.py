@@ -1,4 +1,4 @@
-"""Async Modbus TCP client for Anker SOLIX Solarbank Max AC.
+"""Async Modbus TCP client for Anker SOLIX Solarbank (Max AC / 4 E5000 Pro).
 
 Reads use only FC03 (holding) and FC04 (input) as defined by Anker's official
 ``batch_read_ranges``. Writes target holding addresses with FC06 (uint16) and

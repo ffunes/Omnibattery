@@ -3241,12 +3241,18 @@ class MarstekVenusPanel extends HTMLElement {
     const list = [];
     for (const [dev, ids] of byDevice) {
       const byTk = {};
-      const idByTk = {}; // translation_key -> entity_id (for control service calls)
+      // translation_key -> entity_id (last wins; used for sensors/metrics).
+      // Controls also need domain-qualified lookup so Anker's read-only
+      // max_charge_power sensor is not mistaken for the soft-max number.
+      const idByTk = {};
+      const idByTkDomain = {}; // `${domain}:${translation_key}` -> entity_id
       for (const id of ids) {
         const e = hass.entities[id];
         if (e && e.translation_key) {
           byTk[e.translation_key] = hass.states[id];
           idByTk[e.translation_key] = id;
+          const domain = id.split(".")[0];
+          idByTkDomain[`${domain}:${e.translation_key}`] = id;
         }
       }
       const socObj = byTk[K.batterySoc];
@@ -3313,6 +3319,7 @@ class MarstekVenusPanel extends HTMLElement {
         mppt,
         hasMppt,
         entIds: idByTk,
+        entIdsDomain: idByTkDomain,
         info: {
           sw: this._sval(byTk[K.softwareVersion]),
           serial: (devReg && devReg.serial_number) || null,
@@ -3753,8 +3760,13 @@ class MarstekVenusPanel extends HTMLElement {
 
   _syncControls(r, b) {
     const hass = this._hass;
+    const controlId = (c) =>
+      (b.entIdsDomain && b.entIdsDomain[`${c.domain}:${c.key}`]) ||
+      (b.entIds[c.key] && b.entIds[c.key].startsWith(c.domain + ".")
+        ? b.entIds[c.key]
+        : null);
     const avail = BAT_CONTROLS.filter((c) => {
-      const id = b.entIds[c.key];
+      const id = controlId(c);
       const st = id && hass.states[id];
       // Hide controls with no live value (e.g. stale registry entities left from
       // re-adding a device under a different driver) — their slider is dead anyway.
@@ -3776,7 +3788,7 @@ class MarstekVenusPanel extends HTMLElement {
     }
     for (const c of avail) {
       const w = r.controls[c.key];
-      if (w) this._patchControlRow(w, hass.states[b.entIds[c.key]]);
+      if (w) this._patchControlRow(w, hass.states[controlId(c)]);
     }
   }
 
@@ -3784,8 +3796,12 @@ class MarstekVenusPanel extends HTMLElement {
    *  full-width button), so the parent .bat-ctl-grid aligns labels/controls
    *  across rows and every slider gets the same width. */
   _buildControlRow(r, b, c) {
-    const id = b.entIds[c.key];
-    const state = this._hass.states[id];
+    const id =
+      (b.entIdsDomain && b.entIdsDomain[`${c.domain}:${c.key}`]) ||
+      (b.entIds[c.key] && b.entIds[c.key].startsWith(c.domain + ".")
+        ? b.entIds[c.key]
+        : null);
+    const state = id && this._hass.states[id];
     const frag = document.createDocumentFragment();
 
     const cLabel = this._t(c.lk);

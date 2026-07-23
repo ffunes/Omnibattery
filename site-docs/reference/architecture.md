@@ -43,7 +43,7 @@ subpackages by responsibility.
 | `drivers/base.py` | `BatteryDriver`, `DriverCapabilities` | The driver contract and the static-traits dataclass |
 | `drivers/marstek.py` | `MarstekModbusDriver` | Marstek Venus (v2/v3/vA/vD) over Modbus TCP / RTU |
 | `drivers/zendure.py` | `ZendureLocalDriver` | Zendure SolarFlow over local HTTP |
-| `drivers/anker.py` | `AnkerModbusDriver` | Anker SOLIX Solarbank Max AC over Modbus TCP (FC03/FC04 reads) |
+| `drivers/anker.py` | `AnkerModbusDriver` | Anker SOLIX Solarbank Max AC / 4 E5000 Pro over Modbus TCP (FC03/FC04 reads) |
 | `infra/coordinator.py` | `MarstekVenusDataUpdateCoordinator` | Periodic telemetry polling (via the driver), entity updates |
 | `infra/modbus_client.py` | `MarstekModbusClient` | Async Modbus TCP/RTU transport via pymodbus, retries with backoff |
 | `infra/anker_modbus_client.py` | `AnkerModbusClient` | Async Modbus TCP for Anker (FC03/FC04 reads, FC06/FC16 writes) |

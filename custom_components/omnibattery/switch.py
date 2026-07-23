@@ -1340,7 +1340,10 @@ class ManualModeSwitch(SwitchEntity):
                     "Automatic charge/discharge control is paused. "
                     "All batteries have been set to idle (0W). "
                     "You can now manually control each battery using the "
-                    "'Set Forcible Charge/Discharge Power' controls.\n\n"
+                    "'Set Forcible Charge/Discharge Power' controls, or — "
+                    "for Anker — select another operating mode in the "
+                    "official Anker Solix integration without OmniBattery "
+                    "reverting it.\n\n"
                     "Turn off Manual Mode to resume automatic control."
                 ),
                 "notification_id": f"{NOTIFICATION_ID_PREFIX}manual_mode_active",

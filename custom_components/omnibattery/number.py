@@ -75,9 +75,9 @@ async def async_setup_entry(
             entities.append(MarstekManualSetPowerNumber(coordinator, "charge"))
             entities.append(MarstekManualSetPowerNumber(coordinator, "discharge"))
 
-        # Drivers whose max_charge_power is telemetry-only with no sensor entity
-        # (Zendure chargeMaxLimit) get a software charge-power ceiling. Anker
-        # exposes 10036/10038 as sensors instead — no soft-max numbers.
+        # Drivers whose max_charge_power is not a writable register (Zendure
+        # chargeMaxLimit telemetry, Anker 10036 read-only sensor) get a software
+        # charge-power ceiling under the device/hardware cap.
         if coordinator.needs_software_max_charge:
             entities.append(MarstekSoftMaxChargeNumber(coordinator))
         if coordinator.needs_software_max_discharge:
@@ -775,8 +775,8 @@ class MarstekManualSetPowerNumber(CoordinatorEntity, NumberEntity):
 
 
 class MarstekSoftMaxChargeNumber(CoordinatorEntity, NumberEntity):
-    """Software charge-power ceiling for drivers whose max_charge_power is
-    telemetry-only with no sensor entity (Zendure chargeMaxLimit).
+    """Software charge-power ceiling when max_charge_power is not writable
+    (Zendure chargeMaxLimit telemetry, Anker input 10036 sensor).
 
     Stores a user limit on the coordinator; the poll loop applies
     min(device_cap, user limit) to coordinator.max_charge_power, which the PD
@@ -825,9 +825,8 @@ class MarstekSoftMaxChargeNumber(CoordinatorEntity, NumberEntity):
 
 
 class MarstekSoftMaxDischargeNumber(CoordinatorEntity, NumberEntity):
-    """Software discharge-power ceiling when max_discharge_power has no register
-    or sensor entity. Anker exposes 10038 as a sensor (no soft-max); this
-    remains for drivers that need a software discharge ceiling.
+    """Software discharge-power ceiling when max_discharge_power has no writable
+    register (Anker input 10038 sensor, or other telemetry-only drivers).
     """
 
     def __init__(self, coordinator: MarstekVenusDataUpdateCoordinator) -> None:

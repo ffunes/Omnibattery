@@ -695,7 +695,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                                 {"value": "marstek", "label": "Marstek Venus"},
                                 {"value": "zendure", "label": "Zendure SolarFlow"},
                                 {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
-                                {"value": "anker", "label": "Anker SOLIX Solarbank Max AC"},
+                                {"value": "anker", "label": "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"},
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )),
@@ -856,7 +856,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
     async def async_step_battery_connection_anker(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Step 3b (Anker): Connection details for Solarbank Max AC."""
+        """Step 3b (Anker): Connection details for Solarbank Max AC / 4 E5000 Pro."""
         errors = {}
         battery_num = self.battery_index + 1
 
@@ -2177,7 +2177,7 @@ class OptionsFlowHandler(OptionsFlow):
                                 {"value": "marstek", "label": "Marstek Venus"},
                                 {"value": "zendure", "label": "Zendure SolarFlow"},
                                 {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
-                                {"value": "anker", "label": "Anker SOLIX Solarbank Max AC"},
+                                {"value": "anker", "label": "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"},
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )),
@@ -2390,7 +2390,7 @@ class OptionsFlowHandler(OptionsFlow):
 
 
     async def async_step_battery_connection_anker(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Configure connection details for an Anker Solarbank Max AC."""
+        """Configure connection details for an Anker Solarbank Max AC / 4 E5000 Pro."""
         errors = {}
 
         try:

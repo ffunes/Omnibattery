@@ -31,6 +31,53 @@ def test_inverse_max_power_is_a_hardware_discharge_limit():
     )
 
 
+def test_anker_needs_software_max_despite_read_only_sensors():
+    """Anker exposes 10036/10038 as sensors; soft-max numbers still gate PD."""
+    from custom_components.omnibattery.drivers import anker as anker_mod
+
+    coordinator = SimpleNamespace(
+        number_definitions=list(anker_mod.NUMBER_DEFINITIONS),
+        sensor_definitions=list(anker_mod.SENSOR_DEFINITIONS),
+        select_definitions=list(anker_mod.SELECT_DEFINITIONS),
+    )
+
+    assert (
+        MarstekVenusDataUpdateCoordinator.needs_software_max_charge.fget(coordinator)
+        is True
+    )
+    assert (
+        MarstekVenusDataUpdateCoordinator.needs_software_max_discharge.fget(
+            coordinator
+        )
+        is True
+    )
+    assert (
+        MarstekVenusDataUpdateCoordinator.needs_software_manual_control.fget(
+            coordinator
+        )
+        is True
+    )
+
+
+def test_marstek_writable_max_charge_skips_software_max():
+    coordinator = SimpleNamespace(
+        number_definitions=[{"key": "max_charge_power"}, {"key": "max_discharge_power"}],
+        sensor_definitions=[],
+        select_definitions=[{"key": "force_mode"}],
+    )
+
+    assert (
+        MarstekVenusDataUpdateCoordinator.needs_software_max_charge.fget(coordinator)
+        is False
+    )
+    assert (
+        MarstekVenusDataUpdateCoordinator.needs_software_max_discharge.fget(
+            coordinator
+        )
+        is False
+    )
+
+
 async def test_reconnect_skips_rs485_for_driver_without_capability():
     driver = SimpleNamespace(connect=AsyncMock(return_value=True))
     coordinator = SimpleNamespace(

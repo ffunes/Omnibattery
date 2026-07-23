@@ -3125,11 +3125,16 @@ class ChargeDischargeController:
 
     async def _apply_software_manual_setpoints(self) -> None:
         """Assert the per-battery manual setpoint for drivers without manual
-        registers (Zendure) while global manual mode is active.
+        registers (Zendure/Anker) while global manual mode is active.
 
         Register-based batteries (Marstek) are driven by the user's own register
-        writes, so they are skipped here. The setpoint is re-asserted every cycle;
-        _set_battery_power's skip-if-unchanged guard avoids redundant writes.
+        writes, so they are skipped here. Charge/Discharge setpoints are
+        re-asserted every cycle; _set_battery_power's skip-if-unchanged guard
+        avoids redundant writes.
+
+        Idle (None) does not reassert 0 W: Manual Mode turn-on already idles
+        once, and reasserting would force Anker Third-Party Control every cycle
+        — fighting Solix app modes the user may select while paused.
         """
         for coordinator in self.coordinators:
             if not coordinator.needs_software_manual_control:
@@ -3139,8 +3144,7 @@ class ChargeDischargeController:
                 await self._set_battery_power(coordinator, coordinator.manual_set_charge_power, 0, bypass_blockers=True)
             elif mode == "Discharge":
                 await self._set_battery_power(coordinator, 0, coordinator.manual_set_discharge_power, bypass_blockers=True)
-            else:
-                await self._set_battery_power(coordinator, 0, 0)
+            # Idle: leave device alone (no 0 W reassert / no mode force).
 
     async def _set_battery_power(
         self,

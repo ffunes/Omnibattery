@@ -10,7 +10,7 @@ Drivers:
   - ``marstek``: Modbus-TCP, register based, polled (the original hardware).
   - ``zendure``: local HTTP REST, property based, polled (SolarFlow series).
   - ``esphome``: HA-entity based, push (Marstek behind a LilyGo RS485 bridge).
-  - ``anker``: Modbus-TCP, register based, polled (SOLIX Solarbank Max AC).
+  - ``anker``: Modbus-TCP, register based, polled (SOLIX Solarbank Max AC / 4 E5000 Pro).
 
 See ``docs/plans/driver_abstraction.md`` for the phased extraction plan.
 """
