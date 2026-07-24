@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.1rc1] - 2026-07-23
+## [1.0.1rc2] - 2026-07-23
 
 ### Added
 - **Anker SOLIX Solarbank Max AC and Solarbank 4 E5000 Pro driver**: adds native Modbus TCP support for monitoring and controlling the Solarbank Max AC and Solarbank 4 E5000 Pro through the same Omnibattery control loop, dashboard and Home Assistant entities as the other supported batteries. Thanks to @wouterbouvy.
@@ -13,6 +13,7 @@
 - **Time-slot naming unified**: the configuration and options flows, dashboard help and documentation now call them “Time slots”, reflecting that each can independently control both charging and discharging.
 
 ### Fixed
+- **Control-tab sliders could collapse in narrow automatically sized cards**: control cards now adapt their internal layout to the actual card width, placing labels above their controls when needed so sliders remain usable across screen sizes, Home Assistant sidebar states and custom grid layouts.
 - **Venus E v3 daily charge/discharge energy could report incorrect values**: the unreliable daily Modbus registers are no longer polled; daily values are now derived from the reliable lifetime charge and discharge counters, matching the Anker implementation. Updating mid-day preserves the value already reported for the current local day.
 - **A battery stuck in Standby could reconnect forever without reaching final non-responsive exclusion** (#26): recovery-only Standby writes now preserve the active failure episode and one-shot wake budget, so an unresponsive battery is excluded after the second threshold instead of restarting the cycle. Charging power can no longer be mistaken for delivered discharge, failed RS485 re-enables are reported as unsuccessful wake attempts, and cooldown diagnostics no longer show expired exclusions. Thanks to @engelsofta.
 - **Healthy BMS reads could hide failed inverter and control telemetry** (#26): safety-critical register groups are tracked independently and trigger one fresh reconnect after three consecutive failures.

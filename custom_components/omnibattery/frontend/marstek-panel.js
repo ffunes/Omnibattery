@@ -5019,8 +5019,10 @@ class MarstekVenusPanel extends HTMLElement {
         grid-auto-flow: row dense; }
       /* let cards shrink to their track (the old .sys-col grid item carried this);
          without it long-label cards (PD/Common) stay at min-content and the inner
-         2-col grid collapses the slider column to just the thumb */
-      .sys-stack > .card { min-width: 0; }
+         2-col grid collapses the slider column to just the thumb. Each card is
+         also a size container: its controls respond to the width the auto grid
+         actually gives it (including HA's sidebar), not to the viewport. */
+      .sys-stack .card { min-width: 0; container: sys-control-card / inline-size; }
       .sys-stack > .placeholder { grid-column: 1 / -1; }
       .sys-stack .card-head { margin-bottom: 0; }
       /* arrange mode: cards become grabbable, inner controls are locked so a drag
@@ -5061,6 +5063,16 @@ class MarstekVenusPanel extends HTMLElement {
          and wrap, so sliders/buttons never overflow the card box at ~1080p */
       .sys-grid { margin-top: 14px; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); }
       .sys-grid .ctl-k { white-space: normal; overflow-wrap: anywhere; }
+      /* Auto-fit can legitimately make a card ~300px wide. At that point a
+         label/value pair leaves too little room for a usable range input. Stack
+         each pair inside the card instead; container queries keep this correct
+         for viewport, sidebar and user-pinned layouts alike. */
+      @container sys-control-card (max-width: 380px) {
+        .sys-grid { grid-template-columns: minmax(0, 1fr); row-gap: 6px; }
+        .sys-grid > .ctl-k:not(:first-child) { margin-top: 8px; }
+        .sys-grid > .ctl-toggle { margin-bottom: 4px; }
+        .sys-grid > .ctl-btn { grid-column: 1; }
+      }
       /* label with a tap/hover detail popover (e.g. time-slot details) */
       .ctl-k-info { cursor: pointer; }
       .ctl-k-info > span { text-decoration: underline dotted var(--ink-dim); text-underline-offset: 3px; }
