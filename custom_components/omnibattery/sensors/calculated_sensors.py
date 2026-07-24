@@ -128,7 +128,11 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
         if charge_energy <= 0:
             return None
 
-        return round((discharge_energy / charge_energy) * 100, 2)
+        # Hardware lifetime counters are normally a reliable round-trip
+        # measurement. Some devices, however, can expose charge and discharge
+        # counters with different historical baselines. Never publish a
+        # physically impossible efficiency when that happens.
+        return round(min((discharge_energy / charge_energy) * 100, 100.0), 2)
 
     @property
     def extra_state_attributes(self):
