@@ -3,8 +3,7 @@
 ## [1.0.1rc1] - 2026-07-23
 
 ### Added
-- **Anker SOLIX Solarbank Max AC driver**: adds native Modbus TCP support for monitoring and controlling the Solarbank Max AC through the same Omnibattery control loop, dashboard and Home Assistant entities as the other supported batteries. Thanks to @wouterbouvy.
-- **Daily charge/discharge energy for Anker Solarbank Max AC**: derives per-battery daily counters from the hardware lifetime totals, restores the current day's value across Home Assistant restarts and safely rebases if the device counter resets. System daily-energy aggregates and dashboard cards now receive real Anker values instead of falling back to zero.
+- **Anker SOLIX Solarbank Max AC and Solarbank 4 E5000 Pro driver**: adds native Modbus TCP support for monitoring and controlling the Solarbank Max AC and Solarbank 4 E5000 Pro through the same Omnibattery control loop, dashboard and Home Assistant entities as the other supported batteries. Thanks to @wouterbouvy.
 - **Official Home Assistant Nord Pool support for dynamic pricing**: the existing Nordpool provider detects official-integration entities, requests today's slots through `nordpool.get_prices_for_date`, selects the entity's market area, converts currency/MWh to currency/kWh and refreshes hourly. Existing HACS Nordpool sensors continue using `raw_today` / `raw_tomorrow` without configuration changes.
 - **Dynamic power control for telemetry excluded devices**: a new per-device setup option and runtime switch lets flexible loads such as self-regulating wallboxes claim changing PV surplus before battery charging. A shared device-active / EV-charging state sensor closes the cold-start gap before measured demand appears and also serves new no-telemetry EV setups; legacy configurations remain compatible. Cover Home is now available in both the initial and options flows.
 - **Optional minimum arbitrage margin for dynamic pricing** (#115): charging slots can be filtered by expected discharge price, round-trip efficiency and the required minimum margin, avoiding cycles whose price spread would not cover conversion losses. It is disabled by default and combines with the existing maximum charge-price threshold. Thanks to @syphernl.
@@ -20,7 +19,6 @@
 - **HACS Nordpool sensors configured to display cents were treated as major currency units**: `price_in_cents` and the energy scale (`MWh`, `kWh` or `Wh`) are normalized before scheduling, threshold checks, arbitrage calculations and diagnostics.
 - **Solar Charge Delay unlocked too early when only its 30% safety cushion was missing** (#137): price-driven predictive modes now hold the delay until the cheapest feasible hour when the remaining net solar still covers the bare battery need; genuine energy deficits still unlock immediately. Thanks to @syphernl.
 - **Venus A/D battery card mixed AC output with cell flow** (#93): the per-battery view now separates AC input/output from net cell charge/discharge, including MPPT contribution, and labels the inverter state explicitly. Thanks to @syphernl.
-- **Anker telemetry now satisfies the shared control contract**: it exposes the correct temperature, AC-power sign convention and normalized inverter state for thermal derating, daily home energy, BMS-cutoff and non-delivery diagnostics.
 - **PD could remain unable to charge at minimum SOC with a slow or temporarily stalled grid sensor** (#117): stale safety recalculations no longer erase an armed direction-flip timer. The latest grid reading now remains authoritative for up to 65 seconds regardless of polling rate. Sensors updating every 10 seconds or more are accepted but surfaced through setup guidance and a single Home Assistant Repairs warning per integration run, without recurring log warnings. Thanks to @syphernl.
 - **Slow Modbus gateways no longer block Home Assistant startup**: control cycles run as background tasks, so retrying a gateway cannot delay the rest of the boot.
 - **RS485 Control Mode could get stuck in either direction on Venus v3 batteries** (#92): both transitions recreate the connection, use the RS485-specific command and confirm register 42000 instead of trusting the write acknowledgement.
@@ -41,8 +39,6 @@
 > 4. **Confirm the migration** when prompted. If your old config is still present it migrates seamlessly; if you had already removed the old integration, it offers to **restore from the snapshot** written in step 1. Either way it recreates your config on the new domain and re-links every entity, its history and stored state.
 > 5. Once Omnibattery is running, remove the old `marstek-venus-energy-manager` integration and repository from HACS.
 > 6. Hard-refresh the browser (**Ctrl+F5**) so the renamed sidebar panel loads.
-
-*Consolidates betas 1.0.0b1–1.0.0b7.*
 
 ### Added
 - **Zendure SolarFlow support**: drives Zendure 2400 AC / AC Pro / AC+ over local HTTP, auto-detecting the model — same control loop, sensors, dashboard and translations as Marstek.
