@@ -129,6 +129,50 @@ def _anker_power_ceilings(battery_data: dict) -> tuple[int, int]:
     )
 
 
+async def _validate_anker_connection(
+    hass: Any,
+    entry_id: str,
+    host: str,
+    port: int,
+    slave_id: int,
+) -> tuple[bool, dict[str, int]]:
+    """Validate Anker connection without probing an already-active endpoint.
+
+    Reconfigure/options flows run while the entry coordinator still owns its
+    persistent Modbus connection. When that exact Anker endpoint is healthy,
+    its live telemetry is stronger evidence than opening a second connection.
+    A changed or unavailable endpoint still receives a normal probe.
+    """
+    entry_data = getattr(hass, "data", {}).get(DOMAIN, {}).get(entry_id, {})
+    for coordinator in entry_data.get("coordinators", []):
+        if (
+            getattr(coordinator, "brand", None) == "anker"
+            and getattr(coordinator, "host", None) == host
+            and int(getattr(coordinator, "port", 502)) == port
+            and int(getattr(coordinator, "slave_id", DEFAULT_SLAVE_ID)) == slave_id
+            and bool(getattr(coordinator, "is_available", False))
+        ):
+            data = getattr(coordinator, "data", None) or {}
+            caps: dict[str, int] = {}
+            for src, dst in (
+                ("max_charge_power", "device_max_charge_power"),
+                ("max_discharge_power", "device_max_discharge_power"),
+            ):
+                value = data.get(src)
+                if isinstance(value, (int, float)) and int(value) > 0:
+                    caps[dst] = int(value)
+            _LOGGER.info(
+                "Reusing active Anker coordinator for connection validation at "
+                "%s:%s slave %s",
+                host,
+                port,
+                slave_id,
+            )
+            return True, caps
+
+    return await AnkerModbusDriver.probe(host, port, slave_id)
+
+
 def _seed_software_power_limits(merged: dict, brand: str) -> None:
     """Persist soft-max keys for Zendure (read-only chargeMaxLimit + software ceiling)."""
     if brand != "zendure":
@@ -1897,7 +1941,13 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             new_host = user_input[CONF_HOST]
             new_port = int(user_input.get(CONF_PORT, 502))
             slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
-            ok, _ = await AnkerModbusDriver.probe(new_host, new_port, slave_id)
+            ok, _ = await _validate_anker_connection(
+                self.hass,
+                entry.entry_id,
+                new_host,
+                new_port,
+                slave_id,
+            )
             if not ok:
                 errors["base"] = "cannot_connect"
             else:
@@ -2401,7 +2451,13 @@ class OptionsFlowHandler(OptionsFlow):
                 host = user_input[CONF_HOST]
                 port = int(user_input.get(CONF_PORT, 502))
                 slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
-                ok, caps = await AnkerModbusDriver.probe(host, port, slave_id)
+                ok, caps = await _validate_anker_connection(
+                    self.hass,
+                    self.config_entry.entry_id,
+                    host,
+                    port,
+                    slave_id,
+                )
                 if not ok:
                     errors["base"] = "cannot_connect"
                 else:
