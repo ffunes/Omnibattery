@@ -125,6 +125,17 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
         charge_energy = self.coordinator.data.get(self._dependency_keys["charge"], 0)
         discharge_energy = self.coordinator.data.get(self._dependency_keys["discharge"], 0)
 
+        # Anker and Venus E v3 only expose lifetime energy registers. Their
+        # derived daily counters share a common midnight baseline, unlike the
+        # independent lifetime counters that can retain different historical
+        # baselines. Prefer that like-for-like pair when it is available.
+        if not self.coordinator.capabilities.has_daily_energy_counters:
+            daily_charge = self.coordinator.data.get("total_daily_charging_energy")
+            daily_discharge = self.coordinator.data.get("total_daily_discharging_energy")
+            if daily_charge is not None and daily_discharge is not None:
+                charge_energy = daily_charge
+                discharge_energy = daily_discharge
+
         if charge_energy <= 0:
             return None
 
