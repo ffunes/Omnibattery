@@ -6,7 +6,7 @@
 
 - Marstek Venus E and C (v2 and v3), Venus D and Venus A via Modbus TCP
 - Zendure Solarflow 2400 AC+, Solarflow 2400 Pro (Local API)
-- Anker SOLIX Solarbank Max AC and Solarbank 4 E5000 Pro via Modbus TCP
+- Anker SOLIX Solarbank Max AC and Solarbank 4 E5000 Pro via Modbus TCP (thanks @wouterbouvy!)
 
 It provides advanced energy management features including predictive grid charging, customizable time slots for discharge control, and device load exclusion logic.
 
