@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.1rc2] - 2026-07-23
+## [1.1.0rc1] - 2026-07-24
 
 ### Added
 - **Anker SOLIX Solarbank Max AC and Solarbank 4 E5000 Pro driver**: adds native Modbus TCP support for monitoring and controlling the Solarbank Max AC and Solarbank 4 E5000 Pro through the same Omnibattery control loop, dashboard and Home Assistant entities as the other supported batteries. Thanks to @wouterbouvy.
