@@ -1783,8 +1783,8 @@
 </code></pre></div>
 <p>La lógica inversa a la de carga: se carga cuando el precio es bajo, se descarga cuando es alto.</p>
 <h3 id="interaccion-con-franjas-horarias">Interacción con franjas horarias<a class="headerlink" href="#interaccion-con-franjas-horarias" title="Permanent link">&para;</a></h3>
-<p>Si tienes franjas de descarga configuradas, <strong>ambas condiciones deben cumplirse</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Descarga permitida = dentro_de_franja_horaria AND precio_actual &gt; umbral
+<p>Si las franjas horarias están configuradas para restringir la descarga, <strong>ambas condiciones deben cumplirse</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Descarga permitida = dentro_de_franja_horaria_de_descarga AND precio_actual &gt; umbral
 </code></pre></div>
 <h3 id="efecto-en-el-controlador-pd">Efecto en el controlador PD<a class="headerlink" href="#efecto-en-el-controlador-pd" title="Permanent link">&para;</a></h3>
 <p>Cuando la descarga está bloqueada por precio, el controlador congela completamente su estado (potencia a 0, sin actualización del término derivativo), igual que ocurre durante una restricción de franja horaria. La batería se reactiva sin perturbaciones en cuanto el precio supera el umbral.</p>

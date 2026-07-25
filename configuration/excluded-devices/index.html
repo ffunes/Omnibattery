@@ -778,6 +778,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dynamic-power-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic power control
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#exclusion-slider" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1676,6 +1687,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dynamic-power-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic power control
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#exclusion-slider" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1776,8 +1798,12 @@
 </thead>
 <tbody>
 <tr>
-<td><strong>Device sensor</strong></td>
-<td>HA entity measuring the device's power (e.g. <code>sensor.wallbox_power</code>), or a state sensor for EV chargers without power telemetry.</td>
+<td><strong>Device power sensor</strong></td>
+<td>HA entity measuring the device's numeric power (e.g. <code>sensor.wallbox_power</code>). Optional for an EV charger without power telemetry.</td>
+</tr>
+<tr>
+<td><strong>Device active / EV charging sensor</strong></td>
+<td>State or binary sensor that reports <code>on</code>, <code>Charging</code>, <code>Cargando</code>, or another recognised charging state. Required by Dynamic Power Control and by new no-telemetry configurations; otherwise optional.</td>
 </tr>
 <tr>
 <td><strong>Included in consumption</strong></td>
@@ -1786,6 +1812,14 @@
 <tr>
 <td><strong>Allow solar surplus</strong></td>
 <td>If enabled, the battery will not charge to compensate this device when there is a solar surplus. Can also be toggled at runtime via a switch entity (see below).</td>
+</tr>
+<tr>
+<td><strong>Device has dynamic power control</strong></td>
+<td>Enable for a load such as a surplus-controlled wallbox that adjusts its own demand from a grid meter. Requires <strong>Allow solar surplus</strong>.</td>
+</tr>
+<tr>
+<td><strong>Cover home while device is active</strong></td>
+<td>Allow the battery to cover genuine household load while only the device's grid share remains excluded. Requires <strong>Allow solar surplus</strong> and a solar-production sensor.</td>
 </tr>
 <tr>
 <td><strong>EV charger without power telemetry</strong></td>
@@ -1813,6 +1847,28 @@
 </ul>
 <p>The switch state is persisted in the config entry and survives restarts.</p>
 <hr />
+<h2 id="dynamic-power-control">Dynamic power control<a class="headerlink" href="#dynamic-power-control" title="Permanent link">&para;</a></h2>
+<p>Telemetry devices also get a <strong>Dynamic Power Control</strong> switch. It is designed
+for flexible loads such as wallboxes that regulate themselves from the same
+grid meter as Omnibattery. Enable it together with <strong>Solar Surplus</strong>.</p>
+<p>The <strong>Device active / EV charging sensor</strong> lets Omnibattery yield while the wallbox is requesting
+power but still reads 0 W, avoiding the cold-start deadlock where the battery
+absorbs all export before the wallbox starts. Omnibattery automatically:</p>
+<ul>
+<li>blocks battery charging while the optional activity sensor requests power but
+  the wallbox still reads 0 W;</li>
+<li>yields battery charging for 30 seconds when device demand rises above 100 W;</li>
+<li>lets the external controller ramp up before the battery takes residual export;</li>
+<li>yields again for 20 seconds after solar production rises by at least 200 W;</li>
+<li>keeps battery charging blocked for 5 minutes after device power falls, allowing
+  a wallbox to restart after a cloud or phase transition;</li>
+<li>probes every 5 minutes when no solar-production sensor is available.</li>
+</ul>
+<p>Legacy sensor-less Dynamic Power Control entries still fall back to detection at
+the first measured load above 100 W. Dynamic Power Control is not available for
+the state-only <strong>EV charger without power telemetry</strong> mode because that mode
+already manages the battery directly from the same activity sensor.</p>
+<hr />
 <h2 id="exclusion-slider">Exclusion % slider<a class="headerlink" href="#exclusion-slider" title="Permanent link">&para;</a></h2>
 <p>Exclusion is not all-or-nothing. Each excluded device also gets an <strong>Exclusion %</strong> slider (<code>&lt;device&gt; – Exclusion %</code>, <code>number.*_exclusion_pct</code>, 0–100 %, default <code>100</code>) controlling <strong>how much</strong> of its demand stays off the battery:</p>
 <ul>
@@ -1824,7 +1880,11 @@
 <hr />
 <h2 id="ev-charger-without-power-telemetry">EV charger without power telemetry<a class="headerlink" href="#ev-charger-without-power-telemetry" title="Permanent link">&para;</a></h2>
 <p>Some EV charger integrations do not expose a real-time power sensor — they only report a <strong>charging state</strong> (e.g. <code>Charging</code>, <code>Idle</code>, <code>Disconnected</code>). This option is designed for those chargers.</p>
-<p>When enabled, the <strong>Device sensor</strong> field must point to the state entity, not a power sensor. The controller recognises any state that contains <code>charg</code> or <code>cargand</code> (case-insensitive), covering:</p>
+<p>For new configurations, select the state entity in <strong>Device active / EV charging
+sensor</strong>; the numeric power sensor may be left empty. Existing configurations
+that stored the state entity in <strong>Device power sensor</strong> remain fully supported
+and are prefilled automatically when edited. Binary state <code>on</code> and charging
+words are recognised case-insensitively, covering:</p>
 <ul>
 <li><code>Charging</code> (most English-language integrations)</li>
 <li><code>Cargando</code>, <code>Cargando VE</code>, <code>Cargando Vehículo</code> (Spanish)</li>

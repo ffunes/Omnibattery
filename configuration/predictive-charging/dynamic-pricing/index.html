@@ -953,6 +953,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#minimum-arbitrage-margin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimum arbitrage margin
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#interaction-with-time-slots" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1721,6 +1732,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#minimum-arbitrage-margin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimum arbitrage margin
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#interaction-with-time-slots" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1787,7 +1809,7 @@
 <p>Automatically selects the <strong>cheapest hours of the day</strong> to cover the calculated energy deficit.</p>
 <h2 id="compatible-price-integrations">Compatible price integrations<a class="headerlink" href="#compatible-price-integrations" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Nordpool</strong></li>
+<li><strong>Nord Pool</strong> — both the official Home Assistant integration and the HACS integration</li>
 <li><strong>PVPC</strong> (ESIOS REE, Spain)</li>
 <li><strong>CKW</strong> (Switzerland)</li>
 <li><strong>EPEX Spot</strong> (e.g. aWATTar)</li>
@@ -1797,6 +1819,10 @@
 <div class="admonition note">
 <p class="admonition-title">Tibber needs no sensor</p>
 <p>Selecting <strong>Tibber</strong> as the price integration leaves the <em>Electricity price sensor</em> field unused — the engine calls the <code>tibber.get_prices</code> service (today's prices, plus tomorrow's after ~13:00), caches the slots and refreshes hourly. The official Tibber integration must be configured in HA.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Official Nord Pool and HACS are selected the same way</p>
+<p>Select <strong>Nordpool</strong> and choose a price entity from the provider. A HACS sensor continues to be read from its <code>raw_today</code> / <code>raw_tomorrow</code> attributes. If that sensor has <code>price_in_cents: true</code>, Omnibattery automatically converts its slots and current price to major currency/kWh, so thresholds must still be entered in €/kWh (or the corresponding major currency), not cents. For an entity from Home Assistant's official Nord Pool integration, Omnibattery automatically resolves its market area, calls <code>nordpool.get_prices_for_date</code> for today, converts the returned currency/MWh values to currency/kWh, and refreshes the cache hourly. No separate provider option or template sensor is needed.</p>
 </div>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <table>
@@ -1809,11 +1835,11 @@
 <tbody>
 <tr>
 <td><strong>Price integration type</strong></td>
-<td>Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e</td>
+<td>Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e / Tibber</td>
 </tr>
 <tr>
 <td><strong>Electricity price sensor</strong></td>
-<td>HA entity with the current price (and hourly forecast attributes)</td>
+<td>HA price entity. For Nord Pool, select either an official-integration entity or the existing HACS sensor; unused for Tibber</td>
 </tr>
 <tr>
 <td><strong>Max price threshold (€)</strong></td>
@@ -1874,11 +1900,21 @@
 </code></pre></div>
 <p>In the idle band the battery neither grid-charges nor discharges — but <strong>solar-surplus charging still works</strong>. This avoids cycling the battery for the marginal price difference around the average. The floor must be <strong>at or above</strong> the charge ceiling (it is validated on save); leave it empty to reuse the max price threshold for both (the single-threshold behaviour above).</p>
 <p>Both thresholds are also exposed as live <code>number</code> entities (<strong>Max Price Threshold</strong> and <strong>Discharge Price Floor</strong>) so automations can rewrite them without entering the options flow.</p>
-<h3 id="interaction-with-time-slots">Interaction with time slots<a class="headerlink" href="#interaction-with-time-slots" title="Permanent link">&para;</a></h3>
-<p>If discharge time slots are configured, <strong>both conditions must be met</strong> for the battery to discharge:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Discharge allowed = within_time_slot AND current_price &gt; threshold
+<h3 id="minimum-arbitrage-margin">Minimum arbitrage margin<a class="headerlink" href="#minimum-arbitrage-margin" title="Permanent link">&para;</a></h3>
+<p>A fixed charge ceiling answers "is this price low?" but not "is it low <em>enough</em>". Those come apart in winter, when a flat price curve can sit entirely below the ceiling while offering no spread to trade against. Charging then runs the battery through a cycle that the round-trip losses eat.</p>
+<p>The optional <strong>Minimum Arbitrage Margin</strong> makes the ceiling move with the day instead. At each evaluation the engine takes the most expensive hours still ahead, as many as it plans to charge for, and requires:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>expected_discharge_price × round_trip_efficiency − slot_price ≥ margin
 </code></pre></div>
-<p>Outside the slot the battery never discharges. Inside the slot, it only discharges when the price is high enough.</p>
+<p>Slots that fail are dropped. If none survive, the day is skipped entirely.</p>
+<p>The margin is <strong>empty by default</strong>, which leaves slot selection exactly as it was. Setting it back to <code>0</code> disables it again. When set, it applies <em>on top of</em> the max price threshold, and whichever ceiling is stricter wins.</p>
+<p>The gate runs on the 00:05 evaluation only. The evening recharge after a poor solar day is a deficit-driven safety top-up rather than an arbitrage trade, and by then the remaining horizon holds no expensive hours to price against, so applying the gate there would block every recharge it exists to perform.</p>
+<p><strong>Round-Trip Efficiency</strong> (default <code>0.85</code>) is the AC-to-AC ratio used to value a stored kWh. Lower values tighten the gate. Note this is the <em>marginal</em> ratio (extra kWh out per extra kWh in), not the gross figure you get by dividing lifetime discharge by lifetime charge, which also carries standby drain. Standby is paid whether or not you cycle, so folding it in here would refuse profitable charges.</p>
+<p>Both are exposed as live <code>number</code> entities, and the evaluation notification reports the resulting ceiling so a skipped night is traceable.</p>
+<h3 id="interaction-with-time-slots">Interaction with time slots<a class="headerlink" href="#interaction-with-time-slots" title="Permanent link">&para;</a></h3>
+<p>If time slots are configured to restrict discharge, <strong>both conditions must be met</strong> for the battery to discharge:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Discharge allowed = within_discharge_time_slot AND current_price &gt; threshold
+</code></pre></div>
+<p>Outside a slot that allows discharge, the battery never discharges. Inside one, it only discharges when the price is high enough.</p>
 <h3 id="effect-on-the-pd-controller">Effect on the PD controller<a class="headerlink" href="#effect-on-the-pd-controller" title="Permanent link">&para;</a></h3>
 <p>When discharge is blocked by price, the controller completely freezes its state (power to 0, no derivative term update), the same as during a time slot restriction. The battery resumes smoothly as soon as the price exceeds the active threshold again.</p>
 <hr />

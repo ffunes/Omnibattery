@@ -1716,8 +1716,9 @@
 <div class="admonition warning">
 <p class="admonition-title">Update frequency</p>
 <p>The sensor should update as fast as possible. The controller is <strong>event-driven</strong> — it recalculates each time this sensor publishes a new value — so the sensor's update rate <em>is</em> the control rate: a faster sensor means a faster, more accurate response. (A 2-second watchdog still runs the cycle if the sensor goes quiet.)</p>
-<p>Home consumption can vary by several kilowatts in fractions of a second (appliance start-ups, oven, washing machine…). A sensor that reports every 10 seconds or more introduces a lag that causes the controller to react to a situation that no longer exists, leading to overshoot or unnecessary corrections.</p>
+<p>Home consumption can vary by several kilowatts in fractions of a second (appliance start-ups, oven, washing machine…). Slow sensors are supported, but their delay means that the controller may react to a situation that has already changed, reducing regulation quality.</p>
 <p><strong>Recommended: 1–2 second update interval.</strong> Devices like Shelly EM/EM3 support this natively.</p>
+<p>Omnibattery always follows the latest published value until it is more than <strong>65 seconds old</strong>, regardless of the sensor's polling rate. Sensors that repeatedly update every 10 seconds or more trigger one Home Assistant Repairs warning per integration run; no recurring log warning is emitted. If the sensor is fast after the next restart, the persisted Repair is cleared after three updates.</p>
 </div>
 <h3 id="automatic-kw-detection">Automatic kW detection<a class="headerlink" href="#automatic-kw-detection" title="Permanent link">&para;</a></h3>
 <p>If the sensor's <code>unit_of_measurement</code> attribute is <code>kW</code>, the integration multiplies the value by 1000 automatically.</p>

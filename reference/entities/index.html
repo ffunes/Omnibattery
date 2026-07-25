@@ -1857,6 +1857,11 @@
 <td>W</td>
 </tr>
 <tr>
+<td><code>sensor.*_ac_power</code></td>
+<td>AC-side power; on Anker it is derived from battery power using the shared sign convention</td>
+<td>W</td>
+</tr>
+<tr>
 <td><code>sensor.*_battery_voltage</code></td>
 <td>Voltage</td>
 <td>V</td>
@@ -1872,6 +1877,11 @@
 <td>°C</td>
 </tr>
 <tr>
+<td><code>sensor.*_internal_temperature</code></td>
+<td>Internal temperature used by thermal protection; on Anker it aliases <code>temperature</code></td>
+<td>°C</td>
+</tr>
+<tr>
 <td><code>sensor.*_total_charging_energy</code></td>
 <td>Total charging energy</td>
 <td>kWh</td>
@@ -1879,6 +1889,16 @@
 <tr>
 <td><code>sensor.*_total_discharging_energy</code></td>
 <td>Total discharging energy</td>
+<td>kWh</td>
+</tr>
+<tr>
+<td><code>sensor.*_total_daily_charging_energy</code></td>
+<td>Energy charged today (daily register on Marstek; derived from the cumulative counter on Anker; integrated on Zendure)</td>
+<td>kWh</td>
+</tr>
+<tr>
+<td><code>sensor.*_total_daily_discharging_energy</code></td>
+<td>Energy discharged today (daily register on Marstek; derived from the cumulative counter on Anker; integrated on Zendure)</td>
 <td>kWh</td>
 </tr>
 <tr>

@@ -1616,7 +1616,7 @@
   <h1>Home</h1>
 
 <p><img alt="Omnibattery" src="assets/logo-github.png" width="420" /></p>
-<p><strong>Omnibattery</strong> is a custom Home Assistant integration to monitor and control pluggable solar batteries — Marstek Venus (E v2/v3, Venus A and Venus D series) and Zendure SolarFlow (2400 AC+ / AC Pro) — via Modbus TCP or local HTTP.</p>
+<p><strong>Omnibattery</strong> is a custom Home Assistant integration to monitor and control pluggable solar batteries — Marstek Venus (E v2/v3, Venus A and Venus D series), Zendure SolarFlow (2400 AC+ / AC Pro), and Anker SOLIX Solarbank Max AC / 4 E5000 Pro — via Modbus TCP or local HTTP.</p>
 <div class="grid cards">
 <ul>
 <li>
@@ -1650,7 +1650,7 @@ Three tabs:
 <li><strong>No-PD direct-tracking mode</strong> (opt-in): the battery follows the consumption sensor 1:1 in a single cycle — no integral, derivative, smoothing or rate limiter — for installations that prefer raw tracking over the PD control law.</li>
 <li><strong>Predictive charging</strong>: three modes (time slot, dynamic pricing, real-time price — including Tibber) that charge from the grid only when the energy balance requires it. Uses a 7-day rolling average of real household consumption to decide whether grid charging is needed.</li>
 <li><strong>Multi-battery management</strong>: smart selection with SOC priorities, energy hysteresis and efficiency zone operation.</li>
-<li><strong>Discharge time slots</strong>: define time windows and per-slot target grid power levels.</li>
+<li><strong>Time slots</strong>: independently control charge and discharge windows, with per-slot SOC and power parameters.</li>
 <li><strong>Peak shaving</strong>: reserves battery capacity to cover demand spikes above a configurable power threshold.</li>
 <li><strong>Weekly full charge</strong>: charges to 100% once a week for cell balancing.</li>
 <li><strong>Cell balance monitor</strong>: measures the voltage spread between the strongest and weakest cell after each full charge; tracks imbalance trends over time, sends alerts for moderate or high imbalance, and blocks discharge during the open-circuit voltage rest period.</li>

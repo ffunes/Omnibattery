@@ -1857,6 +1857,11 @@
 <td>W</td>
 </tr>
 <tr>
+<td><code>sensor.*_ac_power</code></td>
+<td>Potencia en el lado AC; en Anker se deriva de la potencia de batería con la convención de signo común</td>
+<td>W</td>
+</tr>
+<tr>
 <td><code>sensor.*_battery_voltage</code></td>
 <td>Tensión</td>
 <td>V</td>
@@ -1872,6 +1877,11 @@
 <td>°C</td>
 </tr>
 <tr>
+<td><code>sensor.*_internal_temperature</code></td>
+<td>Temperatura interna usada por la protección térmica; en Anker es un alias de <code>temperature</code></td>
+<td>°C</td>
+</tr>
+<tr>
 <td><code>sensor.*_total_charging_energy</code></td>
 <td>Energía total cargada</td>
 <td>kWh</td>
@@ -1879,6 +1889,16 @@
 <tr>
 <td><code>sensor.*_total_discharging_energy</code></td>
 <td>Energía total descargada</td>
+<td>kWh</td>
+</tr>
+<tr>
+<td><code>sensor.*_total_daily_charging_energy</code></td>
+<td>Energía cargada hoy (registro diario en Marstek; derivada del contador acumulado en Anker; integrada en Zendure)</td>
+<td>kWh</td>
+</tr>
+<tr>
+<td><code>sensor.*_total_daily_discharging_energy</code></td>
+<td>Energía descargada hoy (registro diario en Marstek; derivada del contador acumulado en Anker; integrada en Zendure)</td>
 <td>kWh</td>
 </tr>
 <tr>

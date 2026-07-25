@@ -1715,10 +1715,13 @@
 
     DRV --&gt; M[MarstekModbusDriver\nModbus TCP/RTU]
     DRV --&gt; Z[ZendureLocalDriver\nHTTP local]
+    DRV --&gt; A[AnkerModbusDriver\nModbus TCP]
     DRV2 --&gt; M
     DRV2 --&gt; Z
+    DRV2 --&gt; A
     M --&gt; BAT1[Batería Marstek]
-    Z --&gt; BAT2[Batería Zendure]</code></pre>
+    Z --&gt; BAT2[Batería Zendure]
+    A --&gt; BAT3[Anker Solarbank]</code></pre>
 <p>El bucle de control y el coordinador nunca hablan con el hardware directamente:
 cada lectura y escritura pasa por un <strong><code>BatteryDriver</code></strong> agnóstico de marca (ver
 <a href="#drivers-de-hardware">Drivers de hardware</a> más abajo). Esto es lo que hace
@@ -1768,6 +1771,11 @@ subpaquetes por responsabilidad.</p>
 <td>Zendure SolarFlow por HTTP local</td>
 </tr>
 <tr>
+<td><code>drivers/anker.py</code></td>
+<td><code>AnkerModbusDriver</code></td>
+<td>Anker SOLIX Solarbank Max AC / 4 E5000 Pro por Modbus TCP (lecturas FC03/FC04)</td>
+</tr>
+<tr>
 <td><code>infra/coordinator.py</code></td>
 <td><code>MarstekVenusDataUpdateCoordinator</code></td>
 <td>Polling periódico de telemetría (vía el driver), actualización de entidades</td>
@@ -1776,6 +1784,11 @@ subpaquetes por responsabilidad.</p>
 <td><code>infra/modbus_client.py</code></td>
 <td><code>MarstekModbusClient</code></td>
 <td>Transporte Modbus TCP/RTU asíncrono con pymodbus, reintentos con backoff</td>
+</tr>
+<tr>
+<td><code>infra/anker_modbus_client.py</code></td>
+<td><code>AnkerModbusClient</code></td>
+<td>Modbus TCP asíncrono para Anker (lecturas FC03/FC04, escrituras FC06/FC16)</td>
 </tr>
 <tr>
 <td><code>infra/external_loads.py</code></td>
@@ -1967,7 +1980,7 @@ control y entidades lo leen desde <code>coordinator.capabilities</code>:</p>
 </table>
 <p>El coordinador selecciona el driver según la marca configurada
 (<a href="https://github.com/ffunes/omnibattery/blob/main/custom_components/omnibattery/infra/coordinator.py"><code>infra/coordinator.py</code></a>):
-<code>zendure</code> → <code>ZendureLocalDriver</code>, en otro caso <code>MarstekModbusDriver</code>. El driver
+<code>zendure</code> → <code>ZendureLocalDriver</code>, <code>anker</code> → <code>AnkerModbusDriver</code>, <code>esphome</code> → <code>EsphomeEntityDriver</code>, en otro caso <code>MarstekModbusDriver</code>. El driver
 también posee las listas de definiciones de registro/entidad de su versión, que
 las plataformas leen en lugar de ramificar por la cadena de versión.</p>
 <h2 id="flujo-de-datos">Flujo de datos<a class="headerlink" href="#flujo-de-datos" title="Permanent link">&para;</a></h2>

@@ -1265,6 +1265,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#dynamic-power-control-switch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic Power Control switch
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1629,6 +1640,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#dynamic-power-control-switch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic Power Control switch
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1718,8 +1740,22 @@
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">        </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.solar_surplus_wallbox_power</span>
 </code></pre></div>
 <p><img alt="Excluded device power sensor in HA" src="../../assets/screenshots/features/load-exclusion-entities.png" style="display: block; margin: 0 auto;" width="700" /></p>
+<h3 id="dynamic-power-control-switch">Dynamic Power Control switch<a class="headerlink" href="#dynamic-power-control-switch" title="Permanent link">&para;</a></h3>
+<p>For a wallbox or another flexible load with its own surplus controller, standard
+Solar Surplus can still leave two controllers settled at an undesirable split:
+the battery removes export before the wallbox has a chance to ramp up. <strong>Dynamic
+Power Control</strong> adds a small state machine around the normal exclusion logic.</p>
+<p>The device-active / EV-charging state sensor closes the cold-start gap:
+while it requests power but the wallbox still reads 0 W, battery charging stays
+blocked so the wallbox can see the export and start. It is required for new
+Dynamic Power Control configurations; existing sensor-less entries keep their
+measured-power fallback.</p>
+<p>On first measured demand it blocks battery charging for 30 seconds. Charging may
+then resume only on the export the device left behind. A solar rise triggers a
+new 20-second yield, and a zero-power pause is held for 5 minutes so the battery
+does not prevent the device from restarting. No maximum-demand sensor is needed.</p>
 <h2 id="ev-charger-without-power-telemetry">EV charger without power telemetry<a class="headerlink" href="#ev-charger-without-power-telemetry" title="Permanent link">&para;</a></h2>
-<p>For EV chargers that only expose a state sensor (no real-time power reading), a dedicated <strong>EV charger without power telemetry</strong> option is available. Instead of reading watts, the controller monitors the sensor state and reacts to any charging string (<code>Charging</code>, <code>Cargando</code>, etc.).</p>
+<p>For EV chargers that only expose a state sensor (no real-time power reading), a dedicated <strong>EV charger without power telemetry</strong> option is available. The same device-active / EV-charging field is used. Legacy entries that stored this state sensor in the old device-sensor field continue to work unchanged.</p>
 <table>
 <thead>
 <tr>

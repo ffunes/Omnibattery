@@ -1594,7 +1594,7 @@
   <h1>Inicio</h1>
 
 <p><img alt="Omnibattery" src="../assets/logo-github.png" width="420" /></p>
-<p><strong>Omnibattery</strong> es una integración personalizada para Home Assistant que monitoriza y controla baterías solares enchufables — Marstek Venus (series E v2/v3, Venus A y Venus D) y Zendure SolarFlow (2400 AC+ / AC Pro) — mediante Modbus TCP o HTTP local.</p>
+<p><strong>Omnibattery</strong> es una integración personalizada para Home Assistant que monitoriza y controla baterías solares enchufables — Marstek Venus (series E v2/v3, Venus A y Venus D), Zendure SolarFlow (2400 AC+ / AC Pro) y Anker SOLIX Solarbank Max AC / 4 E5000 Pro — mediante Modbus TCP o HTTP local.</p>
 <div class="grid cards">
 <ul>
 <li>
@@ -1621,7 +1621,7 @@
 <li><strong>Modo de seguimiento directo sin PD</strong> (opt-in): la batería sigue el sensor de consumo 1:1 en cada ciclo — sin integral, derivada, suavizado ni limitador de rampa — para instalaciones que prefieren seguimiento directo al controlador PD.</li>
 <li><strong>Carga predictiva</strong>: tres modos (franja horaria, precio dinámico, precio en tiempo real — incluyendo Tibber) que cargan desde la red solo cuando el balance energético lo requiere. Utiliza una media móvil de 7 días del consumo real del hogar para decidir si es necesario cargar desde la red.</li>
 <li><strong>Gestión multi-batería</strong>: selección inteligente con prioridades de SOC, histéresis de energía y eficiencia por zona de operación.</li>
-<li><strong>Franjas de descarga</strong>: define ventanas horarias y niveles objetivo de red por franja.</li>
+<li><strong>Franjas horarias</strong>: controlan de forma independiente las ventanas de carga y descarga, con parámetros de SOC y potencia por franja.</li>
 <li><strong>Peak shaving</strong>: reserva capacidad de la batería para satisfacer picos de demanda que superen un umbral de potencia configurable.</li>
 <li><strong>Carga semanal completa</strong>: carga al 100% una vez por semana para equilibrar celdas.</li>
 <li><strong>Monitor de equilibrio de celdas</strong>: mide la diferencia de tensión entre la celda más y menos cargada después de cada carga completa; hace seguimiento de la tendencia de desequilibrio a lo largo del tiempo, envía alertas ante desequilibrios moderados o altos y bloquea la descarga durante el periodo de reposo en circuito abierto.</li>

@@ -1694,8 +1694,9 @@
 <div class="admonition warning">
 <p class="admonition-title">Frecuencia de actualización</p>
 <p>El sensor debe actualizarse lo más rápido posible. El controlador es <strong>dirigido por eventos</strong> —recalcula cada vez que este sensor publica un valor nuevo—, así que la frecuencia de actualización del sensor <em>es</em> la frecuencia de control: un sensor más rápido implica una respuesta más rápida y precisa. (Un watchdog de 2 segundos sigue ejecutando el ciclo si el sensor se queda en silencio.)</p>
-<p>El consumo del hogar puede variar varios kilovatios en fracciones de segundo (arranque de electrodomésticos, horno, lavadora…). Un sensor que reporta cada 10 segundos o más introduce un desfase que hace que el controlador reaccione a una situación que ya no existe, provocando sobreoscilaciones o correcciones innecesarias.</p>
+<p>El consumo del hogar puede variar varios kilovatios en fracciones de segundo (arranque de electrodomésticos, horno, lavadora…). Los sensores lentos son compatibles, pero su retraso puede hacer que el controlador reaccione a una situación que ya ha cambiado, reduciendo la calidad de la regulación.</p>
 <p><strong>Recomendado: actualización cada 1–2 segundos.</strong> Los dispositivos como Shelly EM/EM3 soportan este intervalo de forma nativa.</p>
+<p>Omnibattery sigue siempre el último valor publicado hasta que supera los <strong>65 segundos de antigüedad</strong>, independientemente del polling rate del sensor. Los sensores que actualizan repetidamente cada 10 segundos o más generan un único aviso de Repairs de Home Assistant por ejecución de la integración; no se emiten avisos recurrentes en el log. Si el sensor es rápido después del siguiente reinicio, el Repair persistente se elimina tras tres actualizaciones.</p>
 </div>
 <h3 id="deteccion-automatica-de-kw">Detección automática de kW<a class="headerlink" href="#deteccion-automatica-de-kw" title="Permanent link">&para;</a></h3>
 <p>Si el atributo <code>unit_of_measurement</code> del sensor es <code>kW</code>, la integración multiplica el valor por 1000 automáticamente.</p>

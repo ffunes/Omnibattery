@@ -778,6 +778,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#control-dinamico-de-potencia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control dinámico de potencia
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#slider-de-de-exclusion" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1676,6 +1687,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#control-dinamico-de-potencia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control dinámico de potencia
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#slider-de-de-exclusion" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1776,8 +1798,12 @@
 </thead>
 <tbody>
 <tr>
-<td><strong>Sensor del dispositivo</strong></td>
-<td>Entidad HA que mide la potencia del dispositivo (p. ej. <code>sensor.wallbox_power</code>), o un sensor de estado para cargadores VE sin telemetría de potencia.</td>
+<td><strong>Sensor de potencia del dispositivo</strong></td>
+<td>Entidad HA que mide la potencia numérica del dispositivo (p. ej. <code>sensor.wallbox_power</code>). Es opcional para un cargador VE sin telemetría.</td>
+</tr>
+<tr>
+<td><strong>Sensor de dispositivo activo / carga del VE</strong></td>
+<td>Sensor de estado o binario que indica <code>on</code>, <code>Charging</code>, <code>Cargando</code> u otro estado reconocido de carga. Es obligatorio para Control Dinámico de Potencia y para configuraciones nuevas sin telemetría; en los demás casos es opcional.</td>
 </tr>
 <tr>
 <td><strong>Incluido en el consumo</strong></td>
@@ -1786,6 +1812,14 @@
 <tr>
 <td><strong>Permitir excedente solar</strong></td>
 <td>Si está activo, la batería no cargará para compensar este dispositivo cuando hay excedente solar. También puede activarse en tiempo real desde una entidad switch (ver más abajo).</td>
+</tr>
+<tr>
+<td><strong>El dispositivo tiene control dinámico de potencia</strong></td>
+<td>Actívalo para una carga, como una wallbox por excedente, que ajuste su propia demanda mediante un contador de red. Requiere <strong>Permitir excedente solar</strong>.</td>
+</tr>
+<tr>
+<td><strong>Cubrir el hogar mientras el dispositivo está activo</strong></td>
+<td>Permite que la batería cubra el consumo real del hogar mientras solo permanece excluida la parte de red del dispositivo. Requiere <strong>Permitir excedente solar</strong> y un sensor de producción solar.</td>
 </tr>
 <tr>
 <td><strong>Cargador VE sin telemetría de potencia</strong></td>
@@ -1813,6 +1847,29 @@
 </ul>
 <p>El estado del switch se persiste en la entrada de configuración y sobrevive reinicios.</p>
 <hr />
+<h2 id="control-dinamico-de-potencia">Control dinámico de potencia<a class="headerlink" href="#control-dinamico-de-potencia" title="Permanent link">&para;</a></h2>
+<p>Los dispositivos con telemetría también disponen de un switch <strong>Control Dinámico
+de Potencia</strong>. Está pensado para cargas flexibles, como wallboxes, que se regulan
+mediante el mismo contador de red que Omnibattery. Debe activarse junto con
+<strong>Excedente Solar</strong>.</p>
+<p>El <strong>Sensor de dispositivo activo / carga del VE</strong> permite que Omnibattery ceda
+mientras la wallbox solicita potencia pero todavía marca 0 W, evitando el bloqueo
+de arranque en el que la batería absorbe toda la exportación. Automáticamente:</p>
+<ul>
+<li>bloquea la carga de batería mientras el sensor de actividad solicita potencia
+  y la wallbox todavía marca 0 W;</li>
+<li>cede la carga de batería durante 30 segundos cuando el dispositivo supera 100 W;</li>
+<li>deja que el regulador externo aumente potencia antes de usar el excedente restante;</li>
+<li>vuelve a ceder durante 20 segundos si la producción solar aumenta al menos 200 W;</li>
+<li>bloquea la carga durante 5 minutos cuando desaparece el consumo, para permitir
+  que una wallbox reinicie tras una nube o un cambio de fase;</li>
+<li>realiza una comprobación cada 5 minutos si no hay sensor de producción solar.</li>
+</ul>
+<p>Las entradas antiguas de Control Dinámico de Potencia sin sensor de actividad
+siguen usando como fallback la primera lectura superior a 100 W. Este control no
+está disponible para el modo <strong>Cargador VE sin telemetría de potencia</strong>, porque
+ese modo ya gestiona la batería directamente con el mismo sensor de actividad.</p>
+<hr />
 <h2 id="slider-de-de-exclusion">Slider de % de exclusión<a class="headerlink" href="#slider-de-de-exclusion" title="Permanent link">&para;</a></h2>
 <p>La exclusión no es todo o nada. Cada dispositivo excluido tiene además un slider de <strong>% de exclusión</strong> (<code>&lt;dispositivo&gt; – Exclusion %</code>, <code>number.*_exclusion_pct</code>, 0–100 %, por defecto <code>100</code>) que controla <strong>cuánta</strong> de su demanda se mantiene fuera de la batería:</p>
 <ul>
@@ -1824,7 +1881,12 @@
 <hr />
 <h2 id="cargador-ve-sin-telemetria-de-potencia">Cargador VE sin telemetría de potencia<a class="headerlink" href="#cargador-ve-sin-telemetria-de-potencia" title="Permanent link">&para;</a></h2>
 <p>Algunas integraciones de cargadores de vehículo eléctrico no exponen un sensor de potencia en tiempo real — solo informan del <strong>estado de carga</strong> (p. ej. <code>Charging</code>, <code>Idle</code>, <code>Disconnected</code>). Esta opción está diseñada para esos cargadores.</p>
-<p>Cuando está activa, el campo <strong>Sensor del dispositivo</strong> debe apuntar a la entidad de estado, no a un sensor de potencia. El controlador reconoce cualquier estado que contenga <code>charg</code> o <code>cargand</code> (sin distinguir mayúsculas), lo que cubre:</p>
+<p>En configuraciones nuevas, selecciona la entidad de estado en <strong>Sensor de
+dispositivo activo / carga del VE</strong>; el sensor numérico de potencia puede quedar
+vacío. Las configuraciones existentes que guardaron la entidad de estado en
+<strong>Sensor de potencia del dispositivo</strong> siguen siendo totalmente compatibles y
+se precargan automáticamente al editarlas. Se reconoce el estado binario <code>on</code> y
+palabras de carga sin distinguir mayúsculas, lo que cubre:</p>
 <ul>
 <li><code>Charging</code> (la mayoría de integraciones en inglés)</li>
 <li><code>Cargando</code>, <code>Cargando VE</code>, <code>Cargando Vehículo</code> (español)</li>

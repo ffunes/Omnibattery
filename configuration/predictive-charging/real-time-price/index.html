@@ -1783,8 +1783,8 @@
 </code></pre></div>
 <p>The inverse logic of charging: charge when price is low, discharge when price is high.</p>
 <h3 id="interaction-with-time-slots">Interaction with time slots<a class="headerlink" href="#interaction-with-time-slots" title="Permanent link">&para;</a></h3>
-<p>If discharge time slots are configured, <strong>both conditions must be met</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Discharge allowed = within_time_slot AND current_price &gt; threshold
+<p>If time slots are configured to restrict discharge, <strong>both conditions must be met</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Discharge allowed = within_discharge_time_slot AND current_price &gt; threshold
 </code></pre></div>
 <h3 id="effect-on-the-pd-controller">Effect on the PD controller<a class="headerlink" href="#effect-on-the-pd-controller" title="Permanent link">&para;</a></h3>
 <p>When discharge is blocked by price, the controller completely freezes its state (power to 0, no derivative term update), the same as during a time slot restriction. The battery resumes smoothly as soon as the price exceeds the threshold.</p>
