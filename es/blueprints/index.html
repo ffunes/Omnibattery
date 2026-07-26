@@ -12,17 +12,17 @@
         <meta name="author" content="ffunes">
       
       
-        <link rel="canonical" href="https://ffunes.github.io/omnibattery/es/troubleshooting/">
+        <link rel="canonical" href="https://ffunes.github.io/omnibattery/es/blueprints/">
       
       
-        <link rel="prev" href="../reference/entities/">
+        <link rel="prev" href="../installation/">
       
       
-        <link rel="next" href="../changelog/">
+        <link rel="next" href="../configuration/">
       
       
         
-          <link rel="alternate" href="../../troubleshooting/" hreflang="en">
+          <link rel="alternate" href="../../blueprints/" hreflang="en">
         
           <link rel="alternate" href="./" hreflang="es">
         
@@ -33,7 +33,7 @@
     
     
       
-        <title>Solución de problemas - Omnibattery</title>
+        <title>Blueprints - Omnibattery</title>
       
     
     
@@ -84,7 +84,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#solucion-de-problemas" class="md-skip">
+        <a href="#blueprints" class="md-skip">
           Saltar a contenido
         </a>
       
@@ -123,7 +123,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Solución de problemas
+              Blueprints
             
           </span>
         </div>
@@ -170,7 +170,7 @@
       <ul class="md-select__list">
         
           <li class="md-select__item">
-            <a href="../../troubleshooting/" hreflang="en" class="md-select__link">
+            <a href="../../blueprints/" hreflang="en" class="md-select__link">
               English
             </a>
           </li>
@@ -292,9 +292,11 @@
   
   
   
+    
   
-    <li class="md-tabs__item">
-      <a href="../blueprints/" class="md-tabs__link">
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
         
   
   
@@ -371,11 +373,9 @@
   
   
   
-    
   
-  
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="./" class="md-tabs__link">
+    <li class="md-tabs__item">
+      <a href="../troubleshooting/" class="md-tabs__link">
         
   
   
@@ -515,10 +515,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../blueprints/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blueprints
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -534,6 +561,92 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Tabla de contenidos
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#reporte-de-estado-a-webhook-central" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reporte de estado a webhook central
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#objetivo-de-red-distinto-al-cargar-y-descargar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Objetivo de red distinto al cargar y descargar
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sincronizacion-del-limite-de-peak-shaving" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sincronización del límite de peak shaving
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recarga-por-peak-shaving-hasta-soc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recarga por peak shaving hasta SOC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reenvio-de-notificaciones-persistentes-a-telegram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reenvío de notificaciones persistentes a Telegram
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reserva-de-descarga-segun-prevision-solar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reserva de descarga según previsión solar
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1431,37 +1544,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Solución de problemas
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
         
   
   
@@ -1477,175 +1563,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Tabla de contenidos
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#compatibilidad-con-la-app-de-marstek" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Compatibilidad con la app de Marstek
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#la-bateria-no-responde-a-los-comandos" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        La batería no responde a los comandos
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#el-controlador-pd-oscila" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El controlador PD oscila
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#los-valores-de-socpotencia-no-se-persisten-tras-reiniciar-ha" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Los valores de SOC/potencia no se persisten tras reiniciar HA
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#recibo-una-notificacion-de-alarma-o-fallo-de-bateria" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Recibo una notificación de alarma o fallo de batería
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#la-carga-predictiva-no-se-activa" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        La carga predictiva no se activa
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#el-switch-rs485-se-reactiva-solo-tras-reiniciar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El switch RS485 se reactiva solo tras reiniciar
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#el-dispositivo-de-medida-no-esta-disponible-o-pierde-conexion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El dispositivo de medida no está disponible o pierde conexión
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="El dispositivo de medida no está disponible o pierde conexión">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#el-sensor-reporta-unavailable-o-unknown" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El sensor reporta unavailable o unknown
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#el-sensor-se-congela-el-valor-deja-de-actualizarse" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El sensor se congela (el valor deja de actualizarse)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#resumen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resumen
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#reportar-un-problema-sensor-de-resumen-de-configuracion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reportar un problema — Sensor de Resumen de Configuración
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#registros-de-depuracion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Registros de depuración
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1704,10 +1621,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#compatibilidad-con-la-app-de-marstek" class="md-nav__link">
+  <a href="#reporte-de-estado-a-webhook-central" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Compatibilidad con la app de Marstek
+        Reporte de estado a webhook central
       
     </span>
   </a>
@@ -1715,10 +1632,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#la-bateria-no-responde-a-los-comandos" class="md-nav__link">
+  <a href="#objetivo-de-red-distinto-al-cargar-y-descargar" class="md-nav__link">
     <span class="md-ellipsis">
       
-        La batería no responde a los comandos
+        Objetivo de red distinto al cargar y descargar
       
     </span>
   </a>
@@ -1726,10 +1643,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#el-controlador-pd-oscila" class="md-nav__link">
+  <a href="#sincronizacion-del-limite-de-peak-shaving" class="md-nav__link">
     <span class="md-ellipsis">
       
-        El controlador PD oscila
+        Sincronización del límite de peak shaving
       
     </span>
   </a>
@@ -1737,10 +1654,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#los-valores-de-socpotencia-no-se-persisten-tras-reiniciar-ha" class="md-nav__link">
+  <a href="#recarga-por-peak-shaving-hasta-soc" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Los valores de SOC/potencia no se persisten tras reiniciar HA
+        Recarga por peak shaving hasta SOC
       
     </span>
   </a>
@@ -1748,10 +1665,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#recibo-una-notificacion-de-alarma-o-fallo-de-bateria" class="md-nav__link">
+  <a href="#reenvio-de-notificaciones-persistentes-a-telegram" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Recibo una notificación de alarma o fallo de batería
+        Reenvío de notificaciones persistentes a Telegram
       
     </span>
   </a>
@@ -1759,93 +1676,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#la-carga-predictiva-no-se-activa" class="md-nav__link">
+  <a href="#reserva-de-descarga-segun-prevision-solar" class="md-nav__link">
     <span class="md-ellipsis">
       
-        La carga predictiva no se activa
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#el-switch-rs485-se-reactiva-solo-tras-reiniciar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El switch RS485 se reactiva solo tras reiniciar
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#el-dispositivo-de-medida-no-esta-disponible-o-pierde-conexion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El dispositivo de medida no está disponible o pierde conexión
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="El dispositivo de medida no está disponible o pierde conexión">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#el-sensor-reporta-unavailable-o-unknown" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El sensor reporta unavailable o unknown
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#el-sensor-se-congela-el-valor-deja-de-actualizarse" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El sensor se congela (el valor deja de actualizarse)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#resumen" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resumen
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#reportar-un-problema-sensor-de-resumen-de-configuracion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reportar un problema — Sensor de Resumen de Configuración
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#registros-de-depuracion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Registros de depuración
+        Reserva de descarga según previsión solar
       
     </span>
   </a>
@@ -1869,7 +1703,7 @@
 
 
   
-    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/troubleshooting.es.md" title="Editar esta página" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/blueprints.es.md" title="Editar esta página" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1877,145 +1711,42 @@
   
 
 
-<h1 id="solucion-de-problemas">Solución de problemas<a class="headerlink" href="#solucion-de-problemas" title="Permanent link">&para;</a></h1>
-<h2 id="compatibilidad-con-la-app-de-marstek">Compatibilidad con la app de Marstek<a class="headerlink" href="#compatibilidad-con-la-app-de-marstek" title="Permanent link">&para;</a></h2>
-<p><strong>No es necesario realizar ningún cambio en la app de Marstek</strong> para que la integración funcione — incluyendo desactivar el medidor de energía o modificar cualquier configuración. La integración opera junto a la app sin requerir ningún ajuste desde ella.</p>
-<p>Sin embargo, <strong>no cambies ningún modo de operación ni configuración desde la app de Marstek mientras la integración de Home Assistant esté en ejecución</strong>. Hacerlo romperá la compatibilidad y necesitarás deshabilitar y volver a habilitar la integración para restaurar el funcionamiento normal.</p>
-<hr />
-<h2 id="la-bateria-no-responde-a-los-comandos">La batería no responde a los comandos<a class="headerlink" href="#la-bateria-no-responde-a-los-comandos" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Verifica que el conversor Modbus TCP (Elfin-EW11 o similar) está accesible por IP desde Home Assistant.</li>
-<li>Comprueba que el puerto configurado es correcto (por defecto <code>502</code>).</li>
-<li>Revisa que el switch <strong>RS485 Control Mode</strong> está activado.</li>
-<li>Asegúrate de que la versión de batería configurada coincide con el hardware real.</li>
-</ol>
-<div class="admonition note">
-<p class="admonition-title">Delay para v3/vA/vD</p>
-<p>Las baterías v3, vA y vD requieren al menos 150 ms entre mensajes Modbus consecutivos. La integración lo aplica automáticamente según la versión configurada.</p>
-</div>
-<hr />
-<h2 id="el-controlador-pd-oscila">El controlador PD oscila<a class="headerlink" href="#el-controlador-pd-oscila" title="Permanent link">&para;</a></h2>
-<p>El sistema cambia continuamente entre carga y descarga.</p>
-<p><strong>Posibles causas y soluciones:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Causa</th>
-<th>Solución</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Deadband demasiado pequeño</td>
-<td>El ±40 W por defecto es adecuado para la mayoría de instalaciones</td>
-</tr>
-<tr>
-<td>Sensor de red con latencia alta</td>
-<td>Usa un sensor con actualización frecuente (1–2 s)</td>
-</tr>
-<tr>
-<td>Cargas con arranque repentino</td>
-<td>Configura la carga como <a href="../configuration/excluded-devices/">dispositivo excluido</a></td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="los-valores-de-socpotencia-no-se-persisten-tras-reiniciar-ha">Los valores de SOC/potencia no se persisten tras reiniciar HA<a class="headerlink" href="#los-valores-de-socpotencia-no-se-persisten-tras-reiniciar-ha" title="Permanent link">&para;</a></h2>
-<p>A partir de la v1.5.0 este problema está corregido. Los cambios en sliders de SOC y potencia se guardan inmediatamente en la configuración y se restauran en cada reinicio.</p>
-<p>Si persiste el problema, verifica que estás usando la versión <strong>1.5.0</strong> o superior.</p>
-<hr />
-<h2 id="recibo-una-notificacion-de-alarma-o-fallo-de-bateria">Recibo una notificación de alarma o fallo de batería<a class="headerlink" href="#recibo-una-notificacion-de-alarma-o-fallo-de-bateria" title="Permanent link">&para;</a></h2>
-<p>La integración monitoriza los registros <code>Alarm Status</code> y <code>Fault Status</code> de la batería (solo v2) cada 5 segundos. Cuando se activa un nuevo bit, aparece una notificación persistente en Home Assistant con el nombre exacto de la condición (p. ej. <em>BAT Overvoltage</em>, <em>Fan Abnormal Warning</em>). La notificación se descarta automáticamente cuando todas las condiciones se resuelven.</p>
-<p><strong>Niveles de severidad de la notificación:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Prefijo del título</th>
-<th>Significado</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>🚨 Battery Fault</td>
-<td>Al menos un bit de fallo está activo — requiere atención inmediata</td>
-</tr>
-<tr>
-<td>⚠️ Battery Warning</td>
-<td>Al menos un bit de alarma está activo — conviene monitorizar la situación</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Qué hacer al recibir una notificación:</strong></p>
-<ol>
-<li>Consulta el sensor <strong><code>System Alarm Status</code></strong> en el dispositivo <em>Omnibattery System</em> — sus atributos indican qué batería está afectada y qué condiciones están activas.</li>
-<li>Revisa los sensores <strong>Alarm Status</strong> y <strong>Fault Status</strong> individuales en el dispositivo de la batería afectada para ver el estado completo.</li>
-<li>Consulta la documentación de Marstek Venus o la app de Marstek para el código de fallo concreto.</li>
-<li>Si la condición no se resuelve sola, considera reiniciar la batería o contactar con el soporte de Marstek.</li>
-</ol>
-<div class="admonition note">
-<p class="admonition-title">Solo baterías v2</p>
-<p>La monitorización de registros de alarma y fallo solo está disponible para hardware v2. Las baterías v3, vA y vD no exponen estos registros vía Modbus.</p>
-</div>
-<hr />
-<h2 id="la-carga-predictiva-no-se-activa">La carga predictiva no se activa<a class="headerlink" href="#la-carga-predictiva-no-se-activa" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Verifica que el sensor de previsión solar está disponible y tiene valor.</li>
-<li>Comprueba el atributo <code>price_data_status</code> del sensor <code>predictive_charging_active</code> (modo Precio Dinámico).</li>
-<li>Revisa las notificaciones de HA: la evaluación de las 00:05 reporta el resultado.</li>
-<li>Asegúrate de que el balance energético realmente requiere carga (puede que haya suficiente energía).</li>
-</ol>
-<hr />
-<h2 id="el-switch-rs485-se-reactiva-solo-tras-reiniciar">El switch RS485 se reactiva solo tras reiniciar<a class="headerlink" href="#el-switch-rs485-se-reactiva-solo-tras-reiniciar" title="Permanent link">&para;</a></h2>
-<p>Corregido en v1.5.0. La preferencia del usuario se persiste y se restaura en el arranque.</p>
-<hr />
-<h2 id="el-dispositivo-de-medida-no-esta-disponible-o-pierde-conexion">El dispositivo de medida no está disponible o pierde conexión<a class="headerlink" href="#el-dispositivo-de-medida-no-esta-disponible-o-pierde-conexion" title="Permanent link">&para;</a></h2>
-<p>Si el sensor de red (por ejemplo, un medidor con conexión Wi-Fi inestable) se desconecta, el controlador se comporta de forma diferente según cómo falle el sensor.</p>
-<h3 id="el-sensor-reporta-unavailable-o-unknown">El sensor reporta <code>unavailable</code> o <code>unknown</code><a class="headerlink" href="#el-sensor-reporta-unavailable-o-unknown" title="Permanent link">&para;</a></h3>
-<p>El bucle de control sale inmediatamente sin enviar ningún nuevo comando. Las baterías <strong>mantienen el último nivel de potencia comandado</strong> hasta que el sensor vuelva a estar disponible.</p>
-<h3 id="el-sensor-se-congela-el-valor-deja-de-actualizarse">El sensor se congela (el valor deja de actualizarse)<a class="headerlink" href="#el-sensor-se-congela-el-valor-deja-de-actualizarse" title="Permanent link">&para;</a></h3>
-<p>La integración detecta que la marca de tiempo del sensor no ha cambiado:</p>
-<ul>
-<li>Durante hasta <strong>15 ciclos (~30 segundos)</strong> mantiene el último comando sin cambios.</li>
-<li>Pasado ese período de gracia, realiza un nuevo cálculo de seguridad usando el valor congelado, con el término derivativo suprimido para evitar picos de potencia.</li>
-</ul>
-<h3 id="resumen">Resumen<a class="headerlink" href="#resumen" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Estado del sensor</th>
-<th>Comportamiento</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>unavailable</code> / <code>unknown</code></td>
-<td>El bucle de control sale — las baterías mantienen la última potencia</td>
-</tr>
-<tr>
-<td>Valor congelado (sin nuevas lecturas)</td>
-<td>~30 s de gracia, luego recalcula con el valor obsoleto</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition warning">
-<p class="admonition-title">Sin fallback automático a 0 W</p>
-<p>Si el medidor se pierde mientras la batería estaba descargando a, por ejemplo, 2000 W, <strong>seguirá descargando a 2000 W</strong> hasta que el medidor se recupere. No hay ningún temporizador integrado que lleve la batería a reposo. Considera mejorar la fiabilidad del Wi-Fi de tu medidor, o usar una alternativa cableada o Zigbee si los cortes son frecuentes.</p>
-</div>
-<hr />
-<h2 id="reportar-un-problema-sensor-de-resumen-de-configuracion">Reportar un problema — Sensor de Resumen de Configuración<a class="headerlink" href="#reportar-un-problema-sensor-de-resumen-de-configuracion" title="Permanent link">&para;</a></h2>
-<p>Al abrir un informe de error o pedir ayuda, es muy útil compartir la configuración actual de la integración. El sensor <strong>Resumen de Configuración</strong> expone la configuración relevante para soporte como atributos de la entidad: sensores, modelos y límites de batería, franjas horarias, carga predictiva, carga semanal, retraso de carga, protección de capacidad, balance horario, parámetros PD, limites globales de carga/descarga y dispositivos excluidos. Las IPs y puertos de las baterías no se exponen intencionadamente.</p>
-<p>Para límites de potencia multi-batería informa si la funcionalidad está activada (<code>system_power_limits_enabled</code>), los totales configurados por batería (<code>total_max_charge_power_W</code>, <code>total_max_discharge_power_W</code>) y los totales efectivos tras aplicar límites globales de sistema opcionales (<code>effective_total_max_charge_power_W</code>, <code>effective_total_max_discharge_power_W</code>).</p>
-<p><strong>Cómo activarlo:</strong></p>
-<ol>
-<li>Ve a <strong>Configuración → Dispositivos y servicios → Omnibattery</strong>.</li>
-<li>Selecciona el dispositivo <strong>Omnibattery System</strong>.</li>
-<li>Busca el sensor <strong>Resumen de Configuración</strong> (está oculto por defecto) y actívalo.</li>
-<li>Abre la tarjeta de detalle del sensor y comparte sus atributos (estado + atributos).</li>
-</ol>
-<p>El sensor es de solo lectura y diagnóstico. No afecta al comportamiento de la integración de ninguna manera.</p>
-<hr />
-<h2 id="registros-de-depuracion">Registros de depuración<a class="headerlink" href="#registros-de-depuracion" title="Permanent link">&para;</a></h2>
-<p>Activa el nivel de log <code>debug</code> para la integración pulsando en "Activar registro de depuración" en la configuración de la integración. Una vez que lo hayas ejecutado durante el tiempo apropiado, desactívalo para no llenar los logs, y se creará un archivo de log con la información de depuración.</p>
+<h1 id="blueprints">Blueprints<a class="headerlink" href="#blueprints" title="Permanent link">&para;</a></h1>
+<p>Los blueprints son automatizaciones opcionales de Home Assistant que complementan Omnibattery. No forman parte de la configuración de la integración ni modifican su código. Importa cualquiera desde <strong>Ajustes → Automatizaciones y escenas → Blueprints</strong> usando el enlace correspondiente y crea después una automatización basada en él.</p>
+<p>Para la instalación manual, copia el archivo YAML en <code>/config/blueprints/automation/omnibattery/</code> y recarga los blueprints. Consulta los pasos generales en <a href="../installation/#instalación-de-blueprints">Instalación</a>.</p>
+<h2 id="reporte-de-estado-a-webhook-central">Reporte de estado a webhook central<a class="headerlink" href="#reporte-de-estado-a-webhook-central" title="Permanent link">&para;</a></h2>
+<p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/central_status_webhook_reporter_blueprint.yaml">Importar blueprint</a></p>
+<p>Envía entidades seleccionadas de Omnibattery y Home Assistant desde cada instalación a un endpoint HTTP central. Es útil para tener un único panel con varias viviendas o baterías.</p>
+<p>Elige un identificador único de instalación, los sensores que se reportarán —por ejemplo SOC, potencia de batería, potencia de red y estado de la integración— y el intervalo. También se envía un reporte al iniciar Home Assistant. Cada reporte contiene el identificador, hora de envío y el estado, nombre, unidad y clase de dispositivo de cada entidad seleccionada.</p>
+<p>Home Assistant exige definir una vez el comando HTTP saliente en <code>configuration.yaml</code>; un blueprint no puede crearlo por sí mismo:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">rest_command</span><span class="p">:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">omnibattery_status_report</span><span class="p">:</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="kt">!secret</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">omnibattery_status_webhook_url</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POST</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">content_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">application/json</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">report</span><span class="nv"> </span><span class="s">}}&quot;</span>
+</code></pre></div>
+<p>Guarda la URL en <code>secrets.yaml</code>, reinicia Home Assistant y conserva en el blueprint el servicio REST predeterminado, salvo que hayas elegido otro nombre. Usa HTTPS y trata la URL del endpoint como un secreto.</p>
+<h2 id="objetivo-de-red-distinto-al-cargar-y-descargar">Objetivo de red distinto al cargar y descargar<a class="headerlink" href="#objetivo-de-red-distinto-al-cargar-y-descargar" title="Permanent link">&para;</a></h2>
+<p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/different_grid_target_blueprint.yaml">Importar blueprint</a></p>
+<p>Establece el <strong>objetivo de potencia de red del PD</strong> según la dirección activa de la batería. Por defecto fija <code>-50 W</code> mientras carga (una pequeña exportación a red) y <code>+50 W</code> mientras descarga (una pequeña importación de red). Puede servir para evitar oscilaciones alrededor de un objetivo de red cero o para aplicar un sesgo deliberado de importación/exportación.</p>
+<p>Selecciona los sensores de potencia de carga y descarga del sistema y el número <strong>PD Target Grid Power</strong>. El umbral de potencia activa ignora el ruido cercano a cero. Opcionalmente, puedes fijar un objetivo en reposo; de lo contrario, cuando el sistema está inactivo se mantiene el objetivo actual. La automatización actúa cuando la potencia cruza el umbral y al iniciar Home Assistant.</p>
+<h2 id="sincronizacion-del-limite-de-peak-shaving">Sincronización del límite de peak shaving<a class="headerlink" href="#sincronizacion-del-limite-de-peak-shaving" title="Permanent link">&para;</a></h2>
+<p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/peak_shaving_limit_sync_blueprint.yaml">Importar blueprint</a></p>
+<p>Sincroniza el <strong>límite de protección de capacidad</strong> de Omnibattery con un sensor de pico mensual. Está pensado para tarifas o configuraciones de gestión de demanda en las que el máximo permitido sigue a una medición mensual.</p>
+<p>Selecciona el sensor de pico mensual y el número de límite de protección de capacidad. El origen puede usar <code>kW</code> o <code>W</code>; el blueprint convierte automáticamente de <code>kW</code> a vatios. Comprueba cambios y también cada 15 segundos, y solo escribe el número si su valor difiere del pico medido.</p>
+<h2 id="recarga-por-peak-shaving-hasta-soc">Recarga por peak shaving hasta SOC<a class="headerlink" href="#recarga-por-peak-shaving-hasta-soc" title="Permanent link">&para;</a></h2>
+<p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/peak_shaving_recharge_blueprint.yaml">Importar blueprint</a></p>
+<p>Opcionalmente repone la batería desde la red mientras está activa la <strong>protección de capacidad</strong> (peak shaving). Cuando el SOC del sistema baja del umbral configurado, mueve el objetivo de potencia de red del PD a un valor positivo de importación para que la batería cargue. Restaura el objetivo en reposo cuando el SOC alcanza el objetivo de recuperación o termina la protección de capacidad.</p>
+<p>Selecciona los sensores de SOC del sistema y estado de integración, además del número PD Target Grid Power. Configura el umbral de SOC, un objetivo de recuperación superior, la potencia de carga y el objetivo en reposo. La automatización solo restaura el objetivo en reposo si todavía está aplicado el objetivo de recarga, así que no sobrescribe un cambio manual posterior ni el de otra automatización.</p>
+<h2 id="reenvio-de-notificaciones-persistentes-a-telegram">Reenvío de notificaciones persistentes a Telegram<a class="headerlink" href="#reenvio-de-notificaciones-persistentes-a-telegram" title="Permanent link">&para;</a></h2>
+<p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/persistent_notification_to_telegram_blueprint.yaml">Importar blueprint</a></p>
+<p>Reenvía notificaciones persistentes nuevas o actualizadas de Home Assistant a una entidad de notificación de Telegram. Envía el título, el ID y el mensaje, escapando correctamente HTML.</p>
+<p>Elige una entidad <code>notify</code> de <code>telegram_bot</code> y, opcionalmente, un filtro por prefijo de ID. El prefijo predeterminado <code>marstek_venus_</code> mantiene la compatibilidad con las notificaciones de la integración anterior; déjalo vacío para reenviar todas las notificaciones persistentes o sustitúyelo por otro prefijo. Las notificaciones ya existentes no se reenvían al reiniciar Home Assistant.</p>
+<h2 id="reserva-de-descarga-segun-prevision-solar">Reserva de descarga según previsión solar<a class="headerlink" href="#reserva-de-descarga-segun-prevision-solar" title="Permanent link">&para;</a></h2>
+<p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/solar_forecast_reserve_discharge_blueprint.yaml">Importar blueprint</a></p>
+<p>Mantiene una reserva nocturna de SOC controlando los interruptores <strong>Allow Discharge</strong> de Omnibattery. Bloquea la descarga en la reserva salvo que la previsión solar restante permita recargar desde el SOC mínimo configurado hasta esa reserva durante una ventana diurna indicada.</p>
+<p>Selecciona todos los interruptores Allow Discharge que se controlarán, los sensores de SOC y energía total del sistema, un sensor de previsión solar <em>restante</em> en kWh y los números de SOC mínimo de las baterías controladas. Configura la reserva, la histéresis de liberación, el margen de previsión y la ventana horaria. El cálculo incorpora una eficiencia fija de carga del 78 % y el margen de seguridad. El blueprint solo conmuta Allow Discharge; nunca escribe registros Modbus ni fuerza modos de batería.</p>
 
 
 
@@ -2053,7 +1784,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Pie" >
         
           
-          <a href="../reference/entities/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Entidades HA">
+          <a href="../installation/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Instalación">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2063,20 +1794,20 @@
                 Anterior
               </span>
               <div class="md-ellipsis">
-                Entidades HA
+                Instalación
               </div>
             </div>
           </a>
         
         
           
-          <a href="../changelog/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Changelog">
+          <a href="../configuration/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Resumen">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Siguiente
               </span>
               <div class="md-ellipsis">
-                Changelog
+                Resumen
               </div>
             </div>
             <div class="md-footer__button md-icon">
