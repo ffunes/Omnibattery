@@ -633,6 +633,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dismiss-predictive-charging-notifications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dismiss predictive charging notifications
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#solar-forecast-reserve-discharge" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1676,6 +1687,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dismiss-predictive-charging-notifications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dismiss predictive charging notifications
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#solar-forecast-reserve-discharge" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1743,6 +1765,10 @@
 <p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/persistent_notification_to_telegram_blueprint.yaml">Import blueprint</a></p>
 <p>Forwards new or updated Home Assistant persistent notifications to a selected Telegram notify entity. It sends the notification title, ID, and message with HTML-safe escaping.</p>
 <p>Choose a <code>telegram_bot</code> notify entity and, optionally, an ID-prefix filter. The default <code>marstek_venus_</code> preserves compatibility with notifications created by the earlier integration; clear the filter to forward every persistent notification, or replace it with another prefix. Existing notifications are not resent when Home Assistant restarts.</p>
+<h2 id="dismiss-predictive-charging-notifications">Dismiss predictive charging notifications<a class="headerlink" href="#dismiss-predictive-charging-notifications" title="Permanent link">&para;</a></h2>
+<p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/dismiss_predictive_charging_notifications_blueprint.yaml">Import blueprint</a></p>
+<p>Automatically dismisses persistent notifications about predictive grid charging, including evaluations, price-slot starts, and evening re-evaluations. It leaves battery alarms, cell-balance messages, and manual-mode notifications untouched.</p>
+<p>The notification may be visible briefly before Home Assistant executes the automation. Disable the automation at any time to receive predictive-charging notifications again.</p>
 <h2 id="solar-forecast-reserve-discharge">Solar forecast reserve discharge<a class="headerlink" href="#solar-forecast-reserve-discharge" title="Permanent link">&para;</a></h2>
 <p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/solar_forecast_reserve_discharge_blueprint.yaml">Import blueprint</a></p>
 <p>Maintains a night SOC reserve by controlling Omnibattery's <strong>Allow Discharge</strong> switches. It blocks discharge at the reserve unless the remaining solar forecast is sufficient to recharge from the configured minimum SOC back to the reserve during a specified daytime window.</p>

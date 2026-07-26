@@ -633,6 +633,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#descartar-notificaciones-de-carga-predictiva" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Descartar notificaciones de carga predictiva
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reserva-de-descarga-segun-prevision-solar" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1676,6 +1687,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#descartar-notificaciones-de-carga-predictiva" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Descartar notificaciones de carga predictiva
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reserva-de-descarga-segun-prevision-solar" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1743,6 +1765,10 @@
 <p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/persistent_notification_to_telegram_blueprint.yaml">Importar blueprint</a></p>
 <p>Reenvía notificaciones persistentes nuevas o actualizadas de Home Assistant a una entidad de notificación de Telegram. Envía el título, el ID y el mensaje, escapando correctamente HTML.</p>
 <p>Elige una entidad <code>notify</code> de <code>telegram_bot</code> y, opcionalmente, un filtro por prefijo de ID. El prefijo predeterminado <code>marstek_venus_</code> mantiene la compatibilidad con las notificaciones de la integración anterior; déjalo vacío para reenviar todas las notificaciones persistentes o sustitúyelo por otro prefijo. Las notificaciones ya existentes no se reenvían al reiniciar Home Assistant.</p>
+<h2 id="descartar-notificaciones-de-carga-predictiva">Descartar notificaciones de carga predictiva<a class="headerlink" href="#descartar-notificaciones-de-carga-predictiva" title="Permanent link">&para;</a></h2>
+<p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/dismiss_predictive_charging_notifications_blueprint.yaml">Importar blueprint</a></p>
+<p>Descarta automáticamente las notificaciones persistentes sobre carga de red predictiva, incluidas las evaluaciones, los inicios de slots de precio y las reevaluaciones nocturnas. No afecta a las alarmas de batería, los mensajes de equilibrio de celdas ni las notificaciones de modo manual.</p>
+<p>La notificación puede verse brevemente antes de que Home Assistant ejecute la automatización. Desactiva la automatización en cualquier momento para volver a recibir las notificaciones de carga predictiva.</p>
 <h2 id="reserva-de-descarga-segun-prevision-solar">Reserva de descarga según previsión solar<a class="headerlink" href="#reserva-de-descarga-segun-prevision-solar" title="Permanent link">&para;</a></h2>
 <p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/solar_forecast_reserve_discharge_blueprint.yaml">Importar blueprint</a></p>
 <p>Mantiene una reserva nocturna de SOC controlando los interruptores <strong>Allow Discharge</strong> de Omnibattery. Bloquea la descarga en la reserva salvo que la previsión solar restante permita recargar desde el SOC mínimo configurado hasta esa reserva durante una ventana diurna indicada.</p>
