@@ -1,6 +1,6 @@
 
 <!doctype html>
-<html lang="es" class="no-js">
+<html lang="en" class="no-js">
   <head>
     
       <meta charset="utf-8">
@@ -12,35 +12,35 @@
         <meta name="author" content="ffunes">
       
       
-        <link rel="canonical" href="https://ffunes.github.io/omnibattery/es/features/hourly-net-balance/">
+        <link rel="canonical" href="https://ffunes.github.io/omnibattery/configuration/hoymiles-ms-a2/">
       
       
-        <link rel="prev" href="../load-exclusion/">
+        <link rel="prev" href="../batteries/">
       
       
-        <link rel="next" href="../../reference/architecture/">
+        <link rel="next" href="../time-slots/">
       
       
         
-          <link rel="alternate" href="../../../features/hourly-net-balance/" hreflang="en">
+          <link rel="alternate" href="./" hreflang="en">
         
-          <link rel="alternate" href="./" hreflang="es">
+          <link rel="alternate" href="../../es/configuration/hoymiles-ms-a2/" hreflang="es">
         
       
       
-      <link rel="icon" href="../../../assets/logo.png">
+      <link rel="icon" href="../../assets/logo.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>Balance neto horario - Omnibattery</title>
+        <title>Hoymiles MS-A2 setup - Omnibattery</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -59,7 +59,7 @@
       
     
     
-    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -84,8 +84,8 @@
     <div data-md-component="skip">
       
         
-        <a href="#balance-neto-horario" class="md-skip">
-          Saltar a contenido
+        <a href="#install-and-configure-a-hoymiles-ms-a2" class="md-skip">
+          Skip to content
         </a>
       
     </div>
@@ -103,10 +103,10 @@
   
 
 <header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Cabecera">
-    <a href="../../" title="Omnibattery" class="md-header__button md-logo" aria-label="Omnibattery" data-md-component="logo">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Omnibattery" class="md-header__button md-logo" aria-label="Omnibattery" data-md-component="logo">
       
-  <img src="../../../assets/logo.png" alt="logo">
+  <img src="../../assets/logo.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -123,7 +123,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Balance neto horario
+              Hoymiles MS-A2 setup
             
           </span>
         </div>
@@ -163,20 +163,20 @@
       <div class="md-header__option">
   <div class="md-select">
     
-    <button class="md-header__button md-icon" aria-label="Seleccionar idioma">
+    <button class="md-header__button md-icon" aria-label="Select language">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
     </button>
     <div class="md-select__inner">
       <ul class="md-select__list">
         
           <li class="md-select__item">
-            <a href="../../../features/hourly-net-balance/" hreflang="en" class="md-select__link">
+            <a href="./" hreflang="en" class="md-select__link">
               English
             </a>
           </li>
         
           <li class="md-select__item">
-            <a href="./" hreflang="es" class="md-select__link">
+            <a href="../../es/configuration/hoymiles-ms-a2/" hreflang="es" class="md-select__link">
               Español
             </a>
           </li>
@@ -197,16 +197,16 @@
   <label class="md-search__overlay" for="__search"></label>
   <div class="md-search__inner" role="search">
     <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Búsqueda" placeholder="Búsqueda" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
       <label class="md-search__icon md-icon" for="__search">
         
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
         
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
       </label>
-      <nav class="md-search__options" aria-label="Buscar">
+      <nav class="md-search__options" aria-label="Search">
         
-        <button type="reset" class="md-search__icon md-icon" title="Limpiar" aria-label="Limpiar" tabindex="-1">
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
@@ -219,7 +219,7 @@
       <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
         <div class="md-search-result" data-md-component="search-result">
           <div class="md-search-result__meta">
-            Inicializando búsqueda
+            Initializing search
           </div>
           <ol class="md-search-result__list" role="presentation"></ol>
         </div>
@@ -231,7 +231,7 @@
     
     
       <div class="md-header__source">
-        <a href="https://github.com/ffunes/omnibattery" title="Ir al repositorio" class="md-source" data-md-component="source">
+        <a href="https://github.com/ffunes/omnibattery" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
@@ -246,7 +246,7 @@
   
     
       
-<nav class="md-tabs" aria-label="Pestañas" data-md-component="tabs">
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
   <div class="md-grid">
     <ul class="md-tabs__list">
       
@@ -256,13 +256,13 @@
   
   
     <li class="md-tabs__item">
-      <a href="../../" class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
     
   
-  Inicio
+  Home
 
       </a>
     </li>
@@ -281,7 +281,7 @@
   
     
   
-  Instalación
+  Installation
 
       </a>
     </li>
@@ -311,15 +311,17 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../configuration/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
-  Configuración
+  Configuration
 
         </a>
       </li>
@@ -331,17 +333,15 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../pd-controller/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../features/pd-controller/" class="md-tabs__link">
           
   
   
-  Funcionalidades
+  Features
 
         </a>
       </li>
@@ -361,7 +361,7 @@
           
   
   
-  Referencia técnica
+  Technical reference
 
         </a>
       </li>
@@ -381,7 +381,7 @@
   
     
   
-  Solución de problemas
+  Troubleshooting
 
       </a>
     </li>
@@ -433,18 +433,18 @@
   
 
 
-<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navegación" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../" title="Omnibattery" class="md-nav__button md-logo" aria-label="Omnibattery" data-md-component="logo">
+    <a href="../.." title="Omnibattery" class="md-nav__button md-logo" aria-label="Omnibattery" data-md-component="logo">
       
-  <img src="../../../assets/logo.png" alt="logo">
+  <img src="../../assets/logo.png" alt="logo">
 
     </a>
     Omnibattery
   </label>
   
     <div class="md-nav__source">
-      <a href="https://github.com/ffunes/omnibattery" title="Ir al repositorio" class="md-source" data-md-component="source">
+      <a href="https://github.com/ffunes/omnibattery" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
@@ -464,14 +464,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../" class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Inicio
+    Home
   
 
     
@@ -498,7 +498,7 @@
   <span class="md-ellipsis">
     
   
-    Instalación
+    Installation
   
 
     
@@ -542,437 +542,6 @@
       
   
   
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Configuración
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Configuración
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Resumen
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/main-sensor/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Sensor principal
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/batteries/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Baterías
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/hoymiles-ms-a2/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Instalación de Hoymiles MS-A2
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/time-slots/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Franjas horarias
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/excluded-devices/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Dispositivos excluidos
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_7" >
-        
-          
-          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Carga predictiva
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_7">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Carga predictiva
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/predictive-charging/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Resumen
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/predictive-charging/time-slot/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Modo Franja Horaria
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/predictive-charging/dynamic-pricing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Modo Precio Dinámico
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/predictive-charging/real-time-price/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Modo Precio en Tiempo Real
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../configuration/advanced/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Opciones avanzadas
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
     
   
   
@@ -994,17 +563,17 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    Funcionalidades
+    Configuration
   
 
     
@@ -1015,12 +584,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_5">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Funcionalidades
+    Configuration
   
 
           </label>
@@ -1033,14 +602,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../pd-controller/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Controlador PD
+    Overview
   
 
     
@@ -1061,14 +630,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../multi-battery/" class="md-nav__link">
+      <a href="../main-sensor/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gestión multi-batería
+    Main sensor
   
 
     
@@ -1089,154 +658,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../consumption-estimate/" class="md-nav__link">
+      <a href="../batteries/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Estimación de consumo diario
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../weekly-full-charge/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Carga semanal completa
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../cell-balance-monitor/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Monitor de equilibrio de celdas
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../peak-shaving/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Peak shaving
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../solar-charge-delay/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Retraso de carga solar
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../load-exclusion/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Exclusión de cargas
+    Batteries
   
 
     
@@ -1273,7 +702,7 @@
   <span class="md-ellipsis">
     
   
-    Balance neto horario
+    Hoymiles MS-A2 setup
   
 
     
@@ -1291,7 +720,7 @@
   <span class="md-ellipsis">
     
   
-    Balance neto horario
+    Hoymiles MS-A2 setup
   
 
     
@@ -1303,7 +732,7 @@
       
         
 
-<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
   
   
   
@@ -1312,15 +741,15 @@
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
-      Tabla de contenidos
+      Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#como-funciona" class="md-nav__link">
+  <a href="#before-you-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cómo funciona
+        Before you start
       
     </span>
   </a>
@@ -1328,10 +757,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#fuente-de-datos" class="md-nav__link">
+  <a href="#1-install-and-commission-the-battery" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Fuente de datos
+        1. Install and commission the battery
       
     </span>
   </a>
@@ -1339,10 +768,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#prioridad-y-composicion" class="md-nav__link">
+  <a href="#2-prepare-mqtt-in-home-assistant" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Prioridad y composición
+        2. Prepare MQTT in Home Assistant
       
     </span>
   </a>
@@ -1350,10 +779,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#bloqueo-de-compensacion" class="md-nav__link">
+  <a href="#3-point-the-ms-a2-at-the-broker" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Bloqueo de compensación
+        3. Point the MS-A2 at the broker
       
     </span>
   </a>
@@ -1361,10 +790,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#sensor-balance-neto" class="md-nav__link">
+  <a href="#4-add-the-battery-to-omnibattery" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sensor Balance Neto
+        4. Add the battery to Omnibattery
       
     </span>
   </a>
@@ -1372,10 +801,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuracion" class="md-nav__link">
+  <a href="#how-control-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Configuración
+        How control works
       
     </span>
   </a>
@@ -1383,10 +812,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#persistencia" class="md-nav__link">
+  <a href="#verification-checklist" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Persistencia
+        Verification checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#official-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Official references
       
     </span>
   </a>
@@ -1397,6 +848,580 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../time-slots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time slots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../excluded-devices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excluded devices
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Predictive charging
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Predictive charging
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../predictive-charging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../predictive-charging/time-slot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time Slot mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../predictive-charging/dynamic-pricing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic Pricing mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../predictive-charging/real-time-price/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Real-Time Price mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/pd-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PD Controller
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/multi-battery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-battery management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/consumption-estimate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily consumption estimate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/weekly-full-charge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weekly full charge
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/cell-balance-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cell balance monitor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/peak-shaving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peak shaving
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/solar-charge-delay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solar charge delay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/load-exclusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Load exclusion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/hourly-net-balance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hourly net balance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1441,7 +1466,7 @@
   <span class="md-ellipsis">
     
   
-    Referencia técnica
+    Technical reference
   
 
     
@@ -1457,7 +1482,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Referencia técnica
+    Technical reference
   
 
           </label>
@@ -1477,7 +1502,7 @@
   <span class="md-ellipsis">
     
   
-    Arquitectura
+    Architecture
   
 
     
@@ -1505,7 +1530,7 @@
   <span class="md-ellipsis">
     
   
-    Requisitos para drivers de batería
+    Battery driver requirements
   
 
     
@@ -1533,7 +1558,7 @@
   <span class="md-ellipsis">
     
   
-    Registros Modbus
+    Modbus registers
   
 
     
@@ -1561,7 +1586,7 @@
   <span class="md-ellipsis">
     
   
-    Entidades HA
+    HA entities
   
 
     
@@ -1596,7 +1621,7 @@
   <span class="md-ellipsis">
     
   
-    Solución de problemas
+    Troubleshooting
   
 
     
@@ -1649,7 +1674,7 @@
                   <div class="md-sidebar__inner">
                     
 
-<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
   
   
   
@@ -1658,15 +1683,15 @@
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
-      Tabla de contenidos
+      Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#como-funciona" class="md-nav__link">
+  <a href="#before-you-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cómo funciona
+        Before you start
       
     </span>
   </a>
@@ -1674,10 +1699,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#fuente-de-datos" class="md-nav__link">
+  <a href="#1-install-and-commission-the-battery" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Fuente de datos
+        1. Install and commission the battery
       
     </span>
   </a>
@@ -1685,10 +1710,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#prioridad-y-composicion" class="md-nav__link">
+  <a href="#2-prepare-mqtt-in-home-assistant" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Prioridad y composición
+        2. Prepare MQTT in Home Assistant
       
     </span>
   </a>
@@ -1696,10 +1721,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#bloqueo-de-compensacion" class="md-nav__link">
+  <a href="#3-point-the-ms-a2-at-the-broker" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Bloqueo de compensación
+        3. Point the MS-A2 at the broker
       
     </span>
   </a>
@@ -1707,10 +1732,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#sensor-balance-neto" class="md-nav__link">
+  <a href="#4-add-the-battery-to-omnibattery" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sensor Balance Neto
+        4. Add the battery to Omnibattery
       
     </span>
   </a>
@@ -1718,10 +1743,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuracion" class="md-nav__link">
+  <a href="#how-control-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Configuración
+        How control works
       
     </span>
   </a>
@@ -1729,10 +1754,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#persistencia" class="md-nav__link">
+  <a href="#verification-checklist" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Persistencia
+        Verification checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#official-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Official references
       
     </span>
   </a>
@@ -1756,7 +1803,7 @@
 
 
   
-    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/features/hourly-net-balance.es.md" title="Editar esta página" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/configuration/hoymiles-ms-a2.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1764,170 +1811,202 @@
   
 
 
-<h1 id="balance-neto-horario">Balance Neto Horario<a class="headerlink" href="#balance-neto-horario" title="Permanent link">&para;</a></h1>
-<p>Registra la importación y exportación de red dentro de cada hora civil y ajusta el punto de trabajo del controlador PD en tiempo real para llevar la energía neta hacia un objetivo configurable. El objetivo por defecto es 0 Wh — balance neto cero cada hora — aunque puede desplazarse para permitir una importación fija o apuntar a una exportación fija.</p>
-<h2 id="como-funciona">Cómo funciona<a class="headerlink" href="#como-funciona" title="Permanent link">&para;</a></h2>
-<p>En cada ciclo del controlador PD (dirigido por eventos, a la cadencia del sensor de red), el gestor:</p>
-<ol>
-<li>Acumula importación y exportación de red para la hora civil actual.</li>
-<li>Calcula el déficit respecto al objetivo: <code>déficit = objetivo_neto_Wh − (imp_Wh − exp_Wh)</code>.</li>
-<li>Deriva una corrección de potencia: <code>offset = déficit / horas_restantes</code>.</li>
-<li>Aplica un ramp-in de 5 minutos al inicio de cada hora para evitar correcciones agresivas tempranas.</li>
-<li>Limita el offset al máximo configurado.</li>
-<li>Aplica una histéresis configurable (por defecto 15 W): el offset solo se actualiza si cambia más de este umbral (omitida durante los últimos 10 minutos de la hora para que la hora se cierre con precisión).</li>
-<li>Registra el offset mediante el registro de puntos de trabajo para que se combine correctamente con otras funcionalidades.</li>
-</ol>
-<p>El offset se elimina automáticamente cuando:</p>
+<h1 id="install-and-configure-a-hoymiles-ms-a2">Install and configure a Hoymiles MS-A2<a class="headerlink" href="#install-and-configure-a-hoymiles-ms-a2" title="Permanent link">&para;</a></h1>
+<p>This guide covers the complete path from a commissioned MS-A2 to control through
+Omnibattery. The battery communicates locally through the MQTT broker already
+configured in Home Assistant; Omnibattery does not need separate broker
+credentials.</p>
+<h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
+<p>You need:</p>
 <ul>
-<li>La hora actual está fuera de todas las <a href="../../configuration/time-slots/">franjas horarias que permiten la descarga</a> configuradas (o se aplica 24/7 si no hay franjas definidas).</li>
-<li>El modo manual está activo.</li>
+<li>a Hoymiles MS-A2 commissioned in <strong>S-Miles Home</strong>;</li>
+<li>MS-A2 firmware that shows <strong>MQTT Service</strong> in the app;</li>
+<li>Home Assistant with the <strong>MQTT</strong> integration and a working broker;</li>
+<li>OmniBattery installed and a grid power sensor available;</li>
+<li>the MS-A2 MQTT device ID, normally similar to <code>MSA-280024341346</code>.</li>
 </ul>
-<h2 id="fuente-de-datos">Fuente de datos<a class="headerlink" href="#fuente-de-datos" title="Permanent link">&para;</a></h2>
-<p>Por defecto, la integración integra el sensor de potencia de red mediante la regla trapezoidal. Si existe un sensor llamado <code>sensor.balance_neto</code> en Home Assistant, se usa en su lugar. La detección es automática:</p>
+<div class="admonition warning">
+<p class="admonition-title">Electrical installation</p>
+<p>Follow the current <a href="https://www.hoymiles.com/statics/5/hoymiles/picture/User-Manual_MS_A2_Global_EN_REV1.4.pdf">official MS-A2 installation guide</a>, the product labels and local electrical regulations. Turn off the MS-A2 and isolate the microinverter/PV system before changing AC connections. This page does not replace the manufacturer's safety instructions.</p>
+</div>
+<h2 id="1-install-and-commission-the-battery">1. Install and commission the battery<a class="headerlink" href="#1-install-and-commission-the-battery" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Check that the MS-A2, plug-and-play cable and connectors are undamaged.</li>
+<li>Install the unit in an allowed upright position with the clearances,
+   temperature limits and weather protection specified by Hoymiles.</li>
+<li>With the equipment isolated, connect the microinverter system and the AC
+   on-grid cable exactly as shown in the official installation guide.</li>
+<li>Connect the on-grid cable to the approved Schuko outlet and turn on the
+   MS-A2.</li>
+<li>Add the battery in <strong>S-Miles Home</strong>, connect it to 2.4 GHz Wi-Fi and confirm
+   that SOC and power are updating in the app.</li>
+<li>Install any firmware update offered by Hoymiles. Continue only when the app
+   exposes <strong>MQTT Service</strong> for the battery.</li>
+</ol>
+<p>The MS-A2 is AC-coupled and has a nominal capacity of <code>2.24 kWh</code>. A supported
+two-unit system normally uses <code>4.48 kWh</code> as its nominal capacity in
+Omnibattery.</p>
+<h2 id="2-prepare-mqtt-in-home-assistant">2. Prepare MQTT in Home Assistant<a class="headerlink" href="#2-prepare-mqtt-in-home-assistant" title="Permanent link">&para;</a></h2>
+<p>If MQTT is already working for other devices, reuse that broker.</p>
+<ol>
+<li>In Home Assistant, open <strong>Settings → Devices &amp; services</strong>.</li>
+<li>Confirm that the <strong>MQTT</strong> integration is configured and connected.</li>
+<li>Create a dedicated broker user for the MS-A2 if your broker supports users.</li>
+<li>Note the broker's LAN address, port and credentials. The default unencrypted
+   MQTT port is usually <code>1883</code>.</li>
+</ol>
+<div class="admonition danger">
+<p class="admonition-title">Do not expose MQTT to the Internet</p>
+<p>Keep the broker on the local network or behind a properly secured VPN. Do
+not forward port <code>1883</code> from the router to the Internet.</p>
+</div>
+<h2 id="3-point-the-ms-a2-at-the-broker">3. Point the MS-A2 at the broker<a class="headerlink" href="#3-point-the-ms-a2-at-the-broker" title="Permanent link">&para;</a></h2>
+<p>In <strong>S-Miles Home</strong>:</p>
+<ol>
+<li>Open the MS-A2 settings and select <strong>MQTT Service</strong>.</li>
+<li>Enable the service.</li>
+<li>Enter the MQTT broker's LAN IP or hostname, port, username and password.</li>
+<li>Save the settings and wait for the MS-A2 to reconnect.</li>
+<li>Record the complete MQTT device ID shown by the app or broker. Keep the
+   <code>MSA-</code> prefix.</li>
+</ol>
+<p>The MS-A2 should publish a message approximately every second on:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>homeassistant/sensor/&lt;device_id&gt;/quick/state
+</code></pre></div>
+<p>For example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>homeassistant/sensor/MSA-280024341346/quick/state
+</code></pre></div>
+<p>You do not need to create MQTT sensors or automations manually. Omnibattery
+subscribes directly through Home Assistant.</p>
+<h2 id="4-add-the-battery-to-omnibattery">4. Add the battery to Omnibattery<a class="headerlink" href="#4-add-the-battery-to-omnibattery" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Open <strong>Settings → Devices &amp; services → Add integration</strong> and select
+   <strong>Omnibattery</strong>. To modify an existing installation, open Omnibattery and
+   choose <strong>Configure</strong>.</li>
+<li>Select the grid import/export sensor and the number of batteries.</li>
+<li>Choose <strong>Hoymiles MS-A2</strong> as the battery brand.</li>
+<li>Enter a descriptive name and the full MQTT device ID.</li>
+<li>Wait for the connection test. It listens for live SOC and battery power; it
+   can take a few seconds.</li>
+<li>
+<p>Configure the limits:</p>
 <table>
 <thead>
 <tr>
-<th>Tipo de sensor</th>
-<th>Unidad</th>
-<th><code>state_class</code></th>
-<th>Método</th>
+<th>Setting</th>
+<th style="text-align: right;">Recommended starting value</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Energía acumulada</td>
-<td>kWh / Wh</td>
-<td><code>total</code> o <code>total_increasing</code></td>
-<td>Snapshot al inicio de hora, delta por ciclo</td>
+<td>Nominal capacity, one MS-A2</td>
+<td style="text-align: right;"><code>2.24 kWh</code></td>
 </tr>
 <tr>
-<td>Energía instantánea</td>
-<td>kWh / Wh</td>
-<td><code>measurement</code></td>
-<td>Lectura directa</td>
+<td>Nominal capacity, paired system</td>
+<td style="text-align: right;"><code>4.48 kWh</code></td>
 </tr>
 <tr>
-<td>Potencia</td>
-<td>W / kW</td>
-<td>cualquiera</td>
-<td>Integración trapezoidal</td>
+<td>Maximum charge/discharge power</td>
+<td style="text-align: right;"><code>1000 W</code> per unit; keep the safely detected limit</td>
+</tr>
+<tr>
+<td>Maximum SOC</td>
+<td style="text-align: right;"><code>100 %</code></td>
+</tr>
+<tr>
+<td>Minimum SOC</td>
+<td style="text-align: right;"><code>10 %</code></td>
+</tr>
+<tr>
+<td>Charge hysteresis</td>
+<td style="text-align: right;"><code>2 %</code></td>
 </tr>
 </tbody>
 </table>
-<p>Si el sensor externo queda no disponible, la integración vuelve al método trapezoidal automáticamente. La fuente activa es visible en el atributo <code>source</code> del sensor Balance Neto.</p>
-<p>La lista de candidatos se define en <code>const.py → EXTERNAL_NET_BALANCE_CANDIDATES</code>. Convención de signo: <strong>positivo = exportación neta a la red</strong>.</p>
-<h2 id="prioridad-y-composicion">Prioridad y composición<a class="headerlink" href="#prioridad-y-composicion" title="Permanent link">&para;</a></h2>
-<p>El offset de balance horario se registra como <strong>offset aditivo</strong> en el registro de puntos de trabajo (clave <code>hourly_balance</code>). Se suma a la preferencia de potencia objetivo del usuario y a cualquier otro offset aditivo. La Protección de Capacidad utiliza una anulación absoluta (prioridad 10) y toma el control total cuando está activa.</p>
-<h2 id="bloqueo-de-compensacion">Bloqueo de compensación<a class="headerlink" href="#bloqueo-de-compensacion" title="Permanent link">&para;</a></h2>
-<p>Ciertas condiciones impiden que el offset se aplique. El atributo <code>charge_block_reason</code> del sensor Balance Neto muestra el motivo:</p>
+</li>
+<li>
+<p>Complete the remaining Omnibattery wizard and verify that the battery device
+   exposes SOC, power, voltage, temperature and daily energy entities.</p>
+</li>
+</ol>
+<h2 id="how-control-works">How control works<a class="headerlink" href="#how-control-works" title="Permanent link">&para;</a></h2>
+<p>Omnibattery converts its standard signed power convention to the Hoymiles
+protocol automatically:</p>
+<ul>
+<li>positive Omnibattery power charges the battery;</li>
+<li>negative Omnibattery power discharges it;</li>
+<li>zero holds the battery idle.</li>
+</ul>
+<p>When control is active, the driver selects <code>mqtt_ctrl</code> and renews the exact
+command about every 30 seconds. Identical payloads renew the device timeout, so
+the requested setpoint is not altered. A failed renewal is retried after
+5 seconds. This is required because the MS-A2 returns to its internal logic
+about 62 seconds after external MQTT commands stop. When Omnibattery unloads,
+it sends <code>0 W</code> and restores <code>general</code>.</p>
+<p>Firmware <code>01.06.03</code> advertises a <code>-1000…+2000 W</code> MQTT envelope for one MS-A2
+even though the standalone hardware is limited to 1000 W in both directions.
+Omnibattery therefore derives a symmetric limit from the charge-side magnitude
+and never raises the ceiling selected during setup. A paired system whose
+retained envelope is <code>-2000…+2000 W</code> keeps its 2 kW range.</p>
+<p>SOC limits are enforced by Omnibattery software because the MQTT protocol does
+not expose writable MS-A2 SOC cutoffs. Cell-voltage balance and voltage-taper
+features are unavailable because the protocol does not report individual cell
+voltages.</p>
+<h2 id="verification-checklist">Verification checklist<a class="headerlink" href="#verification-checklist" title="Permanent link">&para;</a></h2>
+<p>After setup, confirm all of the following:</p>
+<ul>
+<li>the Omnibattery battery device is available;</li>
+<li>SOC changes match S-Miles Home;</li>
+<li>charging appears as positive battery power in Omnibattery;</li>
+<li>discharging appears as negative battery power;</li>
+<li>a small manual charge, discharge and idle command is followed by the battery;</li>
+<li>MQTT telemetry continues updating locally through the broker;</li>
+<li>the configured power and SOC limits match the installation.</li>
+</ul>
+<p>Start with low power while verifying the direction. Stop the test immediately
+if the observed direction is not the requested one.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Motivo</th>
-<th>Significado</th>
+<th>Symptom</th>
+<th>Checks</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>solar_charge_delay</code></td>
-<td>El retraso de carga solar está activo — se bloquean las correcciones de importación y exportación</td>
+<td><strong>Cannot connect</strong> in the wizard</td>
+<td>Confirm the Home Assistant MQTT integration is connected, the MS-A2 MQTT service is enabled, and the full <code>MSA-…</code> ID is correct.</td>
 </tr>
 <tr>
-<td><code>hysteresis</code></td>
-<td>La histéresis de carga está activa — solo se bloquea la corrección de importación</td>
+<td>The app works but Omnibattery receives no data</td>
+<td>Check the broker IP, port and credentials in S-Miles Home. The broker must be reachable from the battery's Wi-Fi network.</td>
 </tr>
 <tr>
-<td><code>max_soc</code></td>
-<td>Todas las baterías están al SOC máximo — solo se bloquea la corrección de importación</td>
+<td>The battery returns to autonomous control</td>
+<td>Check for MQTT disconnects or broker restarts. Omnibattery must be able to renew the command before the one-minute timeout.</td>
+</tr>
+<tr>
+<td>Power is limited to 1 kW on a paired system</td>
+<td>Reconfigure the battery after both units are paired so Omnibattery can read the retained power envelope. Supported MS-A2 systems are capped at 2 kW.</td>
+</tr>
+<tr>
+<td>SOC works but detailed entities update slowly</td>
+<td><code>quick/state</code> updates about every second; voltage, temperature and daily energy topics are normally published about every five minutes.</td>
+</tr>
+<tr>
+<td>Control is rejected</td>
+<td>Update the MS-A2 firmware, confirm that the selected ID belongs to the master/standalone unit and reconnect its MQTT service.</td>
 </tr>
 </tbody>
 </table>
-<p>Mientras está bloqueado, el acumulador sigue registrando para que el offset correcto se aplique en cuanto desaparezca el bloqueo.</p>
-<h2 id="sensor-balance-neto">Sensor Balance Neto<a class="headerlink" href="#sensor-balance-neto" title="Permanent link">&para;</a></h2>
-<p>Cuando la funcionalidad está activada, se crea un único sensor de diagnóstico (<code>sensor.*_balance_neto</code>).</p>
-<p><strong>Estado</strong>: kWh neto de la hora actual (positivo = exportación neta, negativo = importación neta).</p>
-<p><strong>Atributos</strong>:</p>
-<table>
-<thead>
-<tr>
-<th>Atributo</th>
-<th>Descripción</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>status</code></td>
-<td><code>idle</code>, <code>out_of_slot</code>, <code>capped</code>, <code>compensating_import</code>, <code>compensating_export</code>, <code>compensation_stopped</code></td>
-</tr>
-<tr>
-<td><code>offset_w</code></td>
-<td>Corrección de punto de trabajo activa en vatios</td>
-</tr>
-<tr>
-<td><code>imp_wh</code></td>
-<td>Importación de red acumulada en la hora actual</td>
-</tr>
-<tr>
-<td><code>exp_wh</code></td>
-<td>Exportación de red acumulada en la hora actual</td>
-</tr>
-<tr>
-<td><code>target_net_wh</code></td>
-<td>Objetivo configurado en Wh</td>
-</tr>
-<tr>
-<td><code>remaining_min</code></td>
-<td>Minutos restantes en la hora actual</td>
-</tr>
-<tr>
-<td><code>source</code></td>
-<td>ID de entidad del sensor usado, o <code>trapezoidal</code></td>
-</tr>
-<tr>
-<td><code>hour_iso</code></td>
-<td>Timestamp ISO del inicio de la hora actual</td>
-</tr>
-<tr>
-<td><code>charge_block_reason</code></td>
-<td>Solo presente cuando la compensación está bloqueada; indica el motivo</td>
-</tr>
-</tbody>
-</table>
-<h2 id="configuracion">Configuración<a class="headerlink" href="#configuracion" title="Permanent link">&para;</a></h2>
-<p>Activa y configura desde <strong>Configuración → Dispositivos y Servicios → Omnibattery → Configurar → Balance neto horario</strong>.</p>
-<table>
-<thead>
-<tr>
-<th>Parámetro</th>
-<th>Por defecto</th>
-<th>Descripción</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Balance neto objetivo (kWh)</td>
-<td><code>0.0</code></td>
-<td>Energía neta objetivo por hora. <code>0</code> = balance neto cero. Positivo = permite importación neta. Negativo = apunta a exportación neta.</td>
-</tr>
-<tr>
-<td>Offset máximo (W)</td>
-<td><code>1000</code></td>
-<td>Corrección de potencia máxima que puede aplicar el controlador.</td>
-</tr>
-<tr>
-<td>Tolerancia de balance neto (kWh)</td>
-<td><code>0.0</code></td>
-<td>Banda muerta: sin corrección cuando el balance neto está dentro de ±N kWh del objetivo. <code>0</code> = corrección exacta.</td>
-</tr>
-<tr>
-<td>Histéresis del desplazamiento (W)</td>
-<td><code>15</code></td>
-<td>Cambio mínimo en el desplazamiento necesario para aplicar una nueva corrección. Evita micro-ajustes cada ciclo. <code>0</code> = actualizar siempre.</td>
-</tr>
-</tbody>
-</table>
-<h2 id="persistencia">Persistencia<a class="headerlink" href="#persistencia" title="Permanent link">&para;</a></h2>
-<p>El estado se persiste en el almacenamiento de Home Assistant cada ~5 minutos y al descargar la integración. Al reiniciar, los acumuladores de la hora actual se restauran solo si el reinicio se produjo en la misma hora civil.</p>
+<h2 id="official-references">Official references<a class="headerlink" href="#official-references" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://www.hoymiles.com/products/micro-storage.html">Hoymiles MS-A2 product page</a></li>
+<li><a href="https://www.hoymiles.com/statics/5/hoymiles/picture/User-Manual_MS_A2_Global_EN_REV1.4.pdf">MS-A2 installation/user guide</a></li>
+<li><a href="https://www.hoymiles.com/uploadfile/1/202511/9350aa1077.txt">Hoymiles MQTT protocol guide</a></li>
+</ul>
 
 
 
@@ -1953,7 +2032,7 @@
           <button type="button" class="md-top md-icon" data-md-component="top" hidden>
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
-  Volver al principio
+  Back to top
 </button>
         
       </main>
@@ -1962,33 +2041,33 @@
   
     
       
-      <nav class="md-footer__inner md-grid" aria-label="Pie" >
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../load-exclusion/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Exclusión de cargas">
+          <a href="../batteries/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Batteries">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
             </div>
             <div class="md-footer__title">
               <span class="md-footer__direction">
-                Anterior
+                Previous
               </span>
               <div class="md-ellipsis">
-                Exclusión de cargas
+                Batteries
               </div>
             </div>
           </a>
         
         
           
-          <a href="../../reference/architecture/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Arquitectura">
+          <a href="../time-slots/" class="md-footer__link md-footer__link--next" aria-label="Next: Time slots">
             <div class="md-footer__title">
               <span class="md-footer__direction">
-                Siguiente
+                Next
               </span>
               <div class="md-ellipsis">
-                Arquitectura
+                Time slots
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -2052,10 +2131,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "navigation.footer", "toc.follow", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "content.action.edit"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copiado al portapapeles", "clipboard.copy": "Copiar al portapapeles", "search.result.more.one": "1 m\u00e1s en esta p\u00e1gina", "search.result.more.other": "# m\u00e1s en esta p\u00e1gina", "search.result.none": "No se encontraron documentos", "search.result.one": "1 documento encontrado", "search.result.other": "# documentos encontrados", "search.result.placeholder": "Teclee para comenzar b\u00fasqueda", "search.result.term.missing": "Falta", "select.version": "Seleccionar versi\u00f3n"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "navigation.footer", "toc.follow", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

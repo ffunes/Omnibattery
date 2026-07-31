@@ -18,7 +18,7 @@
         <link rel="prev" href="../main-sensor/">
       
       
-        <link rel="next" href="../time-slots/">
+        <link rel="next" href="../hoymiles-ms-a2/">
       
       
         
@@ -740,6 +740,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#hoymiles-ms-a2-mqtt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hoymiles MS-A2 (MQTT)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#per-battery-marstek-parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -793,6 +804,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hoymiles-ms-a2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hoymiles MS-A2 setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -879,10 +918,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_7" >
         
           
-          <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="">
             
   
   
@@ -900,8 +939,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1655,6 +1694,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#hoymiles-ms-a2-mqtt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hoymiles MS-A2 (MQTT)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#per-battery-marstek-parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1738,6 +1788,11 @@
 <p>Each battery is added under a <strong>brand</strong> — <strong>Marstek</strong> (Venus, over Modbus TCP/RTU) or <strong>Zendure</strong> (SolarFlow 2400 AC / AC Pro / AC+, over local HTTP). </p>
 <p><img alt="Battery Brand" src="../../assets/screenshots/configuration/battery-brand-form.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <p>The brand you pick changes the connection fields below: Marstek asks for the Modbus host/port (or a serial path) and battery version; Zendure auto-detects the model and only needs the device's local IP. The rest of the integration — control loop, sensors, dashboard, predictive charging — is shared.The fields documented on this page are for <strong>Marstek</strong> batteries. The control and SOC/power sliders behave the same for Zendure; only the connection and a user-set capacity differ.</p>
+<h2 id="hoymiles-ms-a2-mqtt">Hoymiles MS-A2 (MQTT)<a class="headerlink" href="#hoymiles-ms-a2-mqtt" title="Permanent link">&para;</a></h2>
+<p>The MS-A2 uses the MQTT broker already configured in Home Assistant; Omnibattery never needs its host, port or credentials. In S-Miles Home, enable <strong>MQTT Service</strong> on firmware that supports it and point it at that HA broker, then enter the MQTT device ID (for example <code>MSA-280024341346</code>). MQTT integration must be configured in Home Assistant first.</p>
+<p>The setup asks for the nominal usable capacity (default <code>2.24 kWh</code>; use <code>4.48 kWh</code> for a paired system). Its signed wire power is handled internally: positive Omnibattery power means charging while the device uses negative power for charging. While Omnibattery controls the unit it renews the exact external <code>mqtt_ctrl</code> command about every 30 seconds and retries failed renewals after 5 seconds. On unload it sends zero power and restores <code>general</code>, so the battery is not left in external control.</p>
+<p>See <a href="../hoymiles-ms-a2/">Install and configure a Hoymiles MS-A2</a> for the physical,
+S-Miles Home, MQTT and Omnibattery setup sequence.</p>
 <hr />
 <h2 id="per-battery-marstek-parameters">Per-battery Marstek parameters<a class="headerlink" href="#per-battery-marstek-parameters" title="Permanent link">&para;</a></h2>
 <table>
@@ -1806,7 +1861,7 @@
 </tr>
 <tr>
 <td><strong>Enable 100% charge voltage taper</strong></td>
-<td>When target is 100%, limit charge to 95W from 3.48V max cell voltage and stop at 3.58V to measure imbalance after 60 seconds</td>
+<td>When target is 100%, limit charge to 200 W from 3.48 V max cell voltage and stop at 3.60 V to measure imbalance after 60 seconds</td>
 <td><code>on</code></td>
 </tr>
 </tbody>
@@ -1847,7 +1902,7 @@
 <hr />
 <h2 id="soc-and-power-limits-at-runtime">SOC and power limits at runtime<a class="headerlink" href="#soc-and-power-limits-at-runtime" title="Permanent link">&para;</a></h2>
 <p>Max/min SOC and max charge/discharge power values can be adjusted at any time using the integration's sliders without reconfiguring. Changes are persisted and restored on every Home Assistant restart.</p>
-<p>If you raise a battery's <strong>Max SOC</strong> to <code>100 %</code>, that battery uses voltage-based top protection: 95 W charge throttle from <code>max_cell_voltage &gt;= 3.48 V</code>, then charging stops at 3.58 V and the integration waits 60 s to record the balance measurement. Charging then stays stopped (it does not re-trickle and there is no forced discharge) until SOC drops a small margin — so the cell relaxes off the top instead of being held there. See <a href="../../features/cell-balance-monitor/#100-charge-voltage-taper">Cell balance monitor</a> for the exact entry and exit conditions.</p>
+<p>If you raise a battery's <strong>Max SOC</strong> to <code>100 %</code>, that battery uses voltage-based top protection: 200 W charge throttle from <code>max_cell_voltage &gt;= 3.48 V</code>, then charging stops at 3.60 V and the integration waits 60 s to record the balance measurement. Charging then stays stopped (it does not re-trickle and there is no forced discharge) until the configured charge-hysteresis threshold is crossed — so the cell relaxes off the top instead of being held there. See <a href="../../features/cell-balance-monitor/#100-charge-voltage-taper">Cell balance monitor</a> for the exact entry and exit conditions.</p>
 <p><img alt="SOC and power sliders" src="../../assets/screenshots/configuration/battery-runtime-sliders.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <hr />
 <h2 id="backup-offgrid-threshold-at-runtime">Backup offgrid threshold at runtime<a class="headerlink" href="#backup-offgrid-threshold-at-runtime" title="Permanent link">&para;</a></h2>
@@ -1932,13 +1987,13 @@
         
         
           
-          <a href="../time-slots/" class="md-footer__link md-footer__link--next" aria-label="Next: Time slots">
+          <a href="../hoymiles-ms-a2/" class="md-footer__link md-footer__link--next" aria-label="Next: Hoymiles MS-A2 setup">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Time slots
+                Hoymiles MS-A2 setup
               </div>
             </div>
             <div class="md-footer__button md-icon">

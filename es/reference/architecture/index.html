@@ -683,6 +683,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../configuration/hoymiles-ms-a2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Instalación de Hoymiles MS-A2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../configuration/time-slots/" class="md-nav__link">
         
   
@@ -754,10 +782,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_7" >
         
           
-          <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
             
   
   
@@ -775,8 +803,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2020,7 +2048,11 @@ control y entidades lo leen desde <code>coordinator.capabilities</code>:</p>
 </tr>
 <tr>
 <td><code>actuator_latency_s</code></td>
-<td>Tiempo de peor caso para que un setpoint se aplique y aparezca en la telemetría — gobierna el ritmo del bucle por driver</td>
+<td>Escala temporal de la respuesta física usada para proteger los cambios de sentido carga/descarga</td>
+</tr>
+<tr>
+<td><code>readback_latency_s</code></td>
+<td>Tiempo hasta que la telemetría posterior a una orden está asentada para un readback inmediato; por defecto usa la latencia del actuador</td>
 </tr>
 </tbody>
 </table>

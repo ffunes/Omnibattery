@@ -683,6 +683,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../configuration/hoymiles-ms-a2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Instalación de Hoymiles MS-A2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../configuration/time-slots/" class="md-nav__link">
         
   
@@ -754,10 +782,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_7" >
         
           
-          <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
             
   
   
@@ -775,8 +803,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2573,7 +2601,12 @@ clase base, el coordinador los usa y el nuevo driver debe implementarlos.</p>
 <tr>
 <td><code>actuator_latency_s</code></td>
 <td style="text-align: right;"><code>...</code></td>
-<td>Medida de peor caso, no promedio</td>
+<td>Escala medida de la respuesta física</td>
+</tr>
+<tr>
+<td><code>readback_latency_s</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td>Retardo de peor caso hasta telemetría asentada, si difiere</td>
 </tr>
 </tbody>
 </table>
@@ -2640,8 +2673,14 @@ clase base, el coordinador los usa y el nuevo driver debe implementarlos.</p>
 <tr>
 <td>Latencia de actuador</td>
 <td>R</td>
-<td>Tiempo escritura → aplicación → reflejo en telemetría</td>
+<td>Tiempo escritura → respuesta física</td>
 <td>Medición sobre equipo real y margen conservador</td>
+</tr>
+<tr>
+<td>Latencia de readback</td>
+<td>R</td>
+<td>Tiempo escritura → telemetría asentada</td>
+<td>Reutilizar la latencia del actuador solo si ambas coinciden</td>
 </tr>
 <tr>
 <td>Potencia mínima fiable</td>
@@ -2850,7 +2889,7 @@ con signo, dos límites, un enum distinto o una API HTTP.</p>
 </tr>
 <tr>
 <td>El readback tarda varios segundos</td>
-<td>Se declara <code>setpoint_confirm_reliable=False</code> y una <code>actuator_latency_s</code> conservadora</td>
+<td>Se declara <code>setpoint_confirm_reliable=False</code> y una <code>readback_latency_s</code> conservadora</td>
 </tr>
 <tr>
 <td>La escritura frecuente podría tocar flash</td>

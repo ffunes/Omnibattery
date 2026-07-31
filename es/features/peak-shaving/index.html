@@ -683,6 +683,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../configuration/hoymiles-ms-a2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Instalación de Hoymiles MS-A2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../configuration/time-slots/" class="md-nav__link">
         
   
@@ -754,10 +782,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_7" >
         
           
-          <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
             
   
   
@@ -775,8 +803,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1238,6 +1266,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#peak-shaving-para-dispositivos-excluidos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Peak shaving para dispositivos excluidos
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cuando-usarlo" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1635,6 +1674,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#peak-shaving-para-dispositivos-excluidos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Peak shaving para dispositivos excluidos
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cuando-usarlo" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1688,6 +1738,21 @@
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>La red cubre 3 000 W y la batería solo 1 500 W
 </code></pre></div>
 <p>Si el consumo fuera de 2 000 W (&lt; límite), la batería no descargaría nada.</p>
+<h2 id="peak-shaving-para-dispositivos-excluidos">Peak shaving para dispositivos excluidos<a class="headerlink" href="#peak-shaving-para-dispositivos-excluidos" title="Permanent link">&para;</a></h2>
+<p>El switch opcional <strong>Reducción de picos para dispositivos excluidos</strong> extiende
+el límite de pico a las cargas que normalmente están excluidas de la batería.
+Está desactivado por defecto.</p>
+<p>Cuando se activa y el SOC está por encima del umbral de conservación, la batería
+sigue cubriendo el consumo normal del hogar. Si la parte excluida provocaría que
+la importación de red superase el límite configurado, la batería cubre solamente
+ese exceso.</p>
+<p>Por ejemplo, con 1 000 W de consumo normal, 4 000 W de consumo excluido y un
+límite de 3 000 W, la batería suministra 2 000 W: 1 000 W para el hogar y
+1 000 W para recortar el pico del dispositivo excluido. La red queda en 3 000 W.</p>
+<p>Cuando el SOC está por debajo del umbral de conservación, el comportamiento
+existente ya aplica el límite de pico a la demanda total. El SOC mínimo, la
+potencia de descarga disponible y el resto de protecciones continúan
+aplicándose siempre.</p>
 <h2 id="cuando-usarlo">Cuándo usarlo<a class="headerlink" href="#cuando-usarlo" title="Permanent link">&para;</a></h2>
 <p>Útil cuando:
 - La red tiene un coste fijo por potencia máxima contratada y quieres limitar los picos.

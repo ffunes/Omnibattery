@@ -683,6 +683,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../configuration/hoymiles-ms-a2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hoymiles MS-A2 setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../configuration/time-slots/" class="md-nav__link">
         
   
@@ -754,10 +782,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_7" >
         
           
-          <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
             
   
   
@@ -775,8 +803,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2438,7 +2466,12 @@ on the base class; a new driver must still implement them.</p>
 <tr>
 <td><code>actuator_latency_s</code></td>
 <td style="text-align: right;"><code>...</code></td>
-<td>Worst case, not average</td>
+<td>Measured physical response timescale</td>
+</tr>
+<tr>
+<td><code>readback_latency_s</code></td>
+<td style="text-align: right;"><code>...</code></td>
+<td>Worst-case settled telemetry delay, if different</td>
 </tr>
 </tbody>
 </table>
@@ -2505,8 +2538,14 @@ on the base class; a new driver must still implement them.</p>
 <tr>
 <td>Actuator latency</td>
 <td>R</td>
-<td>Write-to-application-to-telemetry delay</td>
+<td>Write-to-physical-response delay</td>
 <td>Hardware measurement with conservative margin</td>
+</tr>
+<tr>
+<td>Readback latency</td>
+<td>R</td>
+<td>Write-to-settled-telemetry delay</td>
+<td>Reuse actuator latency only when both are equivalent</td>
 </tr>
 <tr>
 <td>Reliable minimum power</td>
@@ -2712,7 +2751,7 @@ or different vendor enum may implement the same contract.</p>
 </tr>
 <tr>
 <td>Multi-second readback lag</td>
-<td>Set unreliable confirmation and conservative actuator latency capabilities</td>
+<td>Set unreliable confirmation and a conservative readback latency</td>
 </tr>
 <tr>
 <td>Frequent writes may touch flash</td>
