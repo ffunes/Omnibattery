@@ -607,9 +607,17 @@ class PricingManager:
         charging_needed = decision_data["should_charge"]
 
         # Step 2: Parse price data (always, even without deficit — for diagnostics)
+        # extended_horizon reaches through end of tomorrow rather than a fixed
+        # +12h: a +12h floor from an evening call (e.g. the manual re-evaluate
+        # button pressed at 21:00) only reached ~09:00 the next day, missing the
+        # rest of tomorrow's published prices entirely — including the cheap
+        # midday slots typical of solar-heavy markets. Requesting a horizon this
+        # wide is always safe: _parse_price_data only returns slots that actually
+        # exist in the price sensor's data, so on days where the day-ahead
+        # publish is partial (e.g. tomorrow only populated through noon) this
+        # simply yields fewer slots rather than erroring or waiting.
         if extended_horizon:
-            end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=0)
-            horizon = max(end_of_day, now + timedelta(hours=12))
+            horizon = (now + timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=0)
         else:
             horizon = None
         slots = self._parse_price_data(horizon_end=horizon)
