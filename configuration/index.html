@@ -662,10 +662,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#wizard-steps" class="md-nav__link">
+  <a href="#home-assistant-wizard-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Wizard steps
+        Home Assistant wizard configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#omnibattery-dashboard-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Omnibattery dashboard configuration
       
     </span>
   </a>
@@ -1611,10 +1622,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#wizard-steps" class="md-nav__link">
+  <a href="#home-assistant-wizard-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Wizard steps
+        Home Assistant wizard configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#omnibattery-dashboard-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Omnibattery dashboard configuration
       
     </span>
   </a>
@@ -1658,8 +1680,10 @@
 
 
 <h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
-<p>The integration is configured entirely from the Home Assistant UI through a multi-step wizard.</p>
-<h2 id="wizard-steps">Wizard steps<a class="headerlink" href="#wizard-steps" title="Permanent link">&para;</a></h2>
+<p>The integration is configured from :
+ - the Home Assistant UI through a multi-step wizard
+ - the Omnibattery Dashboard</p>
+<h2 id="home-assistant-wizard-configuration">Home Assistant wizard configuration<a class="headerlink" href="#home-assistant-wizard-configuration" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
     A[1. Main sensor config] --&gt; B[2. Number of batteries]
     B --&gt; C[3. Per-battery config]
@@ -1672,36 +1696,19 @@
     G --&gt; H{Predictive charging?}
     H -- Yes --&gt; I[6. Predictive charging mode config]
     H -- No --&gt; J
-    I --&gt; J{Weekly full charge?}
-    J -- Yes --&gt; K[7. Weekly full charge day]
-    J -- No --&gt; L
-    K --&gt; L{Solar charge delay?}
-    L -- Yes --&gt; M[8. Solar charge delay config]
-    L -- No --&gt; N
-    M --&gt; N{Temperature charge limit?}
-    N -- Yes --&gt; O[9. Temperature charge limit]
-    N -- No --&gt; P  
-    O --&gt; P{Capacity protection?}
-    P -- Yes --&gt; Q[10. Capacity protection config]
-    P -- No --&gt; R
-    Q --&gt; R{Hourly net balance?}
-    R -- Yes --&gt; S[11. Hourly net balance config]
-    R -- No --&gt; T
-    S --&gt; T{PD controller advanced?}
-    T -- Yes --&gt; U[12. PD controller advanced config]
-    T -- No --&gt; W
-    U --&gt; W[Done]</code></pre>
+    I --&gt; J
+    J[Done]</code></pre>
 <table>
 <thead>
 <tr>
-<th>Step</th>
+<th>Features</th>
 <th>Description</th>
 <th style="text-align: center;">Required</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><a href="main-sensor/">Main sensor</a></td>
+<td><a href="main-sensor/">Sensors</a></td>
 <td>Grid consumption sensor and solar sensor (home consumption is derived)</td>
 <td style="text-align: center;">✅</td>
 </tr>
@@ -1730,6 +1737,18 @@
 <td>Grid charging when solar forecast is insufficient</td>
 <td style="text-align: center;">❌</td>
 </tr>
+</tbody>
+</table>
+<h2 id="omnibattery-dashboard-configuration">Omnibattery dashboard configuration<a class="headerlink" href="#omnibattery-dashboard-configuration" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Features</th>
+<th>Description</th>
+<th style="text-align: center;">Required</th>
+</tr>
+</thead>
+<tbody>
 <tr>
 <td><a href="advanced/">Weekly full charge</a></td>
 <td>Charge batteries to 100% once a week to balance the cells</td>

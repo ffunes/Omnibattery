@@ -790,6 +790,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#system-power-limits-all-batteries-combined" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System power limits (all batteries combined)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#backup-offgrid-threshold-at-runtime" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1744,6 +1755,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#system-power-limits-all-batteries-combined" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System power limits (all batteries combined)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#backup-offgrid-threshold-at-runtime" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1904,6 +1926,9 @@ S-Miles Home, MQTT and Omnibattery setup sequence.</p>
 <p>Max/min SOC and max charge/discharge power values can be adjusted at any time using the integration's sliders without reconfiguring. Changes are persisted and restored on every Home Assistant restart.</p>
 <p>If you raise a battery's <strong>Max SOC</strong> to <code>100 %</code>, that battery uses voltage-based top protection: 200 W charge throttle from <code>max_cell_voltage &gt;= 3.48 V</code>, then charging stops at 3.60 V and the integration waits 60 s to record the balance measurement. Charging then stays stopped (it does not re-trickle and there is no forced discharge) until the configured charge-hysteresis threshold is crossed — so the cell relaxes off the top instead of being held there. See <a href="../../features/cell-balance-monitor/#100-charge-voltage-taper">Cell balance monitor</a> for the exact entry and exit conditions.</p>
 <p><img alt="SOC and power sliders" src="../../assets/screenshots/configuration/battery-runtime-sliders.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<hr />
+<h2 id="system-power-limits-all-batteries-combined">System power limits (all batteries combined)<a class="headerlink" href="#system-power-limits-all-batteries-combined" title="Permanent link">&para;</a></h2>
+<p><img alt="system power limits" src="../../assets/screenshots/configuration/battery-system-power-limits-config.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <hr />
 <h2 id="backup-offgrid-threshold-at-runtime">Backup offgrid threshold at runtime<a class="headerlink" href="#backup-offgrid-threshold-at-runtime" title="Permanent link">&para;</a></h2>
 <p>The <strong>Backup Offgrid Threshold</strong> number entity (visible on each battery's device card, under configuration entities) lets you adjust the threshold at any time without entering the options flow. Raise it if your battery has small permanent loads on its offgrid port — such as a PoE switch, router, or IP cameras — that would otherwise keep it permanently excluded from PD control.</p>
