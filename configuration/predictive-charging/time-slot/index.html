@@ -1716,10 +1716,6 @@
 <p class="admonition-title">Up to 3 windows</p>
 <p>You can configure 1, 2 or 3 charging windows — useful for a split tariff with both a night and a midday off-peak block. Fill only window 1 for the previous single-window behaviour; each extra window needs <strong>both</strong> a start and an end time (fill both or leave both empty). The consumption-window math treats the union of all configured windows.</p>
 </div>
-<div class="admonition danger">
-<p class="admonition-title">Breaking change in v1.6.0</p>
-<p>The solar forecast sensor field must now point to the <strong>today</strong> sensor (e.g. <code>sensor.solcast_pv_forecast_forecast_today</code>), not the tomorrow sensor.</p>
-</div>
 <div class="admonition note">
 <p class="admonition-title">No solar sensor</p>
 <p>If you have no solar panels, leave the forecast sensor empty. The system will charge whenever battery energy is insufficient to cover expected consumption.</p>

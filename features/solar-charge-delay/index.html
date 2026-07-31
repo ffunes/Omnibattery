@@ -1721,10 +1721,6 @@
 
 
 <h1 id="solar-charge-delay">Solar charge delay<a class="headerlink" href="#solar-charge-delay" title="Permanent link">&para;</a></h1>
-<div class="admonition danger">
-<p class="admonition-title">Breaking change in v1.6.0</p>
-<p>The integration now uses <strong>today's</strong> solar forecast instead of tomorrow's. If you have this feature configured, you must update the solar forecast sensor in settings to point to the <strong>today</strong> sensor (e.g. <code>sensor.solcast_pv_forecast_forecast_today</code>) instead of the tomorrow sensor.</p>
-</div>
 <p>Delays morning battery charging (both from solar and from the grid) while the expected solar production is sufficient to cover the required energy. Avoids charging the battery early — whether from solar or the grid — when the sun will be able to do it later.</p>
 <h2 id="when-it-applies">When it applies<a class="headerlink" href="#when-it-applies" title="Permanent link">&para;</a></h2>
 <ul>

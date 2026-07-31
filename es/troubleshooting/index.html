@@ -1555,17 +1555,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#los-valores-de-socpotencia-no-se-persisten-tras-reiniciar-ha" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Los valores de SOC/potencia no se persisten tras reiniciar HA
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#recibo-una-notificacion-de-alarma-o-fallo-de-bateria" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1581,17 +1570,6 @@
     <span class="md-ellipsis">
       
         La carga predictiva no se activa
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#el-switch-rs485-se-reactiva-solo-tras-reiniciar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El switch RS485 se reactiva solo tras reiniciar
       
     </span>
   </a>
@@ -1765,17 +1743,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#los-valores-de-socpotencia-no-se-persisten-tras-reiniciar-ha" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Los valores de SOC/potencia no se persisten tras reiniciar HA
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#recibo-una-notificacion-de-alarma-o-fallo-de-bateria" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1791,17 +1758,6 @@
     <span class="md-ellipsis">
       
         La carga predictiva no se activa
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#el-switch-rs485-se-reactiva-solo-tras-reiniciar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        El switch RS485 se reactiva solo tras reiniciar
       
     </span>
   </a>
@@ -1948,10 +1904,6 @@
 </tbody>
 </table>
 <hr />
-<h2 id="los-valores-de-socpotencia-no-se-persisten-tras-reiniciar-ha">Los valores de SOC/potencia no se persisten tras reiniciar HA<a class="headerlink" href="#los-valores-de-socpotencia-no-se-persisten-tras-reiniciar-ha" title="Permanent link">&para;</a></h2>
-<p>A partir de la v1.5.0 este problema está corregido. Los cambios en sliders de SOC y potencia se guardan inmediatamente en la configuración y se restauran en cada reinicio.</p>
-<p>Si persiste el problema, verifica que estás usando la versión <strong>1.5.0</strong> o superior.</p>
-<hr />
 <h2 id="recibo-una-notificacion-de-alarma-o-fallo-de-bateria">Recibo una notificación de alarma o fallo de batería<a class="headerlink" href="#recibo-una-notificacion-de-alarma-o-fallo-de-bateria" title="Permanent link">&para;</a></h2>
 <p>La integración monitoriza los registros <code>Alarm Status</code> y <code>Fault Status</code> de la batería (solo v2) cada 5 segundos. Cuando se activa un nuevo bit, aparece una notificación persistente en Home Assistant con el nombre exacto de la condición (p. ej. <em>BAT Overvoltage</em>, <em>Fan Abnormal Warning</em>). La notificación se descarta automáticamente cuando todas las condiciones se resuelven.</p>
 <p><strong>Niveles de severidad de la notificación:</strong></p>
@@ -1992,9 +1944,6 @@
 <li>Revisa las notificaciones de HA: la evaluación de las 00:05 reporta el resultado.</li>
 <li>Asegúrate de que el balance energético realmente requiere carga (puede que haya suficiente energía).</li>
 </ol>
-<hr />
-<h2 id="el-switch-rs485-se-reactiva-solo-tras-reiniciar">El switch RS485 se reactiva solo tras reiniciar<a class="headerlink" href="#el-switch-rs485-se-reactiva-solo-tras-reiniciar" title="Permanent link">&para;</a></h2>
-<p>Corregido en v1.5.0. La preferencia del usuario se persiste y se restaura en el arranque.</p>
 <hr />
 <h2 id="el-dispositivo-de-medida-no-esta-disponible-o-pierde-conexion">El dispositivo de medida no está disponible o pierde conexión<a class="headerlink" href="#el-dispositivo-de-medida-no-esta-disponible-o-pierde-conexion" title="Permanent link">&para;</a></h2>
 <p>Si el sensor de red (por ejemplo, un medidor con conexión Wi-Fi inestable) se desconecta, el controlador se comporta de forma diferente según cómo falle el sensor.</p>

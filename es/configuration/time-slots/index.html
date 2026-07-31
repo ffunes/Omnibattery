@@ -818,10 +818,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#migracion-desde-versiones-anteriores" class="md-nav__link">
+  <a href="#migracion-de-franjas-heredadas" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Migración desde versiones anteriores
+        Migración de franjas heredadas
       
     </span>
   </a>
@@ -1710,10 +1710,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#migracion-desde-versiones-anteriores" class="md-nav__link">
+  <a href="#migracion-de-franjas-heredadas" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Migración desde versiones anteriores
+        Migración de franjas heredadas
       
     </span>
   </a>
@@ -1768,7 +1768,7 @@
 
 
 <h1 id="franjas-horarias">Franjas horarias<a class="headerlink" href="#franjas-horarias" title="Permanent link">&para;</a></h1>
-<p>Las franjas horarias definen ventanas que controlan cómo se permite operar a cada batería. Desde la versión 2.0.0 cada franja expone ticks independientes para carga y descarga, overrides opcionales de SOC y de potencia, un modo manual y un alcance por batería. Se admiten hasta 8 franjas.</p>
+<p>Las franjas horarias definen ventanas que controlan cómo se permite operar a cada batería. Cada franja expone ticks independientes para carga y descarga, overrides opcionales de SOC y de potencia, un modo manual y un alcance por batería. Se admiten hasta 8 franjas.</p>
 <h2 id="modelo-whitelist-por-direccion">Modelo: whitelist por dirección<a class="headerlink" href="#modelo-whitelist-por-direccion" title="Permanent link">&para;</a></h2>
 <p>Cada dirección (carga, descarga) se evalúa de forma independiente:</p>
 <ul>
@@ -1826,8 +1826,8 @@
 </ul>
 <h2 id="alcance-por-bateria">Alcance por batería<a class="headerlink" href="#alcance-por-bateria" title="Permanent link">&para;</a></h2>
 <p>Con varias baterías cada franja elige su destinatario con <code>battery_scope</code>. Franjas con alcances distintos pueden solaparse en tiempo sin conflicto — sólo entran en conflicto si ambas apuntan a la misma batería física (<code>battery_N</code> vs <code>battery_N</code>, o cualquiera de las dos a <code>all</code>).</p>
-<h2 id="migracion-desde-versiones-anteriores">Migración desde versiones anteriores<a class="headerlink" href="#migracion-desde-versiones-anteriores" title="Permanent link">&para;</a></h2>
-<p>Las franjas creadas antes de 2.0.0 (<code>{start_time, end_time, days, apply_to_charge}</code>) se convierten automáticamente al arrancar:</p>
+<h2 id="migracion-de-franjas-heredadas">Migración de franjas heredadas<a class="headerlink" href="#migracion-de-franjas-heredadas" title="Permanent link">&para;</a></h2>
+<p>Las franjas con el formato legado (<code>{start_time, end_time, days, apply_to_charge}</code>), incluidas las configuraciones migradas desde Marstek Venus Energy Manager, se convierten automáticamente al arrancar:</p>
 <table>
 <thead>
 <tr>

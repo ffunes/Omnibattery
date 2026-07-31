@@ -818,10 +818,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#migration-from-earlier-versions" class="md-nav__link">
+  <a href="#migration-of-legacy-slots" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Migration from earlier versions
+        Migration of legacy slots
       
     </span>
   </a>
@@ -1710,10 +1710,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#migration-from-earlier-versions" class="md-nav__link">
+  <a href="#migration-of-legacy-slots" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Migration from earlier versions
+        Migration of legacy slots
       
     </span>
   </a>
@@ -1768,7 +1768,7 @@
 
 
 <h1 id="time-slots">Time slots<a class="headerlink" href="#time-slots" title="Permanent link">&para;</a></h1>
-<p>Time slots define windows that control how each battery is allowed to operate. From version 2.0.0 every slot exposes independent ticks for charge and discharge, optional SOC and power overrides, a manual-power mode, and a per-battery scope. Up to 8 slots can be defined.</p>
+<p>Time slots define windows that control how each battery is allowed to operate. Each slot exposes independent ticks for charge and discharge, optional SOC and power overrides, a manual-power mode, and a per-battery scope. Up to 8 slots can be defined.</p>
 <h2 id="model-per-direction-whitelist">Model: per-direction whitelist<a class="headerlink" href="#model-per-direction-whitelist" title="Permanent link">&para;</a></h2>
 <p>Each direction (charge, discharge) is evaluated independently:</p>
 <ul>
@@ -1826,8 +1826,8 @@
 </ul>
 <h2 id="battery-scope">Battery scope<a class="headerlink" href="#battery-scope" title="Permanent link">&para;</a></h2>
 <p>When more than one battery is configured each slot picks a target via <code>battery_scope</code>. Multiple slots with different scopes can overlap in time without conflict — they only conflict when both target the same physical battery (<code>battery_N</code> vs <code>battery_N</code>, or either set to <code>all</code>).</p>
-<h2 id="migration-from-earlier-versions">Migration from earlier versions<a class="headerlink" href="#migration-from-earlier-versions" title="Permanent link">&para;</a></h2>
-<p>Slots created before 2.0.0 (<code>{start_time, end_time, days, apply_to_charge}</code>) are converted automatically on first start:</p>
+<h2 id="migration-of-legacy-slots">Migration of legacy slots<a class="headerlink" href="#migration-of-legacy-slots" title="Permanent link">&para;</a></h2>
+<p>Slots using the legacy format (<code>{start_time, end_time, days, apply_to_charge}</code>), including configurations migrated from Marstek Venus Energy Manager, are converted automatically on first start:</p>
 <table>
 <thead>
 <tr>

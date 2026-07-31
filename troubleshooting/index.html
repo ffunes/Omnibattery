@@ -1555,17 +1555,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#socpower-values-are-not-persisted-after-ha-restart" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SOC/power values are not persisted after HA restart
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#battery-alarm-or-fault-notification-received" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1581,17 +1570,6 @@
     <span class="md-ellipsis">
       
         Predictive charging does not activate
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rs485-switch-re-enables-itself-after-restart" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RS485 switch re-enables itself after restart
       
     </span>
   </a>
@@ -1765,17 +1743,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#socpower-values-are-not-persisted-after-ha-restart" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SOC/power values are not persisted after HA restart
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#battery-alarm-or-fault-notification-received" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1791,17 +1758,6 @@
     <span class="md-ellipsis">
       
         Predictive charging does not activate
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rs485-switch-re-enables-itself-after-restart" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RS485 switch re-enables itself after restart
       
     </span>
   </a>
@@ -1948,10 +1904,6 @@
 </tbody>
 </table>
 <hr />
-<h2 id="socpower-values-are-not-persisted-after-ha-restart">SOC/power values are not persisted after HA restart<a class="headerlink" href="#socpower-values-are-not-persisted-after-ha-restart" title="Permanent link">&para;</a></h2>
-<p>Fixed since v1.5.0. Changes to SOC and power sliders are saved immediately to the config entry and restored on every restart.</p>
-<p>If the problem persists, verify you are using version <strong>1.5.0</strong> or later.</p>
-<hr />
 <h2 id="battery-alarm-or-fault-notification-received">Battery alarm or fault notification received<a class="headerlink" href="#battery-alarm-or-fault-notification-received" title="Permanent link">&para;</a></h2>
 <p>The integration monitors the battery's <code>Alarm Status</code> and <code>Fault Status</code> registers (v2 only) every 5 seconds. When a new bit is set a persistent notification appears in Home Assistant with the exact condition name (e.g. <em>BAT Overvoltage</em>, <em>Fan Abnormal Warning</em>). The notification is automatically dismissed once all conditions clear.</p>
 <p><strong>Notification severity levels:</strong></p>
@@ -1992,9 +1944,6 @@
 <li>Review HA notifications: the 00:05 evaluation reports its result.</li>
 <li>Make sure the energy balance actually requires charging (there may already be enough energy).</li>
 </ol>
-<hr />
-<h2 id="rs485-switch-re-enables-itself-after-restart">RS485 switch re-enables itself after restart<a class="headerlink" href="#rs485-switch-re-enables-itself-after-restart" title="Permanent link">&para;</a></h2>
-<p>Fixed in v1.5.0. The user's preference is now persisted and restored at startup.</p>
 <hr />
 <h2 id="metering-device-unavailable-or-losing-connectivity">Metering device unavailable or losing connectivity<a class="headerlink" href="#metering-device-unavailable-or-losing-connectivity" title="Permanent link">&para;</a></h2>
 <p>If the grid sensor (e.g. a power meter with a poor Wi-Fi connection) goes offline, the controller behaves differently depending on how the sensor fails.</p>
