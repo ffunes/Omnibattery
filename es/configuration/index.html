@@ -662,10 +662,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#pasos-del-asistente" class="md-nav__link">
+  <a href="#configuracion-del-asistente-de-home-assistant" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pasos del asistente
+        Configuración del asistente de Home Assistant
       
     </span>
   </a>
@@ -1611,10 +1611,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#pasos-del-asistente" class="md-nav__link">
+  <a href="#configuracion-del-asistente-de-home-assistant" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pasos del asistente
+        Configuración del asistente de Home Assistant
       
     </span>
   </a>
@@ -1658,10 +1658,14 @@
 
 
 <h1 id="configuracion">Configuración<a class="headerlink" href="#configuracion" title="Permanent link">&para;</a></h1>
-<p>La integración se configura íntegramente desde la interfaz de Home Assistant mediante un asistente de varios pasos.</p>
-<h2 id="pasos-del-asistente">Pasos del asistente<a class="headerlink" href="#pasos-del-asistente" title="Permanent link">&para;</a></h2>
+<p>La integración se configura mediante dos interfaces:</p>
+<ul>
+<li>La interfaz de Home Assistant, a través de un asistente de varios pasos.</li>
+<li>El dashboard de Omnibattery.</li>
+</ul>
+<h2 id="configuracion-del-asistente-de-home-assistant">Configuración del asistente de Home Assistant<a class="headerlink" href="#configuracion-del-asistente-de-home-assistant" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
-    A[1. Sensor principal] --&gt; B[2. Número de baterías]
+    A[1. Config. del sensor principal] --&gt; B[2. Número de baterías]
     B --&gt; C[3. Config. por batería]
     C --&gt; D{¿Franjas horarias?}
     D -- Sí --&gt; E[4. Franjas horarias]
@@ -1672,33 +1676,19 @@
     G --&gt; H{¿Carga predictiva?}
     H -- Sí --&gt; I[6. Modo de carga predictiva]
     H -- No --&gt; J
-    I --&gt; J{¿Carga semanal completa?}
-    J -- Sí --&gt; K[7. Día de carga semanal completa]
-    J -- No --&gt; L
-    K --&gt; L{¿Retraso de carga solar?}
-    L -- Sí --&gt; M[8. Config. retraso de carga solar]
-    L -- No --&gt; N
-    M --&gt; N{¿Protección de capacidad?}
-    N -- Sí --&gt; O[9. Config. protección de capacidad]
-    N -- No --&gt; P
-    O --&gt; P{¿Balance neto horario?}
-    P -- Sí --&gt; Q[10. Config. balance neto horario]
-    P -- No --&gt; R
-    Q --&gt; R{¿Controlador PD avanzado?}
-    R -- Sí --&gt; S[11. Config. controlador PD avanzado]
-    R -- No --&gt; T[Fin]
-    S --&gt; T</code></pre>
+    I --&gt; J
+    J[Fin]</code></pre>
 <table>
 <thead>
 <tr>
-<th>Paso</th>
+<th>Sección</th>
 <th>Descripción</th>
 <th style="text-align: center;">Obligatorio</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><a href="main-sensor/">Sensor principal</a></td>
+<td><a href="main-sensor/">Sensores</a></td>
 <td>Sensor de consumo de red y sensor solar (el consumo del hogar se deriva)</td>
 <td style="text-align: center;">✅</td>
 </tr>
@@ -1709,7 +1699,7 @@
 </tr>
 <tr>
 <td><a href="batteries/">Baterías</a></td>
-<td>Config. por batería: nombre, IP, puerto, versión, límites de potencia y SOC</td>
+<td>Configuración por batería: nombre, IP, puerto, versión, límites de potencia y SOC</td>
 <td style="text-align: center;">✅</td>
 </tr>
 <tr>
@@ -1748,6 +1738,11 @@
 <td style="text-align: center;">❌</td>
 </tr>
 <tr>
+<td><a href="batteries/#limites-de-potencia-del-sistema-todas-las-baterias-combinadas">Límites de potencia del sistema</a></td>
+<td>Limita la potencia combinada de carga/descarga de todas las baterías activas</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
 <td><a href="advanced/">Controlador PD (avanzado)</a></td>
 <td>Ajuste fino del controlador PD para mantener el flujo de red en el objetivo configurado</td>
 <td style="text-align: center;">❌</td>
@@ -1757,7 +1752,7 @@
 <h2 id="modificar-la-configuracion">Modificar la configuración<a class="headerlink" href="#modificar-la-configuracion" title="Permanent link">&para;</a></h2>
 <p>Una vez instalada, puedes modificar cualquier parámetro en:
 <strong>Ajustes → Dispositivos y servicios → Omnibattery → Configurar</strong></p>
-<p><img alt="Reconfigure Omnibattery" src="../../assets/screenshots/configuration/reconfigure-marstek-venus-energy-manager.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<p><img alt="Reconfigurar Omnibattery" src="../../assets/screenshots/configuration/reconfigure-omnibattery.png" style="display: block; margin: 0 auto;" width="650" /></p>
 
 
 

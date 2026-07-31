@@ -790,6 +790,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#limites-de-potencia-del-sistema-todas-las-baterias-combinadas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Límites de potencia del sistema (todas las baterías combinadas)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#umbral-offgrid-backup-en-tiempo-de-ejecucion" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1744,6 +1755,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#limites-de-potencia-del-sistema-todas-las-baterias-combinadas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Límites de potencia del sistema (todas las baterías combinadas)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#umbral-offgrid-backup-en-tiempo-de-ejecucion" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1887,6 +1909,10 @@ seguir paso a paso la instalación física, S-Miles Home, MQTT y Omnibattery.</p
 <p>Los valores de SOC máximo/mínimo y potencia máxima de carga/descarga se pueden ajustar en cualquier momento desde los sliders de la integración sin necesidad de reconfigurar. Los cambios se persisten y se restauran en cada reinicio de Home Assistant.</p>
 <p>Si elevas el <strong>SOC máximo</strong> de una batería al <code>100 %</code>, esa batería usa protección superior por tensión: reducción de carga a 200 W desde <code>max_cell_voltage &gt;= 3,48 V</code>, luego la carga se detiene a 3,60 V y la integración espera 60 s para registrar la medición de balance. La carga queda entonces parada (no vuelve a cargar a goteo ni fuerza descarga) hasta que se cruza el umbral de histéresis de carga configurado — así la celda se relaja desde la parte alta en vez de quedar clavada ahí. Consulta <a href="../../features/cell-balance-monitor/#reduccion-por-voltaje-al-100">Monitor de equilibrio de celdas</a> para las condiciones exactas de entrada y salida.</p>
 <p><img alt="Sliders de SOC y potencia" src="../../../assets/screenshots/configuration/battery-runtime-sliders.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<hr />
+<h2 id="limites-de-potencia-del-sistema-todas-las-baterias-combinadas">Límites de potencia del sistema (todas las baterías combinadas)<a class="headerlink" href="#limites-de-potencia-del-sistema-todas-las-baterias-combinadas" title="Permanent link">&para;</a></h2>
+<p>Configura estos límites desde el dashboard de Omnibattery. Activa el interruptor para limitar la potencia combinada de carga o descarga de todas las baterías activas. El límite individual de cada batería se sigue aplicando; establecer cualquiera de los límites del sistema en <code>0 W</code> desactiva ese límite.</p>
+<p><img alt="Límites de potencia del sistema" src="../../../assets/screenshots/configuration/battery-system-power-limits-config.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <hr />
 <h2 id="umbral-offgrid-backup-en-tiempo-de-ejecucion">Umbral offgrid backup en tiempo de ejecución<a class="headerlink" href="#umbral-offgrid-backup-en-tiempo-de-ejecucion" title="Permanent link">&para;</a></h2>
 <p>La entidad numérica <strong>Umbral Offgrid Backup</strong> (visible en la tarjeta de dispositivo de cada batería, entre las entidades de configuración) permite ajustar el umbral en cualquier momento sin entrar al flujo de opciones. Auméntalo si tu batería tiene cargas permanentes pequeñas en el puerto offgrid — como un switch PoE, router o cámaras IP — que de otro modo mantendrían la batería permanentemente excluida del control PD.</p>

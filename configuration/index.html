@@ -1680,9 +1680,11 @@
 
 
 <h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
-<p>The integration is configured from :
- - the Home Assistant UI through a multi-step wizard
- - the Omnibattery Dashboard</p>
+<p>The integration is configured through two interfaces:</p>
+<ul>
+<li>the Home Assistant UI through a multi-step wizard</li>
+<li>the Omnibattery Dashboard</li>
+</ul>
 <h2 id="home-assistant-wizard-configuration">Home Assistant wizard configuration<a class="headerlink" href="#home-assistant-wizard-configuration" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
     A[1. Main sensor config] --&gt; B[2. Number of batteries]
@@ -1701,7 +1703,7 @@
 <table>
 <thead>
 <tr>
-<th>Features</th>
+<th>Section</th>
 <th>Description</th>
 <th style="text-align: center;">Required</th>
 </tr>
@@ -1719,7 +1721,7 @@
 </tr>
 <tr>
 <td><a href="batteries/">Batteries</a></td>
-<td>Per-battery config : name, IP, port, version, power limits and SOC</td>
+<td>Per-battery configuration: name, IP, port, version, power limits and SOC</td>
 <td style="text-align: center;">✅</td>
 </tr>
 <tr>
@@ -1772,6 +1774,11 @@
 <tr>
 <td><a href="advanced/">Hourly net balance</a></td>
 <td>Sets the hourly net import/export energy to a specific target (default 0 Wh)</td>
+<td style="text-align: center;">❌</td>
+</tr>
+<tr>
+<td><a href="batteries/#system-power-limits-all-batteries-combined">System power limits</a></td>
+<td>Caps combined charge/discharge power across all active batteries</td>
 <td style="text-align: center;">❌</td>
 </tr>
 <tr>
