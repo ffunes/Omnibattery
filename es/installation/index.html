@@ -623,6 +623,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#anadir-la-integracion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Añadir la integración
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#instalacion-de-blueprints" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -658,17 +669,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#anadir-la-integracion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Añadir la integración
-      
-    </span>
-  </a>
   
 </li>
       
@@ -1777,6 +1777,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#anadir-la-integracion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Añadir la integración
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#instalacion-de-blueprints" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1815,17 +1826,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#anadir-la-integracion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Añadir la integración
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1854,40 +1854,74 @@
 <h1 id="instalacion">Instalación<a class="headerlink" href="#instalacion" title="Permanent link">&para;</a></h1>
 <h2 id="requisitos">Requisitos<a class="headerlink" href="#requisitos" title="Permanent link">&para;</a></h2>
 <h3 id="hardware">Hardware<a class="headerlink" href="#hardware" title="Permanent link">&para;</a></h3>
+<p>La tabla muestra la vía de conexión que usa Omnibattery para cada batería
+compatible. Los adaptadores y puentes solo son necesarios cuando se indican.</p>
 <table>
 <thead>
 <tr>
-<th>Componente</th>
-<th>Descripción</th>
+<th>Batería / componente</th>
+<th>Conexión soportada</th>
+<th>Requisito adicional</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Batería</td>
-<td>Marstek Venus E v2/v3, Venus A, Venus D; Zendure SolarFlow 2400 AC+ / AC Pro; Anker SOLIX Solarbank Max AC / 4 E5000 Pro; <strong>o Hoymiles MS-A2</strong></td>
+<td><strong>Marstek Venus E/C (v2/v3), Venus A, Venus D</strong></td>
+<td>Modbus TCP; Modbus RTU por USB–RS485; o puente LilyGo RS485/ESPHome <em>(Venus E v2)</em></td>
+<td><strong>Modbus TCP:</strong> Venus E v2 necesita un conversor RS485 → TCP (p. ej. Elfin-EW11); Venus E v3, Venus A y Venus D usan Ethernet nativo. <strong>Modbus RTU:</strong> adaptador USB–RS485. <strong>ESPHome:</strong> el puente LilyGo debe exponer sus entidades requeridas en Home Assistant.</td>
 </tr>
 <tr>
-<td>Conversor Modbus</td>
-<td>Dispositivo RS485 → Modbus TCP (p. ej. Elfin-EW11) — <strong>solo necesario para Marstek Venus E v2</strong>. Las Venus E v3, Venus A y Venus D se conectan por Ethernet y soportan Modbus TCP de forma nativa. Anker Solarbank Max AC y 4 E5000 Pro usan Modbus TCP nativo (activar en la app Anker bajo Third-Party Control; solo un cliente Modbus a la vez). No necesario para Zendure (HTTP local).</td>
+<td><strong>Zendure SolarFlow 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus, 800</strong></td>
+<td>API HTTP local</td>
+<td>Mantén <strong>HEMS desactivado</strong> en la aplicación de Zendure. Si está activo, HEMS sobrescribe la consigna manual de potencia de Omnibattery.</td>
 </tr>
 <tr>
-<td>Adaptador serie <em>(opcional)</em></td>
-<td>Adaptador USB–RS485 para conexión serie directa (Modbus RTU) a baterías Marstek.</td>
+<td><strong>Anker SOLIX Solarbank Max AC, 4 E5000 Pro</strong></td>
+<td>Modbus TCP</td>
+<td>Activa <strong>Third-Party Control</strong> en la aplicación de Anker. Solo puede conectarse un cliente Modbus a la vez.</td>
 </tr>
 <tr>
-<td>Sensor de red</td>
-<td>Sensor HA que mide el consumo total de la red (p. ej. Shelly EM3, Neurio, contador inteligente)</td>
+<td><strong>Sessy Home Battery</strong></td>
+<td>API HTTP local mediante el dongle de Sessy</td>
+<td>El dongle debe ser accesible desde Home Assistant. Introduce su IP/nombre de host, puerto y credenciales; el puerto predeterminado es <code>80</code>.</td>
+</tr>
+<tr>
+<td><strong>Hoymiles MS-A2</strong></td>
+<td>MQTT mediante la integración MQTT configurada en Home Assistant</td>
+<td>Hace falta un broker MQTT local operativo (por ejemplo, Mosquitto; se puede reutilizar uno existente). Activa <strong>MQTT Service</strong> en S-Miles Home y asegúrate de que la batería puede alcanzar el broker.</td>
+</tr>
+<tr>
+<td><strong>Sensor de red</strong></td>
+<td>Entidad de Home Assistant</td>
+<td>Sensor que mida el consumo total de la red (p. ej. Shelly EM3, Neurio o integración de contador inteligente).</td>
+</tr>
+<tr>
+<td><strong>Medidor de producción solar</strong> <em>(opcional)</em></td>
+<td>Entidad de Home Assistant</td>
+<td>Sensor de producción fotovoltaica en tiempo real, en W o kW. Permite derivar con precisión el consumo del hogar y mostrar el nodo Solar en el dashboard de la integración. Déjalo vacío si los paneles alimentan directamente las entradas MPPT de la batería.</td>
 </tr>
 </tbody>
 </table>
+<div class="admonition warning">
+<p class="admonition-title">Frecuencia de actualización del contador</p>
+<p>El contador/sensor de red debe publicar un valor nuevo en <strong>menos de 10
+segundos</strong>. Se recomienda un intervalo de actualización de <strong>1–2 segundos</strong>,
+porque el controlador es dirigido por eventos y utiliza cada publicación
+para ajustar la potencia de la batería.</p>
+</div>
 <h3 id="software">Software<a class="headerlink" href="#software" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Home Assistant <strong>2024.1.0</strong> o superior</li>
-<li>Integración MQTT de Home Assistant y un broker local para Hoymiles MS-A2</li>
+<li>Solo para <strong>Hoymiles MS-A2</strong>: la integración MQTT de Home Assistant y un broker MQTT local operativo. Omnibattery usa el broker a través de Home Assistant; no instala uno.</li>
 <li>(Opcional) Sensor de previsión solar para la carga predictiva (Solcast, Forecast.Solar, etc.)</li>
 </ul>
 <h3 id="red">Red<a class="headerlink" href="#red" title="Permanent link">&para;</a></h3>
-<p>La batería debe ser accesible desde Home Assistant por IP en el mismo segmento de red o mediante enrutamiento.</p>
+<ul>
+<li>Para Modbus TCP y HTTP local, la batería o el puente debe ser accesible desde Home Assistant por IP en el mismo segmento de red o mediante enrutamiento.</li>
+<li>Para Modbus RTU, conecta el adaptador USB al equipo donde se ejecuta Home Assistant.</li>
+<li>Para LilyGo/ESPHome, añade el puente a Home Assistant.</li>
+<li>Para baterías basadas en MQTT, la batería debe poder alcanzar el broker MQTT en la red local.</li>
+</ul>
 <hr />
 <h2 id="instalacion-con-hacs-recomendado">Instalación con HACS (recomendado)<a class="headerlink" href="#instalacion-con-hacs-recomendado" title="Permanent link">&para;</a></h2>
 <ol>
@@ -1909,6 +1943,16 @@
 <li>Cópiala en el directorio <code>custom_components/</code> de Home Assistant.</li>
 <li>Reinicia Home Assistant.</li>
 </ol>
+<hr />
+<h2 id="anadir-la-integracion">Añadir la integración<a class="headerlink" href="#anadir-la-integracion" title="Permanent link">&para;</a></h2>
+<p>Después de instalar y reiniciar:</p>
+<ol>
+<li>Ve a <strong>Ajustes</strong> → <strong>Dispositivos y servicios</strong>.</li>
+<li>Pulsa <strong>+ AÑADIR INTEGRACIÓN</strong>.</li>
+<li>Busca <strong>Omnibattery</strong>.</li>
+<li>Sigue el <a href="../configuration/">asistente de configuración</a>.</li>
+</ol>
+<p><img alt="Añadir integración en HA" src="../../assets/screenshots/installation/add-integration.png" style="display: block; margin: 0 auto;" width="600" /></p>
 <hr />
 <h2 id="instalacion-de-blueprints">Instalación de blueprints<a class="headerlink" href="#instalacion-de-blueprints" title="Permanent link">&para;</a></h2>
 <p>Los blueprints son opcionales y se instalan en la carpeta de configuración de Home Assistant, no dentro de <code>custom_components/</code>.</p>
@@ -1939,16 +1983,6 @@
 <li>En Home Assistant, ve a <strong>Ajustes</strong> → <strong>Automatizaciones y escenas</strong> → <strong>Blueprints</strong> y pulsa <strong>Recargar blueprints</strong>. Si no aparece la opción, reinicia Home Assistant.</li>
 <li>Crea una automatización nueva desde el blueprint instalado.</li>
 </ol>
-<hr />
-<h2 id="anadir-la-integracion">Añadir la integración<a class="headerlink" href="#anadir-la-integracion" title="Permanent link">&para;</a></h2>
-<p>Después de instalar y reiniciar:</p>
-<ol>
-<li>Ve a <strong>Ajustes</strong> → <strong>Dispositivos y servicios</strong>.</li>
-<li>Pulsa <strong>+ AÑADIR INTEGRACIÓN</strong>.</li>
-<li>Busca <strong>Omnibattery</strong>.</li>
-<li>Sigue el <a href="../configuration/">asistente de configuración</a>.</li>
-</ol>
-<p><img alt="Añadir integración en HA" src="../../assets/screenshots/installation/add-integration.png" style="display: block; margin: 0 auto;" width="600" /></p>
 
 
 

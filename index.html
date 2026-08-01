@@ -1690,38 +1690,56 @@
   <h1>Home</h1>
 
 <p><img alt="Omnibattery" src="assets/logo-github.png" width="420" /></p>
-<p><strong>Omnibattery</strong> is a custom Home Assistant integration to monitor and control pluggable solar batteries — Marstek Venus (E v2/v3, Venus A and Venus D series), Zendure SolarFlow (2400 AC+ / AC Pro), and Anker SOLIX Solarbank Max AC / 4 E5000 Pro — via Modbus TCP or local HTTP.</p>
+<p><strong>Omnibattery</strong> is a custom Home Assistant integration for monitoring and controlling pluggable solar batteries from several brands. Current supported hardware includes:</p>
+<ul>
+<li><strong>Marstek</strong> Venus E/C (v2/v3), Venus A and Venus D via Modbus TCP, Modbus RTU or a LilyGo RS485/ESPHome bridge.</li>
+<li><strong>Zendure</strong> SolarFlow 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 via local HTTP.</li>
+<li><strong>Anker SOLIX</strong> Solarbank Max AC and Solarbank 4 E5000 Pro via Modbus TCP.</li>
+<li><strong>Sessy</strong> Home Battery via its local dongle API (testers welcome).</li>
+<li><strong>Hoymiles</strong> MS-A2 via the MQTT integration configured in Home Assistant.</li>
+</ul>
 <div class="grid cards">
 <ul>
 <li>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16.67 4H15V2H9v2H7.33A1.33 1.33 0 0 0 6 5.33v15.33C6 21.4 6.6 22 7.33 22h9.33c.74 0 1.34-.6 1.34-1.33V5.33C18 4.6 17.4 4 16.67 4M11 20v-5.5H9L13 7v5.5h2"/></svg></span> <strong>Dynamic power control</strong></p>
-<p>PD controller that keeps grid flow near zero to maximise self-consumption.</p>
+<p>Event-driven PD controller that keeps grid exchange near its target, with one-click tuning profiles and a quality sensor to help find a stable response.</p>
 </li>
 <li>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15 13h1.5v2.82l2.44 1.41-.75 1.3L15 16.69zm4-5H5v11h4.67c-.43-.91-.67-1.93-.67-3a7 7 0 0 1 7-7c1.07 0 2.09.24 3 .67zM5 21a2 2 0 0 1-2-2V5c0-1.11.89-2 2-2h1V1h2v2h8V1h2v2h1a2 2 0 0 1 2 2v6.1c1.24 1.26 2 2.99 2 4.9a7 7 0 0 1-7 7c-1.91 0-3.64-.76-4.9-2zm11-9.85A4.85 4.85 0 0 0 11.15 16c0 2.68 2.17 4.85 4.85 4.85A4.85 4.85 0 0 0 20.85 16c0-2.68-2.17-4.85-4.85-4.85"/></svg></span> <strong>Predictive charging</strong></p>
-<p>Automatic grid charging when the solar forecast falls short of expected consumption.</p>
+<p>Charges from the grid only when solar and stored energy are not enough, with time-slot, dynamic-pricing and real-time-pricing modes.</p>
 </li>
 <li>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13.54 22H7.33C6.6 22 6 21.4 6 20.67V5.33C6 4.6 6.6 4 7.33 4H9V2h6v2h1.67C17.4 4 18 4.6 18 5.33V12c-3.31 0-6 2.69-6 6 0 1.54.58 2.94 1.54 4M18 13l2.25 2.25L18 17.5V16c-1.85 0-3.06 1.96-2.24 3.62l-1.09 1.09c-1.76-2.66.14-6.21 3.33-6.21zm0 11-2.25-2.25L18 19.5V21c1.85 0 3.06-1.96 2.24-3.62l1.09-1.09c1.76 2.66-.14 6.21-3.33 6.21z"/></svg></span> <strong>Multi-battery</strong></p>
-<p>Intelligent management of up to 6 batteries with optimal power distribution.</p>
+<p>Coordinates up to 6 batteries with SOC priorities, energy hysteresis and efficiency-aware power sharing.</p>
+</li>
+<li>
+<p>:material-battery-multiple: <strong>Multi-brand</strong></p>
+<p>Combine Marstek, Zendure, Anker SOLIX, Sessy and Hoymiles batteries in one installation while sharing the same control loop, system entities and energy-management features.</p>
+</li>
+<li>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 3v6h8V3m-8 18h8V11h-8M3 21h8v-6H3m0-2h8V3H3z"/></svg></span> <strong>Integrated dashboard</strong></p>
+<p>Built-in Home Assistant sidebar panel with a power-flow diagram, history charts, battery health and all control settings in one place — no extra HACS card or YAML required.</p>
 </li>
 <li>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 17v2h6v-2zM3 5v2h10V5zm10 16v-2h8v-2h-8v-2h-2v6zM7 9v2H3v2h4v2h2V9zm14 4v-2H11v2zm-6-4h2V7h4V5h-4V3h-2z"/></svg></span> <strong>Highly configurable</strong></p>
-<p>Time slots, excluded devices, peak shaving, weekly full charge and more.</p>
+<p>Adjust time slots, SOC and power limits, peak shaving, weekly full charge, solar-charge delay and excluded loads from Home Assistant.</p>
 </li>
 </ul>
 </div>
 <h2 id="built-in-control-dashboard">Built-in control dashboard<a class="headerlink" href="#built-in-control-dashboard" title="Permanent link">&para;</a></h2>
-<p>Auto-installs as a HA sidebar panel — no HACS, no YAML.
-Three tabs:
-- <strong>Overview</strong> with animated SOC ring, Grid↔Home↔Battery↔Solar energy-flow diagram, diagnostics, 2×2 chart grid
-- <strong>Batteries</strong> with per-battery SOC/power, health &amp; cells, daily energy, optional MPPT, firmware info, controls
-- <strong>Control</strong> with system-wide settings grouped by feature, each with its switch + config parameters</p>
+<p>The panel installs automatically as a Home Assistant sidebar panel — no extra HACS card or YAML configuration is required. It provides three tabs:</p>
+<ul>
+<li><strong>Overview</strong> with animated SOC ring, Grid↔Home↔Battery↔Solar energy-flow diagram, diagnostics, 2×2 chart grid</li>
+<li><strong>Batteries</strong> with per-battery SOC/power, health &amp; cells, daily energy, optional MPPT, firmware info, controls</li>
+<li><strong>Control</strong> with system-wide settings grouped by feature, each with its switch + config parameters</li>
+</ul>
 <p><img alt="Dashboard" src="/assets/MVEM%20-%20Dashboard.gif" /></p>
 <h2 id="key-features">Key features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>PD Controller (Zero Export/Import)</strong>: adjusts battery power in real time to keep grid exchange close to zero.</li>
+<li><strong>One-click PD profiles and control-quality sensor</strong>: select a response from Very smooth to Very aggressive, then use the quality verdict to see whether regulation is stable, oscillating or sluggish.</li>
 <li><strong>No-PD direct-tracking mode</strong> (opt-in): the battery follows the consumption sensor 1:1 in a single cycle — no integral, derivative, smoothing or rate limiter — for installations that prefer raw tracking over the PD control law.</li>
+<li><strong>Multi-brand support</strong>: combine compatible Marstek, Zendure, Anker SOLIX, Sessy and Hoymiles batteries in the same installation.</li>
 <li><strong>Predictive charging</strong>: three modes (time slot, dynamic pricing, real-time price — including Tibber) that charge from the grid only when the energy balance requires it. Uses a 7-day rolling average of real household consumption to decide whether grid charging is needed.</li>
 <li><strong>Multi-battery management</strong>: smart selection with SOC priorities, energy hysteresis and efficiency zone operation.</li>
 <li><strong>Time slots</strong>: independently control charge and discharge windows, with per-slot SOC and power parameters.</li>
