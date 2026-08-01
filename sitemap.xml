@@ -43,13 +43,6 @@
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/"/>
     </url>
     <url>
-        <loc>https://ffunes.github.io/omnibattery/configuration/advanced/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/advanced/"/>
-        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/advanced/"/>
-    </url>
-    <url>
         <loc>https://ffunes.github.io/omnibattery/configuration/batteries/</loc>
         <lastmod>2026-08-01</lastmod>
         <changefreq>daily</changefreq>
@@ -169,6 +162,13 @@
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/features/solar-charge-delay/"/>
     </url>
     <url>
+        <loc>https://ffunes.github.io/omnibattery/features/temperature-charge-limit/</loc>
+        <lastmod>2026-08-01</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/features/temperature-charge-limit/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/features/temperature-charge-limit/"/>
+    </url>
+    <url>
         <loc>https://ffunes.github.io/omnibattery/features/weekly-full-charge/</loc>
         <lastmod>2026-08-01</lastmod>
         <changefreq>daily</changefreq>
@@ -251,13 +251,6 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/"/>
-    </url>
-    <url>
-        <loc>https://ffunes.github.io/omnibattery/es/configuration/advanced/</loc>
-        <lastmod>2026-08-01</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/advanced/"/>
-        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/advanced/"/>
     </url>
     <url>
         <loc>https://ffunes.github.io/omnibattery/es/configuration/batteries/</loc>
@@ -377,6 +370,13 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/features/solar-charge-delay/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/features/solar-charge-delay/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/es/features/temperature-charge-limit/</loc>
+        <lastmod>2026-08-01</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/features/temperature-charge-limit/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/features/temperature-charge-limit/"/>
     </url>
     <url>
         <loc>https://ffunes.github.io/omnibattery/es/features/weekly-full-charge/</loc>
