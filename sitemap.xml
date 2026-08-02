@@ -211,6 +211,13 @@
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/reference/registers/"/>
     </url>
     <url>
+        <loc>https://ffunes.github.io/omnibattery/reference/shelly-pro-3em-mqtt-script/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/reference/shelly-pro-3em-mqtt-script/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/reference/shelly-pro-3em-mqtt-script/"/>
+    </url>
+    <url>
         <loc>https://ffunes.github.io/omnibattery/es/</loc>
         <lastmod>2026-08-02</lastmod>
         <changefreq>daily</changefreq>
@@ -419,5 +426,12 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/reference/registers/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/reference/registers/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/es/reference/shelly-pro-3em-mqtt-script/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/reference/shelly-pro-3em-mqtt-script/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/reference/shelly-pro-3em-mqtt-script/"/>
     </url>
 </urlset>

@@ -907,6 +907,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sensor-de-produccion-solar-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sensor de producción solar (optional)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#consumo-del-hogar-derivado-automaticamente" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1863,6 +1874,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../reference/shelly-pro-3em-mqtt-script/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts MQTT para Shelly Pro 3EM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -1879,10 +1918,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7_4" >
         
           
-          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="0">
             
   
   
@@ -1900,8 +1939,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2214,6 +2253,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sensor-de-produccion-solar-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sensor de producción solar (optional)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#consumo-del-hogar-derivado-automaticamente" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2251,6 +2301,7 @@
 
 <h1 id="sensor-principal">Sensor principal<a class="headerlink" href="#sensor-principal" title="Permanent link">&para;</a></h1>
 <p>El primer paso configura las fuentes de datos globales de la integración.</p>
+<p><img alt="Configuración del sensor principal" src="../../../assets/screenshots/configuration/main-sensor.png" style="display: block; margin: 0 auto;" width="600" /></p>
 <h2 id="sensor-de-consumo-de-red">Sensor de consumo de red<a class="headerlink" href="#sensor-de-consumo-de-red" title="Permanent link">&para;</a></h2>
 <p>Sensor de Home Assistant que mide el intercambio de potencia con la red (en <strong>W</strong> o <strong>kW</strong>).</p>
 <div class="admonition tip">
@@ -2261,7 +2312,7 @@
 <p class="admonition-title">Frecuencia de actualización</p>
 <p>El sensor debe actualizarse lo más rápido posible. El controlador es <strong>dirigido por eventos</strong> —recalcula cada vez que este sensor publica un valor nuevo—, así que la frecuencia de actualización del sensor <em>es</em> la frecuencia de control: un sensor más rápido implica una respuesta más rápida y precisa. (Un watchdog de 2 segundos sigue ejecutando el ciclo si el sensor se queda en silencio.)</p>
 <p>El consumo del hogar puede variar varios kilovatios en fracciones de segundo (arranque de electrodomésticos, horno, lavadora…). Los sensores lentos son compatibles, pero su retraso puede hacer que el controlador reaccione a una situación que ya ha cambiado, reduciendo la calidad de la regulación.</p>
-<p><strong>Recomendado: actualización cada 1–2 segundos.</strong> Los dispositivos como Shelly EM/EM3 soportan este intervalo de forma nativa.</p>
+<p><strong>Recomendado: actualización cada 1–2 segundos.</strong> Los dispositivos Shelly no ofrecen esta cadencia MQTT de forma nativa. Es necesario ejecutar un script dentro del dispositivo; consulta la <a href="../../reference/shelly-pro-3em-mqtt-script/">referencia de scripts MQTT para Shelly Pro 3EM</a> para ver ejemplos.</p>
 <p>Omnibattery sigue siempre el último valor publicado hasta que supera los <strong>65 segundos de antigüedad</strong>, independientemente del polling rate del sensor. Los sensores que actualizan repetidamente cada 10 segundos o más generan un único aviso de Repairs de Home Assistant por ejecución de la integración; no se emiten avisos recurrentes en el log. Si el sensor es rápido después del siguiente reinicio, el Repair persistente se elimina tras tres actualizaciones.</p>
 </div>
 <h3 id="deteccion-automatica-de-kw">Detección automática de kW<a class="headerlink" href="#deteccion-automatica-de-kw" title="Permanent link">&para;</a></h3>
@@ -2304,15 +2355,13 @@
 </ul>
 <p>También puedes dejarlo en blanco y configurarlo más tarde en esas secciones específicas.</p>
 <hr />
+<h2 id="sensor-de-produccion-solar-optional">Sensor de producción solar <em>(optional)</em><a class="headerlink" href="#sensor-de-produccion-solar-optional" title="Permanent link">&para;</a></h2>
+<p>Sensor de potencia de producción fotovoltaica (W o kW) en tiempo real de un inversor externo que no está conectado mediante las entradas MPPT de la batería. Se utiliza para mostrar el nodo Solar en el diagrama de flujo energético del panel. Déjalo vacío si tus paneles solares alimentan directamente el MPPT de la batería.</p>
+<hr />
 <h2 id="consumo-del-hogar-derivado-automaticamente">Consumo del hogar <em>(derivado automáticamente)</em><a class="headerlink" href="#consumo-del-hogar-derivado-automaticamente" title="Permanent link">&para;</a></h2>
 <p><strong>No hay campo de sensor de consumo del hogar</strong> en la configuración — la integración deriva el consumo total del hogar de sensores que ya tiene:</p>
 <p><strong>Consumo del hogar = Potencia de red + Potencia AC de baterías + Producción solar</strong></p>
 <p>Es el valor que muestra el diagrama de flujo de energía y el sensor <code>sensor.marstek_venus_system_home_consumption</code>, y alimenta el historial de 7 días que usan la carga predictiva y el retraso de carga. La acumulación corre solo durante la franja solar+batería (fuera de la franja de carga; todo el día si no hay franja); el contador se reinicia a medianoche y sobrevive reinicios de HA.</p>
-<div class="admonition note">
-<p class="admonition-title">Sensor de hogar heredado</p>
-<p>Instalaciones creadas antes de quitar este campo pueden conservar un <code>household_consumption_sensor</code> guardado en su config. Se honra <strong>solo cuando no hay sensor de producción solar configurado</strong> — con sensor solar, el valor derivado es exacto y preferido, así que el guardado se ignora.</p>
-</div>
-<p><img alt="Configuración del sensor principal" src="../../../assets/screenshots/configuration/main-sensor.png" style="display: block; margin: 0 auto;" width="600" /></p>
 
 
 

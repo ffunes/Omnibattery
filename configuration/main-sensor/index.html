@@ -907,10 +907,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#home-consumption-derived-automatically" class="md-nav__link">
+  <a href="#solar-production-sensor-optional" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Home consumption (derived automatically)
+        Solar production sensor (optional)
       
     </span>
   </a>
@@ -918,10 +918,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#solar-production-sensor-optional" class="md-nav__link">
+  <a href="#home-consumption-derived-automatically" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Solar production sensor (optional)
+        Home consumption (derived automatically)
       
     </span>
   </a>
@@ -1874,6 +1874,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../reference/shelly-pro-3em-mqtt-script/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shelly Pro 3EM MQTT scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -1890,10 +1918,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7_4" >
         
           
-          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="0">
             
   
   
@@ -1911,8 +1939,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2225,10 +2253,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#home-consumption-derived-automatically" class="md-nav__link">
+  <a href="#solar-production-sensor-optional" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Home consumption (derived automatically)
+        Solar production sensor (optional)
       
     </span>
   </a>
@@ -2236,10 +2264,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#solar-production-sensor-optional" class="md-nav__link">
+  <a href="#home-consumption-derived-automatically" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Solar production sensor (optional)
+        Home consumption (derived automatically)
       
     </span>
   </a>
@@ -2273,6 +2301,7 @@
 
 <h1 id="main-sensor">Main sensor<a class="headerlink" href="#main-sensor" title="Permanent link">&para;</a></h1>
 <p>The first step configures the global data sources for the integration.</p>
+<p><img alt="Main sensor configuration" src="../../assets/screenshots/configuration/main-sensor.png" style="display: block; margin: 0 auto;" width="600" /></p>
 <h2 id="grid-consumption-sensor">Grid consumption sensor<a class="headerlink" href="#grid-consumption-sensor" title="Permanent link">&para;</a></h2>
 <p>A Home Assistant sensor that measures power exchange with the grid (in <strong>W</strong> or <strong>kW</strong>).</p>
 <div class="admonition tip">
@@ -2283,7 +2312,7 @@
 <p class="admonition-title">Update frequency</p>
 <p>The sensor should update as fast as possible. The controller is <strong>event-driven</strong> — it recalculates each time this sensor publishes a new value — so the sensor's update rate <em>is</em> the control rate: a faster sensor means a faster, more accurate response. (A 2-second watchdog still runs the cycle if the sensor goes quiet.)</p>
 <p>Home consumption can vary by several kilowatts in fractions of a second (appliance start-ups, oven, washing machine…). Slow sensors are supported, but their delay means that the controller may react to a situation that has already changed, reducing regulation quality.</p>
-<p><strong>Recommended: 1–2 second update interval.</strong> Devices like Shelly EM/EM3 support this natively.</p>
+<p><strong>Recommended: 1–2 second update interval.</strong> Shelly devices do not provide this MQTT cadence natively. A script must run on the device; see the <a href="../../reference/shelly-pro-3em-mqtt-script/">Shelly Pro 3EM MQTT scripts</a> reference for examples.</p>
 <p>Omnibattery always follows the latest published value until it is more than <strong>65 seconds old</strong>, regardless of the sensor's polling rate. Sensors that repeatedly update every 10 seconds or more trigger one Home Assistant Repairs warning per integration run; no recurring log warning is emitted. If the sensor is fast after the next restart, the persisted Repair is cleared after three updates.</p>
 </div>
 <h3 id="automatic-kw-detection">Automatic kW detection<a class="headerlink" href="#automatic-kw-detection" title="Permanent link">&para;</a></h3>
@@ -2326,18 +2355,13 @@
 </ul>
 <p>You can also leave it blank and configure it later in those specific sections.</p>
 <hr />
+<h2 id="solar-production-sensor-optional">Solar production sensor <em>(optional)</em><a class="headerlink" href="#solar-production-sensor-optional" title="Permanent link">&para;</a></h2>
+<p>This is the real-time PV production power sensor (W or kW) from an external invertor not wired through the battery MPPT inputs. It is used to show the Solar node in the dashboard energy-flow diagram. Leave empty if your solar panels feed the battery MPPT directly.</p>
+<hr />
 <h2 id="home-consumption-derived-automatically">Home consumption <em>(derived automatically)</em><a class="headerlink" href="#home-consumption-derived-automatically" title="Permanent link">&para;</a></h2>
 <p>There is <strong>no household consumption sensor field</strong> in setup — the integration derives your total home consumption from sensors it already has:</p>
 <p><strong>Home consumption = Grid power + Battery AC power + Solar power</strong></p>
 <p>This is the value shown by the energy-flow diagram and the <code>sensor.marstek_venus_system_home_consumption</code> sensor, and it feeds the 7-day history used by predictive charging and charge delay. Accumulation runs during the solar+battery window only (outside the configured charging time slot; all day if none); the counter resets at midnight and survives HA restarts.</p>
-<div class="admonition note">
-<p class="admonition-title">Legacy household sensor</p>
-<p>Installs created before this field was removed may still have a <code>household_consumption_sensor</code> saved in their config. It is honoured <strong>only when no solar production sensor is configured</strong> — with a solar sensor the derived value is exact and preferred, so the saved sensor is ignored.</p>
-</div>
-<hr />
-<h2 id="solar-production-sensor-optional">Solar production sensor <em>(optional)</em><a class="headerlink" href="#solar-production-sensor-optional" title="Permanent link">&para;</a></h2>
-<p>This is the real-time PV production power sensor (W or kW) from an external invertor not wired through the battery MPPT inputs. It is used to show the Solar node in the dashboard energy-flow diagram. Leave empty if your solar panels feed the battery MPPT directly.</p>
-<p><img alt="Main sensor configuration" src="../../assets/screenshots/configuration/main-sensor.png" style="display: block; margin: 0 auto;" width="600" /></p>
 
 
 
