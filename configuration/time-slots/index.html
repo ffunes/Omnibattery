@@ -1151,17 +1151,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#migration-of-legacy-slots" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Migration of legacy slots
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#diagnostics" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2435,17 +2424,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#migration-of-legacy-slots" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Migration of legacy slots
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#diagnostics" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2494,6 +2472,7 @@
 
 <h1 id="time-slots">Time slots<a class="headerlink" href="#time-slots" title="Permanent link">&para;</a></h1>
 <p>Time slots define windows that control how each battery is allowed to operate. Each slot exposes independent ticks for charge and discharge, optional SOC and power overrides, a manual-power mode, and a per-battery scope. Up to 8 slots can be defined.</p>
+<p><img alt="Time slot configuration" src="../../assets/screenshots/configuration/time-slot-form.png" style="display: block; margin: 0 auto;" width="600" /></p>
 <h2 id="model-per-direction-whitelist">Model: per-direction whitelist<a class="headerlink" href="#model-per-direction-whitelist" title="Permanent link">&para;</a></h2>
 <p>Each direction (charge, discharge) is evaluated independently:</p>
 <ul>
@@ -2551,27 +2530,6 @@
 </ul>
 <h2 id="battery-scope">Battery scope<a class="headerlink" href="#battery-scope" title="Permanent link">&para;</a></h2>
 <p>When more than one battery is configured each slot picks a target via <code>battery_scope</code>. Multiple slots with different scopes can overlap in time without conflict — they only conflict when both target the same physical battery (<code>battery_N</code> vs <code>battery_N</code>, or either set to <code>all</code>).</p>
-<h2 id="migration-of-legacy-slots">Migration of legacy slots<a class="headerlink" href="#migration-of-legacy-slots" title="Permanent link">&para;</a></h2>
-<p>Slots using the legacy format (<code>{start_time, end_time, days, apply_to_charge}</code>), including configurations migrated from Marstek Venus Energy Manager, are converted automatically on first start:</p>
-<table>
-<thead>
-<tr>
-<th>Legacy field</th>
-<th>Migrated to</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>apply_to_charge = False</code></td>
-<td><code>allow_discharge = True</code>, <code>allow_charge = False</code>, scope <code>all</code>, mode <code>pd</code>, no overrides</td>
-</tr>
-<tr>
-<td><code>apply_to_charge = True</code></td>
-<td><code>allow_discharge = True</code>, <code>allow_charge = True</code>, scope <code>all</code>, mode <code>pd</code>, no overrides</td>
-</tr>
-</tbody>
-</table>
-<p>Existing installations keep the exact previous behavior with no manual action required.</p>
 <h2 id="diagnostics">Diagnostics<a class="headerlink" href="#diagnostics" title="Permanent link">&para;</a></h2>
 <p>The <code>binary_sensor.predictive_charging_active</code> entity exposes two attributes that reflect the current cycle:</p>
 <ul>
@@ -2584,7 +2542,6 @@
 <li>SOC override is enforced by software; expect 1–3 control cycles of latency (a few seconds, at the grid sensor's cadence) before charge or discharge stops at the new limit.</li>
 <li>Slots that target a <code>battery_N</code> that no longer exists (e.g. the user reduced the battery count) become inert; remove or edit them from the options flow.</li>
 </ul>
-<p><img alt="Time slot configuration" src="../../assets/screenshots/configuration/time-slot-form.png" style="display: block; margin: 0 auto;" width="600" /></p>
 
 
 
