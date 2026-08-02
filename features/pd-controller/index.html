@@ -2819,10 +2819,6 @@
 </tr>
 </tbody>
 </table>
-<div class="admonition note">
-<p class="admonition-title">Lowered defaults</p>
-<p><code>Kp</code>/<code>Kd</code> were lowered from <code>0.65</code>/<code>0.5</code> to <code>0.35</code>/<code>0.3</code> to curb overshoot under the event-driven loop. Installs still on the old defaults are migrated automatically; hand-tuned values are left untouched.</p>
-</div>
 <h2 id="tuning-profiles">Tuning profiles<a class="headerlink" href="#tuning-profiles" title="Permanent link">&para;</a></h2>
 <p>Instead of tuning the gains by hand, pick a <strong>tuning profile</strong> (<code>select.*_pd_tuning_profile</code>) — a one-click preset that sets <code>Kp</code>, <code>Kd</code> and the rate limit together. Profiles are ordered smoothest → fastest:</p>
 <table>
