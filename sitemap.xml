@@ -43,13 +43,6 @@
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/"/>
     </url>
     <url>
-        <loc>https://ffunes.github.io/omnibattery/configuration/batteries/</loc>
-        <lastmod>2026-08-02</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/"/>
-        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/"/>
-    </url>
-    <url>
         <loc>https://ffunes.github.io/omnibattery/configuration/excluded-devices/</loc>
         <lastmod>2026-08-02</lastmod>
         <changefreq>daily</changefreq>
@@ -76,6 +69,48 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/time-slots/"/>
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/time-slots/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/configuration/batteries/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/configuration/batteries/anker/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/anker/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/anker/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/configuration/batteries/hoymiles/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/hoymiles/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/hoymiles/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/configuration/batteries/marstek/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/marstek/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/marstek/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/configuration/batteries/sessy/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/sessy/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/sessy/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/configuration/batteries/zendure/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/zendure/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/zendure/"/>
     </url>
     <url>
         <loc>https://ffunes.github.io/omnibattery/configuration/predictive-charging/</loc>
@@ -260,13 +295,6 @@
         <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/"/>
     </url>
     <url>
-        <loc>https://ffunes.github.io/omnibattery/es/configuration/batteries/</loc>
-        <lastmod>2026-08-02</lastmod>
-        <changefreq>daily</changefreq>
-        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/"/>
-        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/"/>
-    </url>
-    <url>
         <loc>https://ffunes.github.io/omnibattery/es/configuration/excluded-devices/</loc>
         <lastmod>2026-08-02</lastmod>
         <changefreq>daily</changefreq>
@@ -293,6 +321,48 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/time-slots/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/time-slots/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/es/configuration/batteries/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/es/configuration/batteries/anker/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/anker/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/anker/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/es/configuration/batteries/hoymiles/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/hoymiles/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/hoymiles/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/es/configuration/batteries/marstek/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/marstek/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/marstek/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/es/configuration/batteries/sessy/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/sessy/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/sessy/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/es/configuration/batteries/zendure/</loc>
+        <lastmod>2026-08-02</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/zendure/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/zendure/"/>
     </url>
     <url>
         <loc>https://ffunes.github.io/omnibattery/es/configuration/predictive-charging/</loc>
