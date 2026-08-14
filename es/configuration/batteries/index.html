@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/">
       
       
-        <link rel="prev" href="../main-sensor/">
+        <link rel="prev" href="../three-phase/">
       
       
         <link rel="next" href="marstek/">
@@ -811,6 +811,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protección de corriente trifásica
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -832,10 +860,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="">
             
   
   
@@ -853,8 +881,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1142,7 +1170,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1245,10 +1273,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="">
             
   
   
@@ -1266,8 +1294,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2529,9 +2557,9 @@ parte de los controles en tiempo de ejecución son comunes.</p>
 <td><a href="sessy/">Sessy</a></td>
 </tr>
 <tr>
-<td><strong>Hoymiles MS-A2</strong></td>
+<td><strong>Hoymiles MS-A2 / HiBattery</strong></td>
 <td>MQTT mediante Home Assistant</td>
-<td><a href="hoymiles/">Hoymiles MS-A2</a></td>
+<td><a href="hoymiles/">Hoymiles MQTT</a></td>
 </tr>
 </tbody>
 </table>
@@ -2593,6 +2621,12 @@ esos detalles.</p>
 ajustar en cualquier momento desde los sliders de la integración sin
 reconfigurar. Los cambios se persisten y se restauran en cada reinicio de Home
 Assistant.</p>
+<p>El switch <code>Control Manual de Batería</code> también está disponible en tiempo de
+ejecución. Entrega la batería al usuario después de verificar <code>0 W</code>, la
+mantiene fuera del grupo automático y persiste esa propiedad entre reinicios.
+Consulta la <a href="../../features/multi-battery/#control-manual-por-batería">guía multi-batería</a>
+para conocer el comportamiento de la transición y el efecto sobre las demás
+baterías.</p>
 <p><img alt="Sliders de SOC y potencia" src="../../../assets/screenshots/configuration/battery-runtime-sliders.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <h2 id="limites-de-potencia-del-sistema">Límites de potencia del sistema<a class="headerlink" href="#limites-de-potencia-del-sistema" title="Permanent link">&para;</a></h2>
 <p>Configura desde el dashboard de Omnibattery los límites combinados opcionales de
@@ -2672,7 +2706,7 @@ enfriamiento de cinco minutos después de que la carga baje del umbral.</p>
       <nav class="md-footer__inner md-grid" aria-label="Pie" >
         
           
-          <a href="../main-sensor/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Sensor principal">
+          <a href="../three-phase/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Protección de corriente trifásica">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2682,7 +2716,7 @@ enfriamiento de cinco minutos después de que la carga baje del umbral.</p>
                 Anterior
               </span>
               <div class="md-ellipsis">
-                Sensor principal
+                Protección de corriente trifásica
               </div>
             </div>
           </a>

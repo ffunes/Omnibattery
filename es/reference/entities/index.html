@@ -810,6 +810,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protección de corriente trifásica
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -826,10 +854,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -847,8 +875,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1012,7 +1040,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1112,10 +1140,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1133,8 +1161,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2080,17 +2108,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#resumen-de-configuracion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resumen de Configuración
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -2592,17 +2609,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#resumen-de-configuracion" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resumen de Configuración
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -2822,6 +2828,10 @@
 <td><code>binary_sensor.marstek_venus_system_predictive_charging_active</code></td>
 <td>Carga predictiva activa (sistema)</td>
 </tr>
+<tr>
+<td><code>binary_sensor.omnibattery_curtailment_status</code></td>
+<td>Estado de predescarga inteligente / anti-vertido (solo Precio Dinámico)</td>
+</tr>
 </tbody>
 </table>
 <h2 id="numeros-sliders">Números (sliders)<a class="headerlink" href="#numeros-sliders" title="Permanent link">&para;</a></h2>
@@ -2863,6 +2873,26 @@
 <td><code>number.marstek_venus_system_system_max_discharge_power</code></td>
 <td>Límite opcional de descarga combinada para todo el sistema (<code>0 W</code> = desactivado). Solo se crea cuando los límites del sistema están activados.</td>
 <td>0–15000 W</td>
+</tr>
+<tr>
+<td><code>number.omnibattery_predictive_safety_margin_kwh</code></td>
+<td>Margen de previsión solar usado por la carga predictiva y el anti-vertido en Precio Dinámico</td>
+<td>0–20 kWh</td>
+</tr>
+<tr>
+<td><code>number.omnibattery_negative_injection_threshold</code></td>
+<td>Umbral inclusivo de precio para franjas de riesgo de inyección negativa</td>
+<td>-2–2 moneda/kWh</td>
+</tr>
+<tr>
+<td><code>number.omnibattery_predischarge_reserve_soc</code></td>
+<td>Suelo de SOC adicional para la predescarga inteligente</td>
+<td>0–100 %</td>
+</tr>
+<tr>
+<td><code>number.omnibattery_predischarge_max_export_power_w</code></td>
+<td>Exportación máxima durante la predescarga (<code>0 W</code> = solo autoconsumo)</td>
+<td>0–10000 W</td>
 </tr>
 </tbody>
 </table>
@@ -2907,12 +2937,24 @@
 <td>Control de software que permite que esta batería participe en la descarga automática</td>
 </tr>
 <tr>
+<td><code>switch.*_battery_manual_mode</code></td>
+<td>Excluye esta batería del control automático de potencia, manteniendo su telemetría y potencia física en los agregados del sistema</td>
+</tr>
+<tr>
 <td><code>switch.*_backup_function</code></td>
 <td>Función de reserva — cuando está activo <strong>y</strong> la potencia AC offgrid ≠ 0 W, la batería queda excluida del control PD (no se envían comandos de escritura)</td>
 </tr>
 <tr>
 <td><code>switch.marstek_venus_system_override_predictive_charging</code></td>
 <td>Cancelar carga predictiva</td>
+</tr>
+<tr>
+<td><code>switch.omnibattery_smart_predischarge</code></td>
+<td>Activar predescarga inteligente / anti-vertido (solo Precio Dinámico)</td>
+</tr>
+<tr>
+<td><code>switch.omnibattery_negative_price_charging</code></td>
+<td>Activar carga oportunista con precios negativos de importación (solo Precio Dinámico)</td>
 </tr>
 </tbody>
 </table>
@@ -2928,6 +2970,10 @@
 <tr>
 <td><code>button.*_reset</code></td>
 <td>Reset del dispositivo</td>
+</tr>
+<tr>
+<td><code>button.omnibattery_reevaluate_dynamic_pricing</code></td>
+<td>Reconstruye ahora el plan de Precio Dinámico; solo se crea en modo Precio Dinámico</td>
 </tr>
 </tbody>
 </table>
@@ -3072,48 +3118,6 @@
 <li><code>system_home_consumption</code> — Consumo instantáneo del hogar (W). Lee el sensor del hogar si está configurado, en caso contrario lo deriva de <code>red + AC de baterías + solar</code>.</li>
 <li><code>system_daily_home_energy</code> — Consumo del hogar de hoy (kWh), integrado del valor de Consumo de la Casa anterior. Se reinicia a medianoche (hora local).</li>
 </ul>
-<h3 id="resumen-de-configuracion">Resumen de Configuración<a class="headerlink" href="#resumen-de-configuracion" title="Permanent link">&para;</a></h3>
-<p><code>sensor.marstek_venus_system_configuration_summary</code> es un sensor diagnóstico oculto pensado para informes de soporte. Expone atributos de configuración sin direcciones IP ni puertos de las baterías.</p>
-<p>Los atributos relevantes para límites de potencia son:</p>
-<table>
-<thead>
-<tr>
-<th>Atributo</th>
-<th>Descripción</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>total_max_charge_power_W</code></td>
-<td>Suma de los límites de carga configurados por batería</td>
-</tr>
-<tr>
-<td><code>total_max_discharge_power_W</code></td>
-<td>Suma de los límites de descarga configurados por batería</td>
-</tr>
-<tr>
-<td><code>system_power_limits_enabled</code></td>
-<td>Indica si los límites globales de potencia están activados</td>
-</tr>
-<tr>
-<td><code>system_max_charge_power_W</code></td>
-<td>Límite global de carga configurado (<code>0</code> = desactivado)</td>
-</tr>
-<tr>
-<td><code>system_max_discharge_power_W</code></td>
-<td>Límite global de descarga configurado (<code>0</code> = desactivado)</td>
-</tr>
-<tr>
-<td><code>effective_total_max_charge_power_W</code></td>
-<td>Capacidad total de carga tras aplicar el límite global</td>
-</tr>
-<tr>
-<td><code>effective_total_max_discharge_power_W</code></td>
-<td>Capacidad total de descarga tras aplicar el límite global</td>
-</tr>
-</tbody>
-</table>
-<p><img alt="Lista de entidades en Home Assistant" src="../assets/screenshots/reference/entities-list.png" style="display: block; margin: 0 auto;" width="700" /></p>
 
 
 

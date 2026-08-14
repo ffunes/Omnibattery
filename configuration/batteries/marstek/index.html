@@ -811,6 +811,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../../three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Three-phase current protection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -832,10 +860,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="">
             
   
   
@@ -853,8 +881,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1098,7 +1126,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1201,10 +1229,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="">
             
   
   
@@ -1222,8 +1250,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2493,8 +2521,9 @@ required Marstek entities in Home Assistant.</p>
 <p>The limits page includes the common charge/discharge power, SOC and backup
 threshold controls. Marstek also exposes the <strong>100% charge voltage taper</strong>:
 when the target is 100%, charging is limited to 200 W from a maximum cell
-voltage of 3.48 V and stops at 3.60 V so the integration can measure cell
-imbalance after 60 seconds.</p>
+voltage of 3.48 V. Venus E models stop at 3.60 V so the integration can
+measure cell imbalance after 60 seconds; Venus A/D models with coupled packs
+keep charging at 200 W until their BMS cuts off.</p>
 <p>This voltage-based protection and the cell-balance monitor are Marstek-specific.
 See <a href="../../../features/cell-balance-monitor/">Cell balance monitor</a> for the
 measurement and recovery sequence.</p>

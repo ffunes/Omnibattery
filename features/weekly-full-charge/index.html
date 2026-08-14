@@ -812,6 +812,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Three-phase current protection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -828,10 +856,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -849,8 +877,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1014,7 +1042,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1114,10 +1142,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1135,8 +1163,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2494,16 +2522,15 @@
 <td><code>full_charge_voltage_taper</code></td>
 <td>On</td>
 </tr>
-<tr>
-<td><strong>Active cell balancing</strong></td>
-<td>Full cell balancing - repeated slow charge/discharge near top voltage window until <code>cell_delta_V</code> drops below 0.03 V or switched off</td>
-<td><code>active_balance_mode</code></td>
-<td>Off</td>
-</tr>
 </tbody>
 </table>
-<p>The 100% charge voltage taper uses the same voltage profile as a normal battery configured with <code>max_soc = 100</code>. The weekly feature only raises the target to 100%; it does not use a separate balancing algorithm.</p>
-<p>Active cell balancing repeatedly cycles slow charge or discharge near the top voltage window until the measured top-voltage delta is at or below 0.03 V, or until the user turns the switch off.</p>
+<p>For Venus E models, the 100% charge voltage taper uses the same voltage profile
+as a normal battery configured with <code>max_soc = 100</code>. The weekly feature only
+raises the target to 100%; it does not use a separate balancing algorithm.</p>
+<p>On Venus A/D with coupled packs, the normal 3.60 V stop is also bypassed and a
+reported 100% SOC from the first pack does not finish the cycle. The tapered
+200 W command remains active until the shared BMS cutoff is confirmed.</p>
+<p>For deliberate active cell balancing, use the optional <a href="../../blueprints/#active-cell-balancing-for-one-marstek-battery">Marstek active-balance blueprint</a>. It runs one battery at a time through the per-battery Battery Manual Mode switch and is independent of this weekly feature.</p>
 <div class="admonition warning">
 <p class="admonition-title">Cell balancing</p>
 <p>Active cell balancing is <strong>very slow</strong>. Reducing the top-of-charge cell delta by roughly 5 mV typically takes around 24 hours of cumulative time at the top of the balance window.</p>
@@ -2538,12 +2565,15 @@
 <p>During the weekly charge the 3.60 V pause is <strong>not</strong> applied — charging keeps going at the tapered 200 W until the BMS itself cuts off. If the BMS coulomb counter has drifted (cells genuinely full but reported SOC below 100%), completion is still detected: the BMS-cutoff signature (charge ≤10 W with the inverter in Standby for 5 consecutive cycles) is recognised whenever the pack is in the top taper zone (≥ 3.48 V), regardless of the reported SOC. This lets the weekly cycle finish even when the pack never reads 100%, and best-effort attempts to recalibrate the SOC — depending on BMS firmware. See <a href="../cell-balance-monitor/#soc-recalibration-on-a-stuck-top-voltage">SOC recalibration on a stuck top voltage</a>.</p>
 </div>
 <h2 id="when-the-cycle-completes">When the cycle completes<a class="headerlink" href="#when-the-cycle-completes" title="Permanent link">&para;</a></h2>
-<p>The weekly charge is marked <strong>Complete</strong> only when every battery is genuinely full — not merely when a cell touches the 3.60 V top voltage. A battery counts as full when either:</p>
+<p>The weekly charge is marked <strong>Complete</strong> only when every battery is genuinely full — not merely when a cell touches the 3.60 V top voltage. For Venus E models, a battery counts as full when either:</p>
 <ul>
 <li>its reported SOC reaches <strong>100%</strong>, or</li>
 <li>a <strong>BMS cutoff</strong> is confirmed: charge collapses to ≤10 W with the inverter in Standby for 5 consecutive cycles (~10 s). During the weekly charge this is recognised whenever the pack is in the top taper zone (≥ 3.48 V), so a pack with a drifted SOC still completes.</li>
 </ul>
-<p>The 60-second cell-delta measurement still runs as a diagnostic, but it no longer gates completion. On completion the configured max SOC (and the hardware cutoff register on v2) is restored, and charge hysteresis is re-enabled.</p>
+<p>For Venus A/D with coupled packs, the BMS cutoff is required after the tapered
+charge reaches the top-voltage path, even if the reported SOC has already
+reached 100%.</p>
+<p>The 60-second cell-delta measurement still runs as a diagnostic, but it no longer gates completion. For Venus A/D, the measurement starts after the confirmed BMS cutoff so the reduced charge is never interrupted before all coupled packs are full. On completion the configured max SOC (and the hardware cutoff register on v2) is restored, and charge hysteresis is re-enabled.</p>
 <p>The <strong>Weekly Full Charge</strong> sensor exposes per-battery diagnostics under its <code>batteries</code> attribute: live SOC and BMS-cutoff cycle count while charging, and a completion snapshot (<code>soc_at_completion</code>, <code>max_cell_voltage_at_completion</code>, <code>completion_reason</code>, <code>bms_cutoff_cycles</code>).</p>
 <h2 id="cell-balance-monitor">Cell balance monitor<a class="headerlink" href="#cell-balance-monitor" title="Permanent link">&para;</a></h2>
 <p>The <strong>cell balance monitor</strong> records the voltage spread between the highest and lowest cell after each top-voltage measurement and keeps the sensor history, trend and alerts updated.</p>

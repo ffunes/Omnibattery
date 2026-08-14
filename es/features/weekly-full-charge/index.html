@@ -812,6 +812,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protección de corriente trifásica
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -828,10 +856,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -849,8 +877,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1014,7 +1042,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1114,10 +1142,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1135,8 +1163,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2460,11 +2488,18 @@
 <li>El día configurado de la semana, si el SOC máximo habitual es inferior al 100 %, la integración eleva temporalmente el límite de corte de carga de la batería al 100 %.</li>
 <li>La batería carga hasta que entra la reducción por voltaje en la parte alta.</li>
 <li>Desde <code>max_cell_voltage &gt;= 3.48 V</code>, la carga se limita a 200 W (si la reducción por voltaje está activada).</li>
-<li>Durante la carga semanal <strong>no</strong> se aplica la pausa de 3.60 V: la carga continúa a 200 W hasta el corte del BMS. La medición de 60 s del delta de celdas sigue ejecutándose como diagnóstico, pero ya no determina la finalización.</li>
-<li>La carga se marca como completada solo cuando la batería está realmente llena: SOC reportado al <strong>100 %</strong>, o un <strong>corte del BMS</strong> confirmado (carga ≤10 W en Standby durante 5 ciclos ~10 s, reconocido en la zona de reducción ≥ 3.48 V aunque el SOC esté mal reportado).</li>
+<li>Durante la carga semanal <strong>no</strong> se aplica la pausa de 3.60 V: la carga continúa a 200 W hasta el corte del BMS. La medición de 60 s del delta de celdas sigue ejecutándose como diagnóstico, pero ya no determina la finalización; en Venus A/D empieza después de confirmar el corte de la BMS.</li>
+<li>En Venus E, la carga se marca como completada solo cuando la batería está realmente llena: SOC reportado al <strong>100 %</strong>, o un <strong>corte del BMS</strong> confirmado (carga ≤10 W en Standby durante 5 ciclos ~10 s, reconocido en la zona de reducción ≥ 3.48 V aunque el SOC esté mal reportado). En Venus A/D con packs acoplados se exige el corte de la BMS después de entrar en la ruta de carga superior, aunque el SOC ya marque 100 %.</li>
 <li>Tras finalizar, el límite de SOC máximo (y el registro de corte hardware en v2) vuelve automáticamente al valor configurado por el usuario, y se reactiva la histéresis.</li>
 </ol>
-<p>La carga semanal completa usa el mismo perfil de voltaje que una batería configurada normalmente con <code>max_soc = 100</code>. La función semanal solo eleva el objetivo a 100 %; no usa un algoritmo de balanceo distinto.</p>
+<p>En Venus E, la carga semanal completa usa el mismo perfil de voltaje que una
+batería configurada normalmente con <code>max_soc = 100</code>. La función semanal solo
+eleva el objetivo a 100 %; no usa un algoritmo de balanceo distinto.</p>
+<p>En Venus A/D con packs acoplados también se omite la parada normal a 3,60 V y
+un SOC del 100 % reportado por el primer pack no completa el ciclo. La carga
+reducida a 200 W continúa hasta confirmar el corte de la BMS; después espera 60 s
+sin cargar y registra la medición del delta de celdas.</p>
+<p>Para realizar un balanceo activo deliberado, usa el <a href="../../blueprints/#balanceo-activo-de-una-batería-marstek">blueprint de balanceo activo para una batería Marstek</a>. Ejecuta una batería cada vez mediante su interruptor Battery Manual Mode y es independiente de esta función semanal.</p>
 <p>El sensor <strong>Carga semanal completa</strong> expone diagnósticos por batería en su atributo <code>batteries</code>: SOC en vivo y contador de ciclos de corte del BMS durante la carga, y una instantánea al completar (<code>soc_at_completion</code>, <code>max_cell_voltage_at_completion</code>, <code>completion_reason</code>, <code>bms_cutoff_cycles</code>).</p>
 <div class="admonition note">
 <p class="admonition-title">SOC desviado</p>

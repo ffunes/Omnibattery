@@ -12,19 +12,19 @@
         <meta name="author" content="ffunes">
       
       
-        <link rel="canonical" href="https://ffunes.github.io/omnibattery/features/load-exclusion/">
+        <link rel="canonical" href="https://ffunes.github.io/omnibattery/configuration/three-phase/">
       
       
-        <link rel="prev" href="../peak-shaving/">
+        <link rel="prev" href="../main-sensor/">
       
       
-        <link rel="next" href="../weekly-full-charge/">
+        <link rel="next" href="../batteries/">
       
       
         
           <link rel="alternate" href="./" hreflang="en">
         
-          <link rel="alternate" href="../../es/features/load-exclusion/" hreflang="es">
+          <link rel="alternate" href="../../es/configuration/three-phase/" hreflang="es">
         
       
       
@@ -33,7 +33,7 @@
     
     
       
-        <title>Load exclusion - Omnibattery</title>
+        <title>Three-phase current protection - Omnibattery</title>
       
     
     
@@ -84,7 +84,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#load-exclusion" class="md-skip">
+        <a href="#three-phase-current-protection" class="md-skip">
           Skip to content
         </a>
       
@@ -123,7 +123,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Load exclusion
+              Three-phase current protection
             
           </span>
         </div>
@@ -176,7 +176,7 @@
           </li>
         
           <li class="md-select__item">
-            <a href="../../es/features/load-exclusion/" hreflang="es" class="md-select__link">
+            <a href="../../es/configuration/three-phase/" hreflang="es" class="md-select__link">
               Español
             </a>
           </li>
@@ -293,11 +293,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../configuration/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -313,8 +315,6 @@
   
   
   
-    
-  
   
     
     
@@ -322,13 +322,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../pd-controller/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../features/pd-controller/" class="md-tabs__link">
           
   
   
@@ -660,7 +658,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/hoymiles-ms-a2/" class="md-nav__link">
+      <a href="../hoymiles-ms-a2/" class="md-nav__link">
         
   
   
@@ -700,28 +698,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -739,7 +740,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -757,7 +758,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -785,7 +786,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/main-sensor/" class="md-nav__link">
+      <a href="../main-sensor/" class="md-nav__link">
         
   
   
@@ -810,10 +811,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../configuration/three-phase/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Three-phase current protection
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -829,6 +857,59 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-envelope-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the envelope works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#important-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Important limitations
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -847,10 +928,13 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
@@ -859,7 +943,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="">
             
   
   
@@ -895,7 +979,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/batteries/" class="md-nav__link">
+      <a href="../batteries/" class="md-nav__link">
         
   
   
@@ -923,7 +1007,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/batteries/marstek/" class="md-nav__link">
+      <a href="../batteries/marstek/" class="md-nav__link">
         
   
   
@@ -951,7 +1035,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/batteries/zendure/" class="md-nav__link">
+      <a href="../batteries/zendure/" class="md-nav__link">
         
   
   
@@ -979,7 +1063,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/batteries/anker/" class="md-nav__link">
+      <a href="../batteries/anker/" class="md-nav__link">
         
   
   
@@ -1007,7 +1091,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/batteries/sessy/" class="md-nav__link">
+      <a href="../batteries/sessy/" class="md-nav__link">
         
   
   
@@ -1035,7 +1119,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/batteries/hoymiles/" class="md-nav__link">
+      <a href="../batteries/hoymiles/" class="md-nav__link">
         
   
   
@@ -1071,7 +1155,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/time-slots/" class="md-nav__link">
+      <a href="../time-slots/" class="md-nav__link">
         
   
   
@@ -1099,7 +1183,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/excluded-devices/" class="md-nav__link">
+      <a href="../excluded-devices/" class="md-nav__link">
         
   
   
@@ -1133,10 +1217,13 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
@@ -1145,7 +1232,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="">
             
   
   
@@ -1181,7 +1268,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/predictive-charging/" class="md-nav__link">
+      <a href="../predictive-charging/" class="md-nav__link">
         
   
   
@@ -1209,7 +1296,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/predictive-charging/time-slot/" class="md-nav__link">
+      <a href="../predictive-charging/time-slot/" class="md-nav__link">
         
   
   
@@ -1237,7 +1324,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/predictive-charging/dynamic-pricing/" class="md-nav__link">
+      <a href="../predictive-charging/dynamic-pricing/" class="md-nav__link">
         
   
   
@@ -1265,7 +1352,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../configuration/predictive-charging/real-time-price/" class="md-nav__link">
+      <a href="../predictive-charging/real-time-price/" class="md-nav__link">
         
   
   
@@ -1305,31 +1392,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -1347,7 +1431,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1371,13 +1455,10 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
@@ -1386,7 +1467,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_1" >
         
           
-          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
             
   
   
@@ -1422,7 +1503,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../pd-controller/" class="md-nav__link">
+      <a href="../../features/pd-controller/" class="md-nav__link">
         
   
   
@@ -1450,7 +1531,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../hourly-net-balance/" class="md-nav__link">
+      <a href="../../features/hourly-net-balance/" class="md-nav__link">
         
   
   
@@ -1483,31 +1564,28 @@
                 
   
   
-    
   
   
-  
     
     
     
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
         
           
-          
         
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" checked>
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_2" >
         
           
-          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
             
   
   
@@ -1525,7 +1603,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1543,7 +1621,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../consumption-estimate/" class="md-nav__link">
+      <a href="../../features/consumption-estimate/" class="md-nav__link">
         
   
   
@@ -1571,7 +1649,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../solar-charge-delay/" class="md-nav__link">
+      <a href="../../features/solar-charge-delay/" class="md-nav__link">
         
   
   
@@ -1599,7 +1677,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../peak-shaving/" class="md-nav__link">
+      <a href="../../features/peak-shaving/" class="md-nav__link">
         
   
   
@@ -1624,37 +1702,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Load exclusion
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../features/load-exclusion/" class="md-nav__link">
         
   
   
@@ -1670,104 +1721,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#how-it-works-internally" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How it works internally
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="How it works internally">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#if-the-device-is-not-included-in-the-main-sensor" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        If the device is NOT included in the main sensor
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#allow-solar-surplus-option" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        "Allow solar surplus" option
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="&#34;Allow solar surplus&#34; option">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#solar-surplus-switch-runtime-control" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solar Surplus switch (runtime control)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#dynamic-power-control-switch" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Dynamic Power Control switch
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#ev-charger-without-power-telemetry" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        EV charger without power telemetry
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1794,13 +1747,10 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
@@ -1809,7 +1759,7 @@
         <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_3" >
         
           
-          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
             
   
   
@@ -1845,7 +1795,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../weekly-full-charge/" class="md-nav__link">
+      <a href="../../features/weekly-full-charge/" class="md-nav__link">
         
   
   
@@ -1873,7 +1823,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cell-balance-monitor/" class="md-nav__link">
+      <a href="../../features/cell-balance-monitor/" class="md-nav__link">
         
   
   
@@ -1901,7 +1851,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../temperature-charge-limit/" class="md-nav__link">
+      <a href="../../features/temperature-charge-limit/" class="md-nav__link">
         
   
   
@@ -2080,7 +2030,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../multi-battery/" class="md-nav__link">
+      <a href="../../features/multi-battery/" class="md-nav__link">
         
   
   
@@ -2425,77 +2375,32 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#how-it-works-internally" class="md-nav__link">
+  <a href="#configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How it works internally
+        Configuration
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="How it works internally">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#if-the-device-is-not-included-in-the-main-sensor" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        If the device is NOT included in the main sensor
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#allow-solar-surplus-option" class="md-nav__link">
+  <a href="#how-the-envelope-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        "Allow solar surplus" option
+        How the envelope works
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="&#34;Allow solar surplus&#34; option">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#solar-surplus-switch-runtime-control" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solar Surplus switch (runtime control)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#dynamic-power-control-switch" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Dynamic Power Control switch
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#ev-charger-without-power-telemetry" class="md-nav__link">
+  <a href="#important-limitations" class="md-nav__link">
     <span class="md-ellipsis">
       
-        EV charger without power telemetry
+        Important limitations
       
     </span>
   </a>
@@ -2519,7 +2424,7 @@
 
 
   
-    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/features/load-exclusion.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/configuration/three-phase.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -2527,93 +2432,34 @@
   
 
 
-<h1 id="load-exclusion">Load exclusion<a class="headerlink" href="#load-exclusion" title="Permanent link">&para;</a></h1>
-<p>See <a href="../../configuration/excluded-devices/">Excluded devices</a> for configuration.</p>
-<h2 id="how-it-works-internally">How it works internally<a class="headerlink" href="#how-it-works-internally" title="Permanent link">&para;</a></h2>
-<p>When an excluded device is active, the controller subtracts its power from the grid consumption before computing the PD controller adjustment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>effective_consumption = grid_consumption - excluded_power
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>error = effective_consumption - target_grid_power
+<h1 id="three-phase-current-protection">Three-phase current protection<a class="headerlink" href="#three-phase-current-protection" title="Permanent link">&para;</a></h1>
+<p>Three-phase current protection is an optional safety envelope for installations where the batteries share a three-phase connection. It is <strong>disabled by default</strong> and can be configured in the initial setup or from <strong>Settings → Integrations → Omnibattery → Configure → Sensors</strong>.</p>
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<p>Enable the feature and select one real-time signed RMS current sensor and one fuse-size/current limit in amperes for each phase you want to protect. Leave both fields empty for unused phases, so a one- or two-phase installation does not need placeholder values for the remaining phases. The sensors must be Home Assistant <code>sensor</code> entities with an <code>A</code> or <code>mA</code> unit. They use the same convention as the global grid sensor:</p>
+<ul>
+<li>positive = grid import</li>
+<li>negative = grid export</li>
+</ul>
+<p>The global <strong>Inverted meter sign</strong> setting is applied to the configured phase meters and Grid 0. Set one positive symmetric fuse-size/current limit in amperes for each configured phase, preferably below the fuse nameplate rating to leave operating margin. The physical phase assignment can be <code>L1</code>, <code>L2</code>, <code>L3</code> or <strong>Unassigned</strong> for each battery; Omnibattery cannot discover which AC phase a battery is wired to. An unassigned battery is excluded from the three-phase envelope and continues normal automatic operation. A battery assigned to a phase without a sensor and limit operates normally, without a phase protection cap.</p>
+<p>Once the feature is configured, the system <strong>Three-Phase Current Protection</strong> switch is available on the dashboard. While it is off, the per-battery <strong>Battery Phase</strong> selectors are unavailable; they become live controls as soon as protection is enabled. Changing a battery's phase persists immediately and is used by the next automatic control cycle.</p>
+<p>The diagnostic sensor <code>sensor.omnibattery_three_phase_protection_status</code> is also created. Its state is <code>disabled</code>, <code>active</code>, <code>limiting</code> or <code>degraded</code>. Attributes include <code>limited_batteries</code> and <code>limited_battery_details</code> (the batteries and power reduced in the latest automatic order), <code>unassigned_batteries</code>, <code>degraded_phases</code> and the complete per-phase detail under <code>phases</code>, including sensor, reading, limit, budgets and requested/assigned power.</p>
+<p>The global consumption sensor remains the controller's Grid 0 signal. Phase sensors are safety envelopes only: they do not replace Grid 0 or change the PD target.</p>
+<h2 id="how-the-envelope-works">How the envelope works<a class="headerlink" href="#how-the-envelope-works" title="Permanent link">&para;</a></h2>
+<p>For each phase, Omnibattery reconstructs the non-battery current and calculates both directional budgets:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>base_current = phase_current - battery_current_on_phase
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>battery_current_min = max(-fuse_size, -fuse_size - base_current)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>battery_current_max = min(+fuse_size, +fuse_size - base_current)
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>charge_budget_current = max(0, battery_current_max)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>discharge_budget_current = max(0, -battery_current_min)
 </code></pre></div>
-<p>This causes the battery to "ignore" that load and not try to compensate it.</p>
-<h3 id="if-the-device-is-not-included-in-the-main-sensor">If the device is NOT included in the main sensor<a class="headerlink" href="#if-the-device-is-not-included-in-the-main-sensor" title="Permanent link">&para;</a></h3>
-<p>The integration <strong>adds</strong> the excluded device's power to the measured grid consumption (because the main sensor does not see it) and then subtracts it, resulting in the same net effective consumption.</p>
-<h2 id="allow-solar-surplus-option">"Allow solar surplus" option<a class="headerlink" href="#allow-solar-surplus-option" title="Permanent link">&para;</a></h2>
-<p>When active, if the system is operating on solar surplus (battery is charging from surplus), the exclusion does not apply to the charging side. In other words: the battery will not charge to compensate this device's consumption when solar surplus is already available.</p>
-<p>This is the basis for <strong>EV vs. battery charging priority</strong>:</p>
-<table>
-<thead>
-<tr>
-<th>Mode</th>
-<th>Battery charges with solar?</th>
-<th>Battery discharges for device?</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Excluded, surplus OFF</td>
-<td>Yes</td>
-<td>No</td>
-</tr>
-<tr>
-<td>Excluded, surplus ON</td>
-<td><strong>No</strong> — solar goes to device first</td>
-<td>No</td>
-</tr>
-</tbody>
-</table>
-<h3 id="solar-surplus-switch-runtime-control">Solar Surplus switch (runtime control)<a class="headerlink" href="#solar-surplus-switch-runtime-control" title="Permanent link">&para;</a></h3>
-<p>Each excluded device gets a dedicated <strong>Solar Surplus</strong> switch entity that toggles this behaviour at runtime without reconfiguring the integration. Use it in HA automations to change priority dynamically:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Example: prioritise EV when connected</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">automation</span><span class="p">:</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">trigger</span><span class="p">:</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">platform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">state</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">binary_sensor.ev_connected</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">to</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;on&quot;</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">action</span><span class="p">:</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.turn_on</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">target</span><span class="p">:</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">        </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.solar_surplus_wallbox_power</span>
-</code></pre></div>
-<p><img alt="Excluded device power sensor in HA" src="../../assets/screenshots/features/load-exclusion-entities.png" style="display: block; margin: 0 auto;" width="700" /></p>
-<h3 id="dynamic-power-control-switch">Dynamic Power Control switch<a class="headerlink" href="#dynamic-power-control-switch" title="Permanent link">&para;</a></h3>
-<p>For a wallbox or another flexible load with its own surplus controller, standard
-Solar Surplus can still leave two controllers settled at an undesirable split:
-the battery removes export before the wallbox has a chance to ramp up. <strong>Dynamic
-Power Control</strong> adds a small state machine around the normal exclusion logic.</p>
-<p>The device-active / EV-charging state sensor closes the cold-start gap:
-while it requests power but the wallbox still reads 0 W, battery charging stays
-blocked so the wallbox can see the export and start. It is required for new
-Dynamic Power Control configurations; existing sensor-less entries keep their
-measured-power fallback.</p>
-<p>On first measured demand it blocks battery charging for 30 seconds. Charging may
-then resume only on the export the device left behind. A solar rise triggers a
-new 20-second yield, and a zero-power pause is held for 5 minutes so the battery
-does not prevent the device from restarting. No maximum-demand sensor is needed.</p>
-<h2 id="ev-charger-without-power-telemetry">EV charger without power telemetry<a class="headerlink" href="#ev-charger-without-power-telemetry" title="Permanent link">&para;</a></h2>
-<p>For EV chargers that only expose a state sensor (no real-time power reading), a dedicated <strong>EV charger without power telemetry</strong> option is available. The same device-active / EV-charging field is used. Legacy entries that stored this state sensor in the old device-sensor field continue to work unchanged.</p>
-<table>
-<thead>
-<tr>
-<th>Phase</th>
-<th>Battery behaviour</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>EV state → Charging (first 5 min)</td>
-<td>0 W — both charge and discharge blocked, PD state frozen</td>
-</tr>
-<tr>
-<td>EV charging (after 5 min)</td>
-<td>Charging from solar surplus allowed; discharge always blocked</td>
-</tr>
-<tr>
-<td>EV state → anything else</td>
-<td>Normal operation</td>
-</tr>
-</tbody>
-</table>
-<p>See <a href="../../configuration/excluded-devices/#ev-charger-without-power-telemetry">EV charger without power telemetry</a> in the configuration reference for setup details.</p>
+<p>The current sensor must be signed: positive means import and negative means export. Battery telemetry and commands use the controller convention (<code>+</code> charge, <code>−</code> discharge) and remain in active watts. Internally, the meter constraint and the absolute battery-command constraint are intersected as a signed interval before converting the directional budgets back to watts. Battery watts are converted to current and the available current budget is converted back to a conservative watt cap using 230 V nominal voltage and a 0.90 power factor. The normal load-sharing selection and proportional allocation run first. The result is then rounded down in 5 W increments and capped independently on each phase. Only power rejected by that cap is moved to batteries on healthy phases with remaining capacity, following the normal SOC/energy priority order.</p>
+<p>The configured phase limit is an absolute per-phase cap for automatic battery assignments in either direction. The reconstructed base current can reduce the available budget, but it cannot increase the battery current above the configured limit. A phase meter can still exceed the limit because of an external load, measurement/actuator latency or a manual command; the automatic guard cannot remove an external load.</p>
+<p>The envelope is applied to normal PD and direct-tracking control, predictive grid charging, automatic time-slot PD, active-balance rebalances and the final common automatic command guard. The assigned total is fed back into the controller so a phase cap does not create integral windup.</p>
+<p>If a configured phase sensor is missing, unavailable, non-numeric, in the wrong unit or older than 65 seconds, batteries assigned to that phase receive 0 W. The sensor must be signed; an unsigned current sensor cannot represent export correctly and should not be used for this feature. A phase left unconfigured has no phase protection, so batteries assigned to it continue under the normal controller and per-battery limits. Other healthy phases continue operating. Sensor recovery is picked up on the next report.</p>
+<h2 id="important-limitations">Important limitations<a class="headerlink" href="#important-limitations" title="Permanent link">&para;</a></h2>
+<p>Manual register writes and manual time-slot commands intentionally remain direct and can bypass this software envelope. Home Assistant shows a Repairs warning while the feature is enabled; keep those commands within the electrical limit.</p>
+<p>This is a conservative current guard, not a replacement for breakers, inverter protection or an electrician's design. Use a true-RMS sensor with a reliable import/export sign and leave margin below the fuse nameplate rating for measurement latency, actuator latency, external loads, voltage, power factor, harmonics and transient peaks. The internal 230 V/0.90 conversion is an estimate for translating the battery's active-watt commands into an RMS-current budget; the current sensor remains the source of the phase safety measurement. An external load can exceed a phase limit by itself, while Omnibattery can only avoid making that excess worse. The global controller does not issue simultaneous charge on one phase and discharge on another. The sensors must be installed and mapped to the actual conductors; an incorrect L1/L2/L3 assignment cannot be detected automatically.</p>
+<p>The beta configuration uses current-sensor and fuse-size fields. There is intentionally no migration from the previous phase-power fields, so re-enter the phase protection settings after upgrading.</p>
 
 
 
@@ -2651,7 +2497,7 @@ does not prevent the device from restarting. No maximum-demand sensor is needed.
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../peak-shaving/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Peak shaving">
+          <a href="../main-sensor/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Main sensor">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2661,20 +2507,20 @@ does not prevent the device from restarting. No maximum-demand sensor is needed.
                 Previous
               </span>
               <div class="md-ellipsis">
-                Peak shaving
+                Main sensor
               </div>
             </div>
           </a>
         
         
           
-          <a href="../weekly-full-charge/" class="md-footer__link md-footer__link--next" aria-label="Next: Weekly full charge">
+          <a href="../batteries/" class="md-footer__link md-footer__link--next" aria-label="Next: Overview">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Weekly full charge
+                Overview
               </div>
             </div>
             <div class="md-footer__button md-icon">

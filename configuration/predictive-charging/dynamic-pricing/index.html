@@ -813,6 +813,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Three-phase current protection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -832,10 +860,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="">
             
   
   
@@ -853,8 +881,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1018,7 +1046,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1121,10 +1149,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" checked>
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="">
             
   
   
@@ -1142,8 +1170,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1333,6 +1361,56 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-re-evaluation-during-the-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic re-evaluation during the day
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Automatic re-evaluation during the day">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#re-evaluate-dynamic-pricing-button" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-evaluate Dynamic Pricing button
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#negative-price-opportunistic-charging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Negative-price opportunistic charging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#smart-pre-discharge-anti-curtailment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Smart Pre-discharge / Anti-curtailment
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2508,6 +2586,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#automatic-re-evaluation-during-the-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic re-evaluation during the day
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Automatic re-evaluation during the day">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#re-evaluate-dynamic-pricing-button" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-evaluate Dynamic Pricing button
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#negative-price-opportunistic-charging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Negative-price opportunistic charging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#smart-pre-discharge-anti-curtailment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Smart Pre-discharge / Anti-curtailment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#price-based-discharge-control" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2660,6 +2788,10 @@
 <td><strong>Predictive grid charge margin (%)</strong></td>
 <td>(Optional) Tops up the grid-charge amount to hedge optimistic solar forecasts — e.g. a 2 kWh grid need at 50 % charges 3 kWh. Capped at the gap to max SOC (default 0 %)</td>
 </tr>
+<tr>
+<td><strong>Negative-price opportunistic charging</strong></td>
+<td>(Optional, default off) Charge in qualifying negative import-price slots even when the normal forecast has no deficit</td>
+</tr>
 </tbody>
 </table>
 <p><img alt="Configuration form — Dynamic Pricing mode" src="../../../assets/screenshots/configuration/predictive-charging/dynamic-pricing-form.png" style="display: block; margin: 0 auto;" width="650" /></p>
@@ -2675,15 +2807,95 @@
 <h3 id="retry-logic">Retry logic<a class="headerlink" href="#retry-logic" title="Permanent link">&para;</a></h3>
 <p>If price data is unavailable at 00:05, the system retries every 15 minutes for the first hour.</p>
 <h3 id="ha-restart-mid-day">HA restart mid-day<a class="headerlink" href="#ha-restart-mid-day" title="Permanent link">&para;</a></h3>
-<p>If HA restarts after the 00:05 window without a prior evaluation, the controller runs an automatic evaluation at startup (after 15 seconds) considering only the remaining slots of the current day.</p>
+<p>If HA restarts after the 00:05 window without a prior evaluation, the controller runs an automatic evaluation at startup (after 15 seconds). It considers the remaining slots of the current day and, when the provider has already published them, the next <strong>12 hours</strong> so a restart does not leave the next overnight window without a plan.</p>
+<h2 id="automatic-re-evaluation-during-the-day">Automatic re-evaluation during the day<a class="headerlink" href="#automatic-re-evaluation-during-the-day" title="Permanent link">&para;</a></h2>
+<p>The 00:05 plan is not immutable. Dynamic Pricing adapts it as the real day develops:</p>
+<ul>
+<li><strong>One hour before each selected future slot</strong>, the energy balance is checked again. A slot is silently skipped when the battery and expected solar now cover the need. If a deficit remains, a persistent notification confirms that the slot will be used. Back-to-back slots are not re-evaluated while the previous slot is still charging.</li>
+<li><strong>Late afternoon / evening</strong>, the controller performs one additional recharge assessment. When solar start was detected, it runs approximately <strong>1.5 hours before the estimated end of production</strong>; if no start was detected, it uses a safe fallback at <strong>16:00</strong>. It projects the remaining household consumption until midnight, subtracts usable battery energy and remaining solar, and adds only the cheap future slots needed to cover a material deficit (at least <strong>0.3 kWh</strong>). This is a safety top-up, so it is not blocked by the optional arbitrage-margin gate.</li>
+<li><strong>After a 30-point SOC drop</strong>, it performs the same late-day deficit assessment immediately instead of waiting for the evening trigger. The comparison is against the average battery SOC recorded at the last Dynamic Pricing evaluation; only drops of at least 30 percentage points trigger it, the reference is reset after reevaluation, and an SOC rise never triggers it.</li>
+</ul>
+<p>These reevaluations keep existing charge limits, SOC floors, time-slot ownership, manual mode, backup and availability protections authoritative. The daily reference and once-per-day evening guard reset at midnight.</p>
+<h3 id="re-evaluate-dynamic-pricing-button">Re-evaluate Dynamic Pricing button<a class="headerlink" href="#re-evaluate-dynamic-pricing-button" title="Permanent link">&para;</a></h3>
+<p>When Dynamic Pricing is enabled, the system device exposes <strong>Re-evaluate Dynamic Pricing</strong> (<code>button.*_reevaluate_dynamic_pricing</code>) in the dashboard and in Home Assistant. Pressing it immediately rebuilds the schedule with the latest price and solar data, using the same extended horizon as the startup catch-up path (end of today or <strong>now + 12 hours</strong>, whichever is later).</p>
+<p>This button is useful after changing a price threshold, forecast or runtime option. It is deliberately not a full multi-day planner: pressing it in the afternoon does not reserve tomorrow afternoon's energy against today's deficit. Tomorrow's normal plan is built at 00:05 once that day's balance is known.</p>
+<hr />
+<h2 id="negative-price-opportunistic-charging">Negative-price opportunistic charging<a class="headerlink" href="#negative-price-opportunistic-charging" title="Permanent link">&para;</a></h2>
+<p>This <strong>opt-in Dynamic Pricing feature</strong> is intended for installations with or without solar. When enabled, Omnibattery independently finds hourly or 15-minute slots whose normalized <strong>import price is negative</strong>. It calculates the battery energy needed to reach each battery's configured maximum SOC and selects the most-negative individual slots first. A solar forecast sensor is not required.</p>
+<p>The calendar records why each interval was selected: <code>deficit</code>, <code>negative_price</code>, or <code>combined</code>. A positive-price deficit slot therefore keeps the normal deficit-based SOC target; it cannot consume energy that is pending only for an opportunity. In a qualifying combined slot, the higher of the deficit and opportunistic targets applies. Each battery uses its own configured maximum SOC as the opportunistic ceiling.</p>
+<p>Charging stops as soon as the battery's configured maximum SOC is reached, and remaining opportunity-only slots are removed. A pure opportunity also stops if the live price becomes unavailable or is no longer negative. Contracted power, per-battery and system charge limits, user blockers, manual ownership, backup, availability and all existing safety controls remain authoritative.</p>
+<p>The negative import-price condition is deliberately separate from the <strong>Negative injection threshold</strong> below. The former detects when importing energy is attractive; the latter identifies solar anti-curtailment risk. Outside a solar-risk window, a negative-price slot can charge toward the configured maximum SOC as before. Inside a risk window it is not rejected automatically: it can use only the headroom left after the solar reserve:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>opportunistic space = current free space − remaining solar reserve
+</code></pre></div>
+<p>The opportunity never consumes the solar reserve. If actual solar is lower than forecast, the remaining reserve falls progressively and more grid charging becomes available; if actual solar is higher, the opportunity is reduced or stopped. Contracted power, SOC limits, minimum reserves, manual ownership and all other safety blockers still apply. A charge required to guarantee minimum SOC remains the safety exception. Missing solar data puts the anti-curtailment planner in fail-safe mode but does not cancel an otherwise valid import-price opportunity.</p>
+<p>The runtime switch is available in the Omnibattery System controls, so automations can enable the feature without reopening the options flow.</p>
+<hr />
+<h2 id="smart-pre-discharge-anti-curtailment">Smart Pre-discharge / Anti-curtailment<a class="headerlink" href="#smart-pre-discharge-anti-curtailment" title="Permanent link">&para;</a></h2>
+<p>This is an <strong>opt-in subfunction of Dynamic Pricing</strong>. It does not control a PV inverter. When enabled, Omnibattery reuses the normalized 15-minute or hourly price slots and the existing solar model to find future slots where:</p>
+<ul>
+<li>the price is at or below <strong>Negative injection threshold</strong> (default <code>0 €/kWh</code>), and</li>
+<li>forecast solar surplus would exceed household consumption.</li>
+</ul>
+<p>The planner first calculates the headroom needed to absorb the forecast solar surplus. Before the first risk window it selects the most valuable (highest-price) eligible blocks for pre-discharge, stopping at the configured SOC floors, reserves, power limits and existing blockers. The same <strong>Solar forecast safety margin</strong> is used by predictive charging when deciding whether the solar forecast is sufficient. Slots are grouped into approximately one-hour blocks to avoid chatter. Consumption is distributed uniformly from the existing daily-history estimate when no more detailed model is available.</p>
+<p>The live controls are available only when Predictive Grid Charging uses Dynamic Pricing:</p>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Smart Pre-discharge</strong></td>
+<td>Runtime opt-in switch; default off</td>
+</tr>
+<tr>
+<td><strong>Negative injection threshold</strong></td>
+<td>Inclusive price threshold for a risk slot</td>
+</tr>
+<tr>
+<td><strong>Pre-discharge reserve SOC</strong></td>
+<td>Additional SOC floor; <code>0</code> uses existing floors</td>
+</tr>
+<tr>
+<td><strong>Pre-discharge export mode</strong></td>
+<td><strong>Self-consumption only</strong>, <strong>Automatic</strong>, or <strong>Custom limit</strong></td>
+</tr>
+<tr>
+<td><strong>Custom deliberate-export limit (W)</strong></td>
+<td>Shown for <strong>Custom limit</strong>; caps deliberate export to the grid during pre-discharge. This is an export limit, not total battery discharge power</td>
+</tr>
+<tr>
+<td><strong>Solar forecast safety margin</strong></td>
+<td>Extra buffer in kWh used by predictive charging and anti-curtailment</td>
+</tr>
+</tbody>
+</table>
+<p>The three export modes are:</p>
+<ul>
+<li><strong>Self-consumption only</strong>: no deliberate grid export; equivalent to <code>0 W</code>.</li>
+<li><strong>Automatic</strong>: calculates only the export power needed to create the required headroom; it does not always use the maximum available discharge power.</li>
+<li><strong>Custom limit</strong>: deliberately exports up to the configured W limit. The value describes deliberate grid export, not total battery discharge power.</li>
+</ul>
+<p>Existing configurations remain compatible: legacy <code>0</code> maps to <strong>Self-consumption only</strong>, while a positive legacy value maps to <strong>Custom limit</strong>. During a risk window, the controller clamps the net grid target to zero: the battery may cover domestic consumption, but it will not deliberately export to the grid. The feature never bypasses minimum or guaranteed-minimum SOC, user time-slot ownership, manual control, backup mode, unavailable/non-responsive batteries, or capacity protection. Missing prices, forecast, SOC, capacity or a valid grid meter are fail-safe conditions: any smart override and blocker are cleared. The plan is rebuilt after restart, at the normal daily evaluations, when the feature is enabled, after a material change in available battery headroom, and by the existing <strong>Re-evaluate Dynamic Pricing</strong> button. Parameter changes invalidate the old plan; use that button to apply them immediately instead of waiting for the next evaluation. Plans are not persisted.</p>
+<p>The single binary sensor for this feature, <code>curtailment_status</code>, reports the current state, reason, next risk window, risk slots, required/current headroom, planned discharge, shortfall, per-battery targets, selected discharge slots and active export target. It also exposes automation-oriented attributes:</p>
+<ul>
+<li><code>protected_window_active</code>: the negative-injection window is active.</li>
+<li><code>headroom_deficit_kwh</code>: headroom still missing to absorb the forecast.</li>
+<li><code>inverter_curtailment_required</code>: <code>true</code> only when the protected window is active and headroom is missing; <code>false</code> when a valid plan needs no inverter limit; <code>null</code> while the plan is fail-safe or unavailable.</li>
+<li>The downloaded diagnostics include <code>solar_reserve_remaining_kwh</code>, <code>current_free_space_kwh</code>, and <code>opportunistic_space_available_kwh</code>. The latter is never negative and follows <code>current free space − remaining solar reserve</code>.</li>
+<li><code>charge_limit_reason</code> and <code>charge_limit_reasons</code> identify why opportunistic grid charging is limited, including active charge blockers and exhaustion of the solar reserve. The <code>export</code> diagnostic reports the selected mode and, when present, the deliberate-export limit in W.</li>
+</ul>
+<p><code>active_export_target_w</code> is the battery's pre-discharge export target, not a universal PV-inverter command. An automation should apply an inverter-specific limit and restore normal operation only after the status no longer requires curtailment.</p>
 <hr />
 <h2 id="price-based-discharge-control">Price-based discharge control<a class="headerlink" href="#price-based-discharge-control" title="Permanent link">&para;</a></h2>
 <p>The <strong>"Only discharge when price is above threshold"</strong> option adds an extra condition to discharge behaviour.</p>
 <p>When active, <strong>every controller cycle (event-driven)</strong> checks whether the current price allows discharge:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>If current_price &gt; threshold:
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    → Discharge allowed (PD controller operates normally)
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>If current_price &lt;= threshold:
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    → Discharge BLOCKED (battery holds)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>If current_price &gt; threshold:
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    → Discharge allowed (PD controller operates normally)
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>If current_price &lt;= threshold:
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    → Discharge BLOCKED (battery holds)
 </code></pre></div>
 <p>The threshold is resolved as follows:</p>
 <ol>
@@ -2693,16 +2905,16 @@
 <p>The daily average price is calculated automatically during the 00:05 evaluation from the hourly price profile. The goal is to preserve battery energy for the most expensive hours of the day. If no fixed threshold is configured and the daily average is not available yet, discharge control does not act.</p>
 <h3 id="separate-discharge-price-floor">Separate discharge price floor<a class="headerlink" href="#separate-discharge-price-floor" title="Permanent link">&para;</a></h3>
 <p>By default a single threshold gates both ends: the battery grid-charges only <strong>below</strong> the max price threshold and discharges only <strong>above</strong> it. The optional <strong>Discharge price floor</strong> decouples the two by setting a lower discharge floor, opening an <strong>idle band</strong> between them:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>price ≥ max price threshold     → discharge allowed
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>discharge floor &lt; price &lt; ceiling → idle (no grid charge, no discharge)
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>price ≤ discharge price floor    → discharge BLOCKED
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>price ≥ max price threshold     → discharge allowed
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>discharge floor &lt; price &lt; ceiling → idle (no grid charge, no discharge)
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>price ≤ discharge price floor    → discharge BLOCKED
 </code></pre></div>
 <p>In the idle band the battery neither grid-charges nor discharges — but <strong>solar-surplus charging still works</strong>. This avoids cycling the battery for the marginal price difference around the average. The floor must be <strong>at or above</strong> the charge ceiling (it is validated on save); leave it empty to reuse the max price threshold for both (the single-threshold behaviour above).</p>
 <p>Both thresholds are also exposed as live <code>number</code> entities (<strong>Max Price Threshold</strong> and <strong>Discharge Price Floor</strong>) so automations can rewrite them without entering the options flow.</p>
 <h3 id="minimum-arbitrage-margin">Minimum arbitrage margin<a class="headerlink" href="#minimum-arbitrage-margin" title="Permanent link">&para;</a></h3>
 <p>A fixed charge ceiling answers "is this price low?" but not "is it low <em>enough</em>". Those come apart in winter, when a flat price curve can sit entirely below the ceiling while offering no spread to trade against. Charging then runs the battery through a cycle that the round-trip losses eat.</p>
 <p>The optional <strong>Minimum Arbitrage Margin</strong> makes the ceiling move with the day instead. At each evaluation the engine takes the most expensive hours still ahead, as many as it plans to charge for, and requires:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>expected_discharge_price × round_trip_efficiency − slot_price ≥ margin
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>expected_discharge_price × round_trip_efficiency − slot_price ≥ margin
 </code></pre></div>
 <p>Slots that fail are dropped. If none survive, the day is skipped entirely.</p>
 <p>The margin is <strong>empty by default</strong>, which leaves slot selection exactly as it was. Setting it back to <code>0</code> disables it again. When set, it applies <em>on top of</em> the max price threshold, and whichever ceiling is stricter wins.</p>
@@ -2711,7 +2923,7 @@
 <p>Both are exposed as live <code>number</code> entities, and the evaluation notification reports the resulting ceiling so a skipped night is traceable.</p>
 <h3 id="interaction-with-time-slots">Interaction with time slots<a class="headerlink" href="#interaction-with-time-slots" title="Permanent link">&para;</a></h3>
 <p>If time slots are configured to restrict discharge, <strong>both conditions must be met</strong> for the battery to discharge:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Discharge allowed = within_discharge_time_slot AND current_price &gt; threshold
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Discharge allowed = within_discharge_time_slot AND current_price &gt; threshold
 </code></pre></div>
 <p>Outside a slot that allows discharge, the battery never discharges. Inside one, it only discharges when the price is high enough.</p>
 <h3 id="effect-on-the-pd-controller">Effect on the PD controller<a class="headerlink" href="#effect-on-the-pd-controller" title="Permanent link">&para;</a></h3>

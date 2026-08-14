@@ -810,6 +810,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Three-phase current protection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -826,10 +854,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -847,8 +875,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1012,7 +1040,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1112,10 +1140,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1133,8 +1161,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1969,10 +1997,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#reporting-an-issue-configuration-summary-sensor" class="md-nav__link">
+  <a href="#reporting-an-issue-download-diagnostics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reporting an issue — Configuration Summary sensor
+        Reporting an issue — Download diagnostics
       
     </span>
   </a>
@@ -2537,10 +2565,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#reporting-an-issue-configuration-summary-sensor" class="md-nav__link">
+  <a href="#reporting-an-issue-download-diagnostics" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reporting an issue — Configuration Summary sensor
+        Reporting an issue — Download diagnostics
       
     </span>
   </a>
@@ -2701,17 +2729,16 @@
 <p>If the meter goes unavailable while the battery was, for example, discharging at 2000 W, it will <strong>continue discharging at 2000 W</strong> until the meter recovers. There is no built-in timeout that ramps the battery to idle. Consider improving the Wi-Fi reliability of your metering device, or using a wired/Zigbee alternative if dropouts are frequent.</p>
 </div>
 <hr />
-<h2 id="reporting-an-issue-configuration-summary-sensor">Reporting an issue — Configuration Summary sensor<a class="headerlink" href="#reporting-an-issue-configuration-summary-sensor" title="Permanent link">&para;</a></h2>
-<p>When opening a bug report or asking for help, it is useful to share the current integration configuration. The <strong>Configuration Summary</strong> sensor exposes the support-relevant setup as entity attributes: sensors, battery models and limits, time slots, predictive charging, weekly charge, charge delay, capacity protection, hourly balance, PD parameters, system-wide charge/discharge caps, and excluded devices. Battery IP addresses and ports are intentionally not exposed.</p>
-<p>For multi-battery power limits it reports whether the feature is enabled (<code>system_power_limits_enabled</code>), the configured per-battery totals (<code>total_max_charge_power_W</code>, <code>total_max_discharge_power_W</code>), and the effective totals after applying optional system caps (<code>effective_total_max_charge_power_W</code>, <code>effective_total_max_discharge_power_W</code>).</p>
-<p><strong>How to enable it:</strong></p>
+<h2 id="reporting-an-issue-download-diagnostics">Reporting an issue — Download diagnostics<a class="headerlink" href="#reporting-an-issue-download-diagnostics" title="Permanent link">&para;</a></h2>
+<p>When opening a bug report or asking for help, attach the JSON generated by Home Assistant's <strong>Download diagnostics</strong> action for the Omnibattery config entry. The dump contains the persisted configuration together with battery connection health, driver capabilities, non-responsive tracking, and dynamic-pricing runtime details. Sensitive connection fields and known identifiers are redacted by the integration.</p>
+<p><strong>How to download it:</strong></p>
 <ol>
-<li>Go to <strong>Settings → Devices &amp; Services → Omnibattery</strong>.</li>
-<li>Select the <strong>Omnibattery System</strong> device.</li>
-<li>Find the <strong>Configuration Summary</strong> sensor (it is hidden by default) and enable it.</li>
-<li>Open the sensor's detail card and share its attributes (state + attributes).</li>
+<li>Go to <strong>Settings → Devices &amp; Services</strong>.</li>
+<li>Open the <strong>Omnibattery</strong> integration and its config entry.</li>
+<li>Click <strong>Download diagnostics</strong>.</li>
+<li>Attach the resulting JSON file to the support request.</li>
 </ol>
-<p>The sensor is read-only and diagnostic. It does not affect integration behaviour in any way.</p>
+<p>Review the file before sharing it and remove anything specific to your installation that you do not want to disclose.</p>
 <hr />
 <h2 id="debug-logging">Debug logging<a class="headerlink" href="#debug-logging" title="Permanent link">&para;</a></h2>
 <p>Enable <code>debug</code> for the integration by clicking in "Enable debug logging" button in the integration settings. Once you have run it for the appropriate time, disable it to avoid filling the logs, and a log file will be created with the debug information.</p>

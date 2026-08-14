@@ -810,6 +810,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Three-phase current protection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -826,10 +854,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -847,8 +875,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1012,7 +1040,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1112,10 +1140,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1133,8 +1161,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2632,11 +2660,6 @@ subpackages by responsibility.</p>
 <td>Weekly full charge state, persistence and register-write orchestration</td>
 </tr>
 <tr>
-<td><code>control/active_balance_mode.py</code></td>
-<td>—</td>
-<td>Active cell-balance measurement</td>
-</tr>
-<tr>
 <td><code>tracking/consumption_tracker.py</code></td>
 <td><code>ConsumptionTracker</code></td>
 <td>Consumption history, daily energy accumulators, solar-timing detection, recorder backfill, daily capture</td>
@@ -2719,6 +2742,13 @@ layer.</p>
 <p><code>apply_setpoint</code> returns a <code>SetpointResult</code> carrying the applied power, whether
 the write was confirmed by a readback, the measured delivered power, and a
 brand-native state echo the coordinator merges into <code>coordinator.data</code>.</p>
+<p>Individual manual ownership is coordinated above the driver. On handoff the
+controller verifies an idle (<code>0 W</code>) setpoint, then excludes the battery from
+automatic assignments. Drivers without force-mode/setpoint registers (for
+example Zendure and Anker) receive their persisted manual charge/discharge
+setpoint through <code>apply_setpoint</code> on each control cycle; an idle (<code>None</code>) manual
+selection is deliberately not reasserted, so it does not fight the device's
+own app mode.</p>
 <h3 id="capabilities-replace-version-checks">Capabilities replace version checks<a class="headerlink" href="#capabilities-replace-version-checks" title="Permanent link">&para;</a></h3>
 <p>Each driver reports a frozen <code>DriverCapabilities</code> once; callers consult it instead
 of hard-coding <code>if battery_version in (...)</code>. The control and entity layers read

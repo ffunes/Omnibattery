@@ -985,6 +985,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protección de corriente trifásica
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -1001,10 +1029,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -1022,8 +1050,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1187,7 +1215,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1287,10 +1315,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1308,8 +1336,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2614,7 +2642,7 @@ compatible. Los adaptadores y puentes solo son necesarios cuando se indican.</p>
 <td>El dongle debe ser accesible desde Home Assistant. Introduce su IP/nombre de host, puerto y credenciales; el puerto predeterminado es <code>80</code>.</td>
 </tr>
 <tr>
-<td><strong>Hoymiles MS-A2</strong></td>
+<td><strong>Hoymiles MS-A2 / HiBattery</strong></td>
 <td>MQTT mediante la integración MQTT configurada en Home Assistant</td>
 <td>Hace falta un broker MQTT local operativo (por ejemplo, Mosquitto; se puede reutilizar uno existente). Activa <strong>MQTT Service</strong> en S-Miles Home y asegúrate de que la batería puede alcanzar el broker.</td>
 </tr>
@@ -2640,7 +2668,7 @@ para ajustar la potencia de la batería.</p>
 <h3 id="software">Software<a class="headerlink" href="#software" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Home Assistant <strong>2024.1.0</strong> o superior</li>
-<li>Solo para <strong>Hoymiles MS-A2</strong>: la integración MQTT de Home Assistant y un broker MQTT local operativo. Omnibattery usa el broker a través de Home Assistant; no instala uno.</li>
+<li>Solo para <strong>baterías Hoymiles mediante MQTT</strong>: la integración MQTT de Home Assistant y un broker MQTT local operativo. Omnibattery usa el broker a través de Home Assistant; no instala uno.</li>
 <li>(Opcional) Sensor de previsión solar para la carga predictiva (Solcast, Forecast.Solar, etc.)</li>
 </ul>
 <h3 id="red">Red<a class="headerlink" href="#red" title="Permanent link">&para;</a></h3>
@@ -2702,7 +2730,7 @@ para ajustar la potencia de la batería.</p>
 <li>
 <p>Pulsa <strong>Previsualizar blueprint</strong> y después <strong>Importar blueprint</strong>.</p>
 </li>
-<li>Crea una automatización nueva desde el blueprint importado y selecciona tus entidades.</li>
+<li>Crea una automatización nueva desde el blueprint importado y configura sus entradas. Para el blueprint de balanceo activo de Marstek, selecciona el dispositivo de batería de Omnibattery; sus entidades estándar se descubren automáticamente.</li>
 </ol>
 <h3 id="instalacion-manual_1">Instalación manual<a class="headerlink" href="#instalacion-manual_1" title="Permanent link">&para;</a></h3>
 <ol>

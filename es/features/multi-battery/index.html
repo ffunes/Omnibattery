@@ -810,6 +810,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protección de corriente trifásica
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -826,10 +854,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -847,8 +875,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1012,7 +1040,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1112,10 +1140,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1133,8 +1161,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2059,6 +2087,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#control-manual-por-bateria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control manual por batería
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#registro-unificado-de-bloqueos" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2503,6 +2542,17 @@
     <span class="md-ellipsis">
       
         Controles de carga/descarga por batería
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#control-manual-por-bateria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control manual por batería
       
     </span>
   </a>
@@ -3082,6 +3132,10 @@
 </table>
 <p>Estos switches no escriben directamente registros Modbus de control. Solo afectan al controlador PD automático de la integración. Si una batería está activa en la dirección desactivada, la integración envía esa batería a <code>0 W</code> y el siguiente ciclo de control reasigna la potencia entre las baterías elegibles restantes.</p>
 <p>El estado se guarda por batería como <code>allow_charge</code> y <code>allow_discharge</code>. Si esas claves no existen, se interpretan como activadas, por lo que las instalaciones existentes mantienen su comportamiento tras actualizar.</p>
+<h2 id="control-manual-por-bateria">Control manual por batería<a class="headerlink" href="#control-manual-por-bateria" title="Permanent link">&para;</a></h2>
+<p>Cada batería también expone <code>switch.*_battery_manual_mode</code>. Al activarlo, Omnibattery envía y verifica primero una consigna de <code>0 W</code>, borra el modo forzado y las consignas de potencia de software de la integración, y retira esa batería del grupo automático. El estado se persiste por batería, por lo que la exclusión sobrevive a un reinicio. La batería sigue consultándose y permanece incluida en la telemetría física de batería/red, pero no recibe consignas automáticas de potencia; el manejo de seguridad del driver y del BMS sigue activo.</p>
+<p>Al apagar el switch, la batería mantiene la propiedad manual mientras se verifica la última consigna de reposo. Solo después vuelve al grupo automático y se programa un ciclo de control inmediato. Si falla la transición a reposo, el switch permanece activado y la batería sigue en modo manual.</p>
+<p>Este control es independiente del switch global <code>Manual Mode</code>. Por ejemplo, con dos baterías, la batería A puede permanecer en modo manual con la potencia elegida por el usuario mientras la batería B sigue en automático. Si B ya está cargando, el controlador PD incluye la carga AC medida de A para que B reduzca su propia carga y el meter permanezca a cero. Cuando las baterías automáticas ya no están cargando, la carga intencionada desde la red de A se excluye del feedback para que B no se descargue para compensarla. La potencia solar acoplada en CC no se incluye cuando el driver proporciona una lectura AC independiente.</p>
 <h2 id="registro-unificado-de-bloqueos">Registro unificado de bloqueos<a class="headerlink" href="#registro-unificado-de-bloqueos" title="Permanent link">&para;</a></h2>
 <p>Los permisos de carga y descarga se resuelven mediante un registro runtime de bloqueos. Los bloqueos pueden ser globales o estar asociados a una batería concreta. El controlador consulta este registro antes de las salidas tempranas por banda muerta o sensor sin actualizar, por lo que una consigna activa se detiene en cuanto aparece un bloqueo.</p>
 <p>Los bloqueos globales incluyen retraso de carga solar, reglas de carga y descarga de las franjas horarias, control de descarga por precio y pausas por cargador VE sin telemetría. Los bloqueos por batería incluyen los switches <code>Permitir Carga</code> y <code>Permitir Descarga</code>, SOC máximo, SOC mínimo e histéresis de carga. Otras comprobaciones de disponibilidad, como exclusión por backup/off-grid y exclusión por falta de respuesta, siguen separadas del registro de bloqueos.</p>

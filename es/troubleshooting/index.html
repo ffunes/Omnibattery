@@ -810,6 +810,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protección de corriente trifásica
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -826,10 +854,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -847,8 +875,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1012,7 +1040,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1112,10 +1140,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1133,8 +1161,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1969,10 +1997,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#reportar-un-problema-sensor-de-resumen-de-configuracion" class="md-nav__link">
+  <a href="#reportar-un-problema-descargar-diagnosticos" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reportar un problema — Sensor de Resumen de Configuración
+        Reportar un problema — Descargar diagnósticos
       
     </span>
   </a>
@@ -2537,10 +2565,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#reportar-un-problema-sensor-de-resumen-de-configuracion" class="md-nav__link">
+  <a href="#reportar-un-problema-descargar-diagnosticos" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reportar un problema — Sensor de Resumen de Configuración
+        Reportar un problema — Descargar diagnósticos
       
     </span>
   </a>
@@ -2701,17 +2729,16 @@
 <p>Si el medidor se pierde mientras la batería estaba descargando a, por ejemplo, 2000 W, <strong>seguirá descargando a 2000 W</strong> hasta que el medidor se recupere. No hay ningún temporizador integrado que lleve la batería a reposo. Considera mejorar la fiabilidad del Wi-Fi de tu medidor, o usar una alternativa cableada o Zigbee si los cortes son frecuentes.</p>
 </div>
 <hr />
-<h2 id="reportar-un-problema-sensor-de-resumen-de-configuracion">Reportar un problema — Sensor de Resumen de Configuración<a class="headerlink" href="#reportar-un-problema-sensor-de-resumen-de-configuracion" title="Permanent link">&para;</a></h2>
-<p>Al abrir un informe de error o pedir ayuda, es muy útil compartir la configuración actual de la integración. El sensor <strong>Resumen de Configuración</strong> expone la configuración relevante para soporte como atributos de la entidad: sensores, modelos y límites de batería, franjas horarias, carga predictiva, carga semanal, retraso de carga, protección de capacidad, balance horario, parámetros PD, limites globales de carga/descarga y dispositivos excluidos. Las IPs y puertos de las baterías no se exponen intencionadamente.</p>
-<p>Para límites de potencia multi-batería informa si la funcionalidad está activada (<code>system_power_limits_enabled</code>), los totales configurados por batería (<code>total_max_charge_power_W</code>, <code>total_max_discharge_power_W</code>) y los totales efectivos tras aplicar límites globales de sistema opcionales (<code>effective_total_max_charge_power_W</code>, <code>effective_total_max_discharge_power_W</code>).</p>
-<p><strong>Cómo activarlo:</strong></p>
+<h2 id="reportar-un-problema-descargar-diagnosticos">Reportar un problema — Descargar diagnósticos<a class="headerlink" href="#reportar-un-problema-descargar-diagnosticos" title="Permanent link">&para;</a></h2>
+<p>Al abrir un informe de error o pedir ayuda, adjunta el JSON generado por la acción <strong>Descargar diagnósticos</strong> de Home Assistant para la entrada de configuración de Omnibattery. El archivo contiene la configuración persistida junto con el estado de conexión de las baterías, las capacidades de los drivers, el seguimiento de baterías sin respuesta y los detalles de ejecución de los precios dinámicos. La integración redacta los campos sensibles de conexión y los identificadores conocidos.</p>
+<p><strong>Cómo descargarlo:</strong></p>
 <ol>
-<li>Ve a <strong>Configuración → Dispositivos y servicios → Omnibattery</strong>.</li>
-<li>Selecciona el dispositivo <strong>Omnibattery System</strong>.</li>
-<li>Busca el sensor <strong>Resumen de Configuración</strong> (está oculto por defecto) y actívalo.</li>
-<li>Abre la tarjeta de detalle del sensor y comparte sus atributos (estado + atributos).</li>
+<li>Ve a <strong>Configuración → Dispositivos y servicios</strong>.</li>
+<li>Abre la integración <strong>Omnibattery</strong> y su entrada de configuración.</li>
+<li>Pulsa <strong>Descargar diagnósticos</strong>.</li>
+<li>Adjunta el archivo JSON resultante al caso de soporte.</li>
 </ol>
-<p>El sensor es de solo lectura y diagnóstico. No afecta al comportamiento de la integración de ninguna manera.</p>
+<p>Revisa el archivo antes de compartirlo y elimina cualquier dato específico de tu instalación que no quieras revelar.</p>
 <hr />
 <h2 id="registros-de-depuracion">Registros de depuración<a class="headerlink" href="#registros-de-depuracion" title="Permanent link">&para;</a></h2>
 <p>Activa el nivel de log <code>debug</code> para la integración pulsando en "Activar registro de depuración" en la configuración de la integración. Una vez que lo hayas ejecutado durante el tiempo apropiado, desactívalo para no llenar los logs, y se creará un archivo de log con la información de depuración.</p>

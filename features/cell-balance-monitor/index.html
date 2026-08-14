@@ -812,6 +812,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Three-phase current protection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -828,10 +856,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -849,8 +877,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1014,7 +1042,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1114,10 +1142,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1135,8 +1163,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1836,10 +1864,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#soc-recalibration-on-a-stuck-top-voltage" class="md-nav__link">
+  <a href="#soc-recalibration-on-a-stuck-top-voltage-venus-e" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SOC recalibration on a stuck top voltage
+        SOC recalibration on a stuck top voltage (Venus E)
       
     </span>
   </a>
@@ -1852,30 +1880,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#active-balance-mode" class="md-nav__link">
+  <a href="#optional-active-balance-blueprint" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Active balance mode
+        Optional active-balance blueprint
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Active balance mode">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#active-balance-profile" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Active balance profile
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2552,10 +2563,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#soc-recalibration-on-a-stuck-top-voltage" class="md-nav__link">
+  <a href="#soc-recalibration-on-a-stuck-top-voltage-venus-e" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SOC recalibration on a stuck top voltage
+        SOC recalibration on a stuck top voltage (Venus E)
       
     </span>
   </a>
@@ -2568,30 +2579,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#active-balance-mode" class="md-nav__link">
+  <a href="#optional-active-balance-blueprint" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Active balance mode
+        Optional active-balance blueprint
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Active balance mode">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#active-balance-profile" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Active balance profile
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2752,14 +2746,19 @@
 <p>So balancing on LFP is only effective in a narrow window: roughly the last 1 – 3 % of charge, above 3.45 V. Outside that window the BMS is essentially blind to imbalance, and any time the pack spends below the knee is time the cells are <em>not</em> getting balanced.</p>
 <h2 id="availability">Availability<a class="headerlink" href="#availability" title="Permanent link">&para;</a></h2>
 <p>The cell balance monitor is always active. There is no separate configuration option because the readings are useful battery health data and do not change normal operation by themselves.</p>
-<p>There are two related controls that decide when the battery is taken to the top-voltage measurement window:</p>
+<p>There is one integrated control that decides when the battery is taken to the top-voltage measurement window:</p>
 <ul>
 <li><strong>100% charge voltage taper</strong>: per battery option. When the charge target is 100%, the integration slows the final charge and records a top-voltage balance reading.</li>
-<li><strong>Active balance mode</strong>: per battery switch. When enabled, the integration actively cycles that battery at the top until the measured cell delta is low enough.</li>
 </ul>
 <p>The weekly full charge feature can temporarily set the battery max SOC to 100%. Once it does that, the same 100% charge voltage taper rules are used.</p>
+<p>Venus A/D batteries with coupled packs are the exception to the top-voltage
+stop: they still reduce charge to 200 W from 3.48 V, but reaching 3.60 V does
+not stop the integration or start the 60-second measurement. The reduced
+charge continues until the BMS confirms its cutoff, so the first full pack
+cannot prevent the remaining coupled packs from filling.</p>
+<p>For active recovery of a pack with a persistent imbalance, use the optional <a href="../../blueprints/#active-cell-balancing-for-one-marstek-battery">Marstek active-balance blueprint</a>. The blueprint is an external Home Assistant automation: it takes one battery through <strong>Battery Manual Mode</strong>, discovers the standard entities from the selected Omnibattery device (with manual ID overrides for renamed entities), and leaves manual ownership asserted if cleanup cannot be confirmed.</p>
 <h2 id="100-charge-voltage-taper">100% charge voltage taper<a class="headerlink" href="#100-charge-voltage-taper" title="Permanent link">&para;</a></h2>
-<p>This path is used whenever the <strong>100% charge voltage taper</strong> option is enabled for a battery (and active balance mode is not running). It is voltage-driven: it engages once <code>max_cell_voltage</code> reaches the thresholds below, regardless of the configured <code>max_soc</code>. In practice that happens when:</p>
+<p>This path is used whenever the <strong>100% charge voltage taper</strong> option is enabled for a battery. It is voltage-driven: it engages once <code>max_cell_voltage</code> reaches the thresholds below, regardless of the configured <code>max_soc</code>. In practice that happens when:</p>
 <ul>
 <li>the user configured that battery with <code>max_soc = 100</code>, or</li>
 <li>the weekly full charge temporarily raised the battery to 100%, or</li>
@@ -2775,10 +2774,15 @@
     D --&gt; E(Charge with 200 W)
     E --&gt; F{max_cell_voltage &lt; 3.60 V}
     F --&gt;|Yes| D
-    F --&gt;|No| G([Stop charge and latch])
+    F --&gt;|No, Venus E| G([Stop charge and latch])
     G --&gt; H(Stay stopped until charge hysteresis releases)
     G --&gt; I(Wait 60s)
-    I --&gt; J("Record cell_delta = (cell_Vmax - cell_Vmin) * 1000")</code></pre>
+    I --&gt; J("Record cell_delta = (cell_Vmax - cell_Vmin) * 1000")
+    F --&gt;|No, Venus A/D| K([Continue at 200 W])
+    K --&gt; L{BMS cutoff confirmed?}
+    L --&gt;|No| K
+    L --&gt;|Yes| M([Stop charge and wait 60s])
+    M --&gt; N("Record cell_delta = (cell_Vmax - cell_Vmin) * 1000")</code></pre>
 <table>
 <thead>
 <tr>
@@ -2796,20 +2800,34 @@
 <td>Limit charge to 200 W</td>
 </tr>
 <tr>
-<td><code>max_cell_voltage</code> reaches 3.60 V</td>
+<td><code>max_cell_voltage</code> reaches 3.60 V on Venus E</td>
 <td>The configured charge hysteresis takes ownership of the stop/recharge threshold</td>
 </tr>
 <tr>
-<td>After the 60 s wait</td>
+<td><code>max_cell_voltage</code> reaches 3.60 V on Venus A/D</td>
+<td>Keep charging at 200 W until the BMS cutoff; do not apply the integration stop</td>
+</tr>
+<tr>
+<td>After the 60 s wait on Venus E</td>
 <td>Record <code>delta_mV = (Vmax - Vmin) * 1000</code></td>
+</tr>
+<tr>
+<td>After the confirmed BMS cutoff on Venus A/D</td>
+<td>Wait 60 s without charging, then record <code>delta_mV = (Vmax - Vmin) * 1000</code></td>
 </tr>
 </tbody>
 </table>
 <p>Starting the taper is voltage based: SOC is deliberately not used to decide when tapering begins, because SOC can be less reliable near the top than the cell-voltage registers.</p>
-<p>Once the battery reaches 3.60 V, the configured charge hysteresis prevents recharging until its SOC threshold is crossed. The 60-second delta-V measurement still runs as a best-effort diagnostic; if it did not finish before completion, a one-shot snapshot is captured at completion time under phase <code>top_charge_taper_complete</code>.</p>
+<p>On Venus E, reaching 3.60 V lets the configured charge hysteresis prevent
+recharging until its SOC threshold is crossed. The 60-second delta-V
+measurement still runs as a best-effort diagnostic; if it did not finish
+before completion, a one-shot snapshot is captured at completion time under
+phase <code>top_charge_taper_complete</code>. Venus A/D skip this integration hold and
+measurement before the BMS cutoff; once the cutoff is confirmed, they wait 60
+seconds without charging and record the delta-V measurement once.</p>
 <p>In a multi-battery system, this is evaluated per battery. One battery can be limited by the taper while another continues charging normally.</p>
-<h3 id="soc-recalibration-on-a-stuck-top-voltage">SOC recalibration on a stuck top voltage<a class="headerlink" href="#soc-recalibration-on-a-stuck-top-voltage" title="Permanent link">&para;</a></h3>
-<p>Some packs reach the 3.60 V top-voltage threshold while the BMS still reports a SOC well below full (for example 60–70%). That gap can mean the BMS coulomb counter has drifted, but reaching the voltage threshold does not prove that the reported SOC is wrong.</p>
+<h3 id="soc-recalibration-on-a-stuck-top-voltage-venus-e">SOC recalibration on a stuck top voltage (Venus E)<a class="headerlink" href="#soc-recalibration-on-a-stuck-top-voltage-venus-e" title="Permanent link">&para;</a></h3>
+<p>Some Venus E packs reach the 3.60 V top-voltage threshold while the BMS still reports a SOC well below full (for example 60–70%). That gap can mean the BMS coulomb counter has drifted, but reaching the voltage threshold does not prove that the reported SOC is wrong.</p>
 <p>When this happens, holding at 3.60 V never gives the BMS a chance to finish its own top-of-charge sequence. So instead of pausing, the integration keeps charging at the 200 W tapered power until the BMS itself cuts off, <em>attempting</em> to make it recalibrate SOC.</p>
 <p>This is a best-effort attempt, not a guaranteed fix. Whether a top-of-curve cutoff actually resets the reported SOC depends on the BMS firmware: some packs snap to 100% on an over-voltage cutoff, others do not. The integration only creates the conditions for a recalibration — it cannot force the BMS to apply one.</p>
 <p>The override triggers automatically whenever <strong>all</strong> of these are true:</p>
@@ -2821,75 +2839,22 @@
 <p>It is self-limiting:</p>
 <ul>
 <li>charging continues at 200 W only (the gentle taper power), not full power;</li>
-<li>a BMS cutoff is detected when battery power collapses to ≤ 10 W and the inverter reports Standby for 5 consecutive cycles (~10 s). At that point the override latches off and normal charge hysteresis resumes; the SOC may or may not recalibrate, depending on firmware;</li>
-<li>if the SOC reads 99% or more, the condition no longer matches, so the override does not fire again;</li>
+<li>a BMS cutoff is detected when battery power collapses to ≤ 10 W and the inverter reports Standby for 5 consecutive cycles (~10 s). If that first cutoff happened above 3.60 V while SOC is still below 100%, the battery waits for the cell to relax to 3.57 V and makes one 200 W retry; when the BMS cuts again, the override latches off permanently;</li>
+<li>if SOC reaches 100% during the wait or retry, no further attempt is made;</li>
+<li>if the SOC reads 99% or more before the first cutoff, the initial condition no longer matches, so the override does not fire;</li>
 <li>the latch only re-arms after the battery leaves the top zone (<code>max_cell_voltage</code> below 3.48 V), so a later full charge can recalibrate again if needed.</li>
 </ul>
-<p>Reaching the 3.60 V threshold normally only happens on a 100% charge, so this rarely affects daily cycling at a lower <code>max_soc</code>. It does <strong>not</strong> run during the <a href="../weekly-full-charge/">weekly full charge</a> — there the normal charge hysteresis is suppressed and the BMS cutoff alone ends the cycle (see that page). It also does not run while <a href="#active-balance-mode">active balance mode</a> owns the battery — that mode takes priority.</p>
+<p>Reaching the 3.60 V threshold normally only happens on a 100% charge, so this rarely affects daily cycling at a lower <code>max_soc</code>. It does <strong>not</strong> run during the <a href="../weekly-full-charge/">weekly full charge</a> — there the normal charge hysteresis is suppressed and the BMS cutoff alone ends the cycle (see that page). Venus A/D use the BMS-owned path on every tapered 100% charge, not this SOC-recalibration retry. The optional active-balance blueprint takes ownership through Battery Manual Mode, so the normal controller naturally excludes that battery while the automation is running.</p>
 <div class="admonition note">
 <p class="admonition-title">Cell imbalance</p>
 <p>The override does not check the cell spread first. On a badly imbalanced pack the highest cell can hit the BMS over-voltage cutoff before the pack is full, so the recalibration is correct but balancing is left to later cycles. The BMS still protects each cell individually.</p>
 </div>
-<h2 id="active-balance-mode">Active balance mode<a class="headerlink" href="#active-balance-mode" title="Permanent link">&para;</a></h2>
-<p>Active balance mode is a stronger per-battery recovery mode for packs that need more time in the balancing window.</p>
-<p>When the switch is enabled, that battery is excluded from normal PD control. The rest of the batteries can continue to operate normally. The integration temporarily raises the battery charge target to 100% and commands charge directly for that battery.</p>
-<h3 id="active-balance-profile">Active balance profile<a class="headerlink" href="#active-balance-profile" title="Permanent link">&para;</a></h3>
-<pre class="mermaid"><code>flowchart TD
-    A([Active balance start]) --&gt; B(Charge with configured charge limit)
-    B --&gt; C{max_cell_voltage &lt; 3.49 V}
-    C --&gt;|Yes| A
-    C --&gt;|No| D([Regulated top charge])
-    D --&gt; E(Charge with 95 W)
-    E --&gt; F{max_cell_voltage &lt; 3.60 V}
-    F --&gt;|Yes| D
-    F --&gt;|No| G([Measurement wait])
-    G --&gt; H(Stop charge/discharge)
-    H --&gt; I(Wait 60s)
-    I --&gt; J("Measure cell_delta = (cell_Vmax - cell_Vmin) * 1000")
-    J --&gt; K{cell_delta &gt; 0.03 V}
-    K --&gt;|Yes| L(Discharge with 200 W)
-    L --&gt; M{max_cell_voltage &lt;= 3.49 V}
-    M --&gt; |Yes| D
-    M --&gt; |No| L
-    K --&gt; |No| N([Final discharge])
-    N --&gt; O(Discharge with 200 W)
-    O --&gt; P{max_cell_voltage &lt;= 3.48 V}
-    P --&gt; |No| N
-    P --&gt; |Yes| Q([Active balance stop]) </code></pre>
-<table>
-<thead>
-<tr>
-<th>Phase</th>
-<th>Action</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Before the top window</td>
-<td>Charge from the grid at the battery's configured maximum charge power until <code>max_cell_voltage &gt;= 3.49 V</code></td>
-</tr>
-<tr>
-<td>Regulated top charge</td>
-<td>Charge at 95 W until <code>max_cell_voltage &gt;= 3.60 V</code></td>
-</tr>
-<tr>
-<td>Measurement wait</td>
-<td>Stop charge/discharge, wait 60 s, then measure cell delta</td>
-</tr>
-<tr>
-<td>If <code>delta_V &gt; 0.03 V</code></td>
-<td>Discharge at 200 W until <code>max_cell_voltage &lt;= 3.49 V</code>, then charge again</td>
-</tr>
-<tr>
-<td>If <code>delta_V &lt;= 0.03 V</code></td>
-<td>Final discharge at 200 W until <code>max_cell_voltage &lt;= 3.48 V</code>, then finish and turn the switch off</td>
-</tr>
-</tbody>
-</table>
-<p>If the BMS cuts charge before <code>max_cell_voltage</code> reaches 3.60 V, the integration treats that as charge rejection. Each new charge leg first gets 10 seconds to leave Standby and accept the command; rejection then requires three consecutive no-current cycles. The cutoff is retained as a diagnostic, but it does not feed the cell-delta sensor, average or trend because it is not comparable with a top measurement after <code>WAIT_MEASURE</code>. The integration then discharges and steps the retry voltage down by 0.01 V. The lowered retry voltage is <strong>kept across charge/discharge cycles</strong>, ratcheting down another 0.01 V on each further rejection to a floor of 3.40 V, so the pack is progressively dropped until the BMS accepts charge again. The retry voltage is reset to its default only when the pack reaches the 3.60 V top, or when the run finishes.</p>
-<p>Active balance mode has no fixed 48-hour timeout. It runs until the measured top-voltage delta is at or below 0.03 V, or until the user turns the switch off.</p>
+<h2 id="optional-active-balance-blueprint">Optional active-balance blueprint<a class="headerlink" href="#optional-active-balance-blueprint" title="Permanent link">&para;</a></h2>
+<p>The <a href="../../blueprints/#active-cell-balancing-for-one-marstek-battery">Marstek active-balance blueprint</a> is the supported recovery path when passive balancing during normal or weekly charging is not enough. It is deliberately outside the integration's automatic control loop and must be configured once per battery.</p>
+<p>Its default profile is: configured maximum charge power until <code>max_cell_voltage &gt;= 3.49 V</code>, regulated charge at 95 W until 3.60 V, a 60-second rest measurement, 200 W discharge retries toward 3.49 V until <code>delta_V &lt;= 0.03 V</code>, and a final 200 W discharge to 3.48 V. If the BMS rejects a new charge leg, the blueprint waits 10 seconds and requires three approximately-zero-power samples before lowering the retry target by 0.01 V, down to 3.40 V.</p>
+<p>The automation validates every resolved entity and voltage/power relationship before writing. It sets both setpoints to 0 W before changing the force mode, temporarily writes 100% SOC, and converges every cancellation, restart or error through the same cleanup. It restores the configured SOC maximum and turns Battery Manual Mode off only after idle and SOC writes are confirmed; otherwise the switch remains ON as a safety hold.</p>
 <h2 id="why-these-voltage-thresholds">Why these voltage thresholds<a class="headerlink" href="#why-these-voltage-thresholds" title="Permanent link">&para;</a></h2>
-<p>Every voltage cutoff used by the 100 % taper and the active balance mode was picked against the LFP curve described above. None of these numbers are arbitrary.</p>
+<p>Every voltage cutoff used by the 100 % taper and the optional active-balance blueprint was picked against the LFP curve described above. None of these numbers are arbitrary.</p>
 <table>
 <thead>
 <tr>
@@ -2911,7 +2876,7 @@
 </tr>
 <tr>
 <td><strong>3.49 V</strong></td>
-<td>Discharge floor between active-balance retries; switch-over from coarse to regulated charge</td>
+<td>Blueprint discharge floor between retries; switch-over from coarse to regulated charge</td>
 <td>Sits just inside the balance window. Stopping the discharge here keeps the pack in the zone where the BMS can still see and bleed the high cell. Going lower would push the pack off the knee and waste the time already spent balancing.</td>
 </tr>
 <tr>
@@ -2921,17 +2886,17 @@
 </tr>
 <tr>
 <td><strong>3.48 V (again)</strong></td>
-<td>End-of-cycle discharge floor — the 200 W final discharge after a completed active-balance run stops here</td>
-<td>The same threshold used to enter the taper is reused to leave the balance window. Stopping at 3.48 V brings the pack just off the upper knee without dropping it back onto the deep plateau. Sitting at 3.55 – 3.60 V for long periods accelerates calendar ageing, so the integration deliberately bleeds the pack down to the lower edge of the window before releasing control.</td>
+<td>End-of-cycle discharge floor — the 200 W final discharge in the blueprint stops here</td>
+<td>The same threshold used to enter the taper is reused to leave the balance window. Stopping at 3.48 V brings the pack just off the upper knee without dropping it back onto the deep plateau. Sitting at 3.55 – 3.60 V for long periods accelerates calendar ageing, so the automation deliberately bleeds the pack down to the lower edge of the window before releasing control.</td>
 </tr>
 <tr>
 <td><strong>3.40 V</strong></td>
-<td>Lower bound for the active-balance retry voltage when charge rejection is detected</td>
-<td>The integration gives each new charge leg 10 s to engage and, if charge power has not yet been observed, then requires 3 consecutive ~0 W cycles before declaring rejection. It drops the retry voltage by 0.01 V, but never below 3.40 V. Going further down exits the balance window entirely and forces a long, wasteful re-climb up the curve.</td>
+<td>Lower bound for the blueprint retry voltage when charge rejection is detected</td>
+<td>The automation gives each new charge leg 10 s to engage and, if charge power has not yet been observed, then requires 3 consecutive ~0 W cycles before declaring rejection. It drops the retry voltage by 0.01 V, but never below 3.40 V. Going further down exits the balance window entirely and forces a long, wasteful re-climb up the curve.</td>
 </tr>
 <tr>
 <td><strong>0.03 V (30 mV)</strong></td>
-<td>Active-balance completion threshold</td>
+<td>Blueprint completion threshold</td>
 <td>Considered "balanced enough" for an LFP pack at the top of the knee. Pushing for tighter values (10 mV or less) is rarely productive because passive balancing currents are tiny — see the next section.</td>
 </tr>
 <tr>
@@ -2941,7 +2906,7 @@
 </tr>
 </tbody>
 </table>
-<p>The normal taper uses 200 W so the cell voltage remains excited enough to advance through the top zone without returning to full power. Active balance uses a gentler 95 W charge leg. Measurements are always taken at <strong>rest</strong> after charge and discharge stop for 60 seconds, so neither charge power contaminates the recorded delta.</p>
+<p>The normal taper uses 200 W so the cell voltage remains excited enough to advance through the top zone without returning to full power. The optional blueprint uses a gentler 95 W charge leg. Measurements are always taken at <strong>rest</strong> after charge and discharge stop for 60 seconds, so neither charge power contaminates the recorded delta.</p>
 <h2 id="why-this-takes-so-long">Why this takes so long<a class="headerlink" href="#why-this-takes-so-long" title="Permanent link">&para;</a></h2>
 <p>Cell balancing is <strong>not</strong> a fast process — and Marstek Venus packs are no exception. There are two reasons.</p>
 <p><strong>1. Passive balancing current is small.</strong> A typical LFP BMS bleeds the highest cell through a balance resistor at somewhere between 30 mA and 150 mA. The Marstek Venus packs sit at the low end of that range. For a 100 Ah cell, a 50 mA bleed removes only about 0.05 % SOC per hour from the high cell. Equalising even small SOC differences between cells therefore requires many hours of continuous time in the balance window.</p>
@@ -2951,13 +2916,13 @@
 <p><strong>Reducing the top-of-charge cell delta by roughly 5 mV typically takes around 24 hours of cumulative time at the top of the balance window.</strong></p>
 </blockquote>
 <p>That figure is consistent both with the bleed-current arithmetic above and with observations on real Venus packs. Bigger imbalances (50 mV or more) can take <strong>multiple days</strong> of repeated top-balance sessions before the delta starts dropping consistently. Packs that have been left chronically unbalanced for months may take a week or more to recover.</p>
-<p>This is also why active balance mode does not have a "fast" path:</p>
+<p>This is also why the active-balance blueprint does not have a "fast" path:</p>
 <ul>
 <li>the 95 W charge cap above 3.48 V is set so the pack stays in the knee long enough for the BMS to make progress, rather than ramming through it in seconds;</li>
 <li>the 200 W discharge between retries brings the pack back down to the retry voltage without dropping out of the window;</li>
-<li>the active-balance loop is allowed to run indefinitely, because anything short of "many hours" is unlikely to move the needle.</li>
+<li>the automation is allowed to run indefinitely, because anything short of "many hours" is unlikely to move the needle.</li>
 </ul>
-<p>If the goal is to restore a noticeably unbalanced pack, the right approach is to enable active balance mode and <strong>leave it running overnight (or longer) and check the result the next day</strong>. Watching the cell delta in real time and expecting movement within minutes will only cause frustration.</p>
+<p>If the goal is to restore a noticeably unbalanced pack, import the blueprint, create one automation for that battery and <strong>leave it running overnight (or longer) before checking the result</strong>. Watching the cell delta in real time and expecting movement within minutes will only cause frustration.</p>
 <h2 id="how-imbalance-is-measured">How imbalance is measured<a class="headerlink" href="#how-imbalance-is-measured" title="Permanent link">&para;</a></h2>
 <p>The only reading that feeds the balance status, alerts and trend is the explicit top-voltage measurement:</p>
 <ol>
@@ -3021,10 +2986,6 @@
 <tr>
 <td>Rising trend with average above 75 mV</td>
 <td>Rising imbalance trend - <code>{battery name}</code></td>
-</tr>
-<tr>
-<td>Active balance mode start/finish</td>
-<td>Active balancing started/finished - <code>{battery name}</code></td>
 </tr>
 </tbody>
 </table>
@@ -3098,8 +3059,12 @@
 <td>Whether the 200 W normal-charge taper is currently active</td>
 </tr>
 <tr>
-<td><code>active_balance_phase</code></td>
-<td>Current 100% top-measurement phase, if any</td>
+<td><code>bms_cutoff_charge_active</code></td>
+<td>Whether Venus A/D are being kept charge-eligible until their BMS cutoff</td>
+</tr>
+<tr>
+<td><code>bms_cutoff_measurement</code></td>
+<td>Venus A/D post-cutoff measurement state: <code>pending</code> or <code>done</code></td>
 </tr>
 <tr>
 <td><code>soc_recal_active</code></td>
@@ -3110,12 +3075,24 @@
 <td>Whether the BMS cutoff has been reached during recalibration (override latched off)</td>
 </tr>
 <tr>
+<td><code>soc_recal_retry_pending</code></td>
+<td>Whether the battery is waiting for 3.57 V before the one-shot retry</td>
+</tr>
+<tr>
+<td><code>soc_recal_retry_active</code></td>
+<td>Whether the one-shot 200 W retry is in progress</td>
+</tr>
+<tr>
+<td><code>soc_recal_first_cutoff_voltage</code></td>
+<td>Highest voltage observed during the first BMS cutoff</td>
+</tr>
+<tr>
 <td><code>charge_limit_w</code></td>
 <td>Effective per-battery charge limit before allocation</td>
 </tr>
 </tbody>
 </table>
-<p>Active balance mode also exposes its current phase, measured delta, command power and retry voltage through the integration status diagnostics.</p>
+<p>The blueprint's phase, retry voltage and cleanup result are reported in its persistent notifications; they are not integration status attributes. Each settled rest measurement is also recorded in the existing <code>Cell Delta</code> history with <code>source: blueprint</code>, using the integration's own coordinator telemetry.</p>
 <div class="admonition info">
 <p class="admonition-title">Info</p>
 <p>Cell voltage registers (<code>max_cell_voltage</code>, <code>min_cell_voltage</code>) are read from all supported battery versions (v2, v3, vA, vD).</p>

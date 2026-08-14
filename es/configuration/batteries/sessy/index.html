@@ -811,6 +811,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../../three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protección de corriente trifásica
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -832,10 +860,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="">
             
   
   
@@ -853,8 +881,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1062,6 +1090,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Límites y capacidad">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#control-manual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control manual
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -1087,7 +1132,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1190,10 +1235,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="">
             
   
   
@@ -1211,8 +1256,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2355,6 +2400,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Límites y capacidad">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#control-manual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control manual
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -2438,6 +2500,11 @@ backup offgrid. El SOC mínimo predeterminado es <code>5 %</code> y el máximo <
 <p>Sessy no ofrece la reducción de carga por tensión de celdas de Marstek. Consulta
 la <a href="../">configuración de baterías</a> para los controles comunes en tiempo de
 ejecución y los límites de potencia del sistema.</p>
+<h3 id="control-manual">Control manual<a class="headerlink" href="#control-manual" title="Permanent link">&para;</a></h3>
+<p>La API de Sessy expone una consigna de potencia neta, no registros de modo
+forzado como Marstek. Usa <code>Modo forzado</code> y los controles de potencia de software
+con <strong>Control Manual de Batería</strong> activado; Omnibattery reaplica las consignas
+distintas de reposo mediante la API local mientras esa propiedad esté activa.</p>
 
 
 
@@ -2492,13 +2559,13 @@ ejecución y los límites de potencia del sistema.</p>
         
         
           
-          <a href="../hoymiles/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Hoymiles MS-A2">
+          <a href="../hoymiles/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Hoymiles MQTT">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Siguiente
               </span>
               <div class="md-ellipsis">
-                Hoymiles MS-A2
+                Hoymiles MQTT
               </div>
             </div>
             <div class="md-footer__button md-icon">

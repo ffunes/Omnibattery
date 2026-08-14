@@ -810,6 +810,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Three-phase current protection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -826,10 +854,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -847,8 +875,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1012,7 +1040,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1112,10 +1140,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1133,8 +1161,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2059,6 +2087,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#manual-control-per-battery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual control per battery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#unified-blocker-registry" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2503,6 +2542,17 @@
     <span class="md-ellipsis">
       
         Per-battery charge/discharge controls
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manual-control-per-battery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual control per battery
       
     </span>
   </a>
@@ -3082,6 +3132,10 @@
 </table>
 <p>These switches do not write Modbus control registers directly. They only affect the integration's automatic PD controller. If a battery is active in the disabled direction, the integration sends that battery to <code>0 W</code> and the next control cycle reallocates power to the remaining eligible batteries.</p>
 <p>The state is stored per battery as <code>allow_charge</code> and <code>allow_discharge</code>. Missing values default to enabled, so existing installations keep their previous behavior after updating.</p>
+<h2 id="manual-control-per-battery">Manual control per battery<a class="headerlink" href="#manual-control-per-battery" title="Permanent link">&para;</a></h2>
+<p>Each battery also exposes <code>switch.*_battery_manual_mode</code>. When enabled, Omnibattery first sends and verifies a <code>0 W</code> command, clears the integration's software force mode and power setpoints, and removes that battery from the automatic pool. The switch state is persisted per battery, so the exclusion survives a restart. The battery continues to be polled and remains included in physical battery/grid telemetry, but it receives no automatic power setpoints; driver and BMS safety handling remains active.</p>
+<p>Turning the switch off keeps the battery under manual ownership while the final idle command is verified. Only then is it returned to the automatic pool and an immediate control cycle scheduled. If the idle handoff fails, the switch stays enabled and the battery remains manual.</p>
+<p>This control is independent from the global <code>Manual Mode</code> switch. For example, with two batteries, battery A can be left in manual mode at a user-selected power while battery B remains automatic. If B is already charging, the PD controller includes A's measured AC grid charge so B reduces its own charge and the meter remains at zero. Once the automatic batteries are no longer charging, A's intentional grid charge is excluded from feedback so B does not discharge to compensate it. DC-coupled solar power is not included when the driver exposes a separate AC-power reading.</p>
 <h2 id="unified-blocker-registry">Unified blocker registry<a class="headerlink" href="#unified-blocker-registry" title="Permanent link">&para;</a></h2>
 <p>Charge and discharge permissions are resolved through a runtime blocker registry. Blockers can be system-wide or scoped to one battery. The controller checks this registry before deadband and stale-sensor early returns, so an active command is stopped as soon as a blocker appears.</p>
 <p>Global blockers include solar charge delay, time-slot charge/discharge rules, price-based discharge control, and EV charger no-telemetry pauses. Per-battery blockers include the <code>Allow Charge</code> and <code>Allow Discharge</code> switches, maximum SOC, minimum SOC, and charge hysteresis. Other availability checks such as backup/off-grid exclusion and non-responsive exclusion remain separate from the blocker registry.</p>

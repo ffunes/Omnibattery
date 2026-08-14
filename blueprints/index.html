@@ -810,6 +810,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Three-phase current protection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -826,10 +854,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -847,8 +875,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1012,7 +1040,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1112,10 +1140,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1133,8 +1161,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1837,6 +1865,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#active-cell-balancing-for-one-marstek-battery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Active cell balancing for one Marstek battery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#central-status-webhook-reporter" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2382,6 +2421,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#active-cell-balancing-for-one-marstek-battery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Active cell balancing for one Marstek battery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#central-status-webhook-reporter" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2486,6 +2536,12 @@
 <h1 id="blueprints">Blueprints<a class="headerlink" href="#blueprints" title="Permanent link">&para;</a></h1>
 <p>Blueprints are optional Home Assistant automations that complement Omnibattery. They are not part of the integration configuration and do not change its code. Import one from <strong>Settings → Automations &amp; scenes → Blueprints</strong> using its link below, then create an automation from it.</p>
 <p>For manual installation, copy the YAML file to <code>/config/blueprints/automation/omnibattery/</code> and reload blueprints. See <a href="../installation/#blueprint-installation">Installation</a> for the general steps.</p>
+<h2 id="active-cell-balancing-for-one-marstek-battery">Active cell balancing for one Marstek battery<a class="headerlink" href="#active-cell-balancing-for-one-marstek-battery" title="Permanent link">&para;</a></h2>
+<p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/marstek_active_balance_blueprint.yaml">Import blueprint</a></p>
+<p>Runs the active cell-balancing profile for exactly one Marstek battery. Create one persistent <code>input_boolean</code> and one automation per battery, then select that battery's Omnibattery device. The blueprint discovers the standard telemetry and control entities from the device automatically, including the <code>charging_cutoff_capacity</code> number used as the maximum-SOC limit. Optional advanced entity-ID overrides remain available for installations where an entity was renamed. The automation uses the per-battery <strong>Battery Manual Mode</strong> switch as its ownership boundary, so Omnibattery's automatic controller and other manual automations cannot write competing setpoints while the run is active.</p>
+<p>The blueprint uses only Home Assistant entities; it does not access Modbus. It validates telemetry, force-mode options, voltage ordering and number limits before taking control. Its defaults are 3.49 V → 3.60 V, 95 W top charge, 200 W discharge, 60 s rest, a 30 mV target and a 3.40 V adaptive retry floor. The <code>force_mode</code> options are named <strong>None</strong>, <strong>Charge</strong> and <strong>Discharge</strong>; old lowercase ESPHome entities remain supported during migration.</p>
+<p>Turn the request helper ON to start or resume after a restart and OFF to cancel. The only helper you create is this persistent <code>input_boolean</code>; the blueprint does not require a new switch or sensor. Its notification baseline comes from the integration's persisted <code>Cell Delta</code> value, which represents the last formal 100%/OCV reading rather than instantaneous cell telemetry. Every exit attempts to write 0 W in both directions, restore the normal SOC maximum and release Battery Manual Mode. If any safety confirmation fails, the switch is deliberately left ON so the battery can be inspected before another automation is allowed to control it.</p>
+<p>After each settled 60-second measurement the blueprint fires the public <code>omnibattery_balance_measurement_ready</code> event with the selected device and a measurement ID. Omnibattery resolves the device, reads the cell voltages from its own coordinator and records the result in the existing <code>Cell Delta</code> history with <code>source: blueprint</code>. The event is read-only and does not grant the integration control of the battery.</p>
 <h2 id="central-status-webhook-reporter">Central status webhook reporter<a class="headerlink" href="#central-status-webhook-reporter" title="Permanent link">&para;</a></h2>
 <p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/central_status_webhook_reporter_blueprint.yaml">Import blueprint</a></p>
 <p>Reports selected Omnibattery and Home Assistant sensors from each installation to a central HTTP endpoint. This is useful for a single dashboard covering several homes or batteries.</p>

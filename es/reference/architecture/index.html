@@ -810,6 +810,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../configuration/three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protección de corriente trifásica
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -826,10 +854,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
         
           
-          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
             
   
   
@@ -847,8 +875,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1012,7 +1040,7 @@
   <span class="md-ellipsis">
     
   
-    Hoymiles MS-A2
+    Hoymiles MQTT
   
 
     
@@ -1112,10 +1140,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
-          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
             
   
   
@@ -1133,8 +1161,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_6">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2632,11 +2660,6 @@ subpaquetes por responsabilidad.</p>
 <td>Estado de carga semanal completa, persistencia y orquestación de escritura de registros</td>
 </tr>
 <tr>
-<td><code>control/active_balance_mode.py</code></td>
-<td>—</td>
-<td>Medición de balance activo de celdas</td>
-</tr>
-<tr>
 <td><code>tracking/consumption_tracker.py</code></td>
 <td><code>ConsumptionTracker</code></td>
 <td>Historial de consumo, acumuladores de energía diaria, detección de tiempos solares, backfill del recorder, captura diaria</td>
@@ -2720,6 +2743,13 @@ registro ni rutas HTTP se filtren a la capa de control.</p>
 <p><code>apply_setpoint</code> devuelve un <code>SetpointResult</code> que lleva la potencia aplicada, si
 la escritura se confirmó por readback, la potencia entregada medida y un eco del
 estado nativo de la marca que el coordinador fusiona en <code>coordinator.data</code>.</p>
+<p>La propiedad manual individual se coordina por encima del driver. Durante la
+transición el controlador verifica una consigna de reposo (<code>0 W</code>) y después
+excluye la batería de las asignaciones automáticas. Los drivers sin registros de
+modo forzado/consigna (por ejemplo Zendure y Anker) reciben su consigna manual
+persistida de carga/descarga mediante <code>apply_setpoint</code> en cada ciclo de control;
+una selección manual de reposo (<code>None</code>) no se reafirma deliberadamente, para no
+entrar en conflicto con el modo elegido en la aplicación del equipo.</p>
 <h3 id="las-capacidades-reemplazan-a-los-checks-de-version">Las capacidades reemplazan a los checks de versión<a class="headerlink" href="#las-capacidades-reemplazan-a-los-checks-de-version" title="Permanent link">&para;</a></h3>
 <p>Cada driver reporta un <code>DriverCapabilities</code> inmutable una vez; los llamadores lo
 consultan en lugar de codificar <code>if battery_version in (...)</code>. Las capas de
