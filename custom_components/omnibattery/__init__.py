@@ -258,7 +258,21 @@ def _excluded_devices_panel_config(data: dict, ent_reg) -> list[dict]:
         )
         devices.append(
             {
+                "name": device.get("name"),
                 "power_sensor": device.get("power_sensor"),
+                "activity_sensor": device.get("activity_sensor"),
+                "ev_charger_no_telemetry": device.get(
+                    "ev_charger_no_telemetry", False
+                ),
+                "allow_solar_surplus": device.get(
+                    "allow_solar_surplus", False
+                ),
+                "dynamic_power_control": device.get(
+                    "dynamic_power_control", False
+                ),
+                "cover_home_when_active": device.get(
+                    "cover_home_when_active", False
+                ),
                 "included_in_consumption": device.get(
                     "included_in_consumption", True
                 ),

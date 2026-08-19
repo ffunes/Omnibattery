@@ -28,7 +28,13 @@ def test_excluded_devices_panel_config_survives_disabled_switch():
 
     assert _excluded_devices_panel_config(data, _EntityRegistry({})) == [
         {
+            "name": None,
             "power_sensor": "sensor.wallbox_power",
+            "activity_sensor": None,
+            "ev_charger_no_telemetry": False,
+            "allow_solar_surplus": False,
+            "dynamic_power_control": False,
+            "cover_home_when_active": False,
             "included_in_consumption": False,
             "enabled": True,
             "enabled_entity": None,
@@ -48,7 +54,13 @@ def test_excluded_devices_panel_config_resolves_live_switch_entity():
 
     assert result == [
         {
+            "name": None,
             "power_sensor": "sensor.wallbox_power",
+            "activity_sensor": None,
+            "ev_charger_no_telemetry": False,
+            "allow_solar_surplus": False,
+            "dynamic_power_control": False,
+            "cover_home_when_active": False,
             "included_in_consumption": True,
             "enabled": True,
             "enabled_entity": entity_id,

@@ -49,7 +49,7 @@ const I18N = {
     cardFlow: "Energy flow", cardSoc: "System status", cardDaily: "Energy today",
     cardWeekly: "Weekly energy", cardPower: "Power", cardSocToday: "SOC · today",
     grid: "Grid", solar: "Solar", home: "Home", battery: "Battery",
-    excludedDevices: "Excluded devices",
+    excludedDevices: "Excluded devices", evse: "EVSE", evCharger: "EV charger", evsePause: "EV pause",
     importing: "Importing", exporting: "Exporting",
     charging: "Charging", discharging: "Discharging", idle: "Idle",
     selfConsumptionSuffix: "% self-consumption", units: "units",
@@ -120,7 +120,7 @@ const I18N = {
     cardFlow: "Flujo de energía", cardSoc: "Estado del sistema", cardDaily: "Energía hoy",
     cardWeekly: "Energía semanal", cardPower: "Potencias", cardSocToday: "SOC · hoy",
     grid: "Red", solar: "Solar", home: "Casa", battery: "Batería",
-    excludedDevices: "Disp. excluidos",
+    excludedDevices: "Disp. excluidos", evse: "Cargador VE", evCharger: "Cargador VE", evsePause: "Pausa VE",
     importing: "Importando", exporting: "Exportando",
     charging: "Cargando", discharging: "Descargando", idle: "Reposo",
     selfConsumptionSuffix: "% autoconsumo", units: "uds",
@@ -191,7 +191,7 @@ const I18N = {
     cardFlow: "Flux d'energia", cardSoc: "Estat del sistema", cardDaily: "Energia avui",
     cardWeekly: "Energia setmanal", cardPower: "Potències", cardSocToday: "SOC · avui",
     grid: "Xarxa", solar: "Solar", home: "Casa", battery: "Bateria",
-    excludedDevices: "Disp. exclosos",
+    excludedDevices: "Disp. exclosos", evse: "Carregador VE", evCharger: "Carregador VE", evsePause: "Pausa VE",
     importing: "Important", exporting: "Exportant",
     charging: "Carregant", discharging: "Descarregant", idle: "Repòs",
     selfConsumptionSuffix: "% autoconsum", units: "uts",
@@ -258,7 +258,7 @@ const I18N = {
     cardFlow: "Energiefluss", cardSoc: "Systemstatus", cardDaily: "Energie heute",
     cardWeekly: "Wochenenergie", cardPower: "Leistung", cardSocToday: "SOC · heute",
     grid: "Netz", solar: "Solar", home: "Haus", battery: "Batterie",
-    excludedDevices: "Ausgeschl. Geräte",
+    excludedDevices: "Ausgeschl. Geräte", evse: "EV-Ladestation", evCharger: "EV-Ladestation", evsePause: "EV-Pause",
     importing: "Bezug", exporting: "Einspeisung",
     charging: "Laden", discharging: "Entladen", idle: "Bereit",
     selfConsumptionSuffix: "% Eigenverbrauch", units: "Einh.",
@@ -325,7 +325,7 @@ const I18N = {
     cardFlow: "Flux d'énergie", cardSoc: "État du système", cardDaily: "Énergie aujourd'hui",
     cardWeekly: "Énergie hebdomadaire", cardPower: "Puissances", cardSocToday: "SOC · aujourd'hui",
     grid: "Réseau", solar: "Solaire", home: "Maison", battery: "Batterie",
-    excludedDevices: "Appareils exclus",
+    excludedDevices: "Appareils exclus", evse: "Borne de recharge", evCharger: "Borne de recharge", evsePause: "Pause VE",
     importing: "Importation", exporting: "Exportation",
     charging: "Charge", discharging: "Décharge", idle: "Repos",
     selfConsumptionSuffix: "% autoconsommation", units: "unités",
@@ -392,7 +392,7 @@ const I18N = {
     cardFlow: "Energiestroom", cardSoc: "Systeemstatus", cardDaily: "Energie vandaag",
     cardWeekly: "Energie per week", cardPower: "Vermogen", cardSocToday: "SOC · vandaag",
     grid: "Net", solar: "Zon", home: "Huis", battery: "Batterij",
-    excludedDevices: "Uitgesloten app.",
+    excludedDevices: "Uitgesloten app.", evse: "Laadpaal", evCharger: "Laadpaal", evsePause: "EV-pauze",
     importing: "Invoer", exporting: "Teruglevering",
     charging: "Laden", discharging: "Ontladen", idle: "Rust",
     selfConsumptionSuffix: "% zelfconsumptie", units: "stuks",
@@ -550,6 +550,9 @@ const DIAG_ROWS = [
 const DELTA_MV_YELLOW = 200;
 const DELTA_MV_ORANGE = 230;
 const DELTA_MV_RED = 250;
+
+// Substrings matching active EV charging state across languages
+const CHARGING_SUBSTRINGS = ["charg", "cargand", "carreg", "laden", "caricand", "carica", "ladd", "lading"];
 
 // Per-battery control entities, matched by translation_key. A control is only
 // rendered when its entity is enabled (has a live state); most default to
@@ -1399,10 +1402,10 @@ class MarstekVenusPanel extends HTMLElement {
     const u = (stateObj.attributes.unit_of_measurement || "").toLowerCase();
     return u === "kw" ? n * 1000 : n;
   }
-  /** Sum live power (W) of every enabled excluded device. Configuration comes
-   *  from the panel payload so disabling a control entity cannot remove a load
-   *  from the diagram. A loaded Enabled switch overrides the persisted value,
-   *  preserving live toggles. */
+  /** Sum live power (W) and extract EVSE status of every enabled excluded device.
+   *  Configuration comes from the panel payload so disabling a control entity
+   *  cannot remove a load from the diagram. A loaded Enabled switch overrides
+   *  the persisted value, preserving live toggles. */
   _excludedPowerW() {
     const hass = this._hass;
     let devices = this._panelConfig.excluded_devices;
@@ -1416,12 +1419,22 @@ class MarstekVenusPanel extends HTMLElement {
         .map((state) => ({
           enabled: state.state === "on",
           power_sensor: (state.attributes || {}).power_sensor,
+          activity_sensor: (state.attributes || {}).activity_sensor,
           included_in_consumption: (state.attributes || {}).included_in_consumption,
         }));
     }
-    if (!devices.length) return null;
+    if (!devices || !devices.length) return null;
     let total = null;
     let included = 0; // portion the home sensor already counts (subtract from Home)
+    let evseTotal = null;
+    let hasEvse = false;
+    let evseActive = false;
+    let evseState = null;
+    let evseEntityId = null;
+    let evseName = null;
+    let evseBadge = null;
+    let evseNoTelemetry = false;
+
     for (const device of devices) {
       let enabled = device.enabled !== false;
       const enabledState = device.enabled_entity
@@ -1430,21 +1443,71 @@ class MarstekVenusPanel extends HTMLElement {
       if (enabledState && enabledState.state === "on") enabled = true;
       else if (enabledState && enabledState.state === "off") enabled = false;
       if (!enabled) continue;
+
       const sid = device.power_sensor;
-      if (!sid) continue; // EV-no-telemetry has no power sensor
-      const w = this._watts(hass.states[sid]);
-      if (w == null) continue;
-      total = (total || 0) + w;
-      // Only devices the home sensor already includes (included_in_consumption
-      // !== false) may be subtracted from the Home node. "Additional" devices
-      // are not in the home sensor, so subtracting them would wrongly drive
-      // Home toward 0. Subtract the FULL draw: the excluded-devices node shows
-      // the device's full demand, so Home must be total − D for the flow to
-      // balance. The exclusion % only changes the supply mix (battery covers
-      // more, shown as a larger Battery flow) — not the demand-node magnitudes.
-      if (device.included_in_consumption !== false) included += w;
+      const actSid = device.activity_sensor;
+      const powerStateObj = sid ? hass.states[sid] : null;
+      const actStateObj = actSid ? hass.states[actSid] : null;
+      const w = this._watts(powerStateObj);
+
+      // Detect if device is an EVSE
+      const isEvseDevice = Boolean(
+        device.ev_charger_no_telemetry ||
+        (device.name && /(ev|evse|charg|wallbox|laadpaal|cargador|borne|auto|car|fahrzeug|vehic)/i.test(device.name)) ||
+        (sid && /(ev|evse|charg|wallbox|laadpaal|cargador|borne|easee|zaptec|go_e|alfen|ocpp|tesla|warp|open_evse|openevse|myenergi|zappi|pulsar)/i.test(sid)) ||
+        (actSid && /(ev|evse|charg|wallbox|laadpaal|cargador|borne|easee|zaptec|go_e|alfen|ocpp|tesla|warp|open_evse|openevse|myenergi|zappi|pulsar)/i.test(actSid))
+      );
+
+      if (w != null) {
+        total = (total || 0) + w;
+        if (device.included_in_consumption !== false) included += w;
+      }
+
+      if (isEvseDevice) {
+        hasEvse = true;
+        if (!evseEntityId) {
+          evseEntityId = sid || actSid;
+          evseName = device.name || null;
+        }
+        if (w != null) {
+          evseTotal = (evseTotal || 0) + w;
+          if (w > 30) evseActive = true;
+        }
+        if (device.ev_charger_no_telemetry) {
+          evseNoTelemetry = true;
+          const sObj = actStateObj || powerStateObj;
+          if (sObj && sObj.state && sObj.state !== "unknown" && sObj.state !== "unavailable") {
+            const st = String(sObj.state).toLowerCase().trim();
+            const isChg = st === "on" || st === "true" || st === "1" || CHARGING_SUBSTRINGS.some((sub) => st.includes(sub));
+            if (isChg) {
+              evseActive = true;
+              evseState = sObj.state;
+            }
+          }
+        }
+        if (device.allow_solar_surplus) {
+          evseBadge = this._t("itemSolarSurplus");
+        } else if (device.dynamic_power_control) {
+          evseBadge = this._t("itemDynamicPowerControl");
+        }
+      } else if (!evseEntityId && (sid || actSid)) {
+        evseEntityId = sid || actSid;
+      }
     }
-    return total == null ? null : { total, included };
+
+    if (total == null && !hasEvse) return null;
+    return {
+      total,
+      included,
+      evseTotal,
+      hasEvse,
+      evseActive,
+      evseState,
+      evseEntityId,
+      evseName,
+      evseBadge,
+      evseNoTelemetry,
+    };
   }
 
   // --- model builder ---------------------------------------------------------
@@ -1601,17 +1664,24 @@ class MarstekVenusPanel extends HTMLElement {
     else if (grid != null) home = Math.max(0, grid - battery + solar);
     else home = 0;
 
-    // excluded devices: summed power of all enabled excluded loads (kW). null
-    // when none expose a power sensor — the flow node is hidden in that case.
-    const excludedW = this._excludedPowerW();
-    const hasExcluded = excludedW != null;
-    const excluded = hasExcluded ? excludedW.total / 1000 : null;
+    // excluded devices / EVSE: summed power of all enabled excluded loads (kW).
+    const excludedInfo = this._excludedPowerW();
+    const hasExcluded = excludedInfo != null && (excludedInfo.total != null || excludedInfo.hasEvse);
+    const excluded = hasExcluded && excludedInfo.total != null ? excludedInfo.total / 1000 : null;
+    const hasEvse = Boolean(excludedInfo && excludedInfo.hasEvse);
+    const evse = hasEvse && excludedInfo.evseTotal != null ? excludedInfo.evseTotal / 1000 : null;
+    const evseActive = Boolean(excludedInfo && excludedInfo.evseActive);
+    const evseState = excludedInfo ? excludedInfo.evseState : null;
+    const evseEntityId = excludedInfo ? excludedInfo.evseEntityId : null;
+    const evseName = excludedInfo ? excludedInfo.evseName : null;
+    const evseBadge = excludedInfo ? excludedInfo.evseBadge : null;
+    const evseNoTelemetry = Boolean(excludedInfo && excludedInfo.evseNoTelemetry);
 
     // Subtract from the Home node only the excluded devices the home sensor
     // already counts (included_in_consumption). They are drawn as their own
     // node, so subtracting avoids double-counting. "Additional" devices are not
     // in the home sensor — subtracting them would wrongly drive Home to 0.
-    if (hasExcluded) home = Math.max(0, home - excludedW.included / 1000);
+    if (hasExcluded && excludedInfo.included) home = Math.max(0, home - excludedInfo.included / 1000);
 
     const netBalance = this._num(this._stateFor(byKey, K.netBalance));
 
@@ -1644,6 +1714,14 @@ class MarstekVenusPanel extends HTMLElement {
       battery,
       excluded,
       hasExcluded,
+      hasEvse,
+      evse,
+      evseActive,
+      evseState,
+      evseEntityId,
+      evseName,
+      evseBadge,
+      evseNoTelemetry,
       soc,
       capacity,
       stored,
@@ -1856,7 +1934,7 @@ class MarstekVenusPanel extends HTMLElement {
       { key: "nSolar", edge: "solar", cap: this._t("solar"), ex: 50, ey: 33, lx: 50, ly: 9, shape: "v" },
       { key: "nHome", edge: "home", cap: this._t("home"), ex: 66, ey: 48, lx: 88, ly: 9, shape: "hv" },
       { key: "nBatt", edge: "batt", cap: this._t("battery"), ex: 61, ey: 62, lx: 50, ly: 88, shape: "hv" },
-      { key: "nExcl", edge: "excl", cap: this._t("excludedDevices"), ex: 80, ey: 70, lx: 88, ly: 88, shape: "hv", gap: 6 },
+      { key: "nExcl", edge: "excl", cap: this._t("evse"), ex: 80, ey: 70, lx: 88, ly: 88, shape: "hv", gap: 6 },
     ];
     const leadPts = (e) => {
       const g = e.gap ?? GAP; // per-edge override; defaults to the shared GAP
@@ -1922,6 +2000,7 @@ class MarstekVenusPanel extends HTMLElement {
     // so clicks still work after an entity rename without an integration reload.
     this._linkMoreInfo(this._r.nHome.node, this._homeEntityId(this._hass));
     this._linkMoreInfo(this._r.nBatt.node, battEid);
+    this._linkMoreInfo(this._r.nExcl.node, () => this._evseEntityId);
 
     // self-consumption chip, bottom-centre of the scene
     const self = document.createElement("div");
@@ -2867,12 +2946,44 @@ class MarstekVenusPanel extends HTMLElement {
     r.nBatt.val.textContent = p(battery);
     r.nBatt.badge.textContent =
       (m.soc != null ? Math.round(m.soc) : "—") + "% · " + m.active + " " + this._t("units");
-    // excluded devices (summed power → into the car). Node hidden when no
-    // excluded device exposes a power sensor.
-    const exclActive = m.hasExcluded && m.excluded > 0.03;
+    // excluded devices / EVSE (summed power → into the car). Node hidden when no
+    // excluded device / EVSE is configured.
+    this._evseEntityId = m.evseEntityId;
+    const exclActive = m.hasExcluded && ((m.excluded != null && m.excluded > 0.03) || m.evseActive);
     r.nExcl.node.style.display = m.hasExcluded ? "" : "none";
     r.nExcl.node.classList.toggle("active", exclActive);
-    r.nExcl.val.textContent = m.hasExcluded ? (m.excluded > 0.03 ? p(m.excluded) : "—") : "—";
+    if (m.evseEntityId) {
+      r.nExcl.node.classList.add("clickable");
+      r.nExcl.node.title = this._t("moreInfo");
+    }
+
+    if (m.hasEvse) {
+      r.nExcl.label.textContent = m.evseName || this._t("evse");
+    } else {
+      r.nExcl.label.textContent = this._t("excludedDevices");
+    }
+
+    if (m.hasExcluded) {
+      if (m.excluded != null && m.excluded > 0.03) {
+        r.nExcl.val.textContent = p(m.excluded);
+        r.nExcl.unit.textContent = "";
+      } else if (m.evseNoTelemetry && m.evseActive) {
+        r.nExcl.val.textContent = this._t("charging");
+        r.nExcl.unit.textContent = "";
+      } else {
+        r.nExcl.val.textContent = "—";
+        r.nExcl.unit.textContent = "";
+      }
+    } else {
+      r.nExcl.val.textContent = "—";
+      r.nExcl.unit.textContent = "";
+    }
+
+    if (m.evseBadge) {
+      r.nExcl.badge.textContent = m.evseBadge;
+    } else {
+      r.nExcl.badge.textContent = "";
+    }
 
     // wires (animated node-graph) — skipped in scene mode
     if (r.wires.solar) {
@@ -2899,6 +3010,7 @@ class MarstekVenusPanel extends HTMLElement {
     //   grid   → morado (import) / naranja (export, e.g. solar surplus)
     //   solar  → naranja
     //   batería→ verde (carga) / azul (descarga)
+    //   EVSE   → cyan / teal
     // `rev` reverses the snake so it travels "into" the consuming node.
     if (r.flows) {
       const flow = (edge, on, color, rev) =>
@@ -2923,7 +3035,7 @@ class MarstekVenusPanel extends HTMLElement {
       );
       // excluded loads always flow "into" the car (a consumer): rev=false sends
       // the snake toward the element attach point (the car), not the label.
-      flow("excl", exclActive, "var(--home)", false);
+      flow("excl", exclActive, "var(--evse)", false);
       (r.flows.solar || []).forEach((el) => (el.style.display = m.hasSolar ? "" : "none"));
       (r.flows.excl || []).forEach((el) => (el.style.display = m.hasExcluded ? "" : "none"));
     }
@@ -4859,7 +4971,8 @@ class MarstekVenusPanel extends HTMLElement {
     el.title = this._t("moreInfo");
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      this._moreInfo(entityId);
+      const id = typeof entityId === "function" ? entityId() : entityId;
+      if (id) this._moreInfo(id);
     });
   }
 
@@ -4880,6 +4993,7 @@ class MarstekVenusPanel extends HTMLElement {
         --flow-orange: oklch(0.75 0.17 58);
         --flow-blue: oklch(0.70 0.15 245);
         --flow-green: oklch(0.78 0.16 150);
+        --evse: oklch(0.78 0.18 190);
         --battery: var(--accent);
         --font-ui: "Manrope", system-ui, sans-serif;
         --font-display: "Space Grotesk", system-ui, sans-serif;
