@@ -1,9 +1,9 @@
 blueprint:
-  name: "Omnibattery - Peak Shaving Limit Sync"
+  name: "Omnibattery - Peak Shaving Limit Sync (with Offset)"
   description: >
     Synchronizes Omnibattery's Capacity Protection Limit with the current
     monthly peak measurement. The measured kW value is converted to W before
-    updating the number entity.
+    updating the number entity, with an optional offset applied.
   domain: automation
   source_url: "https://github.com/ffunes/omnibattery/blob/main/blueprints/peak_shaving_limit_sync_blueprint.yaml"
 
@@ -27,9 +27,31 @@ blueprint:
           filter:
             domain: number
 
+    offset:
+      name: "Peak Offset"
+      description: "Offset value (in W) that will be subtracted from the 'Monthly Peak Sensor' value (and 'Minimum Peak value'). Used to prevent creep to the upside."
+      default: 200
+      selector:
+        number:
+          min: 0
+          max: 1000
+          mode: box
+          
+    minimum_peak_value:
+      name: "Minimum Peak Value"
+      description: "Minimum Monthly Peak Value (in W). Is useful in regions where the grid provider always bills a minimum capacity tarif."
+      default: 2500
+      selector:
+        number:
+          min: 0
+          max: 5000
+          mode: box
+          
 variables:
   monthly_peak_sensor: !input monthly_peak_sensor
   capacity_protection_limit: !input capacity_protection_limit
+  offset_value: !input offset
+  minimum_peak_value: !input minimum_peak_value
 
 trigger:
   - platform: state
@@ -47,10 +69,19 @@ condition:
       {% set unit = state_attr(monthly_peak_sensor, 'unit_of_measurement') %}
       {% set peak = states(monthly_peak_sensor) | float(none) %}
       {% set multiplier = 1000 if unit == 'kW' else 1 if unit == 'W' else none %}
-      {{ peak is not none
-         and multiplier is not none
-         and states(capacity_protection_limit) | int(0) != (peak * multiplier) | int(0) }}
+      {% set offset = offset_value | int(200) %}
+      {% set minimum_peak = minimum_peak_value | int(2500) %}
 
+      {% set sensor_result = ((peak * multiplier) | int(0) - offset)
+         if peak is not none and multiplier is not none else none %}
+
+      {% set minimum_result = minimum_peak - offset %}
+
+      {% set target = [sensor_result, minimum_result] | max
+         if sensor_result is not none else minimum_result %}
+
+      {{ target != states(capacity_protection_limit) | int(0) }}
+      
 action:
   - service: number.set_value
     target:
@@ -60,6 +91,11 @@ action:
         {% set unit = state_attr(monthly_peak_sensor, 'unit_of_measurement') %}
         {% set peak = states(monthly_peak_sensor) | float(0) %}
         {% set multiplier = 1000 if unit == 'kW' else 1 %}
-        {{ (peak * multiplier) | int(0) }}
+        {% set offset = offset_value | int(200) %}
+        {% set minimum_peak = minimum_peak_value | int(2500) %}
 
+        {% set sensor_result = ((peak * multiplier) | int(0) - offset) %}
+        {% set minimum_result = minimum_peak - offset %}
+
+        {{ [sensor_result, minimum_result] | max }}
 mode: single
