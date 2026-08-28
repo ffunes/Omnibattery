@@ -391,6 +391,10 @@
           "dp_price_discharge_control": "Only discharge when price is above threshold",
           "negative_price_charging_enabled": "Enable negative-price opportunistic charging",
           "smart_predischarge_enabled": "Enable Smart Pre-discharge / Anti-curtailment",
+          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
+          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
+          "export_price_sensor": "Export/feed-in price sensor (optional)",
+          "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Negative injection threshold (currency/kWh)",
           "predischarge_reserve_soc": "Pre-discharge reserve SOC (%)",
           "predischarge_export_mode": "Deliberate grid export mode",
@@ -405,6 +409,10 @@
           "dp_price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the configured maximum price threshold. If no threshold is configured, it uses today's average price computed automatically from the price sensor. If time slots restrict discharge, both conditions must be met.",
           "negative_price_charging_enabled": "Opt-in dynamic-pricing feature that charges during the most negative import-price slots even when the normal energy forecast does not require grid charging. A solar forecast sensor is not required.",
           "smart_predischarge_enabled": "Opt-in dynamic-pricing feature. It creates battery headroom before forecast PV surplus reaches a price slot at or below the negative-injection threshold. Existing SOC floors, user limits, time slots, manual ownership, backup and capacity protection remain authoritative.",
+          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
+          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
+          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
+          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "A future slot is considered at risk when its normalized price is at or below this inclusive threshold and forecast PV exceeds estimated household consumption.",
           "predischarge_reserve_soc": "Additional SOC floor for pre-discharge. 0 uses each battery's configured minimum and guaranteed minimum SOC floors.",
           "predischarge_export_mode": "Choose how deliberate grid export creates anti-curtailment headroom. Self-consumption never exports deliberately; Automatic calculates only the power needed; Custom applies the W limit configured in the next step.",
@@ -726,6 +734,8 @@
       "manual_requires_power": "Manual mode requires the power override tick to be enabled.",
       "no_price_data": "Selected sensor is not a supported price source. Nord Pool: select an entity from the official integration or a HACS sensor with `raw_today`. PVPC: needs `price_00h` … `price_23h`. CKW: needs a `prices` list. EPEX: needs a `data` list. ENTSO-e: needs a `prices_today` list.",
       "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
+      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
+      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU).",
       "missing_power_sensor": "Select a device power sensor, or enable EV charger without power telemetry and select an activity sensor.",
       "missing_activity_sensor": "Select an Activity / EV charging sensor for Dynamic Power Control or an EV charger without power telemetry."
@@ -1085,6 +1095,10 @@
           "dp_price_discharge_control": "Only discharge when price is above threshold",
           "negative_price_charging_enabled": "Enable negative-price opportunistic charging",
           "smart_predischarge_enabled": "Enable Smart Pre-discharge / Anti-curtailment",
+          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
+          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
+          "export_price_sensor": "Export/feed-in price sensor (optional)",
+          "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Negative injection threshold (currency/kWh)",
           "predischarge_reserve_soc": "Pre-discharge reserve SOC (%)",
           "predischarge_export_mode": "Deliberate grid export mode",
@@ -1099,6 +1113,10 @@
           "dp_price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the configured maximum price threshold. If no threshold is configured, it uses today's average price computed automatically from the price sensor. If time slots restrict discharge, both conditions must be met.",
           "negative_price_charging_enabled": "Opt-in dynamic-pricing feature that charges during the most negative import-price slots even when the normal energy forecast does not require grid charging. A solar forecast sensor is not required.",
           "smart_predischarge_enabled": "Opt-in dynamic-pricing feature. It creates battery headroom before forecast PV surplus reaches a price slot at or below the negative-injection threshold. Existing SOC floors, user limits, time slots, manual ownership, backup and capacity protection remain authoritative.",
+          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
+          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
+          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
+          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "A future slot is considered at risk when its normalized price is at or below this inclusive threshold and forecast PV exceeds estimated household consumption.",
           "predischarge_reserve_soc": "Additional SOC floor for pre-discharge. 0 uses each battery's configured minimum and guaranteed minimum SOC floors.",
           "predischarge_export_mode": "Choose how deliberate grid export creates anti-curtailment headroom. Self-consumption never exports deliberately; Automatic calculates only the power needed; Custom applies the W limit configured in the next step.",
@@ -1345,6 +1363,8 @@
       "manual_requires_power": "Manual mode requires the power override tick to be enabled.",
       "no_price_data": "Selected sensor is not a supported price source. Nord Pool: select an entity from the official integration or a HACS sensor with `raw_today`. PVPC: needs `price_00h` … `price_23h`. CKW: needs a `prices` list. EPEX: needs a `data` list. ENTSO-e: needs a `prices_today` list.",
       "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
+      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
+      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU).",
       "missing_power_sensor": "Select a device power sensor, or enable EV charger without power telemetry and select an activity sensor.",
       "missing_activity_sensor": "Select an Activity / EV charging sensor for Dynamic Power Control or an EV charger without power telemetry."
@@ -1602,6 +1622,7 @@
           "grid_charging": "Charging from Grid",
           "weekly_full_charge": "Weekly Full Charge",
           "charge_delayed": "Charge Delayed",
+          "surplus_price_hold": "Surplus Exporting (Cheaper Window Ahead)",
           "waiting_for_solar": "Waiting for Solar",
           "charging_to_setpoint": "Charging to Setpoint",
           "capacity_protection": "Capacity Protection",
@@ -1984,6 +2005,9 @@
       "curtailment_status": {
         "name": "Smart Pre-discharge Status"
       },
+      "surplus_price_hold_status": {
+        "name": "Surplus Price Hold"
+      },
       "wifi_status": {
         "name": "WiFi Status"
       },
@@ -2138,6 +2162,9 @@
       }
     },
     "number": {
+      "surplus_hold_min_saving": {
+        "name": "Surplus Hold Minimum Saving"
+      },
       "excluded_device_exclusion_pct": {
         "name": "{device} – Exclusion %"
       },

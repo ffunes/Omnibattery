@@ -359,6 +359,10 @@
           "dp_price_discharge_control": "Descarregar només quan el preu superi el llindar",
           "negative_price_charging_enabled": "Activar la càrrega oportunista per preu negatiu",
           "smart_predischarge_enabled": "Predescàrrega intel·ligent / anti-abocament",
+          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
+          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
+          "export_price_sensor": "Export/feed-in price sensor (optional)",
+          "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Llindar d'injecció negativa",
           "predischarge_reserve_soc": "Reserva de SOC de predescàrrega (%)",
           "predischarge_export_mode": "Mode d'exportació deliberada a la xarxa",
@@ -374,6 +378,10 @@
           "dp_price_discharge_control": "Si està activat, la bateria només descarrega quan el preu elèctric actual supera el preu màxim configurat. Si no hi ha llindar configurat, usa el preu mitjà del dia calculat automàticament a partir del sensor de preus. Si les franges horàries restringeixen la descàrrega, s'han de complir totes dues condicions.",
           "negative_price_charging_enabled": "Funció opcional de preus dinàmics que carrega durant les franges d'importació més negatives encara que la previsió normal no requereixi càrrega de xarxa. No cal cap sensor de previsió solar.",
           "smart_predischarge_enabled": "Activa la predescàrrega optativa només en el mode de preus dinàmics per crear espai abans de franges amb preu d'injecció negatiu.",
+          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
+          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
+          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
+          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Preus iguals o inferiors a aquest llindar es consideren franges de risc quan hi ha excedent solar previst.",
           "predischarge_reserve_soc": "SOC que la predescàrrega ha de reservar, a més dels límits mínims existents.",
           "predischarge_export_mode": "Tria com crear espai anti-abocament: Solo autoconsum (0 W), Automàtic (només la potència necessària) o Límit personalitzat (es configura al pas següent). És un límit d'exportació deliberada, no la potència total de descàrrega.",
@@ -727,6 +735,8 @@
       "manual_requires_power": "El mode manual requereix activar el control de potència.",
       "no_price_data": "El sensor seleccionat no és una font de preus compatible. Nord Pool: selecciona una entitat de la integració oficial o un sensor de HACS amb `raw_today`. PVPC necessita `price_00h` … `price_23h`; CKW, una llista `prices`; EPEX, una llista `data`; i ENTSO-e, una llista `prices_today`.",
       "tibber_unavailable": "La integració Tibber no està instal·lada, o el seu servei `tibber.get_prices` no està disponible. Instal·la i configura Tibber primer.",
+      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
+      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El preu mínim de descàrrega no pot ser inferior al preu màxim (de càrrega). Posa'l igual o superior, o deixa'l buit per reutilitzar el llindar de càrrega.",
       "host_or_serial_required": "Introdueix una adreça IP (TCP) o la ruta d'un port sèrie (Modbus RTU).",
       "missing_power_sensor": "Selecciona un sensor de potència, o activa Carregador VE sense telemetria i selecciona un sensor d'activitat.",
@@ -1085,6 +1095,10 @@
           "dp_price_discharge_control": "Descarrega només quan el preu superi el llindar",
           "negative_price_charging_enabled": "Activar la càrrega oportunista per preu negatiu",
           "smart_predischarge_enabled": "Predescàrrega intel·ligent / anti-abocament",
+          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
+          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
+          "export_price_sensor": "Export/feed-in price sensor (optional)",
+          "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Llindar d'injecció negativa",
           "predischarge_reserve_soc": "Reserva de SOC de predescàrrega (%)",
           "predischarge_export_mode": "Mode d'exportació deliberada a la xarxa",
@@ -1100,6 +1114,10 @@
           "dp_price_discharge_control": "Si està activat, la bateria només descarrega quan el preu elèctric actual supera el preu màxim configurat. Si no hi ha llindar configurat, usa el preu mitjà del dia calculat automàticament a partir del sensor de preus. Si les franges horàries restringeixen la descàrrega, s'han de complir totes dues condicions.",
           "negative_price_charging_enabled": "Funció opcional de preus dinàmics que carrega durant les franges d'importació més negatives encara que la previsió normal no requereixi càrrega de xarxa. No cal cap sensor de previsió solar.",
           "smart_predischarge_enabled": "Activa la predescàrrega optativa només en el mode de preus dinàmics per crear espai abans de franges amb preu d'injecció negatiu.",
+          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
+          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
+          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
+          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Preus iguals o inferiors a aquest llindar es consideren franges de risc quan hi ha excedent solar previst.",
           "predischarge_reserve_soc": "SOC que la predescàrrega ha de reservar, a més dels límits mínims existents.",
           "predischarge_export_mode": "Tria com crear espai anti-abocament: Solo autoconsum (0 W), Automàtic (només la potència necessària) o Límit personalitzat (es configura al pas següent). És un límit d'exportació deliberada, no la potència total de descàrrega.",
@@ -1345,6 +1363,8 @@
       "manual_requires_power": "El mode manual requereix activar el control de potència.",
       "no_price_data": "El sensor seleccionat no és una font de preus compatible. Nord Pool: selecciona una entitat de la integració oficial o un sensor de HACS amb `raw_today`. PVPC necessita `price_00h` … `price_23h`; CKW, una llista `prices`; EPEX, una llista `data`; i ENTSO-e, una llista `prices_today`.",
       "tibber_unavailable": "La integració Tibber no està instal·lada, o el seu servei `tibber.get_prices` no està disponible. Instal·la i configura Tibber primer.",
+      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
+      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El preu mínim de descàrrega no pot ser inferior al preu màxim (de càrrega). Posa'l igual o superior, o deixa'l buit per reutilitzar el llindar de càrrega.",
       "host_or_serial_required": "Introdueix una adreça IP (TCP) o la ruta d'un port sèrie (Modbus RTU).",
       "missing_power_sensor": "Selecciona un sensor de potència, o activa Carregador VE sense telemetria i selecciona un sensor d'activitat.",
@@ -1598,6 +1618,7 @@
           "grid_charging": "Carregant des de la Xarxa",
           "weekly_full_charge": "Càrrega Setmanal Completa",
           "charge_delayed": "Càrrega Retardada",
+          "surplus_price_hold": "Surplus Exporting (Cheaper Window Ahead)",
           "waiting_for_solar": "Esperant Solar",
           "charging_to_setpoint": "Carregant al Setpoint",
           "capacity_protection": "Protecció de Capacitat",
@@ -1980,6 +2001,9 @@
       "curtailment_status": {
         "name": "Estat de predescàrrega intel·ligent"
       },
+      "surplus_price_hold_status": {
+        "name": "Surplus Price Hold"
+      },
       "wifi_status": {
         "name": "Estat WiFi"
       },
@@ -2134,6 +2158,9 @@
       }
     },
     "number": {
+      "surplus_hold_min_saving": {
+        "name": "Surplus Hold Minimum Saving"
+      },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % exclòs"
       },
