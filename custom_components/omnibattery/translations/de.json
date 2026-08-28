@@ -1421,6 +1421,9 @@
       "offgrid_mode": {
         "name": "Off-Grid-Zählermodus"
       },
+      "primary_feedforward": {
+        "name": "Hauslast vorsteuern"
+      },
       "min_soc_floor_enabled": {
         "name": "Garantierter Mindest-SOC"
       },
@@ -2074,6 +2077,18 @@
           "friday": "Freitag",
           "saturday": "Samstag",
           "sunday": "Sonntag"
+        }
+      },
+      "charge_priority": {
+        "name": "Ladereihenfolge",
+        "state": {
+          "automatic": "Automatisch (nach Ladedauer)"
+        }
+      },
+      "primary_battery": {
+        "name": "Primärbatterie",
+        "state": {
+          "automatic": "Automatisch (vollste zuerst)"
         }
       },
       "pd_tuning_profile": {

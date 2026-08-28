@@ -183,4 +183,5 @@ nav:
       - Architecture: reference/architecture.md
       - Battery driver requirements: reference/driver-requirements-template.md
       - Driver assessment · Huawei: reference/driver-assessment-huawei.md
+      - Huawei EMMA registers: reference/huawei-emma-registers.md
   - Changelog: changelog.md

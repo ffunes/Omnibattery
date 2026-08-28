@@ -1421,6 +1421,9 @@
       "offgrid_mode": {
         "name": "Off-grid Metermodus"
       },
+      "primary_feedforward": {
+        "name": "Huisverbruik vooruitsturen"
+      },
       "min_soc_floor_enabled": {
         "name": "Gegarandeerd Minimum SOC"
       },
@@ -2074,6 +2077,18 @@
           "friday": "Vrijdag",
           "saturday": "Zaterdag",
           "sunday": "Zondag"
+        }
+      },
+      "charge_priority": {
+        "name": "Laadvolgorde",
+        "state": {
+          "automatic": "Automatisch (op laaduren)"
+        }
+      },
+      "primary_battery": {
+        "name": "Primaire batterij",
+        "state": {
+          "automatic": "Automatisch (voorste eerst)"
         }
       },
       "pd_tuning_profile": {

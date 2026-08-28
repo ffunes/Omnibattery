@@ -1449,6 +1449,9 @@
       "offgrid_mode": {
         "name": "Off-grid Meter Mode"
       },
+      "primary_feedforward": {
+        "name": "Feed the house load forward"
+      },
       "min_soc_floor_enabled": {
         "name": "Guaranteed Minimum SOC"
       },
@@ -2092,6 +2095,18 @@
           "friday": "Friday",
           "saturday": "Saturday",
           "sunday": "Sunday"
+        }
+      },
+      "charge_priority": {
+        "name": "Charge priority",
+        "state": {
+          "automatic": "Automatic (by hours to full)"
+        }
+      },
+      "primary_battery": {
+        "name": "Primary battery",
+        "state": {
+          "automatic": "Automatic (highest charge first)"
         }
       },
       "pd_tuning_profile": {

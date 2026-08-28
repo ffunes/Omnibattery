@@ -1434,6 +1434,9 @@
       "offgrid_mode": {
         "name": "Mode Compteur Hors Réseau"
       },
+      "primary_feedforward": {
+        "name": "Anticiper la consommation du foyer"
+      },
       "min_soc_floor_enabled": {
         "name": "SOC Minimum Garanti"
       },
@@ -2087,6 +2090,18 @@
           "friday": "Vendredi",
           "saturday": "Samedi",
           "sunday": "Dimanche"
+        }
+      },
+      "charge_priority": {
+        "name": "Priorité de charge",
+        "state": {
+          "automatic": "Automatique (par heures de charge)"
+        }
+      },
+      "primary_battery": {
+        "name": "Batterie principale",
+        "state": {
+          "automatic": "Automatique (la plus chargée d'abord)"
         }
       },
       "pd_tuning_profile": {

@@ -115,6 +115,15 @@ from .const import (
     CONF_TARGET_GRID_POWER,
     DEFAULT_TARGET_GRID_POWER,
     CONF_NO_PD_MODE_ENABLED,
+    CONF_CHARGE_PRIORITY,
+    CONF_PRIMARY_BATTERY,
+    DEFAULT_CHARGE_PRIORITY,
+    CONF_PRIMARY_FEEDFORWARD_ENABLED,
+    DEFAULT_PRIMARY_BATTERY,
+    DEFAULT_PRIMARY_FEEDFORWARD_ENABLED,
+    PRIMARY_FEEDFORWARD_TOLERANCE_W,
+    SCARCITY_HYSTERESIS_KWH,
+    SURPLUS_GUARD_HYSTERESIS_W,
     CONF_NO_PD_COMMAND_DELAY,
     DEFAULT_NO_PD_MODE_ENABLED,
     DEFAULT_NO_PD_COMMAND_DELAY,
@@ -529,6 +538,485 @@ def _apply_driver_dynamic_limit(coordinator, current_limit: int) -> int:
     return max(0, int(dynamic))
 
 
+def _charge_outlook_kwh(controller):
+    """(surplus still expected today, what the batteries still want), in kWh.
+
+    Both sides have to describe the same stretch of day. The solar half comes
+    from :func:`read_remaining_solar_kwh`, which is the integration's one
+    normalized answer to "how much is still to come": a provider's remaining
+    figure passes through untouched, a legacy whole-day sensor is converted
+    once, and either unit is handled there. Deriving that here a second time is
+    how a caller ends up subtracting the morning twice.
+
+    Consumption is cut down the same way — to the part of its measurement
+    window still ahead — because a whole-day average against a remaining
+    forecast tilts every afternoon towards scarcity.
+
+    Returns None while any input is missing, which means "no opinion" rather
+    than "scarce".
+    """
+    tracker = getattr(controller, "_consumption_tracker", None)
+    if tracker is None:
+        return None
+    now = dt_util.now()
+    try:
+        # One clock for both halves: the reader has its own, and left to itself
+        # it can convert the solar side against a different minute than the
+        # consumption side is trimmed to.
+        solar = read_remaining_solar_kwh(controller.hass, controller, now=now)
+    except Exception:  # noqa: BLE001
+        return None
+    # "fallback"/"unsafe_zero" is how that module says it had nothing usable to
+    # read. Taking the 0 kWh at face value would call every day scarce.
+    if (
+        solar is None
+        or getattr(solar, "source", None) in (None, "fallback")
+        or getattr(solar, "conversion", None) == "unsafe_zero"
+    ):
+        return None
+    remaining_solar = solar.remaining_kwh
+
+    now_h = now.hour + now.minute / 60.0
+    t_end = None
+    estimate_t_end = getattr(tracker, "estimate_t_end", None)
+    if callable(estimate_t_end):
+        try:
+            t_end = estimate_t_end()
+        except Exception:  # noqa: BLE001
+            t_end = None
+
+    avg_daily = tracker.get_avg_daily_consumption()
+    remaining_consumption = avg_daily
+    get_window = getattr(tracker, "get_consumption_window_hours_per_day", None)
+    hours_in_range = getattr(tracker, "consumption_window_hours_in_range", None)
+    if callable(get_window) and callable(hours_in_range) and t_end is not None:
+        try:
+            window_per_day = float(get_window())
+            if window_per_day > 0:
+                ahead = float(hours_in_range(now_h, t_end))
+                remaining_consumption = avg_daily * max(0.0, ahead) / window_per_day
+        except Exception:  # noqa: BLE001
+            remaining_consumption = avg_daily
+
+    # What the day is measured against is the room in the battery the scarce
+    # branch concentrates into — the DC-coupled one — and not the room in the
+    # whole fleet. Measuring against the fleet asks "is there enough to fill
+    # everything", which on a mixed installation is almost never true, so every
+    # day came out scarce and the AC-coupled battery was passed over on all of
+    # them. Its own empty capacity was most of what made the day look scarce,
+    # which made the rule feed itself: the emptier that battery got, the more
+    # certain it was to be skipped again, and it sat at its floor for days.
+    #
+    # Once the surplus is more than the DC battery can hold there is nothing
+    # left to concentrate — the excess has to go somewhere else anyway — so the
+    # day stops being scarce at exactly the point the preference stops paying.
+    # This also retires the DC battery from the front on its own as it fills:
+    # its room shrinks towards zero, the day turns ample, and the order hands
+    # over without anyone having to command the hybrid to step aside.
+    wanted = 0.0
+    dc_room = 0.0
+    dc_coupled_present = False
+    for coordinator in getattr(controller, "coordinators", []):
+        remaining = _battery_remaining_kwh(coordinator) or 0.0
+        wanted += remaining
+        if getattr(getattr(coordinator, "driver", None), "dc_coupled", False):
+            dc_coupled_present = True
+            dc_room += remaining
+    threshold = dc_room if dc_coupled_present else wanted
+    return remaining_solar - remaining_consumption, threshold
+
+
+def _scarce_solar_day(controller) -> bool:
+    """Whether today's sun is worth concentrating in one battery.
+
+    True while the expected surplus still fits in the battery the charge order
+    would concentrate it into — the DC-coupled one where present. Beyond that
+    the excess has to be shared out regardless, and there is nothing to gain by
+    keeping the other batteries waiting.
+
+    Latched: a forecast wanders all day, and without a band the charge order
+    would follow it. Unknown outlook leaves the standing verdict alone.
+    """
+    outlook = _charge_outlook_kwh(controller)
+    scarce = getattr(controller, "_scarce_solar_latched", False)
+    if outlook is None:
+        return scarce
+    surplus, wanted = outlook
+    if scarce:
+        if surplus > wanted + SCARCITY_HYSTERESIS_KWH:
+            scarce = False
+    elif surplus < wanted - SCARCITY_HYSTERESIS_KWH:
+        scarce = True
+    controller._scarce_solar_latched = scarce
+    return scarce
+
+
+def _charge_order(controller, batteries) -> list:
+    """Batteries in the order they should be filled.
+
+    Ample sun: longest time to full first. That battery is the one at risk of
+    not finishing, and the others can catch up in the time it needs anyway.
+
+    Scarce sun: the DC-coupled one first, because the kilowatt-hours that do
+    arrive are worth putting where the least of them is lost to conversion.
+    "Scarce" here means the surplus still fits in that battery — see
+    :func:`_scarce_solar_day`. Once it no longer does, the day counts as ample
+    and the longest-to-fill goes first, which is how the surplus reaches an
+    AC-coupled battery without the hybrid ever being told to stand down.
+
+    A nominated battery overrides both.
+    """
+    named = (getattr(controller, "charge_priority", "") or "").strip()
+    scarce = _scarce_solar_day(controller)
+    active = getattr(controller, "_active_charge_batteries", None) or []
+
+    def sort_key(coordinator):
+        chosen = 0 if coordinator.name == named else 1
+        # A battery already charging keeps a small edge, so two of them with
+        # nearly equal claims do not trade places from one cycle to the next.
+        head_start = 1.1 if coordinator in active else 1.0
+        if scarce:
+            efficient = 0 if getattr(coordinator.driver, "dc_coupled", False) else 1
+            return (chosen, efficient, -(_battery_remaining_kwh(coordinator) or 0.0) * head_start)
+        return (chosen, -_time_to_full_h(controller, coordinator) * head_start)
+
+    return sorted(batteries, key=sort_key)
+
+
+def _primary_coordinator(controller):
+    """The battery that serves the house first, nominated or chosen.
+
+    Left on automatic — or naming a battery that is no longer configured — the
+    feedforward addresses whichever battery the ordinary discharge ordering
+    would have picked anyway: the fullest one. That is the same answer the rest
+    of the system gives, so switching the feedforward on without nominating
+    anything changes when a battery is asked, not which.
+
+    Returns None only when no battery can serve at all.
+    """
+    name = (getattr(controller, "primary_battery", "") or "").strip()
+    batteries = list(getattr(controller, "coordinators", []))
+    if name:
+        for coordinator in batteries:
+            if coordinator.name == name:
+                return coordinator
+    able = [
+        coordinator for coordinator in batteries
+        if controller._battery_power_limit(coordinator, False) > 0
+    ]
+    if not able:
+        return None
+    return max(able, key=lambda c: (c.data or {}).get("battery_soc", 0) or 0)
+
+def _measured_house_load_w(controller, grid_w):
+    """Household load from the AC-bus balance, from measured battery output.
+
+    ``home = grid + sum(ac_power) + external_solar`` — the same derivation the
+    system sensor uses. Deliberately *measured* rather than commanded: a
+    battery regulated by something else (a Huawei released to its own energy
+    manager) contributes power this controller never asked for, and the
+    commanded figure would miss exactly that.
+
+    Returns None when no battery could be read, so a caller can tell "no
+    load" from "no idea".
+    """
+    if grid_w is None:
+        return None
+    total = float(grid_w)
+    seen = False
+    for coordinator in controller.coordinators:
+        if not getattr(coordinator, "is_available", False) or not coordinator.data:
+            continue
+        ac = coordinator.data.get("ac_power")
+        if ac is None:
+            battery_power = coordinator.data.get("battery_power")
+            ac = -battery_power if battery_power is not None else None
+        if ac is None:
+            continue
+        total += float(ac)
+        seen = True
+    if not seen:
+        return None
+    if controller.solar_production_sensor:
+        state = controller.hass.states.get(controller.solar_production_sensor)
+        if state is not None and state.state not in ("unknown", "unavailable", None):
+            try:
+                total += float(state.state)
+            except (TypeError, ValueError):
+                pass
+    return max(0.0, total)
+
+def _battery_remaining_kwh(coordinator) -> Optional[float]:
+    """How much a battery still has room for, in kWh, or None if unknown."""
+    capacity = getattr(coordinator, "battery_capacity_kwh", 0) or 0
+    if capacity <= 0 and coordinator.data:
+        capacity = coordinator.data.get("battery_total_energy") or 0
+    if not capacity:
+        return None
+    soc = coordinator.data.get("battery_soc") if coordinator.data else None
+    if soc is None:
+        return None
+    ceiling = float(getattr(coordinator, "max_soc", 100) or 100)
+    return max(0.0, capacity * (ceiling - float(soc)) / 100.0)
+
+
+def _time_to_full_h(controller, coordinator) -> float:
+    """Hours of charging at full power before this battery is done.
+
+    The criterion that decides which battery has to start first. Charge power
+    differs by an order of magnitude between an AC battery and a hybrid
+    inverter, so the fuller-first ordering by state of charge says nothing about
+    who is at risk of not finishing before the sun goes.
+    """
+    remaining = _battery_remaining_kwh(coordinator)
+    if remaining is None:
+        return 0.0
+    limit = controller._battery_power_limit(coordinator, True)
+    if limit <= 0:
+        return 0.0
+    return remaining / (limit / 1000.0)
+
+
+def _grid_reading_w(controller):
+    """The grid figure to report figures against, in watts, or None.
+
+    ``previous_sensor`` is the cycle's own reading, but it is cleared whenever
+    another manager takes the wheel — a max-SOC charge, for instance — and a
+    diagnostic that blanks out exactly when something interesting is happening
+    is no diagnostic. Falls back to reading the configured meter directly.
+    """
+    reading = getattr(controller, "previous_sensor", None)
+    if reading is not None:
+        return reading
+    entity_id = getattr(controller, "consumption_sensor", None) or (
+        getattr(controller, "config_entry", None)
+        and controller.config_entry.data.get("consumption_sensor")
+    )
+    if not entity_id:
+        return None
+    state = controller.hass.states.get(entity_id)
+    if state is None or state.state in ("unknown", "unavailable", None):
+        return None
+    try:
+        value = float(state.state)
+    except (TypeError, ValueError):
+        return None
+    if getattr(controller, "meter_inverted", False):
+        value = -value
+    return value
+
+
+def _uncovered_load_w(controller, grid_w):
+    """What the meter would read if every battery stopped, in watts.
+
+    This is the load the batteries actually have to cover: house consumption
+    less whatever PV is already supplying, arrived at without needing either
+    figure. ``grid + sum(ac_power)`` removes each battery's own contribution
+    from the meter reading, and what remains is the residual demand — negative
+    while PV more than covers the house.
+
+    The house load is the wrong quantity to feed forward. Under sun it is
+    covered by the roof, and commanding the primary battery to supply it anyway
+    discharges one battery into the other: observed on the reference
+    installation at 1188 W of PV against a 570 W house, with the primary
+    discharging 350 W while the other took in 920 W.
+    """
+    if grid_w is None:
+        return None
+    total = float(grid_w)
+    seen = False
+    for coordinator in getattr(controller, "coordinators", []):
+        if not getattr(coordinator, "is_available", False) or not coordinator.data:
+            continue
+        ac = coordinator.data.get("ac_power")
+        if ac is None:
+            battery_power = coordinator.data.get("battery_power")
+            ac = -battery_power if battery_power is not None else None
+        if ac is None:
+            continue
+        total += float(ac)
+        seen = True
+    return total if seen else None
+
+
+def _primary_feedforward_candidate_w(controller, grid_w) -> float:
+    """Discharge the primary battery should carry from the house load alone.
+
+    Feedback control can only act on an error that already exists. Where a
+    second regulator shares the meter it removes that error first, so the
+    primary battery is never asked for anything and the other one does all
+    the work. Handing the primary the house load directly makes it primary by
+    arriving first rather than by ranking first, and leaves the other
+    regulator as a fallback instead of switching it off.
+
+    Positive watts in the discharge direction; 0 when no primary is nominated or
+    that battery cannot serve right now. Computed regardless of the switch, so
+    the figure can be checked against the meter before committing to it —
+    :func:`_primary_feedforward_w` is what the control cycle acts on.
+    """
+    coordinator = _primary_coordinator(controller)
+    if coordinator is None:
+        return 0.0
+    demand = _uncovered_load_w(controller, grid_w)
+    if demand is None or demand <= 0:
+        return 0.0
+    limit = controller._battery_power_limit(coordinator, False)
+    if limit <= 0:
+        return 0.0
+    return float(min(demand, limit))
+
+def _charge_feedforward_candidate_w(controller, grid_w) -> float:
+    """Surplus the first battery in the charge order should be absorbing.
+
+    The mirror of the load side, and needed for the same reason. A second
+    regulator on the meter takes the surplus into its own battery, the grid
+    reads zero, and this controller — correctly, on what it can see — commands
+    nothing. The battery that was supposed to be filled first then stays empty
+    while the other fills: observed at 5834 W of sun with the hybrid at 83 % and
+    the battery meant to go first sitting at 17 %, untouched.
+
+    Positive watts in the charge direction; 0 when there is no surplus or no
+    battery can take it.
+
+    Capped at what the fleet can absorb between them, not at what the first
+    battery can: this is a figure for the whole system, and the distribution
+    shares it out afterwards. Capping it at one battery's rating means that
+    battery receives only its share of its own limit — 2418 W of a 2500 W
+    rating on the reference installation, with 6.8 kW of surplus going past it.
+    """
+    # The surplus this asks for is the *uncovered* one — what the meter would
+    # read if every battery stopped — and that bound is doing more work than it
+    # looks. A battery behind the same meter is ordinary household load to
+    # another regulator on it, so a charge command is never refused: whatever is
+    # asked for gets covered, from the sun if it is there and from the other
+    # battery if it is not. Asking for more than the real surplus would
+    # therefore pump one battery into the other through two conversions, with
+    # the meter sitting at zero and nothing looking wrong.
+    demand = _uncovered_load_w(controller, grid_w)
+    if demand is None or demand >= 0:
+        return 0.0
+    room = sum(
+        controller._battery_power_limit(coordinator, True)
+        for coordinator in getattr(controller, "coordinators", [])
+    )
+    if room <= 0:
+        return 0.0
+    return float(min(-demand, room))
+
+
+def _charge_feedforward_w(controller, grid_w) -> float:
+    """The charge feedforward the control cycle acts on."""
+    if not getattr(controller, "primary_feedforward_enabled", False):
+        return 0.0
+    return _charge_feedforward_candidate_w(controller, grid_w)
+
+
+def _primary_feedforward_w(controller, grid_w) -> float:
+    """The feedforward the control cycle acts on: zero while the switch is off."""
+    if not getattr(controller, "primary_feedforward_enabled", False):
+        return 0.0
+    return _primary_feedforward_candidate_w(controller, grid_w)
+
+
+def _surplus_blocks_discharge(controller, grid_w) -> bool:
+    """Whether the roof has enough to spare that discharging would be waste.
+
+    Discharging into a surplus is never right: the roof is already covering the
+    house, so the energy leaving the battery can only charge another battery or
+    go to the grid, and either way it has made a round trip for nothing.
+
+    The meter alone cannot tell — with a second regulator on it, one battery
+    charging and another discharging cancel out and the grid reads zero, which
+    the deadband then holds. Observed on the reference installation: 1391 W of
+    PV over a 529 W house, one battery taking in 1110 W while the other gave up
+    205 W, and the meter at 3 W.
+
+    Latching, with a band on the way in and none on the way out. A bare sign
+    test would chatter through every cloud edge, toggling the battery in step
+    with the light; the band means only a clear surplus engages it. Release is
+    immediate once the load turns positive, because by then the house genuinely
+    needs the battery and making it wait would import instead.
+    """
+    uncovered = _uncovered_load_w(controller, grid_w)
+    latched = getattr(controller, "_surplus_guard_latched", False)
+    if uncovered is None:
+        # No reading is not evidence either way; the last verdict stands.
+        return latched
+    band = max(float(getattr(controller, "deadband", 0) or 0), SURPLUS_GUARD_HYSTERESIS_W)
+    if latched:
+        if uncovered > 0:
+            latched = False
+    elif uncovered < -band:
+        latched = True
+    controller._surplus_guard_latched = latched
+    return latched
+
+
+def _discharging_into_surplus(controller, new_power, grid_w) -> bool:
+    """Whether this command discharges while the roof has power to spare."""
+    if new_power >= 0:
+        return False
+    return _surplus_blocks_discharge(controller, grid_w)
+
+
+def _apply_surplus_guard(controller, new_power, grid_w):
+    """Refuse a discharge that the roof is already covering."""
+    if not _discharging_into_surplus(controller, new_power, grid_w):
+        return new_power
+    _LOGGER.info(
+        "Surplus guard: dropping %.0fW of discharge — PV covers the house with "
+        "%.0fW to spare",
+        abs(new_power), abs(_uncovered_load_w(controller, grid_w) or 0),
+    )
+    return 0
+
+
+def _surplus_guard_pending(controller, grid_w) -> bool:
+    """Whether a standing discharge needs withdrawing despite a quiet meter.
+
+    The deadband shortcut assumes a grid on target needs no action. It is on
+    target here only because two batteries are cancelling each other out.
+    """
+    return _discharging_into_surplus(controller, getattr(controller, "previous_power", 0), grid_w)
+
+
+def _primary_feedforward_pending(controller, grid_w) -> bool:
+    """Whether the standing command falls short of the house load.
+
+    The deadband shortcut exists because a grid already on target needs no
+    correction. That reasoning does not hold here: the grid is on target
+    precisely *because* the other regulator is carrying the load, which is
+    the situation this feature exists to change.
+    """
+    feedforward = _primary_feedforward_w(controller, grid_w)
+    if feedforward > 0:
+        return controller.previous_power > -(feedforward - PRIMARY_FEEDFORWARD_TOLERANCE_W)
+    absorbing = _charge_feedforward_w(controller, grid_w)
+    if absorbing > 0:
+        return controller.previous_power < absorbing - PRIMARY_FEEDFORWARD_TOLERANCE_W
+    return False
+
+def _apply_primary_feedforward(controller, new_power, grid_w):
+    """Floor the command at the real demand, whichever way it points."""
+    feedforward = _primary_feedforward_w(controller, grid_w)
+    if feedforward > 0:
+        if new_power > -feedforward:
+            _LOGGER.info(
+                "Primary feedforward: raising %.1fW to %.1fW to cover the house load",
+                new_power, -feedforward,
+            )
+            return -feedforward
+        return new_power
+
+    absorbing = _charge_feedforward_w(controller, grid_w)
+    if absorbing > 0 and new_power < absorbing:
+        _LOGGER.info(
+            "Primary feedforward: raising %.1fW to %.1fW to take the surplus",
+            new_power, absorbing,
+        )
+        return absorbing
+    return new_power
+
 def _backup_switch_enabled(value) -> bool:
     """Whether a battery's backup output is armed, whatever shape it reports in.
 
@@ -611,6 +1099,19 @@ class ChargeDischargeController:
         # No-PD direct-tracking mode (opt-in): see _apply_no_pd_overrides. Overrides
         # are applied at the end of __init__, after the grid filter tau is set below.
         self.no_pd_mode_enabled = config_entry.data.get(CONF_NO_PD_MODE_ENABLED, DEFAULT_NO_PD_MODE_ENABLED)
+        # Latched while the roof covers the house, so a cloud edge cannot toggle
+        # the battery in step with the light.
+        self._surplus_guard_latched = False
+        # Whether today's forecast is expected to fill every battery. Latched so
+        # a wandering forecast cannot reshuffle the charge order.
+        self._scarce_solar_latched = False
+        self.charge_priority = config_entry.data.get(CONF_CHARGE_PRIORITY, DEFAULT_CHARGE_PRIORITY)
+        # Which battery serves the house first, and whether it is handed the
+        # house load directly rather than waiting for a grid error.
+        self.primary_battery = config_entry.data.get(CONF_PRIMARY_BATTERY, DEFAULT_PRIMARY_BATTERY)
+        self.primary_feedforward_enabled = config_entry.data.get(
+            CONF_PRIMARY_FEEDFORWARD_ENABLED, DEFAULT_PRIMARY_FEEDFORWARD_ENABLED
+        )
         self._no_pd_command_delay = config_entry.data.get(CONF_NO_PD_COMMAND_DELAY, DEFAULT_NO_PD_COMMAND_DELAY)
         self._no_pd_debounce_unsub = None  # cancel handle for a pending debounced cycle
         self.enable_system_power_limits = config_entry.data.get(
@@ -2662,6 +3163,11 @@ class ChargeDischargeController:
         # No-PD direct-tracking: re-read flags and (re)apply/release the overrides.
         # Must run after the PD params above are reloaded so the override wins.
         self.no_pd_mode_enabled = self.config_entry.data.get(CONF_NO_PD_MODE_ENABLED, DEFAULT_NO_PD_MODE_ENABLED)
+        self.primary_battery = self.config_entry.data.get(CONF_PRIMARY_BATTERY, DEFAULT_PRIMARY_BATTERY)
+        self.charge_priority = self.config_entry.data.get(CONF_CHARGE_PRIORITY, DEFAULT_CHARGE_PRIORITY)
+        self.primary_feedforward_enabled = self.config_entry.data.get(
+            CONF_PRIMARY_FEEDFORWARD_ENABLED, DEFAULT_PRIMARY_FEEDFORWARD_ENABLED
+        )
         self._no_pd_command_delay = self.config_entry.data.get(CONF_NO_PD_COMMAND_DELAY, DEFAULT_NO_PD_COMMAND_DELAY)
         self._apply_no_pd_overrides()
         self.max_contracted_power = self.config_entry.data.get(CONF_MAX_CONTRACTED_POWER, 7000)
@@ -8284,6 +8790,8 @@ class ChargeDischargeController:
             and not blocked_active_changed
             and not self._phase_safety_pending
             and abs(sensor_actual - active_target) < self.deadband
+            and not _primary_feedforward_pending(self, sensor_actual)
+            and not _surplus_guard_pending(self, sensor_actual)
         ):
             if DEBUG_CONTROL_LOOP_DETAIL:
                 _LOGGER.debug(
@@ -8507,6 +9015,15 @@ class ChargeDischargeController:
             new_power = self._compute_pd_new_power(
                 error, sensor_elapsed_s, stale_safety_recalc
             )
+        # PRIMARY FEEDFORWARD: floor the command at the house load before any
+        # downstream blocker runs, so time slots, price and capacity limits still
+        # have the last word over it.
+        new_power = _apply_primary_feedforward(self, new_power, sensor_actual)
+
+        # SURPLUS GUARD: never discharge into PV the house is not using. Runs
+        # after the feedforward so it can also veto that.
+        new_power = _apply_surplus_guard(self, new_power, sensor_actual)
+
         # ZERO-CROSS HOLD: a charge<->discharge flip must survive the actuator
         # settle window before it becomes a real opposite-direction command (see
         # _apply_zero_cross_hold). Must run before _apply_min_power so a clamped

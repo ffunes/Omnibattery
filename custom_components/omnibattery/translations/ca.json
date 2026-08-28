@@ -1421,6 +1421,9 @@
       "offgrid_mode": {
         "name": "Mode de Mesurador Off-grid"
       },
+      "primary_feedforward": {
+        "name": "Anticipar el consum de la casa"
+      },
       "min_soc_floor_enabled": {
         "name": "SOC Mínim Garantit"
       },
@@ -2074,6 +2077,18 @@
           "friday": "Divendres",
           "saturday": "Dissabte",
           "sunday": "Diumenge"
+        }
+      },
+      "charge_priority": {
+        "name": "Prioritat de càrrega",
+        "state": {
+          "automatic": "Automàtic (per hores fins a ple)"
+        }
+      },
+      "primary_battery": {
+        "name": "Bateria principal",
+        "state": {
+          "automatic": "Automàtic (la més carregada primer)"
         }
       },
       "pd_tuning_profile": {

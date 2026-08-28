@@ -240,6 +240,20 @@ class BatteryDriver(ABC):
         return None
 
     @property
+    def dc_coupled(self) -> bool:
+        """Whether photovoltaic input reaches the battery without an AC stage.
+
+        A hybrid inverter charges its battery straight from the strings; an AC
+        battery has to take the same energy through an inverter and back again,
+        and pays a conversion each way. The difference only matters when there
+        is not enough sun for every battery: then the scarce kilowatt-hours are
+        worth putting where the least of them is lost.
+
+        Defaults to False, which is what an AC battery is.
+        """
+        return False
+
+    @property
     def serial(self) -> Optional[str]:
         """Stable hardware serial, or None if the transport exposes none.
 

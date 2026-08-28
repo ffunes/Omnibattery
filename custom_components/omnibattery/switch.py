@@ -31,6 +31,7 @@ from .const import (
     CONF_NO_PD_MODE_ENABLED,
     CONF_OFFGRID_POWER_SENSOR,
     CONF_OFFGRID_MODE_ENABLED,
+    CONF_PRIMARY_FEEDFORWARD_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
     CONF_PREDICTIVE_CHARGING_MODE,
     CONF_DP_PRICE_DISCHARGE_CONTROL,
@@ -88,6 +89,8 @@ async def async_setup_entry(
         entities.append(NoPdModeSwitch(hass, entry, controller))
         if entry.data.get(CONF_OFFGRID_POWER_SENSOR):
             entities.append(OffgridModeSwitch(hass, entry, controller))
+        if len(entry.data.get("batteries", [])) > 1:
+            entities.append(PrimaryFeedforwardSwitch(hass, entry, controller))
         # Keep the protection toggle present even when currently disabled so it
         # can be enabled live from the dashboard without reloading the entry.
         entities.append(ThreePhaseProtectionSwitch(hass, entry, controller))
@@ -1583,6 +1586,103 @@ class ThreePhaseProtectionSwitch(SwitchEntity):
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disable the three-phase current protection envelope."""
+        await self._set_enabled(False)
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class PrimaryFeedforwardSwitch(SwitchEntity):
+    """Hand the primary battery the house load instead of waiting for an error.
+
+    Feedback control can only act on a deviation that already exists. Where a
+    second regulator shares the meter — a hybrid inverter running its own
+    self-consumption, for instance — it removes that deviation first, so the
+    primary battery is never asked for anything and the other one carries the
+    house on its own.
+
+    With this on, the primary battery is commanded to the measured house load
+    directly. The grid then never deviates, the other regulator finds nothing to
+    do, and it stays available as a fallback rather than being switched off. The
+    PD loop keeps correcting whatever is left. Off by default.
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the primary-feedforward switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "primary_feedforward"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}primary_feedforward"
+        self.entity_id = system_entity_id("switch", "primary_feedforward")
+        self._attr_icon = "mdi:arrow-right-bold-outline"
+        # The figures below live on the controller and change every cycle. Left
+        # unpolled, the attributes freeze at whatever they were when the switch
+        # was last written — which is when someone toggled it. A diagnostic
+        # showing a surplus from four hours ago is worse than none.
+        self._attr_should_poll = True
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if the house load is fed forward to the primary battery."""
+        return self.controller.primary_feedforward_enabled
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Show which battery it addresses and what it would command right now.
+
+        Reported whether or not the switch is on, so the figures can be checked
+        against the meter before committing to them.
+        """
+        from . import (
+            _grid_reading_w,
+            _measured_house_load_w,
+            _primary_coordinator,
+            _charge_feedforward_candidate_w,
+            _primary_feedforward_candidate_w,
+            _uncovered_load_w,
+        )
+
+        primary = _primary_coordinator(self.controller)
+        grid_w = _grid_reading_w(self.controller)
+        house = _measured_house_load_w(self.controller, grid_w)
+        # The house figure is shown for orientation; the uncovered load is what
+        # the feedforward acts on, and under sun the two differ by the roof.
+        uncovered = _uncovered_load_w(self.controller, grid_w)
+        return {
+            "primary_battery": primary.name if primary else None,
+            "house_load_w": round(house) if house is not None else None,
+            "uncovered_load_w": round(uncovered) if uncovered is not None else None,
+            "feedforward_w": round(_primary_feedforward_candidate_w(self.controller, grid_w)),
+            "absorb_w": round(_charge_feedforward_candidate_w(self.controller, grid_w)),
+        }
+
+    async def _set_enabled(self, enabled: bool) -> None:
+        """Persist the flag and apply it to the running controller."""
+        new_data = dict(self.entry.data)
+        new_data[CONF_PRIMARY_FEEDFORWARD_ENABLED] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+
+        async with self.controller._control_lock:
+            self.controller.primary_feedforward_enabled = enabled
+        _LOGGER.info("Primary house-load feedforward %s", "ENABLED" if enabled else "DISABLED")
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Feed the house load forward to the primary battery."""
+        await self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Return to purely error-driven control."""
         await self._set_enabled(False)
 
     @property
