@@ -27,6 +27,7 @@ from ..drivers.anker import AnkerModbusDriver
 from ..drivers.sessy import SessyLocalDriver
 from ..drivers.hoymiles import HoymilesMqttDriver
 from ..drivers.huawei import HuaweiSolarDriver
+from ..drivers.fronius_gen24 import FroniusGen24Driver
 from ..drivers.base import SetpointResult
 from .alarm_notifier import AlarmNotifier
 from .mac_tracking import normalise_mac
@@ -158,7 +159,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.brand = brand
         self.ems_version = ems_version
         self.zendure_model = zendure_model
-        if self.brand in ("zendure", "anker", "hoymiles", "huawei"):
+        if self.brand in ("zendure", "anker", "hoymiles", "huawei", "fronius_gen24"):
             full_charge_voltage_taper_enabled = False
 
         # Validate and store battery version
@@ -324,6 +325,14 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             self.driver = HoymilesMqttDriver(
                 hass, self.host,
                 model=hoymiles_model,
+                max_charge_power_w=self.configured_max_charge_power,
+                max_discharge_power_w=self.configured_max_discharge_power,
+            )
+        elif self.brand == "fronius_gen24":
+            self.driver = FroniusGen24Driver(
+                self.host,
+                self.port,
+                self.slave_id,
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
             )
@@ -626,6 +635,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Sessy" if self.brand == "sessy"
                 else "Hoymiles" if self.brand == "hoymiles"
                 else "Huawei" if self.brand == "huawei"
+                else "Fronius" if self.brand == "fronius_gen24"
                 else "Marstek"
             ),
             "model": self.driver.model_label or (
@@ -633,6 +643,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Solarbank Max AC" if self.brand == "anker"
                 else "Sessy" if self.brand == "sessy"
                 else "MS-A2" if self.brand == "hoymiles"
+                else "GEN24 / BYD" if self.brand == "fronius_gen24"
                 else "Venus"
             ),
         }
@@ -641,6 +652,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         serial = getattr(getattr(self, "driver", None), "serial", None)
         if serial:
             info["serial_number"] = str(serial)
+        if self.brand == "fronius_gen24":
+            data = self.data or {}
+            manufacturer = data.get("fronius_storage_manufacturer")
+            model = data.get("fronius_storage_model")
+            serial = data.get("fronius_storage_serial")
+            if isinstance(manufacturer, str) and manufacturer:
+                info["manufacturer"] = manufacturer
+            if isinstance(model, str) and model:
+                info["model"] = model
+            if isinstance(serial, str) and serial:
+                info["serial_number"] = serial
         # getattr: several tests build a stub coordinator and read this
         # property off it, so the attribute cannot be assumed present.
         if getattr(self, "mac", None):

@@ -49,7 +49,7 @@ const I18N = {
     tabResumen: "Overview", tabBaterias: "Batteries", tabControl: "Control",
     moreInfo: "Show history",
     zoomReset: "All",
-    infoModel: "Model", infoSoftware: "Software", infoSerial: "Serial", infoInverter: "Inverter", infoPowerModule: "Power module",
+    infoManufacturer: "Manufacturer", infoModel: "Model", infoSoftware: "Software", infoSerial: "Serial", infoInverter: "Inverter", infoPowerModule: "Power module",
     placeholderMsg: "This view is coming in a future phase. For now, use the Overview view.",
     cardFlow: "Energy flow", cardSoc: "System status", cardDaily: "Energy today",
     cardWeekly: "Weekly energy", cardPower: "Power", cardSocToday: "SOC · today",
@@ -134,7 +134,7 @@ const I18N = {
     tabResumen: "Resumen", tabBaterias: "Baterías", tabControl: "Control",
     moreInfo: "Ver histórico",
     zoomReset: "Todo",
-    infoModel: "Modelo", infoSoftware: "Software", infoSerial: "N.º serie", infoInverter: "Inversor", infoPowerModule: "Módulo de potencia",
+    infoManufacturer: "Fabricante", infoModel: "Modelo", infoSoftware: "Software", infoSerial: "N.º serie", infoInverter: "Inversor", infoPowerModule: "Módulo de potencia",
     placeholderMsg: "Esta vista llegará en una próxima fase. Por ahora, usa la vista Resumen.",
     cardFlow: "Flujo de energía", cardSoc: "Estado del sistema", cardDaily: "Energía hoy",
     cardWeekly: "Energía semanal", cardPower: "Potencias", cardSocToday: "SOC · hoy",
@@ -219,7 +219,7 @@ const I18N = {
     tabResumen: "Resum", tabBaterias: "Bateries", tabControl: "Control",
     moreInfo: "Veure històric",
     zoomReset: "Tot",
-    infoModel: "Model", infoSoftware: "Programari", infoSerial: "Núm. sèrie", infoInverter: "Inversor", infoPowerModule: "Mòdul de potència",
+    infoManufacturer: "Fabricant", infoModel: "Model", infoSoftware: "Programari", infoSerial: "Núm. sèrie", infoInverter: "Inversor", infoPowerModule: "Mòdul de potència",
     placeholderMsg: "Aquesta vista arribarà en una fase futura. De moment, fes servir la vista Resum.",
     cardFlow: "Flux d'energia", cardSoc: "Estat del sistema", cardDaily: "Energia avui",
     cardWeekly: "Energia setmanal", cardPower: "Potències", cardSocToday: "SOC · avui",
@@ -300,7 +300,7 @@ const I18N = {
     tabResumen: "Übersicht", tabBaterias: "Batterien", tabControl: "Steuerung",
     moreInfo: "Verlauf anzeigen",
     zoomReset: "Alles",
-    infoModel: "Modell", infoSoftware: "Software", infoSerial: "Seriennr.", infoInverter: "Wechselrichter", infoPowerModule: "Leistungsmodul",
+    infoManufacturer: "Hersteller", infoModel: "Modell", infoSoftware: "Software", infoSerial: "Seriennr.", infoInverter: "Wechselrichter", infoPowerModule: "Leistungsmodul",
     placeholderMsg: "Diese Ansicht kommt in einer späteren Phase. Nutze vorerst die Übersicht.",
     cardFlow: "Energiefluss", cardSoc: "Systemstatus", cardDaily: "Energie heute",
     cardWeekly: "Wochenenergie", cardPower: "Leistung", cardSocToday: "SOC · heute",
@@ -381,7 +381,7 @@ const I18N = {
     tabResumen: "Résumé", tabBaterias: "Batteries", tabControl: "Contrôle",
     moreInfo: "Voir l'historique",
     zoomReset: "Tout",
-    infoModel: "Modèle", infoSoftware: "Logiciel", infoSerial: "N° série", infoInverter: "Onduleur", infoPowerModule: "Module de puissance",
+    infoManufacturer: "Fabricant", infoModel: "Modèle", infoSoftware: "Logiciel", infoSerial: "N° série", infoInverter: "Onduleur", infoPowerModule: "Module de puissance",
     placeholderMsg: "Cette vue arrivera dans une phase ultérieure. Pour l'instant, utilisez la vue Résumé.",
     cardFlow: "Flux d'énergie", cardSoc: "État du système", cardDaily: "Énergie aujourd'hui",
     cardWeekly: "Énergie hebdomadaire", cardPower: "Puissances", cardSocToday: "SOC · aujourd'hui",
@@ -462,7 +462,7 @@ const I18N = {
     tabResumen: "Overzicht", tabBaterias: "Batterijen", tabControl: "Bediening",
     moreInfo: "Geschiedenis tonen",
     zoomReset: "Alles",
-    infoModel: "Model", infoSoftware: "Software", infoSerial: "Serienr.", infoInverter: "Omvormer", infoPowerModule: "Vermogensmodule",
+    infoManufacturer: "Fabrikant", infoModel: "Model", infoSoftware: "Software", infoSerial: "Serienr.", infoInverter: "Omvormer", infoPowerModule: "Vermogensmodule",
     placeholderMsg: "Deze weergave komt in een latere fase. Gebruik voorlopig het Overzicht.",
     cardFlow: "Energiestroom", cardSoc: "Systeemstatus", cardDaily: "Energie vandaag",
     cardWeekly: "Energie per week", cardPower: "Vermogen", cardSocToday: "SOC · vandaag",
@@ -5340,7 +5340,7 @@ class MarstekVenusPanel extends HTMLElement {
         name,
         // model label rides on the battery_soc entity attributes (device-registry
         // model is hardcoded "Venus"): Marstek version / Zendure product.
-        model: (socObj.attributes && socObj.attributes.model) || null,
+        model: (socObj.attributes && socObj.attributes.model) || (devReg && devReg.model) || null,
         soc: this._num(socObj),
         // Net cell flow (+charge / -discharge). On Venus A/D this includes MPPT;
         // on AC-only units it remains the inverse of ac_power.
@@ -5376,9 +5376,10 @@ class MarstekVenusPanel extends HTMLElement {
         entIds: idByTk,
         entIdsDomain: idByTkDomain,
         info: {
+          manufacturer: (socObj.attributes && socObj.attributes.manufacturer) || (devReg && devReg.manufacturer) || null,
           sw: this._sval(byTk[K.softwareVersion]),
           // Huawei publishes the serial as a sensor; the registry entry has none.
-          serial: (devReg && devReg.serial_number) || this._sval(byTk[K.powerModuleSerial]),
+          serial: (socObj.attributes && socObj.attributes.serial) || (devReg && devReg.serial_number) || this._sval(byTk[K.powerModuleSerial]),
           powerModuleFw: this._sval(byTk[K.powerModuleFirmware]),
           inverterModel: this._sval(byTk[K.deviceName]),
           inverterSn: this._sval(byTk[K.inverterSerial]),
@@ -5794,6 +5795,7 @@ class MarstekVenusPanel extends HTMLElement {
       if (val != null && val !== "")
         rows.push(`<div class="info-row"><span class="muted">${label}</span><span>${val}</span></div>`);
     };
+    addRow(this._t("infoManufacturer"), b.info.manufacturer);
     addRow(this._t("infoModel"), b.model);
     addRow(this._t("infoSoftware"), b.info.sw);
     addRow("BMS", b.info.bms);

@@ -362,8 +362,19 @@ class MarstekVenusSensor(CoordinatorEntity, SensorEntity):
         """
         if self.definition["key"] != "battery_soc":
             return None
-        model = getattr(self.coordinator.driver, "model_label", None)
-        return {"model": model} if model else None
+        data = self.coordinator.data or {}
+        model = data.get("fronius_storage_model") or getattr(self.coordinator.driver, "model_label", None)
+        attrs = {}
+        if model:
+            attrs["model"] = model
+        for attr, key in (
+            ("manufacturer", "fronius_storage_manufacturer"),
+            ("serial", "fronius_storage_serial"),
+        ):
+            value = data.get(key)
+            if value:
+                attrs[attr] = value
+        return attrs or None
 
     @property
     def device_info(self):

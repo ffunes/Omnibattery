@@ -14,6 +14,7 @@ loop, dashboard, predictive charging and most runtime controls are shared.
 | **Anker SOLIX** | Modbus TCP | [Anker SOLIX](anker.md) |
 | **Sessy** | Local HTTP API through the Sessy dongle | [Sessy](sessy.md) |
 | **Hoymiles MS-A2 / HiBattery** | MQTT through Home Assistant | [Hoymiles MQTT](hoymiles.md) |
+| **Fronius GEN24 / BYD** | Modbus TCP and local Solar API | [Fronius GEN24 / BYD](fronius-gen24.md) |
 
 ![Battery brand selector](../../assets/screenshots/configuration/battery-brand-form.png){ width="650"  style="display: block; margin: 0 auto;"}
 

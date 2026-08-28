@@ -76,7 +76,9 @@
       "phase_assignments": {
         "title": "Phasenzuordnung Batterie {battery_num}",
         "description": "Wählen Sie die physische Phase, an die {battery_name} angeschlossen ist, oder Nicht zugewiesen, wenn keine geschützte Phase verwendet wird.",
-        "data": {"battery_phase": "Physische Batteriephase"}
+        "data": {
+          "battery_phase": "Physische Batteriephase"
+        }
       },
       "batteries": {
         "title": "Anzahl der Batterien",
@@ -92,7 +94,7 @@
           "brand": "Batteriemarke"
         },
         "data_description": {
-          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS must be disabled for Omnibattery control). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP."
+          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS must be disabled for Omnibattery control). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP. Fronius GEN24 / BYD: Modbus TCP Storage Control."
         }
       },
       "battery_connection": {
@@ -132,8 +134,15 @@
       "battery_connection_hoymiles": {
         "title": "Batterie {battery_num} konfigurieren — Verbindung (Hoymiles)",
         "description": "Aktivieren Sie MQTT Service in S-Miles Home und verwenden Sie den in Home Assistant konfigurierten MQTT-Broker.",
-        "data": {"name": "Name", "device_id": "MQTT-Geräte-ID", "hoymiles_model": "Batteriemodell"},
-        "data_description": {"device_id": "Hoymiles MQTT-ID, zum Beispiel MSA-280024341346.", "hoymiles_model": "Verwenden Sie die automatische Erkennung, sofern das Gerät kein falsches oder generisches Modell veröffentlicht."}
+        "data": {
+          "name": "Name",
+          "device_id": "MQTT-Geräte-ID",
+          "hoymiles_model": "Batteriemodell"
+        },
+        "data_description": {
+          "device_id": "Hoymiles MQTT-ID, zum Beispiel MSA-280024341346.",
+          "hoymiles_model": "Verwenden Sie die automatische Erkennung, sofern das Gerät kein falsches oder generisches Modell veröffentlicht."
+        }
       },
       "battery_connection_esphome": {
         "title": "Batterie {battery_num} konfigurieren — Verbindung (LilyGo/ESPHome)",
@@ -589,8 +598,20 @@
       "reconfigure_battery_sessy": {
         "title": "Batterie {battery_num} neu konfigurieren — Verbindung (Sessy)",
         "description": "Aktualisieren Sie die Verbindungsdaten für die Sessy-Batterie {battery_num}. Alle übrigen Einstellungen bleiben erhalten.",
-        "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
-        "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "HTTP-Port",
+          "username": "Benutzername",
+          "password": "Passwort"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk",
+          "port": "HTTP-Port (Standard 80)",
+          "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername",
+          "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"
+        }
       },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
@@ -638,8 +659,14 @@
       "reconfigure_battery_hoymiles": {
         "title": "Batterie {battery_num} neu konfigurieren — Hoymiles MQTT",
         "description": "Geben Sie die Hoymiles MQTT-Geräte-ID ein; Home Assistant verwaltet den Broker und Omnibattery erkennt das Modell.",
-        "data": {"name": "Name", "device_id": "MQTT-Geräte-ID", "hoymiles_model": "Batteriemodell"},
-        "data_description": {"hoymiles_model": "Verwenden Sie die automatische Erkennung, sofern das Gerät kein falsches oder generisches Modell veröffentlicht."}
+        "data": {
+          "name": "Name",
+          "device_id": "MQTT-Geräte-ID",
+          "hoymiles_model": "Batteriemodell"
+        },
+        "data_description": {
+          "hoymiles_model": "Verwenden Sie die automatische Erkennung, sofern das Gerät kein falsches oder generisches Modell veröffentlicht."
+        }
       },
       "reconfigure_battery_esphome": {
         "title": "Batterie {battery_num} neu konfigurieren — Verbindung (LilyGo/ESPHome)",
@@ -663,8 +690,20 @@
       "battery_connection_sessy": {
         "title": "Batterie {battery_num} konfigurieren — Verbindung (Sessy)",
         "description": "Geben Sie die Verbindungsdaten und die auf dem Sessy-Dongle aufgedruckten lokalen Zugangsdaten für Batterie {battery_num} ein.",
-        "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
-        "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "HTTP-Port",
+          "username": "Benutzername",
+          "password": "Passwort"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk",
+          "port": "HTTP-Port (Standard 80)",
+          "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername",
+          "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"
+        }
       },
       "battery_connection_huawei": {
         "title": "Batterie {battery_num} einrichten — Verbindung (Huawei)",
@@ -691,6 +730,38 @@
           "host": "IP address shown in the Anker app under Third-Party Control",
           "port": "Modbus TCP port (default 502)",
           "slave_id": "Modbus slave/unit id (default 1)"
+        }
+      },
+      "battery_connection_fronius_gen24": {
+        "title": "Batterie {battery_num} konfigurieren — Verbindung (Fronius GEN24 / BYD)",
+        "description": "Geben Sie den Fronius-GEN24-Modbus-TCP-Endpunkt für BYD-Batterie {battery_num} ein. Modbus TCP und Storage Control müssen am Wechselrichter aktiviert sein.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "Modbus-Port",
+          "slave_id": "Modbus-Slave-ID"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse des Fronius GEN24 Wechselrichters",
+          "port": "Modbus-TCP-Port (Standard 502)",
+          "slave_id": "Storage-Slave-/Unit-ID des Wechselrichters (Standard 1)"
+        }
+      },
+      "reconfigure_battery_fronius_gen24": {
+        "title": "Batterie {battery_num} neu konfigurieren — Verbindung (Fronius GEN24 / BYD)",
+        "description": "Aktualisieren Sie die Verbindungsdaten für die Fronius-GEN24-/BYD-Batterie {battery_num}. Alle übrigen Einstellungen bleiben erhalten.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "Modbus-Port",
+          "slave_id": "Modbus-Slave-ID"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "Neue IP-Adresse des Fronius GEN24 Wechselrichters",
+          "port": "Modbus-TCP-Port (Standard 502)",
+          "slave_id": "Storage-Slave-/Unit-ID des Wechselrichters (Standard 1)"
         }
       }
     },
@@ -761,7 +832,9 @@
       "phase_assignments": {
         "title": "Phasenzuordnung Batterie {battery_num}",
         "description": "Wählen Sie die physische Phase, an die {battery_name} angeschlossen ist, oder Nicht zugewiesen, wenn keine geschützte Phase verwendet wird.",
-        "data": {"battery_phase": "Physische Batteriephase"}
+        "data": {
+          "battery_phase": "Physische Batteriephase"
+        }
       },
       "init": {
         "title": "Omnibattery neu konfigurieren",
@@ -820,7 +893,7 @@
           "brand": "Batteriemarke"
         },
         "data_description": {
-          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS must be disabled for Omnibattery control). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP."
+          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS must be disabled for Omnibattery control). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP. Fronius GEN24 / BYD: Modbus TCP Storage Control."
         }
       },
       "battery_connection": {
@@ -1277,8 +1350,20 @@
       "battery_connection_sessy": {
         "title": "Batterie {battery_num} konfigurieren — Verbindung (Sessy)",
         "description": "Ändern Sie die Verbindungsdaten und lokalen Dongle-Zugangsdaten für die Sessy-Batterie {battery_num}.",
-        "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
-        "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "HTTP-Port",
+          "username": "Benutzername",
+          "password": "Passwort"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk",
+          "port": "HTTP-Port (Standard 80)",
+          "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername",
+          "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"
+        }
       },
       "battery_connection_huawei": {
         "title": "Batterie {battery_num} einrichten — Verbindung (Huawei)",
@@ -1305,6 +1390,22 @@
           "host": "IP address shown in the Anker app under Third-Party Control",
           "port": "Modbus TCP port (default 502)",
           "slave_id": "Modbus slave/unit id (default 1)"
+        }
+      },
+      "battery_connection_fronius_gen24": {
+        "title": "Batterie {battery_num} konfigurieren — Verbindung (Fronius GEN24 / BYD)",
+        "description": "Ändern Sie den Fronius-GEN24-Modbus-TCP-Endpunkt für BYD-Batterie {battery_num}. Modbus TCP und Storage Control müssen am Wechselrichter aktiviert sein.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "Modbus-Port",
+          "slave_id": "Modbus-Slave-ID"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse des Fronius GEN24 Wechselrichters",
+          "port": "Modbus-TCP-Port (Standard 502)",
+          "slave_id": "Storage-Slave-/Unit-ID des Wechselrichters (Standard 1)"
         }
       }
     },
@@ -1354,7 +1455,12 @@
       }
     },
     "battery_phase": {
-      "options": {"unassigned": "Nicht zugewiesen", "l1": "L1", "l2": "L2", "l3": "L3"}
+      "options": {
+        "unassigned": "Nicht zugewiesen",
+        "l1": "L1",
+        "l2": "L2",
+        "l3": "L3"
+      }
     },
     "weekday": {
       "options": {
@@ -1385,7 +1491,7 @@
         "realtime_price": "Echtzeit-Preis (sofortiger Schwellenwert)"
       }
     },
-      "price_integration_type": {
+    "price_integration_type": {
       "options": {
         "nordpool": "Nordpool",
         "pvpc": "PVPC (Spanien – ESIOS REE)",
@@ -1939,6 +2045,9 @@
       },
       "input_limit": {
         "name": "Eingangslimit"
+      },
+      "battery_current": {
+        "name": "Batteriestrom"
       }
     },
     "binary_sensor": {

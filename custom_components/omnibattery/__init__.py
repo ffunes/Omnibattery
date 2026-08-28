@@ -548,6 +548,11 @@ def _backup_switch_enabled(value) -> bool:
 class ChargeDischargeController:
     """Controller to manage charge/discharge logic for all batteries."""
 
+    _FRONIUS_PD_DEADBAND_FLOOR_W = 50
+    _FRONIUS_PD_MIN_CHARGE_FLOOR_W = 100
+    _FRONIUS_PD_MIN_DISCHARGE_FLOOR_W = 250
+    _FRONIUS_PD_MIN_CYCLE_INTERVAL_FLOOR_S = 5.0
+
     def __init__(self, hass: HomeAssistant, coordinators: list[MarstekVenusDataUpdateCoordinator], consumption_sensor: str, config_entry: ConfigEntry):
         """Initialize the controller."""
         self.hass = hass
@@ -600,6 +605,7 @@ class ChargeDischargeController:
         # (Marstek) need to track the grid meter's full cadence. Slow-actuator pacing
         # belongs per-battery in the power distribution, not in the loop cadence.
         self._min_cycle_interval_s = config_entry.data.get(CONF_PD_MIN_CYCLE_INTERVAL, DEFAULT_PD_MIN_CYCLE_INTERVAL)
+        self._apply_driver_pd_floors()
         self._last_cycle_monotonic = 0.0
         self._background_tasks: set[asyncio.Task] = set()
         self._startup_dynamic_pricing_task: asyncio.Task | None = None
@@ -2138,6 +2144,42 @@ class ChargeDischargeController:
             if batching:
                 end_batch()
 
+    def _has_fronius_gen24_battery(self) -> bool:
+        return any(getattr(coordinator, "brand", None) == "fronius_gen24" for coordinator in self.coordinators)
+
+    def _apply_driver_pd_floors(self) -> None:
+        """Apply driver-specific PD floors for storage that dislikes sign chatter."""
+        if not self._has_fronius_gen24_battery():
+            return
+
+        old_values = (
+            self.deadband,
+            self.min_charge_power,
+            self.min_discharge_power,
+            self._min_cycle_interval_s,
+        )
+        self.deadband = max(self.deadband, self._FRONIUS_PD_DEADBAND_FLOOR_W)
+        self.min_charge_power = max(self.min_charge_power, self._FRONIUS_PD_MIN_CHARGE_FLOOR_W)
+        self.min_discharge_power = max(self.min_discharge_power, self._FRONIUS_PD_MIN_DISCHARGE_FLOOR_W)
+        self._min_cycle_interval_s = max(
+            self._min_cycle_interval_s,
+            self._FRONIUS_PD_MIN_CYCLE_INTERVAL_FLOOR_S,
+        )
+        if (
+            self.deadband,
+            self.min_charge_power,
+            self.min_discharge_power,
+            self._min_cycle_interval_s,
+        ) != old_values:
+            _LOGGER.info(
+                "Fronius GEN24 / BYD detected: applying PD stability floors "
+                "(deadband=%dW, min_charge=%dW, min_discharge=%dW, min_cycle=%.1fs)",
+                self.deadband,
+                self.min_charge_power,
+                self.min_discharge_power,
+                self._min_cycle_interval_s,
+            )
+
     def _configured_system_limit(self, is_charging: bool) -> int:
         """Return the optional system-wide power limit for the direction.
 
@@ -2598,6 +2640,7 @@ class ChargeDischargeController:
         self.min_discharge_power = self.config_entry.data.get(CONF_PD_MIN_DISCHARGE_POWER, DEFAULT_PD_MIN_DISCHARGE_POWER)
         self._relay_cooldown_s = self.config_entry.data.get(CONF_PD_RELAY_COOLDOWN, DEFAULT_PD_RELAY_COOLDOWN)
         self._min_cycle_interval_s = self.config_entry.data.get(CONF_PD_MIN_CYCLE_INTERVAL, DEFAULT_PD_MIN_CYCLE_INTERVAL)
+        self._apply_driver_pd_floors()
         self.target_grid_power = self.config_entry.data.get(CONF_TARGET_GRID_POWER, DEFAULT_TARGET_GRID_POWER)
         self.enable_system_power_limits = self.config_entry.data.get(
             CONF_ENABLE_SYSTEM_POWER_LIMITS,
