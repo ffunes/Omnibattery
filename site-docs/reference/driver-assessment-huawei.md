@@ -182,10 +182,15 @@ charge cutoff on the inverter and the discharge cutoff on the battery, so
 resolving against the configured battery device alone finds one and misses the
 other. The driver searches the whole config entry.
 
-**Watchdog.** Every command carries a duration (10 minutes as issued). If Home
-Assistant dies without unloading, the inverter drops the command by itself and
-returns to its own regulation. This is why a duration is sent rather than an
-open-ended command.
+**Watchdog — do not rely on it.** Every command carries a duration (10 minutes
+as issued), and the register still reads 10 while a command stands. On the
+reference installation a forcible discharge written at 04:32 was still in force
+at 09:22, five hours later, with the integration disabled for the last of them.
+Whatever the duration governs, it did not release this. The release has to be
+written, and it has to go out over the same path the command did: releasing
+through the `huawei_solar` service while writing registers directly addresses a
+device that does not exist on that path, and the failure is silent because
+shutdown suppresses the warning.
 
 ## 6. Feature degradation matrix
 
@@ -214,7 +219,10 @@ misbehaving first and a test second:
 - The dynamic discharge limit ignores the battery's own contribution.
 - No read group may hold a single key.
 - The inverter's AC total is not published as the battery's AC port.
-- Every form schema survives the serialisation the frontend needs (§13.8).
+- Every form schema survives the serialisation the frontend needs (§13.10).
+- No charge is ever claimed beyond the uncovered surplus (§13.9).
+- Nothing is commanded at all while the strings carry voltage.
+- Shutdown clears the registers over the path the commands took.
 - An unpopulated pack slot produces no entities at all.
 - A battery device belonging to a different inverter is refused.
 - The limits form allows more than the battery reports today.
@@ -390,7 +398,64 @@ padding, so the pack 1 firmware string decodes to nothing, and the battery
 flapped in and out of the pool every three seconds all day. Groups are now one
 per cadence rather than one per block.
 
-### 13.8 A form schema must survive serialisation
+### 13.8 A forcible command caps the inverter's own production
+
+The worst fault this driver has caused, and the one most specific to a hybrid.
+
+**A forcible command is not a request but a ceiling.** The inverter produces
+exactly what it was told and curtails the rest of the roof. Caught in the act
+with a 315 W charge standing: 288 W harvested from an array that made 5054 W six
+seconds after the command ended, while a separate balcony array on the same roof
+held steady throughout — so not weather.
+
+A discharge is worse still. It serves the house from the battery and leaves the
+MPPT tracker down entirely, so the panels sit at open-circuit voltage drawing
+nothing: 374 V at 0.00 A. And with the roof producing nothing, the meter shows a
+real deficit — which is what asks for discharge. The command goes on justifying
+itself and survives sunrise: commanded at 04:32 against a genuinely dark sky,
+still standing at 09:22.
+
+**So while there is light on the panels, this driver commands nothing.** It
+releases instead and leaves the inverter to its own regulation, which harvests
+everything and runs the battery from it. That is not a workaround: on a
+DC-coupled hybrid the inverter is the better controller during daylight, because
+it is the only party that knows what the array could be making.
+
+The daylight test comes from the strings themselves — a string carries voltage
+when there is light on it and collapses in the dark — so no forecast, sun
+elevation or clock is involved.
+
+What this costs is real and belongs in the decision: **a Huawei battery is only
+under Omnibattery's control after dark.** During the day it follows its own
+energy manager. An installation whose second battery is AC-coupled still gets
+full control of that one, which is where the surplus can be steered.
+
+### 13.9 A second battery is household load to the hybrid's manager
+
+Anything drawing power behind the same meter reads as consumption to the
+inverter's energy manager, and a second battery is no exception. That cuts both
+ways, and both matter.
+
+It is why the charge order is enforceable at all. The hybrid itself cannot be
+commanded while the sun is on the panels (§13.8), so it would be easy to assume
+this integration can only stand aside during daylight. It cannot command the
+hybrid — but it can command the AC battery, and the manager has no way to refuse
+that: it sees load and covers it. Ordering the AC battery first is a decision
+that takes effect, not a preference that gets overruled.
+
+It is also the hazard. Whatever is asked for gets covered — from the sun when it
+is there, and **from the hybrid's own battery when it is not**. A charge command
+larger than the real surplus therefore pumps one battery into the other through
+two conversions, while the meter sits at zero and nothing looks wrong. Observed
+before the guard existed: 1391 W of PV over a 529 W house, one battery taking in
+1110 W while the other gave up 205 W, the meter reading 3 W.
+
+The bound that prevents it is the *uncovered* surplus — what the meter would
+read if every battery stopped — rather than the fleet's charging capacity. In
+the code that cap looks like an ordinary device limit, so it is worth naming for
+what it is.
+
+### 13.10 A form schema must survive serialisation
 
 Home Assistant hands the frontend a *serialised* copy of every form schema, and
 not every voluptuous construct has a serialised form. A `vol.Any` in the
@@ -411,6 +476,7 @@ Firmware tested:    inverter V200R024C00SPC110, storage V200R025C00SPC103
 Documentation:      Solar Inverter Modbus Interface Definitions v05
 
 Verdict: SUITABLE WITH LIMITATIONS
+         Control is available after dark only (§13.8)
 
 Blocking items:
 - Real SOC:        N — register 37004, verified
