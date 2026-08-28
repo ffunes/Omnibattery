@@ -679,3 +679,64 @@ def test_the_claim_never_exceeds_the_surplus_even_with_room_to_spare():
     controller._active_charge_batteries = []
     controller._battery_power_limit = lambda coordinator, is_charging: 7000
     assert _charge_feedforward_w(controller, -400.0) == 400.0
+
+
+# ----------------------------------------------------------------------
+# discharge ceiling
+# ----------------------------------------------------------------------
+# The feedforward already refuses to *chase* another battery's charging, but
+# the PD loop underneath it works from the raw meter, where that charging is
+# indistinguishable from house load. Measured on the reference installation at
+# 21:39 with no sun: the EMMA drew 211 W into the hybrid while the Marstek
+# discharged 912 W against a 787 W house. The excess was battery-to-battery,
+# through two conversions, topped up from the grid by the other manager.
+
+def _ceiling(new_power, grid_w, batteries, deadband=0):
+    from custom_components.omnibattery import _apply_discharge_ceiling
+
+    controller = _controller(batteries)
+    controller.deadband = deadband
+    return _apply_discharge_ceiling(controller, new_power, grid_w)
+
+
+def test_a_discharge_beyond_the_uncovered_load_is_trimmed():
+    """The night this was found: 912 W commanded against a 787 W house."""
+    batteries = [
+        _battery("Marstek", ac_power=912),     # discharging
+        _battery("Huawei", ac_power=-211),     # charged by its own manager
+    ]
+    # Meter: 787 house + 211 into the hybrid - 912 from the Marstek.
+    assert _ceiling(-912.0, 86.0, batteries) == -787.0
+
+
+def test_a_discharge_within_the_load_is_left_alone():
+    batteries = [
+        _battery("Marstek", ac_power=600),
+        _battery("Huawei", ac_power=-211),
+    ]
+    # Uncovered is still 787; asking for 600 of it is nobody's business to trim.
+    assert _ceiling(-600.0, 398.0, batteries) == -600.0
+
+
+def test_the_ceiling_does_not_touch_charging():
+    batteries = [_battery("Marstek", ac_power=0)]
+    assert _ceiling(1500.0, 1500.0, batteries) == 1500.0
+
+
+def test_a_surplus_is_left_to_the_guard():
+    """It vetoes rather than caps, and two hands on the same command is worse."""
+    batteries = [_battery("Marstek", ac_power=0)]
+    assert _ceiling(-400.0, -900.0, batteries) == -400.0
+
+
+def test_without_a_readable_battery_nothing_is_trimmed():
+    batteries = [_battery("Marstek", ac_power=None)]
+    assert _ceiling(-900.0, 500.0, batteries) == -900.0
+
+
+def test_noise_around_the_demand_does_not_clamp_every_cycle():
+    batteries = [_battery("Marstek", ac_power=800)]
+    # Uncovered 787, commanded 800: inside the deadband, so left as it is.
+    assert _ceiling(-800.0, -13.0, batteries, deadband=20) == -800.0
+    # Well past it, so trimmed.
+    assert _ceiling(-900.0, -113.0, batteries, deadband=20) == -687.0

@@ -971,6 +971,43 @@ def _apply_surplus_guard(controller, new_power, grid_w):
     return 0
 
 
+def _apply_discharge_ceiling(controller, new_power, grid_w):
+    """Cap a discharge at the load the house has actually left uncovered.
+
+    The mirror of the feedforward's floor, and needed for the same reason. The
+    PD loop chases the raw meter to zero, so anything else drawing on that
+    meter becomes this controller's job — including a second battery being
+    charged by its own energy manager. Covering that discharges one battery
+    into the other through two conversions, and where the other manager fills
+    the gap from the grid, it is paid for twice.
+
+    Observed on the reference installation at 21:39 with no sun: the EMMA drew
+    211 W to charge the hybrid, and the Marstek was discharging 912 W against a
+    787 W house — the difference chasing a load that was never the house's.
+
+    ``_uncovered_load_w`` already removes every battery's own contribution from
+    the meter, so it is the honest ceiling. Left alone when it cannot be read,
+    and when the roof is covering the house — that case belongs to
+    :func:`_apply_surplus_guard`, which vetoes rather than caps.
+    """
+    if new_power >= 0:
+        return new_power
+    demand = _uncovered_load_w(controller, grid_w)
+    if demand is None or demand <= 0:
+        return new_power
+    # A deadband of slack, so measurement noise around the demand does not
+    # clamp the command on and off every cycle.
+    slack = float(getattr(controller, "deadband", 0) or 0)
+    if -new_power <= demand + slack:
+        return new_power
+    _LOGGER.info(
+        "Discharge ceiling: trimming %.0fW to %.0fW — the rest is not the "
+        "house's load",
+        -new_power, demand,
+    )
+    return -float(demand)
+
+
 def _surplus_guard_pending(controller, grid_w) -> bool:
     """Whether a standing discharge needs withdrawing despite a quiet meter.
 
@@ -9023,6 +9060,10 @@ class ChargeDischargeController:
         # SURPLUS GUARD: never discharge into PV the house is not using. Runs
         # after the feedforward so it can also veto that.
         new_power = _apply_surplus_guard(self, new_power, sensor_actual)
+
+        # DISCHARGE CEILING: never give the meter more than the house is
+        # actually short of. Runs after the guard so a veto stands.
+        new_power = _apply_discharge_ceiling(self, new_power, sensor_actual)
 
         # ZERO-CROSS HOLD: a charge<->discharge flip must survive the actuator
         # settle window before it becomes a real opposite-direction command (see
