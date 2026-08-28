@@ -13,6 +13,7 @@ compatibility with the rest of the control loop:
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -567,6 +568,64 @@ class ExternalLoads:
             return None
         unit = state.attributes.get("unit_of_measurement", "W")
         return raw if unit == "W" else raw * 1000.0
+
+    def _read_sensor_kwh_opt(self, entity_id: str | None) -> float | None:
+        """Energy sibling of _read_sensor_w_opt: read a sensor as kWh.
+
+        Returns None when the sensor is missing, unavailable or unparsable, so
+        the caller can keep its no-claim behaviour instead of assuming 0 kWh.
+        Unlike the power readers the default unit is kWh: the sensors this reads
+        are energy counters and an unlabelled one is overwhelmingly kWh.
+        Negative readings are clamped to 0.0 because some upstreams publish a
+        transient -0.0 between sessions.
+        """
+        if not entity_id:
+            return None
+        state = self._hass.states.get(entity_id)
+        if state is None or state.state in ("unknown", "unavailable"):
+            return None
+        try:
+            raw = float(state.state)
+        except (ValueError, TypeError):
+            return None
+        if not math.isfinite(raw):
+            return None
+        unit = str(state.attributes.get("unit_of_measurement", "kWh")).strip().lower()
+        if unit == "wh":
+            raw /= 1000.0
+        elif unit == "mwh":
+            raw *= 1000.0
+        return max(0.0, raw)
+
+    def claimable_solar_demand_kwh(self) -> float | None:
+        """Σ energy (kWh) excluded devices still expect to take from the sun.
+
+        Only enabled devices whose consumption is included in the home sensor
+        may claim: a device the home sensor does not see already sits outside
+        the consumption forecast, so reserving solar for it would count the
+        same energy twice.
+
+        ``exclusion_pct`` is deliberately not applied. That percentage governs
+        how much of a device's *live power* the battery must not cover; it says
+        nothing about the device's future energy demand.
+
+        Returns None when no device contributes a usable reading, so callers
+        can keep today's behaviour untouched.
+        """
+        total: float | None = None
+        for device in self._config_entry.data.get("excluded_devices", []):
+            sensor_id = device.get("remaining_demand_sensor")
+            if not sensor_id:
+                continue
+            if not device.get("enabled", True):
+                continue
+            if not device.get("included_in_consumption", True):
+                continue
+            value = self._read_sensor_kwh_opt(sensor_id)
+            if value is None:
+                continue
+            total = value if total is None else total + value
+        return total
 
     def _read_home_consumption_w_opt(self, entity_id: str | None) -> float | None:
         """Read Home Consumption only when its balance is currently coherent.

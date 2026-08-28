@@ -441,6 +441,17 @@ def _dynamic_pricing_info(controller) -> dict[str, Any]:
         "active_slot_purpose": getattr(
             controller, "_active_dynamic_slot_purpose", None
         ),
+        # Read-only: never call into ExternalLoads from diagnostics.
+        "excluded_demand_claim_kwh": _rounded_number(
+            (getattr(controller, "_last_decision_data", None) or {}).get(
+                "excluded_demand_claim_kwh"
+            )
+        ),
+        "solar_available_to_battery_kwh": _rounded_number(
+            (getattr(controller, "_last_decision_data", None) or {}).get(
+                "solar_available_to_battery_kwh"
+            )
+        ),
     }
     if schedule is None:
         info["schedule_type"] = None

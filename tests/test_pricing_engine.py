@@ -366,6 +366,117 @@ def test_soc_drop_reeval_false_when_no_coordinator_data():
 
 
 # ----------------------------------------------------------------------
+# _is_excluded_demand_reeval (excluded-device solar claim, #341)
+# ----------------------------------------------------------------------
+
+def _claim_ctrl(reference, current, **overrides):
+    """Controller stub for the claim-driven re-evaluation predicate."""
+    loads = SimpleNamespace(claimable_solar_demand_kwh=lambda: current)
+    base = dict(
+        _dp_last_eval_excluded_claim_kwh=reference,
+        _external_loads=loads,
+        _last_decision_data={},
+        _dp_excluded_demand_reeval_at=None,
+        _dp_excluded_demand_reeval_count=0,
+    )
+    base.update(overrides)
+    return _controller(**base)
+
+
+def _claim_mgr(ctrl, remaining_solar=12.0):
+    """Manager whose live remaining-solar read is stubbed out."""
+    manager = _mgr(ctrl)
+    manager._remaining_solar_today_kwh = lambda _now: remaining_solar
+    return manager
+
+
+_CLAIM_NOW = datetime(2026, 8, 28, 12, 0)
+
+
+def test_excluded_demand_reeval_false_before_first_evaluation():
+    ctrl = _claim_ctrl(None, 7.0)
+    assert _claim_mgr(ctrl)._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_true_when_a_session_starts():
+    # Nothing claimed at 00:05, 7 kWh claimed once the car is plugged in.
+    ctrl = _claim_ctrl(0.0, 7.0)
+    assert _claim_mgr(ctrl)._is_excluded_demand_reeval(_CLAIM_NOW) is True
+
+
+def test_excluded_demand_reeval_true_when_a_session_ends():
+    # Bidirectional: the released solar must go back to the battery plan.
+    ctrl = _claim_ctrl(7.0, 0.0)
+    assert _claim_mgr(ctrl)._is_excluded_demand_reeval(_CLAIM_NOW) is True
+
+
+def test_excluded_demand_reeval_false_below_threshold():
+    ctrl = _claim_ctrl(7.0, 5.5)
+    assert _claim_mgr(ctrl)._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_false_when_sensor_unavailable():
+    ctrl = _claim_ctrl(7.0, None)
+    assert _claim_mgr(ctrl)._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_false_without_external_loads():
+    ctrl = _claim_ctrl(0.0, 7.0, _external_loads=None)
+    assert _claim_mgr(ctrl)._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_respects_cooldown():
+    ctrl = _claim_ctrl(
+        0.0, 7.0,
+        _dp_excluded_demand_reeval_at=_CLAIM_NOW - timedelta(minutes=5),
+    )
+    assert _claim_mgr(ctrl)._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+    ctrl._dp_excluded_demand_reeval_at = _CLAIM_NOW - timedelta(minutes=20)
+    assert _claim_mgr(ctrl)._is_excluded_demand_reeval(_CLAIM_NOW) is True
+
+
+def test_excluded_demand_reeval_respects_daily_cap():
+    ctrl = _claim_ctrl(0.0, 7.0, _dp_excluded_demand_reeval_count=4)
+    assert _claim_mgr(ctrl)._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_false_without_remaining_solar():
+    # After sundown there is nothing left to reserve or release. The guard reads
+    # the live remaining forecast, not the stored full-day figure.
+    ctrl = _claim_ctrl(0.0, 7.0)
+    manager = _claim_mgr(ctrl, remaining_solar=0.0)
+    assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_compares_raw_readings():
+    # The stored reference is the raw reading, so a device asking for more than
+    # the forecast can deliver does not re-trigger on every cycle.
+    ctrl = _claim_ctrl(20.0, 20.0)
+    manager = _claim_mgr(ctrl, remaining_solar=5.0)
+    assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_refresh_excluded_demand_reference_stores_the_raw_reading():
+    ctrl = _claim_ctrl(None, 7.0)
+    _claim_mgr(ctrl)._refresh_excluded_demand_reference()
+    assert ctrl._dp_last_eval_excluded_claim_kwh == 7.0
+
+
+def test_refresh_excluded_demand_reference_without_a_reading_is_zero():
+    ctrl = _claim_ctrl(4.0, None)
+    _claim_mgr(ctrl)._refresh_excluded_demand_reference()
+    assert ctrl._dp_last_eval_excluded_claim_kwh == 0.0
+
+
+def test_excluded_demand_reeval_false_late_at_night():
+    # 23:00 onward the 00:05 evaluation is close enough.
+    ctrl = _claim_ctrl(0.0, 7.0)
+    late = _CLAIM_NOW.replace(hour=23, minute=10)
+    assert _claim_mgr(ctrl)._is_excluded_demand_reeval(late) is False
+
+
+# ----------------------------------------------------------------------
 # _project_remaining_consumption (evening recharge deficit, #409)
 # ----------------------------------------------------------------------
 

@@ -19,6 +19,7 @@ If you have a 7 kW EV charger and a 2.5 kW battery, without exclusion the batter
 | **Device has dynamic power control** | Enable for a load such as a surplus-controlled wallbox that adjusts its own demand from a grid meter. Requires **Allow solar surplus**. |
 | **Cover home while device is active** | Allow the battery to cover genuine household load while only the device's grid share remains excluded. Requires **Allow solar surplus** and a solar-production sensor. |
 | **EV charger without power telemetry** | Check if the sensor is a state sensor that reads `Charging` (or a localised equivalent) instead of a watt value. See [EV charger without power telemetry](#ev-charger-without-power-telemetry) below. |
+| **Expected remaining demand (kWh)** | Optional sensor reporting the energy the device still expects to consume today. Predictive charging reserves that share of the remaining solar forecast for the device. See [Expected remaining demand](#expected-remaining-demand) below. |
 
 ### Included in consumption?
 
@@ -79,6 +80,45 @@ Exclusion is not all-or-nothing. Each excluded device also gets an **Exclusion %
 - e.g. `60 %` — 60 % of the device's power is kept off the battery; the battery may cover the remaining 40 %.
 
 This lets the battery cover *part* of a big load instead of all-or-nothing — for example letting a 2.5 kW battery help with a 7 kW EV charger up to its share, rather than ignoring the charger entirely. The slider is per device and adjustable at runtime.
+
+---
+
+## Expected remaining demand
+
+Predictive charging plans the battery against the remaining solar forecast. That forecast is not
+all yours: an excluded device on solar surplus consumes part of it. Left unaccounted, the energy
+balance reports "sufficient energy", skips the cheap grid slots, and the battery sits at a low
+SOC through a sunny day while the car takes the sun.
+
+Point **Expected remaining demand (kWh)** at a sensor reporting the energy the device still plans
+to consume today, and predictive charging reserves that share instead:
+
+```
+claim = min(expected remaining demand, remaining solar forecast − safety margin)
+solar available to the battery = remaining solar forecast − safety margin − claim
+```
+
+Notes:
+
+- The field is optional and off by default. Without it, nothing changes.
+- The claim only applies to devices with **Included in consumption** checked. When the load is
+  *not* included, it already sits inside the consumption forecast and reserving solar for it too
+  would count the same energy twice.
+- The claim is capped at the available solar. Grid energy the device draws beyond the forecast is
+  already covered by the consumption forecast.
+- If the sensor is unavailable, unknown or unparsable, no claim is made.
+- **Exclusion %** does not scale the claim: it governs live power, not a future energy demand.
+- evcc publishes a suitable entity per loadpoint: `sensor.evcc_<loadpoint>_charge_remaining_energy`.
+- The claim is spread evenly over the remaining solar shape — the plan does not assume *when* the
+  device will draw.
+
+Because a charging session usually starts long after the 00:05 evaluation, predictive charging
+re-plans during the day whenever the claim moves by 2 kWh or more in either direction, at most
+every 15 minutes and four times a day. A session that ends releases the reserved solar the same way.
+
+The current value is published as the `excluded_demand_claim_kwh` attribute of
+`binary_sensor.<name>_predictive_charging_active`, next to `solar_surplus_kwh` and
+`solar_available_to_battery_kwh`, and in the integration's diagnostics.
 
 ---
 

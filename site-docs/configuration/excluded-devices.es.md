@@ -19,6 +19,7 @@ Si tienes un cargador de vehículo eléctrico de 7 kW y una batería de 2,5 kW, 
 | **El dispositivo tiene control dinámico de potencia** | Actívalo para una carga, como una wallbox por excedente, que ajuste su propia demanda mediante un contador de red. Requiere **Permitir excedente solar**. |
 | **Cubrir el hogar mientras el dispositivo está activo** | Permite que la batería cubra el consumo real del hogar mientras solo permanece excluida la parte de red del dispositivo. Requiere **Permitir excedente solar** y un sensor de producción solar. |
 | **Cargador VE sin telemetría de potencia** | Marca si el sensor es un sensor de estado que indica `Charging`/`Cargando` en lugar de un valor en vatios. Ver [Cargador VE sin telemetría](#cargador-ve-sin-telemetría-de-potencia) más abajo. |
+| **Demanda restante prevista (kWh)** | Sensor opcional que indica la energía que el dispositivo aún espera consumir hoy. La carga predictiva reserva esa parte de la previsión solar restante para el dispositivo. Ver [Demanda restante prevista](#demanda-restante-prevista) más abajo. |
 
 ### ¿Incluido en el consumo?
 
@@ -82,6 +83,47 @@ La exclusión no es todo o nada. Cada dispositivo excluido tiene además un slid
 - p. ej. `60 %` — el 60 % de la potencia del dispositivo se mantiene fuera de la batería; la batería puede cubrir el 40 % restante.
 
 Esto permite que la batería cubra *parte* de una carga grande en vez de todo o nada — por ejemplo dejar que una batería de 2,5 kW ayude con un cargador VE de 7 kW hasta su parte, en lugar de ignorar el cargador por completo. El slider es por dispositivo y ajustable en tiempo de ejecución.
+
+---
+
+## Demanda restante prevista
+
+La carga predictiva planifica la batería frente a la previsión solar restante. Esa previsión no
+es toda tuya: un dispositivo excluido con excedente solar consume una parte. Si no se tiene en
+cuenta, el balance energético concluye "energía suficiente", descarta las franjas baratas de red
+y la batería se queda con un SOC bajo durante un día soleado mientras el coche se lleva el sol.
+
+Indica en **Demanda restante prevista (kWh)** un sensor con la energía que el dispositivo aún
+piensa consumir hoy y la carga predictiva reservará esa parte:
+
+```
+reserva = min(demanda restante prevista, previsión solar restante − margen de seguridad)
+solar disponible para la batería = previsión solar restante − margen de seguridad − reserva
+```
+
+Notas:
+
+- El campo es opcional y está desactivado por defecto. Sin él, nada cambia.
+- La reserva solo se aplica a dispositivos con **Incluido en el consumo** marcado. Si la carga
+  *no* está incluida, ya forma parte de la previsión de consumo y reservar solar además contaría
+  la misma energía dos veces.
+- La reserva se limita a la solar disponible. La energía de red que el dispositivo consuma por
+  encima de la previsión ya está cubierta por la previsión de consumo.
+- Si el sensor no está disponible, es desconocido o no es numérico, no se reserva nada.
+- El **% de exclusión** no escala la reserva: rige la potencia instantánea, no una demanda futura.
+- evcc publica una entidad adecuada por punto de carga:
+  `sensor.evcc_<punto_de_carga>_charge_remaining_energy`.
+- La reserva se reparte de forma uniforme sobre la curva solar restante: el plan no supone *cuándo*
+  consumirá el dispositivo.
+
+Como una sesión de carga suele empezar mucho después de la evaluación de las 00:05, la carga
+predictiva replanifica durante el día cuando la reserva cambia 2 kWh o más en cualquier sentido,
+como mucho cada 15 minutos y cuatro veces al día. Una sesión que termina libera la solar reservada
+del mismo modo.
+
+El valor actual se publica como atributo `excluded_demand_claim_kwh` de
+`binary_sensor.<nombre>_predictive_charging_active`, junto a `solar_surplus_kwh` y
+`solar_available_to_battery_kwh`, y en el diagnóstico de la integración.
 
 ---
 
