@@ -359,6 +359,10 @@
           "dp_price_discharge_control": "Descargar solo cuando el precio supere el umbral",
           "negative_price_charging_enabled": "Activar carga oportunista por precio negativo",
           "smart_predischarge_enabled": "Predescarga inteligente / anti-vertido",
+          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
+          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
+          "export_price_sensor": "Export/feed-in price sensor (optional)",
+          "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Umbral de inyección negativa",
           "predischarge_reserve_soc": "Reserva de SOC de predescarga (%)",
           "predischarge_export_mode": "Modo de exportación deliberada a red",
@@ -374,6 +378,10 @@
           "dp_price_discharge_control": "Si está activado, la batería solo descarga cuando el precio eléctrico actual supera el precio máximo configurado. Si no hay umbral configurado, usa el precio medio del día calculado automáticamente a partir del sensor de precios. Si las franjas horarias restringen la descarga, ambas condiciones deben cumplirse.",
           "negative_price_charging_enabled": "Función opcional de precios dinámicos que carga durante las franjas de importación más negativas aunque la previsión normal no requiera cargar desde la red. No necesita un sensor de previsión solar.",
           "smart_predischarge_enabled": "Activa la predescarga opcional solo en el modo de precios dinámicos para crear espacio antes de franjas con precio de inyección negativo.",
+          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
+          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
+          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
+          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Los precios iguales o inferiores a este umbral son franjas de riesgo cuando se espera excedente solar.",
           "predischarge_reserve_soc": "SOC que debe reservar la predescarga, además de los límites mínimos existentes.",
           "predischarge_export_mode": "Elige cómo crear hueco exportando a red: Solo autoconsumo (0 W), Automático (solo la potencia necesaria) o Límite personalizado (se configura en el paso siguiente). Es un límite de exportación deliberada, no la potencia total de descarga.",
@@ -727,6 +735,8 @@
       "manual_requires_power": "El modo manual requiere activar el control de potencia.",
       "no_price_data": "El sensor seleccionado no es una fuente de precios compatible. Nord Pool: selecciona una entidad de la integración oficial o un sensor de HACS con `raw_today`. PVPC necesita `price_00h` … `price_23h`; CKW, una lista `prices`; EPEX, una lista `data`; y ENTSO-e, una lista `prices_today`.",
       "tibber_unavailable": "La integración Tibber no está instalada, o su servicio `tibber.get_prices` no está disponible. Instala y configura Tibber primero.",
+      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
+      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El precio mínimo de descarga no puede ser inferior al precio máximo (de carga). Ponlo igual o superior, o déjalo vacío para reutilizar el umbral de carga.",
       "host_or_serial_required": "Introduce una dirección IP (TCP) o la ruta de un puerto serie (Modbus RTU).",
       "missing_power_sensor": "Selecciona un sensor de potencia, o activa Cargador VE sin telemetría y selecciona un sensor de actividad.",
@@ -1085,6 +1095,10 @@
           "dp_price_discharge_control": "Descargar solo cuando el precio supere el umbral",
           "negative_price_charging_enabled": "Activar carga oportunista por precio negativo",
           "smart_predischarge_enabled": "Predescarga inteligente / anti-vertido",
+          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
+          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
+          "export_price_sensor": "Export/feed-in price sensor (optional)",
+          "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Umbral de inyección negativa",
           "predischarge_reserve_soc": "Reserva de SOC de predescarga (%)",
           "predischarge_export_mode": "Modo de exportación deliberada a red",
@@ -1100,6 +1114,10 @@
           "dp_price_discharge_control": "Si está activado, la batería solo descarga cuando el precio eléctrico actual supera el precio máximo configurado. Si no hay umbral configurado, usa el precio medio del día calculado automáticamente a partir del sensor de precios. Si las franjas horarias restringen la descarga, ambas condiciones deben cumplirse.",
           "negative_price_charging_enabled": "Función opcional de precios dinámicos que carga durante las franjas de importación más negativas aunque la previsión normal no requiera cargar desde la red. No necesita un sensor de previsión solar.",
           "smart_predischarge_enabled": "Activa la predescarga opcional solo en el modo de precios dinámicos para crear espacio antes de franjas con precio de inyección negativo.",
+          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
+          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
+          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
+          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Los precios iguales o inferiores a este umbral son franjas de riesgo cuando se espera excedente solar.",
           "predischarge_reserve_soc": "SOC que debe reservar la predescarga, además de los límites mínimos existentes.",
           "predischarge_export_mode": "Elige cómo crear hueco exportando a red: Solo autoconsumo (0 W), Automático (solo la potencia necesaria) o Límite personalizado (se configura en el paso siguiente). Es un límite de exportación deliberada, no la potencia total de descarga.",
@@ -1345,6 +1363,8 @@
       "manual_requires_power": "El modo manual requiere activar el control de potencia.",
       "no_price_data": "El sensor seleccionado no es una fuente de precios compatible. Nord Pool: selecciona una entidad de la integración oficial o un sensor de HACS con `raw_today`. PVPC necesita `price_00h` … `price_23h`; CKW, una lista `prices`; EPEX, una lista `data`; y ENTSO-e, una lista `prices_today`.",
       "tibber_unavailable": "La integración Tibber no está instalada, o su servicio `tibber.get_prices` no está disponible. Instala y configura Tibber primero.",
+      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
+      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El precio mínimo de descarga no puede ser inferior al precio máximo (de carga). Ponlo igual o superior, o déjalo vacío para reutilizar el umbral de carga.",
       "host_or_serial_required": "Introduce una dirección IP (TCP) o la ruta de un puerto serie (Modbus RTU).",
       "missing_power_sensor": "Selecciona un sensor de potencia, o activa Cargador VE sin telemetría y selecciona un sensor de actividad.",
@@ -1598,6 +1618,7 @@
           "grid_charging": "Cargando desde la Red",
           "weekly_full_charge": "Carga Semanal Completa",
           "charge_delayed": "Carga Retrasada",
+          "surplus_price_hold": "Surplus Exporting (Cheaper Window Ahead)",
           "waiting_for_solar": "Esperando Solar",
           "charging_to_setpoint": "Cargando al Setpoint",
           "capacity_protection": "Protección de Capacidad",
@@ -1980,6 +2001,9 @@
       "curtailment_status": {
         "name": "Estado de predescarga inteligente"
       },
+      "surplus_price_hold_status": {
+        "name": "Surplus Price Hold"
+      },
       "wifi_status": {
         "name": "Estado WiFi"
       },
@@ -2134,6 +2158,9 @@
       }
     },
     "number": {
+      "surplus_hold_min_saving": {
+        "name": "Surplus Hold Minimum Saving"
+      },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % excluido"
       },

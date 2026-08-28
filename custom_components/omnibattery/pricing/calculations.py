@@ -10,9 +10,53 @@ import math
 from datetime import datetime, timedelta
 
 from . import PriceSlot
-from ..const import CHARGE_EFFICIENCY, DEFAULT_ROUND_TRIP_EFFICIENCY
+from ..const import (
+    CHARGE_EFFICIENCY,
+    DEFAULT_ROUND_TRIP_EFFICIENCY,
+    PRICE_INTEGRATION_CKW,
+    PRICE_INTEGRATION_ENTSOE,
+    PRICE_INTEGRATION_EPEX,
+    PRICE_INTEGRATION_NORDPOOL,
+    PRICE_INTEGRATION_PVPC,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+# Attributes each provider exposes as a list of price entries. A template-built
+# sensor can render one of these to a plain string, which must be detected
+# before parsing rather than silently iterating single characters.
+PRICE_LIST_ATTRS = {
+    PRICE_INTEGRATION_NORDPOOL: ("raw_today", "raw_tomorrow"),
+    PRICE_INTEGRATION_CKW: ("prices",),
+    PRICE_INTEGRATION_EPEX: ("data",),
+    PRICE_INTEGRATION_ENTSOE: ("prices_today", "prices_tomorrow"),
+}
+
+
+def stringified_price_attrs(integration_type: str, attrs: dict) -> list[str]:
+    """Return the list attributes this sensor exposes as a string."""
+    return [
+        key
+        for key in PRICE_LIST_ATTRS.get(integration_type, ())
+        if isinstance(attrs.get(key), str)
+    ]
+
+
+def parse_prices_for_integration(integration_type: str, attrs: dict) -> list:
+    """Dispatch to the parser for ``integration_type``.
+
+    Nordpool is the fallback because it was the original provider and existing
+    entries may carry an unset type.
+    """
+    if integration_type == PRICE_INTEGRATION_PVPC:
+        return parse_pvpc_prices(attrs)
+    if integration_type == PRICE_INTEGRATION_CKW:
+        return parse_ckw_prices(attrs)
+    if integration_type == PRICE_INTEGRATION_EPEX:
+        return parse_epex_prices(attrs)
+    if integration_type == PRICE_INTEGRATION_ENTSOE:
+        return parse_entsoe_prices(attrs)
+    return parse_nordpool_prices(attrs)
 
 
 def normalize_nordpool_hacs_price(value, attrs: dict) -> float:

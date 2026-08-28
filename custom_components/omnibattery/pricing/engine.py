@@ -33,7 +33,6 @@ from ..const import (
     PRICE_DATA_ISSUE_DELAY_S,
     PRICE_HEALTH_CHECK_INTERVAL_S,
     PRICE_INTEGRATION_NORDPOOL,
-    PRICE_INTEGRATION_PVPC,
     PRICE_INTEGRATION_CKW,
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_ENTSOE,
@@ -118,15 +117,9 @@ TIME_SLOT_FORECAST_GRACE_S = 300.0
 CURTAILMENT_AUTO_REPLAN_HEADROOM_DELTA_KWH = 0.5
 CURTAILMENT_AUTO_REPLAN_COOLDOWN_S = 60.0
 
-# Sensor attributes each integration expects to hold a LIST of price entries.
-# Used only to detect an attribute that arrived as a string; PVPC is absent
-# because it reads scalar per-hour attributes, not a list.
-_PRICE_LIST_ATTRS = {
-    PRICE_INTEGRATION_NORDPOOL: ("raw_today", "raw_tomorrow"),
-    PRICE_INTEGRATION_CKW: ("prices",),
-    PRICE_INTEGRATION_EPEX: ("data",),
-    PRICE_INTEGRATION_ENTSOE: ("prices_today", "prices_tomorrow"),
-}
+# Sensor attributes each integration expects to hold a LIST of price entries
+# live in ``calculations.PRICE_LIST_ATTRS`` so the import and export curves
+# share one definition.
 
 # These values describe the forecast/timeline simulation itself.  They are
 # deliberately kept separate from the current balance decision because the
@@ -235,6 +228,10 @@ class PricingManager:
         self._controller = controller
         self._future_price_slots_cache_key: tuple[Any, ...] | None = None
         self._future_price_slots_cache: tuple[PriceSlot, ...] = ()
+        # Why the last sensor parse failed. Only the import caller promotes it
+        # to ``controller._price_data_status``; the export curve must never
+        # raise the import-price repair issue.
+        self._last_sensor_parse_status: str | None = None
 
     def _now(self) -> datetime:
         """Return local wall-clock time, isolated for deterministic slot tests."""
@@ -872,6 +869,106 @@ class PricingManager:
         self._future_price_slots_cache = tuple(slots)
         return list(slots)
 
+    def get_future_export_price_slots(self, horizon_end=None) -> list:
+        """Return future slots from the export/feed-in curve.
+
+        Falls back to the import curve when no export sensor is configured,
+        which is both the historical behaviour and the economically correct one
+        under net metering, where export is credited at the import price.
+
+        This path deliberately never writes ``_price_data_status``: a flaky
+        export sensor must not raise the import-price repair issue, which gates
+        load-bearing pricing features.
+        """
+        controller = self._controller
+        entity_id = getattr(controller, "export_price_sensor", None)
+        if not entity_id:
+            # The import parse writes its own health status, and this caller
+            # asks for a short horizon (the solar window), which legitimately
+            # empties after sunset. Restore the status so the import diagnostic
+            # does not flap to "no_future_slots" on a healthy price feed.
+            previous_status = getattr(controller, "_price_data_status", None)
+            slots = self.get_future_price_slots(horizon_end)
+            controller._price_data_status = previous_status
+            return slots
+        integration_type = (
+            getattr(controller, "export_price_integration_type", None)
+            or controller.price_integration_type
+        )
+        raw_slots = self._parse_sensor_price_slots(
+            entity_id, integration_type, quiet=True
+        )
+        return self._filter_future_slots(raw_slots, horizon_end)
+
+    def _get_current_export_price(self) -> Optional[float]:
+        """Return the export price for the slot containing now, if known."""
+        if not getattr(self._controller, "export_price_sensor", None):
+            return self._get_current_price()
+        now = datetime.now()
+        for slot in self.get_future_export_price_slots():
+            if slot.start <= now < slot.end:
+                return float(slot.price)
+        return None
+
+    def _parse_sensor_price_slots(
+        self, entity_id: str, integration_type: str, *, quiet: bool = False
+    ) -> list:
+        """Parse one price sensor into raw PriceSlots without touching status.
+
+        Shared by the import and export curves. Status bookkeeping and the
+        repair issue stay with the import caller in :meth:`_parse_price_data`;
+        this helper only reports through the logger.
+        """
+        _warn = _LOGGER.debug if quiet else _LOGGER.warning
+        state = self._hass.states.get(entity_id)
+        if state is None or state.state in ("unknown", "unavailable"):
+            _warn("Dynamic pricing: price sensor %s unavailable", entity_id)
+            self._last_sensor_parse_status = "sensor_unavailable"
+            return []
+
+        attrs = state.attributes
+        # A template-built price sensor whose attribute renders to something
+        # Home Assistant cannot literal_eval (e.g. a list containing datetime
+        # objects) lands here as a plain string. Iterating it would walk single
+        # characters, and every per-entry parse failure is debug-level, so the
+        # integration would silently run without prices. Catch the type here.
+        stringified = calculations.stringified_price_attrs(integration_type, attrs)
+        if stringified:
+            _warn(
+                "Dynamic pricing: price sensor %s exposes attribute(s) %s as a string "
+                "instead of a list — the sensor's template most likely renders values "
+                "(e.g. datetimes) that Home Assistant cannot convert back to a list. "
+                "Emit ISO-8601 strings instead.",
+                entity_id, ", ".join(stringified),
+            )
+            self._last_sensor_parse_status = "bad_format"
+            return []
+
+        raw_slots = calculations.parse_prices_for_integration(integration_type, attrs)
+        if not raw_slots:
+            _warn(
+                "Dynamic pricing: no price data parsed from %s (integration=%s)",
+                entity_id, integration_type,
+            )
+            self._last_sensor_parse_status = "no_slots"
+            return []
+
+        self._last_sensor_parse_status = None
+        return raw_slots
+
+    @staticmethod
+    def _filter_future_slots(raw_slots: list, horizon_end=None) -> list:
+        """Keep slots that end in the future and start within the horizon.
+
+        Default (``horizon_end=None``) keeps today-only semantics so mid-day
+        restarts do not pull in tomorrow — callers that need cross-midnight
+        slots pass an explicit horizon.
+        """
+        now = datetime.now()
+        end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=0)
+        effective_horizon = horizon_end if horizon_end is not None else end_of_day
+        return [s for s in raw_slots if s.end > now and s.start <= effective_horizon]
+
     def _parse_price_data(self, *, horizon_end=None, quiet=False) -> list:
         """Read price sensor and return list[PriceSlot] for remaining slots up to horizon_end.
 
@@ -902,61 +999,20 @@ class PricingManager:
             self._controller._price_data_status = "no_sensor"
             return []
         else:
-            state = self._hass.states.get(self._controller.price_sensor)
-            if state is None or state.state in ("unknown", "unavailable"):
-                _warn("Dynamic pricing: price sensor %s unavailable", self._controller.price_sensor)
-                self._controller._price_data_status = "sensor_unavailable"
-                return []
-
-            attrs = state.attributes
-            # A template-built price sensor whose attribute renders to something
-            # Home Assistant cannot literal_eval (e.g. a list containing datetime
-            # objects) lands here as a plain string. Iterating it would walk single
-            # characters, and every per-entry parse failure is debug-level, so the
-            # integration would silently run without prices. Catch the type here.
-            stringified = [
-                key
-                for key in _PRICE_LIST_ATTRS.get(self._controller.price_integration_type, ())
-                if isinstance(attrs.get(key), str)
-            ]
-            if stringified:
-                _warn(
-                    "Dynamic pricing: price sensor %s exposes attribute(s) %s as a string "
-                    "instead of a list — the sensor's template most likely renders values "
-                    "(e.g. datetimes) that Home Assistant cannot convert back to a list. "
-                    "Emit ISO-8601 strings instead.",
-                    self._controller.price_sensor, ", ".join(stringified),
-                )
-                self._controller._price_data_status = "bad_format"
-                return []
-
-            if self._controller.price_integration_type == PRICE_INTEGRATION_PVPC:
-                raw_slots = calculations.parse_pvpc_prices(attrs)
-            elif self._controller.price_integration_type == PRICE_INTEGRATION_CKW:
-                raw_slots = calculations.parse_ckw_prices(attrs)
-            elif self._controller.price_integration_type == PRICE_INTEGRATION_EPEX:
-                raw_slots = calculations.parse_epex_prices(attrs)
-            elif self._controller.price_integration_type == PRICE_INTEGRATION_ENTSOE:
-                raw_slots = calculations.parse_entsoe_prices(attrs)
-            else:
-                # Nordpool
-                raw_slots = calculations.parse_nordpool_prices(attrs)
-
+            self._last_sensor_parse_status = None
+            raw_slots = self._parse_sensor_price_slots(
+                self._controller.price_sensor,
+                self._controller.price_integration_type,
+                quiet=quiet,
+            )
             if not raw_slots:
-                _warn(
-                    "Dynamic pricing: no price data parsed from %s (integration=%s)",
-                    self._controller.price_sensor, self._controller.price_integration_type
+                self._controller._price_data_status = (
+                    self._last_sensor_parse_status or "no_slots"
                 )
-                self._controller._price_data_status = "no_slots"
                 return []
 
         # Filter to remaining slots within the requested horizon.
-        # Default (horizon_end=None) keeps today-only semantics so mid-day restarts
-        # do not pull in tomorrow — callers that need cross-midnight slots pass an explicit horizon.
-        now = datetime.now()
-        end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=0)
-        effective_horizon = horizon_end if horizon_end is not None else end_of_day
-        filtered = [s for s in raw_slots if s.end > now and s.start <= effective_horizon]
+        filtered = self._filter_future_slots(raw_slots, horizon_end)
         # Slots that parse but all lie in the past leave price-aware charging just as
         # dead as a parse failure (e.g. a template sensor frozen on yesterday's
         # entries), so this is a distinct status rather than "ok (0 slots)" — the
@@ -3039,6 +3095,10 @@ class PricingManager:
         if not isinstance(horizon, DynamicPricingEvaluationHorizon):
             raise ValueError("Dynamic pricing evaluation requires an explicit horizon")
 
+        # Marked before the branches below: whichever path this evaluation takes,
+        # the absorption plan was derived from the inputs it is about to replace.
+        self._mark_surplus_hold_stale(f"dp_evaluation_{horizon.value}")
+
         now = datetime.now()
         today = now.date()
 
@@ -4144,6 +4204,7 @@ class PricingManager:
         # run here does not consume the late-day pass. #411
 
         _LOGGER.info("Dynamic pricing: running evening re-evaluation at %s", now.strftime("%H:%M"))
+        self._mark_surplus_hold_stale("evening_reevaluation")
 
         # Ensure service-based provider slots are current.
         await self._maybe_refresh_service_prices(force=True)
@@ -4584,6 +4645,35 @@ class PricingManager:
                 await controller._set_battery_power(coordinator, 0, 0)
         _LOGGER.info("Dynamic pricing: stopped active slot (%s)", reason)
 
+    def _mark_surplus_hold_stale(self, reason: str) -> None:
+        """Ask the surplus-absorption plan to rebuild on the next control cycle."""
+        manager = getattr(self._controller, "_surplus_hold_mgr", None)
+        if manager is not None:
+            manager.mark_stale(reason)
+
+    def _clear_surplus_hold(self, reason: str) -> None:
+        """Drop any cached surplus-absorption plan and release its blocker."""
+        manager = getattr(self._controller, "_surplus_hold_mgr", None)
+        if manager is not None:
+            manager.clear(reason)
+
+    async def _refresh_surplus_hold_plan(
+        self, reason: str, *, force: bool = False
+    ) -> None:
+        """Rebuild the surplus-absorption plan, tolerating a partial controller.
+
+        Test doubles and early startup may not carry the manager; a missing plan
+        simply means no hold, which is the safe direction.
+        """
+        manager = getattr(self._controller, "_surplus_hold_mgr", None)
+        if manager is None:
+            return
+        try:
+            await manager.async_rebuild_plan(reason, force=force)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Surplus price hold: rebuild failed (%s): %s", reason, err)
+            manager.clear("rebuild_error")
+
     async def handle_dynamic_pricing_predictive_charging(self) -> None:
         """Handle predictive charging in dynamic pricing mode (called every 2.5s)."""
         now = datetime.now()
@@ -4666,6 +4756,12 @@ class PricingManager:
                 self._controller._dp_excluded_demand_reeval_count = 0
                 self._reset_predictive_demand_runtime()
                 self.clear_curtailment_runtime("new_day")
+                self._clear_surplus_hold("new_day")
+
+        # Phase 3.5: keep the surplus-absorption plan current. The manager
+        # throttles itself; between rebuilds it only refreshes the live target,
+        # which is what lets an under-delivering cheap window release the hold.
+        await self._refresh_surplus_hold_plan("control_cycle")
 
         # Reaching the opportunistic target outside the control handler (for
         # example through solar or a manual charge) invalidates every remaining

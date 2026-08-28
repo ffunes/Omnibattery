@@ -108,6 +108,12 @@ from .const import (
     CONF_MAX_PRICE_THRESHOLD,
     CONF_DISCHARGE_PRICE_THRESHOLD,
     CONF_SMART_PREDISCHARGE_ENABLED,
+    CONF_SURPLUS_PRICE_HOLD_ENABLED,
+    DEFAULT_SURPLUS_PRICE_HOLD_ENABLED,
+    CONF_SURPLUS_HOLD_MIN_SAVING,
+    DEFAULT_SURPLUS_HOLD_MIN_SAVING,
+    CONF_EXPORT_PRICE_SENSOR,
+    CONF_EXPORT_PRICE_INTEGRATION_TYPE,
     CONF_NEGATIVE_INJECTION_THRESHOLD,
     CONF_PREDISCHARGE_RESERVE_SOC,
     CONF_PREDISCHARGE_MAX_EXPORT_POWER_W,
@@ -207,6 +213,118 @@ def _parse_optional_float(value: Any) -> float | None:
     if value is None or value == "":
         return None
     return float(str(value).replace(",", "."))
+
+
+def _price_integration_options() -> list[str]:
+    """Return the supported price providers, in display order."""
+    return [
+        PRICE_INTEGRATION_NORDPOOL,
+        PRICE_INTEGRATION_PVPC,
+        PRICE_INTEGRATION_CKW,
+        PRICE_INTEGRATION_EPEX,
+        PRICE_INTEGRATION_ENTSOE,
+        PRICE_INTEGRATION_TIBBER,
+    ]
+
+
+def _price_integration_export_options() -> list[str]:
+    """Return the providers usable for the export curve.
+
+    Tibber is absent: it is service-based and its cache is keyed on the import
+    sensor, so it cannot supply a second, independent curve.
+    """
+    return [
+        option
+        for option in _price_integration_options()
+        if option != PRICE_INTEGRATION_TIBBER
+    ]
+
+
+def _price_integration_type_selector(options: list[str] | None = None) -> SelectSelector:
+    """Return the provider dropdown shared by the import and export curves."""
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=options if options is not None else _price_integration_options(),
+            translation_key="price_integration_type",
+            mode=SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _validate_price_sensor(
+    hass: HomeAssistant,
+    price_sensor: str,
+    integration_type: str,
+    *,
+    allow_service_cache: bool = True,
+) -> str | None:
+    """Return an error key when the sensor lacks the provider's price data.
+
+    Shared by the import and export curves, which use the same parsers.
+    ``allow_service_cache`` accepts an official Nord Pool sensor that carries no
+    ``raw_today`` because the import path reads it through the Nord Pool
+    service. Only the import curve has that cache, so the export curve requires
+    real attributes.
+    """
+    price_state = hass.states.get(price_sensor)
+    if price_state is None:
+        return "sensor_not_found"
+    attrs = price_state.attributes
+    if integration_type == PRICE_INTEGRATION_PVPC:
+        if not any(f"price_{h:02d}h" in attrs for h in range(24)):
+            return "no_price_data"
+        return None
+    if integration_type == PRICE_INTEGRATION_CKW:
+        prices = attrs.get("prices")
+        if not prices or not isinstance(prices, (list, tuple)):
+            return "no_price_data"
+        return None
+    if integration_type == PRICE_INTEGRATION_EPEX:
+        data = attrs.get("data")
+        if not data or not isinstance(data, (list, tuple)):
+            return "no_price_data"
+        return None
+    if integration_type == PRICE_INTEGRATION_ENTSOE:
+        prices = attrs.get("prices_today")
+        if not prices or not isinstance(prices, (list, tuple)):
+            return "no_price_data"
+        return None
+    # Nordpool
+    if "raw_today" in attrs:
+        return None
+    if allow_service_cache and is_official_nordpool_sensor(hass, price_sensor, attrs):
+        return None
+    return "no_price_data"
+
+
+def _validate_export_price_input(
+    hass: HomeAssistant, user_input: dict[str, Any], import_integration_type: str
+) -> dict[str, str]:
+    """Validate the optional export/feed-in price sensor.
+
+    Tibber is rejected here on purpose: its slots come from a service poll whose
+    cache is keyed on the import sensor, so it cannot serve a second curve.
+    """
+    errors: dict[str, str] = {}
+    export_sensor = user_input.get(CONF_EXPORT_PRICE_SENSOR)
+    export_type = user_input.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
+    if not export_sensor:
+        return errors
+    if export_type == PRICE_INTEGRATION_TIBBER:
+        errors[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = "export_tibber_unsupported"
+        return errors
+    effective_type = export_type or import_integration_type
+    if effective_type == PRICE_INTEGRATION_TIBBER:
+        # The import curve is service-based, so an export sensor must say which
+        # attribute layout it uses rather than inheriting an unusable type.
+        errors[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = "export_type_required"
+        return errors
+    error = _validate_price_sensor(
+        hass, export_sensor, effective_type, allow_service_cache=False
+    )
+    if error:
+        errors[CONF_EXPORT_PRICE_SENSOR] = error
+    return errors
 
 
 def _validate_offgrid_power_sensor(
@@ -2479,37 +2597,15 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 elif not price_sensor:
                     errors[CONF_PRICE_SENSOR] = "sensor_not_found"
                 else:
-                    # Validate price sensor has expected attributes
-                    price_state = self.hass.states.get(price_sensor)
-                    if price_state is None:
-                        errors[CONF_PRICE_SENSOR] = "sensor_not_found"
-                    else:
-                        attrs = price_state.attributes
-                        if integration_type == PRICE_INTEGRATION_PVPC:
-                            if not any(f"price_{h:02d}h" in attrs for h in range(24)):
-                                errors[CONF_PRICE_SENSOR] = "no_price_data"
-                        elif integration_type == PRICE_INTEGRATION_CKW:
-                            prices = attrs.get("prices")
-                            if not prices or not isinstance(prices, (list, tuple)) or len(prices) == 0:
-                                errors[CONF_PRICE_SENSOR] = "no_price_data"
-                        elif integration_type == PRICE_INTEGRATION_EPEX:
-                            data = attrs.get("data")
-                            if not data or not isinstance(data, (list, tuple)) or len(data) == 0:
-                                errors[CONF_PRICE_SENSOR] = "no_price_data"
-                        elif integration_type == PRICE_INTEGRATION_ENTSOE:
-                            prices = attrs.get("prices_today")
-                            if not prices or not isinstance(prices, (list, tuple)) or len(prices) == 0:
-                                errors[CONF_PRICE_SENSOR] = "no_price_data"
-                        else:  # Nordpool
-                            if (
-                                "raw_today" not in attrs
-                                and not is_official_nordpool_sensor(
-                                    self.hass,
-                                    price_sensor,
-                                    attrs,
-                                )
-                            ):
-                                errors[CONF_PRICE_SENSOR] = "no_price_data"
+                    error = _validate_price_sensor(
+                        self.hass, price_sensor, integration_type
+                    )
+                    if error:
+                        errors[CONF_PRICE_SENSOR] = error
+
+                errors.update(
+                    _validate_export_price_input(self.hass, user_input, integration_type)
+                )
 
                 # Validate solar forecast sensor if not global
                 if has_global_sensor:
@@ -2550,6 +2646,18 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                         self.config_data[CONF_SMART_PREDISCHARGE_ENABLED] = user_input.get(
                             CONF_SMART_PREDISCHARGE_ENABLED, DEFAULT_SMART_PREDISCHARGE_ENABLED
                         )
+                        self.config_data[CONF_SURPLUS_PRICE_HOLD_ENABLED] = user_input.get(
+                            CONF_SURPLUS_PRICE_HOLD_ENABLED, DEFAULT_SURPLUS_PRICE_HOLD_ENABLED
+                        )
+                        self.config_data[CONF_SURPLUS_HOLD_MIN_SAVING] = user_input.get(
+                            CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
+                        )
+                        self.config_data[CONF_EXPORT_PRICE_SENSOR] = user_input.get(
+                            CONF_EXPORT_PRICE_SENSOR
+                        )
+                        self.config_data[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = user_input.get(
+                            CONF_EXPORT_PRICE_INTEGRATION_TYPE
+                        )
                         self.config_data[CONF_NEGATIVE_INJECTION_THRESHOLD] = user_input.get(
                             CONF_NEGATIVE_INJECTION_THRESHOLD, DEFAULT_NEGATIVE_INJECTION_THRESHOLD
                         )
@@ -2575,20 +2683,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
 
         schema_dict: dict = {
             vol.Required(CONF_PRICE_INTEGRATION_TYPE, default=PRICE_INTEGRATION_NORDPOOL):
-                SelectSelector(
-                    SelectSelectorConfig(
-                        options=[
-                            PRICE_INTEGRATION_NORDPOOL,
-                            PRICE_INTEGRATION_PVPC,
-                            PRICE_INTEGRATION_CKW,
-                            PRICE_INTEGRATION_EPEX,
-                            PRICE_INTEGRATION_ENTSOE,
-                            PRICE_INTEGRATION_TIBBER,
-                        ],
-                        translation_key="price_integration_type",
-                        mode=SelectSelectorMode.DROPDOWN,
-                    )
-                ),
+                _price_integration_type_selector(),
             # Optional: not used by Tibber, which polls the tibber.get_prices service.
             vol.Optional(CONF_PRICE_SENSOR):
                 EntitySelector(EntitySelectorConfig(domain="sensor")),
@@ -2610,6 +2705,16 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         )
         schema_dict[vol.Optional(CONF_NEGATIVE_PRICE_CHARGING_ENABLED, default=DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED)] = bool
         schema_dict[vol.Optional(CONF_SMART_PREDISCHARGE_ENABLED, default=DEFAULT_SMART_PREDISCHARGE_ENABLED)] = bool
+        schema_dict[vol.Optional(CONF_SURPLUS_PRICE_HOLD_ENABLED, default=DEFAULT_SURPLUS_PRICE_HOLD_ENABLED)] = bool
+        schema_dict[vol.Optional(CONF_SURPLUS_HOLD_MIN_SAVING, default=DEFAULT_SURPLUS_HOLD_MIN_SAVING)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
+        )
+        schema_dict[vol.Optional(CONF_EXPORT_PRICE_SENSOR)] = EntitySelector(
+            EntitySelectorConfig(domain="sensor")
+        )
+        schema_dict[vol.Optional(CONF_EXPORT_PRICE_INTEGRATION_TYPE)] = (
+            _price_integration_type_selector(_price_integration_export_options())
+        )
         schema_dict[vol.Optional(CONF_NEGATIVE_INJECTION_THRESHOLD, default=DEFAULT_NEGATIVE_INJECTION_THRESHOLD)] = NumberSelector(
             NumberSelectorConfig(min=-2, max=2, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
         )
@@ -5257,36 +5362,15 @@ class OptionsFlowHandler(OptionsFlow):
                 elif not price_sensor:
                     errors[CONF_PRICE_SENSOR] = "sensor_not_found"
                 else:
-                    price_state = self.hass.states.get(price_sensor)
-                    if price_state is None:
-                        errors[CONF_PRICE_SENSOR] = "sensor_not_found"
-                    else:
-                        attrs = price_state.attributes
-                        if integration_type == PRICE_INTEGRATION_PVPC:
-                            if not any(f"price_{h:02d}h" in attrs for h in range(24)):
-                                errors[CONF_PRICE_SENSOR] = "no_price_data"
-                        elif integration_type == PRICE_INTEGRATION_CKW:
-                            prices = attrs.get("prices")
-                            if not prices or not isinstance(prices, (list, tuple)) or len(prices) == 0:
-                                errors[CONF_PRICE_SENSOR] = "no_price_data"
-                        elif integration_type == PRICE_INTEGRATION_EPEX:
-                            data = attrs.get("data")
-                            if not data or not isinstance(data, (list, tuple)) or len(data) == 0:
-                                errors[CONF_PRICE_SENSOR] = "no_price_data"
-                        elif integration_type == PRICE_INTEGRATION_ENTSOE:
-                            prices = attrs.get("prices_today")
-                            if not prices or not isinstance(prices, (list, tuple)) or len(prices) == 0:
-                                errors[CONF_PRICE_SENSOR] = "no_price_data"
-                        else:  # Nordpool
-                            if (
-                                "raw_today" not in attrs
-                                and not is_official_nordpool_sensor(
-                                    self.hass,
-                                    price_sensor,
-                                    attrs,
-                                )
-                            ):
-                                errors[CONF_PRICE_SENSOR] = "no_price_data"
+                    error = _validate_price_sensor(
+                        self.hass, price_sensor, integration_type
+                    )
+                    if error:
+                        errors[CONF_PRICE_SENSOR] = error
+
+                errors.update(
+                    _validate_export_price_input(self.hass, user_input, integration_type)
+                )
 
                 if has_global_sensor:
                     forecast_sensor = self.config_entry.data.get(CONF_SOLAR_FORECAST_SENSOR)
@@ -5326,6 +5410,29 @@ class OptionsFlowHandler(OptionsFlow):
                         self.config_data[CONF_SMART_PREDISCHARGE_ENABLED] = user_input.get(
                             CONF_SMART_PREDISCHARGE_ENABLED,
                             existing_config.get(CONF_SMART_PREDISCHARGE_ENABLED, DEFAULT_SMART_PREDISCHARGE_ENABLED),
+                        )
+                        self.config_data[CONF_SURPLUS_PRICE_HOLD_ENABLED] = user_input.get(
+                            CONF_SURPLUS_PRICE_HOLD_ENABLED,
+                            existing_config.get(
+                                CONF_SURPLUS_PRICE_HOLD_ENABLED,
+                                DEFAULT_SURPLUS_PRICE_HOLD_ENABLED,
+                            ),
+                        )
+                        self.config_data[CONF_SURPLUS_HOLD_MIN_SAVING] = user_input.get(
+                            CONF_SURPLUS_HOLD_MIN_SAVING,
+                            existing_config.get(
+                                CONF_SURPLUS_HOLD_MIN_SAVING,
+                                DEFAULT_SURPLUS_HOLD_MIN_SAVING,
+                            ),
+                        )
+                        # Cleared entity/select fields arrive absent, so read them
+                        # straight from the submission rather than falling back to
+                        # the stored value — that is what makes the × button work.
+                        self.config_data[CONF_EXPORT_PRICE_SENSOR] = user_input.get(
+                            CONF_EXPORT_PRICE_SENSOR
+                        )
+                        self.config_data[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = user_input.get(
+                            CONF_EXPORT_PRICE_INTEGRATION_TYPE
                         )
                         self.config_data[CONF_NEGATIVE_INJECTION_THRESHOLD] = user_input.get(
                             CONF_NEGATIVE_INJECTION_THRESHOLD,
@@ -5371,6 +5478,14 @@ class OptionsFlowHandler(OptionsFlow):
         default_smart_predischarge = existing_config.get(
             CONF_SMART_PREDISCHARGE_ENABLED, DEFAULT_SMART_PREDISCHARGE_ENABLED
         )
+        default_surplus_hold = existing_config.get(
+            CONF_SURPLUS_PRICE_HOLD_ENABLED, DEFAULT_SURPLUS_PRICE_HOLD_ENABLED
+        )
+        default_surplus_min_saving = existing_config.get(
+            CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
+        )
+        default_export_sensor = existing_config.get(CONF_EXPORT_PRICE_SENSOR)
+        default_export_type = existing_config.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
         default_negative_threshold = existing_config.get(
             CONF_NEGATIVE_INJECTION_THRESHOLD, DEFAULT_NEGATIVE_INJECTION_THRESHOLD
         )
@@ -5384,20 +5499,7 @@ class OptionsFlowHandler(OptionsFlow):
 
         schema_dict: dict = {
             vol.Required(CONF_PRICE_INTEGRATION_TYPE, default=default_integration):
-                SelectSelector(
-                    SelectSelectorConfig(
-                        options=[
-                            PRICE_INTEGRATION_NORDPOOL,
-                            PRICE_INTEGRATION_PVPC,
-                            PRICE_INTEGRATION_CKW,
-                            PRICE_INTEGRATION_EPEX,
-                            PRICE_INTEGRATION_ENTSOE,
-                            PRICE_INTEGRATION_TIBBER,
-                        ],
-                        translation_key="price_integration_type",
-                        mode=SelectSelectorMode.DROPDOWN,
-                    )
-                ),
+                _price_integration_type_selector(),
             # Optional: not used by Tibber, which polls the tibber.get_prices service.
             vol.Optional(CONF_PRICE_SENSOR, default=default_sensor if default_sensor else vol.UNDEFINED):
                 EntitySelector(EntitySelectorConfig(domain="sensor")),
@@ -5426,6 +5528,20 @@ class OptionsFlowHandler(OptionsFlow):
         )
         schema_dict[vol.Optional(CONF_NEGATIVE_PRICE_CHARGING_ENABLED, default=default_negative_price_enabled)] = bool
         schema_dict[vol.Optional(CONF_SMART_PREDISCHARGE_ENABLED, default=default_smart_predischarge)] = bool
+        schema_dict[vol.Optional(CONF_SURPLUS_PRICE_HOLD_ENABLED, default=default_surplus_hold)] = bool
+        schema_dict[vol.Optional(CONF_SURPLUS_HOLD_MIN_SAVING, default=default_surplus_min_saving)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
+        )
+        # Clearable: suggested_value pre-fills without voluptuous restoring the
+        # old value when the field is emptied.
+        schema_dict[vol.Optional(
+            CONF_EXPORT_PRICE_SENSOR,
+            description={"suggested_value": default_export_sensor} if default_export_sensor else {},
+        )] = EntitySelector(EntitySelectorConfig(domain="sensor"))
+        schema_dict[vol.Optional(
+            CONF_EXPORT_PRICE_INTEGRATION_TYPE,
+            description={"suggested_value": default_export_type} if default_export_type else {},
+        )] = _price_integration_type_selector(_price_integration_export_options())
         schema_dict[vol.Optional(CONF_NEGATIVE_INJECTION_THRESHOLD, default=default_negative_threshold)] = NumberSelector(
             NumberSelectorConfig(min=-2, max=2, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
         )

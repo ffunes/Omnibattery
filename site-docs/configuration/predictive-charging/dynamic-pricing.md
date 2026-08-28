@@ -130,6 +130,44 @@ The single binary sensor for this feature, `curtailment_status`, reports the cur
 
 ---
 
+## Price-aware solar surplus absorption
+
+This is an **opt-in subfunction of Dynamic Pricing**. Storing PV surplus is not free: on a dynamic contract the energy that goes into the battery forfeits that slot's feed-in revenue, and feed-in prices swing widely across the day. Absorbing the morning surplus at a high feed-in price and exporting the midday surplus at a low one is the expensive way round.
+
+When enabled, Omnibattery plans *when* to take the day's charge instead of absorbing whatever appears:
+
+1. It derives the energy the battery still needs today from the remaining household consumption, the energy already stored above the floor, the **Solar forecast safety margin** and the space left in the battery.
+2. It distributes the remaining solar forecast and consumption over the future price slots, capped by the batteries' charge power, to estimate the surplus each slot can offer.
+3. It selects the **cheapest export hours** that together cover the target, accumulating energy rather than hours, so a cheap sunrise slot with no surplus is not mistaken for a cheap midday slot with several kWh.
+4. Outside those windows it registers the `surplus_price_hold` charge blocker. No battery is then available in the charge direction, the PD command clamps to `0 W`, and the surplus flows to the grid. Discharge is untouched, so self-consumption from the battery continues.
+
+The hold releases whenever holding could cost energy rather than save money:
+
+| Release reason | Meaning |
+|---|---|
+| `absorption_window` | The current slot is one of the selected cheap windows |
+| `past_deadline` | Solar production is expected to have ended |
+| `target_met` | The battery already covers the rest of the day |
+| `shortfall_risk` | The remaining cheap windows can no longer cover the target |
+| `no_material_saving` | The best remaining slot is not cheaper than the **Surplus hold minimum saving** |
+
+The target is recalculated from live SOC every control cycle, so a cheap window that under-delivers raises the target while the remaining windows shrink; the hold then drops for the rest of the day rather than ending short. The plan itself is rebuilt every few minutes and at the normal daily, pre-slot and evening re-evaluations. Plans are not persisted.
+
+Missing prices, a missing solar forecast, a deadline in the past, unusable SOC or capacity, and non-finite values are all fail-safe conditions that release the hold. So are the features that own charging in their own right: charge delay, a scheduled cheap grid slot, negative-price opportunistic charging, smart pre-discharge, the weekly full charge, peak shaving, EV pause, manual mode or manual time-slot ownership, and any battery sitting on its SOC floor.
+
+| Control | Meaning |
+|---|---|
+| **Price-aware solar surplus absorption** | Opt-in; default off |
+| **Surplus hold minimum saving** | How much cheaper the best remaining slot must be before surplus is held back. Prevents toggling on negligible differences |
+| **Export/feed-in price sensor** | Optional. Leave empty to use the import price curve, which is correct when export is credited at the import price |
+| **Export price integration** | Attribute layout of that sensor. Leave empty to reuse the import integration. Tibber is unavailable here: it is service-based and its cache belongs to the import curve |
+
+The binary sensor `surplus_price_hold_status` reports whether surplus is being held back, the reason, the day's target, the energy the remaining selected windows can still absorb, the deadline, the next release time, the selected slots with their export prices, and which curve the prices came from. The **Integration Status** sensor reports `surplus_price_hold` while the hold is active.
+
+The export price sensor is read through the same parsers as the import sensor, but it is deliberately isolated from the import health check: a flaky export sensor never raises the import-price repair issue. The **Negative injection threshold** used by smart pre-discharge continues to read the import curve.
+
+---
+
 ## Price-based discharge control
 
 The **"Only discharge when price is above threshold"** option adds an extra condition to discharge behaviour.
