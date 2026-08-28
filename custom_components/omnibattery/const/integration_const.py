@@ -542,6 +542,12 @@ EVENING_REEVAL_HOURS_BEFORE_TEND = 1.5  # Trigger evening re-evaluation 1.5h bef
 EVENING_REEVAL_FALLBACK_HOUR = 16.0     # Fallback trigger hour when T_start was never detected
 EVENING_DEFICIT_THRESHOLD_KWH = 0.3    # Minimum deficit to bother scheduling evening charging
 
+# Excluded-device solar claim re-evaluation: an EV session starting or ending
+# moves how much of the remaining forecast the battery may count on.
+EXCLUDED_DEMAND_REEVAL_KWH = 2.0        # Claim change (either direction) that warrants a re-plan
+EXCLUDED_DEMAND_REEVAL_COOLDOWN_MIN = 15  # Minimum minutes between two claim-driven re-evaluations
+EXCLUDED_DEMAND_REEVAL_MAX_PER_DAY = 4  # Cap on claim-driven re-evaluations per day
+
 # Weekday mapping (mon=0, sun=6, matches datetime.weekday())
 WEEKDAY_MAP = {
     "mon": 0, "tue": 1, "wed": 2, "thu": 3,

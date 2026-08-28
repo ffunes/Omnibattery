@@ -284,7 +284,8 @@
           "allow_solar_surplus": "Permet l'ús d'excedent solar (no carregar bateria)",
           "dynamic_power_control": "El dispositiu té control dinàmic de potència",
           "cover_home_when_active": "Cobrir la llar mentre el dispositiu està actiu",
-          "ev_charger_no_telemetry": "Carregador VE sense telemetria de potència"
+          "ev_charger_no_telemetry": "Carregador VE sense telemetria de potència",
+          "remaining_demand_sensor": "Demanda restant prevista (kWh)"
         },
         "data_description": {
           "power_sensor": "Sensor numèric de potència (W) del dispositiu. És opcional per a carregadors VE sense telemetria; les configuracions existents que hi van desar el sensor d'estat continuen sent compatibles.",
@@ -293,7 +294,8 @@
           "allow_solar_surplus": "Si es marca, el dispositiu podrà consumir energia directament dels panells solars (excedent) sense que la bateria intenti compensar-ho. Es recomana marcar per a dispositius de gran consum com carregadors de VE.",
           "dynamic_power_control": "Activa-ho per a dispositius que ajusten automàticament la demanda mitjançant el comptador de xarxa. Amb un sensor d'activitat, Omnibattery cedeix abans que aparegui potència; sense aquest sensor, reacciona al sensor de potència. Després utilitza l'excedent sobrant real.",
           "cover_home_when_active": "Requereix Excedent Solar i un sensor de producció solar. La bateria pot cobrir el consum propi de la llar mentre aquest dispositiu està actiu; només queda exclosa la part de xarxa del dispositiu.",
-          "ev_charger_no_telemetry": "✓ MARCAT = Utilitza el sensor de dispositiu actiu / càrrega del VE en lloc de telemetria numèrica. Les configuracions existents que van posar aquest sensor al camp de potència continuen funcionant. En detectar càrrega, la bateria s'atura 5 minuts; després només pot carregar amb excedent solar i mai descarrega per al VE."
+          "ev_charger_no_telemetry": "✓ MARCAT = Utilitza el sensor de dispositiu actiu / càrrega del VE en lloc de telemetria numèrica. Les configuracions existents que van posar aquest sensor al camp de potència continuen funcionant. En detectar càrrega, la bateria s'atura 5 minuts; després només pot carregar amb excedent solar i mai descarrega per al VE.",
+          "remaining_demand_sensor": "Opcional. Sensor que indica l'energia (kWh) que aquest dispositiu encara espera consumir avui, per exemple sensor.evcc_[punt_de_carrega]_charge_remaining_energy. La càrrega predictiva reserva aquesta part de la previsió solar restant per al dispositiu en lloc de suposar que la bateria la rep. Només s'utilitza si 'El consum està inclòs al sensor de consum de la llar' està marcat."
         }
       },
       "add_more_excluded_devices": {
@@ -1008,7 +1010,8 @@
           "allow_solar_surplus": "Permetre usar excedent solar (no carregar bateria)",
           "dynamic_power_control": "El dispositiu té control dinàmic de potència",
           "cover_home_when_active": "Cobrir la llar mentre el dispositiu està actiu",
-          "ev_charger_no_telemetry": "Carregador VE sense telemetria de potència"
+          "ev_charger_no_telemetry": "Carregador VE sense telemetria de potència",
+          "remaining_demand_sensor": "Demanda restant prevista (kWh)"
         },
         "data_description": {
           "power_sensor": "Sensor numèric de potència (W) del dispositiu. És opcional per a carregadors VE sense telemetria; les configuracions existents que hi van desar el sensor d'estat continuen sent compatibles.",
@@ -1017,7 +1020,8 @@
           "allow_solar_surplus": "Si es marca, el dispositiu podrà consumir energia directament dels panells solars (excedent) sense que la bateria intenti compensar-ho. Es recomana marcar per a dispositius de gran consum com carregadors de VE.",
           "dynamic_power_control": "Activa-ho per a dispositius que ajusten automàticament la demanda mitjançant el comptador de xarxa. Amb un sensor d'activitat, Omnibattery cedeix abans que aparegui potència; sense aquest sensor, reacciona al sensor de potència. Després utilitza l'excedent sobrant real.",
           "cover_home_when_active": "Requereix Excedent Solar i un sensor de producció solar. La bateria pot cobrir el consum propi de la llar mentre aquest dispositiu està actiu; només queda exclosa la part de xarxa del dispositiu.",
-          "ev_charger_no_telemetry": "✓ MARCAT = Utilitza el sensor de dispositiu actiu / càrrega del VE en lloc de telemetria numèrica. Les configuracions existents que van posar aquest sensor al camp de potència continuen funcionant. En detectar càrrega, la bateria s'atura 5 minuts; després només pot carregar amb excedent solar i mai descarrega per al VE."
+          "ev_charger_no_telemetry": "✓ MARCAT = Utilitza el sensor de dispositiu actiu / càrrega del VE en lloc de telemetria numèrica. Les configuracions existents que van posar aquest sensor al camp de potència continuen funcionant. En detectar càrrega, la bateria s'atura 5 minuts; després només pot carregar amb excedent solar i mai descarrega per al VE.",
+          "remaining_demand_sensor": "Opcional. Sensor que indica l'energia (kWh) que aquest dispositiu encara espera consumir avui, per exemple sensor.evcc_[punt_de_carrega]_charge_remaining_energy. La càrrega predictiva reserva aquesta part de la previsió solar restant per al dispositiu en lloc de suposar que la bateria la rep. Només s'utilitza si 'El consum està inclòs al sensor de consum de la llar' està marcat."
         }
       },
       "add_more_excluded_devices": {

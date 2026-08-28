@@ -338,3 +338,90 @@ async def test_resaving_a_device_unchanged_is_not_a_source_change():
         ]},
     )
     assert _profile_fingerprint(changed) != before
+
+
+async def test_initial_flow_saves_remaining_demand_sensor():
+    flow = MarstekVenusConfigFlow()
+
+    form = await flow.async_step_add_excluded_device()
+    assert "remaining_demand_sensor" in _schema_fields(form)
+
+    await flow.async_step_add_excluded_device(
+        {
+            "power_sensor": "sensor.wallbox_power",
+            "remaining_demand_sensor": "sensor.evcc_charge_remaining_energy",
+        }
+    )
+
+    assert (
+        flow.excluded_devices[0]["remaining_demand_sensor"]
+        == "sensor.evcc_charge_remaining_energy"
+    )
+
+
+async def test_initial_flow_stores_no_remaining_demand_sensor_by_default():
+    flow = MarstekVenusConfigFlow()
+
+    await flow.async_step_add_excluded_device({"power_sensor": "sensor.wallbox_power"})
+
+    assert flow.excluded_devices[0]["remaining_demand_sensor"] is None
+
+
+async def test_options_flow_prefills_remaining_demand_sensor():
+    entry = SimpleNamespace(
+        entry_id="claim-entry",
+        data={
+            "excluded_devices": [
+                {
+                    "power_sensor": "sensor.wallbox_power",
+                    "remaining_demand_sensor": "sensor.evcc_charge_remaining_energy",
+                }
+            ]
+        },
+    )
+    flow = _options_flow(entry)
+
+    form = await flow.async_step_add_excluded_device()
+
+    assert (
+        _schema_defaults(form)["remaining_demand_sensor"]
+        == "sensor.evcc_charge_remaining_energy"
+    )
+
+
+async def test_options_flow_can_clear_remaining_demand_sensor():
+    """Clearing the field must survive the merge with the stored device."""
+    entry = SimpleNamespace(
+        entry_id="claim-entry",
+        data={
+            "excluded_devices": [
+                {
+                    "power_sensor": "sensor.wallbox_power",
+                    "remaining_demand_sensor": "sensor.evcc_charge_remaining_energy",
+                    "enabled": False,
+                }
+            ]
+        },
+    )
+    flow = _options_flow(entry)
+
+    await flow.async_step_add_excluded_device({"power_sensor": "sensor.wallbox_power"})
+
+    assert flow.excluded_devices[0]["remaining_demand_sensor"] is None
+    # The switch-only key still survives the same merge.
+    assert flow.excluded_devices[0]["enabled"] is False
+
+
+async def test_options_flow_legacy_device_without_the_field_round_trips():
+    entry = SimpleNamespace(
+        entry_id="legacy-claim-entry",
+        data={"excluded_devices": [{"power_sensor": "sensor.wallbox_power"}]},
+    )
+    flow = _options_flow(entry)
+
+    form = await flow.async_step_add_excluded_device()
+    assert "remaining_demand_sensor" not in _schema_defaults(form)
+
+    await flow.async_step_add_excluded_device({"power_sensor": "sensor.wallbox_power"})
+
+    assert flow.excluded_devices[0]["remaining_demand_sensor"] is None

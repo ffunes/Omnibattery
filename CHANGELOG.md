@@ -84,6 +84,7 @@
 
 ### Added
 
+- **Excluded devices can claim part of the solar forecast** (#341): an excluded device whose consumption the home sensor already sees — a solar-surplus EV charger, typically — can now point at a sensor reporting the energy it still expects to consume today. Predictive charging reserves that share of the remaining solar forecast for the device instead of assuming the battery receives all of it, so a car that eats the day's production produces a real deficit and the cheap grid slots are scheduled. The claim is capped at the available solar, ignored while the sensor is unavailable, and predictive charging re-plans during the day when it moves by 2 kWh or more. Optional and off unless the new field is configured.
 - **Huawei SUN2000 + LUNA2000 driver**: adds native Modbus telemetry and optional service/direct-write control for Huawei hybrid inverters with LUNA2000 storage. Thanks to @sphings79 for the contribution.
 - **Off-grid meter mode**: an optional second W/kW power sensor, with its own inverted-sign setting, now exposes a Home Assistant switch and dashboard control that change the active source used by PD control and derived consumption/grid statistics. The switch is software-only and never enables or changes a battery's physical off-grid/EPS port.
 

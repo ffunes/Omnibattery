@@ -240,3 +240,26 @@ def test_export_diagnostics_reports_each_mode(mode, limit, expected_mode):
 
     assert result["export_mode"] == expected_mode
     assert result["export_limit_w"] == limit
+
+
+def test_dynamic_pricing_info_reports_excluded_demand_claim():
+    controller = SimpleNamespace(
+        _dynamic_pricing_schedule=None,
+        _last_decision_data={
+            "excluded_demand_claim_kwh": 6.4732,
+            "solar_available_to_battery_kwh": 7.1968,
+        },
+    )
+
+    info = diagnostics._dynamic_pricing_info(controller)
+
+    assert info["excluded_demand_claim_kwh"] == 6.473
+    assert info["solar_available_to_battery_kwh"] == 7.197
+
+
+def test_dynamic_pricing_info_claim_is_none_without_a_decision():
+    controller = SimpleNamespace(_dynamic_pricing_schedule=None, _last_decision_data=None)
+
+    info = diagnostics._dynamic_pricing_info(controller)
+
+    assert info["excluded_demand_claim_kwh"] is None

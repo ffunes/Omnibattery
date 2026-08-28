@@ -288,7 +288,8 @@
           "allow_solar_surplus": "Autoriser l'utilisation du surplus solaire (ne pas charger la batterie)",
           "dynamic_power_control": "L'appareil a un contrôle dynamique de puissance",
           "cover_home_when_active": "Couvrir la maison pendant que l'appareil est actif",
-          "ev_charger_no_telemetry": "Chargeur VE sans télémétrie de puissance"
+          "ev_charger_no_telemetry": "Chargeur VE sans télémétrie de puissance",
+          "remaining_demand_sensor": "Demande restante prévue (kWh)"
         },
         "data_description": {
           "power_sensor": "Capteur numérique de puissance (W) de l'appareil. Facultatif pour les chargeurs VE sans télémétrie ; les configurations existantes ayant enregistré ici le capteur d'état restent compatibles.",
@@ -297,7 +298,8 @@
           "allow_solar_surplus": "Si coché, l'appareil pourra consommer l'énergie directement des panneaux solaires (surplus) sans que la batterie essaie de compenser. Recommandé pour les appareils à forte consommation comme les chargeurs de VE.",
           "dynamic_power_control": "À activer pour les appareils qui ajustent automatiquement leur demande à partir du compteur réseau. Avec un capteur d'activité, Omnibattery cède avant l'apparition de puissance ; sinon il réagit au capteur de puissance. Il utilise ensuite uniquement le surplus réellement restant.",
           "cover_home_when_active": "Nécessite Surplus Solaire et un capteur de production solaire. La batterie peut couvrir la consommation propre de la maison pendant que cet appareil est actif ; seule la part réseau de l'appareil reste exclue.",
-          "ev_charger_no_telemetry": "✓ COCHÉ = Utilise le capteur appareil actif / charge VE au lieu d'une télémétrie numérique. Les configurations existantes ayant placé ce capteur dans le champ de puissance continuent de fonctionner. À la détection de charge, la batterie s'arrête 5 minutes ; ensuite elle charge seulement avec le surplus solaire et ne se décharge jamais pour le VE."
+          "ev_charger_no_telemetry": "✓ COCHÉ = Utilise le capteur appareil actif / charge VE au lieu d'une télémétrie numérique. Les configurations existantes ayant placé ce capteur dans le champ de puissance continuent de fonctionner. À la détection de charge, la batterie s'arrête 5 minutes ; ensuite elle charge seulement avec le surplus solaire et ne se décharge jamais pour le VE.",
+          "remaining_demand_sensor": "Facultatif. Capteur indiquant l'énergie (kWh) que cet appareil compte encore consommer aujourd'hui, par exemple sensor.evcc_[point_de_charge]_charge_remaining_energy. La charge prédictive réserve alors cette part de la prévision solaire restante pour l'appareil au lieu de supposer que la batterie la reçoit. Utilisé uniquement si « La consommation est incluse dans le capteur de consommation domestique » est coché."
         }
       },
       "add_more_excluded_devices": {
@@ -1020,7 +1022,8 @@
           "allow_solar_surplus": "Autoriser l'utilisation du surplus solaire (ne pas charger la batterie)",
           "dynamic_power_control": "L'appareil a un contrôle dynamique de puissance",
           "cover_home_when_active": "Couvrir la maison pendant que l'appareil est actif",
-          "ev_charger_no_telemetry": "Chargeur VE sans télémétrie de puissance"
+          "ev_charger_no_telemetry": "Chargeur VE sans télémétrie de puissance",
+          "remaining_demand_sensor": "Demande restante prévue (kWh)"
         },
         "data_description": {
           "power_sensor": "Capteur numérique de puissance (W) de l'appareil. Facultatif pour les chargeurs VE sans télémétrie ; les configurations existantes ayant enregistré ici le capteur d'état restent compatibles.",
@@ -1029,7 +1032,8 @@
           "allow_solar_surplus": "Si coché, l'appareil pourra consommer l'énergie directement des panneaux solaires (surplus) sans que la batterie essaie de compenser. Recommandé pour les appareils à forte consommation comme les chargeurs de VE.",
           "dynamic_power_control": "À activer pour les appareils qui ajustent automatiquement leur demande à partir du compteur réseau. Avec un capteur d'activité, Omnibattery cède avant l'apparition de puissance ; sinon il réagit au capteur de puissance. Il utilise ensuite uniquement le surplus réellement restant.",
           "cover_home_when_active": "Nécessite Surplus Solaire et un capteur de production solaire. La batterie peut couvrir la consommation propre de la maison pendant que cet appareil est actif ; seule la part réseau de l'appareil reste exclue.",
-          "ev_charger_no_telemetry": "✓ COCHÉ = Utilise le capteur appareil actif / charge VE au lieu d'une télémétrie numérique. Les configurations existantes ayant placé ce capteur dans le champ de puissance continuent de fonctionner. À la détection de charge, la batterie s'arrête 5 minutes ; ensuite elle charge seulement avec le surplus solaire et ne se décharge jamais pour le VE."
+          "ev_charger_no_telemetry": "✓ COCHÉ = Utilise le capteur appareil actif / charge VE au lieu d'une télémétrie numérique. Les configurations existantes ayant placé ce capteur dans le champ de puissance continuent de fonctionner. À la détection de charge, la batterie s'arrête 5 minutes ; ensuite elle charge seulement avec le surplus solaire et ne se décharge jamais pour le VE.",
+          "remaining_demand_sensor": "Facultatif. Capteur indiquant l'énergie (kWh) que cet appareil compte encore consommer aujourd'hui, par exemple sensor.evcc_[point_de_charge]_charge_remaining_energy. La charge prédictive réserve alors cette part de la prévision solaire restante pour l'appareil au lieu de supposer que la batterie la reçoit. Utilisé uniquement si « La consommation est incluse dans le capteur de consommation domestique » est coché."
         }
       },
       "add_more_excluded_devices": {

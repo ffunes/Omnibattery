@@ -47,6 +47,9 @@ from ..const import (
     EVENING_REEVAL_HOURS_BEFORE_TEND,
     EVENING_REEVAL_FALLBACK_HOUR,
     EVENING_DEFICIT_THRESHOLD_KWH,
+    EXCLUDED_DEMAND_REEVAL_KWH,
+    EXCLUDED_DEMAND_REEVAL_COOLDOWN_MIN,
+    EXCLUDED_DEMAND_REEVAL_MAX_PER_DAY,
     T_START_FALLBACK_HOUR,
     FLOOR_HYSTERESIS_PCT,
     CHARGE_EFFICIENCY,
@@ -137,6 +140,8 @@ _CHRONOLOGICAL_DIAGNOSTIC_KEYS = (
     "solar_remaining_raw_kwh",
     "solar_safety_margin_kwh",
     "solar_remaining_effective_kwh",
+    "excluded_demand_claim_kwh",
+    "solar_available_to_battery_kwh",
     "solar_timeline_effective_kwh",
     "solar_timeline_energy_error_kwh",
     "solar_timeline_fallback_reason",
@@ -2596,10 +2601,27 @@ class PricingManager:
                 )
                 provider_periods = None
 
+            # Excluded devices reserve part of the remaining forecast (see
+            # _should_activate_grid_charging). The timeline must project the
+            # same solar the scalar balance used, otherwise it would place
+            # deadlines against sunshine another load is going to take. The
+            # claim rides along with the safety margin, so it is spread over
+            # the solar shape proportionally: we do not know when the device
+            # will draw, and spreading is uniformly conservative.
+            # Capped the same way as the scalar balance does, so the published
+            # raw - margin - claim reconciles with what the timeline projected.
+            raw_after_margin = max(0.0, solar_input.remaining_kwh - safety)
+            excluded_claim_kwh = min(
+                max(
+                    0.0,
+                    float(decision_data.get("excluded_demand_claim_kwh", 0.0) or 0.0),
+                ),
+                raw_after_margin,
+            )
             timeline = build_solar_timeline(
                 boundaries,
                 solar_input.remaining_kwh,
-                safety_margin_kwh=safety,
+                safety_margin_kwh=safety + excluded_claim_kwh,
                 provider_periods=provider_periods,
                 temporal_shape=temporal_shape,
                 learned_shape=(learned_snapshot.shape if learned_snapshot else None),
@@ -2739,8 +2761,15 @@ class PricingManager:
                 "solar_forecast_original_source": solar_input.original_source,
                 "solar_forecast_conversion": solar_input.conversion,
                 "solar_remaining_raw_kwh": timeline.remaining_raw_kwh,
-                "solar_safety_margin_kwh": timeline.safety_margin_kwh,
-                "solar_remaining_effective_kwh": timeline.remaining_effective_kwh,
+                # Keep these two meaning what their names say: the margin the
+                # user configured, and raw minus that margin. The device claim
+                # is published separately so raw - margin - claim reconciles.
+                "solar_safety_margin_kwh": safety,
+                "solar_remaining_effective_kwh": max(
+                    0.0, timeline.remaining_raw_kwh - safety
+                ),
+                "excluded_demand_claim_kwh": excluded_claim_kwh,
+                "solar_available_to_battery_kwh": timeline.remaining_effective_kwh,
                 "solar_timeline_effective_kwh": timeline.timeline_effective_kwh,
                 "solar_timeline_energy_error_kwh": timeline.energy_error_kwh,
                 "solar_timeline_fallback_reason": timeline.fallback_reason,
@@ -3029,6 +3058,9 @@ class PricingManager:
         # the overnight discharge, so a battery that drains far below it must be
         # able to re-plan upward in time for the cheap midday slots.
         self._controller._dp_last_eval_soc = decision_data.get("avg_soc")
+        # Same debounce for the excluded-device claim (#341): the next claim
+        # trigger is measured against the reading this plan was built on.
+        self._refresh_excluded_demand_reference()
         deficit_charging_needed = bool(decision_data["should_charge"])
 
         # Step 2: Parse price data (always, even without deficit — for diagnostics)
@@ -3534,6 +3566,9 @@ class PricingManager:
         ):
             decision = await self._evaluate_remaining_grid_charging(now=now)
             self._controller._last_decision_data = decision
+            # This plan already accounts for the current claim (#341); re-arm the
+            # trigger so it does not immediately ask for another re-evaluation.
+            self._refresh_excluded_demand_reference()
             deficit_needed = bool(decision["should_charge"])
             if (
                 getattr(schedule, "chronological_planning_active", False)
@@ -3662,6 +3697,67 @@ class PricingManager:
             else SOC_REEVALUATION_THRESHOLD
         )
         return (ref - current) >= threshold
+
+    def _is_excluded_demand_reeval(self, now: datetime) -> bool:
+        """Return True when an excluded device's claim on remaining solar moved.
+
+        An EV session that starts after the 00:05 balance takes solar the
+        battery was planned to receive; a session that ends hands it back. Both
+        directions must re-plan, so unlike the SOC-drop predicate this one is
+        bidirectional. Debounced the same way: the reference is refreshed on
+        every evaluation, so it re-arms only after another material move.
+        ``None`` reference (before the first evaluation of the day) never
+        triggers, and an unavailable sensor never triggers either.
+        """
+        controller = self._controller
+        ref = getattr(controller, "_dp_last_eval_excluded_claim_kwh", None)
+        if ref is None:
+            return False
+        if now.hour >= 23:
+            # The 00:05 evaluation is close enough; don't clash with it.
+            return False
+        # Both sides are the raw device reading. Comparing a raw reading against
+        # the capped claim the plan applied would re-fire on every cycle
+        # whenever the device asks for more than the forecast can deliver.
+        current = self._read_excluded_demand_claim_kwh()
+        if current is None:
+            return False
+        if abs(current - ref) < EXCLUDED_DEMAND_REEVAL_KWH:
+            return False
+        if getattr(controller, "_dp_excluded_demand_reeval_count", 0) >= EXCLUDED_DEMAND_REEVAL_MAX_PER_DAY:
+            return False
+        last_at = getattr(controller, "_dp_excluded_demand_reeval_at", None)
+        if last_at is not None and (now - last_at) < timedelta(
+            minutes=EXCLUDED_DEMAND_REEVAL_COOLDOWN_MIN
+        ):
+            return False
+        # Live remaining forecast, not the stored daily figure: once the sun is
+        # down there is nothing left to reserve or release.
+        if self._remaining_solar_today_kwh(now) <= 0.0:
+            return False
+        return True
+
+    def _read_excluded_demand_claim_kwh(self) -> float | None:
+        """Raw excluded-device claim reading, or None when unavailable."""
+        external_loads = getattr(self._controller, "_external_loads", None)
+        if external_loads is None:
+            return None
+        value = external_loads.claimable_solar_demand_kwh()
+        if value is None:
+            return None
+        return max(0.0, float(value))
+
+    def _refresh_excluded_demand_reference(self) -> None:
+        """Re-arm the claim trigger against the reading this plan was built on.
+
+        Called from every path that replaces ``_last_decision_data``, so a
+        re-evaluation that already accounts for the current claim does not
+        immediately trigger another one.
+        """
+        current = self._read_excluded_demand_claim_kwh()
+        self._controller._dp_last_eval_excluded_claim_kwh = (
+            0.0 if current is None else current
+        )
 
     @staticmethod
     def _get_consumed_today_kwh(controller, now: datetime) -> tuple[float, bool, str]:
@@ -4047,6 +4143,13 @@ class PricingManager:
         # --- Remaining solar expected today (raw generation, before consumption) ---
         now_h = now.hour + now.minute / 60.0
         remaining_solar_kwh = self._remaining_solar_today_kwh(now)
+        # Excluded devices take part of that generation themselves (#341). Without
+        # this the evening pass would hand the reserved solar back to the battery
+        # plan and under-schedule the night's grid charging.
+        excluded_claim_kwh = min(
+            self._read_excluded_demand_claim_kwh() or 0.0, remaining_solar_kwh
+        )
+        remaining_solar_kwh = max(0.0, remaining_solar_kwh - excluded_claim_kwh)
 
         # --- Remaining house consumption until midnight (handoff to the 00:05
         # evaluation, which re-plans the next day). Keep this identical to other
@@ -4113,6 +4216,7 @@ class PricingManager:
                     profile_forecast.total_days if profile_forecast is not None else 0
                 ),
                 "remaining_consumption_kwh": remaining_consumption_kwh,
+                "excluded_demand_claim_kwh": round(excluded_claim_kwh, 3),
                 "solar_forecast_source": getattr(
                     self._controller,
                     "solar_forecast_diagnostic_source",
@@ -4121,6 +4225,7 @@ class PricingManager:
             }
         )
         self._controller._last_decision_data = decision_data
+        self._refresh_excluded_demand_reference()
 
         # Battery energy available above the discharge floor right now.
         usable_now_kwh = sum(
@@ -4470,6 +4575,21 @@ class PricingManager:
                 self._controller._dp_evening_reevaluated_date = now.date()
             await self._evaluate_evening_recharge()
 
+        # Phase 2.7: Re-plan when an excluded device's claim on the remaining
+        # solar forecast moved materially (#341) — an EV session that starts
+        # after 00:05 takes solar the battery was planned to receive.
+        elif self._is_excluded_demand_reeval(now):
+            self._controller._dp_excluded_demand_reeval_at = now
+            self._controller._dp_excluded_demand_reeval_count = (
+                getattr(self._controller, "_dp_excluded_demand_reeval_count", 0) + 1
+            )
+            _LOGGER.info(
+                "Dynamic pricing: excluded-device solar claim changed — re-evaluating"
+            )
+            await self._evaluate_dynamic_pricing(
+                horizon=DynamicPricingEvaluationHorizon.REMAINING,
+            )
+
         # Phase 3: Daily reset at midnight
         today = now.date()
         if self._controller._dynamic_pricing_evaluated_date is not None:
@@ -4487,6 +4607,9 @@ class PricingManager:
                 self._controller._dp_arbitrage_ceiling = None
                 self._controller._dp_evening_reevaluated_date = None
                 self._controller._dp_last_eval_soc = None
+                self._controller._dp_last_eval_excluded_claim_kwh = None
+                self._controller._dp_excluded_demand_reeval_at = None
+                self._controller._dp_excluded_demand_reeval_count = 0
                 self._reset_predictive_demand_runtime()
                 self.clear_curtailment_runtime("new_day")
 
