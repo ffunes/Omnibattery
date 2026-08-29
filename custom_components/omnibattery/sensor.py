@@ -546,13 +546,19 @@ class ActiveBatteriesSensor(SensorEntity):
         ]
         automatic = [
             c.name for c in self._coordinators
-            if not getattr(c, "battery_manual_mode_enabled", False)
+            if not self.controller._is_battery_manual_owned(c)
+        ]
+        fronius_released = [
+            c.name for c in self._coordinators
+            if getattr(c, "brand", None) == "fronius_gen24"
+            and not getattr(c, "fronius_internal_control_disabled", True)
         ]
 
         attrs = {
             "total_batteries": total,
             "manual_batteries": manual,
             "automatic_batteries": automatic,
+            "fronius_released_batteries": fronius_released,
             "discharge_active": len(discharge),
             "discharge_batteries": [c.name for c in discharge],
             "charge_active": len(charge),
@@ -835,7 +841,7 @@ class IntegrationStatusSensor(SensorEntity):
             coordinator
             for coordinator in c.coordinators
             if getattr(coordinator, "is_available", True)
-            and not getattr(coordinator, "battery_manual_mode_enabled", False)
+            and not c._is_battery_manual_owned(coordinator)
         ]
         if not coordinators:
             return False
@@ -886,7 +892,7 @@ class IntegrationStatusSensor(SensorEntity):
             coordinator.name
             for coordinator in self._controller.coordinators
             if getattr(coordinator, "balance_hold", False)
-            and not getattr(coordinator, "battery_manual_mode_enabled", False)
+            and not self._controller._is_battery_manual_owned(coordinator)
         ]
 
     def _backup_cooldown_batteries(self) -> list[str]:
@@ -897,7 +903,7 @@ class IntegrationStatusSensor(SensorEntity):
         return [
             coordinator.name
             for coordinator, cooldown_until in self._controller._backup_cooldown_until.items()
-            if not getattr(coordinator, "battery_manual_mode_enabled", False)
+            if not self._controller._is_battery_manual_owned(coordinator)
             if cooldown_until and now < cooldown_until
         ]
 
@@ -995,7 +1001,14 @@ class IntegrationStatusSensor(SensorEntity):
             ],
             "automatic_batteries": [
                 coordinator.name for coordinator in c.coordinators
-                if not getattr(coordinator, "battery_manual_mode_enabled", False)
+                if not c._is_battery_manual_owned(coordinator)
+            ],
+            "fronius_released_batteries": [
+                coordinator.name for coordinator in c.coordinators
+                if getattr(coordinator, "brand", None) == "fronius_gen24"
+                and not getattr(
+                    coordinator, "fronius_internal_control_disabled", True
+                )
             ],
             "grid_charging_active": c.grid_charging_active,
             "price_based_discharge_blocked": c._price_based_discharge_blocked,

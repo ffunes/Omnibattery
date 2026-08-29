@@ -109,7 +109,7 @@ class MaxSocChargeManager:
 
     def _taper_applies(self, coordinator) -> bool:
         """Return True when taper is enabled for this coordinator."""
-        if getattr(coordinator, "battery_manual_mode_enabled", False):
+        if self._controller._is_battery_manual_owned(coordinator):
             return False
         if not self._taper_enabled(coordinator):
             return False
@@ -171,7 +171,7 @@ class MaxSocChargeManager:
             if not retry_active.get(coordinator, False):
                 accept_counts.pop(coordinator, None)
                 continue
-            if getattr(coordinator, "battery_manual_mode_enabled", False):
+            if self._controller._is_battery_manual_owned(coordinator):
                 # Manual mode owns the battery and must not advance automatic
                 # handover state. Require a fresh uninterrupted acceptance
                 # streak if automatic control later resumes.
@@ -582,7 +582,7 @@ class MaxSocChargeManager:
         self.reset_if_new_day()
 
         for coordinator in c.coordinators:
-            if getattr(coordinator, "battery_manual_mode_enabled", False):
+            if c._is_battery_manual_owned(coordinator):
                 # Preserve normal top-of-charge state while the user owns the
                 # battery; it is reevaluated after returning to automatic mode.
                 c.remove_charge_block("max_soc", coordinator=coordinator)
@@ -892,7 +892,7 @@ class MaxSocChargeManager:
                 active_coordinators.add(coordinator)
 
         for coordinator in list(c._normal_balance_phases):
-            if getattr(coordinator, "battery_manual_mode_enabled", False):
+            if c._is_battery_manual_owned(coordinator):
                 continue
             if coordinator not in active_coordinators:
                 c._normal_balance_phases.pop(coordinator, None)

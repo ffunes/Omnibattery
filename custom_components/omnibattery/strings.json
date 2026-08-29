@@ -1566,6 +1566,9 @@
       "battery_manual_mode": {
         "name": "Manual Battery Control"
       },
+      "fronius_internal_control_disabled": {
+        "name": "Keep Fronius/BYD Internal Control Disabled"
+      },
       "full_charge_voltage_taper": {
         "name": "100% Charge Voltage Taper"
       },

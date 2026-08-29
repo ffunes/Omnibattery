@@ -436,7 +436,7 @@ class PricingManager:
 
         coordinators_with_data = [
             c for c in self._controller.coordinators
-            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+            if c.data and not self._controller._is_battery_manual_owned(c)
         ]
         if not coordinators_with_data:
             _LOGGER.warning(
@@ -933,7 +933,7 @@ class PricingManager:
         if (
             getattr(coordinator, "data", None) is None
             or not getattr(coordinator, "is_available", True)
-            or getattr(coordinator, "battery_manual_mode_enabled", False)
+            or self._controller._is_battery_manual_owned(coordinator)
             or not getattr(coordinator, "allow_charge", True)
             or getattr(coordinator, "rs485_user_disabled", False)
         ):
@@ -1395,7 +1395,7 @@ class PricingManager:
             eligible = bool(
                 data
                 and coordinator.is_available
-                and not getattr(coordinator, "battery_manual_mode_enabled", False)
+                and not self._controller._is_battery_manual_owned(coordinator)
                 and not self._controller._non_responsive.is_excluded(coordinator)
                 and not self._controller._is_backup_function_active(coordinator)
                 and not coordinator.rs485_user_disabled
@@ -3606,7 +3606,7 @@ class PricingManager:
             return False
         coords = [
             c for c in self._controller.coordinators
-            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+            if c.data and not self._controller._is_battery_manual_owned(c)
         ]
         if not coords:
             return False
@@ -3973,7 +3973,7 @@ class PricingManager:
         # --- Battery state ---
         coordinators_with_data = [
             c for c in self._controller.coordinators
-            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+            if c.data and not self._controller._is_battery_manual_owned(c)
         ]
         if not coordinators_with_data:
             _LOGGER.info("Evening recharge: no battery data, skipping")
@@ -4266,12 +4266,12 @@ class PricingManager:
         avg_soc = sum(
             (c.data.get("battery_soc", 0) or 0)
             for c in self._controller.coordinators
-            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+            if c.data and not self._controller._is_battery_manual_owned(c)
         ) / max(
             1,
             sum(
                 1 for c in self._controller.coordinators
-                if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+                if c.data and not self._controller._is_battery_manual_owned(c)
             ),
         )
         title, message = notifications.format_evening_recharge_notification(
@@ -4384,7 +4384,7 @@ class PricingManager:
         controller.first_execution = True
         if write_idle:
             for coordinator in getattr(controller, "coordinators", []):
-                if getattr(coordinator, "battery_manual_mode_enabled", False):
+                if controller._is_battery_manual_owned(coordinator):
                     continue
                 await controller._set_battery_power(coordinator, 0, 0)
         _LOGGER.info("Dynamic pricing: stopped active slot (%s)", reason)
@@ -4781,7 +4781,7 @@ class PricingManager:
 
             automatic = [
                 c for c in self._controller.coordinators
-                if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+                if c.data and not self._controller._is_battery_manual_owned(c)
             ]
             current_avg_soc = (
                 sum(c.data.get("battery_soc", 0) for c in automatic)

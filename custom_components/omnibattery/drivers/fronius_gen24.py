@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from time import monotonic
 from typing import Any, Optional
 
 try:
@@ -70,12 +71,12 @@ _MODEL_124_ID = 124
 
 _MODE_AUTO = 0
 _MODE_STORAGE_CONTROL = 3
-_NEUTRAL_WINDOW_WORD = 10000
-_DEFAULT_MIN_RSV_WORD = 500
-_MIN_OPERATING_POWER_W = 10
-_MIN_DISCHARGE_DIRECTION_CHANGE_W = 750
-_SOC_LIMIT_HOLD_CHARGE_W = 10
-_SETTLE_SECONDS = 0.2
+_IDLE_WINDOW_WORD = 0
+_MIN_OPERATING_POWER_W = 150
+_DIRECTION_CHANGE_HOLD_SECONDS = 2.0
+_POWER_CONFIRM_TIMEOUT_SECONDS = 4.0
+_POWER_CONFIRM_POLL_SECONDS = 0.5
+_IDLE_POWER_TOLERANCE_W = 150
 _STORAGE_API_PATH = "/solar_api/v1/GetStorageRealtimeData.cgi"
 _STORAGE_API_TIMEOUT_SECONDS = 5
 _STORAGE_API_METADATA_KEYS = {
@@ -265,12 +266,18 @@ def plan_storage_setpoint(
     * charge: ``OutWRte = 65535 - pct`` and ``InWRte = 1 + pct``
     * discharge: ``OutWRte = int((power + 1) / WChaMax * 10000)`` and
       ``InWRte = 65535 - pct``
-    * neutral: both windows are set to ``10000`` while external control remains
-      active.
+    * idle: both limits are set to 0% while external control remains active.
+      Fronius documents this as the power window ``[0 W, 0 W]``. A 100%/100%
+      window would permit the complete automatic charge/discharge range.
     """
     wcha = max(1, int(wcha_max_w or 1))
     charge_ceiling = min(wcha, max(0, int(max_charge_power_w or 0)))
     discharge_ceiling = min(wcha, max(0, int(max_discharge_power_w or 0)))
+
+    if (net_power_w > 0 and charge_ceiling == 0) or (
+        net_power_w < 0 and discharge_ceiling == 0
+    ):
+        net_power_w = 0
 
     if net_power_w > 0:
         power = _clamp_power(net_power_w, charge_ceiling)
@@ -292,34 +299,29 @@ def plan_storage_setpoint(
         out_word = int((power + 1) / wcha * 10000)
         in_word = _int16_word(-(pct + 1))
         writes = (
-            RegisterWrite(layout.storctl_mod, _MODE_STORAGE_CONTROL),
             RegisterWrite(layout.outwrte, out_word),
             RegisterWrite(layout.inwrte, in_word),
+            RegisterWrite(layout.storctl_mod, _MODE_STORAGE_CONTROL),
             RegisterWrite(layout.outwrte, out_word),
             RegisterWrite(layout.inwrte, in_word),
         )
         return SetpointPlan(-power, "discharge", out_word, in_word, writes)
 
     writes = (
-        RegisterWrite(layout.outwrte, _NEUTRAL_WINDOW_WORD),
-        RegisterWrite(layout.inwrte, _NEUTRAL_WINDOW_WORD),
+        RegisterWrite(layout.outwrte, _IDLE_WINDOW_WORD),
+        RegisterWrite(layout.inwrte, _IDLE_WINDOW_WORD),
         RegisterWrite(layout.storctl_mod, _MODE_STORAGE_CONTROL),
-        RegisterWrite(layout.outwrte, _NEUTRAL_WINDOW_WORD),
-        RegisterWrite(layout.inwrte, _NEUTRAL_WINDOW_WORD),
+        RegisterWrite(layout.outwrte, _IDLE_WINDOW_WORD),
+        RegisterWrite(layout.inwrte, _IDLE_WINDOW_WORD),
     )
-    return SetpointPlan(0, "neutral", _NEUTRAL_WINDOW_WORD, _NEUTRAL_WINDOW_WORD, writes)
+    return SetpointPlan(0, "idle", _IDLE_WINDOW_WORD, _IDLE_WINDOW_WORD, writes)
 
 
 def plan_reset_to_auto(
     layout: SunSpecLayout = SUNSPEC_FLOAT_LAYOUT,
 ) -> tuple[RegisterWrite, ...]:
-    """Return control to Fronius auto mode using the local reset script values."""
-    return (
-        RegisterWrite(layout.storctl_mod, _MODE_AUTO),
-        RegisterWrite(layout.outwrte, _NEUTRAL_WINDOW_WORD),
-        RegisterWrite(layout.min_rsv_pct, _DEFAULT_MIN_RSV_WORD),
-        RegisterWrite(layout.inwrte, _NEUTRAL_WINDOW_WORD),
-    )
+    """Release external control without changing the user's Fronius settings."""
+    return (RegisterWrite(layout.storctl_mod, _MODE_AUTO),)
 
 
 def decode_storage_registers(regs: list[int]) -> TelemetrySnapshot:
@@ -478,6 +480,11 @@ class FroniusGen24Driver(BatteryDriver):
         self._last_net_power_w: Optional[int] = None
         self._last_inout_sf = -2
         self._serial: Optional[str] = None
+        # Fail-safe default: retain external storage control across teardown.
+        # Releasing control to Fronius must be an explicit persisted choice.
+        self._internal_control_disabled = True
+        self._last_active_sign = 0
+        self._idle_since_monotonic: Optional[float] = None
         # Float is the Fronius default and preserves the established behavior
         # until connect() verifies the Model 124 header.
         self._sunspec_layout = SUNSPEC_FLOAT_LAYOUT
@@ -531,9 +538,9 @@ class FroniusGen24Driver(BatteryDriver):
             has_energy_counters=False,
             has_nominal_capacity=False,
             has_daily_energy_counters=False,
-            setpoint_confirm_reliable=True,
-            actuator_latency_s=1.0,
-            readback_latency_s=1.5,
+            setpoint_confirm_reliable=False,
+            actuator_latency_s=2.0,
+            readback_latency_s=2.0,
         )
 
     @property
@@ -828,37 +835,40 @@ class FroniusGen24Driver(BatteryDriver):
                 failure_reason="missing_wchamax",
             )
 
-        # The GEN24/BYD storage controller reacts to every sign change as a real
-        # mode transition. Small discharge requests during PV charging therefore
-        # collapse a steady kW-scale charge into a brief discharge/idle cycle
-        # before the inverter ramps back up. Treat those sub-material discharge
-        # requests as idle and let Fronius continue absorbing PV surplus.
         requested_power_w = int(net_power_w)
-        if (
-            requested_power_w < 0
-            and abs(requested_power_w) <= _MIN_DISCHARGE_DIRECTION_CHANGE_W
-        ):
+        if 0 < abs(requested_power_w) < _MIN_OPERATING_POWER_W:
             _LOGGER.debug(
-                "Suppressing small Fronius GEN24 discharge request %d W at/below "
-                "%d W; writing neutral storage control instead",
+                "Suppressing sub-minimum Fronius GEN24 request %d W below %d W; "
+                "writing idle storage control instead",
                 requested_power_w,
-                _MIN_DISCHARGE_DIRECTION_CHANGE_W,
+                _MIN_OPERATING_POWER_W,
             )
             requested_power_w = 0
 
-        if self._last_soc_pct is None and requested_power_w >= 0 and self._max_soc_pct < 100.0:
-            self._remember_soc(await self.read_telemetry(["battery_soc"]))
-        if requested_power_w >= 0 and self._max_soc_reached():
-            if requested_power_w != _SOC_LIMIT_HOLD_CHARGE_W:
-                _LOGGER.debug(
-                    "Fronius GEN24 max SOC %.1f%% reached at %.1f%%; holding "
-                    "storage control with %d W charge limit instead of %d W",
-                    self._max_soc_pct,
-                    self._last_soc_pct,
-                    _SOC_LIMIT_HOLD_CHARGE_W,
-                    requested_power_w,
+        requested_sign = (
+            1 if requested_power_w > 0 else -1 if requested_power_w < 0 else 0
+        )
+        now = monotonic()
+        if requested_sign == 0:
+            if (
+                self._last_net_power_w not in (None, 0)
+                and self._idle_since_monotonic is None
+            ):
+                self._idle_since_monotonic = now
+        elif self._last_active_sign and requested_sign != self._last_active_sign:
+            if self._idle_since_monotonic is None:
+                self._idle_since_monotonic = now
+            idle_s = now - self._idle_since_monotonic
+            if idle_s < _DIRECTION_CHANGE_HOLD_SECONDS:
+                _LOGGER.info(
+                    "Fronius GEN24 direction change held at idle for %.1fs/%.1fs",
+                    idle_s,
+                    _DIRECTION_CHANGE_HOLD_SECONDS,
                 )
-            requested_power_w = _SOC_LIMIT_HOLD_CHARGE_W
+                requested_power_w = 0
+                requested_sign = 0
+        elif requested_sign == self._last_active_sign:
+            self._idle_since_monotonic = None
 
         plan = plan_storage_setpoint(
             requested_power_w,
@@ -877,6 +887,12 @@ class FroniusGen24Driver(BatteryDriver):
             )
 
         self._last_net_power_w = plan.net_power_w
+        applied_sign = (
+            1 if plan.net_power_w > 0 else -1 if plan.net_power_w < 0 else 0
+        )
+        if applied_sign:
+            self._last_active_sign = applied_sign
+            self._idle_since_monotonic = None
         applied = {
             "commanded_net_power": plan.net_power_w,
             "storctl_mod": _MODE_STORAGE_CONTROL,
@@ -892,9 +908,10 @@ class FroniusGen24Driver(BatteryDriver):
                 applied=applied,
             )
 
-        await asyncio.sleep(_SETTLE_SECONDS)
-        echo = await self.read_telemetry(["storctl_mod", "outwrte", "inwrte", "battery_power"])
-        if not {"storctl_mod", "outwrte", "inwrte"}.issubset(echo):
+        echo, registers_confirmed, power_confirmed = (
+            await self._confirm_applied_plan(plan)
+        )
+        if not echo:
             return SetpointResult(
                 ok=True,
                 net_power_w=plan.net_power_w,
@@ -902,17 +919,11 @@ class FroniusGen24Driver(BatteryDriver):
                 failure_reason="feedback_timeout",
             )
 
-        expected_out = _decode_int16(plan.outwrte_word)
-        expected_in = _decode_int16(plan.inwrte_word)
-        confirmed = (
-            int(echo["storctl_mod"]) == _MODE_STORAGE_CONTROL
-            and int(echo["outwrte"]) == expected_out
-            and int(echo["inwrte"]) == expected_in
-        )
+        confirmed = registers_confirmed and power_confirmed
         applied.update({
-            "storctl_mod": echo["storctl_mod"],
-            "outwrte": echo["outwrte"],
-            "inwrte": echo["inwrte"],
+            "storctl_mod": echo.get("storctl_mod", applied["storctl_mod"]),
+            "outwrte": echo.get("outwrte", applied["outwrte"]),
+            "inwrte": echo.get("inwrte", applied["inwrte"]),
         })
         battery_power = echo.get("battery_power")
         if battery_power is not None:
@@ -922,17 +933,90 @@ class FroniusGen24Driver(BatteryDriver):
             net_power_w=plan.net_power_w,
             confirmed=confirmed,
             exact=confirmed,
-            failure_reason=None if confirmed else "ack_mismatch",
+            failure_reason=(
+                None
+                if confirmed
+                else "ack_mismatch"
+                if not registers_confirmed
+                else "power_not_settled"
+            ),
             battery_power_w=int(battery_power) if battery_power is not None else None,
             applied=applied,
         )
 
+    @staticmethod
+    def _registers_match_plan(
+        plan: SetpointPlan, echo: TelemetrySnapshot
+    ) -> bool:
+        try:
+            return (
+                int(echo["storctl_mod"]) == _MODE_STORAGE_CONTROL
+                and int(echo["outwrte"]) == _decode_int16(plan.outwrte_word)
+                and int(echo["inwrte"]) == _decode_int16(plan.inwrte_word)
+            )
+        except (KeyError, TypeError, ValueError):
+            return False
+
+    @staticmethod
+    def _power_matches_plan(plan: SetpointPlan, battery_power: Any) -> bool:
+        try:
+            measured_w = float(battery_power)
+        except (TypeError, ValueError):
+            return False
+        if plan.net_power_w == 0:
+            return abs(measured_w) <= _IDLE_POWER_TOLERANCE_W
+        threshold_w = max(_MIN_OPERATING_POWER_W, abs(plan.net_power_w) * 0.10)
+        return (
+            measured_w >= threshold_w
+            if plan.net_power_w > 0
+            else measured_w <= -threshold_w
+        )
+
+    async def _confirm_applied_plan(
+        self, plan: SetpointPlan
+    ) -> tuple[TelemetrySnapshot, bool, bool]:
+        """Wait for both the register acknowledgement and delivered direction."""
+        deadline = monotonic() + _POWER_CONFIRM_TIMEOUT_SECONDS
+        last_echo: TelemetrySnapshot = {}
+        registers_confirmed = False
+        while True:
+            last_echo = await self.read_telemetry(
+                ["storctl_mod", "outwrte", "inwrte", "battery_power"]
+            )
+            registers_confirmed = self._registers_match_plan(plan, last_echo)
+            if registers_confirmed and self._power_matches_plan(
+                plan, last_echo.get("battery_power")
+            ):
+                return last_echo, True, True
+            remaining_s = deadline - monotonic()
+            if remaining_s <= 0:
+                return last_echo, registers_confirmed, False
+            await asyncio.sleep(min(_POWER_CONFIRM_POLL_SECONDS, remaining_s))
+
     async def _write_plan(self, writes: tuple[RegisterWrite, ...]) -> bool:
         self._client.unit_id = self._slave_id
-        ok = True
-        for write in writes:
-            ok = await self._client.async_write_register(write.address, write.value) and ok
-        return bool(ok)
+        index = 0
+        while index < len(writes):
+            write = writes[index]
+            if (
+                index + 1 < len(writes)
+                and write.address == self._sunspec_layout.outwrte
+                and writes[index + 1].address == self._sunspec_layout.inwrte
+                and hasattr(self._client, "async_write_registers")
+            ):
+                ok = await self._client.async_write_registers(
+                    self._sunspec_layout.outwrte,
+                    [write.value, writes[index + 1].value],
+                )
+                index += 2
+            else:
+                ok = await self._client.async_write_register(
+                    write.address, write.value
+                )
+                index += 1
+            if not ok:
+                return False
+        return True
 
     async def write_control(self, key: str, value: int) -> bool:
         address_by_key = {
@@ -959,7 +1043,7 @@ class FroniusGen24Driver(BatteryDriver):
             return None
         if mode != _MODE_STORAGE_CONTROL:
             return None
-        if outwrte == _NEUTRAL_WINDOW_WORD and inwrte == _NEUTRAL_WINDOW_WORD:
+        if outwrte == _IDLE_WINDOW_WORD and inwrte == _IDLE_WINDOW_WORD:
             return 0
 
         wcha = data.get("wcha_max") or data.get("max_charge_power") or self._wcha_max_w
@@ -1017,12 +1101,45 @@ class FroniusGen24Driver(BatteryDriver):
         _ = soc_pct
         return False
 
-    async def standby(self) -> bool:
-        """Return control to Fronius automatic mode for integration unload."""
+    def configure_internal_control_disabled(self, disabled: bool) -> None:
+        """Choose the persistent ownership policy used by :meth:`standby`."""
+        self._internal_control_disabled = bool(disabled)
+
+    async def set_internal_control_disabled(self, disabled: bool) -> bool:
+        """Apply an explicit BYD/Fronius ownership transition immediately."""
         if not self.connected:
             return False
-        self._last_net_power_w = 0
-        return await self._write_plan(plan_reset_to_auto(self._sunspec_layout))
+        if disabled:
+            result = await self.apply_setpoint(0, read_back=False)
+            if result.ok:
+                self._internal_control_disabled = True
+            return result.ok
+
+        ok = await self._write_plan(
+            plan_reset_to_auto(self._sunspec_layout)
+        )
+        if ok:
+            self._internal_control_disabled = False
+            self._last_net_power_w = 0
+            self._last_active_sign = 0
+            self._idle_since_monotonic = None
+        return ok
+
+    async def standby(self) -> bool:
+        """Apply the persisted ownership policy during integration unload.
+
+        The safe default retains external control with a genuine 0/0 idle
+        window. Fronius automatic control is restored only after an explicit
+        release through the dedicated device switch.
+        """
+        if not self.connected:
+            return False
+        if not self._internal_control_disabled:
+            return await self._write_plan(
+                plan_reset_to_auto(self._sunspec_layout)
+            )
+        result = await self.apply_setpoint(0, read_back=False)
+        return result.ok
 
     @classmethod
     async def probe(

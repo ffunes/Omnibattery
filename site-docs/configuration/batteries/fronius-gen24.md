@@ -36,6 +36,19 @@ These positions follow the
 All reads, setpoint writes and readbacks use the detected layout. The detected
 type is shown as **SunSpec model** in the battery information box.
 
+## Control ownership and safe idle
+
+The device switch **Keep Fronius/BYD internal control disabled** is enabled by
+default. While enabled, Omnibattery retains external SunSpec storage control
+with a closed `0/0` power window during setup, reload and orderly shutdown. This
+prevents an integration restart from silently returning the battery to Fronius
+automatic control.
+
+Turning the switch off explicitly writes `StorCtl_Mod = 0`, returns ownership to
+Fronius and removes the battery from Omnibattery's automatic control pool. The
+choice is persisted. Releasing ownership does not rewrite `MinRsvPct` or either
+power window; switching the control back on immediately asserts external idle.
+
 ## SOC limits
 
 `min_soc` and `max_soc` are enforced by Omnibattery's software control loop.

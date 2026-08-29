@@ -130,6 +130,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  username: str = "",
                  password: str = "",
                  battery_manual_mode_enabled: bool = False,
+                 fronius_internal_control_disabled: bool = True,
                  device_max_charge_power: int | None = None,
                  device_max_discharge_power: int | None = None,
                  ems_version: object = None,
@@ -203,6 +204,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # without force_mode / set_*_power registers (e.g. Zendure). The
         # controller asserts these via apply_setpoint each cycle. Persisted.
         self.battery_manual_mode_enabled = bool(battery_manual_mode_enabled)
+        self.fronius_internal_control_disabled = bool(
+            fronius_internal_control_disabled
+        )
         self.manual_force_mode = "None"
         self.manual_set_charge_power = 0
         self.manual_set_discharge_power = 0
@@ -335,6 +339,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 self.slave_id,
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
+            )
+            self.driver.configure_internal_control_disabled(
+                self.fronius_internal_control_disabled
             )
         else:
             self.driver = MarstekModbusDriver(
@@ -1655,3 +1662,32 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 if not self._is_shutting_down:
                     _LOGGER.error("[%s] Exception setting standby: %s", self.name, e)
                 return False
+
+    async def set_fronius_internal_control_disabled(self, disabled: bool) -> bool:
+        """Retain external idle control or explicitly release it to Fronius."""
+        if self.brand != "fronius_gen24":
+            return False
+        previous = self.fronius_internal_control_disabled
+        # Publish the ownership transition before waiting for the device lock so
+        # a new automatic cycle cannot queue another Fronius write meanwhile.
+        self.fronius_internal_control_disabled = bool(disabled)
+        async with self.lock:
+            try:
+                ok = await self.driver.set_internal_control_disabled(disabled)
+            except Exception as err:
+                if not self._is_shutting_down:
+                    _LOGGER.error(
+                        "[%s] Exception changing Fronius/BYD ownership: %s",
+                        self.name,
+                        err,
+                    )
+                self.fronius_internal_control_disabled = previous
+                self.driver.configure_internal_control_disabled(previous)
+                return False
+        if ok:
+            self._consecutive_failures = 0
+            self._is_connected = True
+        else:
+            self.fronius_internal_control_disabled = previous
+            self.driver.configure_internal_control_disabled(previous)
+        return ok

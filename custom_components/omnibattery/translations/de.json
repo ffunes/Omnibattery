@@ -1571,6 +1571,9 @@
       "battery_manual_mode": {
         "name": "Manuelle Batteriesteuerung"
       },
+      "fronius_internal_control_disabled": {
+        "name": "Fronius/BYD-Eigensteuerung dauerhaft sperren"
+      },
       "full_charge_voltage_taper": {
         "name": "100%-Ladungsreduktion per Spannung"
       },

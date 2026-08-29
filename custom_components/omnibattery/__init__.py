@@ -131,6 +131,7 @@ from .const import (
     DEFAULT_CAPACITY_PROTECTION_LIMIT,
     CONF_MANUAL_MODE_ENABLED,
     CONF_BATTERY_MANUAL_MODE_ENABLED,
+    CONF_FRONIUS_INTERNAL_CONTROL_DISABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
     CONF_PREDICTIVE_CHARGING_MODE,
     CONF_PRICE_SENSOR,
@@ -2203,7 +2204,7 @@ class ChargeDischargeController:
         """Return available capacity after applying the optional global cap."""
         batteries = [
             coordinator for coordinator in batteries
-            if not getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+            if not self._is_battery_manual_owned(coordinator)
         ]
         total_capacity = sum(
             self._battery_power_limit(c, is_charging)
@@ -2216,8 +2217,15 @@ class ChargeDischargeController:
 
     @staticmethod
     def _is_battery_manual_owned(coordinator) -> bool:
-        """Return whether an individual battery is outside automatic control."""
-        return bool(getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False))
+        """Return whether a battery is outside Omnibattery automatic control."""
+        if bool(getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)):
+            return True
+        return bool(
+            getattr(coordinator, "brand", None) == "fronius_gen24"
+            and not getattr(
+                coordinator, CONF_FRONIUS_INTERNAL_CONTROL_DISABLED, True
+            )
+        )
 
     def _get_automatic_batteries(self) -> list:
         """Return the batteries available to automatic planning and control."""
@@ -3715,12 +3723,12 @@ class ChargeDischargeController:
             if coordinator.data is None:
                 continue
 
-            # Individual manual mode is an ownership boundary, not an
-            # operation blocker. Exclude it before availability and blocker
-            # evaluation so planning cannot select or classify it as automatic.
-            if getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False):
+            # Manual ownership (including an explicitly released Fronius) is
+            # an ownership boundary, not an operation blocker. Exclude it
+            # before planning can classify the battery as automatic.
+            if self._is_battery_manual_owned(coordinator):
                 _LOGGER.debug(
-                    "%s: Skipping - individual manual mode owns this battery",
+                    "%s: Skipping - battery is outside automatic ownership",
                     coordinator.name,
                 )
                 continue
@@ -5935,11 +5943,9 @@ class ChargeDischargeController:
 
         Returns True if command was acknowledged, False otherwise.
         """
-        if owner == "automatic" and getattr(
-            coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False
-        ):
+        if owner == "automatic" and self._is_battery_manual_owned(coordinator):
             _LOGGER.debug(
-                "[%s] Skipping automatic power write - individual manual mode owns this battery",
+                "[%s] Skipping automatic power write - battery is outside automatic ownership",
                 getattr(coordinator, "name", coordinator),
             )
             return False
@@ -8940,8 +8946,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v9 -> v10: rename config entry title to "Omnibattery".
     v10 -> v11: add the disabled-by-default three-phase protection schema and
                 normalize an empty battery phase on existing batteries.
+    v11 -> v12: retain external idle control for Fronius/BYD during unload;
+                releasing to the inverter becomes an explicit device setting.
     """
-    if entry.version >= 11:
+    if entry.version >= 12:
         return True
 
     new_data = dict(entry.data)
@@ -9184,11 +9192,26 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(three-phase protection disabled; battery phases normalized)",
         )
 
+    if entry.version < 12:
+        migrated_batteries = []
+        for battery in new_data.get("batteries", []):
+            migrated = dict(battery)
+            if migrated.get("brand") == "fronius_gen24":
+                migrated.setdefault(
+                    CONF_FRONIUS_INTERNAL_CONTROL_DISABLED, True
+                )
+            migrated_batteries.append(migrated)
+        new_data["batteries"] = migrated_batteries
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 12 "
+            "(Fronius/BYD retains external idle control on unload)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
-        version=11,
+        version=12,
     )
     return True
 
@@ -9542,6 +9565,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             battery_manual_mode_enabled=battery_config.get(
                 CONF_BATTERY_MANUAL_MODE_ENABLED, False
             ),
+            fronius_internal_control_disabled=battery_config.get(
+                CONF_FRONIUS_INTERNAL_CONTROL_DISABLED, True
+            ),
             mac=entry_macs[battery_index],
         )
         # Physical phase is metadata for the safety limiter only.  It is never
@@ -9656,6 +9682,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         max_charge_power_w=max_charge_power,
                         max_discharge_power_w=max_discharge_power,
                     )
+
+                # Establish the persisted Fronius ownership boundary before
+                # the controller can issue automatic setpoints. The safe
+                # default is external 0/0 idle; explicit release selects auto.
+                if coordinator.brand == "fronius_gen24":
+                    ownership_ok = (
+                        await coordinator.set_fronius_internal_control_disabled(
+                            coordinator.fronius_internal_control_disabled
+                        )
+                    )
+                    if not ownership_ok:
+                        raise ConfigEntryNotReady(
+                            "Could not establish Fronius/BYD control ownership "
+                            f"for {coordinator.name}"
+                        )
 
                 # Manually trigger first refresh and wait for it
                 await coordinator.async_request_refresh()

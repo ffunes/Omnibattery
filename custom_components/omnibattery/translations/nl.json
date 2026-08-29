@@ -1465,6 +1465,9 @@
       "battery_manual_mode": {
         "name": "Handmatige batterijregeling"
       },
+      "fronius_internal_control_disabled": {
+        "name": "Interne Fronius/BYD-regeling uitgeschakeld houden"
+      },
       "full_charge_voltage_taper": {
         "name": "100%-Laadbegrenzing op Spanning"
       },

@@ -99,6 +99,7 @@ from .const import (
     max_power_for_battery_version,
     MAX_BATTERIES,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
+    CONF_FRONIUS_INTERNAL_CONTROL_DISABLED,
     CONF_CAPACITY_PROTECTION_ENABLED,
     CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES,
     CONF_PREDICTIVE_CHARGING_MODE,
@@ -1227,7 +1228,7 @@ def _apply_mac_tracking(user_input: dict, merged: dict) -> None:
 class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Omnibattery."""
 
-    VERSION = 11
+    VERSION = 12
 
     def __init__(self):
         """Initialize the config flow."""
@@ -2025,6 +2026,9 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     CONF_SLAVE_ID: slave_id,
                     "brand": "fronius_gen24",
                 })
+                self._current_battery_data.setdefault(
+                    CONF_FRONIUS_INTERNAL_CONTROL_DISABLED, True
+                )
                 _fronius_apply_probe_caps(self._current_battery_data, caps)
                 return await self.async_step_battery_limits()
 
@@ -4770,6 +4774,9 @@ class OptionsFlowHandler(OptionsFlow):
                         CONF_SLAVE_ID: slave_id,
                         "brand": "fronius_gen24",
                     })
+                    self._current_battery_data.setdefault(
+                        CONF_FRONIUS_INTERNAL_CONTROL_DISABLED, True
+                    )
                     _fronius_apply_probe_caps(self._current_battery_data, caps)
                     return await self.async_step_battery_limits()
 

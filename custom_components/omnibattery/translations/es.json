@@ -1483,6 +1483,9 @@
       "battery_manual_mode": {
         "name": "Control Manual de Batería"
       },
+      "fronius_internal_control_disabled": {
+        "name": "Mantener desactivado el control interno Fronius/BYD"
+      },
       "full_charge_voltage_taper": {
         "name": "Reduccion Carga 100% por Voltaje"
       },

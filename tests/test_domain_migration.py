@@ -442,7 +442,7 @@ async def test_single_old_entry_system_entity_survives_seamless_migration(
         assert new_entry.state is ConfigEntryState.LOADED
         # Confirms the real async_migrate_entry ran all the way through (proves
         # the v9 heal block actually executed, not skipped).
-        assert new_entry.version == 11
+        assert new_entry.version == 12
 
         final = reg.async_get(HISTORICAL_EID)
         assert final is not None, "historical entity_id should survive"

@@ -40,6 +40,21 @@ Todas las lecturas, escrituras de consignas y comprobaciones usan el diseño
 detectado. El tipo aparece como **Modelo SunSpec** en la caja de información de
 la batería.
 
+## Propiedad del control y reposo seguro
+
+El interruptor del dispositivo **Mantener desactivado el control interno
+Fronius/BYD** está activado por defecto. Mientras está activo, Omnibattery
+mantiene el control SunSpec externo con una ventana de potencia cerrada `0/0`
+durante la configuración, la recarga y el apagado ordenado. Así, un reinicio de
+la integración no devuelve silenciosamente la batería al control automático de
+Fronius.
+
+Al desactivarlo se escribe explícitamente `StorCtl_Mod = 0`, se devuelve el
+control a Fronius y se retira la batería del grupo de control automático de
+Omnibattery. La elección se conserva. La liberación no modifica `MinRsvPct` ni
+las ventanas de potencia; al volver a activarlo se aplica inmediatamente el
+reposo externo.
+
 ## Límites de SOC
 
 Omnibattery aplica `min_soc` y `max_soc` mediante su bucle de control. En

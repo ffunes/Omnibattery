@@ -13,6 +13,7 @@ import importlib.util
 import sys
 import types
 import unittest
+from unittest import mock
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -145,6 +146,7 @@ class FakeClient:
         self.connected = True
         self.unit_id = None
         self.writes: list[tuple[int, int]] = []
+        self.multi_writes: list[tuple[int, list[int]]] = []
 
     async def async_connect(self) -> bool:
         self.connected = True
@@ -161,6 +163,16 @@ class FakeClient:
 
     async def async_write_register(self, address: int, value: int) -> bool:
         self.writes.append((address, value))
+        return True
+
+    async def async_write_registers(
+        self, address: int, values: list[int]
+    ) -> bool:
+        self.multi_writes.append((address, list(values)))
+        self.writes.extend(
+            (address + offset, value)
+            for offset, value in enumerate(values)
+        )
         return True
 
 
@@ -311,7 +323,7 @@ class FroniusGen24DriverTests(unittest.TestCase):
         self.assertTrue(asyncio.run(battery.standby()))
         self.assertEqual(
             fake.writes,
-            [(40348, 0), (40355, 10000), (40350, 500), (40356, 10000)],
+            [(40355, 0), (40356, 0), (40348, 3), (40355, 0), (40356, 0)],
         )
 
     def test_connect_rejects_missing_basic_storage_model(self) -> None:
@@ -353,27 +365,46 @@ class FroniusGen24DriverTests(unittest.TestCase):
         self.assertEqual(plan.inwrte_word, 64535)
         self.assertEqual(
             [(write.address, write.value) for write in plan.writes],
-            [(40358, 3), (40365, 1002), (40366, 64535), (40365, 1002), (40366, 64535)],
+            [(40365, 1002), (40366, 64535), (40358, 3), (40365, 1002), (40366, 64535)],
         )
 
-    def test_neutral_and_auto_reset_plans(self) -> None:
-        neutral = driver.plan_storage_setpoint(
+    def test_idle_and_auto_release_plans(self) -> None:
+        idle = driver.plan_storage_setpoint(
             0,
             wcha_max_w=5000,
             max_charge_power_w=5000,
             max_discharge_power_w=5000,
         )
 
-        self.assertEqual(neutral.net_power_w, 0)
-        self.assertEqual(neutral.mode, "neutral")
+        self.assertEqual(idle.net_power_w, 0)
+        self.assertEqual(idle.mode, "idle")
         self.assertEqual(
-            [(write.address, write.value) for write in neutral.writes],
-            [(40365, 10000), (40366, 10000), (40358, 3), (40365, 10000), (40366, 10000)],
+            [(write.address, write.value) for write in idle.writes],
+            [(40365, 0), (40366, 0), (40358, 3), (40365, 0), (40366, 0)],
         )
         self.assertEqual(
             [(write.address, write.value) for write in driver.plan_reset_to_auto()],
-            [(40358, 0), (40365, 10000), (40360, 500), (40366, 10000)],
+            [(40358, 0)],
         )
+
+    def test_disabled_direction_produces_idle_plan(self) -> None:
+        charge = driver.plan_storage_setpoint(
+            500,
+            wcha_max_w=5000,
+            max_charge_power_w=0,
+            max_discharge_power_w=5000,
+        )
+        discharge = driver.plan_storage_setpoint(
+            -500,
+            wcha_max_w=5000,
+            max_charge_power_w=5000,
+            max_discharge_power_w=0,
+        )
+
+        self.assertEqual(charge.net_power_w, 0)
+        self.assertEqual(charge.mode, "idle")
+        self.assertEqual(discharge.net_power_w, 0)
+        self.assertEqual(discharge.mode, "idle")
 
     def test_decode_storage_registers_uses_local_mapping_and_scale_factors(self) -> None:
         regs = [0] * 24
@@ -469,8 +500,12 @@ class FroniusGen24DriverTests(unittest.TestCase):
             fake.writes,
             [(40365, 64535), (40366, 1001), (40358, 3), (40365, 64535), (40366, 1001)],
         )
+        self.assertEqual(
+            fake.multi_writes,
+            [(40365, [64535, 1001]), (40365, [64535, 1001])],
+        )
 
-    def test_small_discharge_request_is_suppressed_to_neutral(self) -> None:
+    def test_subminimum_request_is_suppressed_to_idle(self) -> None:
         fake = FakeClient()
         battery = driver.FroniusGen24Driver(
             "192.0.2.10",
@@ -486,10 +521,10 @@ class FroniusGen24DriverTests(unittest.TestCase):
         self.assertEqual(result.net_power_w, 0)
         self.assertEqual(
             fake.writes,
-            [(40365, 10000), (40366, 10000), (40358, 3), (40365, 10000), (40366, 10000)],
+            [(40365, 0), (40366, 0), (40358, 3), (40365, 0), (40366, 0)],
         )
 
-    def test_discharge_suppression_includes_threshold_value(self) -> None:
+    def test_material_discharge_is_not_suppressed(self) -> None:
         fake = FakeClient()
         battery = driver.FroniusGen24Driver(
             "192.0.2.10",
@@ -501,43 +536,9 @@ class FroniusGen24DriverTests(unittest.TestCase):
         result = asyncio.run(battery.apply_setpoint(-750, read_back=False))
 
         self.assertTrue(result.ok)
-        self.assertEqual(result.net_power_w, 0)
-        self.assertEqual(
-            fake.writes,
-            [(40365, 10000), (40366, 10000), (40358, 3), (40365, 10000), (40366, 10000)],
-        )
+        self.assertEqual(result.net_power_w, -750)
 
-    def test_idle_at_max_soc_is_held_with_tiny_charge_limit(self) -> None:
-        fake = FakeClient()
-        battery = driver.FroniusGen24Driver(
-            "192.0.2.10",
-            client=fake,
-            max_charge_power_w=5000,
-            max_discharge_power_w=5000,
-        )
-        asyncio.run(
-            battery.apply_config(
-                max_soc_pct=90,
-                min_soc_pct=16,
-                max_charge_power_w=5000,
-                max_discharge_power_w=5000,
-            )
-        )
-        battery._last_soc_pct = 90.0
-
-        result = asyncio.run(battery.apply_setpoint(0, read_back=False))
-        hold = driver.plan_storage_setpoint(
-            10,
-            wcha_max_w=5000,
-            max_charge_power_w=5000,
-            max_discharge_power_w=5000,
-        )
-
-        self.assertTrue(result.ok)
-        self.assertEqual(result.net_power_w, 10)
-        self.assertEqual(fake.writes, [(write.address, write.value) for write in hold.writes])
-
-    def test_idle_below_max_soc_stays_neutral(self) -> None:
+    def test_idle_uses_closed_external_window(self) -> None:
         fake = FakeClient()
         battery = driver.FroniusGen24Driver(
             "192.0.2.10",
@@ -561,10 +562,10 @@ class FroniusGen24DriverTests(unittest.TestCase):
         self.assertEqual(result.net_power_w, 0)
         self.assertEqual(
             fake.writes,
-            [(40365, 10000), (40366, 10000), (40358, 3), (40365, 10000), (40366, 10000)],
+            [(40365, 0), (40366, 0), (40358, 3), (40365, 0), (40366, 0)],
         )
 
-    def test_small_discharge_at_max_soc_is_held_with_tiny_charge_limit(self) -> None:
+    def test_discharge_at_max_soc_remains_available(self) -> None:
         fake = FakeClient()
         battery = driver.FroniusGen24Driver(
             "192.0.2.10",
@@ -583,16 +584,9 @@ class FroniusGen24DriverTests(unittest.TestCase):
         battery._last_soc_pct = 91.0
 
         result = asyncio.run(battery.apply_setpoint(-250, read_back=False))
-        hold = driver.plan_storage_setpoint(
-            10,
-            wcha_max_w=5000,
-            max_charge_power_w=5000,
-            max_discharge_power_w=5000,
-        )
 
         self.assertTrue(result.ok)
-        self.assertEqual(result.net_power_w, 10)
-        self.assertEqual(fake.writes, [(write.address, write.value) for write in hold.writes])
+        self.assertEqual(result.net_power_w, -250)
 
     def test_material_discharge_request_is_still_applied(self) -> None:
         fake = FakeClient()
@@ -609,15 +603,135 @@ class FroniusGen24DriverTests(unittest.TestCase):
         self.assertEqual(result.net_power_w, -1000)
         self.assertEqual(
             fake.writes,
-            [(40358, 3), (40365, 2002), (40366, 63535), (40365, 2002), (40366, 63535)],
+            [(40365, 2002), (40366, 63535), (40358, 3), (40365, 2002), (40366, 63535)],
         )
 
-    def test_standby_returns_to_fronius_auto_mode(self) -> None:
+    def test_direction_change_must_spend_two_seconds_at_idle(self) -> None:
+        fake = FakeClient()
+        battery = driver.FroniusGen24Driver("192.0.2.10", client=fake)
+
+        with mock.patch.object(
+            driver, "monotonic", side_effect=[0.0, 1.0, 2.0, 3.1]
+        ):
+            charge = asyncio.run(battery.apply_setpoint(500, read_back=False))
+            first_flip = asyncio.run(
+                battery.apply_setpoint(-500, read_back=False)
+            )
+            held_flip = asyncio.run(
+                battery.apply_setpoint(-500, read_back=False)
+            )
+            discharge = asyncio.run(
+                battery.apply_setpoint(-500, read_back=False)
+            )
+
+        self.assertEqual(charge.net_power_w, 500)
+        self.assertEqual(first_flip.net_power_w, 0)
+        self.assertEqual(held_flip.net_power_w, 0)
+        self.assertEqual(discharge.net_power_w, -500)
+
+    def test_capabilities_expose_measured_latency_and_floor(self) -> None:
+        battery = driver.FroniusGen24Driver(
+            "192.0.2.10", client=FakeClient()
+        )
+
+        self.assertEqual(battery.capabilities.min_charge_power_w, 150)
+        self.assertEqual(battery.capabilities.min_discharge_power_w, 150)
+        self.assertEqual(battery.capabilities.actuator_latency_s, 2.0)
+        self.assertEqual(battery.capabilities.readback_latency_s, 2.0)
+        self.assertEqual(driver._POWER_CONFIRM_TIMEOUT_SECONDS, 4.0)
+
+    def test_power_confirmation_requires_direction_or_idle(self) -> None:
+        charge = driver.plan_storage_setpoint(
+            500,
+            wcha_max_w=5000,
+            max_charge_power_w=5000,
+            max_discharge_power_w=5000,
+        )
+        discharge = driver.plan_storage_setpoint(
+            -500,
+            wcha_max_w=5000,
+            max_charge_power_w=5000,
+            max_discharge_power_w=5000,
+        )
+        idle = driver.plan_storage_setpoint(
+            0,
+            wcha_max_w=5000,
+            max_charge_power_w=5000,
+            max_discharge_power_w=5000,
+        )
+
+        self.assertTrue(
+            driver.FroniusGen24Driver._power_matches_plan(charge, 200)
+        )
+        self.assertFalse(
+            driver.FroniusGen24Driver._power_matches_plan(charge, -200)
+        )
+        self.assertTrue(
+            driver.FroniusGen24Driver._power_matches_plan(discharge, -200)
+        )
+        self.assertFalse(
+            driver.FroniusGen24Driver._power_matches_plan(discharge, 200)
+        )
+        self.assertTrue(
+            driver.FroniusGen24Driver._power_matches_plan(idle, 100)
+        )
+        self.assertFalse(
+            driver.FroniusGen24Driver._power_matches_plan(idle, 300)
+        )
+
+    def test_standby_retains_external_control_by_default(self) -> None:
         fake = FakeClient()
         battery = driver.FroniusGen24Driver("192.0.2.10", client=fake)
 
         self.assertTrue(asyncio.run(battery.standby()))
-        self.assertEqual(fake.writes, [(40358, 0), (40365, 10000), (40360, 500), (40366, 10000)])
+        self.assertEqual(
+            fake.writes,
+            [(40365, 0), (40366, 0), (40358, 3), (40365, 0), (40366, 0)],
+        )
+
+    def test_explicit_release_returns_to_auto_and_persists_for_standby(self) -> None:
+        fake = FakeClient()
+        battery = driver.FroniusGen24Driver("192.0.2.10", client=fake)
+
+        self.assertTrue(
+            asyncio.run(battery.set_internal_control_disabled(False))
+        )
+        self.assertEqual(fake.writes, [(40358, 0)])
+
+        fake.writes.clear()
+        self.assertTrue(asyncio.run(battery.standby()))
+        self.assertEqual(fake.writes, [(40358, 0)])
+
+    def test_retain_control_reasserts_idle_after_explicit_release(self) -> None:
+        fake = FakeClient()
+        battery = driver.FroniusGen24Driver("192.0.2.10", client=fake)
+        asyncio.run(battery.set_internal_control_disabled(False))
+        fake.writes.clear()
+
+        self.assertTrue(
+            asyncio.run(battery.set_internal_control_disabled(True))
+        )
+        self.assertEqual(
+            fake.writes,
+            [(40365, 0), (40366, 0), (40358, 3), (40365, 0), (40366, 0)],
+        )
+
+    def test_int_sf_ownership_writes_shifted_addresses(self) -> None:
+        fake = FakeClient()
+        battery = driver.FroniusGen24Driver("192.0.2.10", client=fake)
+        battery._sunspec_layout = driver.SUNSPEC_INT_SF_LAYOUT
+
+        self.assertTrue(asyncio.run(battery.standby()))
+        self.assertEqual(
+            fake.writes,
+            [(40355, 0), (40356, 0), (40348, 3), (40355, 0), (40356, 0)],
+        )
+
+        fake.writes.clear()
+        self.assertTrue(
+            asyncio.run(battery.set_internal_control_disabled(False))
+        )
+        self.assertEqual(fake.writes, [(40348, 0)])
 
 
 if __name__ == "__main__":
