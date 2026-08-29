@@ -164,6 +164,18 @@ class FakeClient:
         return True
 
 
+class RegisterMapClient(FakeClient):
+    def __init__(self, blocks: dict[tuple[int, int], list[int]]) -> None:
+        super().__init__()
+        self.blocks = blocks
+        self.reads: list[tuple[int, int]] = []
+
+    async def async_read_block(self, address: int, count: int, block_key: str):
+        self.reads.append((address, count))
+        value = self.blocks.get((address, count))
+        return list(value) if value is not None else None
+
+
 class FakeHttpResponse:
     def __init__(self, payload: dict, status: int = 200) -> None:
         self._payload = payload
@@ -218,7 +230,98 @@ STORAGE_API_PAYLOAD = {
 }
 
 
+def storage_registers() -> list[int]:
+    regs = [0] * 24
+    regs[0] = 4895
+    regs[3] = 3
+    regs[5] = 500
+    regs[6] = 8612
+    regs[9] = 1
+    regs[10] = word(-1001)
+    regs[11] = 1001
+    regs[15] = 0
+    regs[16] = 0
+    regs[19] = word(-2)
+    regs[20] = word(-2)
+    regs[23] = word(-2)
+    return regs
+
+
+def dc_registers() -> list[int]:
+    regs = [0] * 88
+    regs[2] = word(-1)
+    regs[59] = 12000
+    regs[79] = 2500
+    return regs
+
+
 class FroniusGen24DriverTests(unittest.TestCase):
+    def test_connect_detects_float_layout(self) -> None:
+        fake = RegisterMapClient({
+            (40353, 2): [124, 24],
+            (40355, 24): storage_registers(),
+        })
+        battery = driver.FroniusGen24Driver("192.0.2.10", client=fake)
+
+        self.assertTrue(asyncio.run(battery.connect()))
+        self.assertEqual(battery.sunspec_model_type, "float")
+        self.assertEqual(fake.reads, [(40353, 2), (40355, 24)])
+
+        snapshot = asyncio.run(
+            battery.read_telemetry(
+                ["battery_soc", "fronius_sunspec_model_type"]
+            )
+        )
+        self.assertEqual(snapshot["fronius_sunspec_model_type"], "float")
+        self.assertAlmostEqual(snapshot["battery_soc"], 86.12)
+
+    def test_connect_detects_int_sf_layout_and_shifts_reads_and_writes(self) -> None:
+        fake = RegisterMapClient({
+            (40343, 2): [124, 24],
+            (40345, 24): storage_registers(),
+            (40255, 88): dc_registers(),
+        })
+        battery = driver.FroniusGen24Driver(
+            "192.0.2.10",
+            client=fake,
+            max_charge_power_w=5000,
+            max_discharge_power_w=5000,
+        )
+
+        self.assertTrue(asyncio.run(battery.connect()))
+        self.assertEqual(battery.sunspec_model_type, "int+SF")
+        self.assertEqual(fake.reads[:3], [(40353, 2), (40343, 2), (40345, 24)])
+
+        snapshot = asyncio.run(battery.read_telemetry(["battery_power"]))
+        self.assertEqual(snapshot["battery_power"], 950)
+        self.assertEqual(fake.reads[-1], (40255, 88))
+
+        result = asyncio.run(battery.apply_setpoint(500, read_back=False))
+        self.assertTrue(result.ok)
+        self.assertEqual(
+            fake.writes,
+            [(40355, 64514), (40356, 1022), (40348, 3), (40355, 64514), (40356, 1022)],
+        )
+
+        fake.writes.clear()
+        self.assertTrue(asyncio.run(battery.write_control("min_rsv_pct", 500)))
+        self.assertEqual(fake.writes, [(40350, 500)])
+
+        fake.writes.clear()
+        self.assertTrue(asyncio.run(battery.standby()))
+        self.assertEqual(
+            fake.writes,
+            [(40348, 0), (40355, 10000), (40350, 500), (40356, 10000)],
+        )
+
+    def test_connect_rejects_missing_basic_storage_model(self) -> None:
+        fake = RegisterMapClient({})
+        battery = driver.FroniusGen24Driver("192.0.2.10", client=fake)
+
+        self.assertFalse(asyncio.run(battery.connect()))
+        self.assertIsNone(battery.sunspec_model_type)
+        self.assertEqual(fake.reads, [(40353, 2), (40343, 2)])
+
     def test_charge_plan_matches_existing_ha_script(self) -> None:
         plan = driver.plan_storage_setpoint(
             500,

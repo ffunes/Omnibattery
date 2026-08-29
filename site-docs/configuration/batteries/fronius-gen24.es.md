@@ -17,12 +17,28 @@ Selecciona **Fronius GEN24 / BYD** e introduce el host del inversor, el puerto
 Modbus y el ID de unidad SunSpec. Los valores predeterminados son el puerto
 `502` y el ID `1`.
 
-## Representación SunSpec compatible
+## Detección del modelo SunSpec
 
-Este controlador admite la representación SunSpec de **entero más factor de
-escala (`int+SF`)**. Lee el bloque de control de almacenamiento y sus factores
-de escala de los registros `40355`–`40378`; el modelo SunSpec de coma flotante
-no se detecta automáticamente ni es compatible actualmente.
+El controlador admite las configuraciones SunSpec **`float`** e **`int+SF`**
+de Fronius y detecta automáticamente el diseño activo mediante la cabecera del
+modelo Basic Storage Control (124). No es necesario seleccionar el tipo de
+modelo en Omnibattery.
+
+Fronius aplica la representación elegida al modelo de inversor anterior. Los
+modelos 160 y 124 siguen usando enteros y factores de escala en ambos diseños,
+pero sus direcciones se desplazan diez registros:
+
+| Bloque | `float` | `int+SF` |
+|---|---:|---:|
+| Datos del modelo Multiple MPPT 160 | `40265` | `40255` |
+| Datos del modelo Basic Storage 124 | `40355` | `40345` |
+
+Estas posiciones corresponden a la
+[documentación oficial de Modbus para Fronius GEN24](https://manuals.fronius.com/html/4204102649/es.html#BasicStorageControlsRegister).
+
+Todas las lecturas, escrituras de consignas y comprobaciones usan el diseño
+detectado. El tipo aparece como **Modelo SunSpec** en la caja de información de
+la batería.
 
 ## Límites de SOC
 

@@ -370,8 +370,13 @@ class MarstekVenusSensor(CoordinatorEntity, SensorEntity):
         for attr, key in (
             ("manufacturer", "fronius_storage_manufacturer"),
             ("serial", "fronius_storage_serial"),
+            ("sunspec_model_type", "fronius_sunspec_model_type"),
         ):
             value = data.get(key)
+            if not value and attr == "sunspec_model_type":
+                value = getattr(
+                    self.coordinator.driver, "sunspec_model_type", None
+                )
             if value:
                 attrs[attr] = value
         return attrs or None

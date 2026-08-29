@@ -1952,6 +1952,9 @@
       },
       "input_limit": {
         "name": "Limite d'Entrée"
+      },
+      "fronius_sunspec_model_type": {
+        "name": "Type de modèle SunSpec"
       }
     },
     "binary_sensor": {

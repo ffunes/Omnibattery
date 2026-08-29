@@ -2049,6 +2049,9 @@
       },
       "battery_current": {
         "name": "Battery Current"
+      },
+      "fronius_sunspec_model_type": {
+        "name": "SunSpec Model Type"
       }
     },
     "binary_sensor": {

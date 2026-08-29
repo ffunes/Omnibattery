@@ -15,13 +15,26 @@ serial number, temperature, voltage, current and capacity.
 Select **Fronius GEN24 / BYD**, then enter the inverter host, Modbus port and
 SunSpec unit ID. The defaults are port `502` and unit ID `1`.
 
-## Supported SunSpec representation
+## SunSpec model detection
 
-This driver supports the SunSpec **integer plus scale-factor (`int+SF`)**
-register representation. It reads the storage-control block and its scale
-factors from registers `40355`–`40378`; the floating-point SunSpec model is not
-currently auto-detected or supported. If the connection test fails, verify the
-SunSpec data-model setting on the inverter before changing the unit ID.
+The driver supports both Fronius **`float`** and **`int+SF`** SunSpec model
+settings and detects the active layout automatically from the Basic Storage
+Control Model (124) header. No model-type setting is required in Omnibattery.
+
+Fronius applies the selected representation to the preceding inverter model.
+Models 160 and 124 still use integer values and scale factors in both layouts,
+but their addresses move by ten registers:
+
+| Block | `float` | `int+SF` |
+|---|---:|---:|
+| Multiple MPPT Model 160 data | `40265` | `40255` |
+| Basic Storage Model 124 data | `40355` | `40345` |
+
+These positions follow the
+[official Fronius GEN24 Modbus documentation](https://manuals.fronius.com/html/4204102649/en-US.html#BasicStorageControlsRegister).
+
+All reads, setpoint writes and readbacks use the detected layout. The detected
+type is shown as **SunSpec model** in the battery information box.
 
 ## SOC limits
 

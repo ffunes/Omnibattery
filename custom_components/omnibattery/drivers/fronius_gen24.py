@@ -3,13 +3,14 @@
 Implements :class:`BatteryDriver` for a BYD battery controlled through a
 Fronius GEN24 inverter's SunSpec storage control registers.
 
-Register map source of truth for this first implementation is the working local
-Home Assistant setup this driver replaces:
+The driver detects the Fronius SunSpec model type from the Model 124 header and
+uses the corresponding address layout. Fronius' ``float``/``int+SF`` setting
+changes the preceding inverter model and therefore shifts Models 160 and 124;
+those two models themselves keep their integer-plus-scale-factor encoding.
 
-* Storage control block: 40355, count 24, structure ``>10H2h4H8h``
-* DC measurement block: 40265, count 88, structure compatible with the local
-  ``reading_inverter_multiple_raw`` sensor
-* Control writes: 40358 (StorCtl_Mod), 40365 (OutWRte), 40366 (InWRte)
+* Float: Model 160 data at 40265, Model 124 data at 40355
+* int+SF: Model 160 data at 40255, Model 124 data at 40345
+* Model 124 data structure: ``>10H2h4H8h``
 
 Sign conventions:
   Omnibattery net power: +charge / -discharge
@@ -44,7 +45,6 @@ _LOGGER = logging.getLogger(__name__)
 FRONIUS_GEN24_DEFAULT_MAX_POWER_W = 5000
 FRONIUS_GEN24_DEFAULT_CAPACITY_KWH = 11.0
 
-_ADDR_DCW_BLOCK = 40265
 _DCW_BLOCK_COUNT = 88
 _DCW_SF_OFFSET = 2
 # Raw Modbus word offsets. The HA custom sensor exposes these as split indices
@@ -52,7 +52,6 @@ _DCW_SF_OFFSET = 2
 _DCW_TO_BATTERY_OFFSET = 59
 _DCW_FROM_BATTERY_OFFSET = 79
 
-_ADDR_STORAGE_BLOCK = 40355
 _STORAGE_BLOCK_COUNT = 24
 _IDX_WCHAMAX = 0
 _IDX_STORCTL_MOD = 3
@@ -67,10 +66,7 @@ _IDX_MIN_RSV_PCT_SF = 19
 _IDX_CHA_STATE_SF = 20
 _IDX_INOUTWRTE_SF = 23
 
-_ADDR_STORCTL_MOD = 40358
-_ADDR_MIN_RSV_PCT = 40360
-_ADDR_OUTWRTE = 40365
-_ADDR_INWRTE = 40366
+_MODEL_124_ID = 124
 
 _MODE_AUTO = 0
 _MODE_STORAGE_CONTROL = 3
@@ -145,6 +141,10 @@ SENSOR_DEFINITIONS: list[dict] = [
      "device_class": None, "state_class": None, "scale": 1, "precision": 0,
      "icon": "mdi:transmission-tower-import", "scan_interval": "medium",
      "enabled_by_default": False},
+    {"key": "fronius_sunspec_model_type", "name": "SunSpec Model Type",
+     "unit": None, "device_class": None, "state_class": None, "scale": 1,
+     "precision": 0, "icon": "mdi:code-braces-box", "scan_interval": "medium",
+     "category": "diagnostic", "enabled_by_default": False},
     {"key": "inverter_state", "name": "Inverter State", "unit": None,
      "device_class": None, "state_class": None, "scale": 1, "precision": 0,
      "icon": "mdi:state-machine", "scan_interval": "high",
@@ -157,6 +157,43 @@ SELECT_DEFINITIONS: list[dict] = []
 SWITCH_DEFINITIONS: list[dict] = []
 BINARY_SENSOR_DEFINITIONS: list[dict] = []
 BUTTON_DEFINITIONS: list[dict] = []
+
+
+@dataclass(frozen=True)
+class SunSpecLayout:
+    """Addresses for one Fronius SunSpec inverter-model representation."""
+
+    model_type: str
+    dc_model_header: int
+    storage_model_header: int
+
+    @property
+    def dc_block(self) -> int:
+        return self.dc_model_header + 2
+
+    @property
+    def storage_block(self) -> int:
+        return self.storage_model_header + 2
+
+    @property
+    def storctl_mod(self) -> int:
+        return self.storage_block + _IDX_STORCTL_MOD
+
+    @property
+    def min_rsv_pct(self) -> int:
+        return self.storage_block + _IDX_MIN_RSV_PCT
+
+    @property
+    def outwrte(self) -> int:
+        return self.storage_block + _IDX_OUTWRTE
+
+    @property
+    def inwrte(self) -> int:
+        return self.storage_block + _IDX_INWRTE
+
+
+SUNSPEC_FLOAT_LAYOUT = SunSpecLayout("float", 40263, 40353)
+SUNSPEC_INT_SF_LAYOUT = SunSpecLayout("int+SF", 40253, 40343)
 
 
 @dataclass(frozen=True)
@@ -218,6 +255,7 @@ def plan_storage_setpoint(
     wcha_max_w: int,
     max_charge_power_w: int,
     max_discharge_power_w: int,
+    layout: SunSpecLayout = SUNSPEC_FLOAT_LAYOUT,
 ) -> SetpointPlan:
     """Build the exact GEN24/BYD register-write plan for one setpoint.
 
@@ -240,11 +278,11 @@ def plan_storage_setpoint(
         out_word = _int16_word(-(pct + 1))
         in_word = pct + 1
         writes = (
-            RegisterWrite(_ADDR_OUTWRTE, out_word),
-            RegisterWrite(_ADDR_INWRTE, in_word),
-            RegisterWrite(_ADDR_STORCTL_MOD, _MODE_STORAGE_CONTROL),
-            RegisterWrite(_ADDR_OUTWRTE, out_word),
-            RegisterWrite(_ADDR_INWRTE, in_word),
+            RegisterWrite(layout.outwrte, out_word),
+            RegisterWrite(layout.inwrte, in_word),
+            RegisterWrite(layout.storctl_mod, _MODE_STORAGE_CONTROL),
+            RegisterWrite(layout.outwrte, out_word),
+            RegisterWrite(layout.inwrte, in_word),
         )
         return SetpointPlan(power, "charge", out_word, in_word, writes)
 
@@ -254,31 +292,33 @@ def plan_storage_setpoint(
         out_word = int((power + 1) / wcha * 10000)
         in_word = _int16_word(-(pct + 1))
         writes = (
-            RegisterWrite(_ADDR_STORCTL_MOD, _MODE_STORAGE_CONTROL),
-            RegisterWrite(_ADDR_OUTWRTE, out_word),
-            RegisterWrite(_ADDR_INWRTE, in_word),
-            RegisterWrite(_ADDR_OUTWRTE, out_word),
-            RegisterWrite(_ADDR_INWRTE, in_word),
+            RegisterWrite(layout.storctl_mod, _MODE_STORAGE_CONTROL),
+            RegisterWrite(layout.outwrte, out_word),
+            RegisterWrite(layout.inwrte, in_word),
+            RegisterWrite(layout.outwrte, out_word),
+            RegisterWrite(layout.inwrte, in_word),
         )
         return SetpointPlan(-power, "discharge", out_word, in_word, writes)
 
     writes = (
-        RegisterWrite(_ADDR_OUTWRTE, _NEUTRAL_WINDOW_WORD),
-        RegisterWrite(_ADDR_INWRTE, _NEUTRAL_WINDOW_WORD),
-        RegisterWrite(_ADDR_STORCTL_MOD, _MODE_STORAGE_CONTROL),
-        RegisterWrite(_ADDR_OUTWRTE, _NEUTRAL_WINDOW_WORD),
-        RegisterWrite(_ADDR_INWRTE, _NEUTRAL_WINDOW_WORD),
+        RegisterWrite(layout.outwrte, _NEUTRAL_WINDOW_WORD),
+        RegisterWrite(layout.inwrte, _NEUTRAL_WINDOW_WORD),
+        RegisterWrite(layout.storctl_mod, _MODE_STORAGE_CONTROL),
+        RegisterWrite(layout.outwrte, _NEUTRAL_WINDOW_WORD),
+        RegisterWrite(layout.inwrte, _NEUTRAL_WINDOW_WORD),
     )
     return SetpointPlan(0, "neutral", _NEUTRAL_WINDOW_WORD, _NEUTRAL_WINDOW_WORD, writes)
 
 
-def plan_reset_to_auto() -> tuple[RegisterWrite, ...]:
+def plan_reset_to_auto(
+    layout: SunSpecLayout = SUNSPEC_FLOAT_LAYOUT,
+) -> tuple[RegisterWrite, ...]:
     """Return control to Fronius auto mode using the local reset script values."""
     return (
-        RegisterWrite(_ADDR_STORCTL_MOD, _MODE_AUTO),
-        RegisterWrite(_ADDR_OUTWRTE, _NEUTRAL_WINDOW_WORD),
-        RegisterWrite(_ADDR_MIN_RSV_PCT, _DEFAULT_MIN_RSV_WORD),
-        RegisterWrite(_ADDR_INWRTE, _NEUTRAL_WINDOW_WORD),
+        RegisterWrite(layout.storctl_mod, _MODE_AUTO),
+        RegisterWrite(layout.outwrte, _NEUTRAL_WINDOW_WORD),
+        RegisterWrite(layout.min_rsv_pct, _DEFAULT_MIN_RSV_WORD),
+        RegisterWrite(layout.inwrte, _NEUTRAL_WINDOW_WORD),
     )
 
 
@@ -438,6 +478,10 @@ class FroniusGen24Driver(BatteryDriver):
         self._last_net_power_w: Optional[int] = None
         self._last_inout_sf = -2
         self._serial: Optional[str] = None
+        # Float is the Fronius default and preserves the established behavior
+        # until connect() verifies the Model 124 header.
+        self._sunspec_layout = SUNSPEC_FLOAT_LAYOUT
+        self._sunspec_layout_detected = False
         self._http_session = http_session
         self._owns_http_session = http_session is None
         self._storage_api_url = f"http://{host}{_STORAGE_API_PATH}"
@@ -465,6 +509,7 @@ class FroniusGen24Driver(BatteryDriver):
                     "inwrte",
                     "min_rsv_pct",
                     "chagriset",
+                    "fronius_sunspec_model_type",
                     "internal_temperature",
                     "battery_voltage",
                     "battery_current",
@@ -503,6 +548,15 @@ class FroniusGen24Driver(BatteryDriver):
     def serial(self) -> Optional[str]:
         """Return the physical BYD serial used by synthetic-energy backup."""
         return self._serial
+
+    @property
+    def sunspec_model_type(self) -> Optional[str]:
+        """Return the detected Fronius inverter-model representation."""
+        return (
+            self._sunspec_layout.model_type
+            if self._sunspec_layout_detected
+            else None
+        )
 
     @property
     def sensor_definitions(self) -> list[dict]:
@@ -546,6 +600,16 @@ class FroniusGen24Driver(BatteryDriver):
     async def connect(self) -> bool:
         ok = await self._client.async_connect()
         if ok:
+            if not await self._detect_sunspec_layout():
+                _LOGGER.warning(
+                    "Fronius GEN24 at %s:%s slave %s exposes no supported "
+                    "SunSpec Model 124 header",
+                    self._host,
+                    self._port,
+                    self._slave_id,
+                )
+                await self._client.async_close()
+                return False
             await self._refresh_storage_cache()
         return ok
 
@@ -562,23 +626,57 @@ class FroniusGen24Driver(BatteryDriver):
     def read_groups(self) -> list[ReadGroup]:
         return self._read_groups
 
+    async def _detect_sunspec_layout(self) -> bool:
+        """Detect float versus int+SF from the Basic Storage Model header."""
+        self._client.unit_id = self._slave_id
+        for layout in (SUNSPEC_FLOAT_LAYOUT, SUNSPEC_INT_SF_LAYOUT):
+            regs = await self._client.async_read_block(
+                layout.storage_model_header,
+                2,
+                block_key=f"fronius_model_124_{layout.model_type}",
+            )
+            if (
+                regs
+                and len(regs) >= 2
+                and int(regs[0]) == _MODEL_124_ID
+                and int(regs[1]) == _STORAGE_BLOCK_COUNT
+            ):
+                self._sunspec_layout = layout
+                self._sunspec_layout_detected = True
+                _LOGGER.info(
+                    "Detected Fronius GEN24 SunSpec model type %s at %s:%s "
+                    "slave %s",
+                    layout.model_type,
+                    self._host,
+                    self._port,
+                    self._slave_id,
+                )
+                return True
+        self._sunspec_layout_detected = False
+        return False
+
     async def _read_storage_block(self) -> TelemetrySnapshot:
         self._client.unit_id = self._slave_id
         regs = await self._client.async_read_block(
-            _ADDR_STORAGE_BLOCK,
+            self._sunspec_layout.storage_block,
             _STORAGE_BLOCK_COUNT,
-            block_key="fronius_storage",
+            block_key=f"fronius_storage_{self._sunspec_layout.model_type}",
         )
         if not regs:
             return {}
-        return decode_storage_registers(regs)
+        snapshot = decode_storage_registers(regs)
+        if self._sunspec_layout_detected:
+            snapshot["fronius_sunspec_model_type"] = (
+                self._sunspec_layout.model_type
+            )
+        return snapshot
 
     async def _read_dc_power_block(self) -> TelemetrySnapshot:
         self._client.unit_id = self._slave_id
         regs = await self._client.async_read_block(
-            _ADDR_DCW_BLOCK,
+            self._sunspec_layout.dc_block,
             _DCW_BLOCK_COUNT,
-            block_key="fronius_dc_power",
+            block_key=f"fronius_dc_power_{self._sunspec_layout.model_type}",
         )
         if not regs:
             return {}
@@ -657,6 +755,7 @@ class FroniusGen24Driver(BatteryDriver):
             "chagriset",
             "wcha_max",
             "inoutwrte_sf",
+            "fronius_sunspec_model_type",
         }
         storage_api_keys = {
             "internal_temperature",
@@ -766,6 +865,7 @@ class FroniusGen24Driver(BatteryDriver):
             wcha_max_w=self._wcha_max_w,
             max_charge_power_w=self._max_charge_w,
             max_discharge_power_w=self._max_discharge_w,
+            layout=self._sunspec_layout,
         )
         ok = await self._write_plan(plan.writes)
         if not ok:
@@ -836,10 +936,10 @@ class FroniusGen24Driver(BatteryDriver):
 
     async def write_control(self, key: str, value: int) -> bool:
         address_by_key = {
-            "storctl_mod": _ADDR_STORCTL_MOD,
-            "outwrte": _ADDR_OUTWRTE,
-            "inwrte": _ADDR_INWRTE,
-            "min_rsv_pct": _ADDR_MIN_RSV_PCT,
+            "storctl_mod": self._sunspec_layout.storctl_mod,
+            "outwrte": self._sunspec_layout.outwrte,
+            "inwrte": self._sunspec_layout.inwrte,
+            "min_rsv_pct": self._sunspec_layout.min_rsv_pct,
         }
         address = address_by_key.get(key)
         if address is None:
@@ -922,7 +1022,7 @@ class FroniusGen24Driver(BatteryDriver):
         if not self.connected:
             return False
         self._last_net_power_w = 0
-        return await self._write_plan(plan_reset_to_auto())
+        return await self._write_plan(plan_reset_to_auto(self._sunspec_layout))
 
     @classmethod
     async def probe(
