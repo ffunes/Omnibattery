@@ -7156,7 +7156,7 @@ class MarstekVenusPanel extends HTMLElement {
 
       /* ===== Baterías tab ===== */
       .bat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: var(--gap); align-items: start; }
-      .bat-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+      .bat-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; container: battery-card / inline-size; }
       .bat-head { display: flex; align-items: center; gap: 10px; }
       .bat-title { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 auto; --mdc-icon-size: 18px; }
       .bat-title .ic { color: var(--ink-dim); display: grid; place-items: center; flex-shrink: 0; }
@@ -7227,8 +7227,9 @@ class MarstekVenusPanel extends HTMLElement {
 
       /* per-battery controls — 2-col grid so labels and controls align across
          rows and every slider/select gets the same width */
-      .bat-ctl-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 12px 14px; align-items: center; margin-top: 12px; }
+      .bat-ctl-grid { display: grid; grid-template-columns: minmax(0, min(52%, 260px)) minmax(140px, 1fr); gap: 12px 14px; align-items: center; margin-top: 12px; }
       .ctl-k { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-mid); font-size: 13px; --mdc-icon-size: 16px; white-space: nowrap; }
+      .bat-ctl-grid .ctl-k { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
       .ctl-k ha-icon { color: var(--ink-dim); flex-shrink: 0; }
       .ctl-empty { grid-column: 1 / -1; font-size: 12px; line-height: 1.45; }
       .ctl-toggle { justify-self: start; position: relative; width: 40px; height: 22px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--bg-2); cursor: pointer; padding: 0; transition: background 0.2s, border-color 0.2s; }
@@ -7241,6 +7242,12 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-num .ctl-val { font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 56px; text-align: right; }
       .ctl-btn { grid-column: 1 / -1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 8px 12px; border-radius: 11px; border: 1px solid var(--line-strong); background: var(--bg-2); color: var(--ink-mid); font-family: var(--font-ui); font-weight: 600; font-size: 13px; cursor: pointer; --mdc-icon-size: 16px; transition: background 0.15s, color 0.15s; }
       .ctl-btn:hover { background: var(--bg-hover); color: var(--ink); }
+      @container battery-card (max-width: 380px) {
+        .bat-ctl-grid { grid-template-columns: minmax(0, 1fr); row-gap: 7px; }
+        .bat-ctl-grid > .ctl-k:not(:first-child) { margin-top: 6px; }
+        .bat-ctl-grid > .ctl-toggle { margin-bottom: 3px; }
+        .bat-ctl-grid > .ctl-btn { grid-column: 1; }
+      }
       @media (max-width: 480px) { .bat-grid { grid-template-columns: 1fr; } }
 
       /* ===== Control tab ===== */
