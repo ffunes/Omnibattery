@@ -14,6 +14,7 @@ To opt a future test into loading the integration, request the
 """
 from __future__ import annotations
 
+import asyncio
 import sys
 import time
 
@@ -66,6 +67,26 @@ def pytest_collection_modifyitems(
     for item in items:
         if "hass" in getattr(item, "fixturenames", ()):
             item.add_marker(skip_no_hass)
+
+
+@pytest.fixture(autouse=True)
+def _restore_current_event_loop():
+    """Leave a usable current event loop behind for the next test.
+
+    Many unit tests here drive coroutines with ``asyncio.run``, which closes its
+    loop and clears the thread's current loop on exit. With the Home Assistant
+    plugin active (``-o addopts=""``) the next test's fixtures call
+    ``asyncio.get_event_loop()`` and raise ``RuntimeError: There is no current
+    event loop``, so every test after the first one errors at setup.
+    """
+    yield
+    policy = asyncio.get_event_loop_policy()
+    try:
+        loop = policy.get_event_loop()
+    except RuntimeError:
+        loop = None
+    if loop is None or loop.is_closed():
+        policy.set_event_loop(policy.new_event_loop())
 
 
 class _FakeMarstekDriver:
