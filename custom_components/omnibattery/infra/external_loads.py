@@ -17,7 +17,10 @@ import math
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.const import UnitOfEnergy
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
+from homeassistant.util.unit_conversion import EnergyConverter
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -572,10 +575,12 @@ class ExternalLoads:
     def _read_sensor_kwh_opt(self, entity_id: str | None) -> float | None:
         """Energy sibling of _read_sensor_w_opt: read a sensor as kWh.
 
-        Returns None when the sensor is missing, unavailable or unparsable, so
-        the caller can keep its no-claim behaviour instead of assuming 0 kWh.
-        Unlike the power readers the default unit is kWh: the sensors this reads
-        are energy counters and an unlabelled one is overwhelmingly kWh.
+        Returns None when the sensor is missing, unavailable, unparsable or
+        carries a unit that is not an energy unit, so the caller keeps its
+        no-claim behaviour instead of reserving solar against a number whose
+        magnitude is unknown. Conversion uses Home Assistant's own energy
+        converter, so its unit strings are matched exactly: ``mWh`` (milli)
+        and ``MWh`` (mega) differ only in case.
         Negative readings are clamped to 0.0 because some upstreams publish a
         transient -0.0 between sessions.
         """
@@ -590,24 +595,35 @@ class ExternalLoads:
             return None
         if not math.isfinite(raw):
             return None
-        unit = str(state.attributes.get("unit_of_measurement", "kWh")).strip().lower()
-        if unit == "wh":
-            raw /= 1000.0
-        elif unit == "mwh":
-            raw *= 1000.0
+        unit = state.attributes.get("unit_of_measurement")
+        if unit is None:
+            return None
+        try:
+            raw = EnergyConverter.convert(raw, str(unit), UnitOfEnergy.KILO_WATT_HOUR)
+        except (HomeAssistantError, ValueError, TypeError):
+            _LOGGER.debug(
+                "Remaining-demand sensor %s reports unit %s, which is not an "
+                "energy unit; ignoring its claim",
+                entity_id,
+                unit,
+            )
+            return None
         return max(0.0, raw)
 
     def claimable_solar_demand_kwh(self) -> float | None:
         """Σ energy (kWh) excluded devices still expect to take from the sun.
 
-        Only enabled devices whose consumption is included in the home sensor
-        may claim: a device the home sensor does not see already sits outside
-        the consumption forecast, so reserving solar for it would count the
-        same energy twice.
-
-        ``exclusion_pct`` is deliberately not applied. That percentage governs
-        how much of a device's *live power* the battery must not cover; it says
-        nothing about the device's future energy demand.
+        Eligibility and weighting follow ``consumption_delta_kw`` exactly, so
+        the same demand is never removed twice:
+          - only devices the home sensor already includes may claim; a device
+            it does not see is an additional load the battery is meant to
+            cover, and its demand is not in the consumption forecast either;
+          - ``exclusion_pct`` scales the claim the same way it scales the
+            consumption correction. At 50 % the forecast keeps half the
+            device's demand, so only the other half may be reserved from solar;
+          - ``ev_charger_no_telemetry`` devices are skipped for the same reason
+            they are skipped there: their demand stays inside the consumption
+            forecast, which already covers it.
 
         Returns None when no device contributes a usable reading, so callers
         can keep today's behaviour untouched.
@@ -619,11 +635,14 @@ class ExternalLoads:
                 continue
             if not device.get("enabled", True):
                 continue
+            if device.get("ev_charger_no_telemetry", False):
+                continue
             if not device.get("included_in_consumption", True):
                 continue
             value = self._read_sensor_kwh_opt(sensor_id)
             if value is None:
                 continue
+            value *= self._exclusion_factor(device)
             total = value if total is None else total + value
         return total
 

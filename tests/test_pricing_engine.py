@@ -43,6 +43,7 @@ from custom_components.omnibattery.pricing import engine as pricing_engine
 from custom_components.omnibattery.pricing.engine import (
     DynamicPricingEvaluationHorizon,
     PricingManager,
+    _apply_excluded_demand_claim,
 )
 from custom_components.omnibattery.tracking.consumption_profile import (
     ConsumptionForecast,
@@ -366,6 +367,76 @@ def test_soc_drop_reeval_false_when_no_coordinator_data():
 
 
 # ----------------------------------------------------------------------
+# _apply_excluded_demand_claim (today-only solar reservation, #341)
+# ----------------------------------------------------------------------
+
+def _quarters(start, count):
+    return [
+        (start + timedelta(minutes=15 * i), start + timedelta(minutes=15 * (i + 1)))
+        for i in range(count)
+    ]
+
+
+_TODAY_END = datetime(2026, 8, 29, 0, 0)
+
+
+def test_excluded_claim_scales_today_intervals_proportionally():
+    boundaries = _quarters(datetime(2026, 8, 28, 12, 0), 4)
+    solar, applied = _apply_excluded_demand_claim(
+        boundaries, [1.0, 2.0, 1.0, 0.0], 2.0, _TODAY_END
+    )
+
+    assert applied == pytest.approx(2.0)
+    assert sum(solar) == pytest.approx(2.0)
+    assert solar == pytest.approx([0.5, 1.0, 0.5, 0.0])
+
+
+def test_excluded_claim_is_capped_at_todays_solar():
+    boundaries = _quarters(datetime(2026, 8, 28, 12, 0), 2)
+    solar, applied = _apply_excluded_demand_claim(
+        boundaries, [1.0, 1.0], 10.0, _TODAY_END
+    )
+
+    assert applied == pytest.approx(2.0)
+    assert sum(solar) == pytest.approx(0.0)
+
+
+def test_excluded_claim_never_touches_tomorrows_forecast():
+    # A cross-midnight projection also carries tomorrow's forecast. The sensor
+    # reports demand remaining *today*, so those intervals must stay intact.
+    boundaries = _quarters(datetime(2026, 8, 28, 23, 30), 4)
+    solar, applied = _apply_excluded_demand_claim(
+        boundaries, [1.0, 1.0, 5.0, 5.0], 4.0, _TODAY_END
+    )
+
+    assert applied == pytest.approx(2.0)
+    assert solar[:2] == pytest.approx([0.0, 0.0])
+    assert solar[2:] == pytest.approx([5.0, 5.0])
+
+
+def test_excluded_claim_without_solar_today_changes_nothing():
+    boundaries = _quarters(datetime(2026, 8, 28, 23, 30), 4)
+    intervals = [0.0, 0.0, 5.0, 5.0]
+    solar, applied = _apply_excluded_demand_claim(
+        boundaries, intervals, 4.0, _TODAY_END
+    )
+
+    assert applied == 0.0
+    assert solar == intervals
+
+
+def test_excluded_claim_of_zero_returns_the_intervals_untouched():
+    boundaries = _quarters(datetime(2026, 8, 28, 12, 0), 2)
+    intervals = [1.0, 2.0]
+    solar, applied = _apply_excluded_demand_claim(
+        boundaries, intervals, 0.0, _TODAY_END
+    )
+
+    assert applied == 0.0
+    assert solar is intervals
+
+
+# ----------------------------------------------------------------------
 # _is_excluded_demand_reeval (excluded-device solar claim, #341)
 # ----------------------------------------------------------------------
 
@@ -474,6 +545,106 @@ def test_excluded_demand_reeval_false_late_at_night():
     ctrl = _claim_ctrl(0.0, 7.0)
     late = _CLAIM_NOW.replace(hour=23, minute=10)
     assert _claim_mgr(ctrl)._is_excluded_demand_reeval(late) is False
+
+
+# ----------------------------------------------------------------------
+# _evaluate_evening_recharge (excluded-device claim + published figures, #341)
+# ----------------------------------------------------------------------
+
+def _evening_ctrl(claim, remaining_solar, **overrides):
+    async def _avg():
+        return 8.0
+
+    tracker = SimpleNamespace(
+        get_dynamic_base_consumption=_avg,
+        get_consumption_window_hours_per_day=lambda: 24.0,
+        consumption_window_hours_in_range=lambda _a, _b: 6.0,
+    )
+    base = dict(
+        coordinators=[
+            SimpleNamespace(
+                data={"battery_soc": 20.0, "battery_total_energy": 10.0},
+                max_soc=100,
+                min_soc=10,
+            )
+        ],
+        _consumption_tracker=tracker,
+        _last_decision_data={
+            "solar_remaining_raw_kwh": 30.0,
+            "solar_safety_margin_kwh": 2.0,
+            "solar_remaining_effective_kwh": 28.0,
+            "excluded_demand_claim_kwh": 0.0,
+            "solar_available_to_battery_kwh": 28.0,
+        },
+        _dp_last_eval_soc=None,
+        _dp_last_eval_excluded_claim_kwh=None,
+        _external_loads=SimpleNamespace(claimable_solar_demand_kwh=lambda: claim),
+        _predictive_grid_charge_margin_pct=0.0,
+        _daily_home_energy_date=None,
+        _daily_home_energy_kwh=0.0,
+        _household_accumulator_date=None,
+        _household_energy_accumulator=0.0,
+    )
+    base.update(overrides)
+    return _controller(**base)
+
+
+def _evening_mgr(ctrl, remaining_solar):
+    manager = _mgr(ctrl)
+
+    async def _noop_prices(force=False):
+        return None
+
+    manager._maybe_refresh_service_prices = _noop_prices
+    manager._remaining_solar_today_kwh = lambda _now: remaining_solar
+    manager._profile_remaining_consumption = lambda _start, _end: None
+    manager._project_remaining_consumption = lambda *a, **k: (4.0, 0.6)
+    return manager
+
+
+def test_evening_recharge_deducts_the_claim_from_remaining_solar():
+    # 6 kWh of solar left, 4 kWh of it claimed by the EV, 4 kWh of house load
+    # and 1 kWh usable in the battery: a real deficit the morning plan reserved
+    # for. Ignoring the claim would report solar covering the evening.
+    ctrl = _evening_ctrl(claim=4.0, remaining_solar=6.0)
+    asyncio.run(_evening_mgr(ctrl, 6.0)._evaluate_evening_recharge())
+
+    decision = ctrl._last_decision_data
+    assert decision["excluded_demand_claim_kwh"] == pytest.approx(4.0)
+    assert decision["solar_available_to_battery_kwh"] == pytest.approx(2.0)
+
+
+def test_evening_recharge_publishes_the_figures_it_used():
+    # The published solar numbers must describe this horizon, not still report
+    # the morning evaluation's 30 / 28 kWh.
+    ctrl = _evening_ctrl(claim=4.0, remaining_solar=6.0)
+    asyncio.run(_evening_mgr(ctrl, 6.0)._evaluate_evening_recharge())
+
+    decision = ctrl._last_decision_data
+    assert decision["solar_remaining_raw_kwh"] == pytest.approx(6.0)
+    assert decision["solar_remaining_effective_kwh"] == pytest.approx(6.0)
+    assert decision["solar_safety_margin_kwh"] == pytest.approx(0.0)
+    assert (
+        decision["solar_remaining_effective_kwh"]
+        - decision["excluded_demand_claim_kwh"]
+        == pytest.approx(decision["solar_available_to_battery_kwh"])
+    )
+
+
+def test_evening_recharge_claim_is_capped_at_remaining_solar():
+    ctrl = _evening_ctrl(claim=50.0, remaining_solar=6.0)
+    asyncio.run(_evening_mgr(ctrl, 6.0)._evaluate_evening_recharge())
+
+    decision = ctrl._last_decision_data
+    assert decision["excluded_demand_claim_kwh"] == pytest.approx(6.0)
+    assert decision["solar_available_to_battery_kwh"] == pytest.approx(0.0)
+
+
+def test_evening_recharge_rearms_the_claim_reference():
+    ctrl = _evening_ctrl(claim=4.0, remaining_solar=6.0)
+    asyncio.run(_evening_mgr(ctrl, 6.0)._evaluate_evening_recharge())
+
+    assert ctrl._dp_last_eval_excluded_claim_kwh == pytest.approx(4.0)
 
 
 # ----------------------------------------------------------------------

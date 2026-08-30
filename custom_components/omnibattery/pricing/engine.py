@@ -164,6 +164,41 @@ _CHRONOLOGICAL_DIAGNOSTIC_KEYS = (
 )
 
 
+def _apply_excluded_demand_claim(
+    boundaries: list[tuple[datetime, datetime]],
+    intervals_kwh: list[float],
+    claim_kwh: float,
+    today_end: datetime,
+) -> tuple[list[float], float]:
+    """Reserve an excluded device's remaining demand from today's solar.
+
+    The reservation is spread over the intervals that start before
+    ``today_end``, proportional to their energy, and capped at what those
+    intervals hold. Intervals beyond it belong to tomorrow's forecast in a
+    cross-midnight projection: a sensor reporting demand remaining *today*
+    must never reduce them.
+
+    Returns the adjusted intervals and the claim actually applied.
+    """
+    claim = max(0.0, claim_kwh)
+    if claim <= 0.0:
+        return intervals_kwh, 0.0
+    today_indices = [
+        index
+        for index, (start, _end) in enumerate(boundaries)
+        if start < today_end and intervals_kwh[index] > 0.0
+    ]
+    available = sum(intervals_kwh[index] for index in today_indices)
+    if available <= 0.0:
+        return intervals_kwh, 0.0
+    claim = min(claim, available)
+    factor = (available - claim) / available
+    adjusted = list(intervals_kwh)
+    for index in today_indices:
+        adjusted[index] *= factor
+    return adjusted, claim
+
+
 @dataclass(frozen=True)
 class ChronologicalProjectionResult:
     """Read-only dashboard projection adapted from current runtime inputs.
@@ -2601,27 +2636,10 @@ class PricingManager:
                 )
                 provider_periods = None
 
-            # Excluded devices reserve part of the remaining forecast (see
-            # _should_activate_grid_charging). The timeline must project the
-            # same solar the scalar balance used, otherwise it would place
-            # deadlines against sunshine another load is going to take. The
-            # claim rides along with the safety margin, so it is spread over
-            # the solar shape proportionally: we do not know when the device
-            # will draw, and spreading is uniformly conservative.
-            # Capped the same way as the scalar balance does, so the published
-            # raw - margin - claim reconciles with what the timeline projected.
-            raw_after_margin = max(0.0, solar_input.remaining_kwh - safety)
-            excluded_claim_kwh = min(
-                max(
-                    0.0,
-                    float(decision_data.get("excluded_demand_claim_kwh", 0.0) or 0.0),
-                ),
-                raw_after_margin,
-            )
             timeline = build_solar_timeline(
                 boundaries,
                 solar_input.remaining_kwh,
-                safety_margin_kwh=safety + excluded_claim_kwh,
+                safety_margin_kwh=safety,
                 provider_periods=provider_periods,
                 temporal_shape=temporal_shape,
                 learned_shape=(learned_snapshot.shape if learned_snapshot else None),
@@ -2630,7 +2648,22 @@ class PricingManager:
                 solar_end=solar_end_dt,
                 mode=solar_profile_mode,
             )
-            solar = list(timeline.intervals_kwh)
+            # Excluded devices reserve part of the remaining forecast (see
+            # _should_activate_grid_charging). The timeline must project the
+            # same solar the scalar balance used, otherwise it would place
+            # deadlines against sunshine another load is going to take. The
+            # reservation is taken out of today's intervals only, proportional
+            # to their energy: the sensor reports demand remaining *today*, and
+            # a cross-midnight projection also carries tomorrow's forecast,
+            # which the claim must never touch. Within today it is spread
+            # evenly because we do not know when the device will draw, which is
+            # uniformly conservative.
+            solar, excluded_claim_kwh = _apply_excluded_demand_claim(
+                boundaries,
+                list(timeline.intervals_kwh),
+                float(decision_data.get("excluded_demand_claim_kwh", 0.0) or 0.0),
+                daily_horizon_end,
+            )
             solar_source = timeline.source
             intervals = [
                 EnergyInterval(start, end, consumption[index], solar[index])
@@ -2764,12 +2797,12 @@ class PricingManager:
                 # Keep these two meaning what their names say: the margin the
                 # user configured, and raw minus that margin. The device claim
                 # is published separately so raw - margin - claim reconciles.
-                "solar_safety_margin_kwh": safety,
-                "solar_remaining_effective_kwh": max(
-                    0.0, timeline.remaining_raw_kwh - safety
-                ),
+                "solar_safety_margin_kwh": timeline.safety_margin_kwh,
+                "solar_remaining_effective_kwh": timeline.remaining_effective_kwh,
                 "excluded_demand_claim_kwh": excluded_claim_kwh,
-                "solar_available_to_battery_kwh": timeline.remaining_effective_kwh,
+                "solar_available_to_battery_kwh": max(
+                    0.0, timeline.remaining_effective_kwh - excluded_claim_kwh
+                ),
                 "solar_timeline_effective_kwh": timeline.timeline_effective_kwh,
                 "solar_timeline_energy_error_kwh": timeline.energy_error_kwh,
                 "solar_timeline_fallback_reason": timeline.fallback_reason,
@@ -4142,14 +4175,14 @@ class PricingManager:
 
         # --- Remaining solar expected today (raw generation, before consumption) ---
         now_h = now.hour + now.minute / 60.0
-        remaining_solar_kwh = self._remaining_solar_today_kwh(now)
+        remaining_solar_raw_kwh = self._remaining_solar_today_kwh(now)
         # Excluded devices take part of that generation themselves (#341). Without
         # this the evening pass would hand the reserved solar back to the battery
         # plan and under-schedule the night's grid charging.
         excluded_claim_kwh = min(
-            self._read_excluded_demand_claim_kwh() or 0.0, remaining_solar_kwh
+            self._read_excluded_demand_claim_kwh() or 0.0, remaining_solar_raw_kwh
         )
-        remaining_solar_kwh = max(0.0, remaining_solar_kwh - excluded_claim_kwh)
+        remaining_solar_kwh = max(0.0, remaining_solar_raw_kwh - excluded_claim_kwh)
 
         # --- Remaining house consumption until midnight (handoff to the 00:05
         # evaluation, which re-plans the next day). Keep this identical to other
@@ -4216,7 +4249,15 @@ class PricingManager:
                     profile_forecast.total_days if profile_forecast is not None else 0
                 ),
                 "remaining_consumption_kwh": remaining_consumption_kwh,
+                # Publish the solar figures this horizon actually used, so they
+                # do not keep reporting the morning evaluation's numbers. The
+                # evening deficit deliberately applies no safety margin, so the
+                # effective figure is the raw remaining forecast.
                 "excluded_demand_claim_kwh": round(excluded_claim_kwh, 3),
+                "solar_remaining_raw_kwh": remaining_solar_raw_kwh,
+                "solar_safety_margin_kwh": 0.0,
+                "solar_remaining_effective_kwh": remaining_solar_raw_kwh,
+                "solar_available_to_battery_kwh": remaining_solar_kwh,
                 "solar_forecast_source": getattr(
                     self._controller,
                     "solar_forecast_diagnostic_source",

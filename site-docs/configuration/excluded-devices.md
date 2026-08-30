@@ -101,16 +101,19 @@ solar available to the battery = remaining solar forecast − safety margin − 
 Notes:
 
 - The field is optional and off by default. Without it, nothing changes.
-- The claim only applies to devices with **Included in consumption** checked. When the load is
-  *not* included, it already sits inside the consumption forecast and reserving solar for it too
-  would count the same energy twice.
+- Eligibility follows the consumption correction exactly, so the same demand is never removed
+  twice. Only devices with **Included in consumption** checked may claim; a device the home sensor
+  does not see is an additional load the battery is meant to cover. **EV charger without power
+  telemetry** devices are skipped for the same reason they are skipped there.
+- **Exclusion %** scales the claim the same way it scales the consumption correction. At 50 % the
+  consumption forecast keeps half the device's demand, so only the other half is reserved.
 - The claim is capped at the available solar. Grid energy the device draws beyond the forecast is
   already covered by the consumption forecast.
-- If the sensor is unavailable, unknown or unparsable, no claim is made.
-- **Exclusion %** does not scale the claim: it governs live power, not a future energy demand.
+- The sensor must report an energy unit (kWh, Wh, MJ, …). If it is unavailable, unknown,
+  unparsable or carries a non-energy unit, no claim is made.
 - evcc publishes a suitable entity per loadpoint: `sensor.evcc_<loadpoint>_charge_remaining_energy`.
-- The claim is spread evenly over the remaining solar shape — the plan does not assume *when* the
-  device will draw.
+- The reservation is spread evenly over today's remaining solar — the plan does not assume *when*
+  the device will draw. In a cross-midnight projection tomorrow's forecast is never reduced.
 
 Because a charging session usually starts long after the 00:05 evaluation, predictive charging
 re-plans during the day whenever the claim moves by 2 kWh or more in either direction, at most
