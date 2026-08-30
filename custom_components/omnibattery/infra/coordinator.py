@@ -27,6 +27,7 @@ from ..drivers.anker import AnkerModbusDriver
 from ..drivers.sessy import SessyLocalDriver
 from ..drivers.hoymiles import HoymilesMqttDriver
 from ..drivers.huawei import HuaweiSolarDriver
+from ..drivers.fronius_gen24 import FroniusGen24Driver
 from ..drivers.base import SetpointResult
 from .alarm_notifier import AlarmNotifier
 from .mac_tracking import normalise_mac
@@ -129,6 +130,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  username: str = "",
                  password: str = "",
                  battery_manual_mode_enabled: bool = False,
+                 fronius_internal_control_disabled: bool = True,
                  device_max_charge_power: int | None = None,
                  device_max_discharge_power: int | None = None,
                  ems_version: object = None,
@@ -158,7 +160,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.brand = brand
         self.ems_version = ems_version
         self.zendure_model = zendure_model
-        if self.brand in ("zendure", "anker", "hoymiles", "huawei"):
+        if self.brand in ("zendure", "anker", "hoymiles", "huawei", "fronius_gen24"):
             full_charge_voltage_taper_enabled = False
 
         # Validate and store battery version
@@ -202,6 +204,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # without force_mode / set_*_power registers (e.g. Zendure). The
         # controller asserts these via apply_setpoint each cycle. Persisted.
         self.battery_manual_mode_enabled = bool(battery_manual_mode_enabled)
+        self.fronius_internal_control_disabled = bool(
+            fronius_internal_control_disabled
+        )
         self.manual_force_mode = "None"
         self.manual_set_charge_power = 0
         self.manual_set_discharge_power = 0
@@ -326,6 +331,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 model=hoymiles_model,
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
+            )
+        elif self.brand == "fronius_gen24":
+            self.driver = FroniusGen24Driver(
+                self.host,
+                self.port,
+                self.slave_id,
+                max_charge_power_w=self.configured_max_charge_power,
+                max_discharge_power_w=self.configured_max_discharge_power,
+            )
+            self.driver.configure_internal_control_disabled(
+                self.fronius_internal_control_disabled
             )
         else:
             self.driver = MarstekModbusDriver(
@@ -626,6 +642,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Sessy" if self.brand == "sessy"
                 else "Hoymiles" if self.brand == "hoymiles"
                 else "Huawei" if self.brand == "huawei"
+                else "Fronius" if self.brand == "fronius_gen24"
                 else "Marstek"
             ),
             "model": self.driver.model_label or (
@@ -633,6 +650,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Solarbank Max AC" if self.brand == "anker"
                 else "Sessy" if self.brand == "sessy"
                 else "MS-A2" if self.brand == "hoymiles"
+                else "GEN24 / BYD" if self.brand == "fronius_gen24"
                 else "Venus"
             ),
         }
@@ -641,6 +659,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         serial = getattr(getattr(self, "driver", None), "serial", None)
         if serial:
             info["serial_number"] = str(serial)
+        if self.brand == "fronius_gen24":
+            data = self.data or {}
+            manufacturer = data.get("fronius_storage_manufacturer")
+            model = data.get("fronius_storage_model")
+            serial = data.get("fronius_storage_serial")
+            if isinstance(manufacturer, str) and manufacturer:
+                info["manufacturer"] = manufacturer
+            if isinstance(model, str) and model:
+                info["model"] = model
+            if isinstance(serial, str) and serial:
+                info["serial_number"] = serial
         # getattr: several tests build a stub coordinator and read this
         # property off it, so the attribute cannot be assumed present.
         if getattr(self, "mac", None):
@@ -1633,3 +1662,32 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 if not self._is_shutting_down:
                     _LOGGER.error("[%s] Exception setting standby: %s", self.name, e)
                 return False
+
+    async def set_fronius_internal_control_disabled(self, disabled: bool) -> bool:
+        """Retain external idle control or explicitly release it to Fronius."""
+        if self.brand != "fronius_gen24":
+            return False
+        previous = self.fronius_internal_control_disabled
+        # Publish the ownership transition before waiting for the device lock so
+        # a new automatic cycle cannot queue another Fronius write meanwhile.
+        self.fronius_internal_control_disabled = bool(disabled)
+        async with self.lock:
+            try:
+                ok = await self.driver.set_internal_control_disabled(disabled)
+            except Exception as err:
+                if not self._is_shutting_down:
+                    _LOGGER.error(
+                        "[%s] Exception changing Fronius/BYD ownership: %s",
+                        self.name,
+                        err,
+                    )
+                self.fronius_internal_control_disabled = previous
+                self.driver.configure_internal_control_disabled(previous)
+                return False
+        if ok:
+            self._consecutive_failures = 0
+            self._is_connected = True
+        else:
+            self.fronius_internal_control_disabled = previous
+            self.driver.configure_internal_control_disabled(previous)
+        return ok

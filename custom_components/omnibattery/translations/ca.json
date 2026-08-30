@@ -1465,6 +1465,9 @@
       "battery_manual_mode": {
         "name": "Control Manual de la Bateria"
       },
+      "fronius_internal_control_disabled": {
+        "name": "Mantén desactivat el control intern Fronius/BYD"
+      },
       "full_charge_voltage_taper": {
         "name": "Reducció Càrrega 100% per Voltatge"
       },
@@ -1939,6 +1942,9 @@
       },
       "input_limit": {
         "name": "Límit d'Entrada"
+      },
+      "fronius_sunspec_model_type": {
+        "name": "Tipus de model SunSpec"
       }
     },
     "binary_sensor": {

@@ -1478,6 +1478,9 @@
       "battery_manual_mode": {
         "name": "Contrôle manuel de la batterie"
       },
+      "fronius_internal_control_disabled": {
+        "name": "Maintenir le contrôle interne Fronius/BYD désactivé"
+      },
       "full_charge_voltage_taper": {
         "name": "Réduction Charge 100% par Tension"
       },
@@ -1952,6 +1955,9 @@
       },
       "input_limit": {
         "name": "Limite d'Entrée"
+      },
+      "fronius_sunspec_model_type": {
+        "name": "Type de modèle SunSpec"
       }
     },
     "binary_sensor": {

@@ -99,6 +99,7 @@ from .const import (
     max_power_for_battery_version,
     MAX_BATTERIES,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
+    CONF_FRONIUS_INTERNAL_CONTROL_DISABLED,
     CONF_CAPACITY_PROTECTION_ENABLED,
     CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES,
     CONF_PREDICTIVE_CHARGING_MODE,
@@ -174,6 +175,11 @@ from .drivers.hoymiles import (
     hoymiles_capacity_kwh,
     hoymiles_model_profile,
 )
+from .drivers.fronius_gen24 import (
+    FRONIUS_GEN24_DEFAULT_CAPACITY_KWH,
+    FRONIUS_GEN24_DEFAULT_MAX_POWER_W,
+    FroniusGen24Driver,
+)
 from .pricing.nordpool import is_official_nordpool_sensor
 
 _ANKER_MAX_POWER_W = 3500
@@ -181,6 +187,7 @@ _SESSY_MAX_CHARGE_POWER_W = 2200
 _SESSY_MAX_DISCHARGE_POWER_W = 1700
 _SESSY_DEFAULT_MIN_SOC = 5
 _HOYMILES_MODEL_AUTO = "auto"
+_FRONIUS_GEN24_MAX_POWER_W = FRONIUS_GEN24_DEFAULT_MAX_POWER_W
 
 
 def _hoymiles_model_selector(default: str = _HOYMILES_MODEL_AUTO):
@@ -446,12 +453,15 @@ def _soc_selector_limits(brand: str) -> tuple[int, int, int, int, int, int]:
         # The inverter keeps its own discharge cutoff as a backstop; this window
         # is what Omnibattery enforces on top of it.
         min_lo, min_hi, min_default = 0, 30, 10
+    elif brand == "fronius_gen24":
+        min_lo, min_hi, min_default = 5, 50, 20
     else:
         min_lo, min_hi, min_default = 12, 30, 12
 
     # Omnibattery enforces the charge ceiling in software. Sessy's reported SOC
     # spans 0–100 %, so the standard 100 % ceiling is valid for this driver.
-    return min_lo, min_hi, min_default, 80, 100, 100
+    soc_max_default = 95 if brand == "fronius_gen24" else 100
+    return min_lo, min_hi, min_default, 80, 100, soc_max_default
 
 
 def _hoymiles_apply_probe_caps(
@@ -621,6 +631,26 @@ def _anker_power_ceilings(battery_data: dict) -> tuple[int, int]:
     )
 
 
+def _fronius_apply_probe_caps(battery_data: dict, caps: dict) -> None:
+    """Store Fronius GEN24/BYD hardware ceilings from probe for config seeding."""
+    for src, dst in (
+        ("device_max_charge_power", "device_max_charge_power"),
+        ("device_max_discharge_power", "device_max_discharge_power"),
+    ):
+        if src in caps:
+            battery_data[dst] = int(caps[src])
+
+
+def _fronius_power_ceilings(battery_data: dict) -> tuple[int, int]:
+    """Hardware max charge/discharge from probe, falling back to the static envelope."""
+    charge = int(battery_data.get("device_max_charge_power") or _FRONIUS_GEN24_MAX_POWER_W)
+    discharge = int(battery_data.get("device_max_discharge_power") or _FRONIUS_GEN24_MAX_POWER_W)
+    return (
+        max(100, min(_FRONIUS_GEN24_MAX_POWER_W, charge)),
+        max(100, min(_FRONIUS_GEN24_MAX_POWER_W, discharge)),
+    )
+
+
 async def _validate_anker_connection(
     hass: Any,
     entry_id: str,
@@ -663,6 +693,44 @@ async def _validate_anker_connection(
             return True, caps
 
     return await AnkerModbusDriver.probe(host, port, slave_id)
+
+
+async def _validate_fronius_connection(
+    hass: Any,
+    entry_id: str,
+    host: str,
+    port: int,
+    slave_id: int,
+) -> tuple[bool, dict[str, int]]:
+    """Validate a Fronius GEN24/BYD endpoint without fighting an active client."""
+    entry_data = getattr(hass, "data", {}).get(DOMAIN, {}).get(entry_id, {})
+    for coordinator in entry_data.get("coordinators", []):
+        if (
+            getattr(coordinator, "brand", None) == "fronius_gen24"
+            and getattr(coordinator, "host", None) == host
+            and int(getattr(coordinator, "port", 502)) == port
+            and int(getattr(coordinator, "slave_id", DEFAULT_SLAVE_ID)) == slave_id
+            and bool(getattr(coordinator, "is_available", False))
+        ):
+            data = getattr(coordinator, "data", None) or {}
+            caps: dict[str, int] = {}
+            for src, dst in (
+                ("max_charge_power", "device_max_charge_power"),
+                ("max_discharge_power", "device_max_discharge_power"),
+            ):
+                value = data.get(src)
+                if isinstance(value, (int, float)) and int(value) > 0:
+                    caps[dst] = int(value)
+            _LOGGER.info(
+                "Reusing active Fronius GEN24 coordinator for connection "
+                "validation at %s:%s slave %s",
+                host,
+                port,
+                slave_id,
+            )
+            return True, caps
+
+    return await FroniusGen24Driver.probe(host, port, slave_id)
 
 
 def _seed_software_power_limits(merged: dict, brand: str) -> None:
@@ -1160,7 +1228,7 @@ def _apply_mac_tracking(user_input: dict, merged: dict) -> None:
 class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Omnibattery."""
 
-    VERSION = 11
+    VERSION = 12
 
     def __init__(self):
         """Initialize the config flow."""
@@ -1423,6 +1491,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 return await self.async_step_battery_connection_sessy()
             if brand == "huawei":
                 return await self.async_step_battery_connection_huawei()
+            if brand == "fronius_gen24":
+                return await self.async_step_battery_connection_fronius_gen24()
             return await self.async_step_battery_connection()
 
         return self.async_show_form(
@@ -1439,6 +1509,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                                 {"value": "sessy", "label": "Sessy"},
                                 {"value": "hoymiles", "label": "Hoymiles MQTT"},
                                 {"value": "huawei", "label": "Huawei SUN2000 + LUNA2000"},
+                                {"value": "fronius_gen24", "label": "Fronius GEN24 / BYD"},
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )),
@@ -1933,6 +2004,49 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             description_placeholders={"battery_num": str(battery_num)},
         )
 
+    async def async_step_battery_connection_fronius_gen24(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Step 3b (Fronius GEN24): Connection details for a BYD storage system."""
+        errors = {}
+        battery_num = self.battery_index + 1
+
+        if user_input is not None:
+            host = user_input[CONF_HOST].strip()
+            port = int(user_input.get(CONF_PORT, 502))
+            slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
+            ok, caps = await FroniusGen24Driver.probe(host, port, slave_id)
+            if not ok:
+                errors["base"] = "cannot_connect"
+            else:
+                self._current_battery_data.update({
+                    CONF_NAME: user_input[CONF_NAME],
+                    CONF_HOST: host,
+                    CONF_PORT: port,
+                    CONF_SLAVE_ID: slave_id,
+                    "brand": "fronius_gen24",
+                })
+                self._current_battery_data.setdefault(
+                    CONF_FRONIUS_INTERNAL_CONTROL_DISABLED, True
+                )
+                _fronius_apply_probe_caps(self._current_battery_data, caps)
+                return await self.async_step_battery_limits()
+
+        return self.async_show_form(
+            step_id="battery_connection_fronius_gen24",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_NAME, default=f"Fronius GEN24 / BYD {battery_num}"): str,
+                    vol.Required(CONF_HOST): str,
+                    vol.Optional(CONF_PORT, default=502): int,
+                    vol.Required(CONF_SLAVE_ID, default=DEFAULT_SLAVE_ID):
+                        vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
+                }
+            ),
+            errors=errors,
+            description_placeholders={"battery_num": str(battery_num)},
+        )
+
     async def async_step_battery_limits(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -1955,6 +2069,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             max_charge_power, max_discharge_power = _hoymiles_power_ceilings(self._current_battery_data)
         elif brand == "huawei":
             max_charge_power, max_discharge_power = _huawei_power_ceilings(self._current_battery_data)
+        elif brand == "fronius_gen24":
+            max_charge_power, max_discharge_power = _fronius_power_ceilings(self._current_battery_data)
         else:
             battery_version = self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
             max_charge_power = max_discharge_power = max_power_for_battery_version(
@@ -2000,13 +2116,21 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 )
                 merged["backup_offgrid_threshold"] = int(user_input.get("backup_offgrid_threshold", 50))
                 merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei")
+                    False
+                    if brand in (
+                        "zendure",
+                        "anker",
+                        "sessy",
+                        "hoymiles",
+                        "huawei",
+                        "fronius_gen24",
+                    )
                     else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
                 )
-                if brand in ("zendure", "sessy", "hoymiles"):
+                if brand in ("zendure", "sessy", "hoymiles", "fronius_gen24"):
                     capacity_default = (
                         _hoymiles_capacity_default(self._current_battery_data)
-                        if brand == "hoymiles" else 0.0
+                        if brand == "hoymiles" else FRONIUS_GEN24_DEFAULT_CAPACITY_KWH if brand == "fronius_gen24" else 0.0
                     )
                     merged["battery_capacity_kwh"] = round(float(user_input.get("battery_capacity_kwh", capacity_default)), 2)
                 _apply_mac_tracking(user_input, merged)
@@ -2044,19 +2168,26 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             vol.Required("backup_offgrid_threshold", default=50):
                 NumberSelector(NumberSelectorConfig(min=0, max=2500, step=10, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
         })
-        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei"):
+        if brand not in (
+            "zendure",
+            "anker",
+            "sessy",
+            "hoymiles",
+            "huawei",
+            "fronius_gen24",
+        ):
             _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)] = bool
         if brand == "sessy":
             _schema[vol.Required("battery_capacity_kwh")] = NumberSelector(
                 NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
-        elif brand in ("zendure", "hoymiles"):
+        elif brand in ("zendure", "hoymiles", "fronius_gen24"):
             capacity_default = (
                 _hoymiles_capacity_default(self._current_battery_data)
-                if brand == "hoymiles" else 0.0
+                if brand == "hoymiles" else FRONIUS_GEN24_DEFAULT_CAPACITY_KWH if brand == "fronius_gen24" else 0.0
             )
             _schema[vol.Optional("battery_capacity_kwh", default=capacity_default)] = NumberSelector(
-                NumberSelectorConfig(min=0.01 if brand == "hoymiles" else 0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
+                NumberSelectorConfig(min=0.01 if brand in ("hoymiles", "fronius_gen24") else 0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
         if self.config_data.get(CONF_THREE_PHASE_ENABLED):
             # Keep the established L1 suggestion for a brand-new setup while
@@ -2810,6 +2941,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             return await self.async_step_reconfigure_battery_hoymiles(user_input)
         if current.get("brand", "marstek") == "huawei":
             return await self.async_step_reconfigure_battery_huawei(user_input)
+        if current.get("brand", "marstek") == "fronius_gen24":
+            return await self.async_step_reconfigure_battery_fronius_gen24(user_input)
 
         errors = {}
 
@@ -3356,6 +3489,81 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 entry, data_updates={"batteries": self._reconfigure_batteries}
             )
         return await self.async_step_reconfigure_battery()
+
+    async def async_step_reconfigure_battery_fronius_gen24(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Update connection settings for a Fronius GEN24 / BYD battery."""
+        entry = self._get_reconfigure_entry()
+        current_batteries = entry.data.get("batteries", [])
+        battery_num = self.battery_index + 1
+        current = (
+            current_batteries[self.battery_index]
+            if self.battery_index < len(current_batteries)
+            else {}
+        )
+        errors = {}
+
+        if user_input is not None:
+            new_host = user_input[CONF_HOST].strip()
+            new_port = int(user_input.get(CONF_PORT, 502))
+            slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
+            ok, caps = await _validate_fronius_connection(
+                self.hass,
+                entry.entry_id,
+                new_host,
+                new_port,
+                slave_id,
+            )
+            if not ok:
+                errors["base"] = "cannot_connect"
+            else:
+                old_host = current.get(CONF_HOST)
+                old_port = current.get(CONF_PORT)
+
+                if old_host and old_port and (old_host != new_host or old_port != new_port):
+                    self._migrate_battery_registry_ids(
+                        entry, old_host, old_port, new_host, new_port
+                    )
+
+                updated = dict(current)
+                updated[CONF_NAME] = user_input[CONF_NAME]
+                updated[CONF_HOST] = new_host
+                updated[CONF_PORT] = new_port
+                updated[CONF_SLAVE_ID] = slave_id
+                updated["brand"] = "fronius_gen24"
+                _fronius_apply_probe_caps(updated, caps)
+                self._reconfigure_batteries.append(updated)
+                self.battery_index += 1
+
+                if self.battery_index >= len(current_batteries):
+                    return self.async_update_reload_and_abort(
+                        entry,
+                        data_updates={"batteries": self._reconfigure_batteries},
+                    )
+                return await self.async_step_reconfigure_battery()
+
+        defaults = {
+            CONF_NAME: current.get(CONF_NAME, f"Fronius GEN24 / BYD {battery_num}"),
+            CONF_HOST: current.get(CONF_HOST, ""),
+            CONF_PORT: current.get(CONF_PORT, 502),
+            CONF_SLAVE_ID: current.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
+        }
+
+        return self.async_show_form(
+            step_id="reconfigure_battery_fronius_gen24",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str,
+                    vol.Required(CONF_HOST, default=defaults[CONF_HOST]): str,
+                    vol.Required(CONF_PORT, default=defaults[CONF_PORT]): int,
+                    vol.Required(CONF_SLAVE_ID, default=defaults[CONF_SLAVE_ID]):
+                        vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
+                }
+            ),
+            errors=errors,
+            description_placeholders={"battery_num": str(battery_num)},
+        )
 
     async def async_step_reconfigure_battery_hoymiles(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Update the MQTT device id without asking for broker credentials."""
@@ -3909,6 +4117,8 @@ class OptionsFlowHandler(OptionsFlow):
                 return await self.async_step_battery_connection_huawei()
             if brand == "hoymiles":
                 return await self.async_step_battery_connection_hoymiles()
+            if brand == "fronius_gen24":
+                return await self.async_step_battery_connection_fronius_gen24()
             return await self.async_step_battery_connection()
 
         return self.async_show_form(
@@ -3925,6 +4135,7 @@ class OptionsFlowHandler(OptionsFlow):
                                 {"value": "sessy", "label": "Sessy"},
                                 {"value": "hoymiles", "label": "Hoymiles MQTT"},
                                 {"value": "huawei", "label": "Huawei SUN2000 + LUNA2000"},
+                                {"value": "fronius_gen24", "label": "Fronius GEN24 / BYD"},
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )),
@@ -4531,6 +4742,78 @@ class OptionsFlowHandler(OptionsFlow):
             description_placeholders={"battery_num": str(battery_num)},
         )
 
+    async def async_step_battery_connection_fronius_gen24(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> FlowResult:
+        """Configure connection details for a Fronius GEN24 / BYD battery."""
+        errors = {}
+
+        try:
+            battery_num = self.battery_index + 1
+            current_batteries = self.config_entry.data.get("batteries", [])
+
+            if user_input is not None:
+                host = user_input[CONF_HOST].strip()
+                port = int(user_input.get(CONF_PORT, 502))
+                slave_id = int(user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID))
+                ok, caps = await _validate_fronius_connection(
+                    self.hass,
+                    self.config_entry.entry_id,
+                    host,
+                    port,
+                    slave_id,
+                )
+                if not ok:
+                    errors["base"] = "cannot_connect"
+                else:
+                    self._current_battery_data.update({
+                        CONF_NAME: user_input[CONF_NAME],
+                        CONF_HOST: host,
+                        CONF_PORT: port,
+                        CONF_SLAVE_ID: slave_id,
+                        "brand": "fronius_gen24",
+                    })
+                    self._current_battery_data.setdefault(
+                        CONF_FRONIUS_INTERNAL_CONTROL_DISABLED, True
+                    )
+                    _fronius_apply_probe_caps(self._current_battery_data, caps)
+                    return await self.async_step_battery_limits()
+
+            if self.battery_index < len(current_batteries):
+                current_battery = current_batteries[self.battery_index]
+                defaults = {
+                    CONF_NAME: current_battery.get(CONF_NAME, f"Fronius GEN24 / BYD {battery_num}"),
+                    CONF_HOST: current_battery.get(CONF_HOST, ""),
+                    CONF_PORT: current_battery.get(CONF_PORT, 502),
+                    CONF_SLAVE_ID: current_battery.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
+                }
+            else:
+                defaults = {
+                    CONF_NAME: f"Fronius GEN24 / BYD {battery_num}",
+                    CONF_HOST: "",
+                    CONF_PORT: 502,
+                    CONF_SLAVE_ID: DEFAULT_SLAVE_ID,
+                }
+        except Exception as e:
+            _LOGGER.error("Error in options flow battery_connection_fronius_gen24 step: %s", e, exc_info=True)
+            return self.async_abort(reason="unknown_error")
+
+        return self.async_show_form(
+            step_id="battery_connection_fronius_gen24",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str,
+                    vol.Required(CONF_HOST, default=defaults[CONF_HOST]): str,
+                    vol.Optional(CONF_PORT, default=defaults[CONF_PORT]): int,
+                    vol.Required(CONF_SLAVE_ID, default=defaults[CONF_SLAVE_ID]):
+                        vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
+                }
+            ),
+            errors=errors,
+            description_placeholders={"battery_num": str(battery_num)},
+        )
+
     async def async_step_battery_limits(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Configure power and SOC limits for the current battery."""
         errors: dict[str, str] = {}
@@ -4552,6 +4835,8 @@ class OptionsFlowHandler(OptionsFlow):
                 max_charge_power, max_discharge_power = _hoymiles_power_ceilings(self._current_battery_data)
             elif brand == "huawei":
                 max_charge_power, max_discharge_power = _huawei_power_ceilings(self._current_battery_data)
+            elif brand == "fronius_gen24":
+                max_charge_power, max_discharge_power = _fronius_power_ceilings(self._current_battery_data)
             else:
                 battery_version = self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
                 max_charge_power = max_discharge_power = max_power_for_battery_version(
@@ -4611,13 +4896,21 @@ class OptionsFlowHandler(OptionsFlow):
                 )
                 merged["backup_offgrid_threshold"] = int(user_input.get("backup_offgrid_threshold", 50))
                 merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei")
+                    False
+                    if brand in (
+                        "zendure",
+                        "anker",
+                        "sessy",
+                        "hoymiles",
+                        "huawei",
+                        "fronius_gen24",
+                    )
                     else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
                 )
-                if brand in ("zendure", "sessy", "hoymiles"):
+                if brand in ("zendure", "sessy", "hoymiles", "fronius_gen24"):
                     capacity_default = (
                         _hoymiles_capacity_default(self._current_battery_data)
-                        if brand == "hoymiles" else 0.0
+                        if brand == "hoymiles" else FRONIUS_GEN24_DEFAULT_CAPACITY_KWH if brand == "fronius_gen24" else 0.0
                     )
                     merged["battery_capacity_kwh"] = round(float(user_input.get("battery_capacity_kwh", capacity_default)), 2)
                 _apply_mac_tracking(user_input, merged)
@@ -4650,7 +4943,7 @@ class OptionsFlowHandler(OptionsFlow):
                     "battery_capacity_kwh": current_battery.get(
                         "battery_capacity_kwh",
                         _hoymiles_capacity_default(self._current_battery_data)
-                        if brand == "hoymiles" else 0.0,
+                        if brand == "hoymiles" else FRONIUS_GEN24_DEFAULT_CAPACITY_KWH if brand == "fronius_gen24" else 0.0,
                     ),
                     CONF_BATTERY_PHASE: normalize_battery_phase(
                         current_battery.get(CONF_BATTERY_PHASE, PHASE_UNASSIGNED)
@@ -4679,7 +4972,7 @@ class OptionsFlowHandler(OptionsFlow):
                     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED: DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
                     "battery_capacity_kwh": (
                         _hoymiles_capacity_default(self._current_battery_data)
-                        if brand == "hoymiles" else 0.0
+                        if brand == "hoymiles" else FRONIUS_GEN24_DEFAULT_CAPACITY_KWH if brand == "fronius_gen24" else 0.0
                     ),
                     CONF_BATTERY_PHASE: PHASE_UNASSIGNED,
                 }
@@ -4705,7 +4998,14 @@ class OptionsFlowHandler(OptionsFlow):
             vol.Required("backup_offgrid_threshold", default=defaults["backup_offgrid_threshold"]):
                 NumberSelector(NumberSelectorConfig(min=0, max=2500, step=10, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
         })
-        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei"):
+        if brand not in (
+            "zendure",
+            "anker",
+            "sessy",
+            "hoymiles",
+            "huawei",
+            "fronius_gen24",
+        ):
             _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=defaults[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED])] = bool
         if brand == "sessy":
             saved_capacity = float(defaults["battery_capacity_kwh"])
@@ -4717,9 +5017,9 @@ class OptionsFlowHandler(OptionsFlow):
             _schema[capacity_field] = NumberSelector(
                 NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
-        elif brand in ("zendure", "hoymiles"):
+        elif brand in ("zendure", "hoymiles", "fronius_gen24"):
             _schema[vol.Optional("battery_capacity_kwh", default=defaults["battery_capacity_kwh"])] = NumberSelector(
-                NumberSelectorConfig(min=0.01 if brand == "hoymiles" else 0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
+                NumberSelectorConfig(min=0.01 if brand in ("hoymiles", "fronius_gen24") else 0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
         if self.config_entry.data.get(
             CONF_THREE_PHASE_ENABLED,

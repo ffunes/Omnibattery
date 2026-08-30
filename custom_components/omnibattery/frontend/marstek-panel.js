@@ -49,7 +49,7 @@ const I18N = {
     tabResumen: "Overview", tabBaterias: "Batteries", tabControl: "Control",
     moreInfo: "Show history",
     zoomReset: "All",
-    infoModel: "Model", infoSoftware: "Software", infoSerial: "Serial", infoInverter: "Inverter", infoPowerModule: "Power module",
+    infoManufacturer: "Manufacturer", infoModel: "Model", infoSunSpecModel: "SunSpec model", infoSoftware: "Software", infoSerial: "Serial", infoInverter: "Inverter", infoPowerModule: "Power module",
     placeholderMsg: "This view is coming in a future phase. For now, use the Overview view.",
     cardFlow: "Energy flow", cardSoc: "System status", cardDaily: "Energy today",
     cardWeekly: "Weekly energy", cardPower: "Power", cardSocToday: "SOC · today",
@@ -99,7 +99,7 @@ const I18N = {
     ctlHide: "Hide card", ctlShow: "Show card", ctlHidden: "Hidden cards",
     sysEmptyTitle: "No controls available",
     sysEmptyMsg: "This integration exposes no system controls, or they are disabled. Enable them in Settings → entities.",
-    bcAllowCharge: "Allow charge", bcAllowDischarge: "Allow discharge", bcBatteryManual: "Manual battery control",
+    bcAllowCharge: "Allow charge", bcAllowDischarge: "Allow discharge", bcBatteryManual: "Manual battery control", bcFroniusLock: "Keep Fronius/BYD internal control disabled",
     bcSocMax: "Max SOC", bcSocMin: "Min SOC", bcForceMode: "Force mode",
     bcChargePower: "Charge power", bcDischargePower: "Discharge power",
     bcMaxCharge: "Max charge", bcMaxDischarge: "Max discharge",
@@ -134,7 +134,7 @@ const I18N = {
     tabResumen: "Resumen", tabBaterias: "Baterías", tabControl: "Control",
     moreInfo: "Ver histórico",
     zoomReset: "Todo",
-    infoModel: "Modelo", infoSoftware: "Software", infoSerial: "N.º serie", infoInverter: "Inversor", infoPowerModule: "Módulo de potencia",
+    infoManufacturer: "Fabricante", infoModel: "Modelo", infoSunSpecModel: "Modelo SunSpec", infoSoftware: "Software", infoSerial: "N.º serie", infoInverter: "Inversor", infoPowerModule: "Módulo de potencia",
     placeholderMsg: "Esta vista llegará en una próxima fase. Por ahora, usa la vista Resumen.",
     cardFlow: "Flujo de energía", cardSoc: "Estado del sistema", cardDaily: "Energía hoy",
     cardWeekly: "Energía semanal", cardPower: "Potencias", cardSocToday: "SOC · hoy",
@@ -184,7 +184,7 @@ const I18N = {
     ctlHide: "Ocultar tarjeta", ctlShow: "Mostrar tarjeta", ctlHidden: "Tarjetas ocultas",
     sysEmptyTitle: "Sin controles disponibles",
     sysEmptyMsg: "Esta integración no expone controles de sistema, o están deshabilitados. Actívalos en Ajustes → entidades.",
-    bcAllowCharge: "Permitir carga", bcAllowDischarge: "Permitir descarga", bcBatteryManual: "Control manual de batería",
+    bcAllowCharge: "Permitir carga", bcAllowDischarge: "Permitir descarga", bcBatteryManual: "Control manual de batería", bcFroniusLock: "Mantener desactivado el control interno Fronius/BYD",
     bcSocMax: "SOC máximo", bcSocMin: "SOC mínimo", bcForceMode: "Modo forzado",
     bcChargePower: "Potencia de carga", bcDischargePower: "Potencia de descarga",
     bcMaxCharge: "Máx. carga", bcMaxDischarge: "Máx. descarga",
@@ -219,7 +219,7 @@ const I18N = {
     tabResumen: "Resum", tabBaterias: "Bateries", tabControl: "Control",
     moreInfo: "Veure històric",
     zoomReset: "Tot",
-    infoModel: "Model", infoSoftware: "Programari", infoSerial: "Núm. sèrie", infoInverter: "Inversor", infoPowerModule: "Mòdul de potència",
+    infoManufacturer: "Fabricant", infoModel: "Model", infoSunSpecModel: "Model SunSpec", infoSoftware: "Programari", infoSerial: "Núm. sèrie", infoInverter: "Inversor", infoPowerModule: "Mòdul de potència",
     placeholderMsg: "Aquesta vista arribarà en una fase futura. De moment, fes servir la vista Resum.",
     cardFlow: "Flux d'energia", cardSoc: "Estat del sistema", cardDaily: "Energia avui",
     cardWeekly: "Energia setmanal", cardPower: "Potències", cardSocToday: "SOC · avui",
@@ -266,7 +266,7 @@ const I18N = {
     ctlEmpty: "No hi ha controls habilitats. Activa'ls al dispositiu (Configuració → entitats deshabilitades).",
     sysEmptyTitle: "Sense controls disponibles",
     sysEmptyMsg: "Aquesta integració no exposa controls de sistema, o estan deshabilitats. Activa'ls a Configuració → entitats.",
-    bcAllowCharge: "Permet la càrrega", bcAllowDischarge: "Permet la descàrrega", bcBatteryManual: "Control manual de la bateria",
+    bcAllowCharge: "Permet la càrrega", bcAllowDischarge: "Permet la descàrrega", bcBatteryManual: "Control manual de la bateria", bcFroniusLock: "Mantén desactivat el control intern Fronius/BYD",
     bcSocMax: "SOC màxim", bcSocMin: "SOC mínim", bcForceMode: "Mode forçat",
     bcChargePower: "Potència de càrrega", bcDischargePower: "Potència de descàrrega",
     bcMaxCharge: "Màx. càrrega", bcMaxDischarge: "Màx. descàrrega",
@@ -300,7 +300,7 @@ const I18N = {
     tabResumen: "Übersicht", tabBaterias: "Batterien", tabControl: "Steuerung",
     moreInfo: "Verlauf anzeigen",
     zoomReset: "Alles",
-    infoModel: "Modell", infoSoftware: "Software", infoSerial: "Seriennr.", infoInverter: "Wechselrichter", infoPowerModule: "Leistungsmodul",
+    infoManufacturer: "Hersteller", infoModel: "Modell", infoSunSpecModel: "SunSpec-Modell", infoSoftware: "Software", infoSerial: "Seriennr.", infoInverter: "Wechselrichter", infoPowerModule: "Leistungsmodul",
     placeholderMsg: "Diese Ansicht kommt in einer späteren Phase. Nutze vorerst die Übersicht.",
     cardFlow: "Energiefluss", cardSoc: "Systemstatus", cardDaily: "Energie heute",
     cardWeekly: "Wochenenergie", cardPower: "Leistung", cardSocToday: "SOC · heute",
@@ -347,7 +347,7 @@ const I18N = {
     ctlEmpty: "Keine Steuerungen aktiviert. Aktiviere sie am Gerät (Einstellungen → deaktivierte Entitäten).",
     sysEmptyTitle: "Keine Steuerungen verfügbar",
     sysEmptyMsg: "Diese Integration stellt keine Systemsteuerungen bereit oder sie sind deaktiviert. Aktiviere sie in Einstellungen → Entitäten.",
-    bcAllowCharge: "Laden erlauben", bcAllowDischarge: "Entladen erlauben", bcBatteryManual: "Manuelle Batteriesteuerung",
+    bcAllowCharge: "Laden erlauben", bcAllowDischarge: "Entladen erlauben", bcBatteryManual: "Manuelle Batteriesteuerung", bcFroniusLock: "Fronius/BYD-Eigensteuerung dauerhaft sperren",
     bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcForceMode: "Betriebsmodus erzwingen",
     bcChargePower: "Ladeleistung", bcDischargePower: "Entladeleistung",
     bcMaxCharge: "Max. Ladeleistung", bcMaxDischarge: "Max. Entladeleistung",
@@ -381,7 +381,7 @@ const I18N = {
     tabResumen: "Résumé", tabBaterias: "Batteries", tabControl: "Contrôle",
     moreInfo: "Voir l'historique",
     zoomReset: "Tout",
-    infoModel: "Modèle", infoSoftware: "Logiciel", infoSerial: "N° série", infoInverter: "Onduleur", infoPowerModule: "Module de puissance",
+    infoManufacturer: "Fabricant", infoModel: "Modèle", infoSunSpecModel: "Modèle SunSpec", infoSoftware: "Logiciel", infoSerial: "N° série", infoInverter: "Onduleur", infoPowerModule: "Module de puissance",
     placeholderMsg: "Cette vue arrivera dans une phase ultérieure. Pour l'instant, utilisez la vue Résumé.",
     cardFlow: "Flux d'énergie", cardSoc: "État du système", cardDaily: "Énergie aujourd'hui",
     cardWeekly: "Énergie hebdomadaire", cardPower: "Puissances", cardSocToday: "SOC · aujourd'hui",
@@ -428,7 +428,7 @@ const I18N = {
     ctlEmpty: "Aucun contrôle activé. Activez-les sur l'appareil (Paramètres → entités désactivées).",
     sysEmptyTitle: "Aucun contrôle disponible",
     sysEmptyMsg: "Cette intégration n'expose aucun contrôle système, ou ils sont désactivés. Activez-les dans Paramètres → entités.",
-    bcAllowCharge: "Autoriser la charge", bcAllowDischarge: "Autoriser la décharge", bcBatteryManual: "Contrôle manuel de la batterie",
+    bcAllowCharge: "Autoriser la charge", bcAllowDischarge: "Autoriser la décharge", bcBatteryManual: "Contrôle manuel de la batterie", bcFroniusLock: "Maintenir le contrôle interne Fronius/BYD désactivé",
     bcSocMax: "SOC max.", bcSocMin: "SOC min.", bcForceMode: "Mode forcé",
     bcChargePower: "Puissance de charge", bcDischargePower: "Puissance de décharge",
     bcMaxCharge: "Charge max.", bcMaxDischarge: "Décharge max.",
@@ -462,7 +462,7 @@ const I18N = {
     tabResumen: "Overzicht", tabBaterias: "Batterijen", tabControl: "Bediening",
     moreInfo: "Geschiedenis tonen",
     zoomReset: "Alles",
-    infoModel: "Model", infoSoftware: "Software", infoSerial: "Serienr.", infoInverter: "Omvormer", infoPowerModule: "Vermogensmodule",
+    infoManufacturer: "Fabrikant", infoModel: "Model", infoSunSpecModel: "SunSpec-model", infoSoftware: "Software", infoSerial: "Serienr.", infoInverter: "Omvormer", infoPowerModule: "Vermogensmodule",
     placeholderMsg: "Deze weergave komt in een latere fase. Gebruik voorlopig het Overzicht.",
     cardFlow: "Energiestroom", cardSoc: "Systeemstatus", cardDaily: "Energie vandaag",
     cardWeekly: "Energie per week", cardPower: "Vermogen", cardSocToday: "SOC · vandaag",
@@ -509,7 +509,7 @@ const I18N = {
     ctlEmpty: "Geen bedieningen ingeschakeld. Schakel ze in op het apparaat (Instellingen → uitgeschakelde entiteiten).",
     sysEmptyTitle: "Geen bedieningen beschikbaar",
     sysEmptyMsg: "Deze integratie biedt geen systeembedieningen, of ze zijn uitgeschakeld. Schakel ze in via Instellingen → entiteiten.",
-    bcAllowCharge: "Laden toestaan", bcAllowDischarge: "Ontladen toestaan", bcBatteryManual: "Handmatige batterijregeling",
+    bcAllowCharge: "Laden toestaan", bcAllowDischarge: "Ontladen toestaan", bcBatteryManual: "Handmatige batterijregeling", bcFroniusLock: "Interne Fronius/BYD-regeling uitgeschakeld houden",
     bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcForceMode: "Geforceerde modus",
     bcChargePower: "Laadvermogen", bcDischargePower: "Ontlaadvermogen",
     bcMaxCharge: "Max. laden", bcMaxDischarge: "Max. ontladen",
@@ -821,6 +821,7 @@ const K = {
   cyclesCalc: "battery_cycle_count_calc",
   rte: "round_trip_efficiency_total",
   softwareVersion: "software_version",
+  froniusSunspecModelType: "fronius_sunspec_model_type",
   powerModuleSerial: "power_module_serial_number",
   powerModuleFirmware: "power_module_firmware_version",
   inverterSerial: "inverter_serial_number",
@@ -913,6 +914,7 @@ const BAT_CONTROLS = [
   { key: "battery_allow_charge", domain: "switch", lk: "bcAllowCharge", icon: "mdi:battery-arrow-up" },
   { key: "battery_allow_discharge", domain: "switch", lk: "bcAllowDischarge", icon: "mdi:battery-arrow-down" },
   { key: "battery_manual_mode", domain: "switch", lk: "bcBatteryManual", icon: "mdi:hand-back-right-outline" },
+  { key: "fronius_internal_control_disabled", domain: "switch", lk: "bcFroniusLock", icon: "mdi:battery-lock" },
   // SOC limits: the Marstek register and its Zendure equivalent share each label;
   // only one of each pair exists on a given device, so both layouts read
   // "SOC máximo" then "SOC mínimo" in this order.
@@ -1209,6 +1211,7 @@ const SYS_HELP = {
     secOffgridMeter: "Selects the configured off-grid power sensor as the source for control and derived statistics. It does not enable any battery off-grid/EPS port. A battery actively supplying its own off-grid output remains excluded from PD.",
     vacation_mode: "When ON, household-consumption learning and the legacy daily average are paused. Physical consumption meters, the daily-operation graph and battery control continue normally. Forecasts use a constant baseline calculated from 01:00–05:00: a night is valid after 3 hours of coverage, using the median of up to the last three valid nights. Turn it OFF to resume learning; vacation data remains excluded from Recorder backfill.",
     battery_manual_mode: "When ON, this battery is idled once and removed from automatic control. Its manual force mode and setpoints can then be selected while other batteries continue automatically. Omnibattery software limits do not constrain it, but the battery's own BMS/driver protections still apply. Global Manual Mode is separate.",
+    fronius_internal_control_disabled: "When ON (recommended), Omnibattery retains external storage control with a 0/0 idle window during setup, reload and orderly shutdown. Turning it OFF explicitly returns control to Fronius and removes BYD from Omnibattery's automatic pool.",
     secWeeklyFull: "Select the day of the week when batteries should charge to 100% for cell balancing. After reaching 100%, the system reverts to your configured maximum charge limit.",
     secSlots: "Define when and how the batteries are allowed to operate. The ticks control each direction, SOC and power. Manual mode forces an exact power, bypassing the PD algorithm.",
     secExcluded: "Configure devices with special management: you can EXCLUDE devices that should NOT be powered by battery, or ADD devices that SHOULD be powered by battery even if they're not in the home consumption sensor.",
@@ -1285,6 +1288,7 @@ const SYS_HELP = {
     secOffgridMeter: "Selecciona el sensor de potencia off-grid configurado como fuente del control y de las estadísticas derivadas. No habilita ningún puerto off-grid/EPS. Una batería que suministre por su propia salida off-grid sigue excluida del PD.",
     vacation_mode: "Al ACTIVARLO se pausan el aprendizaje del consumo doméstico y la media diaria heredada. Los contadores físicos, el gráfico de operación diaria y el control de las baterías siguen funcionando normalmente. Las previsiones usan un baseline constante calculado entre las 01:00 y las 05:00: una noche es válida con 3 horas de cobertura y se usa la mediana de hasta las tres últimas noches válidas. DESACTÍVALO para reanudar el aprendizaje; los datos vacacionales seguirán excluidos del backfill de Recorder.",
     battery_manual_mode: "Al ACTIVARLO, esta batería pasa una vez a 0 W y sale del control automático. Sus modos y consignas manuales se pueden elegir entonces; las demás baterías continúan en automático. Los límites de software de Omnibattery no la restringen, pero sí las protecciones propias del BMS/driver. El Modo manual global es independiente.",
+    fronius_internal_control_disabled: "ACTIVADO (recomendado) mantiene el control externo con una ventana de reposo 0/0 durante configuración, recarga y apagado. DESACTIVADO devuelve explícitamente el control a Fronius y elimina BYD del grupo automático.",
     secWeeklyFull: "Selecciona el día de la semana en el que las baterías deben cargarse al 100% para el balanceo de celdas. Una vez alcanzado el 100%, el sistema revertirá al límite de carga máximo configurado.",
     secSlots: "Define cuándo y cómo se permite operar a las baterías. Los ticks permiten controlar cada dirección, el SOC y la potencia. El modo manual fuerza una potencia exacta ignorando el algoritmo PD.",
     secExcluded: "Configura dispositivos con gestión especial: puedes EXCLUIR dispositivos que NO deben alimentarse por batería, o AÑADIR dispositivos que SÍ debe alimentar la batería aunque no estén en el sensor de consumo del hogar.",
@@ -1352,6 +1356,7 @@ const SYS_HELP = {
     secManual: "Quan està ACTIVAT, el control automàtic (PD, càrrega predictiva, franges horàries, reducció de pics…) es pausa i totes les bateries es posen a 0 W (en repòs). DESACTIVA'L per reprendre el control automàtic.",
     vacation_mode: "Quan està ACTIVAT, es pausen l'aprenentatge del consum domèstic i la mitjana diària heretada. Els comptadors físics, el gràfic d'operació diària i el control de les bateries continuen funcionant normalment. Les previsions utilitzen un baseline constant calculat entre la 01:00 i les 05:00: una nit és vàlida amb 3 hores de cobertura i s'utilitza la mediana de fins a les tres últimes nits vàlides. DESACTIVA'L per reprendre l'aprenentatge; les dades de vacances continuaran excloses del backfill de Recorder.",
     battery_manual_mode: "Quan s'ACTIVA, aquesta bateria passa una vegada a 0 W i surt del control automàtic. Els seus modes i consignes manuals es poden triar aleshores; les altres bateries segueixen en automàtic. Els límits de programari d'Omnibattery no la restringeixen, però sí les proteccions pròpies del BMS/driver. El mode manual global és independent.",
+    fronius_internal_control_disabled: "ACTIVAT (recomanat) manté el control extern amb una finestra de repòs 0/0 durant configuració, recàrrega i aturada. DESACTIVAT retorna explícitament el control a Fronius i treu BYD del grup automàtic.",
     secWeeklyFull: "Selecciona el dia de la setmana en què les bateries s'han de carregar al 100% per a l'equilibratge de cel·les. Un cop assolit el 100%, el sistema tornarà al límit de càrrega màxim configurat.",
     secSlots: "Defineix quan i com es permet operar a les bateries. Els ticks permeten controlar cada direcció, el SOC i la potència. El mode manual força una potència exacta ignorant l'algorisme PD.",
     secExcluded: "Configura dispositius amb gestió especial: pots EXCLOURE dispositius que NO s'han d'alimentar per bateria, o AFEGIR dispositius que SÍ ha d'alimentar la bateria encara que no estiguin al sensor de consum de la llar.",
@@ -1417,6 +1422,7 @@ const SYS_HELP = {
     secManual: "Wenn EIN, wird die automatische Regelung (PD, prädiktives Laden, Zeitfenster, Lastspitzenkappung…) pausiert und jede Batterie auf 0 W (Leerlauf) gesetzt. Schalte AUS, um die automatische Regelung fortzusetzen.",
     vacation_mode: "Wenn EIN, werden das Lernen des Haushaltsverbrauchs und der bisherige Tagesmittelwert pausiert. Physische Verbrauchszähler, das Tagesbetriebsdiagramm und die Batteriesteuerung laufen normal weiter. Prognosen verwenden eine konstante Grundlast aus 01:00–05:00 Uhr: Eine Nacht gilt ab 3 Stunden Abdeckung; verwendet wird der Median der bis zu drei letzten gültigen Nächte. Schalte AUS, um das Lernen fortzusetzen; Urlaubsdaten bleiben vom Recorder-Backfill ausgeschlossen.",
     battery_manual_mode: "Wenn EIN, wird diese Batterie einmal auf 0 W gesetzt und aus der automatischen Regelung genommen. Ihr manueller Modus und ihre Sollwerte können danach gewählt werden; andere Batterien laufen automatisch weiter. Omnibattery-Softwaregrenzen wirken nicht, die eigenen BMS-/Treiber-Schutzfunktionen jedoch schon. Der globale manuelle Modus ist unabhängig.",
+    fronius_internal_control_disabled: "Wenn EIN (empfohlen), behält Omnibattery die externe Speichersteuerung mit einem 0/0-Leerlauffenster bei Einrichtung, Neuladen und geordnetem Herunterfahren. AUS gibt die Steuerung ausdrücklich an Fronius zurück und entfernt BYD aus dem automatischen Pool.",
     secWeeklyFull: "Wähle den Wochentag, an dem die Batterien zum Zellausgleich auf 100% geladen werden. Nach Erreichen von 100% kehrt das System zum konfigurierten maximalen Ladelimit zurück.",
     secSlots: "Lege fest, wann und wie die Batterien arbeiten dürfen. Die Häkchen steuern jede Richtung, SOC und Leistung. Der manuelle Modus erzwingt eine exakte Leistung und umgeht den PD-Algorithmus.",
     secExcluded: "Geräte mit spezieller Verwaltung konfigurieren: Du kannst Geräte AUSSCHLIESSEN, die NICHT von der Batterie versorgt werden sollen, oder Geräte HINZUFÜGEN, die von der Batterie versorgt werden SOLLEN, auch wenn sie nicht im Hausverbrauchssensor erfasst sind.",
@@ -1482,6 +1488,7 @@ const SYS_HELP = {
     secManual: "Quand ACTIVÉ, le contrôle automatique (PD, charge prédictive, plages horaires, écrêtage des pics…) est mis en pause et chaque batterie est réglée à 0 W (repos). DÉSACTIVE-le pour reprendre le contrôle automatique.",
     vacation_mode: "Quand il est ACTIVÉ, l'apprentissage de la consommation du foyer et l'ancienne moyenne journalière sont suspendus. Les compteurs physiques, le graphique d'opération quotidienne et le contrôle des batteries continuent normalement. Les prévisions utilisent une charge de base constante calculée de 01:00 à 05:00 : une nuit est valide avec 3 heures de couverture et la médiane des trois dernières nuits valides au maximum est utilisée. DÉSACTIVE-le pour reprendre l'apprentissage ; les données de vacances restent exclues du backfill Recorder.",
     battery_manual_mode: "Lorsque cette option est activée, cette batterie passe une fois à 0 W et sort du contrôle automatique. Son mode et ses consignes manuels peuvent ensuite être choisis ; les autres batteries continuent en automatique. Les limites logicielles d'Omnibattery ne s'appliquent pas, mais les protections du BMS/driver restent actives. Le mode manuel global est indépendant.",
+    fronius_internal_control_disabled: "ACTIVÉ (recommandé) conserve le contrôle externe avec une fenêtre de repos 0/0 pendant la configuration, le rechargement et l'arrêt. DÉSACTIVÉ rend explicitement le contrôle à Fronius et retire BYD du groupe automatique.",
     secWeeklyFull: "Sélectionne le jour de la semaine où les batteries doivent se charger à 100% pour l'équilibrage des cellules. Une fois 100% atteint, le système revient à la limite de charge maximale configurée.",
     secSlots: "Définis quand et comment les batteries sont autorisées à fonctionner. Les cases contrôlent chaque direction, le SOC et la puissance. Le mode manuel force une puissance exacte en contournant l'algorithme PD.",
     secExcluded: "Configure des appareils avec une gestion spéciale : tu peux EXCLURE des appareils qui ne doivent PAS être alimentés par la batterie, ou AJOUTER des appareils qui DOIVENT être alimentés par la batterie même s'ils ne sont pas dans le capteur de consommation domestique.",
@@ -1547,6 +1554,7 @@ const SYS_HELP = {
     secManual: "Wanneer AAN, wordt de automatische regeling (PD, voorspellend laden, tijdvensters, piekafvlakking…) gepauzeerd en wordt elke batterij op 0 W (rust) gezet. Zet UIT om de automatische regeling te hervatten.",
     vacation_mode: "Wanneer AAN, worden het leren van het huishoudverbruik en het oude daggemiddelde gepauzeerd. Fysieke verbruiksmeters, de dagelijkse werkinggrafiek en de batterijregeling blijven normaal werken. Prognoses gebruiken een constante basislast uit 01:00–05:00: een nacht is geldig vanaf 3 uur dekking en de mediaan van maximaal de laatste drie geldige nachten wordt gebruikt. Zet UIT om het leren te hervatten; vakantiegegevens blijven uitgesloten van Recorder-backfill.",
     battery_manual_mode: "Als deze optie AAN staat, wordt deze batterij eenmalig op 0 W gezet en uit de automatische regeling gehaald. De handmatige modus en setpoints kunnen daarna worden gekozen; andere batterijen blijven automatisch werken. Softwarelimieten van Omnibattery gelden niet, maar de eigen BMS-/driverbeveiliging wel. De globale handmatige modus staat hier los van.",
+    fronius_internal_control_disabled: "AAN (aanbevolen) behoudt externe regeling met een 0/0-rustvenster tijdens configuratie, herladen en afsluiten. UIT geeft de regeling expliciet terug aan Fronius en verwijdert BYD uit de automatische groep.",
     secWeeklyFull: "Selecteer de dag van de week waarop de batterijen tot 100% moeten laden voor celbalancering. Na het bereiken van 100% keert het systeem terug naar de geconfigureerde maximale laadlimiet.",
     secSlots: "Bepaal wanneer en hoe de batterijen mogen werken. De vinkjes regelen elke richting, SOC en vermogen. De handmatige modus forceert een exact vermogen en omzeilt het PD-algoritme.",
     secExcluded: "Configureer apparaten met speciaal beheer: je kunt apparaten UITSLUITEN die NIET door de batterij gevoed mogen worden, of apparaten TOEVOEGEN die WEL door de batterij gevoed moeten worden, ook al staan ze niet in de huisverbruikssensor.",
@@ -5340,7 +5348,7 @@ class MarstekVenusPanel extends HTMLElement {
         name,
         // model label rides on the battery_soc entity attributes (device-registry
         // model is hardcoded "Venus"): Marstek version / Zendure product.
-        model: (socObj.attributes && socObj.attributes.model) || null,
+        model: (socObj.attributes && socObj.attributes.model) || (devReg && devReg.model) || null,
         soc: this._num(socObj),
         // Net cell flow (+charge / -discharge). On Venus A/D this includes MPPT;
         // on AC-only units it remains the inverse of ac_power.
@@ -5376,9 +5384,11 @@ class MarstekVenusPanel extends HTMLElement {
         entIds: idByTk,
         entIdsDomain: idByTkDomain,
         info: {
+          manufacturer: (socObj.attributes && socObj.attributes.manufacturer) || (devReg && devReg.manufacturer) || null,
           sw: this._sval(byTk[K.softwareVersion]),
+          sunspecModelType: (socObj.attributes && socObj.attributes.sunspec_model_type) || this._sval(byTk[K.froniusSunspecModelType]),
           // Huawei publishes the serial as a sensor; the registry entry has none.
-          serial: (devReg && devReg.serial_number) || this._sval(byTk[K.powerModuleSerial]),
+          serial: (socObj.attributes && socObj.attributes.serial) || (devReg && devReg.serial_number) || this._sval(byTk[K.powerModuleSerial]),
           powerModuleFw: this._sval(byTk[K.powerModuleFirmware]),
           inverterModel: this._sval(byTk[K.deviceName]),
           inverterSn: this._sval(byTk[K.inverterSerial]),
@@ -5794,7 +5804,9 @@ class MarstekVenusPanel extends HTMLElement {
       if (val != null && val !== "")
         rows.push(`<div class="info-row"><span class="muted">${label}</span><span>${val}</span></div>`);
     };
+    addRow(this._t("infoManufacturer"), b.info.manufacturer);
     addRow(this._t("infoModel"), b.model);
+    addRow(this._t("infoSunSpecModel"), b.info.sunspecModelType);
     addRow(this._t("infoSoftware"), b.info.sw);
     addRow("BMS", b.info.bms);
     addRow("VMS", b.info.vms);
@@ -7144,7 +7156,7 @@ class MarstekVenusPanel extends HTMLElement {
 
       /* ===== Baterías tab ===== */
       .bat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: var(--gap); align-items: start; }
-      .bat-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+      .bat-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; container: battery-card / inline-size; }
       .bat-head { display: flex; align-items: center; gap: 10px; }
       .bat-title { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 auto; --mdc-icon-size: 18px; }
       .bat-title .ic { color: var(--ink-dim); display: grid; place-items: center; flex-shrink: 0; }
@@ -7215,8 +7227,9 @@ class MarstekVenusPanel extends HTMLElement {
 
       /* per-battery controls — 2-col grid so labels and controls align across
          rows and every slider/select gets the same width */
-      .bat-ctl-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 12px 14px; align-items: center; margin-top: 12px; }
+      .bat-ctl-grid { display: grid; grid-template-columns: minmax(0, min(52%, 260px)) minmax(140px, 1fr); gap: 12px 14px; align-items: center; margin-top: 12px; }
       .ctl-k { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-mid); font-size: 13px; --mdc-icon-size: 16px; white-space: nowrap; }
+      .bat-ctl-grid .ctl-k { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
       .ctl-k ha-icon { color: var(--ink-dim); flex-shrink: 0; }
       .ctl-empty { grid-column: 1 / -1; font-size: 12px; line-height: 1.45; }
       .ctl-toggle { justify-self: start; position: relative; width: 40px; height: 22px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--bg-2); cursor: pointer; padding: 0; transition: background 0.2s, border-color 0.2s; }
@@ -7229,6 +7242,12 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-num .ctl-val { font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 56px; text-align: right; }
       .ctl-btn { grid-column: 1 / -1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 8px 12px; border-radius: 11px; border: 1px solid var(--line-strong); background: var(--bg-2); color: var(--ink-mid); font-family: var(--font-ui); font-weight: 600; font-size: 13px; cursor: pointer; --mdc-icon-size: 16px; transition: background 0.15s, color 0.15s; }
       .ctl-btn:hover { background: var(--bg-hover); color: var(--ink); }
+      @container battery-card (max-width: 380px) {
+        .bat-ctl-grid { grid-template-columns: minmax(0, 1fr); row-gap: 7px; }
+        .bat-ctl-grid > .ctl-k:not(:first-child) { margin-top: 6px; }
+        .bat-ctl-grid > .ctl-toggle { margin-bottom: 3px; }
+        .bat-ctl-grid > .ctl-btn { grid-column: 1; }
+      }
       @media (max-width: 480px) { .bat-grid { grid-template-columns: 1fr; } }
 
       /* ===== Control tab ===== */

@@ -799,9 +799,12 @@ async def async_get_config_entry_diagnostics(
                 "battery_manual_mode_enabled": bool(
                     getattr(coord, "battery_manual_mode_enabled", False)
                 ),
-                "automatic_pool": not bool(
-                    getattr(coord, "battery_manual_mode_enabled", False)
+                "fronius_internal_control_disabled": bool(
+                    getattr(coord, "fronius_internal_control_disabled", True)
                 ),
+                "automatic_pool": not controller._is_battery_manual_owned(coord)
+                if controller is not None
+                else not bool(getattr(coord, "battery_manual_mode_enabled", False)),
             },
         }
         for coord in coordinators
@@ -813,7 +816,16 @@ async def async_get_config_entry_diagnostics(
     ]
     automatic_batteries = [
         coord.name for coord in coordinators
-        if not getattr(coord, "battery_manual_mode_enabled", False)
+        if not (
+            controller._is_battery_manual_owned(coord)
+            if controller is not None
+            else getattr(coord, "battery_manual_mode_enabled", False)
+        )
+    ]
+    fronius_released_batteries = [
+        coord.name for coord in coordinators
+        if getattr(coord, "brand", None) == "fronius_gen24"
+        and not getattr(coord, "fronius_internal_control_disabled", True)
     ]
 
     consumption_profile = {}
@@ -857,6 +869,7 @@ async def async_get_config_entry_diagnostics(
         "control_pool": {
             "manual_batteries": manual_batteries,
             "automatic_batteries": automatic_batteries,
+            "fronius_released_batteries": fronius_released_batteries,
         },
         "dynamic_pricing": _dynamic_pricing_info(controller),
         "daily_operation_timeline": _daily_operation_timeline_summary(controller),

@@ -94,7 +94,7 @@
           "brand": "Brand"
         },
         "data_description": {
-          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS must be disabled for Omnibattery control). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP."
+          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS must be disabled for Omnibattery control). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP. Fronius GEN24 / BYD: Modbus TCP storage control."
         }
       },
       "battery_connection": {
@@ -134,8 +134,15 @@
       "battery_connection_hoymiles": {
         "title": "Configure battery {battery_num} — Connection (Hoymiles)",
         "description": "Enable MQTT Service in S-Miles Home and point it to Home Assistant's configured MQTT broker before continuing.",
-        "data": {"name": "Name", "device_id": "MQTT device ID", "hoymiles_model": "Battery model"},
-        "data_description": {"device_id": "Hoymiles MQTT device ID, for example MSA-280024341346.", "hoymiles_model": "Use automatic discovery unless the device publishes an incorrect or generic model."}
+        "data": {
+          "name": "Name",
+          "device_id": "MQTT device ID",
+          "hoymiles_model": "Battery model"
+        },
+        "data_description": {
+          "device_id": "Hoymiles MQTT device ID, for example MSA-280024341346.",
+          "hoymiles_model": "Use automatic discovery unless the device publishes an incorrect or generic model."
+        }
       },
       "battery_connection_esphome": {
         "title": "Configure battery {battery_num} — Connection (LilyGo/ESPHome)",
@@ -589,8 +596,20 @@
       "reconfigure_battery_sessy": {
         "title": "Reconfigure battery {battery_num} — Connection (Sessy)",
         "description": "Update connection details for the Sessy battery {battery_num}. All other settings are preserved.",
-        "data": {"name": "Name", "host": "IP Address", "port": "HTTP Port", "username": "Username", "password": "Password"},
-        "data_description": {"name": "Descriptive name to identify this battery", "host": "IP address of the Sessy device on your local network", "port": "HTTP port (default 80)", "username": "Local username printed on the Sessy dongle", "password": "Local password printed on the Sessy dongle"}
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Sessy device on your local network",
+          "port": "HTTP port (default 80)",
+          "username": "Local username printed on the Sessy dongle",
+          "password": "Local password printed on the Sessy dongle"
+        }
       },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
@@ -638,8 +657,14 @@
       "reconfigure_battery_hoymiles": {
         "title": "Reconfigure battery {battery_num} — Hoymiles MQTT",
         "description": "Enter the Hoymiles MQTT device ID; Home Assistant manages the broker and Omnibattery detects the model.",
-        "data": {"name": "Name", "device_id": "MQTT device ID", "hoymiles_model": "Battery model"},
-        "data_description": {"hoymiles_model": "Use automatic discovery unless the device publishes an incorrect or generic model."}
+        "data": {
+          "name": "Name",
+          "device_id": "MQTT device ID",
+          "hoymiles_model": "Battery model"
+        },
+        "data_description": {
+          "hoymiles_model": "Use automatic discovery unless the device publishes an incorrect or generic model."
+        }
       },
       "reconfigure_battery_esphome": {
         "title": "Reconfigure battery {battery_num} — Connection (LilyGo/ESPHome)",
@@ -663,8 +688,20 @@
       "battery_connection_sessy": {
         "title": "Configure battery {battery_num} — Connection (Sessy)",
         "description": "Enter the connection details and the local credentials printed on the Sessy dongle for battery {battery_num}.",
-        "data": {"name": "Name", "host": "IP Address", "port": "HTTP Port", "username": "Username", "password": "Password"},
-        "data_description": {"name": "Descriptive name to identify this battery", "host": "IP address of the Sessy device on your local network", "port": "HTTP port (default 80)", "username": "Local username printed on the Sessy dongle", "password": "Local password printed on the Sessy dongle"}
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Sessy device on your local network",
+          "port": "HTTP port (default 80)",
+          "username": "Local username printed on the Sessy dongle",
+          "password": "Local password printed on the Sessy dongle"
+        }
       },
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
@@ -691,6 +728,38 @@
           "host": "IP address shown in the Anker app under Third-Party Control",
           "port": "Modbus TCP port (default 502)",
           "slave_id": "Modbus slave/unit id (default 1)"
+        }
+      },
+      "battery_connection_fronius_gen24": {
+        "title": "Configure battery {battery_num} — Connection (Fronius GEN24 / BYD)",
+        "description": "Enter the Fronius GEN24 Modbus TCP endpoint for BYD battery {battery_num}. Modbus TCP and storage control must be enabled on the inverter.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Fronius GEN24 inverter",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Inverter storage slave/unit id (default 1)"
+        }
+      },
+      "reconfigure_battery_fronius_gen24": {
+        "title": "Reconfigure battery {battery_num} — Connection (Fronius GEN24 / BYD)",
+        "description": "Update connection details for the Fronius GEN24 / BYD battery {battery_num}. All other settings are preserved.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "New IP address of the Fronius GEN24 inverter",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Inverter storage slave/unit id (default 1)"
         }
       }
     },
@@ -826,7 +895,7 @@
           "brand": "Brand"
         },
         "data_description": {
-          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS must be disabled for Omnibattery control). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP."
+          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS must be disabled for Omnibattery control). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP. Fronius GEN24 / BYD: Modbus TCP storage control."
         }
       },
       "battery_connection": {
@@ -1281,8 +1350,20 @@
       "battery_connection_sessy": {
         "title": "Configure battery {battery_num} — Connection (Sessy)",
         "description": "Modify the connection details and local dongle credentials for the Sessy battery {battery_num}.",
-        "data": {"name": "Name", "host": "IP Address", "port": "HTTP Port", "username": "Username", "password": "Password"},
-        "data_description": {"name": "Descriptive name to identify this battery", "host": "IP address of the Sessy device on your local network", "port": "HTTP port (default 80)", "username": "Local username printed on the Sessy dongle", "password": "Local password printed on the Sessy dongle"}
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Sessy device on your local network",
+          "port": "HTTP port (default 80)",
+          "username": "Local username printed on the Sessy dongle",
+          "password": "Local password printed on the Sessy dongle"
+        }
       },
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
@@ -1309,6 +1390,22 @@
           "host": "IP address shown in the Anker app under Third-Party Control",
           "port": "Modbus TCP port (default 502)",
           "slave_id": "Modbus slave/unit id (default 1)"
+        }
+      },
+      "battery_connection_fronius_gen24": {
+        "title": "Configure battery {battery_num} — Connection (Fronius GEN24 / BYD)",
+        "description": "Modify the Fronius GEN24 Modbus TCP endpoint for BYD battery {battery_num}. Modbus TCP and storage control must be enabled on the inverter.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Fronius GEN24 inverter",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Inverter storage slave/unit id (default 1)"
         }
       }
     },
@@ -1492,6 +1589,9 @@
       },
       "battery_manual_mode": {
         "name": "Manual Battery Control"
+      },
+      "fronius_internal_control_disabled": {
+        "name": "Keep Fronius/BYD Internal Control Disabled"
       },
       "full_charge_voltage_taper": {
         "name": "100% Charge Voltage Taper"
@@ -1949,6 +2049,12 @@
       },
       "input_limit": {
         "name": "Input Limit"
+      },
+      "battery_current": {
+        "name": "Battery Current"
+      },
+      "fronius_sunspec_model_type": {
+        "name": "SunSpec Model Type"
       }
     },
     "binary_sensor": {

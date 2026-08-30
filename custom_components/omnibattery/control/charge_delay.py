@@ -257,7 +257,7 @@ class ChargeDelayManager:
                 (
                     c.data.get("battery_soc", 100)
                     for c in ctrl.coordinators
-                    if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+                    if c.data and not ctrl._is_battery_manual_owned(c)
                 ),
                 default=100,
             )
@@ -322,7 +322,7 @@ class ChargeDelayManager:
             and not ctrl._balance_monitor_overrides_delay()
         )
         for coordinator in ctrl.coordinators:
-            if getattr(coordinator, "battery_manual_mode_enabled", False):
+            if ctrl._is_battery_manual_owned(coordinator):
                 ctrl.remove_charge_block(
                     "charge_delay_setpoint", coordinator=coordinator
                 )
@@ -409,7 +409,7 @@ class ChargeDelayManager:
         ctrl = self._controller
         automatic_batteries = [
             coordinator for coordinator in ctrl.coordinators
-            if not getattr(coordinator, "battery_manual_mode_enabled", False)
+            if not ctrl._is_battery_manual_owned(coordinator)
         ]
 
         now = _decision_now()

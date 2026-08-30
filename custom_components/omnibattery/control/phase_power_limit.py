@@ -721,7 +721,7 @@ class PhasePowerLimiter:
             if (
                 other is not coordinator
                 and self._battery_phase(other) == phase
-                and not getattr(other, "battery_manual_mode_enabled", False)
+                and not self.controller._is_battery_manual_owned(other)
             )
         )
         allowed = _round_down(

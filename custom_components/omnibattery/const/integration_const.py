@@ -575,6 +575,9 @@ CONF_NO_PD_COMMAND_DELAY = "no_pd_command_delay"
 CONF_ENABLE_SYSTEM_POWER_LIMITS = "enable_system_power_limits"
 CONF_SYSTEM_MAX_CHARGE_POWER = "system_max_charge_power"
 CONF_SYSTEM_MAX_DISCHARGE_POWER = "system_max_discharge_power"
+# Fronius/BYD ownership safety. True keeps SunSpec storage control active with
+# a 0/0 idle window during setup, reload and orderly integration shutdown.
+CONF_FRONIUS_INTERNAL_CONTROL_DISABLED = "fronius_internal_control_disabled"
 
 # Default PD Controller Parameters
 # Lowered from Kp 0.65 / Kd 0.5 to curb overshoot under the cadence-independent

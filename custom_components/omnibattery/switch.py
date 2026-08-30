@@ -28,6 +28,7 @@ from .const import (
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     CONF_MANUAL_MODE_ENABLED,
     CONF_BATTERY_MANUAL_MODE_ENABLED,
+    CONF_FRONIUS_INTERNAL_CONTROL_DISABLED,
     CONF_NO_PD_MODE_ENABLED,
     CONF_OFFGRID_POWER_SENSOR,
     CONF_OFFGRID_MODE_ENABLED,
@@ -77,9 +78,15 @@ async def async_setup_entry(
             entities.append(BatteryAllowChargeSwitch(hass, entry, controller, coordinator))
             entities.append(BatteryAllowDischargeSwitch(hass, entry, controller, coordinator))
             entities.append(BatteryManualModeSwitch(hass, entry, controller, coordinator))
+            if coordinator.brand == "fronius_gen24":
+                entities.append(
+                    FroniusInternalControlDisabledSwitch(
+                        hass, entry, controller, coordinator
+                    )
+                )
             # Marstek-only cell maintenance: voltage taper needs per-cell
             # voltages that Anker/Zendure do not expose in the same way.
-            if coordinator.brand not in ("zendure", "anker"):
+            if coordinator.brand not in ("zendure", "anker", "fronius_gen24"):
                 entities.append(BatteryFullChargeVoltageTaperSwitch(hass, entry, controller, coordinator))
 
     # Add manual mode switch (system-level, always present)
@@ -494,6 +501,67 @@ class BatteryFullChargeVoltageTaperSwitch(SwitchEntity):
     @property
     def device_info(self):
         return self.coordinator.battery_device_info
+
+
+class FroniusInternalControlDisabledSwitch(SwitchEntity):
+    """Persistent Fronius/BYD ownership boundary independent of PD mode."""
+
+    def __init__(self, hass, entry, controller, coordinator) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        self.coordinator = coordinator
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "fronius_internal_control_disabled"
+        self._attr_unique_id = (
+            f"{coordinator.device_key}_fronius_internal_control_disabled"
+        )
+        self.entity_id = english_entity_id(
+            "switch", coordinator.name, "fronius_internal_control_disabled"
+        )
+        self._attr_icon = "mdi:battery-lock"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return whether Fronius internal battery control is locked out."""
+        return bool(
+            getattr(
+                self.coordinator,
+                CONF_FRONIUS_INTERNAL_CONTROL_DISABLED,
+                True,
+            )
+        )
+
+    async def _set_disabled(self, disabled: bool) -> None:
+        async with self.controller._control_lock:
+            self.controller._reset_battery_ownership_state(self.coordinator)
+            ok = await self.coordinator.set_fronius_internal_control_disabled(
+                disabled
+            )
+            if not ok:
+                raise HomeAssistantError(
+                    f"Unable to {'retain' if disabled else 'release'} Fronius/BYD "
+                    f"control for {self.coordinator.name}"
+                )
+            self.coordinator.persist_battery_config(
+                CONF_FRONIUS_INTERNAL_CONTROL_DISABLED, disabled
+            )
+        await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Retain external control and assert the idle 0/0 window now."""
+        await self._set_disabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Explicitly release the battery to Fronius automatic control."""
+        await self._set_disabled(False)
+
+    @property
+    def device_info(self):
+        return self.coordinator.battery_device_info
+
 
 class VacationModeSwitch(SwitchEntity):
     """Persistently pause consumption learning while the household is away."""
@@ -1468,6 +1536,19 @@ class ManualModeSwitch(SwitchEntity):
         # Set all batteries to 0W (idle state) when entering manual mode
         for coordinator in self.controller.coordinators:
             try:
+                if (
+                    coordinator.brand == "fronius_gen24"
+                    and not getattr(
+                        coordinator,
+                        CONF_FRONIUS_INTERNAL_CONTROL_DISABLED,
+                        True,
+                    )
+                ):
+                    _LOGGER.debug(
+                        "Skipping %s - control was explicitly released to Fronius",
+                        coordinator.name,
+                    )
+                    continue
                 individual_manual = bool(
                     getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
                 )
@@ -1522,7 +1603,7 @@ class ManualModeSwitch(SwitchEntity):
             self.controller._active_discharge_batteries = []
             self.controller._active_charge_batteries = []
             for coordinator in self.controller.coordinators:
-                if getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False):
+                if self.controller._is_battery_manual_owned(coordinator):
                     continue
                 coordinator.manual_force_mode = "None"
                 coordinator.persist_battery_config("manual_force_mode", "None")

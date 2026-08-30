@@ -12,7 +12,8 @@ A config entry on version 7 exercises the v8 branch (data-only). The newer v9
 branch heals the entity registry, which the light no-``hass``-fixture fakes can't
 provide, so we patch the two entity_registry helpers it calls to no-op here (the
 v9 heal has its own dedicated registry test). v10 renames the title, handled by
-accepting the kwarg in the fake; v11 adds the disabled-by-default phase schema.
+accepting the kwarg in the fake; v11 adds the disabled-by-default phase schema
+and v12 adds the persisted Fronius ownership boundary.
 """
 from __future__ import annotations
 
@@ -53,7 +54,7 @@ def _migrate(batteries):
     with _no_registry():
         result = asyncio.run(async_migrate_entry(hass, entry))
     assert result is True
-    assert hass.config_entries.updated["version"] == 11
+    assert hass.config_entries.updated["version"] == 12
     return hass.config_entries.updated["data"]["batteries"]
 
 
@@ -81,8 +82,26 @@ def test_enabled_below_floor_is_clamped_up():
     assert out[0]["charge_hysteresis_percent"] == MIN_CHARGE_HYSTERESIS_PERCENT
 
 
-def test_already_v11_is_noop():
+def test_v11_adds_safe_fronius_ownership_default():
     hass = SimpleNamespace(config_entries=_FakeConfigEntries())
-    entry = SimpleNamespace(version=11, data={"batteries": [{}]})
+    entry = SimpleNamespace(
+        version=11,
+        data={
+            "batteries": [
+                {"brand": "fronius_gen24"},
+                {"brand": "marstek"},
+            ]
+        },
+    )
     assert asyncio.run(async_migrate_entry(hass, entry)) is True
-    assert hass.config_entries.updated is None  # nothing rewritten
+    assert hass.config_entries.updated["version"] == 12
+    batteries = hass.config_entries.updated["data"]["batteries"]
+    assert batteries[0]["fronius_internal_control_disabled"] is True
+    assert "fronius_internal_control_disabled" not in batteries[1]
+
+
+def test_already_v12_is_noop():
+    hass = SimpleNamespace(config_entries=_FakeConfigEntries())
+    entry = SimpleNamespace(version=12, data={"batteries": [{}]})
+    assert asyncio.run(async_migrate_entry(hass, entry)) is True
+    assert hass.config_entries.updated is None

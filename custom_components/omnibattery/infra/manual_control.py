@@ -40,6 +40,9 @@ def controller_owns_battery(hass, coordinator) -> bool:
         return False
     if getattr(controller, "manual_mode_enabled", False):
         return False
+    ownership_check = getattr(controller, "_is_battery_manual_owned", None)
+    if callable(ownership_check):
+        return not ownership_check(coordinator)
     return not bool(getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False))
 
 

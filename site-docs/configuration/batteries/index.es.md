@@ -15,6 +15,7 @@ parte de los controles en tiempo de ejecución son comunes.
 | **Anker SOLIX** | Modbus TCP | [Anker SOLIX](anker.md) |
 | **Sessy** | API HTTP local mediante el dongle de Sessy | [Sessy](sessy.md) |
 | **Hoymiles MS-A2 / HiBattery** | MQTT mediante Home Assistant | [Hoymiles MQTT](hoymiles.md) |
+| **Fronius GEN24 / BYD** | Modbus TCP y Solar API local | [Fronius GEN24 / BYD](fronius-gen24.md) |
 
 ![Selector de marca de batería](../../assets/screenshots/configuration/battery-brand-form.png){ width="650"  style="display: block; margin: 0 auto;"}
 

@@ -34,6 +34,7 @@
 
 ### Added
 
+- **Fronius GEN24 / BYD Battery-Box driver**: adds local Modbus TCP storage control and telemetry, BYD metadata and capacity from the Fronius Solar API, persistent synthetic-energy identity based on the physical BYD serial, configuration/reconfiguration flows, dashboard details and translations. The driver automatically detects Fronius `float` and `int+SF` layouts, shifts all Model 160/124 reads and control writes accordingly, and shows the detected SunSpec model in the battery information box. A persistent device switch keeps external control in a safe `0/0` idle window across setup, reload and shutdown by default; releasing the battery to Fronius is explicit. `max_soc` remains a software control limit rather than a guaranteed hardware cutoff. Thanks to @MisterSpliss for the contribution.
 - **Huawei SUN2000 + LUNA2000 driver**: adds native Modbus telemetry and optional service/direct-write control for Huawei hybrid inverters with LUNA2000 storage. Thanks to @sphings79 for the contribution.
 - **Off-grid meter mode**: an optional second W/kW power sensor, with its own inverted-sign setting, now exposes a Home Assistant switch and dashboard control that change the active source used by PD control and derived consumption/grid statistics. The switch is software-only and never enables or changes a battery's physical off-grid/EPS port.
 

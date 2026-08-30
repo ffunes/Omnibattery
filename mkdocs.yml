@@ -68,6 +68,7 @@ plugins:
             Three-phase current protection: Protección de corriente trifásica
             Batteries: Baterías
             Hoymiles MQTT: Hoymiles MQTT
+            Fronius GEN24 / BYD: Fronius GEN24 / BYD
             Hoymiles MS-A2 setup: Instalación de Hoymiles MS-A2
             Time slots: Franjas horarias
             Excluded devices: Dispositivos excluidos
@@ -149,6 +150,7 @@ nav:
           - Anker SOLIX: configuration/batteries/anker.md
           - Sessy: configuration/batteries/sessy.md
           - Hoymiles MQTT: configuration/batteries/hoymiles.md
+          - Fronius GEN24 / BYD: configuration/batteries/fronius-gen24.md
       - Time slots: configuration/time-slots.md
       - Excluded devices: configuration/excluded-devices.md
       - Predictive charging:

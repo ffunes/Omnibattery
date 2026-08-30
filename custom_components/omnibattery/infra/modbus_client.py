@@ -556,3 +556,63 @@ class MarstekModbusClient:
             max_retries,
         )
         return False
+
+    async def async_write_registers(
+        self,
+        start: int,
+        values: list[int],
+        max_retries: int = 1,
+        retry_delay: float = 0.1,
+    ) -> bool:
+        """Write adjacent holding registers in one Modbus FC16 transaction."""
+        attempt = 0
+        current_retry_delay = retry_delay
+        while attempt < max_retries:
+            try:
+                if DEBUG_RAW_MODBUS_READS:
+                    _LOGGER.debug(
+                        "Modbus multi-write: start=%d/0x%04X values=%s",
+                        start,
+                        start,
+                        values,
+                    )
+                try:
+                    result = await asyncio.wait_for(
+                        self.client.write_registers(
+                            address=start,
+                            values=values,
+                            **{self._slave_kwarg: self.unit_id},
+                        ),
+                        timeout=self._request_timeout,
+                    )
+                finally:
+                    if self._message_wait_sec and not self._is_shutting_down:
+                        await asyncio.sleep(self._message_wait_sec)
+                return not result.isError()
+            except (ConnectionException, ModbusIOException, asyncio.TimeoutError):
+                if self._is_shutting_down:
+                    return False
+                _LOGGER.debug(
+                    "Connection error writing register block at %d (0x%04X)",
+                    start,
+                    start,
+                )
+            except Exception as err:
+                if not self._is_shutting_down:
+                    _LOGGER.exception(
+                        "Exception during Modbus multi-write at %d (0x%04X) "
+                        "on attempt %d: %s",
+                        start,
+                        start,
+                        attempt + 1,
+                        err,
+                    )
+            if self._is_shutting_down:
+                return False
+            attempt += 1
+            if attempt < max_retries:
+                await asyncio.sleep(
+                    current_retry_delay + _backoff_jitter(current_retry_delay)
+                )
+                current_retry_delay = min(current_retry_delay * 2, 5.0)
+        return False
