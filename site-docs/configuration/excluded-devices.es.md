@@ -104,17 +104,21 @@ solar disponible para la batería = previsión solar restante − margen de segu
 Notas:
 
 - El campo es opcional y está desactivado por defecto. Sin él, nada cambia.
-- La reserva solo se aplica a dispositivos con **Incluido en el consumo** marcado. Si la carga
-  *no* está incluida, ya forma parte de la previsión de consumo y reservar solar además contaría
-  la misma energía dos veces.
+- La elegibilidad sigue exactamente la corrección de consumo, así la misma demanda nunca se
+  descuenta dos veces. Solo pueden reservar los dispositivos con **Incluido en el consumo**
+  marcado; si el sensor principal no ve la carga, es una carga adicional que la batería debe
+  cubrir. Los **Cargador VE sin telemetría de potencia** se omiten por la misma razón que allí.
+- El **% de exclusión** escala la reserva igual que escala la corrección de consumo. Al 50 % la
+  previsión de consumo conserva la mitad de la demanda, así que solo se reserva la otra mitad.
 - La reserva se limita a la solar disponible. La energía de red que el dispositivo consuma por
   encima de la previsión ya está cubierta por la previsión de consumo.
-- Si el sensor no está disponible, es desconocido o no es numérico, no se reserva nada.
-- El **% de exclusión** no escala la reserva: rige la potencia instantánea, no una demanda futura.
+- El sensor debe indicar una unidad de energía (kWh, Wh, MJ, …). Si no está disponible, es
+  desconocido, no es numérico o su unidad no es de energía, no se reserva nada.
 - evcc publica una entidad adecuada por punto de carga:
   `sensor.evcc_<punto_de_carga>_charge_remaining_energy`.
-- La reserva se reparte de forma uniforme sobre la curva solar restante: el plan no supone *cuándo*
-  consumirá el dispositivo.
+- La reserva se reparte de forma uniforme sobre la solar restante de hoy: el plan no supone
+  *cuándo* consumirá el dispositivo. En una proyección que cruza la medianoche nunca se reduce la
+  previsión de mañana.
 
 Como una sesión de carga suele empezar mucho después de la evaluación de las 00:05, la carga
 predictiva replanifica durante el día cuando la reserva cambia 2 kWh o más en cualquier sentido,

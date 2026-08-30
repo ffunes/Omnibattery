@@ -2298,7 +2298,9 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     vol.Optional("cover_home_when_active", default=False): bool,
                     vol.Optional("ev_charger_no_telemetry", default=False): bool,
                     vol.Optional("remaining_demand_sensor"):
-                        EntitySelector(EntitySelectorConfig(domain="sensor")),
+                        EntitySelector(
+                            EntitySelectorConfig(domain="sensor", device_class="energy")
+                        ),
                 }
             ),
             description_placeholders={
@@ -5057,7 +5059,9 @@ class OptionsFlowHandler(OptionsFlow):
                     vol.Optional("cover_home_when_active", default=default_cover_home): bool,
                     vol.Optional("ev_charger_no_telemetry", default=default_ev_no_telemetry): bool,
                     remaining_demand_field:
-                        EntitySelector(EntitySelectorConfig(domain="sensor")),
+                        EntitySelector(
+                            EntitySelectorConfig(domain="sensor", device_class="energy")
+                        ),
                 }
             ),
             description_placeholders={
