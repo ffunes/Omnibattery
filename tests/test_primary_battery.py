@@ -95,11 +95,49 @@ def test_without_a_nomination_the_ordinary_choice_is_used():
     assert _primary_feedforward_w(controller, 0.0) == 800.0
 
 
+def test_the_automatic_choice_keeps_the_battery_that_is_already_discharging():
+    """The ladder gives the running battery a 5 % edge so a pair sitting close
+    together does not swap every cycle. Picking the primary on raw SOC would
+    outrank that edge and bring the swapping straight back."""
+    running = _battery("Huawei", battery_power=-800, soc=58)
+    fuller = _battery("Marstek", ac_power=0, soc=60)
+    controller = _controller([running, fuller], primary="")
+    controller._active_discharge_batteries = [running]
+    assert _primary_coordinator(controller) is running
+
+
+def test_the_edge_is_only_an_edge_and_a_clearly_fuller_battery_still_wins():
+    running = _battery("Huawei", battery_power=-800, soc=58)
+    fuller = _battery("Marstek", ac_power=0, soc=70)
+    controller = _controller([running, fuller], primary="")
+    controller._active_discharge_batteries = [running]
+    assert _primary_coordinator(controller) is fuller
+
+
 def test_a_name_that_no_longer_matches_falls_back_rather_than_stopping():
     """A battery can be renamed or removed; the feature should not go quiet."""
     fuller = _battery("Marstek", ac_power=0, soc=70)
     controller = _controller([fuller], primary="Venus 9")
     assert _primary_coordinator(controller) is fuller
+
+
+def test_a_battery_in_manual_mode_is_not_the_primary_even_when_nominated():
+    """The distribution leaves a manual battery out of the ladder, so a
+    feedforward capped at its rating would be handed to batteries that never
+    had it. The nomination falls back rather than going quiet."""
+    manual = _battery("Marstek", ac_power=0, soc=90)
+    manual.battery_manual_mode_enabled = True
+    automatic = _battery("Huawei", battery_power=-800, soc=40)
+    controller = _controller([manual, automatic], primary="Marstek")
+    assert _primary_coordinator(controller) is automatic
+
+
+def test_manual_mode_also_keeps_a_battery_out_of_the_automatic_choice():
+    manual = _battery("Marstek", ac_power=0, soc=90)
+    manual.battery_manual_mode_enabled = True
+    automatic = _battery("Huawei", battery_power=-800, soc=40)
+    controller = _controller([manual, automatic], primary="")
+    assert _primary_coordinator(controller) is automatic
 
 
 def test_a_fleet_that_cannot_discharge_has_no_primary():

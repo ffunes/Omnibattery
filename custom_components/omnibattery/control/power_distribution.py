@@ -92,7 +92,7 @@ class PowerDistribution:
         # Imported here rather than at module scope: this module is itself loaded
         # lazily from the package, and a top-level import back into it would make
         # that ordering load-bearing.
-        from .. import _primary_coordinator
+        from .. import _discharge_order_key, _primary_coordinator
 
         primary = _primary_coordinator(self._controller)
 
@@ -115,10 +115,8 @@ class PowerDistribution:
                 )
                 return (effective_soc, energy - (2.5 if is_active else 0))
 
-            effective_soc = soc + (5.0 if is_active else 0)
-            energy = effective_total_discharging_energy(coordinator.data) or 0
             rank = 0 if coordinator is primary else 1
-            return (rank, -effective_soc, energy - (2.5 if is_active else 0))
+            return (rank, *_discharge_order_key(self._controller, coordinator))
 
         return sorted(available_batteries, key=sort_key)
 

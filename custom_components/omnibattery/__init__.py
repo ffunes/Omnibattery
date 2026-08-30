@@ -215,6 +215,7 @@ from .const import (
     DEFAULT_CHARGE_HYSTERESIS_PERCENT,
     DEBUG_CONTROL_LOOP_DETAIL,
 )
+from .energy import effective_total_discharging_energy
 from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager
 from .drivers.base import has_connected_mppt_pv
@@ -683,19 +684,59 @@ def _charge_order(controller, batteries) -> list:
     return sorted(batteries, key=sort_key)
 
 
+def _discharge_order_key(controller, coordinator):
+    """Sort key for the ordinary discharge ladder: fullest first, and sticky.
+
+    The battery already discharging carries a 5 % edge, so two of them within
+    that of each other do not trade places from one cycle to the next. Shared
+    with :func:`_primary_coordinator` rather than repeated there: an automatic
+    primary picked on raw SOC would outrank the edge and reintroduce exactly
+    the swapping it exists to prevent.
+    """
+    data = coordinator.data or {}
+    soc = data.get("battery_soc", 50)
+    if soc is None:
+        soc = 50
+    active = getattr(controller, "_active_discharge_batteries", None) or []
+    is_active = coordinator in active
+    effective_soc = float(soc) + (5.0 if is_active else 0.0)
+    energy = effective_total_discharging_energy(data) or 0
+    return (-effective_soc, energy - (2.5 if is_active else 0.0))
+
+
+def _battery_under_automatic_control(controller, coordinator) -> bool:
+    """Whether a battery is this controller's to command, or the user's.
+
+    The same filter the power distribution applies before it orders the ladder,
+    so the primary is picked from the pool that will actually be commanded.
+    """
+    helper = getattr(controller, "_is_battery_manual_owned", None)
+    if helper is not None:
+        return not helper(coordinator)
+    return not bool(getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False))
+
+
 def _primary_coordinator(controller):
     """The battery that serves the house first, nominated or chosen.
 
-    Left on automatic — or naming a battery that is no longer configured — the
-    feedforward addresses whichever battery the ordinary discharge ordering
-    would have picked anyway: the fullest one. That is the same answer the rest
-    of the system gives, so switching the feedforward on without nominating
+    Left on automatic — or naming a battery that is no longer configured, or
+    one the user has taken into manual mode — the feedforward addresses
+    whichever battery the ordinary discharge ordering would have picked anyway:
+    the fullest one, hysteresis included. That is the same answer the rest of
+    the system gives, so switching the feedforward on without nominating
     anything changes when a battery is asked, not which.
+
+    A battery under manual ownership is never the primary, nominated or not:
+    the distribution leaves it out of the ladder, so a feedforward measured
+    against its rating would be handed to batteries that never had it.
 
     Returns None only when no battery can serve at all.
     """
     name = (getattr(controller, "primary_battery", "") or "").strip()
-    batteries = list(getattr(controller, "coordinators", []))
+    batteries = [
+        coordinator for coordinator in getattr(controller, "coordinators", [])
+        if _battery_under_automatic_control(controller, coordinator)
+    ]
     if name:
         for coordinator in batteries:
             if coordinator.name == name:
@@ -706,7 +747,7 @@ def _primary_coordinator(controller):
     ]
     if not able:
         return None
-    return max(able, key=lambda c: (c.data or {}).get("battery_soc", 0) or 0)
+    return min(able, key=lambda c: _discharge_order_key(controller, c))
 
 def _measured_house_load_w(controller, grid_w):
     """Household load from the AC-bus balance, from measured battery output.
@@ -849,8 +890,9 @@ def _primary_feedforward_candidate_w(controller, grid_w) -> float:
     arriving first rather than by ranking first, and leaves the other
     regulator as a fallback instead of switching it off.
 
-    Positive watts in the discharge direction; 0 when no primary is nominated or
-    that battery cannot serve right now. Computed regardless of the switch, so
+    Positive watts in the discharge direction; 0 when no battery can serve right
+    now — with the nomination on automatic one is still chosen, so this is not
+    the same as "nothing nominated". Computed regardless of the switch, so
     the figure can be checked against the meter before committing to it —
     :func:`_primary_feedforward_w` is what the control cycle acts on.
     """
