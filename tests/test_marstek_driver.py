@@ -108,6 +108,21 @@ def test_capability_envelope_uses_hardware_ceiling_not_user_limit():
     assert drv.capabilities.max_discharge_power_w == 2500
 
 
+@pytest.mark.parametrize("version", ["v2", "v3", "vA", "vD"])
+def test_no_hardware_power_floor(version):
+    """min_*_power_w must come from the setpoint registers (min 0), not from
+    max_charge_power's min (800 W on v2/v3). The latter is only the lowest
+    ceiling the user may configure; reading it as a floor clamped predictive
+    charging to 800 W of grid import."""
+    drv = MarstekModbusDriver(
+        "1.2.3.4", 502, version,
+        client=_fake_client(),        # definitions=None -> real defs load
+        **({"ems_version": 149} if version == "vD" else {}),
+    )
+    assert drv.capabilities.min_charge_power_w == 0
+    assert drv.capabilities.min_discharge_power_w == 0
+
+
 @pytest.mark.parametrize("ems_version,expected", [
     (None, 2200),
     (147, 2200),

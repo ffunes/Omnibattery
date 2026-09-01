@@ -129,9 +129,9 @@ class DriverCapabilities:
     engage_grace_s: Optional[float] = None
 
     # Minimum reliable operating power (watts, per unit) below which the hardware
-    # will not sustain a non-zero charge/discharge. Marstek v2/v3 report 800 W (the
-    # max_charge/discharge_power register floor); vA/vD/Zendure have no such floor
-    # and report 0. The thermal derate clamps its non-zero output up to this value
+    # will not sustain a non-zero charge/discharge. Every Marstek model reports 0
+    # (its setpoint registers accept any power); Anker reports a real floor.
+    # The thermal derate clamps its non-zero output up to this value
     # so it never dribbles an unreliable sub-minimum command. Defaults to 0 (no floor).
     min_charge_power_w: int = 0
     min_discharge_power_w: int = 0

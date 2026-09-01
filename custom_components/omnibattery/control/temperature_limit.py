@@ -53,8 +53,7 @@ class TemperatureChargeLimitManager:
     def _min_power(coordinator, is_charging: bool) -> int:
         """The battery's minimum reliable operating power (0 when it has none).
 
-        Read from the driver capabilities, which derive it from the
-        max_charge/discharge_power register floor (v2/v3 = 800 W, vA/vD/Zendure = 0).
+        Read from the driver capabilities (0 for drivers with no such floor).
         """
         caps = getattr(coordinator, "capabilities", None)
         attr = "min_charge_power_w" if is_charging else "min_discharge_power_w"
@@ -75,7 +74,7 @@ class TemperatureChargeLimitManager:
             return limit
         derated = min(limit, int(round(limit * factor)))
         # Hard floor: never command a non-zero power below the battery's minimum
-        # reliable operating power (v2/v3 = 800 W; vA/vD/Zendure = 0). Never raise
+        # reliable operating power (0 when the driver declares none). Never raise
         # above a limit that was already below that floor.
         return max(derated, min(self._min_power(coordinator, is_charging), limit))
 

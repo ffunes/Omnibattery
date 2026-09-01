@@ -271,10 +271,13 @@ class MarstekModbusDriver(BatteryDriver):
             hw_charge_ceiling = min(hw_charge_ceiling, firmware_ceiling)
             hw_discharge_ceiling = min(hw_discharge_ceiling, firmware_ceiling)
             self._set_power_definition_ceiling(firmware_ceiling)
-        # Register floor (v2/v3 = 800 W, vA/vD = 0): the minimum reliable operating
-        # power the thermal derate must not command below. 0 when absent.
-        hw_charge_floor = int(number_defs.get("max_charge_power", {}).get("min", 0))
-        hw_discharge_floor = int(number_defs.get("max_discharge_power", {}).get("min", 0))
+        # Minimum operating power = the *setpoint* register floor (0 on every
+        # Marstek model). NOT max_charge_power's min (800 W on v2/v3): that is
+        # only the lowest ceiling the user may configure, not a power the
+        # hardware refuses to deliver, and reading it as a floor pinned
+        # predictive charging at 800 W of grid import.
+        hw_charge_floor = int(number_defs.get("set_charge_power", {}).get("min", 0))
+        hw_discharge_floor = int(number_defs.get("set_discharge_power", {}).get("min", 0))
 
         # Static capabilities, derived from the register map + the seeded entity
         # definitions so the control layer never branches on the version string.
