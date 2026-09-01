@@ -64,6 +64,121 @@ def _normalise_power_limit(value) -> int:
         return 0
 
 
+def _stamp_native_daily_reset_dates(coordinator) -> None:
+    """Date-stamp daily energy values a device counts for itself.
+
+    The system totals refuse to add up unless every battery's daily figure is
+    marked as belonging to today — a guard against summing one battery's fresh
+    value with another's from before midnight. Only the derived counter stamps
+    that mark, because until now every driver needed one.
+
+    A driver whose device keeps its own daily counters never gets that sensor,
+    so it never carried the mark, and one such battery in a fleet zeroed the
+    system totals outright: 10.3 kWh charged on one battery and 3.97 on the
+    other, with the overview reading 0.00.
+
+    The poll happening today does not make the *value* today's. A device keeps
+    its own midnight, and for a few minutes either side of ours its counter
+    still holds yesterday's accumulation. Marking that as today let the system
+    aggregate add a battery's fresh 0.00 to another's stale 14.13 and latch the
+    sum: the aggregate refuses same-day decreases, so the wrong figure stood
+    until the real total grew past it — all day, in the observed case.
+
+    So the mark waits for evidence that the device's own counter has turned,
+    which is the value dropping below what was last seen. Until then the
+    previous day's mark stays and the aggregate treats the sum as incomplete,
+    which is the honest answer: better no total than a wrong one that sticks.
+
+    A counter last seen at zero carries nothing stale, so it needs no such
+    evidence. This assumes the device does reset daily — the capability that
+    gates this function is the claim that it does.
+    """
+    if not getattr(coordinator.capabilities, "has_daily_energy_counters", False):
+        return
+    if not coordinator.data:
+        return
+    today = dt_util.now().date().isoformat()
+    seen = getattr(coordinator, "_native_daily_seen", None)
+    if seen is None:
+        seen = {}
+        coordinator._native_daily_seen = seen
+
+    for key in ("total_daily_charging_energy", "total_daily_discharging_energy"):
+        value = coordinator.data.get(key)
+        if value is None:
+            continue
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            continue
+
+        previous = seen.get(key)
+        if previous is None:
+            # Nothing to compare against — first sight, or a restart. The
+            # counter is whatever the device says it is now.
+            stamp = today
+        else:
+            previous_date, previous_value = previous
+            if previous_date == today or previous_value <= 0 or value < previous_value:
+                stamp = today
+            else:
+                # Our day has turned, the device's has not. Leave the old mark.
+                stamp = previous_date
+
+        seen[key] = (stamp, value)
+        coordinator.data[f"{key}_reset_date"] = stamp
+
+
+def _sync_device_reported_limits(coordinator) -> None:
+    """Adopt the power ceilings the device reports, ignoring a zero.
+
+    A reported ceiling of zero is not a limit, it is a missing answer. A
+    Marstek came back from a restart with both power registers reading 0,
+    and adopting that shut the battery out of every allocation: it could
+    neither charge nor discharge, and nothing would ever write those
+    registers again, because the controller had stopped addressing a
+    battery it believed could do nothing. The last good figure stands
+    instead, and the mismatch is worth a line in the log.
+    """
+    for key in ("max_charge_power", "max_discharge_power"):
+        if key in coordinator.data and not coordinator.data[key]:
+            _LOGGER.warning(
+                "[%s] Device reports %s = 0; keeping the last known ceiling. "
+                "The battery may have lost its limits on a restart — writing "
+                "the corresponding number entity restores them.",
+                coordinator.name, key,
+            )
+    if coordinator.data.get("max_charge_power"):
+        device_cap = int(coordinator.data["max_charge_power"])
+        # Soft-max drivers (Zendure telemetry, Anker read-only sensor) and
+        # Venus E v2/v3 report the physical/device ceiling. Writable
+        # register drivers report the user's configured ceiling instead.
+        if coordinator.needs_software_max_charge or coordinator.needs_software_power_cap:
+            coordinator.device_max_charge_power = device_cap
+        else:
+            coordinator.configured_max_charge_power = device_cap
+        # Keep the legacy alias synchronized for lightweight coordinator
+        # doubles that do not have the normalized backing fields.
+        if not hasattr(coordinator, "_configured_max_charge_power"):
+            coordinator.max_charge_power = (
+                min(device_cap, getattr(coordinator, "user_max_charge_power", device_cap))
+                if coordinator.needs_software_max_charge or coordinator.needs_software_power_cap
+                else device_cap
+            )
+    if coordinator.data.get("max_discharge_power"):
+        device_cap = int(coordinator.data["max_discharge_power"])
+        if coordinator.needs_software_max_discharge or coordinator.needs_software_power_cap:
+            coordinator.device_max_discharge_power = device_cap
+        else:
+            coordinator.configured_max_discharge_power = device_cap
+        if not hasattr(coordinator, "_configured_max_discharge_power"):
+            coordinator.max_discharge_power = (
+                min(device_cap, getattr(coordinator, "user_max_discharge_power", device_cap))
+                if coordinator.needs_software_max_discharge or coordinator.needs_software_power_cap
+                else device_cap
+            )
+
+
 def group_scan_interval_s(
     group_keys: tuple[str, ...],
     nominal_interval_s: float,
@@ -1386,35 +1501,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # coordinator.min_soc stays at the construction default across restarts.
         if "min_soc" in self.data:
             self.min_soc = int(self.data["min_soc"])
-        if "max_charge_power" in self.data:
-            device_cap = int(self.data["max_charge_power"])
-            # Soft-max drivers (Zendure telemetry, Anker read-only sensor) and
-            # Venus E v2/v3 report the physical/device ceiling. Writable
-            # register drivers report the user's configured ceiling instead.
-            if self.needs_software_max_charge or self.needs_software_power_cap:
-                self.device_max_charge_power = device_cap
-            else:
-                self.configured_max_charge_power = device_cap
-            # Keep the legacy alias synchronized for lightweight coordinator
-            # doubles that do not have the normalized backing fields.
-            if not hasattr(self, "_configured_max_charge_power"):
-                self.max_charge_power = (
-                    min(device_cap, getattr(self, "user_max_charge_power", device_cap))
-                    if self.needs_software_max_charge or self.needs_software_power_cap
-                    else device_cap
-                )
-        if "max_discharge_power" in self.data:
-            device_cap = int(self.data["max_discharge_power"])
-            if self.needs_software_max_discharge or self.needs_software_power_cap:
-                self.device_max_discharge_power = device_cap
-            else:
-                self.configured_max_discharge_power = device_cap
-            if not hasattr(self, "_configured_max_discharge_power"):
-                self.max_discharge_power = (
-                    min(device_cap, getattr(self, "user_max_discharge_power", device_cap))
-                    if self.needs_software_max_discharge or self.needs_software_power_cap
-                    else device_cap
-                )
+        _sync_device_reported_limits(self)
+        _stamp_native_daily_reset_dates(self)
 
         if updated_data:
             _LOGGER.debug(
