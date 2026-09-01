@@ -572,6 +572,28 @@ CONF_TARGET_GRID_POWER = "pd_target_grid_power"
 # integral/derivative/smoothing curve. Reuses the deadband, min charge/discharge
 # power, relay min-ON and target-grid-power knobs above; adds only a command delay.
 CONF_NO_PD_MODE_ENABLED = "no_pd_mode_enabled"
+
+# --- Mixed-fleet control (a DC-coupled hybrid beside an AC battery) ----------
+# Which battery serves the house first, and whether it is handed the real
+# quantity directly instead of waiting for the meter to deviate. Both opt-in.
+CONF_PRIMARY_BATTERY = "primary_battery"
+DEFAULT_PRIMARY_BATTERY = ""
+CONF_PRIMARY_FEEDFORWARD_ENABLED = "primary_feedforward_enabled"
+DEFAULT_PRIMARY_FEEDFORWARD_ENABLED = False
+# Which battery is filled first. Empty = follow the day's outlook.
+CONF_CHARGE_PRIORITY = "charge_priority"
+DEFAULT_CHARGE_PRIORITY = ""
+# How far the guards have to want to move the standing command before the
+# deadband/stale shortcuts are skipped to let them. Below this a correction is
+# not worth a write.
+GUARD_PENDING_TOLERANCE_W = 100
+# How clear a surplus has to be before the guard blocks discharge. Wider than
+# meter noise, so a cloud edge does not toggle the battery every cycle; release
+# has no band at all, because by then the house genuinely needs the battery.
+SURPLUS_GUARD_HYSTERESIS_W = 100
+# How far the outlook has to move before the scarce/ample verdict flips. A
+# forecast wanders all day; without this the charge order would follow it.
+SCARCITY_HYSTERESIS_KWH = 2.0
 CONF_NO_PD_COMMAND_DELAY = "no_pd_command_delay"
 CONF_ENABLE_SYSTEM_POWER_LIMITS = "enable_system_power_limits"
 CONF_SYSTEM_MAX_CHARGE_POWER = "system_max_charge_power"

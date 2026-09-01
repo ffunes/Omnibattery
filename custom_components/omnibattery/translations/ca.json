@@ -1409,6 +1409,9 @@
   },
   "entity": {
     "switch": {
+      "primary_feedforward": {
+        "name": "Anticipar la demanda real"
+      },
       "manual_mode": {
         "name": "Mode Manual"
       },
@@ -2074,6 +2077,18 @@
           "friday": "Divendres",
           "saturday": "Dissabte",
           "sunday": "Diumenge"
+        }
+      },
+      "charge_priority": {
+        "name": "Prioritat de càrrega",
+        "state": {
+          "automatic": "Automàtica (per hores fins a omplir)"
+        }
+      },
+      "primary_battery": {
+        "name": "Bateria principal",
+        "state": {
+          "automatic": "Automàtica (la més carregada primer)"
         }
       },
       "pd_tuning_profile": {

@@ -1409,6 +1409,9 @@
   },
   "entity": {
     "switch": {
+      "primary_feedforward": {
+        "name": "Werkelijke vraag vooruitsturen"
+      },
       "manual_mode": {
         "name": "Handmatige Modus"
       },
@@ -2074,6 +2077,18 @@
           "friday": "Vrijdag",
           "saturday": "Zaterdag",
           "sunday": "Zondag"
+        }
+      },
+      "charge_priority": {
+        "name": "Laadvolgorde",
+        "state": {
+          "automatic": "Automatisch (op laadduur)"
+        }
+      },
+      "primary_battery": {
+        "name": "Primaire batterij",
+        "state": {
+          "automatic": "Automatisch (volste eerst)"
         }
       },
       "pd_tuning_profile": {

@@ -1413,6 +1413,9 @@
   },
   "entity": {
     "switch": {
+      "primary_feedforward": {
+        "name": "Feed the real demand forward"
+      },
       "manual_mode": {
         "name": "Manual Mode"
       },
@@ -2086,6 +2089,18 @@
           "friday": "Friday",
           "saturday": "Saturday",
           "sunday": "Sunday"
+        }
+      },
+      "charge_priority": {
+        "name": "Charge priority",
+        "state": {
+          "automatic": "Automatic (by hours to full)"
+        }
+      },
+      "primary_battery": {
+        "name": "Primary battery",
+        "state": {
+          "automatic": "Automatic (fullest first)"
         }
       },
       "pd_tuning_profile": {

@@ -230,6 +230,21 @@ class BatteryDriver(ABC):
         """Static traits of this battery (see :class:`DriverCapabilities`)."""
 
     @property
+    def dc_coupled(self) -> bool:
+        """Whether photovoltaic input reaches the battery without an AC stage.
+
+        A hybrid inverter charges its battery straight from the strings; an AC
+        battery has to take the same energy through an inverter and back again,
+        and pays a conversion each way. The difference only matters when there is
+        not enough sun for every battery: then the scarce kilowatt-hours are
+        worth putting where the least of them is lost (see
+        ``control/charge_order.py``).
+
+        Defaults to False, which is what an AC battery is.
+        """
+        return False
+
+    @property
     def model_label(self) -> Optional[str]:
         """Human-readable model for display (panel chip / device page).
 

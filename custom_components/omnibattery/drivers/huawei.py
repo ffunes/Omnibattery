@@ -479,6 +479,11 @@ class HuaweiSolarDriver(BatteryDriver):
         return self._capabilities
 
     @property
+    def dc_coupled(self) -> bool:
+        """The strings and the battery share one inverter; PV never leaves DC."""
+        return True
+
+    @property
     def model_label(self) -> Optional[str]:
         """What this device is, which is the storage rather than the inverter.
 

@@ -115,6 +115,12 @@ from .const import (
     CONF_TARGET_GRID_POWER,
     DEFAULT_TARGET_GRID_POWER,
     CONF_NO_PD_MODE_ENABLED,
+    CONF_CHARGE_PRIORITY,
+    DEFAULT_CHARGE_PRIORITY,
+    CONF_PRIMARY_BATTERY,
+    DEFAULT_PRIMARY_BATTERY,
+    CONF_PRIMARY_FEEDFORWARD_ENABLED,
+    DEFAULT_PRIMARY_FEEDFORWARD_ENABLED,
     CONF_NO_PD_COMMAND_DELAY,
     DEFAULT_NO_PD_MODE_ENABLED,
     DEFAULT_NO_PD_COMMAND_DELAY,
@@ -208,6 +214,7 @@ from .const import (
 )
 from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager
+from .control.residual_load import apply_guards, guards_pending
 from .drivers.base import has_connected_mppt_pv
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
@@ -611,6 +618,20 @@ class ChargeDischargeController:
         # No-PD direct-tracking mode (opt-in): see _apply_no_pd_overrides. Overrides
         # are applied at the end of __init__, after the grid filter tau is set below.
         self.no_pd_mode_enabled = config_entry.data.get(CONF_NO_PD_MODE_ENABLED, DEFAULT_NO_PD_MODE_ENABLED)
+        # Mixed-fleet control (see control/residual_load.py and control/charge_order.py).
+        # Which battery is filled first, which serves the house first, and whether
+        # that one is handed the real demand instead of waiting for a grid error.
+        self.charge_priority = config_entry.data.get(CONF_CHARGE_PRIORITY, DEFAULT_CHARGE_PRIORITY)
+        self.primary_battery = config_entry.data.get(CONF_PRIMARY_BATTERY, DEFAULT_PRIMARY_BATTERY)
+        self.primary_feedforward_enabled = config_entry.data.get(
+            CONF_PRIMARY_FEEDFORWARD_ENABLED, DEFAULT_PRIMARY_FEEDFORWARD_ENABLED
+        )
+        # Latched while there is a surplus to spare, so a cloud edge cannot toggle
+        # the battery in step with the light.
+        self._surplus_guard_latched = False
+        # Whether today's forecast is expected to fill the DC-coupled battery.
+        # Latched so a wandering forecast cannot reshuffle the charge order.
+        self._scarce_solar_latched = False
         self._no_pd_command_delay = config_entry.data.get(CONF_NO_PD_COMMAND_DELAY, DEFAULT_NO_PD_COMMAND_DELAY)
         self._no_pd_debounce_unsub = None  # cancel handle for a pending debounced cycle
         self.enable_system_power_limits = config_entry.data.get(
@@ -2668,6 +2689,11 @@ class ChargeDischargeController:
         # No-PD direct-tracking: re-read flags and (re)apply/release the overrides.
         # Must run after the PD params above are reloaded so the override wins.
         self.no_pd_mode_enabled = self.config_entry.data.get(CONF_NO_PD_MODE_ENABLED, DEFAULT_NO_PD_MODE_ENABLED)
+        self.charge_priority = self.config_entry.data.get(CONF_CHARGE_PRIORITY, DEFAULT_CHARGE_PRIORITY)
+        self.primary_battery = self.config_entry.data.get(CONF_PRIMARY_BATTERY, DEFAULT_PRIMARY_BATTERY)
+        self.primary_feedforward_enabled = self.config_entry.data.get(
+            CONF_PRIMARY_FEEDFORWARD_ENABLED, DEFAULT_PRIMARY_FEEDFORWARD_ENABLED
+        )
         self._no_pd_command_delay = self.config_entry.data.get(CONF_NO_PD_COMMAND_DELAY, DEFAULT_NO_PD_COMMAND_DELAY)
         self._apply_no_pd_overrides()
         self.max_contracted_power = self.config_entry.data.get(CONF_MAX_CONTRACTED_POWER, 7000)
@@ -8190,6 +8216,10 @@ class ChargeDischargeController:
                 and not capacity_protection_must_recheck
                 and not blocked_active_changed
                 and not self._phase_safety_pending
+                # A quiet meter is not evidence the guards have nothing to do:
+                # it can read on target precisely because another regulator is
+                # carrying the load. See control/residual_load.guards_pending.
+                and not guards_pending(self, sensor_raw)
             ):
                 if DEBUG_CONTROL_LOOP_DETAIL:
                     _LOGGER.debug(
@@ -8289,6 +8319,7 @@ class ChargeDischargeController:
             and not blocked_active_changed
             and not self._phase_safety_pending
             and abs(sensor_actual - active_target) < self.deadband
+            and not guards_pending(self, sensor_actual)
         ):
             if DEBUG_CONTROL_LOOP_DETAIL:
                 _LOGGER.debug(
@@ -8512,6 +8543,25 @@ class ChargeDischargeController:
             new_power = self._compute_pd_new_power(
                 error, sensor_elapsed_s, stale_safety_recalc
             )
+        # MIXED-FLEET GUARDS: floor the command at the demand another regulator
+        # may already be hiding, refuse a discharge into a surplus, and cap a
+        # discharge at what the house actually left uncovered. All three measure
+        # against the active target rather than zero, so a deliberate negative
+        # target (curtailment predischarge, a negative pd_target_grid_power) is a
+        # demand they serve rather than one they cancel. Applied here, before
+        # every downstream blocker, so time slots, price and capacity limits keep
+        # the last word over them.
+        guarded = apply_guards(self, new_power, sensor_actual)
+        if guarded != new_power:
+            # One line per acting cycle. The guards themselves log their reasoning
+            # at debug: they are also run over the standing command by
+            # guards_pending, so an INFO inside them would print twice.
+            _LOGGER.info(
+                "Mixed-fleet guards: %.0fW -> %.0fW (target %.0fW)",
+                new_power, guarded, self.compute_active_target(),
+            )
+        new_power = guarded
+
         # ZERO-CROSS HOLD: a charge<->discharge flip must survive the actuator
         # settle window before it becomes a real opposite-direction command (see
         # _apply_zero_cross_hold). Must run before _apply_min_power so a clamped

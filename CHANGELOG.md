@@ -2,7 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Charge share follows the room each battery has left, not its power rating** (#335): batteries aim at one finish time instead of the fastest filling first and the slowest running out of daylight. Discharge is unchanged. Thanks to @sphings79 for the measurements.
+- **Charge order follows the day** (#335): longest to fill first with sun to spare, the DC-coupled battery first on a day the forecast cannot fill it. New `Charge priority` select overrides both.
+- **Primary battery and demand feedforward** (#335, opt-in, off by default): hands the nominated battery the load the fleet must cover, or the fleet the surplus that wants storing, instead of waiting for the meter to deviate — for installations where a second regulator shares the meter. Its figures are shown in the switch attributes whether or not it is on.
+
 ### Fixed
+
+- **A discharge into a surplus is refused, and a discharge past the house's own load is capped** (#335): with two regulators on one meter, one battery charging and another discharging cancel out and the grid reads zero, so a surplus made a round trip through two conversion losses while the deadband held the command.
 
 - **A device reporting a power ceiling of zero shut itself out of every allocation** (#380): a Marstek came back from a restart with both power registers at 0, and adopting that left the battery unable to charge or discharge, with nothing to write those registers again because the controller had stopped addressing it. The last known ceiling now stands, and the mismatch is logged with the entity that restores it. Thanks to @sphings79.
 - **A battery with native daily counters zeroed the system energy totals** (#380): the aggregates require every battery's daily figure to be stamped as belonging to today, and only the derived counter carried that stamp, so one device keeping its own counters produced 0.00 kWh charged and discharged on the overview with 10.3 and 3.97 kWh sitting in the per-battery sensors. The stamp now waits for evidence that the device's own counter has turned over, so a figure still holding yesterday's accumulation across our midnight is never summed as today's. Thanks to @sphings79.

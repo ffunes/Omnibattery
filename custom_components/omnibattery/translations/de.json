@@ -1409,6 +1409,9 @@
   },
   "entity": {
     "switch": {
+      "primary_feedforward": {
+        "name": "Tatsächlichen Bedarf vorsteuern"
+      },
       "manual_mode": {
         "name": "Manueller Modus"
       },
@@ -2074,6 +2077,18 @@
           "friday": "Freitag",
           "saturday": "Samstag",
           "sunday": "Sonntag"
+        }
+      },
+      "charge_priority": {
+        "name": "Ladereihenfolge",
+        "state": {
+          "automatic": "Automatisch (nach Ladedauer)"
+        }
+      },
+      "primary_battery": {
+        "name": "Primärbatterie",
+        "state": {
+          "automatic": "Automatisch (vollste zuerst)"
         }
       },
       "pd_tuning_profile": {

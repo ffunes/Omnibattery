@@ -1409,6 +1409,9 @@
   },
   "entity": {
     "switch": {
+      "primary_feedforward": {
+        "name": "Anticipar la demanda real"
+      },
       "lamp_switch": {
         "name": "LEDs de Estado"
       },
@@ -2082,6 +2085,18 @@
           "friday": "Viernes",
           "saturday": "Sábado",
           "sunday": "Domingo"
+        }
+      },
+      "charge_priority": {
+        "name": "Prioridad de carga",
+        "state": {
+          "automatic": "Automática (por horas hasta llenar)"
+        }
+      },
+      "primary_battery": {
+        "name": "Batería principal",
+        "state": {
+          "automatic": "Automática (la más cargada primero)"
         }
       },
       "pd_tuning_profile": {

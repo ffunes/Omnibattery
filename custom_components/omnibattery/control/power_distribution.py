@@ -31,7 +31,8 @@ from ..const import (
     MULTI_BATTERY_MIN_ACTIVATION,
     MULTI_BATTERY_SELECTION_HOLD_SECONDS,
 )
-from ..energy import effective_total_discharging_energy
+from .charge_order import charge_allocation_weights, charge_order
+from .residual_load import discharge_order_key, primary_coordinator
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -72,37 +73,40 @@ class PowerDistribution:
         available_batteries: list,
         is_charging: bool,
     ) -> list:
-        """Return batteries in the selector's normal SOC/energy priority order."""
+        """Return batteries in the order they should be brought in.
+
+        Charging follows the day's outlook (see ``control/charge_order.py``):
+        which battery has to *start* first, which is not the same question as
+        who gets how many watts.
+
+        Discharging keeps the fullest-first ladder, with a nominated primary
+        battery sorted ahead of it so it is the one that serves the house while
+        a single battery suffices.
+        """
         available_batteries = [
             coordinator for coordinator in available_batteries
             if not self._is_battery_manual_owned(coordinator)
         ]
-        previous_active = (
-            self._controller._active_charge_batteries
-            if is_charging
-            else self._controller._active_discharge_batteries
-        )
+        if is_charging:
+            return charge_order(self._controller, available_batteries)
+
+        primary = primary_coordinator(self._controller)
 
         def sort_key(coordinator):
-            soc = coordinator.data.get("battery_soc", 50) if coordinator.data else 50
-            is_active = coordinator in previous_active
-            if is_charging:
-                effective_soc = soc - (5.0 if is_active else 0)
-                energy = (
-                    coordinator.data.get("total_charging_energy", 0)
-                    if coordinator.data
-                    else 0
-                )
-                return (effective_soc, energy - (2.5 if is_active else 0))
-
-            effective_soc = soc + (5.0 if is_active else 0)
-            energy = effective_total_discharging_energy(coordinator.data) or 0
-            return (-effective_soc, energy - (2.5 if is_active else 0))
+            rank = 0 if coordinator is primary else 1
+            return (rank, *discharge_order_key(self._controller, coordinator))
 
         return sorted(available_batteries, key=sort_key)
 
     def _distribute_power_by_limits(self, total_power: float, available_batteries: list, is_charging: bool) -> dict:
-        """Distribute power among batteries proportionally to their individual limits.
+        """Distribute power among batteries, capped at their individual limits.
+
+        Discharging shares out proportionally to each battery's limit, which is
+        what it can contribute now. Charging shares by the room each has left
+        instead, so the fleet aims at one finish time rather than the fastest
+        battery finishing first and the slowest running out of daylight — see
+        :func:`~.charge_order.charge_allocation_weights`. Either way a battery
+        that would exceed its limit is capped and the excess redistributed.
 
         Returns dict mapping coordinator -> power (int, rounded to 5W).
         """
@@ -129,18 +133,26 @@ class PowerDistribution:
             is_charging,
         )
 
+        # What each share is measured against: the power limit on discharge,
+        # the room left on charge. The cap below stays the power limit either way.
+        weights = (
+            charge_allocation_weights(available_batteries, limits)
+            if is_charging
+            else limits
+        )
+
         allocation = {}
         remaining_batteries = list(available_batteries)
 
         # Iterative allocation: distribute proportionally, cap at limits, redistribute excess
         while remaining_power > 0 and remaining_batteries:
-            current_capacity = sum(limits[c] for c in remaining_batteries)
+            current_capacity = sum(weights[c] for c in remaining_batteries)
             if current_capacity <= 0:
                 break
 
             all_fit = True
             for c in list(remaining_batteries):
-                share = remaining_power * (limits[c] / current_capacity)
+                share = remaining_power * (weights[c] / current_capacity)
                 if share >= limits[c]:
                     # This battery is at its limit
                     allocation[c] = self._round_to_5w(limits[c])
@@ -151,7 +163,7 @@ class PowerDistribution:
             if all_fit:
                 # All remaining batteries can handle their proportional share
                 for c in remaining_batteries:
-                    share = remaining_power * (limits[c] / current_capacity)
+                    share = remaining_power * (weights[c] / current_capacity)
                     allocation[c] = self._round_to_5w(share)
                 break
 

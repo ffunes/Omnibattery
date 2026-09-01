@@ -12,7 +12,11 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (
     DOMAIN,
     CONF_BATTERY_PHASE,
+    CONF_CHARGE_PRIORITY,
+    CONF_PRIMARY_BATTERY,
     CONF_THREE_PHASE_ENABLED,
+    DEFAULT_CHARGE_PRIORITY,
+    DEFAULT_PRIMARY_BATTERY,
     CONF_WEEKLY_FULL_CHARGE_DAY,
     DEFAULT_THREE_PHASE_ENABLED,
     PHASE_ASSIGNMENT_VALUES,
@@ -61,6 +65,12 @@ async def async_setup_entry(
 
     # Add PD tuning profile select (system-level, always available)
     entities.append(PdTuningProfileSelect(hass, entry))
+
+    # Which battery leads, on either side. Only meaningful with more than one,
+    # and the battery count is structural: changing it reloads the entry.
+    if len(entry.data.get("batteries", [])) > 1:
+        entities.append(PrimaryBatterySelect(hass, entry))
+        entities.append(ChargePrioritySelect(hass, entry))
 
     async_add_entities(entities)
 
@@ -237,6 +247,123 @@ class WeeklyFullChargeDaySelect(SelectEntity):
             "name": "Omnibattery System",
             "manufacturer": "Omnibattery",
             "model": "Multi-Battery System",
+        }
+
+
+class _BatteryNameSelect(SelectEntity):
+    """Base for a system-level select whose options are the battery names.
+
+    ``automatic`` is a state rather than a battery, so it carries a translation;
+    the names do not.
+    """
+
+    _AUTOMATIC = "automatic"
+    _conf_key: str = ""
+    _default: str = ""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Initialize the select."""
+        self.hass = hass
+        self.entry = entry
+
+        self._attr_has_entity_name = True
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}{self._attr_translation_key}"
+        self.entity_id = system_entity_id("select", self._attr_translation_key)
+
+    @property
+    def options(self) -> list[str]:
+        """Automatic, plus every configured battery by name."""
+        names = [
+            battery.get("name", "")
+            for battery in self.entry.data.get("batteries", [])
+            if battery.get("name")
+        ]
+        return [self._AUTOMATIC, *names]
+
+    @property
+    def current_option(self) -> str:
+        """Return the nominated battery, or automatic when none is set."""
+        name = self.entry.data.get(self._conf_key, self._default)
+        return name if name in self.options else self._AUTOMATIC
+
+    @property
+    def _controller(self):
+        """The running controller, or None before setup has finished."""
+        return self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {}).get("controller")
+
+    async def async_select_option(self, option: str) -> None:
+        """Persist the choice and hand it to the running controller."""
+        name = "" if option == self._AUTOMATIC else option
+        new_data = dict(self.entry.data)
+        new_data[self._conf_key] = name
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+
+        # The controller reads this every cycle; setting it here means the choice
+        # takes effect now rather than at the next reload. The config key doubles
+        # as the controller attribute name for both of these.
+        controller = self._controller
+        if controller is not None:
+            setattr(controller, self._conf_key, name)
+        _LOGGER.info("%s set to %s", self._conf_key, name or "automatic")
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class PrimaryBatterySelect(_BatteryNameSelect):
+    """Which battery serves the house first.
+
+    Discharge normally goes to the fullest battery. Nominating a primary puts
+    that one ahead of the ladder, and it is the battery the feedforward
+    addresses when that switch is on.
+    """
+
+    _conf_key = CONF_PRIMARY_BATTERY
+    _default = DEFAULT_PRIMARY_BATTERY
+    _attr_translation_key = "primary_battery"
+    _attr_icon = "mdi:numeric-1-box-outline"
+    _attr_should_poll = False
+
+
+class ChargePrioritySelect(_BatteryNameSelect):
+    """Which battery is filled first.
+
+    Left automatic, the order follows the day: with sun enough for everything the
+    battery needing the most hours goes first, and on a thin day the one that
+    loses the least to conversion.
+    """
+
+    _conf_key = CONF_CHARGE_PRIORITY
+    _default = DEFAULT_CHARGE_PRIORITY
+    _attr_translation_key = "charge_priority"
+    _attr_icon = "mdi:battery-arrow-up"
+    # The order and the hours-to-full it reports are recomputed every cycle;
+    # unpolled they would freeze at the moment the selection last changed.
+    _attr_should_poll = True
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Show the order in force and what decided it."""
+        from .control.charge_order import charge_order, scarce_solar_day, time_to_full_h
+
+        controller = self._controller
+        if controller is None:
+            return {}
+        batteries = list(getattr(controller, "coordinators", []))
+        return {
+            "order": [c.name for c in charge_order(controller, batteries)],
+            "hours_to_full": {
+                c.name: round(time_to_full_h(controller, c), 1) for c in batteries
+            },
+            "thin_solar_day": scarce_solar_day(controller),
         }
 
 
