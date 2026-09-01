@@ -106,6 +106,11 @@ _PV_LIT_VOLTAGE_V = 100.0
 # while the strings already stand near 300 V — time the battery is needlessly
 # refused. Set low deliberately: too high curtails a roof that is genuinely
 # producing, too low only costs availability.
+#
+# Both this and the voltage threshold above come from a single installation —
+# one ~374 V array on a SUN2000-8K. A smaller string can genuinely produce
+# below 100 V, so if a second installation disagrees, these numbers are where
+# to look first rather than the logic around them.
 _PV_HARVEST_THRESHOLD_W = 150.0
 # How often a held verdict is re-checked by letting go for a moment. The cost
 # is a slice of command time each interval; the alternative is missing sunrise.
@@ -1158,6 +1163,16 @@ class HuaweiSolarDriver(BatteryDriver):
             # cycle, so they must keep being polled even with their entities off.
             "inverter_max_power", "inverter_ac_power", "battery_power",
             "charging_cutoff_capacity", "discharging_cutoff_capacity",
+            # Inputs of the PV gate (see _update_pv_gate). Without these the
+            # gate cannot form a verdict at all: the harvest reads as absent, so
+            # the verdict stays at its initial "not lit" and the driver commands
+            # through full sun — the failure the gate exists to prevent, put
+            # back by an entity toggle. Solar Power is user-facing, and the
+            # string voltages are enabled_by_default False and only arrive
+            # dragged along by mppt{n}_power, so there are two switches between
+            # this gate and its evidence.
+            "solar_power",
+            *(f"pv{index}_voltage" for index in range(1, _MAX_PV_STRINGS + 1)),
         })
 
     # --- concrete methods the coordinator calls without isinstance guards ----
