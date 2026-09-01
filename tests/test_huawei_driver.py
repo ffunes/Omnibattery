@@ -2616,3 +2616,41 @@ def test_the_proxy_hint_still_reaches_the_user():
         description = strings[section]["step"]["battery_connection_huawei"]["description"]
         assert "{proxy_url}" in description, section
     assert _MODBUS_PROXY_URL.startswith("https://")
+
+
+# ----------------------------------------------------------------------
+# The gate is only as good as its inputs. The coordinator stops polling any
+# key whose entity is disabled unless the driver declares it a control
+# dependency, and Solar Power is a user-facing toggle — so without the
+# declaration a single switch in the entity list puts the 04:32-to-09:22
+# failure back, in full sun and with no warning.
+# ----------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_the_gate_inputs_are_declared_control_dependencies():
+    keys = HuaweiSolarDriver.control_dependency_keys.fget(None)
+    assert "solar_power" in keys
+    for index in range(1, 5):
+        assert f"pv{index}_voltage" in keys
+
+
+@pytest.mark.asyncio
+async def test_the_gate_still_closes_when_its_entities_are_disabled():
+    """What the coordinator asks for once the user disables Solar Power and
+    MPPT Power: the declared dependencies are fetched anyway."""
+    driver = _driver(_fake_client(_lit_blocks()), hass=_hass_with_services())
+    declared = HuaweiSolarDriver.control_dependency_keys.fget(None)
+    await driver.read_telemetry(sorted(declared))
+    assert driver._strings_lit is True
+    assert driver._pv_lit is True
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == 0
+
+
+@pytest.mark.asyncio
+async def test_a_dim_dawn_is_still_read_with_the_entities_disabled():
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    declared = HuaweiSolarDriver.control_dependency_keys.fget(None)
+    await driver.read_telemetry(sorted(declared))
+    assert driver._strings_lit is True
+    assert driver._pv_lit is False
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == -2000
+
