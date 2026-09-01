@@ -43,12 +43,27 @@ def test_disabled_hourly_balance_suppresses_feature_legend_and_markers():
     assert "hourlyBalance: snapshot.hourlyBalanceEnabled" in panel
 
 
-def test_open_cell_below_a_minute_of_coverage_is_omitted_not_plotted_raw():
+def test_open_cell_is_completed_from_the_previous_quarter_never_dropped():
+    """No hole and no spike at the now marker: the open cell is always plotted.
+
+    Dropping it below a minute of coverage left a 30-minute gap straddling the
+    marker, and scaling it by 900 / seconds collapsed the point on a young
+    quarter, so the forecast hand-off looked like a spike.
+    """
     panel = PANEL.read_text(encoding="utf-8")
 
-    assert "if (value != null && seconds != null && seconds < 900) {" in panel
-    assert "plotted[index] = seconds >= 60 ? value * 900 / seconds : null;" in panel
-    assert "seconds >= 60 && seconds < 900" not in panel
+    assert (
+        "if (seconds != null && seconds < 900 && (value != null || previous != null)) {"
+        in panel
+    )
+    assert (
+        "plotted[index] = (value ?? 0) + (previous ?? 0) * (900 - seconds) / 900;"
+        in panel
+    )
+    assert "const previous = this._dailyOperationValueAt(plotted, index - 1);" in panel
+    # The two shapes that produced the artefacts must not come back.
+    assert "plotted[index] = seconds >= 60" not in panel
+    assert "* 900 / seconds;" not in panel
 
 
 def test_forecast_handoff_drops_the_open_cell_when_there_is_no_observed_point():

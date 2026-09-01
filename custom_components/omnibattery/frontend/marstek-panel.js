@@ -3415,13 +3415,19 @@ class MarstekVenusPanel extends HTMLElement {
     const index = snapshot.currentIndex;
     const value = this._dailyOperationNumber(plotted[index]);
     const seconds = this._dailyOperationValueAt(coverage, index);
-    // The live capture contains energy accumulated so far. Extrapolate only
-    // the open cell so it remains comparable with the completed 15-minute
-    // cells and does not create a false drop at the now marker. Below a
-    // minute of coverage the factor exceeds 15x and would amplify noise, so
-    // the point is omitted instead of plotting a near-zero partial.
-    if (value != null && seconds != null && seconds < 900) {
-      plotted[index] = seconds >= 60 ? value * 900 / seconds : null;
+    const previous = this._dailyOperationValueAt(plotted, index - 1);
+    // The live capture contains energy accumulated so far, so the open cell
+    // has to be completed before it is comparable with the closed 15-minute
+    // cells. Scaling it (value * 900 / seconds) divides by a small number
+    // early in the quarter: an energy sensor that reports every 30 s leaves
+    // ~0 kWh over the first minute, which collapsed the point and made the
+    // forecast hand-off read as a spike -- and dropping it below a minute
+    // punched a 30-minute hole straddling the now marker. Complete it from
+    // the previous closed quarter instead: energy already seen plus that
+    // quarter's share of the time still to come. Continuous at both ends
+    // (all of `previous` at 0 s, all of `value` at 900 s), no small divisor.
+    if (seconds != null && seconds < 900 && (value != null || previous != null)) {
+      plotted[index] = (value ?? 0) + (previous ?? 0) * (900 - seconds) / 900;
     }
     return plotted;
   }
