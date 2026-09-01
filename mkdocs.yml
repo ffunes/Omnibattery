@@ -183,4 +183,5 @@ nav:
       - Architecture: reference/architecture.md
       - Battery driver requirements: reference/driver-requirements-template.md
       - Driver assessment · Huawei: reference/driver-assessment-huawei.md
+      - Field evidence · mixed AC/DC charge order: reference/primary-battery-field-evidence.md
   - Changelog: changelog.md
