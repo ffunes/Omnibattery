@@ -486,6 +486,24 @@ read if every battery stopped — rather than the fleet's charging capacity. Tha
 belongs to the control layer rather than to this driver, and is noted here
 because the hybrid is what makes it necessary.
 
+#### The allocator has one seam, and only on the discharge side
+
+When the PV gate closes, a discharge asked of this battery is refused. The
+allocator does not learn that from the refusal itself: it has already handed
+out this battery's share and treats it as served, so the fleet under-delivers
+and nothing picks up the slack.
+
+`dynamic_discharge_limit_w` is the seam that fixes it, because the allocator
+reads it before deciding. Reporting zero while the gate is closed moves the
+share to a battery that can deliver it, and needs no control-layer change.
+
+**There is no charge equivalent.** Nothing narrows what the allocator believes
+this battery will accept, so a charge refused by the gate is still invisible to
+it — the surplus is allocated here, declined, and goes to the grid. On a
+DC-coupled hybrid that loss is smaller than it sounds, since the inverter is
+charging the battery from the strings anyway, but it is a real gap and it
+belongs to the control layer rather than to this driver.
+
 ### 13.10 A form schema must survive serialisation
 
 Home Assistant hands the frontend a *serialised* copy of every form schema, and
