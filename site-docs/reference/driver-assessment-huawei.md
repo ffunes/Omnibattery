@@ -414,15 +414,46 @@ real deficit — which is what asks for discharge. The command goes on justifyin
 itself and survives sunrise: commanded at 04:32 against a genuinely dark sky,
 still standing at 09:22.
 
-**So while there is light on the panels, this driver commands nothing.** It
-releases instead and leaves the inverter to its own regulation, which harvests
+**So while the roof is producing, this driver commands nothing.** It releases
+instead and leaves the inverter to its own regulation, which harvests
 everything and runs the battery from it. That is not a workaround: on a
-DC-coupled hybrid the inverter is the better controller during daylight, because
-it is the only party that knows what the array could be making.
+DC-coupled hybrid the inverter is the better controller during daylight,
+because it is the only party that knows what the array could be making.
 
-The daylight test comes from the strings themselves — a string carries voltage
-when there is light on it and collapses in the dark — so no forecast, sun
-elevation or clock is involved.
+#### What "producing" means, and why it takes two signals
+
+The first test was string voltage alone — a string carries voltage in light and
+collapses in the dark, so no forecast, sun elevation or clock is involved. It
+survives our own commands, which is exactly why it was chosen: under a forcible
+discharge the panels sit at open-circuit voltage and still read daylight.
+
+What it cannot do is tell a bright morning from a dim one. An overcast dawn
+stands near 300 V while the array makes 50 W, and refusing to command there
+costs the house a discharge it needs, for nothing. Measured across three dawns
+on the reference installation, from the first non-zero watt to a sustained
+150 W:
+
+| Dawn | First harvest | Sustained >150 W | Band |
+|---|---|---|---|
+| 30.08 | 06:55 | 07:45 | 50 min |
+| 31.08 | 06:15 | 07:00 | 45 min |
+| 01.09 | 06:48 | 07:38 | 50 min |
+
+So harvested power (32064) is the second signal — with one asymmetry that makes
+it usable at all. A *low* reading proves nothing while a command stands,
+because the production it suppresses is the command's own doing; gating on it
+would read a curtailed roof as darkness, keep commanding, and keep the roof
+curtailed. A *high* reading is decisive whatever the driver is doing, since a
+command can only ever push that number down. That asymmetry is what hands
+control back at sunrise without waiting for anything.
+
+The remaining case — commanding, strings lit, roof quiet — is genuinely
+ambiguous, and is resolved by letting go for a moment and reading again. The
+release is throttled like any other write, so a probe costs the settle window
+plus the ramp interval, about 20 s in every 120 s. Sunrise is worth more.
+
+The threshold is set low on purpose. Too high curtails a roof that is genuinely
+producing; too low only costs availability in the dim band.
 
 What this costs is real and belongs in the decision: **a Huawei battery is only
 under Omnibattery's control after dark.** During the day it follows its own

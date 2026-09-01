@@ -17,6 +17,10 @@ from custom_components.omnibattery.drivers import DriverCapabilities
 from custom_components.omnibattery.drivers.huawei import (
     SENSOR_DEFINITIONS,
     HuaweiSolarDriver,
+    _MIN_WRITE_INTERVAL_S,
+    _PV_PROBE_INTERVAL_S,
+    _PV_PROBE_SETTLE_S,
+    _PV_PROBE_WINDOW_S,
 )
 from custom_components.omnibattery.infra.huawei_modbus_client import (
     decode_i16,
@@ -1989,14 +1993,28 @@ def test_the_grid_sensor_is_named_in_every_language():
 # So while there is light on the panels this driver commands nothing at all and
 # leaves the inverter to its own regulation, which harvests everything.
 # ----------------------------------------------------------------------
-def _lit_blocks():
-    """Strings under load on a sunny morning: 374 V."""
-    return {**_LIVE_BLOCKS, 32016: [3741, 1141, 3757, 1143]}
+def _pv_block(watts):
+    """Register 32064 with a given DC total, AC output left as it was."""
+    return [(watts >> 16) & 0xFFFF, watts & 0xFFFF] + [0] * 14 + [0, 758]
+
+
+def _lit_blocks(watts=5054):
+    """Strings under load on a sunny morning: 374 V, and a roof worth keeping."""
+    return {
+        **_LIVE_BLOCKS,
+        32016: [3741, 1141, 3757, 1143],
+        32064: _pv_block(watts),
+    }
+
+
+def _dim_blocks(watts=50):
+    """An overcast dawn: the strings are up, the array makes almost nothing."""
+    return {**_LIVE_BLOCKS, 32016: [3001, 17, 2987, 16], 32064: _pv_block(watts)}
 
 
 def _dark_blocks():
     """After sunset the voltage collapses with the light."""
-    return {**_LIVE_BLOCKS, 32016: [0, 0, 0, 0]}
+    return {**_LIVE_BLOCKS, 32016: [0, 0, 0, 0], 32064: _pv_block(0)}
 
 
 @pytest.mark.asyncio
@@ -2017,7 +2035,9 @@ async def test_darkness_is_read_the_same_way():
 @pytest.mark.asyncio
 async def test_a_string_at_voltage_but_idle_still_counts_as_lit():
     """The state a held command leaves behind — 374 V at 0.00 A."""
-    driver = _driver(_fake_client({**_LIVE_BLOCKS, 32016: [3741, 0, 3757, 0]}))
+    driver = _driver(_fake_client({
+        **_LIVE_BLOCKS, 32016: [3741, 0, 3757, 0], 32064: _pv_block(5054),
+    }))
     await driver.read_telemetry()
     assert driver._pv_lit is True
 
@@ -2058,6 +2078,209 @@ async def test_sunrise_hands_control_over_without_a_restart():
     await driver.read_telemetry()
     driver._last_write_monotonic = 0.0
     assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == 0
+
+
+# ----------------------------------------------------------------------
+# Voltage alone cannot tell a bright morning from a dim one. Measured across
+# three dawns on the reference installation, the array stays under 150 W for
+# 45-50 minutes after first light while the strings already carry ~300 V —
+# time the battery was refused for nothing.
+#
+# Harvested power closes that hole, but only carefully: while a command stands
+# the production it suppresses is our own artefact, so a low reading proves
+# nothing. A high one still does, which is what hands control back at sunrise.
+# ----------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_an_overcast_dawn_does_not_block_the_battery():
+    """300 V on the strings, 50 W off the roof: nothing worth curtailing."""
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    assert driver._strings_lit is True
+    assert driver._pv_lit is False
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == -2000
+
+
+@pytest.mark.asyncio
+async def test_the_threshold_is_on_harvest_not_on_voltage():
+    driver = _driver(_fake_client(_dim_blocks(watts=151)))
+    await driver.read_telemetry()
+    assert driver._pv_lit is True
+
+
+@pytest.mark.asyncio
+async def test_production_while_commanding_is_believed_at_once():
+    """Our own command can only push this number down, never up."""
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    await driver.apply_setpoint(-2000, read_back=False)
+    assert driver._last_written_w == -2000
+
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _lit_blocks().get(start)
+    )
+    await driver.read_telemetry()
+    assert driver._pv_lit is True
+    # The release still waits out the ramp throttle; see the test below.
+    driver._last_write_monotonic -= _MIN_WRITE_INTERVAL_S + 1
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == 0
+
+
+@pytest.mark.asyncio
+async def test_the_release_waits_out_the_ramp_throttle():
+    """A verdict change does not jump the queue: rewriting mid-ramp achieves
+    nothing, so the hand-back is reported as the command still in force."""
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    await driver.apply_setpoint(-2000, read_back=False)
+
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _lit_blocks().get(start)
+    )
+    await driver.read_telemetry()
+    assert driver._pv_lit is True
+    held = await driver.apply_setpoint(-2000, read_back=False)
+    assert held.net_power_w == -2000
+    assert held.confirmed is False
+
+
+@pytest.mark.asyncio
+async def test_a_quiet_roof_while_commanding_is_not_read_as_darkness():
+    """The 04:32 to 09:22 failure: a held discharge suppresses its own evidence."""
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    await driver.apply_setpoint(-2000, read_back=False)
+
+    # The tracker is now down, so the roof reports nothing whatever the sky does.
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _lit_blocks(watts=0).get(start)
+    )
+    verdict_at = driver._pv_verdict_monotonic
+    await driver.read_telemetry()
+    # No fresh verdict was taken from a reading this driver caused.
+    assert driver._pv_verdict_monotonic == verdict_at
+    assert driver._pv_probe_until == 0.0
+
+
+@pytest.mark.asyncio
+async def test_the_verdict_is_rechecked_by_letting_go():
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    await driver.apply_setpoint(-2000, read_back=False)
+
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _lit_blocks(watts=0).get(start)
+    )
+    # Age the verdict past the probe interval, and past the ramp throttle so
+    # the release can actually be written.
+    driver._pv_verdict_monotonic -= _PV_PROBE_INTERVAL_S + 1
+    driver._last_write_monotonic -= _MIN_WRITE_INTERVAL_S + 1
+    await driver.read_telemetry()
+    assert driver._pv_probe_until > 0.0
+    # While the probe runs the driver lets go, whatever it is asked for.
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == 0
+
+
+@pytest.mark.asyncio
+async def test_a_probe_that_finds_sun_keeps_the_battery_released():
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    await driver.apply_setpoint(-2000, read_back=False)
+
+    driver._pv_verdict_monotonic -= _PV_PROBE_INTERVAL_S + 1
+    driver._last_write_monotonic -= _MIN_WRITE_INTERVAL_S + 1
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _lit_blocks(watts=0).get(start)
+    )
+    await driver.read_telemetry()
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == 0
+
+    # Released long enough for the tracker to recover, and it has.
+    driver._last_write_monotonic -= _PV_PROBE_SETTLE_S + 1
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _lit_blocks().get(start)
+    )
+    await driver.read_telemetry()
+    assert driver._pv_lit is True
+    assert driver._pv_probe_until == 0.0
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == 0
+
+
+@pytest.mark.asyncio
+async def test_a_probe_that_finds_nothing_returns_the_battery():
+    """The dim-dawn case: let go, see 50 W, take the battery back."""
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    await driver.apply_setpoint(-2000, read_back=False)
+
+    driver._pv_verdict_monotonic -= _PV_PROBE_INTERVAL_S + 1
+    driver._last_write_monotonic -= _MIN_WRITE_INTERVAL_S + 1
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _lit_blocks(watts=0).get(start)
+    )
+    await driver.read_telemetry()
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == 0
+
+    driver._last_write_monotonic -= _PV_PROBE_SETTLE_S + 1
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _dim_blocks().get(start)
+    )
+    await driver.read_telemetry()
+    assert driver._pv_lit is False
+    assert driver._pv_probe_until == 0.0
+
+    # Taking the battery back is throttled like any other write, so a probe
+    # costs the settle window plus the ramp interval — about 20 s in 120 s on
+    # the constants above. That is the price of not missing sunrise.
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == 0
+    driver._last_write_monotonic -= _MIN_WRITE_INTERVAL_S + 1
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == -2000
+
+
+@pytest.mark.asyncio
+async def test_a_probe_whose_release_never_landed_is_abandoned():
+    """No reading beats a reading the driver did not actually cause."""
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    await driver.apply_setpoint(-2000, read_back=False)
+
+    driver._pv_verdict_monotonic -= _PV_PROBE_INTERVAL_S + 1
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _lit_blocks(watts=0).get(start)
+    )
+    await driver.read_telemetry()
+    assert driver._pv_probe_until > 0.0
+
+    # The release never reached the hardware: the command still stands.
+    driver._pv_probe_until -= _PV_PROBE_WINDOW_S + 1
+    await driver.read_telemetry()
+    assert driver._pv_probe_until == 0.0
+    assert driver._pv_lit is False
+
+
+@pytest.mark.asyncio
+async def test_darkness_needs_no_probe():
+    driver = _driver(_fake_client(_dark_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    await driver.apply_setpoint(-2000, read_back=False)
+    driver._pv_verdict_monotonic -= 600.0
+    await driver.read_telemetry()
+    assert driver._pv_probe_until == 0.0
+    assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == -2000
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_roof_leaves_the_verdict_alone():
+    driver = _driver(_fake_client(_lit_blocks()))
+    await driver.read_telemetry()
+    assert driver._pv_lit is True
+
+    table = _lit_blocks()
+    table.pop(32064)
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: table.get(start)
+    )
+    await driver.read_telemetry()
+    assert driver._pv_lit is True
 
 
 # ----------------------------------------------------------------------
