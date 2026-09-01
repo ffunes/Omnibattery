@@ -100,6 +100,23 @@ _TARGET_MODE_TIME = 0
 # clock. Measured on the reference installation: 374 V under sun, 0 V at night.
 _PV_LIT_VOLTAGE_V = 100.0
 
+# Voltage alone cannot tell a bright morning from a dim one, so it is paired
+# with harvested power (32064). Measured across three dawns on the reference
+# installation, the array sits below this for 45-50 minutes after first light
+# while the strings already stand near 300 V — time the battery is needlessly
+# refused. Set low deliberately: too high curtails a roof that is genuinely
+# producing, too low only costs availability.
+_PV_HARVEST_THRESHOLD_W = 150.0
+# How often a held verdict is re-checked by letting go for a moment. The cost
+# is a slice of command time each interval; the alternative is missing sunrise.
+_PV_PROBE_INTERVAL_S = 120.0
+# How long a release must stand before the reading means anything. The tracker
+# recovered in 6 s when measured (288 W to 5054 W); this leaves margin.
+_PV_PROBE_SETTLE_S = 15.0
+# When to give up on a probe whose release never reached the hardware. Longer
+# than the settle plus _MIN_WRITE_INTERVAL_S, which throttles the release write.
+_PV_PROBE_WINDOW_S = 45.0
+
 # Slave ids worth trying when scanning. 1 is the factory default for a direct
 # connection; the rest are what dongles and energy managers hand out. Kept short
 # because each one costs a connection, and the inverter needs 1.5 s of silence
@@ -422,8 +439,14 @@ class HuaweiSolarDriver(BatteryDriver):
         # Which pack slots are populated, learned from the packs that answer.
         # Empty until one has, so a failed read never hides a pack that exists.
         self._packs: set[int] = set()
-        # Strings lit but not harvested — see read_telemetry.
+        # Whether the roof is producing enough to leave the inverter alone.
+        # See _update_pv_gate for why that takes two signals rather than one.
         self._pv_lit = False
+        self._strings_lit = False
+        # Monotonic deadline of a probe in progress, 0.0 when none is.
+        self._pv_probe_until = 0.0
+        # When the verdict last came from a reading this driver could trust.
+        self._pv_verdict_monotonic = 0.0
         self._serial: Optional[str] = None
         # Last command actually written, so the deadband can compare against what
         # the hardware was told rather than against what it currently delivers.
@@ -664,16 +687,8 @@ class HuaweiSolarDriver(BatteryDriver):
         if storage is not None:
             self._storage_model = _STORAGE_MODELS.get(int(storage)) or self._storage_model
 
-        # Is there light on the panels? See _pv_lit for why that decides whether
-        # this driver may command anything at all.
-        voltages = [
-            snapshot.get(f"pv{index}_voltage")
-            for index in range(1, self._pv_strings + 1)
-        ]
-        if any(volts is not None for volts in voltages):
-            self._pv_lit = any(
-                volts is not None and volts > _PV_LIT_VOLTAGE_V for volts in voltages
-            )
+        # Whether this driver may command at all. See _update_pv_gate.
+        self._update_pv_gate(snapshot)
 
         for index in (1, 2, 3):
             if snapshot.get(f"pack{index}_serial_number") or snapshot.get(
@@ -768,7 +783,7 @@ class HuaweiSolarDriver(BatteryDriver):
             min(self._ceiling("charge"), int(net_power_w)),
         )
 
-        if applied != 0 and self._pv_lit:
+        if applied != 0 and self._hands_off():
             # A forcible command on this hybrid is not a request but a ceiling:
             # the inverter produces exactly what the command asks for and
             # curtails the rest of the roof. Measured with a 315 W charge
@@ -935,6 +950,103 @@ class HuaweiSolarDriver(BatteryDriver):
             battery_power_w=int(battery_power) if battery_power is not None else None,
             applied=echo,
         )
+
+    def _hands_off(self) -> bool:
+        """Whether the inverter is to be left to its own regulation right now."""
+        return self._pv_lit or bool(self._pv_probe_until)
+
+    def _update_pv_gate(self, snapshot: dict) -> None:
+        """Decide whether the roof is producing enough to leave alone.
+
+        Two signals, and neither is sufficient by itself.
+
+        **String voltage says whether it is day**, and it survives our own
+        commands: a forcible discharge holds the tracker down and the panels
+        sit at open-circuit voltage — 374 V at 0.00 A — so voltage still reads
+        daylight. What it cannot do is tell a bright morning from a dim one. An
+        overcast dawn stands near 300 V while the array makes 50 W, and
+        refusing to command there costs the house a discharge it needs, for
+        nothing. Measured across three dawns on the reference installation,
+        that band runs 45-50 minutes.
+
+        **Harvested power says how much there is to lose**, and is the quantity
+        that actually matters — but a low reading is only honest while this
+        driver is released. Once a command stands, the production it suppresses
+        is our own artefact, and gating on it would read a curtailed roof as
+        darkness, keep commanding, and keep the roof curtailed. That is the
+        failure the voltage test was introduced to stop: a discharge commanded
+        at 04:32 against a dark sky, still standing at 09:22.
+
+        A *high* reading is a different matter. Our command can only ever push
+        this number down, never up, so production above the threshold is
+        decisive whatever the driver is doing — that is what hands control back
+        at sunrise without waiting for anything.
+
+        A low reading while commanding is the one ambiguous case, and the only
+        one that needs a probe: let go, wait for the tracker to find its own
+        maximum, and read again. A probe costs seconds of curtailment. Not
+        probing costs a day of it.
+        """
+        now = asyncio.get_running_loop().time()
+
+        voltages = [
+            snapshot.get(f"pv{index}_voltage")
+            for index in range(1, self._pv_strings + 1)
+        ]
+        if any(volts is not None for volts in voltages):
+            self._strings_lit = any(
+                volts is not None and volts > _PV_LIT_VOLTAGE_V for volts in voltages
+            )
+
+        if not self._strings_lit:
+            # Night needs no second opinion, and nothing is being curtailed.
+            self._pv_lit = False
+            self._pv_probe_until = 0.0
+            self._pv_verdict_monotonic = now
+            return
+
+        harvest = snapshot.get("solar_power")
+        if harvest is None:
+            # No reading is not evidence either way; the last verdict stands.
+            return
+
+        if float(harvest) > _PV_HARVEST_THRESHOLD_W:
+            self._pv_lit = True
+            self._pv_verdict_monotonic = now
+            self._pv_probe_until = 0.0
+            return
+
+        released = (
+            self._last_written_w in (None, 0)
+            and now - self._last_write_monotonic >= _PV_PROBE_SETTLE_S
+        )
+        if released:
+            # Nothing of ours is holding the tracker down, so a low reading is
+            # the roof's own answer and the battery is ours to command.
+            self._pv_lit = False
+            self._pv_verdict_monotonic = now
+            self._pv_probe_until = 0.0
+            return
+
+        if self._pv_probe_until:
+            if now >= self._pv_probe_until:
+                # The release never reached the hardware — the write was
+                # refused, or something else is commanding this battery.
+                # Stop pretending to measure and wait out the interval.
+                _LOGGER.debug(
+                    "Huawei driver: PV probe expired without a usable reading"
+                )
+                self._pv_probe_until = 0.0
+                self._pv_verdict_monotonic = now
+            return
+
+        if now - self._pv_verdict_monotonic >= _PV_PROBE_INTERVAL_S:
+            _LOGGER.info(
+                "Huawei driver: releasing briefly to re-read the roof — %.0fW "
+                "reported while commanding is not evidence of darkness",
+                float(harvest),
+            )
+            self._pv_probe_until = now + _PV_PROBE_WINDOW_S
 
     def _should_write(self, applied: int) -> bool:
         """Whether this set-point is worth four Modbus writes and a 10 s ramp."""
