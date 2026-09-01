@@ -1125,7 +1125,21 @@ class HuaweiSolarDriver(BatteryDriver):
         The subtraction deliberately excludes this battery's own contribution:
         the ceiling has to describe what PV occupies, not what the battery is
         currently doing, or the limit would chase its own output and oscillate.
+
+        Zero while the PV gate is closed, which is the honest answer and not a
+        special case. The allocator hands out shares against this limit and
+        then believes the battery was served; leaving the static envelope in
+        place would have it allocate a discharge that ``apply_setpoint`` is
+        about to refuse, so the fleet under-delivers and no other battery picks
+        up the slack. Saying zero up front moves that share to a battery that
+        can actually deliver it.
+
+        There is no charge equivalent — the allocator has no comparable seam on
+        that side, so a refused charge is still invisible to it. See §13.9 of
+        the driver assessment.
         """
+        if self._hands_off():
+            return 0
         ceiling = data.get("inverter_max_power")
         ac_power = data.get("inverter_ac_power")
         battery_power = data.get("battery_power")

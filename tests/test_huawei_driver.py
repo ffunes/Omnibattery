@@ -2654,3 +2654,55 @@ async def test_a_dim_dawn_is_still_read_with_the_entities_disabled():
     assert driver._pv_lit is False
     assert (await driver.apply_setpoint(-2000, read_back=False)).net_power_w == -2000
 
+
+# ----------------------------------------------------------------------
+# The allocator hands out shares against dynamic_discharge_limit_w and then
+# believes the battery was served. A discharge the gate is about to refuse
+# must therefore not be allocated here in the first place.
+# ----------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_a_closed_gate_takes_the_battery_out_of_the_allocation():
+    driver = _driver(_fake_client(_lit_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    assert driver._pv_lit is True
+    assert driver.dynamic_discharge_limit_w(
+        {"inverter_max_power": 8800, "inverter_ac_power": 5000, "battery_power": 0}
+    ) == 0
+
+
+@pytest.mark.asyncio
+async def test_a_dim_dawn_leaves_the_allocation_alone():
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    assert driver._pv_lit is False
+    assert driver.dynamic_discharge_limit_w(
+        {"inverter_max_power": 8800, "inverter_ac_power": 200, "battery_power": 0}
+    ) == 8600
+
+
+@pytest.mark.asyncio
+async def test_a_probe_also_takes_the_battery_out_of_the_allocation():
+    """While probing the driver lets go, so it cannot serve a share either."""
+    driver = _driver(_fake_client(_dim_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    await driver.apply_setpoint(-2000, read_back=False)
+    driver._pv_verdict_monotonic -= _PV_PROBE_INTERVAL_S + 1
+    driver._last_write_monotonic -= _MIN_WRITE_INTERVAL_S + 1
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _lit_blocks(watts=0).get(start)
+    )
+    await driver.read_telemetry()
+    assert driver._pv_probe_until > 0.0
+    assert driver.dynamic_discharge_limit_w(
+        {"inverter_max_power": 8800, "inverter_ac_power": 200, "battery_power": 0}
+    ) == 0
+
+
+@pytest.mark.asyncio
+async def test_after_dark_the_full_envelope_is_offered():
+    driver = _driver(_fake_client(_dark_blocks()), hass=_hass_with_services())
+    await driver.read_telemetry()
+    assert driver.dynamic_discharge_limit_w(
+        {"inverter_max_power": 8800, "inverter_ac_power": 0, "battery_power": 0}
+    ) == 8800
+
