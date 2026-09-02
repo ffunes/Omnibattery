@@ -429,15 +429,33 @@ discharge the panels sit at open-circuit voltage and still read daylight.
 
 What it cannot do is tell a bright morning from a dim one. An overcast dawn
 stands near 300 V while the array makes 50 W, and refusing to command there
-costs the house a discharge it needs, for nothing. Measured across three dawns
-on the reference installation, from the first non-zero watt to a sustained
-150 W:
+costs the house a discharge it needs, for nothing.
 
-| Dawn | First harvest | Sustained >150 W | Band |
-|---|---|---|---|
-| 30.08 | 06:55 | 07:45 | 50 min |
-| 31.08 | 06:15 | 07:00 | 45 min |
-| 01.09 | 06:48 | 07:38 | 50 min |
+The first three dawns below were measured from the first non-zero watt, because
+string voltage was not being recorded on the reference installation at the time.
+They are therefore a **lower bound**. The fourth is measured from the quantity
+the gate actually uses — the strings crossing 100 V — and the band is roughly
+double:
+
+| Dawn | Gate closes | Sustained >150 W | Band | Measured from |
+|---|---|---|---|---|
+| 30.08 | 06:55 | 07:45 | 50 min | first watt (lower bound) |
+| 31.08 | 06:15 | 07:00 | 45 min | first watt (lower bound) |
+| 01.09 | 06:48 | 07:38 | 50 min | first watt (lower bound) |
+| **02.09** | **06:12:56** | **07:50** | **97 min** | **100 V on the strings** |
+
+On 2 September the strings jumped from 0 V to 123.8 V in a single poll at
+06:12:56 — the inverter waking, not a gradual rise — which is 23 minutes before
+sunrise at 06:36. The array made 1 W or less until 07:12 and did not hold above
+150 W until 07:50.
+
+That the roof genuinely had nothing to give is worth establishing rather than
+assuming, because a forcible discharge was standing for part of that window and
+would suppress production by itself. An irradiance sensor independent of the
+inverter settles it: 5 lx at 06:21, 98 lx at 06:42, 250 lx at 07:10. There was
+no production to curtail. It also confirms the morning was cloudless — the
+reading climbed smoothly from 1486 lx to 1955 lx across the crossing with no
+dips — so 97 minutes is the *clear-sky* band, and an overcast dawn is longer.
 
 So harvested power (32064) is the second signal — with one asymmetry that makes
 it usable at all. A *low* reading proves nothing while a command stands,
@@ -454,6 +472,13 @@ plus the ramp interval, about 20 s in every 120 s. Sunrise is worth more.
 
 The threshold is set low on purpose. Too high curtails a roof that is genuinely
 producing; too low only costs availability in the dim band.
+
+It also carries a band either side, because the ramp crawls across the threshold
+rather than stepping over it: on 2 September the harvest spent twenty minutes
+wobbling between 123 W and 214 W around the 150 W mark while irradiance rose
+smoothly throughout. A bare comparison would flip the gate on every one of
+those, and each flip costs a write that this inverter answers by derating the
+array — the fault the gate exists to avoid, reintroduced by the gate itself.
 
 What this costs is real and belongs in the decision: **a Huawei battery is only
 under Omnibattery's control after dark.** During the day it follows its own
