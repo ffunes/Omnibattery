@@ -112,6 +112,13 @@ _PV_LIT_VOLTAGE_V = 100.0
 # below 100 V, so if a second installation disagrees, these numbers are where
 # to look first rather than the logic around them.
 _PV_HARVEST_THRESHOLD_W = 150.0
+# A band either side of it, because the dawn ramp crawls across the threshold
+# rather than stepping over it. Measured 2 September on a cloudless morning:
+# twenty minutes wobbling between 123 W and 214 W around the 150 W mark, with
+# irradiance rising smoothly throughout — so the wobble is the array, not the
+# weather. A bare comparison would flip the gate on every one of those, and
+# each flip costs a write the inverter answers by derating.
+_PV_HARVEST_HYSTERESIS_W = 50.0
 # How often a held verdict is re-checked by letting go for a moment. The cost
 # is a slice of command time each interval; the alternative is missing sunrise.
 _PV_PROBE_INTERVAL_S = 120.0
@@ -1015,7 +1022,11 @@ class HuaweiSolarDriver(BatteryDriver):
             # No reading is not evidence either way; the last verdict stands.
             return
 
-        if float(harvest) > _PV_HARVEST_THRESHOLD_W:
+        # Latching, with the band above on the way in and below on the way out.
+        threshold = _PV_HARVEST_THRESHOLD_W + (
+            -_PV_HARVEST_HYSTERESIS_W if self._pv_lit else _PV_HARVEST_HYSTERESIS_W
+        )
+        if float(harvest) > threshold:
             self._pv_lit = True
             self._pv_verdict_monotonic = now
             self._pv_probe_until = 0.0

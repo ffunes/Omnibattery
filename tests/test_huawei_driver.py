@@ -2102,9 +2102,32 @@ async def test_an_overcast_dawn_does_not_block_the_battery():
 
 @pytest.mark.asyncio
 async def test_the_threshold_is_on_harvest_not_on_voltage():
-    driver = _driver(_fake_client(_dim_blocks(watts=151)))
+    driver = _driver(_fake_client(_dim_blocks(watts=201)))
     await driver.read_telemetry()
     assert driver._pv_lit is True
+
+
+@pytest.mark.asyncio
+async def test_the_dawn_ramp_does_not_flip_the_gate_on_every_wobble():
+    """Measured 2 September: twenty minutes between 123 W and 214 W around the
+    threshold, with irradiance rising smoothly — the array, not the weather."""
+    driver = _driver(_fake_client(_dim_blocks(watts=123)))
+    await driver.read_telemetry()
+    assert driver._pv_lit is False
+
+    for watts, expected in ((176, False), (214, True), (152, True), (123, True)):
+        driver._client.async_read_holding_block = AsyncMock(
+            side_effect=lambda start, count, w=watts: _dim_blocks(watts=w).get(start)
+        )
+        await driver.read_telemetry()
+        assert driver._pv_lit is expected, f"{watts} W gave {driver._pv_lit}"
+
+    # Clear of the band on the way out, and it lets go.
+    driver._client.async_read_holding_block = AsyncMock(
+        side_effect=lambda start, count: _dim_blocks(watts=99).get(start)
+    )
+    await driver.read_telemetry()
+    assert driver._pv_lit is False
 
 
 @pytest.mark.asyncio
