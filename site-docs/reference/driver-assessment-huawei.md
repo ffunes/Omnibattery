@@ -579,6 +579,21 @@ DC-coupled hybrid that loss is smaller than it sounds, since the inverter is
 charging the battery from the strings anyway, but it is a real gap and it
 belongs to the control layer rather than to this driver.
 
+What that gap does *not* do is get the battery diagnosed as broken, which was
+the worry worth checking: a command that is refused, allocated as if it were
+served, and answered with 0 W is exactly the shape the non-responsive tracker
+looks for. Both of the paths that judge delivery are closed here, and neither by
+accident. The per-write ACK path never runs, because a 25 s actuator is not on
+the readback hot path at all — the control layer issues those writes blind and
+returns before anything examines the unconfirmed result. The poll-time path only
+runs where the polled set-points already equal the commanded power, and a
+refused charge leaves this driver holding a release, so they never do; the echo
+returned with the refusal is merged into the coordinator's data on that same
+cycle, which closes the one-cycle window where stale telemetry could still show
+the old command. Three consecutive cycles are needed to record anything, six to
+exclude. Pinned by
+`test_pv_gated_charge_is_not_diagnosed_as_a_broken_battery`.
+
 ### 13.10 A form schema must survive serialisation
 
 Home Assistant hands the frontend a *serialised* copy of every form schema, and
