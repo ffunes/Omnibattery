@@ -966,6 +966,26 @@ class SolarProfileTracker:
         self._detect_capacity_regime(day.local_date)
 
     @staticmethod
+    def _recent_totals(days: Sequence[SolarProfileDay]) -> list[float]:
+        """Reference totals for the relative-energy gates: newest days only.
+
+        Weighing a day against every retained day makes the reference drift
+        with the season and, worse, lets days recorded under an incompatible
+        scale veto every correct day that follows them: the relative gate
+        rejects the new days, so ``_day_quality`` never marks them clear, so
+        ``_detect_capacity_regime`` -- the machinery that exists to retire the
+        old scale -- never sees the regime it is supposed to notice.  Bounding
+        the reference to the most recent days breaks that deadlock and lets a
+        changed scale age out on its own.
+        """
+        ordered = sorted(
+            (day for day in days if day.daylight_seconds > 0.0),
+            key=lambda day: day.local_date,
+            reverse=True,
+        )
+        return [day.total_energy_kwh for day in ordered[:SOLAR_MIN_RECENT_DAYS]]
+
+    @staticmethod
     def _robust_day_peak(day: SolarProfileDay) -> float | None:
         """Return a peak estimate resistant to isolated sensor spikes."""
         powers = [
@@ -997,7 +1017,7 @@ class SolarProfileTracker:
         minimum_days = SOLAR_CAPACITY_RECENT_CLEAR_DAYS + SOLAR_CAPACITY_BASELINE_CLEAR_DAYS
         if len(complete) < minimum_days:
             return False
-        recent_totals = [day.total_energy_kwh for day in complete if day.daylight_seconds > 0.0]
+        recent_totals = self._recent_totals(complete)
         clear: list[tuple[date, float]] = []
         for day in sorted(complete, key=lambda item: item.local_date):
             valid, quality, _reason = _day_quality(day, recent_totals)
@@ -1022,11 +1042,25 @@ class SolarProfileTracker:
             return False
 
         new_generation = self._generation + 1
-        transition_dates = {local_date for local_date, _peak in recent}
+        # The confirming days are the newest ones, so the regime boundary sits
+        # at the *oldest* end of the trailing run that already matches the new
+        # peak.  Carrying that whole run over keeps a usable shape instead of
+        # blanking the profile until seven fresh days accumulate, and only the
+        # boundary day is marked as a transition -- it is the one that may
+        # straddle the change, while the days after it describe the new regime.
+        carried = list(recent)
+        for entry in reversed(clear[:baseline_end]):
+            if abs(entry[1] / recent_peak - 1.0) > SOLAR_CAPACITY_SHIFT_THRESHOLD:
+                break
+            carried.insert(0, entry)
+        carried_dates = {local_date for local_date, _peak in carried}
+        boundary_date = carried[0][0]
         for day in self._days.values():
-            if day.local_date not in transition_dates or day.generation != self._generation:
+            if day.local_date not in carried_dates or day.generation != self._generation:
                 continue
             day.generation = new_generation
+            if day.local_date != boundary_date:
+                continue
             for index, coverage in enumerate(day.coverage_s):
                 if coverage > 0.0:
                     day.quality_flags[index] |= int(SolarQualityFlag.CONFIGURATION_TRANSITION)
@@ -1098,7 +1132,7 @@ class SolarProfileTracker:
         target_daylight_hours: float | None = None,
     ) -> list[tuple[SolarProfileDay, float, float]]:
         complete = [day for day in self._days.values() if day.complete and day.generation == self._generation]
-        recent_totals = [day.total_energy_kwh for day in complete if day.daylight_seconds > 0]
+        recent_totals = self._recent_totals(complete)
         result: list[tuple[SolarProfileDay, float, float]] = []
         for day in complete:
             age_days = (target_date - day.local_date).days
@@ -1486,6 +1520,47 @@ class SolarProfileTracker:
             "solar_profile", self.async_backfill_from_recorder
         )
 
+    def _day_reports(self) -> list[dict[str, Any]]:
+        """Per-day admission verdict so a rejected day names its own reason.
+
+        The aggregate counters say how many days were admitted but never why
+        the rest were dropped, which leaves a silently rotting profile with no
+        way to tell a coverage hole from an invalid solar window.
+        """
+        complete = [
+            day
+            for day in self._days.values()
+            if day.complete and day.generation == self._generation
+        ]
+        recent_totals = self._recent_totals(complete)
+        reports: list[dict[str, Any]] = []
+        for local_date in sorted(self._days, reverse=True):
+            day = self._days[local_date]
+            valid, quality, reason = _day_quality(day, recent_totals)
+            _energy, progress_coverage, _flags = _progress_day(day)
+            daylight = day.daylight_seconds
+            reports.append(
+                {
+                    "date": local_date.isoformat(),
+                    "valid": valid,
+                    "reason": reason,
+                    "complete": day.complete,
+                    "generation": day.generation,
+                    "total_kwh": round(day.total_energy_kwh, 3),
+                    "daylight_h": round(day.daylight_hours, 2),
+                    "solar_start": day.solar_start.isoformat() if day.solar_start else None,
+                    "solar_end": day.solar_end.isoformat() if day.solar_end else None,
+                    "coverage_ratio": (
+                        round(math.fsum(progress_coverage) / daylight, 3)
+                        if daylight > 0.0
+                        else 0.0
+                    ),
+                    "forecast_reference_kwh": day.forecast_reference_kwh,
+                    "quality": round(quality, 3),
+                }
+            )
+        return reports
+
     def diagnostics(self, target_date: date | None = None) -> dict[str, Any]:
         target_date = target_date or self._today()
         snapshot = self.learn_shape(target_date)
@@ -1528,6 +1603,7 @@ class SolarProfileTracker:
             "backfill_blocks": self._backfill_blocks,
             "backfill_duration_last_s": round(self._backfill_last_duration_s, 3),
             "shape_progress_24": summary[:24],
+            "days": self._day_reports(),
         }
 
 

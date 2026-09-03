@@ -276,3 +276,108 @@ def test_invalid_direct_power_does_not_become_a_zero_sample():
     )
 
     assert tracker._read_power_kw("sensor.pv") is None
+
+
+def test_day_reports_name_the_reason_each_day_was_rejected():
+    profile = _profile()
+    today = date.today()
+    valid_day = today - timedelta(days=1)
+    windowless = today - timedelta(days=2)
+    holed = today - timedelta(days=3)
+    profile._days = {
+        valid_day: _full_day(valid_day),
+        windowless: _full_day(windowless),
+        holed: _full_day(holed),
+    }
+    # A day whose solar window was never established still holds raw energy.
+    profile._days[windowless].solar_start = None
+    profile._days[windowless].solar_end = None
+    # A day sampled with gaps keeps its window but loses coverage inside it.
+    for index in range(32, 64):
+        profile._days[holed].coverage_s[index] = 0.0
+        profile._days[holed].energy_kwh[index] = 0.0
+
+    reports = {report["date"]: report for report in profile._day_reports()}
+
+    assert reports[valid_day.isoformat()]["valid"] is True
+    assert reports[valid_day.isoformat()]["reason"] is None
+    assert reports[windowless.isoformat()]["reason"] == "solar_window_invalid"
+    assert reports[holed.isoformat()]["reason"] == "insufficient_coverage"
+    assert reports[holed.isoformat()]["coverage_ratio"] < 0.90
+
+
+def test_stale_scale_days_cannot_veto_the_current_scale():
+    """A batch of days recorded at a wrong scale must age out of the reference.
+
+    Regression for a profile that recorded ~60x inflated day totals until a
+    fix landed: the inflated days kept the relative-energy median so high that
+    every correct day after them was rejected, and the profile could never
+    recover on its own.
+    """
+    profile = _profile()
+    today = date.today()
+    profile._days = {}
+    for offset in range(8, 18):  # Old regime: same shape, 60x the energy.
+        local_date = today - timedelta(days=offset)
+        day = _full_day(local_date)
+        day.energy_kwh = [value * 60.0 for value in day.energy_kwh]
+        profile._days[local_date] = day
+    for offset in range(1, 8):  # Current regime: correct energy.
+        local_date = today - timedelta(days=offset)
+        profile._days[local_date] = _full_day(local_date)
+
+    reports = {report["date"]: report for report in profile._day_reports()}
+    current = [
+        reports[(today - timedelta(days=offset)).isoformat()] for offset in range(1, 8)
+    ]
+
+    assert all(report["valid"] for report in current), [
+        (report["date"], report["reason"]) for report in current if not report["valid"]
+    ]
+    assert profile.learn_shape(today).mature is True
+
+
+def test_regime_change_carries_the_whole_matching_run_and_stays_mature():
+    """The new generation must keep the days that already match the new scale.
+
+    Moving only the three confirming days -- and flagging all of them as a
+    transition, which excludes their bins -- left the new generation with no
+    shape at all, so a profile that was mature went back to the sinusoidal
+    fallback for a week after every regime change.
+    """
+    profile = _profile()
+    profile.request_save = lambda: None
+    reference = date.today()
+    profile._days = {}
+    for offset in range(1, 25):
+        local_date = reference - timedelta(days=offset)
+        day = _full_day(local_date)
+        if offset >= 8:  # Old regime: same shape, 60x the energy.
+            day.energy_kwh = [value * 60.0 for value in day.energy_kwh]
+        profile._days[local_date] = day
+    assert profile.learn_shape(reference).mature is True
+
+    assert profile.detect_capacity_regime(reference) is True
+
+    assert profile.generation == 2
+    carried = [reference - timedelta(days=offset) for offset in range(1, 8)]
+    assert all(profile._days[local_date].generation == 2 for local_date in carried)
+    assert all(
+        profile._days[reference - timedelta(days=offset)].generation == 1
+        for offset in range(8, 25)
+    )
+    # Only the oldest day of the run straddles the change.
+    flagged = [
+        local_date
+        for local_date in carried
+        if any(
+            flags & int(SolarQualityFlag.CONFIGURATION_TRANSITION)
+            for flags in profile._days[local_date].quality_flags
+        )
+    ]
+    assert flagged == [reference - timedelta(days=7)]
+    # The six unflagged days still describe a shape, so no maturity gap opens.
+    snapshot = profile.learn_shape(reference)
+    assert snapshot.mature is True
+    assert snapshot.eligible_days == 7
+    assert all(count == 6 for count in snapshot.bin_contributions)
