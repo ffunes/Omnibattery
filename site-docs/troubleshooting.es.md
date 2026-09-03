@@ -73,9 +73,10 @@ La integración monitoriza los registros `Alarm Status` y `Fault Status` de la b
 Es normal mientras el perfil de 28 días está aprendiendo o cuando los intervalos
 solicitados no cumplen su contrato de cobertura. Comprueba
 `sensor.omnibattery_expected_home_consumption_profile` y los diagnósticos de la
-integración. Cambiar la fuente, un ajuste de cargas o la zona horaria
-invalida deliberadamente el perfil guardado; después el backfill del Recorder lo
-reconstruye en segundo plano. Los huecos de más de cinco minutos no se interpolan.
+integración. Cambiar la fuente o un ajuste de cargas conserva todos los días
+aprendidos, y un cambio de zona horaria los reubica según el desfase entre ambas
+zonas; después el backfill del Recorder reconstruye en segundo plano lo que siga
+faltando. Los huecos de más de cinco minutos no se interpolan.
 
 ### El perfil solar sigue inmaduro o usa fallback
 

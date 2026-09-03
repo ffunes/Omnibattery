@@ -6,6 +6,9 @@ from custom_components.omnibattery.config_flow import (
     MarstekVenusConfigFlow,
     OptionsFlowHandler,
 )
+from custom_components.omnibattery.tracking.consumption_profile import (
+    ConsumptionProfileTracker,
+)
 
 
 def _schema_defaults(result) -> dict[str, object]:
@@ -290,3 +293,48 @@ async def test_options_flow_keeps_runtime_fields_when_power_sensor_is_added():
     assert flow.excluded_devices[0]["activity_sensor"] == "binary_sensor.ev_charging"
     assert flow.excluded_devices[0]["enabled"] is False
     assert flow.excluded_devices[0]["exclusion_pct"] == 60
+
+
+def _profile_fingerprint(entry: SimpleNamespace) -> str:
+    """Fingerprint the 28-day consumption profile reports source changes with."""
+    profile = ConsumptionProfileTracker.__new__(ConsumptionProfileTracker)
+    profile._config_entry = entry
+    profile._hass = SimpleNamespace(config=SimpleNamespace(time_zone="Europe/Madrid"))
+    return profile.configuration_fingerprint()
+
+
+async def test_resaving_a_device_unchanged_is_not_a_source_change():
+    """A no-op pass through the options flow must not read as a new source."""
+    entry = SimpleNamespace(
+        entry_id="profile-entry",
+        data={
+            "consumption_sensor": "sensor.grid",
+            "excluded_devices": [
+                {
+                    "power_sensor": "sensor.wallbox_power",
+                    "included_in_consumption": True,
+                    "enabled": False,
+                    "exclusion_pct": 60,
+                }
+            ],
+        },
+    )
+    before = _profile_fingerprint(entry)
+
+    flow = _options_flow(entry)
+    form = await flow.async_step_add_excluded_device()
+    await flow.async_step_add_excluded_device(_schema_defaults(form))
+
+    resaved = SimpleNamespace(
+        entry_id=entry.entry_id,
+        data={**entry.data, "excluded_devices": flow.excluded_devices},
+    )
+    assert _profile_fingerprint(resaved) == before
+
+    changed = SimpleNamespace(
+        entry_id=entry.entry_id,
+        data={**entry.data, "excluded_devices": [
+            {**flow.excluded_devices[0], "exclusion_pct": 40}
+        ]},
+    )
+    assert _profile_fingerprint(changed) != before

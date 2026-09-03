@@ -161,8 +161,13 @@ cannot erase household demand that can still be expected later in the day.
 
 Recorder backfill runs in the background after startup and uses one query per
 configured source. Raw profile data is isolated in
-`omnibattery.<entry_id>.consumption_profile`; changing the source, load
-adjustments or Home Assistant timezone invalidates it and starts a fresh learn.
+`omnibattery.<entry_id>.consumption_profile`. Nothing you configure erases what
+it has learned: changing the source or a load adjustment only breaks sample
+continuity and triggers a backfill of the days still missing, and changing the
+Home Assistant timezone re-bins the stored days by the offset between the two
+zones instead of dropping them (the two edge days keep only part of their hours
+and are re-fetched by backfill). Only a stored timezone that no longer exists
+forces a fresh learn.
 
 The diagnostic sensor
 `sensor.omnibattery_expected_home_consumption_profile` exposes the current

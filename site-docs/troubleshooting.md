@@ -73,9 +73,10 @@ The integration monitors the battery's `Alarm Status` and `Fault Status` registe
 This is expected while the 28-day profile is learning or when the requested
 intervals do not meet its coverage contract. Check
 `sensor.omnibattery_expected_home_consumption_profile` and the integration
-diagnostics endpoint. A source, excluded-load adjustment or timezone change
-intentionally invalidates the stored profile; Recorder backfill then
-rebuilds it in the background. A gap longer than five minutes is not interpolated.
+diagnostics endpoint. Changing a source or an excluded-load adjustment keeps
+every learned day, and a timezone change re-bins them by the offset between the
+two zones; Recorder backfill then rebuilds whatever is still missing in the
+background. A gap longer than five minutes is not interpolated.
 
 ### The solar profile remains immature or falls back
 

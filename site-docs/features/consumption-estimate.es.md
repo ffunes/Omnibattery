@@ -163,9 +163,13 @@ puntual no elimine la demanda doméstica que aún cabe esperar durante el día.
 
 Tras arrancar, el backfill del Recorder se ejecuta en segundo plano con una
 consulta por cada fuente configurada. Los datos crudos están aislados en
-`omnibattery.<entry_id>.consumption_profile`; cambiar la fuente, los ajustes de
-cargas o la zona horaria de Home Assistant invalida el perfil y comienza un
-aprendizaje nuevo.
+`omnibattery.<entry_id>.consumption_profile`. Nada de lo que configures borra lo
+aprendido: cambiar la fuente o un ajuste de cargas sólo rompe la continuidad del
+muestreo y lanza un backfill de los días que falten, y cambiar la zona horaria
+de Home Assistant reubica los días guardados según el desfase entre ambas zonas
+en vez de descartarlos (los dos días de los extremos se quedan con parte de sus
+horas y el backfill los vuelve a pedir). Sólo una zona horaria guardada que ya
+no exista obliga a aprender de cero.
 
 El sensor de diagnóstico
 `sensor.omnibattery_expected_home_consumption_profile` expone la previsión,

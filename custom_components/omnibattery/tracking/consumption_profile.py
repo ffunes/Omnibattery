@@ -318,6 +318,69 @@ def _local_segments(
     return segments
 
 
+def _named_timezone(name: str) -> Any | None:
+    """Resolve a stored IANA name, or ``None`` when it no longer exists."""
+    try:
+        return dt_util.get_time_zone(name) or ZoneInfo(name)
+    except Exception:  # noqa: BLE001 - HA may expose a custom tz provider
+        return None
+
+
+def rebin_days_to_timezone(
+    days: dict[date, ProfileDay],
+    old_tz: Any,
+    new_tz: Any,
+) -> dict[date, ProfileDay]:
+    """Re-express local-clock bins in another timezone instead of dropping them.
+
+    Every current IANA offset is a whole number of quarter-hours apart, so each
+    stored bin lands on exactly one target bin; the proportional split below is
+    only the safety net for a pair that does not line up.
+    """
+    rebinned: dict[date, ProfileDay] = {}
+    partial: set[date] = set()
+    for day in days.values():
+        for index in range(INTERVAL_COUNT):
+            coverage = day.coverage_s[index]
+            energy = day.energy_kwh[index]
+            if coverage <= 0.0 or not math.isfinite(coverage) or not math.isfinite(energy):
+                continue
+            wall = datetime.combine(
+                day.local_date,
+                time(
+                    index // INTERVALS_PER_HOUR,
+                    (index % INTERVALS_PER_HOUR) * INTERVAL_MINUTES,
+                ),
+            )
+            # ponytail: fold=0 only. An autumn repeated hour was already merged
+            # into one bin by capture, so its second pass moves an hour early
+            # once a year; splitting it back apart is not recoverable anyway.
+            start_ts = wall.replace(tzinfo=old_tz).timestamp()
+            segments = _local_segments(
+                _datetime_from_timestamp(start_ts, new_tz),
+                _datetime_from_timestamp(start_ts + INTERVAL_SECONDS, new_tz),
+            )
+            span = math.fsum(end - start for start, end, _ in segments)
+            if span <= 0.0:
+                continue
+            for segment_start, segment_end, midpoint in segments:
+                share = (segment_end - segment_start) / span
+                local_date = midpoint.date()
+                target = rebinned.setdefault(local_date, ProfileDay(local_date))
+                target_index = _interval_index(midpoint.timetz().replace(tzinfo=None))
+                target.energy_kwh[target_index] += energy * share
+                target.coverage_s[target_index] += coverage * share
+                if not day.complete:
+                    partial.add(local_date)
+    for local_date, day in rebinned.items():
+        # The two edge days now hold only part of their hours. Leaving them
+        # incomplete is what makes Recorder backfill re-fetch them.
+        day.complete = local_date not in partial and all(
+            value > 0.0 for value in day.coverage_s
+        )
+    return rebinned
+
+
 def _interval_index(local_time: time) -> int:
     """Return the quarter-hour index for a local time."""
     return min(INTERVAL_COUNT - 1, (local_time.hour * 60 + local_time.minute) // INTERVAL_MINUTES)
@@ -660,22 +723,34 @@ class ConsumptionProfileTracker:
         )
 
     def configuration_fingerprint(self) -> str:
-        """Hash consumption sources and load adjustments, excluding solar forecast."""
+        """Hash consumption sources and load adjustments, excluding solar forecast.
+
+        The hash no longer gates the raw days — learned capture is never
+        discarded for a configuration change — it only tells the update
+        listener that the sources moved, so a Recorder backfill can fill what
+        is missing. Devices are hashed by what their fields *mean*, not by
+        which keys the config happens to carry, so the options flow rewriting
+        its own defaults does not read as a source change.
+        """
         data = getattr(self._config_entry, "data", {}) or {}
         devices = []
         for device in data.get("excluded_devices", []) or []:
             if not isinstance(device, dict):
                 continue
+            exclusion_pct = device.get("exclusion_pct")
             devices.append(
                 {
-                    key: device.get(key)
-                    for key in (
-                        "enabled",
-                        "power_sensor",
-                        "included_in_consumption",
-                        "exclusion_pct",
-                        "ev_charger_no_telemetry",
-                    )
+                    "enabled": bool(device.get("enabled", True)),
+                    "power_sensor": device.get("power_sensor") or None,
+                    "included_in_consumption": bool(
+                        device.get("included_in_consumption", True)
+                    ),
+                    "exclusion_pct": float(
+                        100 if exclusion_pct is None else exclusion_pct
+                    ),
+                    "ev_charger_no_telemetry": bool(
+                        device.get("ev_charger_no_telemetry", False)
+                    ),
                 }
             )
         devices.sort(
@@ -766,17 +841,28 @@ class ConsumptionProfileTracker:
         current_timezone = getattr(
             getattr(self._hass, "config", None), "time_zone", None
         )
-        if (
-            stored_fingerprint
-            and stored_fingerprint != expected_fingerprint
-        ) or (stored_timezone and stored_timezone != current_timezone):
-            self._days = {}
-            self._invalidated = True
-            self._active_fingerprint = expected_fingerprint
-            self._last_error = "profile invalidated after source or timezone change"
-            self._loaded = True
-            _LOGGER.info("Consumption profile: invalidated after configuration change")
-            return False
+        # No configuration change discards raw days. A source or load change
+        # keeps them as captured; a timezone move re-bins them, because the 96
+        # slots are local wall-clock and would otherwise describe other hours.
+        previous_tz: Any = None
+        if stored_timezone and stored_timezone != current_timezone:
+            previous_tz = _named_timezone(stored_timezone)
+            if previous_tz is None:
+                self._days = {}
+                self._invalidated = True
+                self._active_fingerprint = expected_fingerprint
+                self._last_error = "profile invalidated after unknown timezone change"
+                self._loaded = True
+                _LOGGER.warning(
+                    "Consumption profile: discarded raw days; stored timezone %s "
+                    "is unknown",
+                    stored_timezone,
+                )
+                return False
+        if stored_fingerprint and stored_fingerprint != expected_fingerprint:
+            _LOGGER.info(
+                "Consumption profile: sources changed; keeping the learned days"
+            )
 
         if data.get("capture_version") != PROFILE_CAPTURE_VERSION:
             self._days = {}
@@ -803,6 +889,14 @@ class ConsumptionProfileTracker:
                 if previous is None or sum(parsed.coverage_s) > sum(previous.coverage_s):
                     loaded[parsed.local_date] = parsed
 
+        if previous_tz is not None:
+            loaded = rebin_days_to_timezone(loaded, previous_tz, self._timezone())
+            _LOGGER.info(
+                "Consumption profile: re-binned %d days from %s to %s",
+                len(loaded),
+                stored_timezone,
+                current_timezone,
+            )
         self._days = loaded
         self._prune()
         self._active_fingerprint = expected_fingerprint
@@ -814,20 +908,24 @@ class ConsumptionProfileTracker:
         return bool(self._days)
 
     def invalidate_if_configuration_changed(self) -> bool:
-        """Clear incompatible raw data after an options/source update."""
+        """Report a source change so the caller can backfill; keep the days.
+
+        The learned profile survives every integration setting. Only the open
+        sample is dropped, so the first reading taken under the new sources is
+        a fresh baseline instead of a trapezoid spanning both derivations.
+        """
         current = self.configuration_fingerprint()
         if current == self._active_fingerprint:
             return False
+        # An in-flight backfill still holds the previous device list; stopping
+        # it lets the caller start one that reads the new configuration.
         self.cancel_backfill()
-        self._days = {}
         self._active_fingerprint = current
-        self._invalidated = True
-        self._last_error = "profile invalidated after source or load-adjustment change"
         self._last_sample_time = None
         self._last_sample_monotonic = None
         self._last_power_kw = None
         self.request_save()
-        _LOGGER.info("Consumption profile: invalidated after source/load configuration change")
+        _LOGGER.info("Consumption profile: sources changed; keeping the learned days")
         return True
 
     def _store_payload(self) -> dict[str, Any]:

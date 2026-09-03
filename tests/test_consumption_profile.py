@@ -21,6 +21,7 @@ from custom_components.omnibattery.tracking.consumption_profile import (
     _series_to_bins,
     adjust_remaining_fallback_energy,
     fallback_daily_intervals,
+    rebin_days_to_timezone,
     split_sample_across_bins,
 )
 
@@ -655,3 +656,59 @@ def test_range_query_prorates_partial_interval_and_masks_slot_days():
     # The 16 minutes are all in one nominal 1 kWh/hour profile, but the middle
     # 8 minutes are a configured Monday charging window.
     assert result.energy_kwh == pytest.approx(8 / 15, abs=1e-6)
+
+
+def test_a_source_change_keeps_the_learned_days():
+    """No integration setting may erase learned capture (only a timezone move)."""
+    today = date.today()
+    profile = _profile({today: _day(today, 1.0)})
+    profile._config_entry = SimpleNamespace(
+        entry_id="e1", data={"consumption_sensor": "sensor.grid"}
+    )
+    profile._backfill_generation = 1
+    profile._backfill_task = None
+    profile._backfill_status = "complete"
+    profile._active_fingerprint = profile.configuration_fingerprint()
+
+    assert profile.invalidate_if_configuration_changed() is False
+
+    profile._config_entry.data = {"consumption_sensor": "sensor.other_grid"}
+
+    assert profile.invalidate_if_configuration_changed() is True
+    assert list(profile._days) == [today]
+    # Continuity is broken so the next sample is a baseline, not a trapezoid
+    # spanning both derivations.
+    assert profile._last_sample_time is None
+
+
+def test_a_timezone_change_moves_the_bins_instead_of_dropping_them():
+    """Madrid 20:00 is Lisbon 19:00: the same energy, one hour earlier."""
+    day = ProfileDay(date(2026, 3, 3))
+    day.energy_kwh[80] = 0.5  # 20:00-20:15 local
+    day.coverage_s[80] = INTERVAL_SECONDS
+    day.complete = True
+
+    rebinned = rebin_days_to_timezone(
+        {day.local_date: day}, MADRID, ZoneInfo("Europe/Lisbon")
+    )
+
+    moved = rebinned[date(2026, 3, 3)]
+    assert moved.energy_kwh[76] == pytest.approx(0.5)  # 19:00-19:15 local
+    assert moved.coverage_s[76] == pytest.approx(INTERVAL_SECONDS)
+    assert moved.energy_kwh[80] == 0.0
+    # A day rebuilt from partial hours stays incomplete so backfill re-fetches it.
+    assert moved.complete is False
+
+
+def test_rebinning_carries_energy_across_the_local_date_boundary():
+    """Madrid 00:00 is the previous day 23:00 in Lisbon."""
+    day = ProfileDay(date(2026, 3, 3))
+    day.energy_kwh[0] = 0.25
+    day.coverage_s[0] = INTERVAL_SECONDS
+
+    rebinned = rebin_days_to_timezone(
+        {day.local_date: day}, MADRID, ZoneInfo("Europe/Lisbon")
+    )
+
+    assert set(rebinned) == {date(2026, 3, 2)}
+    assert rebinned[date(2026, 3, 2)].energy_kwh[92] == pytest.approx(0.25)
