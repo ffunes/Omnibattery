@@ -51,7 +51,7 @@ quantity anyway. Live lux readings are being captured from 27.08 09:37 onward
 
 ## The defect
 
-`_scarce_solar_day` decides whether the day's sun is worth concentrating in one
+`scarce_solar_day` decides whether the day's sun is worth concentrating in one
 battery. On a scarce day the charge order puts the DC-coupled battery first,
 which is sound: kilowatt-hours stored without an AC conversion lose about 10 %
 less.
