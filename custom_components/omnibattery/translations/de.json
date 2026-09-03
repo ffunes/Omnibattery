@@ -284,7 +284,8 @@
           "allow_solar_surplus": "Solarüberschuss nutzen erlauben (Batterie nicht laden)",
           "dynamic_power_control": "Gerät hat dynamische Leistungsregelung",
           "cover_home_when_active": "Hausverbrauch decken, während das Gerät aktiv ist",
-          "ev_charger_no_telemetry": "EV-Ladestation ohne Leistungstelemetrie"
+          "ev_charger_no_telemetry": "EV-Ladestation ohne Leistungstelemetrie",
+          "remaining_demand_sensor": "Erwarteter Restbedarf (kWh)"
         },
         "data_description": {
           "power_sensor": "Numerischer Leistungssensor (W) des Geräts. Für EV-Ladestationen ohne Leistungstelemetrie optional; bestehende Konfigurationen mit dem Statussensor in diesem Feld bleiben kompatibel.",
@@ -293,7 +294,8 @@
           "allow_solar_surplus": "Wenn aktiviert, kann das Gerät Energie direkt von den Solarmodulen (Überschuss) verbrauchen, ohne dass die Batterie versucht zu kompensieren. Empfohlen für Geräte mit hohem Verbrauch wie EV-Ladestationen.",
           "dynamic_power_control": "Für Geräte aktivieren, die ihren Bedarf über den Netzzähler automatisch regeln. Mit Aktivitätssensor gibt Omnibattery Vorrang, bevor Leistung erscheint; andernfalls reagiert es auf den Leistungssensor. Danach wird nur der tatsächlich verbleibende Überschuss genutzt.",
           "cover_home_when_active": "Erfordert Solarüberschuss und einen Solarleistungssensor. Die Batterie darf den eigenen Hausverbrauch decken, während dieses Gerät aktiv ist; nur der Netzanteil des Geräts bleibt ausgeschlossen.",
-          "ev_charger_no_telemetry": "✓ AKTIVIERT = Nutzt den Sensor Gerät aktiv / EV-Ladestatus statt numerischer Telemetrie. Bestehende Konfigurationen mit diesem Sensor im Leistungsfeld funktionieren weiter. Bei erkanntem Laden pausiert die Batterie 5 Minuten; danach lädt sie nur mit Solarüberschuss und entlädt nie für das EV."
+          "ev_charger_no_telemetry": "✓ AKTIVIERT = Nutzt den Sensor Gerät aktiv / EV-Ladestatus statt numerischer Telemetrie. Bestehende Konfigurationen mit diesem Sensor im Leistungsfeld funktionieren weiter. Bei erkanntem Laden pausiert die Batterie 5 Minuten; danach lädt sie nur mit Solarüberschuss und entlädt nie für das EV.",
+          "remaining_demand_sensor": "Optional. Sensor mit der Energie (kWh), die dieses Gerät heute noch verbrauchen will, zum Beispiel sensor.evcc_[ladepunkt]_charge_remaining_energy. Die vorausschauende Ladung reserviert dann diesen Anteil der verbleibenden Solarprognose für das Gerät, statt anzunehmen, dass die Batterie ihn erhält. Wird nur verwendet, wenn 'Verbrauch ist im Hausverbrauchssensor enthalten' aktiviert ist. Geräte mit 'EV-Ladestation ohne Leistungstelemetrie' werden übersprungen: Ihre Energie steckt bereits in der Verbrauchsprognose, eine Reservierung würde sie doppelt zählen."
         }
       },
       "add_more_excluded_devices": {
@@ -1008,7 +1010,8 @@
           "allow_solar_surplus": "Solarüberschuss nutzen erlauben (Batterie nicht laden)",
           "dynamic_power_control": "Gerät hat dynamische Leistungsregelung",
           "cover_home_when_active": "Hausverbrauch decken, während das Gerät aktiv ist",
-          "ev_charger_no_telemetry": "EV-Ladestation ohne Leistungstelemetrie"
+          "ev_charger_no_telemetry": "EV-Ladestation ohne Leistungstelemetrie",
+          "remaining_demand_sensor": "Erwarteter Restbedarf (kWh)"
         },
         "data_description": {
           "power_sensor": "Numerischer Leistungssensor (W) des Geräts. Für EV-Ladestationen ohne Leistungstelemetrie optional; bestehende Konfigurationen mit dem Statussensor in diesem Feld bleiben kompatibel.",
@@ -1017,7 +1020,8 @@
           "allow_solar_surplus": "Wenn aktiviert, kann das Gerät Energie direkt von den Solarmodulen (Überschuss) verbrauchen, ohne dass die Batterie versucht zu kompensieren. Empfohlen für Geräte mit hohem Verbrauch wie EV-Ladestationen.",
           "dynamic_power_control": "Für Geräte aktivieren, die ihren Bedarf über den Netzzähler automatisch regeln. Mit Aktivitätssensor gibt Omnibattery Vorrang, bevor Leistung erscheint; andernfalls reagiert es auf den Leistungssensor. Danach wird nur der tatsächlich verbleibende Überschuss genutzt.",
           "cover_home_when_active": "Erfordert Solarüberschuss und einen Solarleistungssensor. Die Batterie darf den eigenen Hausverbrauch decken, während dieses Gerät aktiv ist; nur der Netzanteil des Geräts bleibt ausgeschlossen.",
-          "ev_charger_no_telemetry": "✓ AKTIVIERT = Nutzt den Sensor Gerät aktiv / EV-Ladestatus statt numerischer Telemetrie. Bestehende Konfigurationen mit diesem Sensor im Leistungsfeld funktionieren weiter. Bei erkanntem Laden pausiert die Batterie 5 Minuten; danach lädt sie nur mit Solarüberschuss und entlädt nie für das EV."
+          "ev_charger_no_telemetry": "✓ AKTIVIERT = Nutzt den Sensor Gerät aktiv / EV-Ladestatus statt numerischer Telemetrie. Bestehende Konfigurationen mit diesem Sensor im Leistungsfeld funktionieren weiter. Bei erkanntem Laden pausiert die Batterie 5 Minuten; danach lädt sie nur mit Solarüberschuss und entlädt nie für das EV.",
+          "remaining_demand_sensor": "Optional. Sensor mit der Energie (kWh), die dieses Gerät heute noch verbrauchen will, zum Beispiel sensor.evcc_[ladepunkt]_charge_remaining_energy. Die vorausschauende Ladung reserviert dann diesen Anteil der verbleibenden Solarprognose für das Gerät, statt anzunehmen, dass die Batterie ihn erhält. Wird nur verwendet, wenn 'Verbrauch ist im Hausverbrauchssensor enthalten' aktiviert ist. Geräte mit 'EV-Ladestation ohne Leistungstelemetrie' werden übersprungen: Ihre Energie steckt bereits in der Verbrauchsprognose, eine Reservierung würde sie doppelt zählen."
         }
       },
       "add_more_excluded_devices": {

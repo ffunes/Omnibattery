@@ -47,6 +47,10 @@
 
 ## [1.4.0b7] - 2026-08-28
 
+### Added
+
+- **Excluded devices can claim part of the solar forecast** (#341): an excluded device whose consumption the home sensor already sees — a solar-surplus EV charger, typically — can now point at a sensor reporting the energy it still expects to consume today. Predictive charging reserves that share of the remaining solar forecast for the device instead of assuming the battery receives all of it, so a car that eats the day's production produces a real deficit and the cheap grid slots are scheduled. The claim is capped at the available solar, ignored while the sensor is unavailable, and predictive charging re-plans during the day when it moves by 2 kWh or more. Optional and off unless the new field is configured.
+
 ### Fixed
 
 - **Venus A/D installations can now declare whether panels are connected** (#361): battery setup now distinguishes available MPPT hardware from the installation topology. Panel-equipped installations retain the AC+MPPT flow model; installations with unused MPPT inputs keep AC power as the battery-flow source without contributing MPPT capability to solar totals. Existing Venus A/D entries migrate with panels enabled to preserve their current behaviour.

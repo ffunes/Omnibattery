@@ -989,6 +989,9 @@ class ChargeDischargeController:
         self._solar_forecast_migration_issue_created = False
         self._dp_evening_reevaluated_date = None  # Prevent multiple evening re-evaluations per day
         self._dp_last_eval_soc = None  # avg SOC at last DP (re)eval; SOC-drop reeval reference (#411)
+        self._dp_last_eval_excluded_claim_kwh = None  # excluded-device solar claim at last DP (re)eval (#341)
+        self._dp_excluded_demand_reeval_at = None  # last claim-driven re-evaluation (cooldown)
+        self._dp_excluded_demand_reeval_count = 0  # claim-driven re-evaluations today (daily cap)
         # Smart pre-discharge is runtime-only.  Plans are rebuilt after restart;
         # no plan or override is persisted in Home Assistant storage.
         self._curtailment_plan = None
@@ -4758,6 +4761,10 @@ class ChargeDischargeController:
                 "solar_remaining_raw_kwh": None,
                 "solar_safety_margin_kwh": safety_margin_kwh,
                 "solar_remaining_effective_kwh": 0.0,
+                # No solar to claim in conservative mode; the key stays present
+                # so consumers never have to special-case a missing value.
+                "excluded_demand_claim_kwh": 0.0,
+                "solar_available_to_battery_kwh": 0.0,
                 "stored_energy_kwh": stored_energy_kwh,
                 "usable_energy_kwh": usable_energy_kwh,
                 "cutoff_energy_kwh": cutoff_energy_kwh,
@@ -4809,7 +4816,19 @@ class ChargeDischargeController:
         # Apply the safety margin once to the solar budget before any temporal
         # shape is constructed from the remaining total.
         solar_remaining_effective_kwh = max(0.0, solar_forecast_kwh - safety_margin_kwh)
-        total_available_kwh = usable_energy_kwh + solar_remaining_effective_kwh
+        # Excluded devices that the home sensor already sees (an EV charger on
+        # solar surplus, say) consume part of that forecast themselves. Reserve
+        # their expected remaining demand so the battery is not planned against
+        # sunshine another load is going to take. The claim is capped at the
+        # available solar: anything beyond it is grid energy that already sits
+        # inside the consumption forecast, so adding it would count twice.
+        external_loads = getattr(self, "_external_loads", None)
+        claim_request_kwh = 0.0
+        if external_loads is not None:
+            claim_request_kwh = external_loads.claimable_solar_demand_kwh() or 0.0
+        excluded_demand_claim_kwh = min(max(0.0, claim_request_kwh), solar_remaining_effective_kwh)
+        solar_available_to_battery_kwh = solar_remaining_effective_kwh - excluded_demand_claim_kwh
+        total_available_kwh = usable_energy_kwh + solar_available_to_battery_kwh
         base_deficit_kwh = avg_consumption_kwh - total_available_kwh
         energy_deficit_kwh = max(base_deficit_kwh, floor_deficit_kwh)
         should_charge = energy_deficit_kwh > 0
@@ -4826,6 +4845,7 @@ class ChargeDischargeController:
             "    - Solar forecast: %.2f kWh\n"
             "    - Consumption forecast: %.2f kWh (%d-day avg)\n"
             "    - Safety margin: %.2f kWh\n"
+            "    - Excluded device claim: %.2f kWh\n"
             "    - Total available: %.2f kWh (usable + solar)\n"
             "    - Energy deficit: %.2f kWh (consumption + margin - available)\n"
             "  → Decision: %s",
@@ -4836,6 +4856,7 @@ class ChargeDischargeController:
             solar_remaining_effective_kwh,
             avg_consumption_kwh, days_in_history,
             safety_margin_kwh,
+            excluded_demand_claim_kwh,
             total_available_kwh,
             energy_deficit_kwh,
             "ACTIVATE CHARGING" if should_charge else "NO CHARGING NEEDED"
@@ -4847,7 +4868,7 @@ class ChargeDischargeController:
         # Cap at battery headroom: only this much solar can actually land in the
         # battery, so the "solar will charge the remaining X" line can't quote a
         # figure larger than the pack (e.g. 12.94 kWh into a 5.12 kWh battery).
-        solar_surplus_kwh = max(0.0, min(solar_remaining_effective_kwh - avg_consumption_kwh, _gap_to_max_kwh))
+        solar_surplus_kwh = max(0.0, min(solar_available_to_battery_kwh - avg_consumption_kwh, _gap_to_max_kwh))
         planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
             energy_deficit_kwh,
             _gap_to_max_kwh,
@@ -4860,6 +4881,8 @@ class ChargeDischargeController:
             "solar_remaining_raw_kwh": solar_forecast_kwh,
             "solar_safety_margin_kwh": safety_margin_kwh,
             "solar_remaining_effective_kwh": solar_remaining_effective_kwh,
+            "excluded_demand_claim_kwh": round(excluded_demand_claim_kwh, 3),
+            "solar_available_to_battery_kwh": round(solar_available_to_battery_kwh, 3),
             "stored_energy_kwh": stored_energy_kwh,
             "usable_energy_kwh": usable_energy_kwh,
             "cutoff_energy_kwh": cutoff_energy_kwh,

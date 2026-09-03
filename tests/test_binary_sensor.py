@@ -112,3 +112,70 @@ def test_predictive_attributes_omit_redundant_fields():
         "solar_production_today_kwh",
     }
     assert redundant.isdisjoint(attrs)
+
+
+def _predictive_controller(*, decision, chronological):
+    """Controller stub for the predictive-charging status attributes."""
+    return SimpleNamespace(
+        _daily_consumption_history=[],
+        _daily_solar_energy_date=None,
+        _daily_solar_forecast_initial_date=None,
+        _daily_solar_forecast_initial_kwh=None,
+        _dynamic_pricing_schedule=None,
+        _household_accumulator_date=None,
+        _household_energy_accumulator=0.0,
+        _last_decision_data=decision,
+        _last_chronological_diagnostics=chronological,
+        _predictive_charge_target_soc=None,
+        _pricing_mgr=None,
+        charging_time_slots=[],
+        coordinators=[],
+        last_evaluation_soc=None,
+        max_contracted_power=7000,
+        predictive_charging_mode="time_slot",
+        predictive_charging_overridden=False,
+        solar_forecast_diagnostic_source=None,
+        solar_forecast_remaining_sensor="sensor.solar_remaining",
+        solar_forecast_sensor=None,
+        solar_forecast_source="remaining",
+        _is_in_predictive_charging_slot=lambda: False,
+    )
+
+
+def test_excluded_demand_claim_is_exposed():
+    controller = _predictive_controller(
+        decision={
+            "excluded_demand_claim_kwh": 6.5,
+            "solar_available_to_battery_kwh": 7.19,
+        },
+        chronological={},
+    )
+
+    attrs = PredictiveChargingStatusSensor(None, None, controller).extra_state_attributes
+
+    assert attrs["excluded_demand_claim_kwh"] == 6.5
+    assert attrs["solar_available_to_battery_kwh"] == 7.19
+
+
+def test_excluded_demand_claim_falls_back_to_chronological_diagnostics():
+    # Pre-slot and evening re-evaluations replace the decision dict without
+    # running the chronological planner, so the persisted snapshot fills in.
+    controller = _predictive_controller(
+        decision={},
+        chronological={
+            "excluded_demand_claim_kwh": 6.5,
+            "solar_available_to_battery_kwh": 7.19,
+        },
+    )
+
+    attrs = PredictiveChargingStatusSensor(None, None, controller).extra_state_attributes
+
+    assert attrs["excluded_demand_claim_kwh"] == 6.5
+    assert attrs["solar_available_to_battery_kwh"] == 7.19
+
+
+def test_excluded_demand_claim_is_not_recorded():
+    unrecorded = PredictiveChargingStatusSensor._unrecorded_attributes
+
+    assert "excluded_demand_claim_kwh" in unrecorded
+    assert "solar_available_to_battery_kwh" in unrecorded

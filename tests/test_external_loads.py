@@ -944,3 +944,166 @@ def test_ev_legacy_power_sensor_state_remains_supported():
 def test_ev_skips_non_applicable_devices(device):
     loads = _controller([device], {"sensor.ev": _state("charging")})
     assert loads.check_ev_charger_state() == (False, False)
+
+
+# ----------------------------------------------------------------------
+# claimable_solar_demand_kwh  (excluded-device claim on the solar forecast)
+# ----------------------------------------------------------------------
+
+def _claim_device(**overrides):
+    """An excluded device that reports its expected remaining demand."""
+    overrides.setdefault("remaining_demand_sensor", "sensor.demand")
+    return _device(**overrides)
+
+
+def test_remaining_demand_reads_kwh_unit():
+    loads = _controller([_claim_device()],
+                        {"sensor.demand": _state(6.5, unit="kWh")})
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(6.5)
+
+
+def test_remaining_demand_converts_wh_to_kwh():
+    loads = _controller([_claim_device()],
+                        {"sensor.demand": _state(6500, unit="Wh")})
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(6.5)
+
+
+def test_remaining_demand_converts_joules():
+    loads = _controller([_claim_device()],
+                        {"sensor.demand": _state(23_400_000, unit="MJ")})
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(6_500_000.0)
+
+
+def test_remaining_demand_units_are_case_sensitive():
+    # mWh (milli) and MWh (mega) differ only in case; matching loosely would be
+    # a factor of a billion. Home Assistant's own converter is used verbatim.
+    milli = _controller([_claim_device()],
+                        {"sensor.demand": _state(1000, unit="mWh")})
+    mega = _controller([_claim_device()],
+                       {"sensor.demand": _state(1000, unit="MWh")})
+    assert milli.claimable_solar_demand_kwh() == pytest.approx(1e-3)
+    assert mega.claimable_solar_demand_kwh() == pytest.approx(1e6)
+
+
+@pytest.mark.parametrize("unit", ["W", "kW", "%", "km", ""])
+def test_remaining_demand_rejects_non_energy_units(unit):
+    # The field's selector only offers energy sensors, but a sensor can change
+    # its unit later. Reserving the whole forecast against a watt reading would
+    # be a silent, large error, so an unknown unit claims nothing.
+    loads = _controller([_claim_device()],
+                        {"sensor.demand": _state(6500, unit=unit)})
+    assert loads.claimable_solar_demand_kwh() is None
+
+
+def test_remaining_demand_without_unit_claims_nothing():
+    state = SimpleNamespace(state="6.5", attributes={})
+    loads = _controller([_claim_device()], {"sensor.demand": state})
+    assert loads.claimable_solar_demand_kwh() is None
+
+
+@pytest.mark.parametrize("raw", ["unknown", "unavailable", "not-a-number"])
+def test_remaining_demand_unusable_state_yields_no_claim(raw):
+    loads = _controller([_claim_device()],
+                        {"sensor.demand": _state(raw, unit="kWh")})
+    assert loads.claimable_solar_demand_kwh() is None
+
+
+def test_remaining_demand_missing_entity_yields_no_claim():
+    loads = _controller([_claim_device()], {})
+    assert loads.claimable_solar_demand_kwh() is None
+
+
+def test_remaining_demand_clamps_negative_to_zero():
+    loads = _controller([_claim_device()],
+                        {"sensor.demand": _state(-0.01, unit="kWh")})
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(0.0)
+
+
+def test_claim_is_none_without_configured_sensor():
+    loads = _controller([_device()], {"sensor.demand": _state(6.5, unit="kWh")})
+    assert loads.claimable_solar_demand_kwh() is None
+
+
+def test_claim_is_none_without_devices():
+    assert _controller([]).claimable_solar_demand_kwh() is None
+
+
+def test_claim_sums_multiple_devices():
+    loads = _controller(
+        [
+            _claim_device(power_sensor="sensor.a"),
+            _claim_device(power_sensor="sensor.b",
+                          remaining_demand_sensor="sensor.demand_b"),
+        ],
+        {
+            "sensor.demand": _state(6.5, unit="kWh"),
+            "sensor.demand_b": _state(2.0, unit="kWh"),
+        },
+    )
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(8.5)
+
+
+def test_claim_skips_unreadable_device_but_keeps_the_others():
+    loads = _controller(
+        [
+            _claim_device(power_sensor="sensor.a"),
+            _claim_device(power_sensor="sensor.b",
+                          remaining_demand_sensor="sensor.demand_b"),
+        ],
+        {
+            "sensor.demand": _state("unavailable", unit="kWh"),
+            "sensor.demand_b": _state(2.0, unit="kWh"),
+        },
+    )
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(2.0)
+
+
+def test_claim_skips_disabled_device():
+    loads = _controller([_claim_device(enabled=False)],
+                        {"sensor.demand": _state(6.5, unit="kWh")})
+    assert loads.claimable_solar_demand_kwh() is None
+
+
+def test_claim_skips_device_not_included_in_consumption():
+    # Its load already sits outside the consumption forecast; claiming solar
+    # for it would count the same energy twice.
+    loads = _controller([_claim_device(included_in_consumption=False)],
+                        {"sensor.demand": _state(6.5, unit="kWh")})
+    assert loads.claimable_solar_demand_kwh() is None
+
+
+def test_claim_is_scaled_by_exclusion_pct():
+    # The consumption correction keeps half the demand at 50 %, so only the
+    # other half may be reserved from solar. Claiming all of it would remove
+    # the same 3.25 kWh twice.
+    loads = _controller([_claim_device(exclusion_pct=50)],
+                        {"sensor.demand": _state(6.5, unit="kWh")})
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(3.25)
+
+
+def test_claim_at_zero_exclusion_pct_is_zero():
+    # The battery covers this device like any other load; nothing is reserved.
+    loads = _controller([_claim_device(exclusion_pct=0)],
+                        {"sensor.demand": _state(6.5, unit="kWh")})
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(0.0)
+
+
+def test_claim_skips_ev_charger_without_telemetry():
+    # consumption_delta_kw skips these devices, so their demand stays inside
+    # the consumption forecast and must not be reserved from solar as well.
+    loads = _controller([_claim_device(ev_charger_no_telemetry=True)],
+                        {"sensor.demand": _state(6.5, unit="kWh")})
+    assert loads.claimable_solar_demand_kwh() is None
+
+
+def test_claim_eligibility_matches_consumption_delta():
+    # Every device the consumption correction ignores must claim nothing.
+    for device in (
+        _claim_device(enabled=False),
+        _claim_device(ev_charger_no_telemetry=True),
+        _claim_device(included_in_consumption=False),
+    ):
+        states = {"sensor.demand": _state(6.5, unit="kWh"), "sensor.dev": _state(0)}
+        loads = _controller([device], states)
+        assert loads.consumption_delta_kw() == pytest.approx(0.0)
+        assert loads.claimable_solar_demand_kwh() in (None, 0.0)

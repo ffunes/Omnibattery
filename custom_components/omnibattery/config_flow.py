@@ -2249,6 +2249,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             dynamic_power_control = user_input.get("dynamic_power_control", False)
             power_sensor = user_input.get("power_sensor") or None
             activity_sensor = user_input.get("activity_sensor") or None
+            remaining_demand_sensor = user_input.get("remaining_demand_sensor") or None
             if ev_no_telemetry:
                 # Existing entries used power_sensor for this state entity.
                 # New entries store it explicitly; runtime keeps the fallback.
@@ -2265,6 +2266,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             excluded_device = {
                 "power_sensor": power_sensor,
                 "activity_sensor": activity_sensor,
+                "remaining_demand_sensor": remaining_demand_sensor,
                 "included_in_consumption": user_input.get("included_in_consumption", True),
                 "allow_solar_surplus": user_input.get("allow_solar_surplus", False),
                 "dynamic_power_control": dynamic_power_control,
@@ -2295,6 +2297,13 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     vol.Optional("dynamic_power_control", default=False): bool,
                     vol.Optional("cover_home_when_active", default=False): bool,
                     vol.Optional("ev_charger_no_telemetry", default=False): bool,
+                    vol.Optional("remaining_demand_sensor"):
+                        EntitySelector(
+                            # No device_class filter: _read_sensor_kwh_opt accepts any
+                            # convertible energy unit, and a template helper
+                            # often carries no device_class at all.
+                            EntitySelectorConfig(domain="sensor")
+                        ),
                 }
             ),
             description_placeholders={
@@ -4946,6 +4955,7 @@ class OptionsFlowHandler(OptionsFlow):
             dynamic_power_control = user_input.get("dynamic_power_control", False)
             power_sensor = user_input.get("power_sensor") or None
             activity_sensor = user_input.get("activity_sensor") or None
+            remaining_demand_sensor = user_input.get("remaining_demand_sensor") or None
             if ev_no_telemetry:
                 activity_sensor = activity_sensor or power_sensor
                 if not activity_sensor:
@@ -4960,6 +4970,10 @@ class OptionsFlowHandler(OptionsFlow):
             excluded_device = {
                 "power_sensor": power_sensor,
                 "activity_sensor": activity_sensor,
+                # Always written, None included: the merge below lays this dict
+                # over the stored one, so an omitted key would resurrect the old
+                # value and the field could never be cleared.
+                "remaining_demand_sensor": remaining_demand_sensor,
                 "included_in_consumption": user_input.get("included_in_consumption", True),
                 "allow_solar_surplus": user_input.get("allow_solar_surplus", False),
                 "dynamic_power_control": dynamic_power_control,
@@ -5003,6 +5017,7 @@ class OptionsFlowHandler(OptionsFlow):
             default_cover_home = current_device.get("cover_home_when_active", False)
             default_ev_no_telemetry = current_device.get("ev_charger_no_telemetry", False)
             default_activity_sensor = current_device.get("activity_sensor", "")
+            default_remaining_demand = current_device.get("remaining_demand_sensor") or ""
             if default_ev_no_telemetry and not default_activity_sensor:
                 # Legacy no-telemetry entries stored their state entity in the
                 # power_sensor field. Show it in the new field automatically.
@@ -5015,6 +5030,7 @@ class OptionsFlowHandler(OptionsFlow):
             default_cover_home = False
             default_ev_no_telemetry = False
             default_activity_sensor = ""
+            default_remaining_demand = ""
 
         device_num += 1
         power_sensor_field = (
@@ -5026,6 +5042,11 @@ class OptionsFlowHandler(OptionsFlow):
             vol.Optional("activity_sensor", default=default_activity_sensor)
             if default_activity_sensor
             else vol.Optional("activity_sensor")
+        )
+        remaining_demand_field = (
+            vol.Optional("remaining_demand_sensor", default=default_remaining_demand)
+            if default_remaining_demand
+            else vol.Optional("remaining_demand_sensor")
         )
         return self.async_show_form(
             step_id="add_excluded_device",
@@ -5040,6 +5061,13 @@ class OptionsFlowHandler(OptionsFlow):
                     vol.Optional("dynamic_power_control", default=default_dynamic_power_control): bool,
                     vol.Optional("cover_home_when_active", default=default_cover_home): bool,
                     vol.Optional("ev_charger_no_telemetry", default=default_ev_no_telemetry): bool,
+                    remaining_demand_field:
+                        EntitySelector(
+                            # No device_class filter: _read_sensor_kwh_opt accepts any
+                            # convertible energy unit, and a template helper
+                            # often carries no device_class at all.
+                            EntitySelectorConfig(domain="sensor")
+                        ),
                 }
             ),
             description_placeholders={
