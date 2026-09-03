@@ -1455,24 +1455,21 @@ class ConsumptionTracker:
 
     async def startup_backfill_consumption(self) -> None:
         """Queue startup history work and return without waiting for Recorder."""
-        ctrl = self._controller
-
-        learning_enabled = bool(
-            ctrl.predictive_charging_enabled or ctrl.charge_delay_enabled
-        )
-        if not learning_enabled and not self._legacy_accumulator_rebuild_pending:
-            return
+        # Learning is deliberately not gated on the runtime feature switches.
+        # Whoever calls this has already decided the feature is configured for
+        # this entry; a user who turns predictive charging off for a while must
+        # not come back to an unlearned profile and a seven-day history of
+        # sentinels. Entries that never configured it never reach here, so the
+        # Recorder cost still falls only on installations that want it.
 
         # Submission order is the queue order: consumption profile, legacy
         # seven-day compatibility history, and direct-PV profile.  No profile
         # query can overlap another profile or legacy query for this entry.
-        if learning_enabled:
-            self.start_consumption_profile_backfill()
+        self.start_consumption_profile_backfill()
         self._legacy_backfill_task = self._backfill_coordinator.submit(
             "legacy_consumption", self._async_backfill_legacy_history
         )
-        if learning_enabled:
-            self.start_solar_profile_backfill()
+        self.start_solar_profile_backfill()
 
         await asyncio.sleep(0)
 
@@ -1635,13 +1632,14 @@ class ConsumptionTracker:
         into the 7-day history before it resets at midnight, so predictive
         charging always has historical data.
 
+        The accumulator is integrated on every control cycle regardless of the
+        predictive-charging switch, so the snapshot is free and is taken even
+        while the feature is off: turning it on must not start from sentinels.
+
         Args:
             now: Timestamp from scheduler (unused, for compatibility)
         """
         ctrl = self._controller
-
-        if not ctrl.predictive_charging_enabled:
-            return
 
         today = date.today()
         day_start = datetime.combine(today, time.min, tzinfo=dt_util.now().tzinfo)

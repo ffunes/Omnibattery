@@ -152,7 +152,8 @@ de esas horas.
 El perfil combina muestras del mismo día de la semana, del mismo tipo
 laborable/fin de semana y globales. Los días recientes pesan `1,0`, `0,75`, `0,5`
 y `0,25`. Solo se considera maduro con al menos siete días válidos, dos muestras
-para el 75 % de los intervalos solicitados, un 80 % de cobertura del rango y una
+—del mismo día de la semana o, en su defecto, del mismo tipo laborable/fin de
+semana— para el 75 % de los intervalos solicitados, un 80 % de cobertura del rango y una
 muestra de menos de siete días. Si no es maduro, se usa automáticamente la media
 diaria heredada o la estimación por potencia actual, según el consumidor.
 

@@ -698,3 +698,30 @@ def test_derive_home_applies_inverted_meter_during_export():
         {"sensor.grid": _w(-500)}, [], meter_inverted=True,
     )
     assert tracker._derive_home_power_kw() == pytest.approx(0.5)
+
+
+@pytest.mark.asyncio
+async def test_daily_capture_runs_while_predictive_charging_is_off():
+    """Learning must not be gated on the feature that consumes it.
+
+    The home-energy accumulator is integrated on every control cycle whatever
+    the switch says, so refusing to snapshot it left the seven-day history full
+    of DEFAULT_BASE_CONSUMPTION_KWH sentinels for anyone who enabled predictive
+    charging later.
+    """
+    tracker = ConsumptionTracker.__new__(ConsumptionTracker)
+    tracker._controller = SimpleNamespace(
+        predictive_charging_enabled=False,
+        _household_energy_accumulator=6.42,
+        _daily_consumption_history=[],
+    )
+    tracker._period_intersects = lambda *_args: False
+    saved = []
+    async def _save():
+        saved.append(True)
+    tracker.save_consumption_history = _save
+
+    await tracker.capture_daily_consumption()
+
+    assert tracker._controller._daily_consumption_history == [(date.today(), 6.42)]
+    assert saved

@@ -1360,9 +1360,26 @@ class ConsumptionProfileTracker:
             for index, count in enumerate(weekday_counts)
             if index in requested_indices
         )
+        # A same-weekday pair is the ideal training signal, but demanding it is
+        # what kept a perfectly usable week of data on the generic legacy curve
+        # for a fortnight — and made the learned curve vanish on whichever
+        # weekday happened to hold a single sample. Day-type coverage is an
+        # accepted substitute: the per-interval blend below already falls back
+        # to ``day_type_mean`` when no same-weekday sample exists, so the gate
+        # was rejecting a forecast the maths could already produce.
+        day_type_sample_intervals = sum(
+            count >= 2
+            for index, count in enumerate(day_type_counts)
+            if index in requested_indices
+        )
+        sample_threshold = math.ceil(requested_count * 0.75)
+        enough_samples = (
+            weekday_sample_intervals >= sample_threshold
+            or day_type_sample_intervals >= sample_threshold
+        )
         newest_age = (today - newest).days if newest is not None else None
         mature = (
-            weekday_sample_intervals >= math.ceil(requested_count * 0.75)
+            enough_samples
             and total_days >= 7
             and coverage_ratio >= 0.80
             and newest_age is not None
@@ -1375,7 +1392,7 @@ class ConsumptionProfileTracker:
                 fallback_reason = "no_profile_data"
             elif total_days < 7:
                 fallback_reason = "insufficient_days"
-            elif weekday_sample_intervals < math.ceil(requested_count * 0.75):
+            elif not enough_samples:
                 fallback_reason = "insufficient_weekday_samples"
             elif coverage_ratio < 0.80:
                 fallback_reason = "insufficient_coverage"

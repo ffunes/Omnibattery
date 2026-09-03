@@ -712,3 +712,25 @@ def test_rebinning_carries_energy_across_the_local_date_boundary():
 
     assert set(rebinned) == {date(2026, 3, 2)}
     assert rebinned[date(2026, 3, 2)].energy_kwh[92] == pytest.approx(0.25)
+
+
+def test_one_week_of_day_type_samples_matures_without_a_weekday_pair():
+    # Seven consecutive days ending Wednesday 2026-09-02, forecasting Thursday
+    # 2026-09-03: only one Thursday (Aug 27) exists, so the same-weekday pair is
+    # arithmetically impossible. The weekday-type samples must carry the day.
+    days = {
+        date(2026, 8, 27) + timedelta(days=offset): _day(
+            date(2026, 8, 27) + timedelta(days=offset), 0.25
+        )
+        for offset in range(7)
+    }
+
+    profile = _profile(days)
+    profile._today = lambda: date(2026, 9, 3)
+    forecast = profile.forecast_for_date(date(2026, 9, 3))
+
+    assert forecast.weekday_samples == 1  # the single Thursday, below the pair
+    assert forecast.mature is True
+    assert forecast.source == "profile"
+    assert forecast.fallback_reason is None
+    assert forecast.energy_kwh == pytest.approx(0.25 * INTERVAL_COUNT)

@@ -149,7 +149,8 @@ schedule battery charging but do not remove the home's load from the day.
 
 The profile uses a hierarchy of matching weekday, weekday/weekend type and global
 samples. Recent days are weighted `1.0`, `0.75`, `0.5` and `0.25`. It is considered
-mature only when it has at least seven valid days, at least two samples for 75%
+mature only when it has at least seven valid days, at least two samples — of the
+matching weekday or, failing that, of the matching weekday/weekend type — for 75%
 of the requested intervals, at least 80% coverage of the requested range and a
 sample no older than seven days. An immature profile automatically falls back to
 the legacy daily average or the current-rate estimate, depending on the caller.
