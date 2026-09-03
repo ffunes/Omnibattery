@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Per-pack SOC on Venus A/D** (#350): six diagnostic sensors (disabled by default, polled every 30 s) read each coupled pack's own SOC, and the populated slots are learned at start-up.
 - **Charge share follows the room each battery has left, not its power rating** (#335): batteries aim at one finish time instead of the fastest filling first and the slowest running out of daylight. Discharge is unchanged. Thanks to @sphings79 for the measurements.
 - **Charge order follows the day** (#335): longest to fill first with sun to spare, the DC-coupled battery first on a day the forecast cannot fill it. New `Charge priority` select overrides both.
 - **Primary battery and demand feedforward** (#335, opt-in, off by default): hands the nominated battery the load the fleet must cover, or the fleet the surplus that wants storing, instead of waiting for the meter to deviate — for installations where a second regulator shares the meter. Its figures are shown in the switch attributes whether or not it is on.
@@ -16,6 +17,8 @@
 - **A battery with native daily counters zeroed the system energy totals** (#380): the aggregates require every battery's daily figure to be stamped as belonging to today, and only the derived counter carried that stamp, so one device keeping its own counters produced 0.00 kWh charged and discharged on the overview with 10.3 and 3.97 kWh sitting in the per-battery sensors. The stamp now waits for evidence that the device's own counter has turned over, so a figure still holding yesterday's accumulation across our midnight is never summed as today's. Thanks to @sphings79.
 - **Predictive charging could not go below 800 W on Marstek v2/v3**: the driver read the lowest configurable charge *limit* as a minimum operating power, so predictive slots held an 800 W grid-import floor and the thermal derate could not throttle under it. Peak shaving is unaffected.
 - **Daily Operation left a 30-minute hole and a false spike around the now marker**: the open quarter is now completed from the previous closed one (energy seen so far plus its prorated remainder) instead of being dropped below a minute of coverage or scaled by `900 / seconds`, which collapsed the point and made the forecast hand-off read as a peak.
+- **A Venus A/D stopped charging when its first coupled pack filled** (#350): the packs fill in sequence, so the aggregate SOC reaches the ceiling — and the top cell voltage stays high — while later packs are still empty. Charge limits, the full verdict and the BMS-cutoff arming now go by the *least* full pack, and discharge by the *fullest* one, so neither end of the cycle is called by the first pack to get there. Batteries that publish no per-pack SOC are unaffected.
+- **`registers.md` listed pack 1's SOC as the Venus A/D aggregate** and laid the per-pack cell voltages out as one flat run; the real layout is a stride of 100 per pack.
 
 ## [1.4.0b8] - 2026-08-30
 

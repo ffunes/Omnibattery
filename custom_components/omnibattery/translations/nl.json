@@ -1641,6 +1641,24 @@
       "battery_soc": {
         "name": "Batterij SOC"
       },
+      "battery_soc_pack_1": {
+        "name": "Batterij SOC Pack 1"
+      },
+      "battery_soc_pack_2": {
+        "name": "Batterij SOC Pack 2"
+      },
+      "battery_soc_pack_3": {
+        "name": "Batterij SOC Pack 3"
+      },
+      "battery_soc_pack_4": {
+        "name": "Batterij SOC Pack 4"
+      },
+      "battery_soc_pack_5": {
+        "name": "Batterij SOC Pack 5"
+      },
+      "battery_soc_pack_6": {
+        "name": "Batterij SOC Pack 6"
+      },
       "battery_total_energy": {
         "name": "Totale Batterijenergie"
       },

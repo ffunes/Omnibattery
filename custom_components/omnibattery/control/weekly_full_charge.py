@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.storage import Store
 
+from .pack_soc import pack_socs, soc_vs_ceiling
 from ..const import (
     DOMAIN,
     NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
@@ -144,6 +145,17 @@ class WeeklyFullChargeManager:
                 in_taper_zone = vmax is not None and float(vmax) >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
             except (TypeError, ValueError):
                 pass
+            # On a coupled-pack battery the taper clause alone is a false
+            # positive machine (issue #350): a pack that finished hours ago holds
+            # the top cell high while later packs are still filling, so a lull in
+            # acceptance during a hand-over gets counted as a cutoff at 89% SOC.
+            # Require the *least* full pack to be at the top as well. Only where
+            # packs actually report: the taper clause exists precisely to fire
+            # below 99% aggregate SOC (coulomb drift), so falling back to the
+            # aggregate here would disable it for every other battery.
+            packs = pack_socs(c)
+            if in_taper_zone and packs and min(packs) < 99:
+                in_taper_zone = False
             if soc >= 99 or in_taper_zone:
                 power = c.data.get("battery_power", None)
                 inv_state = c.data.get("inverter_state", None)
@@ -219,7 +231,10 @@ class WeeklyFullChargeManager:
             return False
         if not coordinator.data:
             return False
-        soc = coordinator.data.get("battery_soc", 0)
+        # The least full pack decides on a coupled-pack battery: its aggregate
+        # reaches 100% while a later pack is still filling (issue #350). Returns
+        # the aggregate unchanged for every battery without per-pack telemetry.
+        soc = soc_vs_ceiling(coordinator, coordinator.data.get("battery_soc", 0))
         top_charge_manager = getattr(self._controller, "_max_soc_mgr", None)
         prepare_retry = getattr(top_charge_manager, "prepare_bms_cutoff_retry", None)
         if prepare_retry is not None:

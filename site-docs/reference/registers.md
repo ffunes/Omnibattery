@@ -12,7 +12,13 @@
 | bluetooth_status                  | Bluetooth connectivity/status              | uint16  | 2    | -      | -    | 30301 | 30301 | 30301 | 30301 |
 | wifi_status (binary)              | WiFi connected (0/1)                       | uint16  | 2    | 1      | -    | 30300 | 30300 | 30300 | 30300 |
 | cloud_status (binary)             | Cloud connected (0/1)                      | uint16  | 2    | 1      | -    | 30302 | 30302 | 30302 | 30302 |
-| battery_soc                       | State of charge                            | uint16  | 2    | 0.1/1  | %    | 34002 | 34002 | 32104 | 34002 |
+| battery_soc                       | State of charge                            | uint16  | 2    | 1      | %    | 32104 | 32104 | 32104 | 34002 |
+| battery_soc_pack_1                | Pack 1 state of charge (issue #350)                 | uint16  | 2    | 0.1    | %    | 34002 | 34002 |        |       |
+| battery_soc_pack_2                | Pack 2 state of charge (issue #350)                 | uint16  | 2    | 0.1    | %    | 34102 | 34102 |        |       |
+| battery_soc_pack_3                | Pack 3 state of charge (issue #350)                 | uint16  | 2    | 0.1    | %    | 34202 | 34202 |        |       |
+| battery_soc_pack_4                | Pack 4 state of charge (issue #350)                 | uint16  | 2    | 0.1    | %    | 34302 | 34302 |        |       |
+| battery_soc_pack_5                | Pack 5 state of charge (issue #350)                 | uint16  | 2    | 0.1    | %    | 34402 | 34402 |        |       |
+| battery_soc_pack_6                | Pack 6 state of charge (issue #350)                 | uint16  | 2    | 0.1    | %    | 34502 | 34502 |        |       |
 | battery_total_energy              | Total stored energy                        | uint16  | 2    | 0.001  | kWh  | 32105 | 32105 | 32105 | 32105 |
 | battery_voltage                   | Battery voltage                            | uint16  | 2    | 0.01   | V    | 30100 | 30100 | 32100 | 30100 |
 | battery_current                   | Battery current                            | int16   | 2    | 0.1/0.01| A   | 30101 | 30101 | 32101 | 30101 |
@@ -53,71 +59,71 @@
 | battery_1_cell_14_voltage           | Battery pack 1 cell 14 voltage              | int16   | 2    | 0.001  | V    |       | 34031 |       | 34031 |
 | battery_1_cell_15_voltage           | Battery pack 1 cell 15 voltage              | int16   | 2    | 0.001  | V    |       | 34032 |       | 34032 |
 | battery_1_cell_16_voltage           | Battery pack 1 cell 16 voltage              | int16   | 2    | 0.001  | V    |       | 34033 |       | 34033 |
-| battery_2_cell_1_voltage            | Battery pack 2 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34031 |       |       |       |
-| battery_2_cell_2_voltage            | Battery pack 2 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34032 |       |       |       |
-| battery_2_cell_3_voltage            | Battery pack 2 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34033 |       |       |       |
-| battery_2_cell_4_voltage            | Battery pack 2 cell 4 voltage               | int16   | 2    | 0.001  | V    | 34034 |       |       |       |
-| battery_2_cell_5_voltage            | Battery pack 2 cell 5 voltage               | int16   | 2    | 0.001  | V    | 34035 |       |       |       |
-| battery_2_cell_6_voltage            | Battery pack 2 cell 6 voltage               | int16   | 2    | 0.001  | V    | 34036 |       |       |       |
-| battery_2_cell_7_voltage            | Battery pack 2 cell 7 voltage               | int16   | 2    | 0.001  | V    | 34037 |       |       |       |
-| battery_2_cell_8_voltage            | Battery pack 2 cell 8 voltage               | int16   | 2    | 0.001  | V    | 34038 |       |       |       |
-| battery_2_cell_9_voltage            | Battery pack 2 cell 9 voltage               | int16   | 2    | 0.001  | V    | 34039 |       |       |       |
-| battery_2_cell_10_voltage           | Battery pack 2 cell 10 voltage              | int16   | 2    | 0.001  | V    | 34040 |       |       |       |
-| battery_2_cell_11_voltage           | Battery pack 2 cell 11 voltage              | int16   | 2    | 0.001  | V    | 34041 |       |       |       |
-| battery_2_cell_12_voltage           | Battery pack 2 cell 12 voltage              | int16   | 2    | 0.001  | V    | 34042 |       |       |       |
-| battery_2_cell_13_voltage           | Battery pack 2 cell 13 voltage              | int16   | 2    | 0.001  | V    | 34043 |       |       |       |
-| battery_3_cell_1_voltage            | Battery pack 3 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34044 |       |       |       |
-| battery_3_cell_2_voltage            | Battery pack 3 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34045 |       |       |       |
-| battery_3_cell_3_voltage            | Battery pack 3 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34046 |       |       |       |
-| battery_3_cell_4_voltage            | Battery pack 3 cell 4 voltage               | int16   | 2    | 0.001  | V    | 34047 |       |       |       |
-| battery_3_cell_5_voltage            | Battery pack 3 cell 5 voltage               | int16   | 2    | 0.001  | V    | 34048 |       |       |       |
-| battery_3_cell_6_voltage            | Battery pack 3 cell 6 voltage               | int16   | 2    | 0.001  | V    | 34049 |       |       |       |
-| battery_3_cell_7_voltage            | Battery pack 3 cell 7 voltage               | int16   | 2    | 0.001  | V    | 34050 |       |       |       |
-| battery_3_cell_8_voltage            | Battery pack 3 cell 8 voltage               | int16   | 2    | 0.001  | V    | 34051 |       |       |       |
-| battery_3_cell_9_voltage            | Battery pack 3 cell 9 voltage               | int16   | 2    | 0.001  | V    | 34052 |       |       |       |
-| battery_3_cell_10_voltage           | Battery pack 3 cell 10 voltage              | int16   | 2    | 0.001  | V    | 34053 |       |       |       |
-| battery_3_cell_11_voltage           | Battery pack 3 cell 11 voltage              | int16   | 2    | 0.001  | V    | 34054 |       |       |       |
-| battery_3_cell_12_voltage           | Battery pack 3 cell 12 voltage              | int16   | 2    | 0.001  | V    | 34055 |       |       |       |
-| battery_3_cell_13_voltage           | Battery pack 3 cell 13 voltage              | int16   | 2    | 0.001  | V    | 34056 |       |       |       |
-| battery_4_cell_1_voltage            | Battery pack 4 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34057 |       |       |       |
-| battery_4_cell_2_voltage            | Battery pack 4 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34058 |       |       |       |
-| battery_4_cell_3_voltage            | Battery pack 4 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34059 |       |       |       |
-| battery_4_cell_4_voltage            | Battery pack 4 cell 4 voltage               | int16   | 2    | 0.001  | V    | 34060 |       |       |       |
-| battery_4_cell_5_voltage            | Battery pack 4 cell 5 voltage               | int16   | 2    | 0.001  | V    | 34061 |       |       |       |
-| battery_4_cell_6_voltage            | Battery pack 4 cell 6 voltage               | int16   | 2    | 0.001  | V    | 34062 |       |       |       |
-| battery_4_cell_7_voltage            | Battery pack 4 cell 7 voltage               | int16   | 2    | 0.001  | V    | 34063 |       |       |       |
-| battery_4_cell_8_voltage            | Battery pack 4 cell 8 voltage               | int16   | 2    | 0.001  | V    | 34064 |       |       |       |
-| battery_4_cell_9_voltage            | Battery pack 4 cell 9 voltage               | int16   | 2    | 0.001  | V    | 34065 |       |       |       |
-| battery_4_cell_10_voltage           | Battery pack 4 cell 10 voltage              | int16   | 2    | 0.001  | V    | 34066 |       |       |       |
-| battery_4_cell_11_voltage           | Battery pack 4 cell 11 voltage              | int16   | 2    | 0.001  | V    | 34067 |       |       |       |
-| battery_4_cell_12_voltage           | Battery pack 4 cell 12 voltage              | int16   | 2    | 0.001  | V    | 34068 |       |       |       |
-| battery_4_cell_13_voltage           | Battery pack 4 cell 13 voltage              | int16   | 2    | 0.001  | V    | 34069 |       |       |       |
-| battery_5_cell_1_voltage            | Battery pack 5 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34070 |       |       |       |
-| battery_5_cell_2_voltage            | Battery pack 5 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34071 |       |       |       |
-| battery_5_cell_3_voltage            | Battery pack 5 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34072 |       |       |       |
-| battery_5_cell_4_voltage            | Battery pack 5 cell 4 voltage               | int16   | 2    | 0.001  | V    | 34073 |       |       |       |
-| battery_5_cell_5_voltage            | Battery pack 5 cell 5 voltage               | int16   | 2    | 0.001  | V    | 34074 |       |       |       |
-| battery_5_cell_6_voltage            | Battery pack 5 cell 6 voltage               | int16   | 2    | 0.001  | V    | 34075 |       |       |       |
-| battery_5_cell_7_voltage            | Battery pack 5 cell 7 voltage               | int16   | 2    | 0.001  | V    | 34076 |       |       |       |
-| battery_5_cell_8_voltage            | Battery pack 5 cell 8 voltage               | int16   | 2    | 0.001  | V    | 34077 |       |       |       |
-| battery_5_cell_9_voltage            | Battery pack 5 cell 9 voltage               | int16   | 2    | 0.001  | V    | 34078 |       |       |       |
-| battery_5_cell_10_voltage           | Battery pack 5 cell 10 voltage              | int16   | 2    | 0.001  | V    | 34079 |       |       |       |
-| battery_5_cell_11_voltage           | Battery pack 5 cell 11 voltage              | int16   | 2    | 0.001  | V    | 34080 |       |       |       |
-| battery_5_cell_12_voltage           | Battery pack 5 cell 12 voltage              | int16   | 2    | 0.001  | V    | 34081 |       |       |       |
-| battery_5_cell_13_voltage           | Battery pack 5 cell 13 voltage              | int16   | 2    | 0.001  | V    | 34082 |       |       |       |
-| battery_6_cell_1_voltage            | Battery pack 6 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34083 |       |       |       |
-| battery_6_cell_2_voltage            | Battery pack 6 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34084 |       |       |       |
-| battery_6_cell_3_voltage            | Battery pack 6 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34085 |       |       |       |
-| battery_6_cell_4_voltage            | Battery pack 6 cell 4 voltage               | int16   | 2    | 0.001  | V    | 34086 |       |       |       |
-| battery_6_cell_5_voltage            | Battery pack 6 cell 5 voltage               | int16   | 2    | 0.001  | V    | 34087 |       |       |       |
-| battery_6_cell_6_voltage            | Battery pack 6 cell 6 voltage               | int16   | 2    | 0.001  | V    | 34088 |       |       |       |
-| battery_6_cell_7_voltage            | Battery pack 6 cell 7 voltage               | int16   | 2    | 0.001  | V    | 34089 |       |       |       |
-| battery_6_cell_8_voltage            | Battery pack 6 cell 8 voltage               | int16   | 2    | 0.001  | V    | 34090 |       |       |       |
-| battery_6_cell_9_voltage            | Battery pack 6 cell 9 voltage               | int16   | 2    | 0.001  | V    | 34091 |       |       |       |
-| battery_6_cell_10_voltage           | Battery pack 6 cell 10 voltage              | int16   | 2    | 0.001  | V    | 34092 |       |       |       |
-| battery_6_cell_11_voltage           | Battery pack 6 cell 11 voltage              | int16   | 2    | 0.001  | V    | 34093 |       |       |       |
-| battery_6_cell_12_voltage           | Battery pack 6 cell 12 voltage              | int16   | 2    | 0.001  | V    | 34094 |       |       |       |
-| battery_6_cell_13_voltage           | Battery pack 6 cell 13 voltage              | int16   | 2    | 0.001  | V    | 34095 |       |       |       |
+| battery_2_cell_1_voltage            | Battery pack 2 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34118 |       |       |       |
+| battery_2_cell_2_voltage            | Battery pack 2 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34119 |       |       |       |
+| battery_2_cell_3_voltage            | Battery pack 2 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34120 |       |       |       |
+| battery_2_cell_4_voltage            | Battery pack 2 cell 4 voltage               | int16   | 2    | 0.001  | V    | 34121 |       |       |       |
+| battery_2_cell_5_voltage            | Battery pack 2 cell 5 voltage               | int16   | 2    | 0.001  | V    | 34122 |       |       |       |
+| battery_2_cell_6_voltage            | Battery pack 2 cell 6 voltage               | int16   | 2    | 0.001  | V    | 34123 |       |       |       |
+| battery_2_cell_7_voltage            | Battery pack 2 cell 7 voltage               | int16   | 2    | 0.001  | V    | 34124 |       |       |       |
+| battery_2_cell_8_voltage            | Battery pack 2 cell 8 voltage               | int16   | 2    | 0.001  | V    | 34125 |       |       |       |
+| battery_2_cell_9_voltage            | Battery pack 2 cell 9 voltage               | int16   | 2    | 0.001  | V    | 34126 |       |       |       |
+| battery_2_cell_10_voltage           | Battery pack 2 cell 10 voltage              | int16   | 2    | 0.001  | V    | 34127 |       |       |       |
+| battery_2_cell_11_voltage           | Battery pack 2 cell 11 voltage              | int16   | 2    | 0.001  | V    | 34128 |       |       |       |
+| battery_2_cell_12_voltage           | Battery pack 2 cell 12 voltage              | int16   | 2    | 0.001  | V    | 34129 |       |       |       |
+| battery_2_cell_13_voltage           | Battery pack 2 cell 13 voltage              | int16   | 2    | 0.001  | V    | 34130 |       |       |       |
+| battery_3_cell_1_voltage            | Battery pack 3 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34218 |       |       |       |
+| battery_3_cell_2_voltage            | Battery pack 3 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34219 |       |       |       |
+| battery_3_cell_3_voltage            | Battery pack 3 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34220 |       |       |       |
+| battery_3_cell_4_voltage            | Battery pack 3 cell 4 voltage               | int16   | 2    | 0.001  | V    | 34221 |       |       |       |
+| battery_3_cell_5_voltage            | Battery pack 3 cell 5 voltage               | int16   | 2    | 0.001  | V    | 34222 |       |       |       |
+| battery_3_cell_6_voltage            | Battery pack 3 cell 6 voltage               | int16   | 2    | 0.001  | V    | 34223 |       |       |       |
+| battery_3_cell_7_voltage            | Battery pack 3 cell 7 voltage               | int16   | 2    | 0.001  | V    | 34224 |       |       |       |
+| battery_3_cell_8_voltage            | Battery pack 3 cell 8 voltage               | int16   | 2    | 0.001  | V    | 34225 |       |       |       |
+| battery_3_cell_9_voltage            | Battery pack 3 cell 9 voltage               | int16   | 2    | 0.001  | V    | 34226 |       |       |       |
+| battery_3_cell_10_voltage           | Battery pack 3 cell 10 voltage              | int16   | 2    | 0.001  | V    | 34227 |       |       |       |
+| battery_3_cell_11_voltage           | Battery pack 3 cell 11 voltage              | int16   | 2    | 0.001  | V    | 34228 |       |       |       |
+| battery_3_cell_12_voltage           | Battery pack 3 cell 12 voltage              | int16   | 2    | 0.001  | V    | 34229 |       |       |       |
+| battery_3_cell_13_voltage           | Battery pack 3 cell 13 voltage              | int16   | 2    | 0.001  | V    | 34230 |       |       |       |
+| battery_4_cell_1_voltage            | Battery pack 4 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34318 |       |       |       |
+| battery_4_cell_2_voltage            | Battery pack 4 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34319 |       |       |       |
+| battery_4_cell_3_voltage            | Battery pack 4 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34320 |       |       |       |
+| battery_4_cell_4_voltage            | Battery pack 4 cell 4 voltage               | int16   | 2    | 0.001  | V    | 34321 |       |       |       |
+| battery_4_cell_5_voltage            | Battery pack 4 cell 5 voltage               | int16   | 2    | 0.001  | V    | 34322 |       |       |       |
+| battery_4_cell_6_voltage            | Battery pack 4 cell 6 voltage               | int16   | 2    | 0.001  | V    | 34323 |       |       |       |
+| battery_4_cell_7_voltage            | Battery pack 4 cell 7 voltage               | int16   | 2    | 0.001  | V    | 34324 |       |       |       |
+| battery_4_cell_8_voltage            | Battery pack 4 cell 8 voltage               | int16   | 2    | 0.001  | V    | 34325 |       |       |       |
+| battery_4_cell_9_voltage            | Battery pack 4 cell 9 voltage               | int16   | 2    | 0.001  | V    | 34326 |       |       |       |
+| battery_4_cell_10_voltage           | Battery pack 4 cell 10 voltage              | int16   | 2    | 0.001  | V    | 34327 |       |       |       |
+| battery_4_cell_11_voltage           | Battery pack 4 cell 11 voltage              | int16   | 2    | 0.001  | V    | 34328 |       |       |       |
+| battery_4_cell_12_voltage           | Battery pack 4 cell 12 voltage              | int16   | 2    | 0.001  | V    | 34329 |       |       |       |
+| battery_4_cell_13_voltage           | Battery pack 4 cell 13 voltage              | int16   | 2    | 0.001  | V    | 34330 |       |       |       |
+| battery_5_cell_1_voltage            | Battery pack 5 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34418 |       |       |       |
+| battery_5_cell_2_voltage            | Battery pack 5 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34419 |       |       |       |
+| battery_5_cell_3_voltage            | Battery pack 5 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34420 |       |       |       |
+| battery_5_cell_4_voltage            | Battery pack 5 cell 4 voltage               | int16   | 2    | 0.001  | V    | 34421 |       |       |       |
+| battery_5_cell_5_voltage            | Battery pack 5 cell 5 voltage               | int16   | 2    | 0.001  | V    | 34422 |       |       |       |
+| battery_5_cell_6_voltage            | Battery pack 5 cell 6 voltage               | int16   | 2    | 0.001  | V    | 34423 |       |       |       |
+| battery_5_cell_7_voltage            | Battery pack 5 cell 7 voltage               | int16   | 2    | 0.001  | V    | 34424 |       |       |       |
+| battery_5_cell_8_voltage            | Battery pack 5 cell 8 voltage               | int16   | 2    | 0.001  | V    | 34425 |       |       |       |
+| battery_5_cell_9_voltage            | Battery pack 5 cell 9 voltage               | int16   | 2    | 0.001  | V    | 34426 |       |       |       |
+| battery_5_cell_10_voltage           | Battery pack 5 cell 10 voltage              | int16   | 2    | 0.001  | V    | 34427 |       |       |       |
+| battery_5_cell_11_voltage           | Battery pack 5 cell 11 voltage              | int16   | 2    | 0.001  | V    | 34428 |       |       |       |
+| battery_5_cell_12_voltage           | Battery pack 5 cell 12 voltage              | int16   | 2    | 0.001  | V    | 34429 |       |       |       |
+| battery_5_cell_13_voltage           | Battery pack 5 cell 13 voltage              | int16   | 2    | 0.001  | V    | 34430 |       |       |       |
+| battery_6_cell_1_voltage            | Battery pack 6 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34518 |       |       |       |
+| battery_6_cell_2_voltage            | Battery pack 6 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34519 |       |       |       |
+| battery_6_cell_3_voltage            | Battery pack 6 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34520 |       |       |       |
+| battery_6_cell_4_voltage            | Battery pack 6 cell 4 voltage               | int16   | 2    | 0.001  | V    | 34521 |       |       |       |
+| battery_6_cell_5_voltage            | Battery pack 6 cell 5 voltage               | int16   | 2    | 0.001  | V    | 34522 |       |       |       |
+| battery_6_cell_6_voltage            | Battery pack 6 cell 6 voltage               | int16   | 2    | 0.001  | V    | 34523 |       |       |       |
+| battery_6_cell_7_voltage            | Battery pack 6 cell 7 voltage               | int16   | 2    | 0.001  | V    | 34524 |       |       |       |
+| battery_6_cell_8_voltage            | Battery pack 6 cell 8 voltage               | int16   | 2    | 0.001  | V    | 34525 |       |       |       |
+| battery_6_cell_9_voltage            | Battery pack 6 cell 9 voltage               | int16   | 2    | 0.001  | V    | 34526 |       |       |       |
+| battery_6_cell_10_voltage           | Battery pack 6 cell 10 voltage              | int16   | 2    | 0.001  | V    | 34527 |       |       |       |
+| battery_6_cell_11_voltage           | Battery pack 6 cell 11 voltage              | int16   | 2    | 0.001  | V    | 34528 |       |       |       |
+| battery_6_cell_12_voltage           | Battery pack 6 cell 12 voltage              | int16   | 2    | 0.001  | V    | 34529 |       |       |       |
+| battery_6_cell_13_voltage           | Battery pack 6 cell 13 voltage              | int16   | 2    | 0.001  | V    | 34530 |       |       |       |
 | mppt1_voltage                     | MPPT1 array voltage                        | uint16  | 2    | 0.1    | V    | 30020 | 30020 |       |       |
 | mppt1_current                     | MPPT1 array current                        | uint16  | 2    | 0.1    | A    | 30024 | 30024 |       |       |
 | mppt1_power                       | MPPT1 array power                          | uint16  | 2    | 0.1    | W    | 30037 | 30037 |       |       |
@@ -187,6 +193,11 @@
 
 _Notes:_
 - Columns `a`, `d`, `e_v12` and `e_v3` correspond to the YAML files under `custom_components/marstek_modbus/registers/`.
+- Two Venus A/D entries deliberately **differ from that YAML**, which is wrong there (issue #350):
+  `battery_soc` is the aggregate at **32104** (the YAML's 34002 is pack 1's own SOC, and
+  `const/registers_va.py` has always read 32104); and the per-pack block is laid out with a
+  **stride of 100** — pack *n* starts at `34000 + 100·(n−1)`, SOC at offset `+2`, cells at `+18` —
+  not as one flat run, so the column `a` cell addresses above are renumbered accordingly.
 - `Bytes` shows the typical byte size for the key (each Modbus register = 2 bytes).
 - Blank cells mean that YAML does not define that key (or the value is calculated and has no direct Modbus register).
 - The `rs485_control_mode` switch (register 42000) uses write commands (command_on=21930, command_off=21947) to trigger RS485 control operations; use with caution.

@@ -1641,6 +1641,24 @@
       "battery_soc": {
         "name": "SOC de la Batería"
       },
+      "battery_soc_pack_1": {
+        "name": "SOC Batería Paquete 1"
+      },
+      "battery_soc_pack_2": {
+        "name": "SOC Batería Paquete 2"
+      },
+      "battery_soc_pack_3": {
+        "name": "SOC Batería Paquete 3"
+      },
+      "battery_soc_pack_4": {
+        "name": "SOC Batería Paquete 4"
+      },
+      "battery_soc_pack_5": {
+        "name": "SOC Batería Paquete 5"
+      },
+      "battery_soc_pack_6": {
+        "name": "SOC Batería Paquete 6"
+      },
       "battery_total_energy": {
         "name": "Energía Total de la Batería"
       },
