@@ -1000,6 +1000,13 @@ class HuaweiSolarDriver(BatteryDriver):
         the evidence that refused it. The one way out of that is the sun rising
         to meet a standing command, which :meth:`_update_pv_gate` detects by
         refusing to believe a harvest that has converged on it.
+
+        A charge is therefore allowed only where it clears the harvest by the
+        same hysteresis band that :meth:`_update_pv_gate` needs in order to
+        believe the reading. Allowing one it would then disbelieve costs a
+        release, a re-read, and a fresh command every ramp interval for as long
+        as the harvest sits in the gap — a flip-flop out of steady sunlight,
+        made of exactly the writes this inverter answers by derating the array.
         """
         if applied == 0 or not self._gate_closed():
             return False
@@ -1010,7 +1017,7 @@ class HuaweiSolarDriver(BatteryDriver):
             # always did — a wrong "allow" curtails the roof, a wrong "refuse"
             # only costs a charge.
             return True
-        return applied < self._pv_harvest_w
+        return applied <= self._pv_harvest_w + _PV_HARVEST_HYSTERESIS_W
 
     def _update_pv_gate(self, snapshot: dict) -> None:
         """Decide whether the roof is producing enough to leave alone.

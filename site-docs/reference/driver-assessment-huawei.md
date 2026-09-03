@@ -506,6 +506,13 @@ sent. The one way out is the sun rising to meet a standing command, and the
 driver handles it by declining to believe a harvest that has converged on what
 it asked for.
 
+Which is why "above the harvest" has to mean *above it by the same band* the
+gate needs in order to believe the reading. A charge allowed at 2000 W against
+1990 W of harvest binds nothing — but the reading it is compared against is then
+untrustworthy, so the charge is refused, the release restores the same 1990 W,
+and it is allowed again: a flip-flop every ramp interval out of unchanging
+sunlight, made of the writes this inverter answers by derating the array.
+
 #### The limit: a self-curtailing inverter reads as darkness
 
 The harvest only means "what the roof can make" while something wants the

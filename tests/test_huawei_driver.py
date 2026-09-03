@@ -2797,6 +2797,28 @@ async def test_the_sun_rising_to_meet_a_standing_charge_takes_it_back():
 
 
 @pytest.mark.asyncio
+async def test_a_charge_the_harvest_sits_just_under_does_not_flip_flop():
+    """A charge is allowed only where the gate could also believe the reading.
+
+    2000 W against a steady 1990 W never binds, so nothing about the sky is
+    changing — but it does not clear the hysteresis band either, so the next
+    reading is untrustworthy, the charge is refused, the release restores the
+    same 1990 W, and it is allowed again. The verdict alternated every ramp
+    interval out of unchanging sunlight, each flip a forcible command and a
+    stop, which is the write chatter this whole gate exists to avoid.
+    """
+    driver = _driver(_fake_client(_lit_blocks(watts=1990)), hass=_hass_with_services())
+    await driver.read_telemetry()
+
+    verdicts = []
+    for _ in range(6):
+        driver._last_write_monotonic -= _MIN_WRITE_INTERVAL_S + _PV_PROBE_SETTLE_S + 1
+        verdicts.append((await driver.apply_setpoint(2000, read_back=False)).net_power_w)
+        await driver.read_telemetry()
+    assert verdicts == [0] * 6
+
+
+@pytest.mark.asyncio
 async def test_after_dark_both_directions_are_commanded():
     driver = _driver(_fake_client(_dark_blocks()), hass=_hass_with_services())
     await driver.read_telemetry()
