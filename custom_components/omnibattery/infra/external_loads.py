@@ -595,9 +595,9 @@ class ExternalLoads:
             return None
         if not math.isfinite(raw):
             return None
+        # A missing unit falls through to the converter too, so the "no claim"
+        # decision is logged in one place. Template helpers often carry none.
         unit = state.attributes.get("unit_of_measurement")
-        if unit is None:
-            return None
         try:
             raw = EnergyConverter.convert(raw, str(unit), UnitOfEnergy.KILO_WATT_HOUR)
         except (HomeAssistantError, ValueError, TypeError):
