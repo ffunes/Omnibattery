@@ -65,7 +65,7 @@ The rule then fed itself. The AC battery's own empty capacity was the largest
 term in "room left in the fleet", so the emptier it got, the more certain the
 day was to be called scarce, and the more certain it was to be skipped again.
 
-## 26 August — before the fix
+## 26 August — under the fleet-room threshold
 
 | Local time | Roof | Balcony | PV total | Marstek SoC | Marstek | Huawei SoC | Huawei |
 |---|---|---|---|---|---|---|---|
@@ -110,7 +110,7 @@ The defect is not that a sunny day was misread as thin; it is that on a thin
 day the AC battery receives nothing at all, and that the threshold made nearly
 every day thin.
 
-## 27 August — after the fix
+## 27 August — under the DC-room threshold
 
 Scarcity is now measured against the room in the battery the order concentrates
 into, the DC-coupled one. Past that point the excess has to be shared out
@@ -262,7 +262,7 @@ one because it is what crosses the meter.
 
 ## A false BMS cutoff on multi-pack hardware
 
-Reported upstream as ffunes/Omnibattery#350 and not addressed by this work.
+Reported upstream as ffunes/Omnibattery#350 and fixed there.
 
 At 15:17, the moment pack 2 completed, the charge hysteresis latched at the
 aggregate SoC of 93 % and charging stopped. Cause: a finished pack holds the
@@ -273,6 +273,10 @@ whole battery while four packs are still at 90 %.
 It is self-correcting. The staleness check cleared the latch after 12.5 minutes
 and charging resumed with the SoC *rising*, not falling. At absorption power the
 pause cost about 0.04 kWh.
+
+Re-measured on 1 September against the fix in #350: two pack handovers passed
+with the detector armed, at the same 93 % aggregate where 27 August stalled, and
+neither latched.
 
 ## Limitations
 
