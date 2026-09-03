@@ -534,10 +534,18 @@ def test_refresh_excluded_demand_reference_stores_the_raw_reading():
     assert ctrl._dp_last_eval_excluded_claim_kwh == 7.0
 
 
-def test_refresh_excluded_demand_reference_without_a_reading_is_zero():
+def test_refresh_excluded_demand_reference_keeps_the_old_value_on_unavailable():
+    # A blip must not reset the reference to 0: the sensor coming back at its
+    # old value would then read as a full-value move and fire a spurious re-plan.
     ctrl = _claim_ctrl(4.0, None)
     _claim_mgr(ctrl)._refresh_excluded_demand_reference()
-    assert ctrl._dp_last_eval_excluded_claim_kwh == 0.0
+    assert ctrl._dp_last_eval_excluded_claim_kwh == 4.0
+
+
+def test_refresh_excluded_demand_reference_leaves_an_unset_reference_alone():
+    ctrl = _claim_ctrl(None, None)
+    _claim_mgr(ctrl)._refresh_excluded_demand_reference()
+    assert ctrl._dp_last_eval_excluded_claim_kwh is None
 
 
 def test_excluded_demand_reeval_false_late_at_night():
