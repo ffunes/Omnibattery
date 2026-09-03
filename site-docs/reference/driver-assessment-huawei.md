@@ -182,10 +182,15 @@ charge cutoff on the inverter and the discharge cutoff on the battery, so
 resolving against the configured battery device alone finds one and misses the
 other. The driver searches the whole config entry.
 
-**Watchdog.** Every command carries a duration (10 minutes as issued). If Home
-Assistant dies without unloading, the inverter drops the command by itself and
-returns to its own regulation. This is why a duration is sent rather than an
-open-ended command.
+**Watchdog — do not rely on it.** Every command carries a duration (10 minutes
+as issued), and the register still reads 10 while a command stands. On the
+reference installation a forcible discharge written at 04:32 was still in force
+at 09:22, five hours later, with the integration disabled for the last of them.
+Whatever the duration governs, it did not release this. The release has to be
+written, and it has to go out over the same path the command did: releasing
+through the `huawei_solar` service while writing registers directly addresses a
+device that does not exist on that path, and the failure is silent because
+shutdown suppresses the warning.
 
 ## 6. Feature degradation matrix
 
@@ -214,7 +219,9 @@ misbehaving first and a test second:
 - The dynamic discharge limit ignores the battery's own contribution.
 - No read group may hold a single key.
 - The inverter's AC total is not published as the battery's AC port.
-- Every form schema survives the serialisation the frontend needs (§13.8).
+- Every form schema survives the serialisation the frontend needs (§13.10).
+- Nothing is commanded at all while the strings carry voltage.
+- Shutdown clears the registers over the path the commands took.
 - An unpopulated pack slot produces no entities at all.
 - A battery device belonging to a different inverter is refused.
 - The limits form allows more than the battery reports today.
@@ -390,7 +397,182 @@ padding, so the pack 1 firmware string decodes to nothing, and the battery
 flapped in and out of the pool every three seconds all day. Groups are now one
 per cadence rather than one per block.
 
-### 13.8 A form schema must survive serialisation
+### 13.8 A forcible command caps the inverter's own production
+
+The worst fault this driver has caused, and the one most specific to a hybrid.
+
+**A forcible command is not a request but a ceiling.** The inverter produces
+exactly what it was told and curtails the rest of the roof. Caught in the act
+with a 315 W charge standing: 288 W harvested from an array that made 5054 W six
+seconds after the command ended, while a separate balcony array on the same roof
+held steady throughout — so not weather.
+
+A discharge is worse still. It serves the house from the battery and leaves the
+MPPT tracker down entirely, so the panels sit at open-circuit voltage drawing
+nothing: 374 V at 0.00 A. And with the roof producing nothing, the meter shows a
+real deficit — which is what asks for discharge. The command goes on justifying
+itself and survives sunrise: commanded at 04:32 against a genuinely dark sky,
+still standing at 09:22.
+
+**So while the roof is producing, this driver commands nothing.** It releases
+instead and leaves the inverter to its own regulation, which harvests
+everything and runs the battery from it. That is not a workaround: on a
+DC-coupled hybrid the inverter is the better controller during daylight,
+because it is the only party that knows what the array could be making.
+
+#### What "producing" means, and why it takes two signals
+
+The first test was string voltage alone — a string carries voltage in light and
+collapses in the dark, so no forecast, sun elevation or clock is involved. It
+survives our own commands, which is exactly why it was chosen: under a forcible
+discharge the panels sit at open-circuit voltage and still read daylight.
+
+What it cannot do is tell a bright morning from a dim one. An overcast dawn
+stands near 300 V while the array makes 50 W, and refusing to command there
+costs the house a discharge it needs, for nothing.
+
+The first three dawns below were measured from the first non-zero watt, because
+string voltage was not being recorded on the reference installation at the time.
+They are therefore a **lower bound**. The fourth is measured from the quantity
+the gate actually uses — the strings crossing 100 V — and the band is roughly
+double:
+
+| Dawn | Gate closes | Sustained >150 W | Band | Measured from |
+|---|---|---|---|---|
+| 30.08 | 06:55 | 07:45 | 50 min | first watt (lower bound) |
+| 31.08 | 06:15 | 07:00 | 45 min | first watt (lower bound) |
+| 01.09 | 06:48 | 07:38 | 50 min | first watt (lower bound) |
+| **02.09** | **06:12:56** | **07:50** | **97 min** | **100 V on the strings** |
+
+On 2 September the strings jumped from 0 V to 123.8 V in a single poll at
+06:12:56 — the inverter waking, not a gradual rise — which is 23 minutes before
+sunrise at 06:36. The array made 1 W or less until 07:12 and did not hold above
+150 W until 07:50.
+
+That the roof genuinely had nothing to give is worth establishing rather than
+assuming, because a forcible discharge was standing for part of that window and
+would suppress production by itself. An irradiance sensor independent of the
+inverter settles it: 5 lx at 06:21, 98 lx at 06:42, 250 lx at 07:10. There was
+no production to curtail. It also confirms the morning was cloudless — the
+reading climbed smoothly from 1486 lx to 1955 lx across the crossing with no
+dips — so 97 minutes is the *clear-sky* band, and an overcast dawn is longer.
+
+So harvested power (32064) is the second signal — with one asymmetry that makes
+it usable at all. A *low* reading proves nothing while a command stands,
+because the production it suppresses is the command's own doing; gating on it
+would read a curtailed roof as darkness, keep commanding, and keep the roof
+curtailed. A *high* reading is decisive whatever the driver is doing, since a
+command can only ever push that number down. That asymmetry is what hands
+control back at sunrise without waiting for anything.
+
+The remaining case — commanding, strings lit, roof quiet — is genuinely
+ambiguous, and is resolved by letting go for a moment and reading again. The
+release is throttled like any other write, so a probe costs the settle window
+plus the ramp interval, about 20 s in every 120 s. Sunrise is worth more.
+
+The threshold is set low on purpose. Too high curtails a roof that is genuinely
+producing; too low only costs availability in the dim band.
+
+It also carries a band either side, because the ramp crawls across the threshold
+rather than stepping over it: on 2 September the harvest spent twenty minutes
+wobbling between 123 W and 214 W around the 150 W mark while irradiance rose
+smoothly throughout. A bare comparison would flip the gate on every one of
+those, and each flip costs a write that this inverter answers by derating the
+array — the fault the gate exists to avoid, reintroduced by the gate itself.
+
+#### Charge is refused only where it binds
+
+A forcible command is a *ceiling* on production, and a ceiling above what the
+array can reach is not a constraint at all. Measured 2 September on a cloudless
+morning, with an irradiance sensor and a separate array on the same roof as
+controls — both moved by about 1 % while the hybrid moved by a factor of five:
+
+| | Roof DC | Irradiance | Separate array |
+|---|---|---|---|
+| Uncommanded | 1839 W | 15 809 lx | 394 W |
+| **Charge 400 W** | **363 W** | 15 707 lx | 401 W |
+| Released, +7 s | 1936 W | 15 733 lx | 403 W |
+| **Charge 3000 W** | **2020 W** | 16 278 lx | 407 W |
+
+A command below the harvest becomes the production ceiling exactly. A command
+above it costs nothing — and that is the one charge worth having, the cheap
+half-hour in the middle of a lit day, which a symmetric gate refuses for no
+gain. So charge is refused only when it would bind; discharge stays refused
+outright, because it holds the tracker down whatever its size.
+
+That comparison is safe to make against a harvest read while commanding,
+because an allowed charge is never a binding cap and a refused charge is never
+sent. The one way out is the sun rising to meet a standing command, and the
+driver handles it by declining to believe a harvest that has converged on what
+it asked for.
+
+#### The limit: a self-curtailing inverter reads as darkness
+
+The harvest only means "what the roof can make" while something wants the
+power. PV has three destinations — house, battery, grid — so with the battery
+full and export capped, production must equal house load; curtailment *is* how
+any inverter limits output. If that load sits under the threshold, the array
+reports under 150 W in full sun and this gate opens.
+
+Neither signal can separate that from real darkness: the voltage is up either
+way, and releasing changes nothing because the inverter goes on curtailing
+whether commanded or not. It is stated here rather than guarded against,
+because it needs an export limit, a battery that fills, *and* a base load under
+150 W at the same time, and the third is demanding in a house with a hybrid and
+a battery in it. Guarding on state of charge instead would buy back the dawn
+refusal for a full battery, which is the larger of the two faults.
+
+What this costs is real and belongs in the decision: **a Huawei battery is
+under Omnibattery's control after dark, and during the day only for a charge it
+would not curtail.** Otherwise it follows its own energy manager. An
+installation whose second battery is AC-coupled still gets full control of that
+one, which is where the surplus can be steered.
+
+### 13.9 A second battery is household load to the hybrid's manager
+
+Anything drawing power behind the same meter reads as consumption to the
+inverter's energy manager, and a second battery is no exception. That cuts both
+ways, and both matter.
+
+It is what leaves any control at all during daylight. The hybrid cannot be
+commanded while the sun is on the panels (§13.8), so it would be easy to assume
+this integration can only stand aside until dark. It cannot command the hybrid —
+but on an installation with a second, AC-coupled battery it can command that
+one, and the manager has no way to refuse: it sees load and covers it. A command
+to the AC battery is a decision that takes effect, not a preference that gets
+overruled.
+
+It is also the hazard. Whatever is asked for gets covered — from the sun when it
+is there, and **from the hybrid's own battery when it is not**. A charge command
+larger than the real surplus therefore pumps one battery into the other through
+two conversions, while the meter sits at zero and nothing looks wrong. Observed
+with no such bound in place: 1391 W of PV over a 529 W house, one battery taking
+in 1110 W while the other gave up 205 W, the meter reading 3 W.
+
+The bound that prevents it is the *uncovered* surplus — what the meter would
+read if every battery stopped — rather than the fleet's charging capacity. That
+belongs to the control layer rather than to this driver, and is noted here
+because the hybrid is what makes it necessary.
+
+#### The allocator has one seam, and only on the discharge side
+
+When the PV gate closes, a discharge asked of this battery is refused. The
+allocator does not learn that from the refusal itself: it has already handed
+out this battery's share and treats it as served, so the fleet under-delivers
+and nothing picks up the slack.
+
+`dynamic_discharge_limit_w` is the seam that fixes it, because the allocator
+reads it before deciding. Reporting zero while the gate is closed moves the
+share to a battery that can deliver it, and needs no control-layer change.
+
+**There is no charge equivalent.** Nothing narrows what the allocator believes
+this battery will accept, so a charge refused by the gate is still invisible to
+it — the surplus is allocated here, declined, and goes to the grid. On a
+DC-coupled hybrid that loss is smaller than it sounds, since the inverter is
+charging the battery from the strings anyway, but it is a real gap and it
+belongs to the control layer rather than to this driver.
+
+### 13.10 A form schema must survive serialisation
 
 Home Assistant hands the frontend a *serialised* copy of every form schema, and
 not every voluptuous construct has a serialised form. A `vol.Any` in the
@@ -411,6 +593,8 @@ Firmware tested:    inverter V200R024C00SPC110, storage V200R025C00SPC103
 Documentation:      Solar Inverter Modbus Interface Definitions v05
 
 Verdict: SUITABLE WITH LIMITATIONS
+         Discharge is available after dark only; charge also in
+         daylight, but only above what the roof is making (§13.8)
 
 Blocking items:
 - Real SOC:        N — register 37004, verified
