@@ -480,10 +480,53 @@ smoothly throughout. A bare comparison would flip the gate on every one of
 those, and each flip costs a write that this inverter answers by derating the
 array — the fault the gate exists to avoid, reintroduced by the gate itself.
 
-What this costs is real and belongs in the decision: **a Huawei battery is only
-under Omnibattery's control after dark.** During the day it follows its own
-energy manager. An installation whose second battery is AC-coupled still gets
-full control of that one, which is where the surplus can be steered.
+#### Charge is refused only where it binds
+
+A forcible command is a *ceiling* on production, and a ceiling above what the
+array can reach is not a constraint at all. Measured 2 September on a cloudless
+morning, with an irradiance sensor and a separate array on the same roof as
+controls — both moved by about 1 % while the hybrid moved by a factor of five:
+
+| | Roof DC | Irradiance | Separate array |
+|---|---|---|---|
+| Uncommanded | 1839 W | 15 809 lx | 394 W |
+| **Charge 400 W** | **363 W** | 15 707 lx | 401 W |
+| Released, +7 s | 1936 W | 15 733 lx | 403 W |
+| **Charge 3000 W** | **2020 W** | 16 278 lx | 407 W |
+
+A command below the harvest becomes the production ceiling exactly. A command
+above it costs nothing — and that is the one charge worth having, the cheap
+half-hour in the middle of a lit day, which a symmetric gate refuses for no
+gain. So charge is refused only when it would bind; discharge stays refused
+outright, because it holds the tracker down whatever its size.
+
+That comparison is safe to make against a harvest read while commanding,
+because an allowed charge is never a binding cap and a refused charge is never
+sent. The one way out is the sun rising to meet a standing command, and the
+driver handles it by declining to believe a harvest that has converged on what
+it asked for.
+
+#### The limit: a self-curtailing inverter reads as darkness
+
+The harvest only means "what the roof can make" while something wants the
+power. PV has three destinations — house, battery, grid — so with the battery
+full and export capped, production must equal house load; curtailment *is* how
+any inverter limits output. If that load sits under the threshold, the array
+reports under 150 W in full sun and this gate opens.
+
+Neither signal can separate that from real darkness: the voltage is up either
+way, and releasing changes nothing because the inverter goes on curtailing
+whether commanded or not. It is stated here rather than guarded against,
+because it needs an export limit, a battery that fills, *and* a base load under
+150 W at the same time, and the third is demanding in a house with a hybrid and
+a battery in it. Guarding on state of charge instead would buy back the dawn
+refusal for a full battery, which is the larger of the two faults.
+
+What this costs is real and belongs in the decision: **a Huawei battery is
+under Omnibattery's control after dark, and during the day only for a charge it
+would not curtail.** Otherwise it follows its own energy manager. An
+installation whose second battery is AC-coupled still gets full control of that
+one, which is where the surplus can be steered.
 
 ### 13.9 A second battery is household load to the hybrid's manager
 
@@ -550,7 +593,8 @@ Firmware tested:    inverter V200R024C00SPC110, storage V200R025C00SPC103
 Documentation:      Solar Inverter Modbus Interface Definitions v05
 
 Verdict: SUITABLE WITH LIMITATIONS
-         Control is available after dark only (§13.8)
+         Discharge is available after dark only; charge also in
+         daylight, but only above what the roof is making (§13.8)
 
 Blocking items:
 - Real SOC:        N — register 37004, verified

@@ -459,6 +459,9 @@ class HuaweiSolarDriver(BatteryDriver):
         self._pv_probe_until = 0.0
         # When the verdict last came from a reading this driver could trust.
         self._pv_verdict_monotonic = 0.0
+        # Last harvest this driver had reason to believe, in watts. None when
+        # the standing command makes the reading its own artefact.
+        self._pv_harvest_w: Optional[float] = None
         self._serial: Optional[str] = None
         # Last command actually written, so the deadband can compare against what
         # the hardware was told rather than against what it currently delivers.
@@ -795,7 +798,7 @@ class HuaweiSolarDriver(BatteryDriver):
             min(self._ceiling("charge"), int(net_power_w)),
         )
 
-        if applied != 0 and self._hands_off():
+        if self._refuses(applied):
             # A forcible command on this hybrid is not a request but a ceiling:
             # the inverter produces exactly what the command asks for and
             # curtails the rest of the roof. Measured with a 315 W charge
@@ -963,9 +966,51 @@ class HuaweiSolarDriver(BatteryDriver):
             applied=echo,
         )
 
-    def _hands_off(self) -> bool:
-        """Whether the inverter is to be left to its own regulation right now."""
+    def _gate_closed(self) -> bool:
+        """Whether the roof is producing enough to be worth protecting."""
         return self._pv_lit or bool(self._pv_probe_until)
+
+    def _refuses(self, applied: int) -> bool:
+        """Whether the gate refuses this particular command.
+
+        **Discharge is refused outright.** A forcible discharge serves the
+        house from the battery and leaves the tracker down entirely — 374 V at
+        0.00 A — so the whole roof is lost for as long as it stands. There is
+        nothing to weigh.
+
+        **Charge is refused only where it would bind.** A forcible command is a
+        ceiling on production, and a ceiling above what the array can reach is
+        not a constraint at all. Measured 2 September on a cloudless morning,
+        with an irradiance sensor and a separate array as controls:
+
+        * 400 W commanded against 1839 W of harvest produced **363 W** — the
+          roof cut to a fifth while irradiance held, recovering to 1936 W seven
+          seconds after the release;
+        * 3000 W commanded against 1936 W produced **2020 W**, tracking the sun
+          as if nothing had been sent.
+
+        So a charge at or above the harvest costs nothing — and that is the one
+        charge worth having, the cheap-price slot in the middle of a lit day,
+        which a symmetric gate refuses for no gain.
+
+        The rule is self-stabilising, which is what makes it safe to compare
+        against a harvest read while commanding: an allowed charge is never a
+        binding cap, so the reading stays true MPP exactly while this driver is
+        commanding; and a refused charge is never sent, so it cannot suppress
+        the evidence that refused it. The one way out of that is the sun rising
+        to meet a standing command, which :meth:`_update_pv_gate` detects by
+        refusing to believe a harvest that has converged on it.
+        """
+        if applied == 0 or not self._gate_closed():
+            return False
+        if applied < 0:
+            return True
+        if self._pv_harvest_w is None:
+            # No harvest this driver can believe. Refuse, as the symmetric gate
+            # always did — a wrong "allow" curtails the roof, a wrong "refuse"
+            # only costs a charge.
+            return True
+        return applied < self._pv_harvest_w
 
     def _update_pv_gate(self, snapshot: dict) -> None:
         """Decide whether the roof is producing enough to leave alone.
@@ -1012,6 +1057,7 @@ class HuaweiSolarDriver(BatteryDriver):
 
         if not self._strings_lit:
             # Night needs no second opinion, and nothing is being curtailed.
+            self._pv_harvest_w = 0.0
             self._pv_lit = False
             self._pv_probe_until = 0.0
             self._pv_verdict_monotonic = now
@@ -1021,6 +1067,29 @@ class HuaweiSolarDriver(BatteryDriver):
         if harvest is None:
             # No reading is not evidence either way; the last verdict stands.
             return
+
+        # Whether the reading can be believed depends on what this driver has
+        # standing. Nothing: it is the roof's own answer. A charge clear of the
+        # harvest: the ceiling is never reached, so the tracker is still at its
+        # own maximum — that is what lets an allowed charge keep its evidence
+        # alive. A charge the harvest has converged on, or any discharge: the
+        # number is our own doing and means nothing.
+        #
+        # This governs the *value*, not the verdict. A high reading still says
+        # the roof is producing whatever this driver is doing, because a command
+        # can only push it down — but a floor is not a maximum, and only a
+        # maximum is safe to compare a charge against.
+        standing = self._last_written_w or 0
+        if standing == 0:
+            trustworthy = now - self._last_write_monotonic >= _PV_PROBE_SETTLE_S
+        elif standing > 0:
+            trustworthy = standing > float(harvest) + _PV_HARVEST_HYSTERESIS_W
+        else:
+            trustworthy = False
+        # Refusing to guess is what makes the sun rising past a standing charge
+        # self-correcting: the charge is refused on the next cycle, the release
+        # restores a true reading, and the decision is retaken against it.
+        self._pv_harvest_w = float(harvest) if trustworthy else None
 
         # Latching, with the band above on the way in and below on the way out.
         threshold = _PV_HARVEST_THRESHOLD_W + (
@@ -1032,13 +1101,9 @@ class HuaweiSolarDriver(BatteryDriver):
             self._pv_probe_until = 0.0
             return
 
-        released = (
-            self._last_written_w in (None, 0)
-            and now - self._last_write_monotonic >= _PV_PROBE_SETTLE_S
-        )
-        if released:
-            # Nothing of ours is holding the tracker down, so a low reading is
-            # the roof's own answer and the battery is ours to command.
+        if trustworthy:
+            # A low reading this driver can believe is the roof's own answer,
+            # and the battery is ours to command.
             self._pv_lit = False
             self._pv_verdict_monotonic = now
             self._pv_probe_until = 0.0
@@ -1149,7 +1214,7 @@ class HuaweiSolarDriver(BatteryDriver):
         that side, so a refused charge is still invisible to it. See §13.9 of
         the driver assessment.
         """
-        if self._hands_off():
+        if self._refuses(-1):
             return 0
         ceiling = data.get("inverter_max_power")
         ac_power = data.get("inverter_ac_power")
