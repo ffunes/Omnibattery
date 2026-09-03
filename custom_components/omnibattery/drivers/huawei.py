@@ -798,7 +798,8 @@ class HuaweiSolarDriver(BatteryDriver):
             min(self._ceiling("charge"), int(net_power_w)),
         )
 
-        if self._refuses(applied):
+        refused = applied if self._refuses(applied) else None
+        if refused is not None:
             # A forcible command on this hybrid is not a request but a ceiling:
             # the inverter produces exactly what the command asks for and
             # curtails the rest of the roof. Measured with a 315 W charge
@@ -808,12 +809,6 @@ class HuaweiSolarDriver(BatteryDriver):
             # So while there is light on the panels this driver commands
             # nothing. The inverter's own regulation harvests everything and
             # runs the battery from it, which is what the release hands back to.
-            _LOGGER.info(
-                "Huawei driver: releasing instead of commanding %dW — a forcible "
-                "command caps this inverter's own production while the sun is on "
-                "the panels",
-                applied,
-            )
             applied = 0
 
         if not self._should_write(applied):
@@ -826,6 +821,17 @@ class HuaweiSolarDriver(BatteryDriver):
             return SetpointResult(
                 ok=True, net_power_w=held, confirmed=False,
                 applied=self._echo(held),
+            )
+
+        if refused is not None:
+            # Logged here rather than at the refusal itself: the gate refuses on
+            # every control cycle of a lit day, and only the cycle that actually
+            # sends the release is news.
+            _LOGGER.info(
+                "Huawei driver: releasing instead of commanding %dW — a forcible "
+                "command caps this inverter's own production while the sun is on "
+                "the panels",
+                refused,
             )
 
         if self._direct_write:
