@@ -2299,7 +2299,10 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     vol.Optional("ev_charger_no_telemetry", default=False): bool,
                     vol.Optional("remaining_demand_sensor"):
                         EntitySelector(
-                            EntitySelectorConfig(domain="sensor", device_class="energy")
+                            # No device_class filter: _read_sensor_kwh_opt accepts any
+                            # convertible energy unit, and a template helper
+                            # often carries no device_class at all.
+                            EntitySelectorConfig(domain="sensor")
                         ),
                 }
             ),
@@ -5060,7 +5063,10 @@ class OptionsFlowHandler(OptionsFlow):
                     vol.Optional("ev_charger_no_telemetry", default=default_ev_no_telemetry): bool,
                     remaining_demand_field:
                         EntitySelector(
-                            EntitySelectorConfig(domain="sensor", device_class="energy")
+                            # No device_class filter: _read_sensor_kwh_opt accepts any
+                            # convertible energy unit, and a template helper
+                            # often carries no device_class at all.
+                            EntitySelectorConfig(domain="sensor")
                         ),
                 }
             ),

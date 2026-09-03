@@ -112,8 +112,10 @@ Notes:
 - The sensor must report an energy unit (kWh, Wh, MJ, …). If it is unavailable, unknown,
   unparsable or carries a non-energy unit, no claim is made.
 - evcc publishes a suitable entity per loadpoint: `sensor.evcc_<loadpoint>_charge_remaining_energy`.
-- The reservation is spread evenly over today's remaining solar — the plan does not assume *when*
-  the device will draw. In a cross-midnight projection tomorrow's forecast is never reduced.
+- The reservation is taken from today's remaining solar in proportion to each interval's energy, so
+  a sunny hour gives up more than a dim one and every hour keeps the same share. The plan does not
+  assume *when* the device will draw. In a cross-midnight projection tomorrow's forecast is never
+  reduced.
 
 Because a charging session usually starts long after the 00:05 evaluation, predictive charging
 re-plans during the day whenever the claim moves by 2 kWh or more in either direction, at most

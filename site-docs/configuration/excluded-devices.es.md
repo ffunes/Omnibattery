@@ -116,9 +116,10 @@ Notas:
   desconocido, no es numérico o su unidad no es de energía, no se reserva nada.
 - evcc publica una entidad adecuada por punto de carga:
   `sensor.evcc_<punto_de_carga>_charge_remaining_energy`.
-- La reserva se reparte de forma uniforme sobre la solar restante de hoy: el plan no supone
-  *cuándo* consumirá el dispositivo. En una proyección que cruza la medianoche nunca se reduce la
-  previsión de mañana.
+- La reserva se descuenta de la solar restante de hoy en proporción a la energía de cada intervalo,
+  así que una hora soleada cede más que una nublada y todas conservan la misma fracción. El plan no
+  supone *cuándo* consumirá el dispositivo. En una proyección que cruza la medianoche nunca se
+  reduce la previsión de mañana.
 
 Como una sesión de carga suele empezar mucho después de la evaluación de las 00:05, la carga
 predictiva replanifica durante el día cuando la reserva cambia 2 kWh o más en cualquier sentido,

@@ -2655,9 +2655,9 @@ class PricingManager:
             # reservation is taken out of today's intervals only, proportional
             # to their energy: the sensor reports demand remaining *today*, and
             # a cross-midnight projection also carries tomorrow's forecast,
-            # which the claim must never touch. Within today it is spread
-            # evenly because we do not know when the device will draw, which is
-            # uniformly conservative.
+            # which the claim must never touch. Within today every interval
+            # gives up the same share of its own energy, because we do not know
+            # when the device will draw, which is uniformly conservative.
             solar, excluded_claim_kwh = _apply_excluded_demand_claim(
                 boundaries,
                 list(timeline.intervals_kwh),
@@ -3783,14 +3783,20 @@ class PricingManager:
     def _refresh_excluded_demand_reference(self) -> None:
         """Re-arm the claim trigger against the reading this plan was built on.
 
-        Called from every path that replaces ``_last_decision_data``, so a
+        Called from the paths that rebuild the plan on top of a claim, so a
         re-evaluation that already accounts for the current claim does not
-        immediately trigger another one.
+        immediately trigger another one. The other ``_last_decision_data``
+        assignments leave the reference alone; the cooldown and the daily cap
+        bound what a stale reference can cost.
+
+        An unavailable sensor keeps the previous reference instead of dropping
+        it to zero: ``_is_excluded_demand_reeval`` already refuses to fire while
+        the reading is ``None``, so nothing is missed, and a transient blip can
+        no longer make the sensor's return read as a full-value jump.
         """
         current = self._read_excluded_demand_claim_kwh()
-        self._controller._dp_last_eval_excluded_claim_kwh = (
-            0.0 if current is None else current
-        )
+        if current is not None:
+            self._controller._dp_last_eval_excluded_claim_kwh = current
 
     @staticmethod
     def _get_consumed_today_kwh(controller, now: datetime) -> tuple[float, bool, str]:
@@ -4619,6 +4625,13 @@ class PricingManager:
         # Phase 2.7: Re-plan when an excluded device's claim on the remaining
         # solar forecast moved materially (#341) — an EV session that starts
         # after 00:05 takes solar the battery was planned to receive.
+        #
+        # Deliberately unguarded by _current_price_slot_active, unlike the
+        # pre-slot check: the claim moving is exactly the input the whole
+        # schedule was built on, so a slot that is running was planned against
+        # solar that no longer exists. Rebuilding may shrink or drop that slot,
+        # and that is the intended outcome. The cooldown and the daily cap in
+        # _is_excluded_demand_reeval bound how often a live charge is disturbed.
         elif self._is_excluded_demand_reeval(now):
             self._controller._dp_excluded_demand_reeval_at = now
             self._controller._dp_excluded_demand_reeval_count = (
