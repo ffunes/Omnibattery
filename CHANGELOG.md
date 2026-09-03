@@ -8,6 +8,7 @@
 - **Charge share follows the room each battery has left, not its power rating** (#335): batteries aim at one finish time instead of the fastest filling first and the slowest running out of daylight. Discharge is unchanged. Thanks to @sphings79 for the measurements.
 - **Charge order follows the day** (#335): longest to fill first with sun to spare, the DC-coupled battery first on a day the forecast cannot fill it. New `Charge priority` select overrides both.
 - **Primary battery and demand feedforward** (#335, opt-in, off by default): hands the nominated battery the load the fleet must cover, or the fleet the surplus that wants storing, instead of waiting for the meter to deviate — for installations where a second regulator shares the meter. Its figures are shown in the switch attributes whether or not it is on.
+- **Excluded devices can claim part of the solar forecast** (#341): an excluded device whose consumption the home sensor already sees — a solar-surplus EV charger, typically — can now point at a sensor reporting the energy it still expects to consume today. Predictive charging reserves that share of the remaining solar forecast for the device instead of assuming the battery receives all of it, so a car that eats the day's production produces a real deficit and the cheap grid slots are scheduled. The claim is capped at the available solar, ignored while the sensor is unavailable, and predictive charging re-plans during the day when it moves by 2 kWh or more. Optional and off unless the new field is configured.
 
 ### Fixed
 
@@ -46,10 +47,6 @@
 - **Dynamic Power Control could compete with an active Solar Surplus wallbox** (#371): residual monitoring now re-yields when the wallbox loses at least 200 W of available solar margin, while equal solar and wallbox reductions leave residual battery charging available.
 
 ## [1.4.0b7] - 2026-08-28
-
-### Added
-
-- **Excluded devices can claim part of the solar forecast** (#341): an excluded device whose consumption the home sensor already sees — a solar-surplus EV charger, typically — can now point at a sensor reporting the energy it still expects to consume today. Predictive charging reserves that share of the remaining solar forecast for the device instead of assuming the battery receives all of it, so a car that eats the day's production produces a real deficit and the cheap grid slots are scheduled. The claim is capped at the available solar, ignored while the sensor is unavailable, and predictive charging re-plans during the day when it moves by 2 kWh or more. Optional and off unless the new field is configured.
 
 ### Fixed
 
