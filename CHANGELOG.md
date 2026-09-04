@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Anker battery state of health (SoH)**: exposes `sensor.<battery>_battery_soh` from Modbus input register **10015** for all supported Solarbank models, shows it on the dashboard **Health & cells** section, and labels the entity **State of Health (SoH)** in every locale. Field-verified on Solarbank Max AC (`DMWH`); other product codes share the register map but are not yet confirmed in the field.
+
+### Changed
+
+- **Dashboard health metrics are entity-driven**: voltage, cell min/max and cell-delta rows on the battery card are shown only when the integration exposes matching sensors. Anker batteries no longer display empty placeholders for Modbus readings they do not provide.
+
 ## [1.4.0] - 2026-09-04
 
 ### Added
