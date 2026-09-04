@@ -235,6 +235,13 @@ def _schedule_setup_reload_if_deferred(coordinator) -> None:
     setting up, so the battery is adopted by re-running setup with the device
     present. One-shot: the reloaded runtime only re-arms the flag if the battery
     is unreachable again.
+
+    This depends on the unreachable battery still getting its entities at setup:
+    they are what subscribe to the coordinator, and without a subscriber
+    DataUpdateCoordinator never schedules a poll, so nothing would ever notice
+    the battery answering. Every driver therefore has to seed its entity
+    definitions in ``__init__`` (connect may only refine them), or a battery of
+    that brand that starts unreachable would stay that way until a restart.
     """
     if not getattr(coordinator, "reload_entry_when_reachable", False):
         return
@@ -242,6 +249,21 @@ def _schedule_setup_reload_if_deferred(coordinator) -> None:
     entry = getattr(coordinator, "_config_entry", None)
     if entry is None:
         return
+    # The flag is per battery, so several batteries that were all switched off
+    # would each schedule a full teardown/rebuild of the same entry when they
+    # come back together. One reload adopts all of them. The marker lives in the
+    # entry's runtime dict, which setup rebuilds, so the reloaded runtime starts
+    # unmarked.
+    runtime = coordinator.hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if isinstance(runtime, dict):
+        if runtime.get("setup_reload_scheduled"):
+            _LOGGER.info(
+                "[%s] Battery answered after starting unreachable - joining the "
+                "reload already scheduled for this entry",
+                coordinator.name,
+            )
+            return
+        runtime["setup_reload_scheduled"] = True
     _LOGGER.info(
         "[%s] Battery answered after starting unreachable - reloading the "
         "integration to complete its setup",
