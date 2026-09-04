@@ -285,7 +285,8 @@
           "dynamic_power_control": "Device has dynamic power control",
           "cover_home_when_active": "Cover home while device is active",
           "ev_charger_no_telemetry": "EV charger without power telemetry",
-          "remaining_demand_sensor": "Expected remaining demand (kWh)"
+          "remaining_demand_sensor": "Expected remaining demand (kWh)",
+          "remaining_demand_presence_sensor": "Presence entity for the remaining demand (optional)"
         },
         "data_description": {
           "power_sensor": "Numeric power sensor (W) for the device. Optional for EV chargers without power telemetry; existing configurations that stored the charging-state sensor here remain supported.",
@@ -295,7 +296,8 @@
           "dynamic_power_control": "Enable for devices that automatically adjust their own demand from the grid meter, such as a solar-surplus wallbox. If an activity sensor is configured, Omnibattery yields before power appears; otherwise it reacts to the power sensor. It then uses genuine leftover export.",
           "cover_home_when_active": "Requires Solar Surplus and a solar-production sensor. The battery may cover the home's own load while this device is active; only the device's grid share stays excluded.",
           "ev_charger_no_telemetry": "✓ CHECKED = Use the Activity / EV charging sensor instead of numeric power telemetry. Existing configurations that placed this state sensor in Device power sensor continue to work. When charging is detected, the battery pauses for 5 minutes; afterwards it may only charge from solar surplus and never discharges for the EV.",
-          "remaining_demand_sensor": "Optional. Sensor reporting the energy (kWh) this device still expects to consume today, for example sensor.evcc_[loadpoint]_charge_remaining_energy. Predictive charging then reserves that much of the remaining solar forecast for the device instead of assuming the battery receives it. Only used when 'Consumption is included in home consumption sensor' is checked. Devices marked 'EV charger without power telemetry' are skipped: their energy is already inside the consumption forecast, so reserving it would count it twice."
+          "remaining_demand_sensor": "Optional. Sensor reporting the energy (kWh) this device still expects to consume today, for example sensor.evcc_[loadpoint]_charge_remaining_energy. Predictive charging then reserves that much of the remaining solar forecast for the device instead of assuming the battery receives it. Only used when 'Consumption is included in home consumption sensor' is checked. Devices marked 'EV charger without power telemetry' are skipped: their energy is already inside the consumption forecast, so reserving it would count it twice.",
+          "remaining_demand_presence_sensor": "Only count the expected remaining demand while this entity reports the device as present: on, true, home, connected, plugged or present. Leave empty to always count it. Point it at your charger's connected entity when the upstream keeps reporting a demand with nothing plugged in: evcc reports the energy to the vehicle's SOC target whether or not a car is there, and reserving solar for an absent car takes it from the battery for nothing. An unavailable or unknown entity counts as absent, so a broken sensor stops reserving rather than reserving for a device that may not be there."
         }
       },
       "add_more_excluded_devices": {
@@ -1025,7 +1027,8 @@
           "dynamic_power_control": "Device has dynamic power control",
           "cover_home_when_active": "Cover home while device is active",
           "ev_charger_no_telemetry": "EV charger without power telemetry",
-          "remaining_demand_sensor": "Expected remaining demand (kWh)"
+          "remaining_demand_sensor": "Expected remaining demand (kWh)",
+          "remaining_demand_presence_sensor": "Presence entity for the remaining demand (optional)"
         },
         "data_description": {
           "power_sensor": "Numeric power sensor (W) for the device. Optional for EV chargers without power telemetry; existing configurations that stored the charging-state sensor here remain supported.",
@@ -1035,7 +1038,8 @@
           "dynamic_power_control": "Enable for devices that automatically adjust their own demand from the grid meter, such as a solar-surplus wallbox. If an activity sensor is configured, Omnibattery yields before power appears; otherwise it reacts to the power sensor. It then uses genuine leftover export.",
           "cover_home_when_active": "Requires Solar Surplus and a solar-production sensor. The battery may cover the home's own load while this device is active; only the device's grid share stays excluded.",
           "ev_charger_no_telemetry": "✓ CHECKED = Use the Activity / EV charging sensor instead of numeric power telemetry. Existing configurations that placed this state sensor in Device power sensor continue to work. When charging is detected, the battery pauses for 5 minutes; afterwards it may only charge from solar surplus and never discharges for the EV.",
-          "remaining_demand_sensor": "Optional. Sensor reporting the energy (kWh) this device still expects to consume today, for example sensor.evcc_[loadpoint]_charge_remaining_energy. Predictive charging then reserves that much of the remaining solar forecast for the device instead of assuming the battery receives it. Only used when 'Consumption is included in home consumption sensor' is checked. Devices marked 'EV charger without power telemetry' are skipped: their energy is already inside the consumption forecast, so reserving it would count it twice."
+          "remaining_demand_sensor": "Optional. Sensor reporting the energy (kWh) this device still expects to consume today, for example sensor.evcc_[loadpoint]_charge_remaining_energy. Predictive charging then reserves that much of the remaining solar forecast for the device instead of assuming the battery receives it. Only used when 'Consumption is included in home consumption sensor' is checked. Devices marked 'EV charger without power telemetry' are skipped: their energy is already inside the consumption forecast, so reserving it would count it twice.",
+          "remaining_demand_presence_sensor": "Only count the expected remaining demand while this entity reports the device as present: on, true, home, connected, plugged or present. Leave empty to always count it. Point it at your charger's connected entity when the upstream keeps reporting a demand with nothing plugged in: evcc reports the energy to the vehicle's SOC target whether or not a car is there, and reserving solar for an absent car takes it from the battery for nothing. An unavailable or unknown entity counts as absent, so a broken sensor stops reserving rather than reserving for a device that may not be there."
         }
       },
       "add_more_excluded_devices": {
