@@ -150,7 +150,7 @@ SENSOR_DEFINITIONS: list[dict] = [
     {"key": "battery_soc", "name": "Battery SOC", "unit": "%",
      "device_class": "battery", "state_class": "measurement", "scale": 1, "precision": 0,
      "scan_interval": "medium", "enabled_by_default": True},
-    {"key": "battery_soh", "name": "Battery State of Health", "unit": "%",
+    {"key": "battery_soh", "name": "Battery State of Health (SoH)", "unit": "%",
      "device_class": None, "state_class": "measurement", "scale": 1, "precision": 1,
      "icon": "mdi:battery-heart", "scan_interval": "low", "enabled_by_default": True},
     {"key": "battery_power", "name": "Battery Power", "unit": "W",

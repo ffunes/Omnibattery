@@ -1639,7 +1639,7 @@
         "name": "SOC de la Bateria"
       },
       "battery_soh": {
-        "name": "Estat de salut de la bateria"
+        "name": "Estat de salut de la bateria (SoH)"
       },
       "battery_soc_pack_1": {
         "name": "SOC Bateria Paquet 1"
