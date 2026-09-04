@@ -532,10 +532,13 @@ def test_excluded_demand_reeval_compares_raw_readings():
 # _is_solar_forecast_reeval (provider revises the remaining forecast)
 # ----------------------------------------------------------------------
 
-def _forecast_ctrl(reference, **overrides):
+def _forecast_ctrl(reference, produced_reference=0.0, **overrides):
     """Controller stub for the forecast-driven re-evaluation predicate."""
     base = dict(
         _dp_last_eval_solar_remaining_kwh=reference,
+        _dp_last_eval_solar_produced_kwh=produced_reference,
+        _daily_solar_energy_kwh=0.0,
+        _daily_solar_energy_date=_CLAIM_NOW.date(),
         _last_decision_data={},
         _dp_solar_forecast_reeval_at=None,
         _dp_solar_forecast_reeval_count=0,
@@ -544,9 +547,12 @@ def _forecast_ctrl(reference, **overrides):
     return _controller(**base)
 
 
-def _forecast_mgr(ctrl, current):
+def _forecast_mgr(ctrl, current, produced=None):
+    """Manager whose live forecast/production reads are stubbed out."""
     manager = _mgr(ctrl)
-    manager._remaining_solar_today_kwh = lambda _now: current
+    manager._read_remaining_solar_reading = lambda _now: current
+    if produced is not None:
+        ctrl._daily_solar_energy_kwh = produced
     return manager
 
 
@@ -555,27 +561,59 @@ def test_solar_forecast_reeval_false_before_first_evaluation():
     assert _forecast_mgr(ctrl, 4.0)._is_solar_forecast_reeval(_CLAIM_NOW) is False
 
 
-def test_solar_forecast_reeval_true_when_the_day_turns_out_cloudy():
-    # Planned on 13.1 kWh, provider now says 4.1: the deficit the plan denied
-    # is real, and only a re-plan can still book cheap midday slots.
+def test_solar_forecast_reeval_ignores_the_ordinary_decline():
+    # 13.1 kWh left at 00:05, 9 kWh harvested since: 4.1 kWh left is exactly
+    # what the same forecast projected. The sun shining is not a revision.
     ctrl = _forecast_ctrl(13.1)
-    assert _forecast_mgr(ctrl, 4.1)._is_solar_forecast_reeval(_CLAIM_NOW) is True
+    manager = _forecast_mgr(ctrl, 4.1, produced=9.0)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
+
+
+def test_solar_forecast_reeval_ignores_a_full_day_that_ends_at_zero():
+    # Sunset on an accurate forecast: everything predicted was produced.
+    ctrl = _forecast_ctrl(13.1)
+    manager = _forecast_mgr(ctrl, 0.0, produced=13.1)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
+
+
+def test_solar_forecast_reeval_true_when_the_day_turns_out_cloudy():
+    # Planned on 13.1 kWh, only 1.8 harvested, provider now says 4.1: the plan
+    # projected 11.3 still to come, so 7.2 kWh went missing.
+    ctrl = _forecast_ctrl(13.1)
+    manager = _forecast_mgr(ctrl, 4.1, produced=1.8)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is True
 
 
 def test_solar_forecast_reeval_true_when_the_day_clears_up():
     ctrl = _forecast_ctrl(4.1)
-    assert _forecast_mgr(ctrl, 13.1)._is_solar_forecast_reeval(_CLAIM_NOW) is True
+    manager = _forecast_mgr(ctrl, 13.1, produced=1.0)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is True
 
 
 def test_solar_forecast_reeval_false_below_threshold():
     ctrl = _forecast_ctrl(6.0)
-    assert _forecast_mgr(ctrl, 5.0)._is_solar_forecast_reeval(_CLAIM_NOW) is False
+    manager = _forecast_mgr(ctrl, 5.0, produced=0.0)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
+
+
+def test_solar_forecast_reeval_false_when_the_sensor_is_unavailable():
+    # An unavailable read is None, not a collapse to zero.
+    ctrl = _forecast_ctrl(13.1)
+    manager = _forecast_mgr(ctrl, None, produced=1.8)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
+
+
+def test_solar_forecast_reeval_false_without_todays_production():
+    # No same-day accumulator means no projection to compare against.
+    ctrl = _forecast_ctrl(13.1, _daily_solar_energy_date=None)
+    manager = _forecast_mgr(ctrl, 4.1)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
 
 
 def test_solar_forecast_reeval_false_late_in_the_evening():
     # The 00:05 evaluation is close enough; don't clash with it.
-    ctrl = _forecast_ctrl(13.1)
-    manager = _forecast_mgr(ctrl, 0.0)
+    ctrl = _forecast_ctrl(13.1, _daily_solar_energy_date=datetime(2026, 8, 28, 23, 10).date())
+    manager = _forecast_mgr(ctrl, 0.0, produced=1.8)
     assert manager._is_solar_forecast_reeval(datetime(2026, 8, 28, 23, 10)) is False
 
 
@@ -584,26 +622,37 @@ def test_solar_forecast_reeval_respects_cooldown():
         13.1,
         _dp_solar_forecast_reeval_at=_CLAIM_NOW - timedelta(minutes=10),
     )
-    assert _forecast_mgr(ctrl, 4.1)._is_solar_forecast_reeval(_CLAIM_NOW) is False
+    manager = _forecast_mgr(ctrl, 4.1, produced=1.8)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
 
     ctrl._dp_solar_forecast_reeval_at = _CLAIM_NOW - timedelta(minutes=45)
-    assert _forecast_mgr(ctrl, 4.1)._is_solar_forecast_reeval(_CLAIM_NOW) is True
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is True
 
 
 def test_solar_forecast_reeval_respects_daily_cap():
     ctrl = _forecast_ctrl(13.1, _dp_solar_forecast_reeval_count=4)
-    assert _forecast_mgr(ctrl, 4.1)._is_solar_forecast_reeval(_CLAIM_NOW) is False
+    manager = _forecast_mgr(ctrl, 4.1, produced=1.8)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
 
 
-def test_refresh_solar_forecast_reference_stores_the_live_remainder():
-    ctrl = _forecast_ctrl(None)
-    _forecast_mgr(ctrl, 4.1)._refresh_solar_forecast_reference(_CLAIM_NOW)
+def test_refresh_solar_forecast_reference_stores_both_halves():
+    ctrl = _forecast_ctrl(None, produced_reference=None)
+    _forecast_mgr(ctrl, 4.1, produced=1.8)._refresh_solar_forecast_reference(_CLAIM_NOW)
     assert ctrl._dp_last_eval_solar_remaining_kwh == 4.1
+    assert ctrl._dp_last_eval_solar_produced_kwh == 1.8
+
+
+def test_refresh_solar_forecast_reference_keeps_the_old_pair_on_unavailable():
+    # A blip must not store a phantom zero the recovery would read as a jump.
+    ctrl = _forecast_ctrl(13.1, produced_reference=1.0)
+    _forecast_mgr(ctrl, None, produced=1.8)._refresh_solar_forecast_reference(_CLAIM_NOW)
+    assert ctrl._dp_last_eval_solar_remaining_kwh == 13.1
+    assert ctrl._dp_last_eval_solar_produced_kwh == 1.0
 
 
 def test_refresh_solar_forecast_reference_disarms_the_trigger():
     ctrl = _forecast_ctrl(13.1)
-    manager = _forecast_mgr(ctrl, 4.1)
+    manager = _forecast_mgr(ctrl, 4.1, produced=1.8)
     assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is True
     manager._refresh_solar_forecast_reference(_CLAIM_NOW)
     assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False

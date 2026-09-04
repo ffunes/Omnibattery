@@ -553,7 +553,7 @@ EXCLUDED_DEMAND_REEVAL_MAX_PER_DAY = 4  # Cap on claim-driven re-evaluations per
 SOLAR_FORECAST_REEVAL_KWH = 1.5           # Forecast change (either direction) that warrants a re-plan
 SOLAR_FORECAST_REEVAL_COOLDOWN_MIN = 30   # Minimum minutes between two forecast-driven re-evaluations
 SOLAR_FORECAST_REEVAL_MAX_PER_DAY = 4     # Cap on forecast-driven re-evaluations per day
-SOLAR_FORECAST_DAILY_RETRY_LIMIT = 4      # 00:05 retries while the forecast sensor still reads zero
+SOLAR_FORECAST_DAILY_RETRY_LIMIT = 3      # Deferrals while the forecast sensor still reads zero (last ladder call plans)
 
 # Weekday mapping (mon=0, sun=6, matches datetime.weekday())
 WEEKDAY_MAP = {
