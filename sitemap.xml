@@ -99,6 +99,13 @@
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/hoymiles/"/>
     </url>
     <url>
+        <loc>https://ffunes.github.io/omnibattery/configuration/batteries/huawei/</loc>
+        <lastmod>2026-09-04</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/huawei/"/>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/huawei/"/>
+    </url>
+    <url>
         <loc>https://ffunes.github.io/omnibattery/configuration/batteries/marstek/</loc>
         <lastmod>2026-09-04</lastmod>
         <changefreq>daily</changefreq>
@@ -370,6 +377,13 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/hoymiles/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/hoymiles/"/>
+    </url>
+    <url>
+        <loc>https://ffunes.github.io/omnibattery/es/configuration/batteries/huawei/</loc>
+        <lastmod>2026-09-04</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="es" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/huawei/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://ffunes.github.io/omnibattery/configuration/batteries/huawei/"/>
     </url>
     <url>
         <loc>https://ffunes.github.io/omnibattery/es/configuration/batteries/marstek/</loc>

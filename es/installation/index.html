@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Home Assistant custom integration for pluggable solar batteries (Marstek Venus and Zendure SolarFlow)">
+        <meta name="description" content="Home Assistant custom integration for monitoring and controlling multiple home-battery brands">
       
       
         <meta name="author" content="ffunes">
@@ -1160,6 +1160,34 @@
     
   
     Anker SOLIX
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/batteries/huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Huawei
   
 
     
@@ -2693,6 +2721,11 @@ compatible. Los adaptadores y puentes solo son necesarios cuando se indican.</p>
 <td>Activa <strong>Third-Party Control</strong> en la aplicación de Anker. Solo puede conectarse un cliente Modbus a la vez.</td>
 </tr>
 <tr>
+<td><strong>Huawei SUN2000 + LUNA2000</strong></td>
+<td>Modbus TCP a través del inversor SUN2000</td>
+<td>La vía de control predeterminada necesita la integración Huawei Solar y un proxy Modbus compartido. Las escrituras directas son opcionales. Consulta la <a href="../configuration/batteries/huawei/">guía de instalación de Huawei</a>.</td>
+</tr>
+<tr>
 <td><strong>Sessy Home Battery</strong></td>
 <td>API HTTP local mediante el dongle de Sessy</td>
 <td>El dongle debe ser accesible desde Home Assistant. Introduce su IP/nombre de host, puerto y credenciales; el puerto predeterminado es <code>80</code>.</td>
@@ -2725,6 +2758,7 @@ para ajustar la potencia de la batería.</p>
 <ul>
 <li>Home Assistant <strong>2024.1.0</strong> o superior</li>
 <li>Solo para <strong>baterías Hoymiles mediante MQTT</strong>: la integración MQTT de Home Assistant y un broker MQTT local operativo. Omnibattery usa el broker a través de Home Assistant; no instala uno.</li>
+<li>Para el método de control <strong>Huawei</strong> predeterminado: la integración Huawei Solar. No es necesaria si se activan las escrituras Modbus directas.</li>
 <li>(Opcional) Sensor de previsión solar para la carga predictiva (Solcast, Forecast.Solar, etc.)</li>
 </ul>
 <h3 id="red">Red<a class="headerlink" href="#red" title="Permanent link">&para;</a></h3>

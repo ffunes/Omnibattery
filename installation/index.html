@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Home Assistant custom integration for pluggable solar batteries (Marstek Venus and Zendure SolarFlow)">
+        <meta name="description" content="Home Assistant custom integration for monitoring and controlling multiple home-battery brands">
       
       
         <meta name="author" content="ffunes">
@@ -1160,6 +1160,34 @@
     
   
     Anker SOLIX
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/batteries/huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Huawei
   
 
     
@@ -2693,6 +2721,11 @@ battery. Adapters and bridges are only required where noted.</p>
 <td>Enable <strong>Third-Party Control</strong> in the Anker app. Only one Modbus client can connect at a time.</td>
 </tr>
 <tr>
+<td><strong>Huawei SUN2000 + LUNA2000</strong></td>
+<td>Modbus TCP through the SUN2000 inverter</td>
+<td>The default control path requires the Huawei Solar integration and a shared Modbus proxy. Direct writes are optional. See the <a href="../configuration/batteries/huawei/">Huawei setup guide</a>.</td>
+</tr>
+<tr>
 <td><strong>Sessy Home Battery</strong></td>
 <td>Local HTTP API through the Sessy dongle</td>
 <td>The dongle must be reachable from Home Assistant. Enter its IP/hostname, port and dongle credentials; port <code>80</code> is the default.</td>
@@ -2724,6 +2757,7 @@ is event-driven and uses each publication to adjust battery power.</p>
 <ul>
 <li>Home Assistant <strong>2024.1.0</strong> or later</li>
 <li>For <strong>Hoymiles MQTT batteries</strong> only: the Home Assistant MQTT integration and a working local MQTT broker. Omnibattery uses the broker through Home Assistant; it does not install one.</li>
+<li>For the default <strong>Huawei</strong> control method: the Huawei Solar integration. It is not required when direct Modbus writes are enabled.</li>
 <li>(Optional) Solar forecast sensor for predictive charging (Solcast, Forecast.Solar, etc.)</li>
 </ul>
 <h3 id="network">Network<a class="headerlink" href="#network" title="Permanent link">&para;</a></h3>

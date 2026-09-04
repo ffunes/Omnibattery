@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Home Assistant custom integration for pluggable solar batteries (Marstek Venus and Zendure SolarFlow)">
+        <meta name="description" content="Home Assistant custom integration for monitoring and controlling multiple home-battery brands">
       
       
         <meta name="author" content="ffunes">
@@ -1070,6 +1070,34 @@
     
   
     Anker SOLIX
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="configuration/batteries/huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Huawei
   
 
     
@@ -2501,6 +2529,7 @@
 <li><strong>Marstek</strong> Venus E/C (v2/v3), Venus A y Venus D mediante Modbus TCP, Modbus RTU o un puente LilyGo RS485/ESPHome.</li>
 <li><strong>Zendure</strong> SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus y 800 mediante HTTP local.</li>
 <li><strong>Anker SOLIX</strong> Solarbank Max AC y Solarbank 4 E5000 Pro mediante Modbus TCP.</li>
+<li><strong>Huawei</strong> SUN2000 + LUNA2000 mediante Modbus TCP (validado en SUN2000-8K-MAP0).</li>
 <li><strong>Sessy</strong> Home Battery mediante la API local de su dongle (se buscan testers).</li>
 <li><strong>Hoymiles</strong> MS-A2 mediante la integración MQTT configurada en Home Assistant.</li>
 </ul>
@@ -2520,7 +2549,7 @@
 </li>
 <li>
 <p>:material-brand_family: <strong>Multi-marca</strong></p>
-<p>Combina baterías Marstek, Zendure, Anker SOLIX, Sessy y Hoymiles en una misma instalación, compartiendo el bucle de control, las entidades de sistema y las funciones de gestión energética.</p>
+<p>Combina baterías Marstek, Zendure, Anker SOLIX, Huawei, Sessy y Hoymiles en una misma instalación, compartiendo el bucle de control, las entidades de sistema y las funciones de gestión energética.</p>
 </li>
 <li>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 3v6h8V3m-8 18h8V11h-8M3 21h8v-6H3m0-2h8V3H3z"/></svg></span> <strong>Dashboard integrado</strong></p>
@@ -2545,7 +2574,7 @@
 <li><strong>Controlador PD (Zero Export/Import)</strong>: ajusta en tiempo real la potencia de la batería para mantener el intercambio con la red próximo a cero.</li>
 <li><strong>Perfiles PD de un clic y sensor de calidad de control</strong>: selecciona una respuesta de Muy suave a Muy agresiva y consulta el veredicto de calidad para saber si la regulación es estable, oscilante o lenta.</li>
 <li><strong>Modo de seguimiento directo sin PD</strong> (opt-in): la batería sigue el sensor de consumo 1:1 en cada ciclo — sin integral, derivada, suavizado ni limitador de rampa — para instalaciones que prefieren seguimiento directo al controlador PD.</li>
-<li><strong>Compatibilidad multi-marca</strong>: combina baterías compatibles Marstek, Zendure, Anker SOLIX, Sessy y Hoymiles en la misma instalación.</li>
+<li><strong>Compatibilidad multi-marca</strong>: combina baterías compatibles Marstek, Zendure, Anker SOLIX, Huawei, Sessy y Hoymiles en la misma instalación.</li>
 <li><strong>Carga predictiva</strong>: tres modos (franja horaria, precio dinámico, precio en tiempo real — incluyendo Tibber) que cargan desde la red solo cuando el balance energético lo requiere. Utiliza una media móvil de 7 días del consumo real del hogar para decidir si es necesario cargar desde la red.</li>
 <li><strong>Gestión multi-batería</strong>: selección inteligente con prioridades de SOC, histéresis de energía y eficiencia por zona de operación.</li>
 <li><strong>Franjas horarias</strong>: controlan de forma independiente las ventanas de carga y descarga, con parámetros de SOC y potencia por franja.</li>
