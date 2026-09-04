@@ -33,14 +33,25 @@ def test_disabled_charge_delay_suppresses_stale_clock_markers():
     assert "const delay = delayEnabled && !weeklyDelayBypassed" in panel
 
 
-def test_disabled_hourly_balance_suppresses_feature_legend_and_markers():
+def test_hourly_balance_history_survives_the_feature_being_switched_off():
+    """The per-cell context bit is the evidence, not the live switch.
+
+    Turning hourly balance off (or a restart with it off) used to erase the
+    cause row and the orange marker from every past cell that was recorded
+    while the feature was running.
+    """
     panel = PANEL.read_text(encoding="utf-8")
 
     assert "daily-op-legend-hourly-balance" in panel
     assert 'const hourlyBalanceState = this._stateFor(this._index().byKey, "hourly_balance");' in panel
     assert "hourlyBalanceEnabled: Boolean(hourlyBalanceState" in panel
     assert "ref.hourlyBalanceLegend.hidden = !snapshot.hourlyBalanceEnabled;" in panel
-    assert "hourlyBalance: snapshot.hourlyBalanceEnabled" in panel
+    assert (
+        "hourlyBalance: ((context || 0) & DAILY_OPERATION_CONTEXT_HOURLY_BALANCE) !== 0,"
+        in panel
+    )
+    # The legend must follow the evidence, otherwise the marker has no key.
+    assert "|| actualContext.some((value) =>" in panel
 
 
 def test_open_cell_is_completed_from_the_previous_quarter_never_dropped():

@@ -2909,7 +2909,8 @@ class MarstekVenusPanel extends HTMLElement {
     const hourlyBalanceState = this._stateFor(this._index().byKey, "hourly_balance");
     return {
       entityId, stateObj, data, unavailable, hasValues,
-      hourlyBalanceEnabled: Boolean(hourlyBalanceState && hourlyBalanceState.state === "on"),
+      hourlyBalanceEnabled: Boolean(hourlyBalanceState && hourlyBalanceState.state === "on")
+        || actualContext.some((value) => ((this._dailyOperationNumber(value) || 0) & DAILY_OPERATION_CONTEXT_HOURLY_BALANCE) !== 0),
       localDate: data.local_date || null,
       timezone: data.timezone || null,
       generatedAt: data.generated_at || null,
@@ -3172,8 +3173,10 @@ class MarstekVenusPanel extends HTMLElement {
       index, status, statusLabel: this._dailyOperationStatusLabel(status),
       timeRange: this._dailyOperationTimeRange(index),
       mask: mask || 0, actions, solarWindow, context: context || 0,
-      hourlyBalance: snapshot.hourlyBalanceEnabled
-        && ((context || 0) & DAILY_OPERATION_CONTEXT_HOURLY_BALANCE) !== 0,
+      // The context bit is per-cell evidence recorded while the feature was
+      // enabled. Gating it on the live switch erased the history of every
+      // past cell as soon as hourly balance was turned off.
+      hourlyBalance: ((context || 0) & DAILY_OPERATION_CONTEXT_HOURLY_BALANCE) !== 0,
       decision,
       operationSource,
       observationTrusted: status === "forecast" || this._dailyOperationSourceIsObserved(operationSource),
