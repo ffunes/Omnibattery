@@ -27,6 +27,12 @@ El sensor **Carga semanal completa** expone diagnósticos por batería en su atr
 !!! note "SOC desviado"
     Durante la carga semanal la pausa de 3.60 V **no** se aplica: la carga sigue a 200 W hasta que el BMS corta. Si el contador culombimétrico del BMS se ha desviado (celdas realmente llenas pero SOC reportado por debajo del 100 %), la finalización igual se detecta: la firma de corte del BMS (carga ≤10 W con el inversor en Standby durante 5 ciclos) se reconoce siempre que el pack esté en la zona de reducción (≥ 3.48 V), sin importar el SOC reportado. Así la carga semanal puede terminar aunque el pack nunca llegue a leer 100 %, e *intenta* recalibrar el SOC — depende del firmware del BMS. Ver [Recalibración de SOC con tensión alta atascada](cell-balance-monitor.md#recalibracion-de-soc-con-tension-alta-atascada).
 
+## De dónde sale la energía
+
+El excedente solar llena la batería primero. El día del ciclo semanal, la [carga predictiva](../configuration/predictive-charging/index.md) añade además a su balance energético lo que falta hasta el 100%, igual que hace el SOC mínimo garantizado, de modo que compra de la red lo que la previsión solar no vaya a cubrir: en las horas más baratas con precio dinámico, o en la ventana configurada con tarifa plana. Si el excedente previsto ya cubre la diferencia, no se compra nada.
+
+Esto no requiere ninguna configuración adicional más allá de tener activada la carga predictiva: el día del ciclo semanal es el único disparador. Sin carga predictiva el ciclo sigue siendo solo solar y puede no completarse en un día nublado.
+
 ## Configuración desde el dashboard
 
 La carga semanal completa se configura desde el dashboard de Omnibattery. La única elección obligatoria es el día en el que debe ejecutarse el ciclo.

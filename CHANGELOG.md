@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- **The weekly full charge now completes without sun** (#404): it only raised the SOC ceiling, so a cloudy weekly day left the pack short. The gap to 100% now enters the predictive energy balance like the guaranteed minimum SOC does, so the cheapest hours (or the configured window on a flat tariff) buy whatever the forecast surplus will not cover. No new settings.
 - **A Huawei hybrid is left alone while its roof is producing** (#381): a forcible command is a ceiling, not a request, so it curtailed the array. The driver now commands nothing under sun except a charge above the harvest, which binds nothing. Thanks to @sphings79.
 - **A discharge into a surplus is refused, and a discharge past the house's own load is capped** (#335): with two regulators on one meter, one battery charging and another discharging cancel out and the grid reads zero, so a surplus made a round trip through two conversion losses while the deadband held the command.
 - **A device reporting a power ceiling of zero shut itself out of every allocation** (#380): a Marstek came back from a restart with both power registers at 0, and adopting that left the battery unable to charge or discharge, with nothing to write those registers again because the controller had stopped addressing it. The last known ceiling now stands, and the mismatch is logged with the entity that restores it. Thanks to @sphings79.

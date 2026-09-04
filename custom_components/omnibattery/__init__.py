@@ -3376,19 +3376,37 @@ class ChargeDischargeController:
             or self._balance_monitor_overrides_delay()
         )
 
+    def _weekly_full_charge_pending(self) -> bool:
+        """Return True while a weekly full charge still has to reach 100% today."""
+        manager = getattr(self, "_weekly_charge_mgr", None)
+        return manager is not None and manager.is_active()
+
+    def _charge_ceiling_soc(self, coordinator) -> float:
+        """Return the SOC every charge path may plan against.
+
+        Normally the configured ``max_soc``. While a weekly full charge is
+        running the ceiling is 100%, so the energy balance, the predictive grid
+        targets and the dispatch limits all size the same cycle instead of the
+        planner stopping at max_soc and the weekly routine waiting for solar
+        that may never arrive.
+        """
+        if ChargeDischargeController._weekly_full_charge_pending(self):
+            return 100.0
+        return float(coordinator.max_soc)
+
     def _effective_charge_max_soc(self, coordinator, weekly_100_unlocked: bool) -> tuple[float, str]:
         """Return the current per-battery charge ceiling and the source of that ceiling."""
         # A predictive grid-charge target must stop at its explicit target even
-        # when a weekly-full-charge window happens to overlap. The weekly
-        # routine can continue toward 100% with solar after grid ownership is
-        # released.
+        # when a weekly-full-charge window happens to overlap. On the weekly day
+        # that target is itself sized to 100%, so the two no longer disagree.
+        ceiling = ChargeDischargeController._charge_ceiling_soc(self, coordinator)
         if (
             self.grid_charging_active
             and self._predictive_charge_target_soc is not None
         ):
             per_battery_target = self._predictive_charge_target_soc.get(coordinator)
             if per_battery_target is not None:
-                return min(coordinator.max_soc, per_battery_target), "predictive_target"
+                return min(ceiling, per_battery_target), "predictive_target"
 
         if weekly_100_unlocked:
             return 100, "weekly_full_charge"
@@ -3396,7 +3414,7 @@ class ChargeDischargeController:
         if self.grid_charging_active and self._predictive_charge_target_soc is not None:
             per_battery_target = self._predictive_charge_target_soc.get(coordinator)
             if per_battery_target is not None:
-                return min(coordinator.max_soc, per_battery_target), "predictive_target"
+                return min(ceiling, per_battery_target), "predictive_target"
 
         slot = self._get_active_slot(coordinator, "charge")
         if slot and slot.get("soc_override_enabled"):
@@ -4645,7 +4663,10 @@ class ChargeDischargeController:
         battery_headroom_kwh = sum(
             max(
                 0.0,
-                (c.max_soc - (c.data.get("battery_soc", c.max_soc) or 0)) / 100.0
+                (
+                    ChargeDischargeController._charge_ceiling_soc(self, c)
+                    - (c.data.get("battery_soc", c.max_soc) or 0)
+                ) / 100.0
                 * (c.data.get("battery_total_energy", 0) or 0),
             )
             for c in coordinators_with_data
@@ -4704,6 +4725,24 @@ class ChargeDischargeController:
                 for c in coordinators_with_data
                 if float(c.data.get("battery_soc", 0) or 0.0)
                 < self._predictive_min_soc_floor - FLOOR_HYSTERESIS_PCT
+            )
+
+        # Weekly full charge (#404): the balance below answers "will I run out
+        # of battery", never "is the battery full", so a weekly 100% day never
+        # produced a deficit and nothing charged unless the sun happened to
+        # cover it. Size the gap to 100% here; each deficit branch nets out the
+        # solar surplus it expects and takes the larger of the two demands, so
+        # the grid only buys what the sun will not deliver. Zero when the
+        # weekly cycle is off, not today, or already complete.
+        weekly_gap_kwh = 0.0
+        if ChargeDischargeController._weekly_full_charge_pending(self):
+            weekly_gap_kwh = sum(
+                max(
+                    0.0,
+                    (100.0 - float(c.data.get("battery_soc", 0) or 0.0)) / 100.0
+                    * float(c.data.get("battery_total_energy", 0) or 0.0),
+                )
+                for c in coordinators_with_data
             )
 
         # Get dynamic consumption forecast.  The normal 00:05 evaluation uses
@@ -4831,7 +4870,13 @@ class ChargeDischargeController:
         if solar_forecast_kwh is None:
             # Conservative mode: assume zero solar, compare usable vs consumption
             total_available_kwh = usable_energy_kwh
-            energy_deficit_kwh = max(avg_consumption_kwh - total_available_kwh, floor_deficit_kwh)
+            # No forecast means no expected surplus, so the weekly gap enters
+            # whole - consistent with this branch assuming zero solar.
+            energy_deficit_kwh = max(
+                avg_consumption_kwh - total_available_kwh,
+                floor_deficit_kwh,
+                weekly_gap_kwh,
+            )
             should_charge = energy_deficit_kwh > 0
             planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
                 energy_deficit_kwh,
@@ -4904,6 +4949,7 @@ class ChargeDischargeController:
                 or getattr(self, "solar_forecast_diagnostic_source", None),
                 "solar_forecast_diagnostic_source": forecast_diagnostic_source
                 or getattr(self, "solar_forecast_diagnostic_source", None),
+                "weekly_full_charge_active": weekly_gap_kwh >= energy_deficit_kwh > 0,
                 "reason": f"Solar unavailable - conservative mode ({'charge' if should_charge else 'safe'})"
             }
 
@@ -4925,9 +4971,18 @@ class ChargeDischargeController:
         solar_available_to_battery_kwh = solar_remaining_effective_kwh - excluded_demand_claim_kwh
         total_available_kwh = usable_energy_kwh + solar_available_to_battery_kwh
         base_deficit_kwh = avg_consumption_kwh - total_available_kwh
-        energy_deficit_kwh = max(base_deficit_kwh, floor_deficit_kwh)
+        # Only the solar left over after the house is served can fill the pack,
+        # so the weekly cycle buys the rest of its gap and no more. Energy
+        # already stored does not count: it is below the gap, not inside it.
+        weekly_deficit_kwh = max(
+            0.0,
+            weekly_gap_kwh
+            - max(0.0, solar_available_to_battery_kwh - avg_consumption_kwh),
+        )
+        energy_deficit_kwh = max(base_deficit_kwh, floor_deficit_kwh, weekly_deficit_kwh)
         should_charge = energy_deficit_kwh > 0
         floor_active = floor_deficit_kwh > 0 and floor_deficit_kwh > base_deficit_kwh
+        weekly_active = weekly_deficit_kwh > 0 and weekly_deficit_kwh >= energy_deficit_kwh
 
         _LOGGER.info(
             "Predictive Grid Charging Evaluation (Energy Balance):\n"
@@ -4990,6 +5045,7 @@ class ChargeDischargeController:
             "days_in_history": days_in_history,
             "solar_surplus_kwh": solar_surplus_kwh,
             "floor_active": floor_active,
+            "weekly_full_charge_active": weekly_active,
             "consumption_scope": consumption_scope,
             "consumption_forecast_source": (
                 profile_forecast.source
@@ -5045,6 +5101,9 @@ class ChargeDischargeController:
                 f"Guaranteed minimum SOC: charging {energy_deficit_kwh:.2f} kWh "
                 f"to reach {self._predictive_min_soc_floor:.0f}% (current avg {avg_soc:.0f}%)"
                 if floor_active else
+                f"Weekly full charge: charging {energy_deficit_kwh:.2f} kWh "
+                f"to reach 100% (current avg {avg_soc:.0f}%)"
+                if weekly_active else
                 f"Energy deficit: {energy_deficit_kwh:.2f} kWh "
                 f"(available: {total_available_kwh:.2f} kWh < consumption: {avg_consumption_kwh:.2f} kWh"
                 + (f" + margin: {safety_margin_kwh:.2f} kWh" if safety_margin_kwh > 0 else "") + ")"
@@ -5143,12 +5202,13 @@ class ChargeDischargeController:
         if not coordinators_with_data:
             return None
 
-        # Per-battery gap to max_soc (kWh)
+        # Per-battery gap to the charge ceiling (kWh); 100% on a weekly day.
         gaps: dict = {}
         for c in coordinators_with_data:
             capacity = c.data.get("battery_total_energy", 0)
             current_soc = c.data.get("battery_soc", 0)
-            gaps[c] = max(0.0, (c.max_soc - current_soc) / 100.0 * capacity)
+            ceiling = ChargeDischargeController._charge_ceiling_soc(self, c)
+            gaps[c] = max(0.0, (ceiling - current_soc) / 100.0 * capacity)
 
         total_gap_kwh = sum(gaps.values())
         if total_gap_kwh <= 0:
@@ -5179,11 +5239,12 @@ class ChargeDischargeController:
         for c in coordinators_with_data:
             capacity = c.data.get("battery_total_energy", 0)
             current_soc = c.data.get("battery_soc", 0)
+            ceiling = ChargeDischargeController._charge_ceiling_soc(self, c)
             if capacity <= 0:
-                targets[c] = c.max_soc
+                targets[c] = ceiling
                 continue
             share_kwh = (gaps[c] / total_gap_kwh) * grid_charge_kwh
-            target = min(c.max_soc, current_soc + (share_kwh / capacity) * 100.0)
+            target = min(ceiling, current_soc + (share_kwh / capacity) * 100.0)
             targets[c] = max(target, current_soc)  # never go below current SOC
 
         _LOGGER.info(
@@ -5195,7 +5256,7 @@ class ChargeDischargeController:
         return targets
 
     def _compute_opportunistic_target_soc(self) -> Optional[dict]:
-        """Return each battery's configured maximum SOC as the opportunity ceiling."""
+        """Return each battery's charge ceiling as the opportunity ceiling."""
         transient_targets = getattr(
             self, "_curtailment_opportunistic_target_soc", None
         )
@@ -5205,7 +5266,7 @@ class ChargeDischargeController:
                 continue
             if coordinator.data is None or not getattr(coordinator, "is_available", True):
                 continue
-            target = float(coordinator.max_soc)
+            target = ChargeDischargeController._charge_ceiling_soc(self, coordinator)
             if isinstance(transient_targets, dict):
                 target = min(
                     target,
@@ -5279,7 +5340,7 @@ class ChargeDischargeController:
                 if coordinator in mapping
             ]
             combined[coordinator] = min(
-                float(coordinator.max_soc),
+                ChargeDischargeController._charge_ceiling_soc(self, coordinator),
                 max(targets),
             )
         return combined

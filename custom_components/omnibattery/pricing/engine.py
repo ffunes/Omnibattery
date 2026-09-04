@@ -2742,9 +2742,14 @@ class PricingManager:
                     * float(c.data.get("battery_total_energy", 0) or 0))
                 for c in eligible
             )
+            # 100% while a weekly full charge is pending, so the plan may size
+            # the cheap slots for the whole cycle instead of stopping at max_soc.
+            ceiling = getattr(self._controller, "_charge_ceiling_soc", None)
             headroom = sum(
-                max(0.0, (float(c.max_soc) - float(c.data.get("battery_soc", 0) or 0)) / 100.0
-                    * float(c.data.get("battery_total_energy", 0) or 0))
+                max(0.0, (
+                    (float(ceiling(c)) if callable(ceiling) else float(c.max_soc))
+                    - float(c.data.get("battery_soc", 0) or 0)
+                ) / 100.0 * float(c.data.get("battery_total_energy", 0) or 0))
                 for c in eligible
             )
             deadlines = build_energy_deadlines(intervals, usable)
