@@ -359,6 +359,10 @@
           "dp_price_discharge_control": "Nur entladen wenn Preis über Schwellenwert",
           "negative_price_charging_enabled": "Opportunistisches Laden bei negativen Preisen aktivieren",
           "smart_predischarge_enabled": "Intelligente Vorentladung / Anti-Abregelung",
+          "surplus_price_hold_enabled": "Preisbewusste Aufnahme von Solarüberschuss aktivieren",
+          "surplus_hold_min_saving": "Mindestersparnis für das Zurückhalten des Überschusses (Währung/kWh)",
+          "export_price_sensor": "Export/feed-in price sensor (optional)",
+          "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Schwellenwert für negative Einspeisung",
           "predischarge_reserve_soc": "SOC-Reserve für Vorentladung (%)",
           "predischarge_export_mode": "Modus für gezielte Netzeinspeisung",
@@ -374,6 +378,10 @@
           "dp_price_discharge_control": "Wenn aktiviert, entlädt die Batterie nur, wenn der aktuelle Strompreis den konfigurierten maximalen Preisschwellenwert übersteigt. Wenn kein Schwellenwert konfiguriert ist, wird der automatisch aus dem Preissensor berechnete Tagesdurchschnitt verwendet. Falls Zeitfenster die Entladung einschränken, müssen beide Bedingungen erfüllt sein.",
           "negative_price_charging_enabled": "Optionale Funktion für dynamische Preise, die in den negativsten Importpreisfenstern lädt, auch wenn die normale Prognose keine Netzladung erfordert. Ein Solarprognosesensor ist nicht erforderlich.",
           "smart_predischarge_enabled": "Aktiviert die optionale Vorentladung nur im dynamischen Preismodus, um vor negativen Einspeisepreisen Platz zu schaffen.",
+          "surplus_price_hold_enabled": "Optionale Funktion für dynamische Preise. Das Speichern von PV-Überschuss verwirkt die Einspeisevergütung dieses Zeitfensters. Die Batterie lässt den Überschuss daher einspeisen, solange noch ein deutlich günstigeres Einspeisefenster bevorsteht, und lädt stattdessen in den günstigsten Stunden. Sie gibt am Ende der Solarproduktion frei, sobald das Tagesziel erreicht ist und sobald die verbleibenden günstigen Fenster es nicht mehr decken können. Bestehende SOC-Untergrenzen, Ladeverzögerung, geplante günstige Netzfenster, Laden bei negativen Preisen, intelligente Vorentladung, wöchentliche Volladung und manuelle Steuerung haben immer Vorrang.",
+          "surplus_hold_min_saving": "Wie viel günstiger das beste verbleibende Zeitfenster sein muss, bevor Überschuss zurückgehalten wird. Verhindert Umschalten bei vernachlässigbaren Preisunterschieden. Angabe in Hauptwährung/kWh.",
+          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
+          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Preise gleich oder unter diesem Wert gelten bei erwarteter Solarüberschussenergie als Risikofenster.",
           "predischarge_reserve_soc": "SOC, der zusätzlich zu den vorhandenen Mindestgrenzen reserviert wird.",
           "predischarge_export_mode": "Wähle, wie der Anti-Abregelungs-Puffer erstellt wird: Nur Eigenverbrauch (0 W), Automatisch (nur die erforderliche Leistung) oder Benutzerdefiniertes Limit (im nächsten Schritt). Dies ist ein Limit für gezielte Einspeisung, nicht die gesamte Entladeleistung.",
@@ -727,6 +735,8 @@
       "manual_requires_power": "Manueller Modus benötigt aktivierte Leistungssteuerung.",
       "no_price_data": "Der ausgewählte Sensor ist keine unterstützte Preisquelle. Nord Pool: Wähle eine Entität der offiziellen Integration oder einen HACS-Sensor mit `raw_today`. PVPC benötigt `price_00h` … `price_23h`, CKW eine `prices`-Liste, EPEX eine `data`-Liste und ENTSO-e eine `prices_today`-Liste.",
       "tibber_unavailable": "Die Tibber-Integration ist nicht installiert oder ihr Dienst `tibber.get_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst Tibber.",
+      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
+      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "Die Entlade-Preisuntergrenze darf nicht unter dem maximalen (Lade-)Preis liegen. Setze sie gleich oder höher oder lass sie leer, um den Ladeschwellenwert wiederzuverwenden.",
       "host_or_serial_required": "Gib entweder eine IP-Adresse (TCP) oder einen seriellen Port-Pfad (Modbus RTU) ein.",
       "missing_power_sensor": "Wähle einen Geräte-Leistungssensor oder aktiviere EV-Ladestation ohne Telemetrie und wähle einen Aktivitätssensor.",
@@ -1085,6 +1095,10 @@
           "dp_price_discharge_control": "Nur entladen wenn Preis über Schwellenwert",
           "negative_price_charging_enabled": "Opportunistisches Laden bei negativen Preisen aktivieren",
           "smart_predischarge_enabled": "Intelligente Vorentladung / Anti-Abregelung",
+          "surplus_price_hold_enabled": "Preisbewusste Aufnahme von Solarüberschuss aktivieren",
+          "surplus_hold_min_saving": "Mindestersparnis für das Zurückhalten des Überschusses (Währung/kWh)",
+          "export_price_sensor": "Export/feed-in price sensor (optional)",
+          "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Schwellenwert für negative Einspeisung",
           "predischarge_reserve_soc": "SOC-Reserve für Vorentladung (%)",
           "predischarge_export_mode": "Modus für gezielte Netzeinspeisung",
@@ -1100,6 +1114,10 @@
           "dp_price_discharge_control": "Wenn aktiviert, entlädt die Batterie nur, wenn der aktuelle Strompreis den konfigurierten maximalen Preisschwellenwert übersteigt. Wenn kein Schwellenwert konfiguriert ist, wird der automatisch aus dem Preissensor berechnete Tagesdurchschnitt verwendet. Falls Zeitfenster die Entladung einschränken, müssen beide Bedingungen erfüllt sein.",
           "negative_price_charging_enabled": "Optionale Funktion für dynamische Preise, die in den negativsten Importpreisfenstern lädt, auch wenn die normale Prognose keine Netzladung erfordert. Ein Solarprognosesensor ist nicht erforderlich.",
           "smart_predischarge_enabled": "Aktiviert die optionale Vorentladung nur im dynamischen Preismodus, um vor negativen Einspeisepreisen Platz zu schaffen.",
+          "surplus_price_hold_enabled": "Optionale Funktion für dynamische Preise. Das Speichern von PV-Überschuss verwirkt die Einspeisevergütung dieses Zeitfensters. Die Batterie lässt den Überschuss daher einspeisen, solange noch ein deutlich günstigeres Einspeisefenster bevorsteht, und lädt stattdessen in den günstigsten Stunden. Sie gibt am Ende der Solarproduktion frei, sobald das Tagesziel erreicht ist und sobald die verbleibenden günstigen Fenster es nicht mehr decken können. Bestehende SOC-Untergrenzen, Ladeverzögerung, geplante günstige Netzfenster, Laden bei negativen Preisen, intelligente Vorentladung, wöchentliche Volladung und manuelle Steuerung haben immer Vorrang.",
+          "surplus_hold_min_saving": "Wie viel günstiger das beste verbleibende Zeitfenster sein muss, bevor Überschuss zurückgehalten wird. Verhindert Umschalten bei vernachlässigbaren Preisunterschieden. Angabe in Hauptwährung/kWh.",
+          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
+          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Preise gleich oder unter diesem Wert gelten bei erwarteter Solarüberschussenergie als Risikofenster.",
           "predischarge_reserve_soc": "SOC, der zusätzlich zu den vorhandenen Mindestgrenzen reserviert wird.",
           "predischarge_export_mode": "Wähle, wie der Anti-Abregelungs-Puffer erstellt wird: Nur Eigenverbrauch (0 W), Automatisch (nur die erforderliche Leistung) oder Benutzerdefiniertes Limit (im nächsten Schritt). Dies ist ein Limit für gezielte Einspeisung, nicht die gesamte Entladeleistung.",
@@ -1345,6 +1363,8 @@
       "manual_requires_power": "Manueller Modus benötigt aktivierte Leistungssteuerung.",
       "no_price_data": "Der ausgewählte Sensor ist keine unterstützte Preisquelle. Nord Pool: Wähle eine Entität der offiziellen Integration oder einen HACS-Sensor mit `raw_today`. PVPC benötigt `price_00h` … `price_23h`, CKW eine `prices`-Liste, EPEX eine `data`-Liste und ENTSO-e eine `prices_today`-Liste.",
       "tibber_unavailable": "Die Tibber-Integration ist nicht installiert oder ihr Dienst `tibber.get_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst Tibber.",
+      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
+      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "Die Entlade-Preisuntergrenze darf nicht unter dem maximalen (Lade-)Preis liegen. Setze sie gleich oder höher oder lass sie leer, um den Ladeschwellenwert wiederzuverwenden.",
       "host_or_serial_required": "Gib entweder eine IP-Adresse (TCP) oder einen seriellen Port-Pfad (Modbus RTU) ein.",
       "missing_power_sensor": "Wähle einen Geräte-Leistungssensor oder aktiviere EV-Ladestation ohne Telemetrie und wähle einen Aktivitätssensor.",
@@ -1598,6 +1618,7 @@
           "grid_charging": "Laden aus dem Netz",
           "weekly_full_charge": "Wöchentliche Volladung",
           "charge_delayed": "Ladung verzögert",
+          "surplus_price_hold": "Surplus Exporting (Cheaper Window Ahead)",
           "waiting_for_solar": "Warten auf Solar",
           "charging_to_setpoint": "Laden bis Sollwert",
           "capacity_protection": "Kapazitätsschutz",
@@ -1980,6 +2001,9 @@
       "curtailment_status": {
         "name": "Status der intelligenten Vorentladung"
       },
+      "surplus_price_hold_status": {
+        "name": "Preisbremse Solarüberschuss"
+      },
       "wifi_status": {
         "name": "WLAN-Status"
       },
@@ -2134,6 +2158,9 @@
       }
     },
     "number": {
+      "surplus_hold_min_saving": {
+        "name": "Mindestersparnis Überschussbremse"
+      },
       "excluded_device_exclusion_pct": {
         "name": "{device} – Ausschluss %"
       },
