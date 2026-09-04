@@ -160,6 +160,12 @@ from .const import (
     DEFAULT_PREDISCHARGE_MAX_EXPORT_POWER_W,
     CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
     DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED,
+    CONF_SURPLUS_PRICE_HOLD_ENABLED,
+    DEFAULT_SURPLUS_PRICE_HOLD_ENABLED,
+    CONF_SURPLUS_HOLD_MIN_SAVING,
+    DEFAULT_SURPLUS_HOLD_MIN_SAVING,
+    CONF_EXPORT_PRICE_SENSOR,
+    CONF_EXPORT_PRICE_INTEGRATION_TYPE,
     CONF_AVERAGE_PRICE_SENSOR,
     CONF_DP_PRICE_DISCHARGE_CONTROL,
     CONF_RT_PRICE_DISCHARGE_CONTROL,
@@ -216,6 +222,7 @@ from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager
 from .control.residual_load import apply_guards, guards_pending
 from .drivers.base import has_connected_mppt_pv
+from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
 from .tracking.hourly_balance import HourlyBalanceManager
@@ -949,6 +956,18 @@ class ChargeDischargeController:
             CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
             DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED,
         )
+        self.surplus_price_hold_enabled = config_entry.data.get(
+            CONF_SURPLUS_PRICE_HOLD_ENABLED, DEFAULT_SURPLUS_PRICE_HOLD_ENABLED
+        )
+        self.surplus_hold_min_saving = config_entry.data.get(
+            CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
+        )
+        # Optional export/feed-in curve. Unset means "use the import curve",
+        # which is what net metering makes correct.
+        self.export_price_sensor = config_entry.data.get(CONF_EXPORT_PRICE_SENSOR, None)
+        self.export_price_integration_type = config_entry.data.get(
+            CONF_EXPORT_PRICE_INTEGRATION_TYPE, None
+        )
         self.dp_price_discharge_control: bool = config_entry.data.get(CONF_DP_PRICE_DISCHARGE_CONTROL, False)
         self._dp_daily_avg_price: Optional[float] = None  # Computed from price slots in _evaluate_dynamic_pricing
         self._dp_arbitrage_ceiling: Optional[float] = None  # Set per evaluation when the margin gate is on
@@ -1009,6 +1028,7 @@ class ChargeDischargeController:
         self._curtailment_last_planned_headroom_kwh = None
         self._curtailment_last_auto_replan = None
         self._pricing_mgr = PricingManager(hass, self)
+        self._surplus_hold_mgr = SurplusPriceHoldManager(hass, self)
 
         # Consumption history for dynamic base consumption (7-day rolling average)
         # Owned by ConsumptionTracker; the list lives on the controller so
@@ -2800,6 +2820,35 @@ class ChargeDischargeController:
             self._predictive_safety_margin_kwh,
         )
         new_negative_price_enabled = self.negative_price_charging_enabled
+        old_surplus_hold_config = (
+            self.surplus_price_hold_enabled,
+            self.export_price_sensor,
+            self.export_price_integration_type,
+        )
+        self.surplus_price_hold_enabled = self.config_entry.data.get(
+            CONF_SURPLUS_PRICE_HOLD_ENABLED, DEFAULT_SURPLUS_PRICE_HOLD_ENABLED
+        )
+        self.surplus_hold_min_saving = self.config_entry.data.get(
+            CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
+        )
+        self.export_price_sensor = self.config_entry.data.get(CONF_EXPORT_PRICE_SENSOR, None)
+        self.export_price_integration_type = self.config_entry.data.get(
+            CONF_EXPORT_PRICE_INTEGRATION_TYPE, None
+        )
+        # A stale plan built against the old price curve, or one left behind by
+        # a feature that was just switched off, must never keep charging blocked.
+        if (
+            old_pricing_mode != self.predictive_charging_mode
+            or old_surplus_hold_config != (
+                self.surplus_price_hold_enabled,
+                self.export_price_sensor,
+                self.export_price_integration_type,
+            )
+            or not self.surplus_price_hold_enabled
+            or self.predictive_charging_mode != PREDICTIVE_MODE_DYNAMIC_PRICING
+        ):
+            if self._surplus_hold_mgr is not None:
+                self._surplus_hold_mgr.clear("mode_or_configuration_changed")
         self.capacity_protection_enabled = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_ENABLED, False)
         self.capacity_protection_excluded_devices = self.config_entry.data.get(
             CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES, False
@@ -3669,12 +3718,40 @@ class ChargeDischargeController:
         if pricing_mgr is not None:
             pricing_mgr.refresh_curtailment_runtime()
         self._refresh_ev_blocks()
+        # Price-aware surplus absorption guards on both the curtailment runtime
+        # status and the ev_pause blocker, so it runs after both are current.
+        # Reading a stale registry released the hold for a whole cycle whenever
+        # EV pause lifted.
+        self._refresh_surplus_price_hold_block()
         self._refresh_dynamic_power_control_block()
         self._refresh_user_battery_blocks()
         self._refresh_normal_balance_blocks()
         self._refresh_battery_charge_limit_blocks()
         self._refresh_battery_discharge_limit_blocks()
         self._price_based_discharge_blocked = "price_discharge" in self._global_discharge_blockers
+
+    def _refresh_surplus_price_hold_block(self) -> None:
+        """Let PV surplus export while cheaper feed-in hours are still ahead.
+
+        With the charge blocker set, no battery is available in the charge
+        direction, so PD clamps to 0 W and the surplus flows to the grid.
+        """
+        manager = getattr(self, "_surplus_hold_mgr", None)
+        if manager is None:
+            return
+        if manager.is_hold_active():
+            status = manager.get_status()
+            self.set_charge_block(
+                "surplus_price_hold",
+                "surplus_price_hold",
+                {
+                    "state": status.get("state"),
+                    "reason": status.get("reason"),
+                    "next_release_at": status.get("next_release_at"),
+                },
+            )
+        else:
+            self.remove_charge_block("surplus_price_hold")
 
     def _is_operation_allowed(self, is_charging: bool) -> bool:
         """Return True if the refreshed blocker registry allows this operation."""
@@ -8123,6 +8200,11 @@ class ChargeDischargeController:
         # If manual mode is enabled, skip all automatic control logic
         if self.manual_mode_enabled:
             self._pricing_mgr.clear_curtailment_runtime("manual_mode")
+            # This path returns before _refresh_operation_blockers(), so the
+            # hold's charge blocker would otherwise stay latched for the whole
+            # manual session.
+            if self._surplus_hold_mgr is not None:
+                self._surplus_hold_mgr.clear("manual_mode")
             _LOGGER.debug("Manual Mode active - skipping automatic control")
             # Register-based drivers (Marstek) obey the user's force_mode /
             # set_*_power register writes directly, so we just freeze the

@@ -50,6 +50,7 @@ async def async_setup_entry(
         entities.append(PredictiveChargingStatusSensor(hass, entry, controller))
         if controller.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
             entities.append(CurtailmentStatusSensor(hass, entry, controller))
+            entities.append(SurplusPriceHoldSensor(hass, entry, controller))
 
     # Add capacity protection status sensor (system-level, when configured, regardless of enabled state)
     if controller and CONF_CAPACITY_PROTECTION_ENABLED in entry.data:
@@ -228,6 +229,61 @@ class CapacityProtectionStatusSensor(BinarySensorEntity):
     @property
     def device_info(self):
         """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class SurplusPriceHoldSensor(BinarySensorEntity):
+    """Diagnostic state for price-aware solar surplus absorption.
+
+    ``on`` means the battery is deliberately not absorbing surplus because a
+    cheaper feed-in window is still ahead.
+    """
+
+    _unrecorded_attributes = frozenset({"selected_slots"})
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "surplus_price_hold_status"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}surplus_price_hold_status"
+        self.entity_id = system_entity_id("binary_sensor", "surplus_price_hold_status")
+        self._attr_device_class = "running"
+        self._attr_icon = "mdi:transmission-tower-export"
+        self._attr_should_poll = True
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def _status(self) -> dict:
+        manager = getattr(self.controller, "_surplus_hold_mgr", None)
+        return manager.get_status() if manager is not None else {}
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._status().get("hold", False))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        attrs = {
+            "enabled": bool(
+                getattr(self.controller, "surplus_price_hold_enabled", False)
+            ),
+            "min_saving": getattr(self.controller, "surplus_hold_min_saving", None),
+            "export_price_source": (
+                getattr(self.controller, "export_price_sensor", None)
+                or "import_fallback"
+            ),
+        }
+        attrs.update(self._status())
+        return attrs
+
+    @property
+    def device_info(self):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",

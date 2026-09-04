@@ -422,6 +422,34 @@ def _tracker_info(controller, coordinator) -> dict[str, Any]:
     }
 
 
+def _surplus_hold_info(controller) -> dict[str, Any]:
+    """Return price-aware surplus-absorption diagnostics.
+
+    The manager already publishes a JSON-safe snapshot, so this only adds the
+    configuration that explains it.
+    """
+    if controller is None:
+        return {"status": "unavailable", "reason": "controller_unavailable"}
+    manager = getattr(controller, "_surplus_hold_mgr", None)
+    info: dict[str, Any] = {
+        "enabled": bool(getattr(controller, "surplus_price_hold_enabled", False)),
+        "min_saving": getattr(controller, "surplus_hold_min_saving", None),
+        "export_price_sensor": getattr(controller, "export_price_sensor", None),
+        "export_price_integration_type": getattr(
+            controller, "export_price_integration_type", None
+        ),
+        "export_price_source": (
+            getattr(controller, "export_price_sensor", None) or "import_fallback"
+        ),
+    }
+    if manager is None:
+        info["status"] = "unavailable"
+        info["reason"] = "manager_unavailable"
+        return info
+    info.update(manager.get_status())
+    return info
+
+
 def _dynamic_pricing_info(controller) -> dict[str, Any]:
     """Return JSON-safe typed calendar diagnostics."""
     if controller is None:
@@ -437,6 +465,13 @@ def _dynamic_pricing_info(controller) -> dict[str, Any]:
         ),
         "negative_price_charging_enabled": getattr(
             controller, "negative_price_charging_enabled", False
+        ),
+        "surplus_price_hold_enabled": getattr(
+            controller, "surplus_price_hold_enabled", False
+        ),
+        "export_price_sensor": getattr(controller, "export_price_sensor", None),
+        "export_price_integration_type": getattr(
+            controller, "export_price_integration_type", None
         ),
         "active_slot_purpose": getattr(
             controller, "_active_dynamic_slot_purpose", None
@@ -876,6 +911,7 @@ async def async_get_config_entry_diagnostics(
         "vacation_learning": vacation,
         "solar_profile": solar_profile,
         "curtailment": _curtailment_info(controller),
+        "surplus_price_hold": _surplus_hold_info(controller),
         "phase_protection": async_redact_data(
             controller._phase_power_limiter.diagnostics(), TO_REDACT
         )

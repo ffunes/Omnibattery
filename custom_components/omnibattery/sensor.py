@@ -958,6 +958,12 @@ class IntegrationStatusSensor(SensorEntity):
             ):
                 return "charging_to_setpoint"
 
+        # Priority 4b: Surplus is deliberately exporting until a cheaper
+        # feed-in window. Ranked after charge delay, which owns the same
+        # blocker while it is active.
+        if "surplus_price_hold" in c.get_charge_blockers():
+            return "surplus_price_hold"
+
         # Priority 5: Operational restrictions and feature overrides
         ev_state = self._ev_charger_state_key()
         if ev_state:

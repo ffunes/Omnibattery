@@ -855,6 +855,23 @@ DEFAULT_PREDISCHARGE_MAX_EXPORT_POWER_W = 0.0
 CONF_NEGATIVE_PRICE_CHARGING_ENABLED = "negative_price_charging_enabled"
 DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED = False
 
+# Price-aware solar surplus absorption.  Storing surplus forfeits that slot's
+# feed-in revenue, so on a dynamic contract the same daily charge is cheaper
+# taken in the lowest-priced hours.  Dynamic pricing only, disabled by default.
+CONF_SURPLUS_PRICE_HOLD_ENABLED = "surplus_price_hold_enabled"
+DEFAULT_SURPLUS_PRICE_HOLD_ENABLED = False
+# Advantage (currency/kWh) the cheapest hour still ahead must have over the
+# current one before surplus is held back.  Prevents the hold from chattering
+# on rounding differences across the control cycle.
+CONF_SURPLUS_HOLD_MIN_SAVING = "surplus_hold_min_saving"
+DEFAULT_SURPLUS_HOLD_MIN_SAVING = 0.02
+
+# Optional export/feed-in price curve.  Unset falls back to the import curve,
+# which is both the historical behaviour and correct under net metering.  A
+# separate sensor matters where export is paid differently from import.
+CONF_EXPORT_PRICE_SENSOR = "export_price_sensor"
+CONF_EXPORT_PRICE_INTEGRATION_TYPE = "export_price_integration_type"
+
 PREDICTIVE_MODE_TIME_SLOT = "time_slot"
 PREDICTIVE_MODE_DYNAMIC_PRICING = "dynamic_pricing"
 PREDICTIVE_MODE_REALTIME_PRICE = "realtime_price"
@@ -1125,6 +1142,17 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": DEFAULT_PREDICTIVE_MIN_SOC_FLOOR,
         "icon": "mdi:battery-arrow-up",
         "condition": CONF_ENABLE_PREDICTIVE_CHARGING,
+    },
+    {
+        "key": CONF_SURPLUS_HOLD_MIN_SAVING,
+        "name": "Surplus Hold Minimum Saving",
+        "min": 0.0,
+        "max": 1.0,
+        "step": 0.001,
+        "unit": "/kWh",
+        "default": DEFAULT_SURPLUS_HOLD_MIN_SAVING,
+        "icon": "mdi:transmission-tower-export",
+        "condition": CONF_SURPLUS_PRICE_HOLD_ENABLED,
     },
     {
         "key": CONF_HOURLY_BALANCE_TARGET_NET_WH,
