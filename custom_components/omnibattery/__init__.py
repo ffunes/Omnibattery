@@ -3411,11 +3411,6 @@ class ChargeDischargeController:
         if weekly_100_unlocked:
             return 100, "weekly_full_charge"
 
-        if self.grid_charging_active and self._predictive_charge_target_soc is not None:
-            per_battery_target = self._predictive_charge_target_soc.get(coordinator)
-            if per_battery_target is not None:
-                return min(ceiling, per_battery_target), "predictive_target"
-
         slot = self._get_active_slot(coordinator, "charge")
         if slot and slot.get("soc_override_enabled"):
             limits = self._slot_battery_limits(slot, coordinator)
