@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (
     CONFIG_NUMBER_DEFINITIONS,
     DYNAMIC_BOUNDS_SYSTEM_POWER,
+    DYNAMIC_BOUNDS_SYSTEM_POWER_CAP,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
     CONF_MAX_PRICE_THRESHOLD,
     CONF_DISCHARGE_PRICE_THRESHOLD,
@@ -44,8 +45,10 @@ from .const import (
     MAX_CHARGE_HYSTERESIS_PERCENT,
     DOMAIN,
     effective_system_power,
+    total_battery_power,
 )
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
+from .infra.manual_control import assert_manual_control
 from .infra.entity_naming import (
     english_entity_id,
     excluded_device_name,
@@ -244,6 +247,9 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
         _LOGGER = getLogger(__name__)
         
         key = self.definition["key"]
+        # The setpoint registers are re-asserted by the control loop every
+        # cycle; refuse the write instead of reverting it silently.
+        assert_manual_control(self.hass, self.coordinator, key)
         if key == "set_charge_power":
             value = max(0.0, min(float(value), float(self.native_max_value)))
         elif key == "set_discharge_power":
@@ -318,7 +324,10 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
             _LOGGER.info("%s: Updated max_charge_power %dW → %dW (immediate sync)",
                          self.coordinator.name, old_value, int(value))
 
-        elif self.definition['key'] == 'max_discharge_power':
+        # Zendure exposes the user-facing discharge ceiling as
+        # ``inverse_max_power``; keep it on the same coordinator path as the
+        # canonical ``max_discharge_power`` key used by the control loop.
+        elif self.definition['key'] in ('max_discharge_power', 'inverse_max_power'):
             old_value = getattr(
                 self.coordinator,
                 "effective_max_discharge_power",
@@ -326,8 +335,13 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
             )
             self.coordinator.configured_max_discharge_power = int(value)
             self.coordinator.persist_battery_config("max_discharge_power", int(value))
-            _LOGGER.info("%s: Updated max_discharge_power %dW → %dW (immediate sync)",
-                         self.coordinator.name, old_value, int(value))
+            _LOGGER.info(
+                "%s: Updated discharge power limit via %s %dW → %dW (immediate sync)",
+                self.coordinator.name,
+                self.definition['key'],
+                old_value,
+                int(value),
+            )
 
     @property
     def device_info(self):
@@ -356,8 +370,10 @@ def config_number_bounds(definition: dict, data) -> tuple[float, float]:
     """Return (min, max) for a CONFIG_NUMBER_DEFINITIONS entry.
 
     Entries without a ``dynamic_bounds`` marker keep their authored min/max.
-    The system-power marker derives them from the configured per-battery limits,
-    narrowed by the optional system cap:
+    The system-power marker derives target-grid bounds from the configured
+    per-battery limits, narrowed by the optional system cap. The system-cap
+    marker derives each cap's own maximum from the configured sum for that
+    direction:
 
         max = +sum(max_charge_power)     (positive = import -> battery charges)
         min = -sum(max_discharge_power)  (negative = export -> battery discharges)
@@ -368,11 +384,21 @@ def config_number_bounds(definition: dict, data) -> tuple[float, float]:
 
     Each direction independently falls back to its authored bound when its sum
     floors to 0. That keeps the slider non-degenerate (HA needs min < max, and
-    the frontend divides by ``max - min``) and preserves the historical
-    +/-2500 W range for a not-yet-configured entry.
+    the frontend divides by ``max - min``) for a not-yet-configured entry.
     """
     static_min, static_max = definition["min"], definition["max"]
-    if definition.get("dynamic_bounds") != DYNAMIC_BOUNDS_SYSTEM_POWER:
+    dynamic_bounds = definition.get("dynamic_bounds")
+    if dynamic_bounds == DYNAMIC_BOUNDS_SYSTEM_POWER_CAP:
+        charge_w, discharge_w = total_battery_power(data)
+        configured_w = (
+            charge_w
+            if definition.get("power_direction") == "charge"
+            else discharge_w
+        )
+        hi = _floor_to_step(configured_w, definition.get("step", 1))
+        return static_min, hi if hi > 0 else static_max
+
+    if dynamic_bounds != DYNAMIC_BOUNDS_SYSTEM_POWER:
         return static_min, static_max
 
     charge_w, discharge_w = effective_system_power(data)

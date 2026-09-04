@@ -29,10 +29,18 @@ the model-specific power limits.
 | SolarFlow 800 / 800 Plus / 800 Pro | `1000 W` | `800 W` |
 | SolarFlow 1600 AC+ | `1600 W` | `1600 W` |
 | SolarFlow 2400 AC Pro / 2400 AC+ | `2400 W` | `2400 W` |
+| SolarFlow 4000 Mix AC+ | `4000 W` | `4000 W` |
+| SolarFlow 4000 Mix Pro | `4000 W` | `4000 W` |
 
 The device report remains authoritative if it announces a lower limit. The
-AC-coupled 1600 AC+ and 2400 AC+ models do not expose DC MPPT telemetry through
-this connection.
+The 4000 Mix Pro exposes dual DC MPPT telemetry; the AC-coupled 1600 AC+,
+2400 AC+ and 4000 Mix AC+ models do not expose DC MPPT telemetry through this
+connection.
+
+Existing 2400 AC+ entries are promoted automatically when the device reports
+the 4000 Mix AC+ or 4000 Mix Pro product identifier. The saved user power
+ceilings are retained; raise them in the battery options if you want to use the
+larger envelope.
 
 ## Zendure-specific settings
 

@@ -5,7 +5,7 @@
 **Omnibattery** is your one stop Home Assistant integration designed to monitor and control pluggable solar batteries, as of today, the following ones are supported:
 
 - Marstek Venus E and C (v2 and v3), Venus D and Venus A via Modbus TCP
-- Zendure Solarflow 2400 AC+, 2400 AC 2400 Pro, 1600 AC+, 800 Pro, 800 Plus and 800 (Local API)
+- Zendure SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 (Local API)
 - Anker SOLIX Solarbank Max AC and Solarbank 4 E5000 Pro via Modbus TCP (thanks @wouterbouvy!)
 - Sessy Home Battery (Looking for testers!!!)
 - Hoymiles MS-A2 and HiBattery MQTT models
@@ -16,7 +16,7 @@
 - **Zero Export/Import PD Controller**: Keeps grid exchange near zero using a Proportional-Derivative algorithm.
 - **Integrated dashboard**: All the controls and adjustments from a single place. Graphs and power flow diagram included!
 - **One-Click PD Profiles + Quality Sensor**: Pick a tuning profile (Very smooth → Very aggressive) instead of tuning gains by hand; a control-quality sensor reports whether the result is stable, oscillating or sluggish.
-- **Multi-Battery Support**: Manage up to 6 batteries with intelligent load sharing and SOC-based priority.
+- **Multi-Battery Support**: Manage up to 10 batteries with intelligent load sharing and SOC-based priority.
 - **Predictive Grid Charging**: Automatically charges from the grid when solar forecast + battery won't cover tomorrow's consumption. Supports fixed time slots, dynamic pricing, and real-time pricing modes. An optional grid-charge margin (%) tops up the grid amount to hedge optimistic solar forecasts.
 - **Negative-price opportunistic charging**: Optional Dynamic Pricing-only charging fills each battery to its configured maximum SOC during negative import-price slots, even without solar panels or a forecast energy deficit.
 - **Smart Pre-discharge / Anti-curtailment**: Optional Dynamic Pricing-only planning creates battery headroom before forecast PV surplus at negative-injection prices, then blocks discharge during the protected window while preserving SOC floors and safety ownership.
@@ -54,13 +54,13 @@ Full documentation (configuration, features, entities, troubleshooting) is avail
 
 | Requirement | Details |
 |---|---|
-| Battery | Marstek Venus E v2/v3, Venus A, Venus D, Zendure Solarflow 2400 AC+, Solarflow 2400 Pro, Anker SOLIX Solarbank Max AC / 4 E5000 Pro |
+| Battery | Marstek Venus E v2/v3, Venus A, Venus D, Zendure SolarFlow 4000 Mix Pro / 4000 Mix AC+, 2400 AC+, 2400 AC Pro, Anker SOLIX Solarbank Max AC / 4 E5000 Pro |
 | Modbus bridge | Elfin-EW11 or compatible RS485-to-TCP converter. Venus E v3, Venus A and Venus D can also be connected via Ethernet with native Modbus TCP support. Anker Solarbank Max AC and 4 E5000 Pro use native Modbus TCP (enable in the Anker app under Third-Party Control; only one Modbus client at a time). |
-| Wireless connection | Required for Zendure Solarflow 2400 AC+ and Solarflow 2400 Pro |
+| Wireless connection | Required for Zendure SolarFlow 4000 Mix AC+, 2400 AC+ and 2400 AC Pro |
 | Grid sensor | HA sensor measuring total grid consumption (e.g. Shelly EM3, Neurio, smart meter) |
 | Network | Battery reachable by IP from Home Assistant |
 | Home Assistant | Recent version (tested on 2024.x+) |
-| Solar forecast *(optional)* | Sensor providing today's production in kWh (Solcast, Forecast.Solar, …) |
+| Solar forecast *(optional)* | Prefer a sensor providing the production remaining today in kWh (Solcast, Forecast.Solar, …); whole-day sensors remain supported during the transition. |
 
 ## Installation
 

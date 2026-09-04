@@ -428,6 +428,13 @@ def _dynamic_pricing_info(controller) -> dict[str, Any]:
         return {}
     schedule = getattr(controller, "_dynamic_pricing_schedule", None)
     info = {
+        "solar_forecast_source": getattr(controller, "solar_forecast_source", None),
+        "solar_forecast_diagnostic_source": getattr(
+            controller, "solar_forecast_diagnostic_source", None
+        ),
+        "solar_forecast_remaining_sensor": getattr(
+            controller, "solar_forecast_remaining_sensor", None
+        ),
         "negative_price_charging_enabled": getattr(
             controller, "negative_price_charging_enabled", False
         ),
@@ -480,6 +487,301 @@ def _dynamic_pricing_info(controller) -> dict[str, Any]:
     return info
 
 
+def _timeline_int(value: object) -> int | None:
+    """Return a finite non-negative integer for timeline counters."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return max(0, int(number))
+
+
+def _timeline_scalar(value: object) -> object:
+    """Keep optional controller status fields scalar and JSON-safe."""
+    safe = _json_safe(value)
+    return safe if safe is None or isinstance(safe, (str, bool, int, float)) else None
+
+
+def _timeline_action_counts(masks: object) -> tuple[dict[str, int], int, int]:
+    """Count action bits and double/triple overlaps without exposing masks."""
+    counts = {"solar_charge": 0, "grid_charge": 0, "discharge": 0}
+    double = 0
+    triple = 0
+    if not isinstance(masks, (list, tuple)):
+        return counts, double, triple
+    for raw_mask in masks[:96]:
+        mask = _timeline_int(raw_mask) or 0
+        bit_count = sum(bool(mask & bit) for bit in (1, 2, 4))
+        if bit_count == 2:
+            double += 1
+        elif bit_count >= 3:
+            triple += 1
+        if mask & 1:
+            counts["solar_charge"] += 1
+        if mask & 2:
+            counts["grid_charge"] += 1
+        if mask & 4:
+            counts["discharge"] += 1
+    return counts, double, triple
+
+
+def _daily_operation_timeline_summary(controller) -> dict[str, Any]:
+    """Return bounded diagnostics for the current daily-operation snapshot.
+
+    The entity adapter owns the compatibility work for public/legacy manager
+    names and duck-typed snapshots. This function only projects its DTO into
+    diagnostic metadata and counts; it deliberately never returns ``series``
+    or ``operations`` and never reads a manager/store attribute directly.
+    """
+    try:
+        from .sensor import _daily_operation_timeline_attributes
+
+        payload = _daily_operation_timeline_attributes(controller)
+    except Exception as exc:  # noqa: BLE001 - diagnostics must never block download
+        return {
+            "available": False,
+            "error": str(exc)[:160],
+            "local_date": None,
+            "mode": None,
+            "schema_version": 1,
+            "version": 1,
+            "date": None,
+            "current_index": None,
+            "interval_count": 96,
+            "last_updated": None,
+            "last_update": None,
+            "plan_evaluated_at": None,
+            "revision": 0,
+            "snapshot_build_count": 0,
+            "notification_count": 0,
+            "save_count": 0,
+            "snapshot_age_s": None,
+            "last_save_age_s": None,
+            "publications_last_minute": 0,
+            "writes_last_minute": 0,
+            "sources": {},
+            "freshness": {},
+            "counts": {
+                "real_cells": 0,
+                "actual_cells": 0,
+                "real": 0,
+                "actual": 0,
+                "planned_cells": 0,
+                "forecast_cells": 0,
+                "planned": 0,
+                "forecast": 0,
+                "unknown_cells": 96,
+                "partial_cells": 0,
+                "unknown": 96,
+                "partial": 0,
+                "by_action": {},
+                "actions": {},
+                "double_overlaps": 0,
+                "triple_overlaps": 0,
+                "overlap_double": 0,
+                "overlap_triple": 0,
+            },
+            "restoration": {},
+            "stale": None,
+            "stale_reason": None,
+            "last_error": str(exc)[:160],
+            "setpoint": {},
+            "delay": {},
+        }
+
+    setpoint = dict(payload.get("setpoint") or {})
+    delay = dict(payload.get("delay") or {})
+    charge_delay_status = getattr(controller, "_charge_delay_status", None)
+    if isinstance(charge_delay_status, dict):
+        state = charge_delay_status.get("state")
+        target_soc = _rounded_number(charge_delay_status.get("target_soc"), 3)
+        estimated_setpoint = next(
+            (
+                charge_delay_status.get(name)
+                for name in (
+                    "estimated_setpoint_time",
+                    "setpoint_estimated_at",
+                    "estimated_completion_at",
+                )
+                if charge_delay_status.get(name) is not None
+            ),
+            None,
+        )
+        if target_soc is not None and "target_soc" not in setpoint:
+            setpoint["target_soc"] = target_soc
+        if estimated_setpoint is not None and "estimated_completion" not in setpoint:
+            setpoint["estimated_completion"] = _timeline_scalar(estimated_setpoint)
+        if state is not None and "state" not in setpoint:
+            setpoint["state"] = _timeline_scalar(state)
+
+        estimated_unlock = charge_delay_status.get("estimated_unlock_time")
+        if estimated_unlock is not None and "estimated_unlock_time" not in delay:
+            delay["estimated_unlock_time"] = _timeline_scalar(estimated_unlock)
+        if state is not None and "state" not in delay:
+            delay["state"] = _timeline_scalar(state)
+        reason = charge_delay_status.get("unlock_reason")
+        if reason is not None and "reason" not in delay:
+            delay["reason"] = _timeline_scalar(reason)
+
+    series = payload.get("series") or {}
+    operations = payload.get("operations") or {}
+    actual_action = operations.get("actual_action_mask") or [0] * 96
+    planned_action = operations.get("planned_action_mask") or [0] * 96
+    actual_overlap = operations.get("actual_coexistence_mask") or actual_action
+    planned_overlap = operations.get("planned_coexistence_mask") or planned_action
+    actual_context = operations.get("actual_context_mask") or [0] * 96
+    planned_context = operations.get("planned_context_mask") or [0] * 96
+
+    actual_by_action, actual_double, actual_triple = _timeline_action_counts(
+        actual_action
+    )
+    planned_by_action, planned_double, planned_triple = _timeline_action_counts(
+        planned_action
+    )
+
+    def _at(values: object, index: int) -> object:
+        if isinstance(values, (list, tuple)) and index < len(values):
+            return values[index]
+        return None
+
+    real_cells = 0
+    planned_cells = 0
+    partial_cells = 0
+    combined_masks: list[int] = []
+    combined_overlap_masks: list[int] = []
+    for index in range(96):
+        actual_values_present = any(
+            _at(series.get(key), index) is not None
+            for key in ("solar_actual_kwh", "consumption_actual_kwh")
+        )
+        planned_values_present = any(
+            _at(series.get(key), index) is not None
+            for key in ("solar_forecast_kwh", "consumption_forecast_kwh")
+        )
+        actual_mask = _timeline_int(_at(actual_action, index)) or 0
+        planned_mask = _timeline_int(_at(planned_action, index)) or 0
+        actual_overlap_mask = _timeline_int(_at(actual_overlap, index)) or 0
+        planned_overlap_mask = _timeline_int(_at(planned_overlap, index)) or 0
+        actual_context_mask = _timeline_int(_at(actual_context, index)) or 0
+        planned_context_mask = _timeline_int(_at(planned_context, index)) or 0
+        coverage = _timeline_int(_at(series.get("actual_coverage_s"), index))
+        actual_present = bool(
+            actual_values_present or actual_mask or actual_context_mask or coverage
+        )
+        planned_present = bool(
+            planned_values_present or planned_mask or planned_context_mask
+        )
+        real_cells += int(actual_present)
+        planned_cells += int(planned_present)
+        if coverage is not None and 0 < coverage < 900:
+            partial_cells += 1
+        combined_masks.append(actual_mask | planned_mask)
+        combined_overlap_masks.append(actual_overlap_mask | planned_overlap_mask)
+
+    combined_by_action, _ignored_double, _ignored_triple = _timeline_action_counts(
+        combined_masks
+    )
+    _ignored_actions, double_overlaps, triple_overlaps = _timeline_action_counts(
+        combined_overlap_masks
+    )
+    _actual_overlap_actions, actual_double, actual_triple = _timeline_action_counts(
+        actual_overlap
+    )
+    _planned_overlap_actions, planned_double, planned_triple = _timeline_action_counts(
+        planned_overlap
+    )
+    unknown_cells = max(0, 96 - sum(
+        1
+        for index in range(96)
+        if (
+            any(
+                _at(series.get(key), index) is not None
+                for key in ("solar_actual_kwh", "consumption_actual_kwh")
+            )
+            or any(
+                _at(series.get(key), index) is not None
+                for key in ("solar_forecast_kwh", "consumption_forecast_kwh")
+            )
+            or (_timeline_int(_at(actual_action, index)) or 0)
+            or (_timeline_int(_at(planned_action, index)) or 0)
+            or (_timeline_int(_at(actual_context, index)) or 0)
+            or (_timeline_int(_at(planned_context, index)) or 0)
+            or (_timeline_int(_at(series.get("actual_coverage_s"), index)) or 0)
+        )
+    ))
+
+    return {
+        "available": bool(payload.get("timeline_available")),
+        "local_date": payload.get("local_date"),
+        "mode": payload.get("mode"),
+        "schema_version": payload.get("schema_version", 1),
+        "version": payload.get("schema_version", 1),
+        "date": payload.get("local_date"),
+        "timezone": payload.get("timezone"),
+        "interval_minutes": 15,
+        "interval_count": 96,
+        "revision": payload.get("revision", 0),
+        "snapshot_build_count": payload.get("snapshot_build_count", 0),
+        "notification_count": payload.get("notification_count", 0),
+        "save_count": payload.get("save_count", 0),
+        "snapshot_age_s": payload.get("snapshot_age_s"),
+        "last_save_age_s": payload.get("last_save_age_s"),
+        "publications_last_minute": payload.get("publications_last_minute", 0),
+        "writes_last_minute": payload.get("writes_last_minute", 0),
+        "current_index": payload.get("current_index"),
+        "last_updated": payload.get("generated_at"),
+        "last_update": payload.get("generated_at"),
+        "plan_evaluated_at": payload.get("plan_evaluated_at"),
+        "sources": payload.get("sources") or {},
+        "freshness": payload.get("freshness") or {},
+        "counts": {
+            "real_cells": real_cells,
+            "actual_cells": real_cells,
+            "real": real_cells,
+            "actual": real_cells,
+            "planned_cells": planned_cells,
+            "forecast_cells": planned_cells,
+            "planned": planned_cells,
+            "forecast": planned_cells,
+            "unknown_cells": unknown_cells,
+            "partial_cells": partial_cells,
+            "unknown": unknown_cells,
+            "partial": partial_cells,
+            "by_action": combined_by_action,
+            "actions": combined_by_action,
+            "actual_by_action": actual_by_action,
+            "planned_by_action": planned_by_action,
+            "double_overlaps": double_overlaps,
+            "triple_overlaps": triple_overlaps,
+            "overlap_double": double_overlaps,
+            "overlap_triple": triple_overlaps,
+            "actual_double_overlaps": actual_double,
+            "actual_triple_overlaps": actual_triple,
+            "planned_double_overlaps": planned_double,
+            "planned_triple_overlaps": planned_triple,
+        },
+        "restoration": payload.get("restoration") or {},
+        "stale": payload.get("stale"),
+        "stale_reason": payload.get("stale_reason"),
+        "last_error": payload.get("last_error"),
+        "setpoint": setpoint,
+        "delay": delay,
+        "estimated_setpoint_time": (
+            setpoint.get("estimated_completion")
+        ),
+        "estimated_unlock_time": (
+            delay.get("estimated_unlock_time")
+        ),
+    }
+
+
+# Keep the descriptive alias available to duck-typed/unit tests and callers
+# that use the terminology from the implementation plan.
+_daily_operation_timeline_info = _daily_operation_timeline_summary
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
@@ -514,6 +816,36 @@ async def async_get_config_entry_diagnostics(
         if not getattr(coord, "battery_manual_mode_enabled", False)
     ]
 
+    consumption_profile = {}
+    solar_profile = {}
+    vacation = {}
+    recorder_backfill = {}
+    tracker = getattr(controller, "_consumption_tracker", None)
+    profile = getattr(tracker, "consumption_profile", None)
+    if profile is not None:
+        try:
+            consumption_profile = _json_safe(profile.diagnostics())
+        except Exception as exc:  # noqa: BLE001
+            consumption_profile = {"error": str(exc)}
+    backfill_info = getattr(tracker, "backfill_diagnostics", None)
+    if callable(backfill_info):
+        try:
+            recorder_backfill = _json_safe(backfill_info())
+        except Exception as exc:  # noqa: BLE001
+            recorder_backfill = {"error": str(exc)}
+    vacation_info = getattr(tracker, "vacation_diagnostics", None)
+    if callable(vacation_info):
+        try:
+            vacation = _json_safe(vacation_info())
+        except Exception as exc:  # noqa: BLE001
+            vacation = {"error": str(exc)}
+    solar_tracker = getattr(tracker, "solar_profile", None)
+    if solar_tracker is not None:
+        try:
+            solar_profile = _json_safe(solar_tracker.diagnostics())
+        except Exception as exc:  # noqa: BLE001
+            solar_profile = {"error": str(exc)}
+
     return {
         "entry": {
             "title": entry.title,
@@ -527,6 +859,11 @@ async def async_get_config_entry_diagnostics(
             "automatic_batteries": automatic_batteries,
         },
         "dynamic_pricing": _dynamic_pricing_info(controller),
+        "daily_operation_timeline": _daily_operation_timeline_summary(controller),
+        "consumption_profile": consumption_profile,
+        "recorder_backfill": recorder_backfill,
+        "vacation_learning": vacation,
+        "solar_profile": solar_profile,
         "curtailment": _curtailment_info(controller),
         "phase_protection": async_redact_data(
             controller._phase_power_limiter.diagnostics(), TO_REDACT

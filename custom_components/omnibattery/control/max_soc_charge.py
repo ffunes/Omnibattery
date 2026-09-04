@@ -12,9 +12,11 @@ drive active cell balancing. It manages the final stretch of a normal max-SOC
   at full cell voltage (coulomb-counter drift) until the BMS itself cuts off.
 - After a cutoff above 3.60 V, wait for the cell to relax to 3.57 V and make one
   additional 200 W charge attempt before latching the recalibration session.
-- Coupled Venus A/D packs use the same one-shot retry after their first provisional
-  BMS refusal, because a pack handover can look identical to a final cutoff.
+- Coupled Venus A/D packs retry a provisional BMS refusal. Sustained accepted
+  charging rearms that retry for the next pack handover.
 - Passive cell-delta measurement at the top, reported to the balance monitor.
+  A confirmed BMS cutoff in the taper zone is also a valid trigger when the
+  battery stops below the integration's 3.60 V pause point.
 
 The latched state (the ``_normal_balance_*`` dicts) stays on the controller
 because weekly_full_charge.py and the main control loop read and mutate it;
@@ -136,6 +138,7 @@ class MaxSocChargeManager:
         for attr in (
             "_normal_balance_bms_cutoff_retry_pending",
             "_normal_balance_bms_cutoff_retry_active",
+            "_normal_balance_bms_cutoff_retry_accept_count",
         ):
             getattr(self._controller, attr, {}).pop(coordinator, None)
 
@@ -145,6 +148,63 @@ class MaxSocChargeManager:
         reset = getattr(weekly_manager, "reset_bms_cutoff_confirmation", None)
         if reset is not None:
             reset(coordinator)
+
+    def tick_bms_cutoff_retry_acceptance(self) -> None:
+        """Rearm accepted Venus A/D handover retries once per control tick.
+
+        A coupled pack handover can accept the retry charge for a long time
+        before the next pack reaches its own cutoff. Five consecutive accepted
+        samples prove that the previous refusal was such a handover, so remove
+        the active retry and let the next confirmed refusal be provisional too.
+        This deliberately lives in the control tick, rather than in the
+        read-only completion/availability queries that can run more than once
+        per cycle.
+        """
+        c = self._controller
+        retry_active = getattr(c, "_normal_balance_bms_cutoff_retry_active", {})
+        accept_counts = getattr(c, "_normal_balance_bms_cutoff_retry_accept_count", None)
+        if accept_counts is None:
+            accept_counts = {}
+            c._normal_balance_bms_cutoff_retry_accept_count = accept_counts
+
+        for coordinator in list(retry_active):
+            if not retry_active.get(coordinator, False):
+                accept_counts.pop(coordinator, None)
+                continue
+            if getattr(coordinator, "battery_manual_mode_enabled", False):
+                # Manual mode owns the battery and must not advance automatic
+                # handover state. Require a fresh uninterrupted acceptance
+                # streak if automatic control later resumes.
+                accept_counts.pop(coordinator, None)
+                continue
+
+            data = coordinator.data or {}
+            try:
+                battery_power = float(data.get("battery_power"))
+            except (TypeError, ValueError):
+                battery_power = None
+            commanded_power = getattr(coordinator, "commanded_charge_power", 0) or 0
+
+            if (
+                battery_power is not None
+                and battery_power > NORMAL_BALANCE_RECAL_CUTOFF_POWER_W
+                and commanded_power > NORMAL_BALANCE_RECAL_CUTOFF_POWER_W
+            ):
+                count = accept_counts.get(coordinator, 0) + 1
+                accept_counts[coordinator] = count
+                if count >= NORMAL_BALANCE_RECAL_CUTOFF_CYCLES:
+                    retry_active.pop(coordinator, None)
+                    accept_counts.pop(coordinator, None)
+                    self._reset_bms_cutoff_counter(coordinator)
+                    _LOGGER.info(
+                        "%s: Venus A/D retry accepted for %d cycles; rearming pack-handover detection",
+                        coordinator.name,
+                        NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
+                    )
+            else:
+                # Acceptance must be continuous. A brief current spike cannot
+                # turn a final cutoff into an unbounded sequence of retries.
+                accept_counts.pop(coordinator, None)
 
     def prepare_bms_cutoff_retry(self, coordinator) -> str | None:
         """Classify the first coupled-pack refusal as pending or retry-active.
@@ -233,10 +293,10 @@ class MaxSocChargeManager:
             # second refusal is confirmed. Leaving the taper zone ends this
             # top-charge session and lets normal SOC control resume.
             if vmax is not None and vmax < NORMAL_BALANCE_TAPER_CELL_VOLTAGE:
-                retry_active.pop(coordinator, None)
+                self._clear_bms_cutoff_retry_state(coordinator)
                 return None
             if self._bms_cutoff_confirmed(coordinator):
-                retry_active.pop(coordinator, None)
+                self._clear_bms_cutoff_retry_state(coordinator)
                 measurement = getattr(
                     self._controller, "_normal_balance_bms_cutoff_measurement", None
                 )
@@ -633,6 +693,44 @@ class MaxSocChargeManager:
                     bms_cutoff_state.pop(coordinator, None)
                 continue
 
+            # Venus E/v2/v3 packs can reach their own BMS cutoff below the
+            # integration pause point (for example at 3.58 V). The shared
+            # detector is debounced and only counts a commanded refusal, so a
+            # confirmed cutoff in the taper zone is a valid alternative
+            # measurement trigger. Do not intercept the high-voltage SOC
+            # recalibration retry: a cutoff above 3.60 V still gets its
+            # existing one-shot 200 W retry first.
+            measurement_state = getattr(
+                c, "_normal_balance_bms_cutoff_measurement", None
+            )
+            if measurement_state is None:
+                measurement_state = {}
+                c._normal_balance_bms_cutoff_measurement = measurement_state
+            measurement_status = measurement_state.get(coordinator)
+            if (
+                measurement_status == self._BMS_CUTOFF_MEASUREMENT_DONE
+                and not in_zone
+            ):
+                # The next top-charge session may take another measurement.
+                measurement_state.pop(coordinator, None)
+                measurement_status = None
+            taper_latched = getattr(
+                c, "_normal_balance_voltage_tapered", {}
+            ).get(coordinator, False)
+            if (
+                self._bms_cutoff_confirmed(coordinator)
+                and measurement_status not in {
+                    self._BMS_CUTOFF_MEASUREMENT_PENDING,
+                    self._BMS_CUTOFF_MEASUREMENT_DONE,
+                }
+                and vmax_f is not None
+                and vmax_f < NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
+                and (in_zone or taper_latched)
+                and not c._normal_balance_recal_retry_pending.get(coordinator, False)
+                and not c._normal_balance_recal_retry_active.get(coordinator, False)
+            ):
+                measurement_state[coordinator] = self._BMS_CUTOFF_MEASUREMENT_PENDING
+
             weekly_active = (
                 hasattr(c, "_weekly_charge_mgr")
                 and c._weekly_full_charge_unlocked()
@@ -750,26 +848,26 @@ class MaxSocChargeManager:
         weekly_active = (
             hasattr(c, "_weekly_charge_mgr") and c._weekly_full_charge_unlocked()
         )
+        measurement_states = getattr(
+            c, "_normal_balance_bms_cutoff_measurement", {}
+        )
 
         for coordinator in c.coordinators:
             if coordinator.data is None or not self._taper_applies(coordinator):
                 continue
-            post_bms_measurement = False
-            if self._uses_bms_cutoff_at_top(coordinator):
-                measurement_state = getattr(
-                    c, "_normal_balance_bms_cutoff_measurement", {}
-                ).get(coordinator)
-                if measurement_state == self._BMS_CUTOFF_MEASUREMENT_PENDING:
-                    # After the BMS cutoff, wait without charging and take one
-                    # 60 s top-balance measurement. This does not impose the
-                    # pre-cutoff 3.60 V integration stop.
-                    post_bms_measurement = True
-                else:
-                    # Before BMS cutoff, coupled Venus A/D packs must continue
-                    # through the top-cell reading without an integration hold.
-                    c._normal_balance_phases.pop(coordinator, None)
-                    c._normal_balance_measure_started.pop(coordinator, None)
-                    continue
+            post_bms_measurement = (
+                measurement_states.get(coordinator)
+                == self._BMS_CUTOFF_MEASUREMENT_PENDING
+            )
+            if (
+                self._uses_bms_cutoff_at_top(coordinator)
+                and not post_bms_measurement
+            ):
+                # Before BMS cutoff, coupled Venus A/D packs must continue
+                # through the top-cell reading without an integration hold.
+                c._normal_balance_phases.pop(coordinator, None)
+                c._normal_balance_measure_started.pop(coordinator, None)
+                continue
             if weekly_active and not post_bms_measurement:
                 # Let the weekly taper charge to the BMS cutoff; don't hold/measure.
                 c._normal_balance_phases.pop(coordinator, None)
@@ -823,15 +921,14 @@ class MaxSocChargeManager:
                     c._normal_balance_last_delta_v[coordinator] = delta_v
                     phase = "MEASURED"
                     c._normal_balance_phases[coordinator] = phase
-                    measurement_state = getattr(
-                        c, "_normal_balance_bms_cutoff_measurement", {}
-                    )
                     is_post_bms_measurement = (
-                        measurement_state.get(coordinator)
+                        measurement_states.get(coordinator)
                         == self._BMS_CUTOFF_MEASUREMENT_PENDING
                     )
                     if is_post_bms_measurement:
-                        measurement_state[coordinator] = self._BMS_CUTOFF_MEASUREMENT_DONE
+                        measurement_states[coordinator] = (
+                            self._BMS_CUTOFF_MEASUREMENT_DONE
+                        )
                     if c._balance_monitor is not None:
                         await c._balance_monitor.async_record_top_balance_measurement(
                             coordinator,

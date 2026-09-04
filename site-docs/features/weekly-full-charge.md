@@ -48,7 +48,7 @@ For Venus A/D with coupled packs, the BMS cutoff is required after the tapered
 charge reaches the top-voltage path, even if the reported SOC has already
 reached 100%.
 
-The 60-second cell-delta measurement still runs as a diagnostic, but it no longer gates completion. For Venus A/D, the measurement starts after the confirmed BMS cutoff so the reduced charge is never interrupted before all coupled packs are full. On completion the configured max SOC (and the hardware cutoff register on v2) is restored, and charge hysteresis is re-enabled.
+The 60-second cell-delta measurement still runs as a diagnostic, but it no longer gates completion. If a battery's BMS cuts below 3.60 V while it is in the taper zone, the measurement starts after that confirmed cutoff so the charge is not interrupted prematurely. This also covers Venus A/D, whose final cutoff is required before measuring. On completion the configured max SOC (and the hardware cutoff register on v2) is restored, and charge hysteresis is re-enabled.
 
 The **Weekly Full Charge** sensor exposes per-battery diagnostics under its `batteries` attribute: live SOC and BMS-cutoff cycle count while charging, and a completion snapshot (`soc_at_completion`, `max_cell_voltage_at_completion`, `completion_reason`, `bms_cutoff_cycles`).
 

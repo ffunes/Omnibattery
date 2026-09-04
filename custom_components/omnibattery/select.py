@@ -26,6 +26,7 @@ from .const import (
 )
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
+from .infra.manual_control import assert_manual_control
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -170,7 +171,13 @@ class MarstekVenusSelect(CoordinatorEntity, SelectEntity):
         return None
 
     async def async_select_option(self, option: str) -> None:
-        """Select an option."""
+        """Select an option.
+
+        Force Mode is re-asserted by the control loop every cycle, so writing it
+        while the controller owns the battery is refused rather than silently
+        reverted (see infra.manual_control).
+        """
+        assert_manual_control(self.hass, self.coordinator, self.definition["key"])
         value = self._options_map[option]
         await self.coordinator.write_control(self.definition["key"], value, do_refresh=True)
         if self.definition.get("use_shadow_state"):

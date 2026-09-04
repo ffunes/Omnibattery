@@ -13,6 +13,7 @@ so existing installs keep their current (possibly localized) ids untouched.
 """
 from __future__ import annotations
 
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import slugify
 
 
@@ -52,6 +53,33 @@ def system_entity_id(domain: str, key: str) -> str:
     :data:`SYSTEM_UNIQUE_ID_PREFIX`; only the suggested entity_id is rebranded.
     """
     return f"{domain}.{SYSTEM_OBJECT_ID_PREFIX}{key}"
+
+
+def is_omnibattery_solar_entity(hass, entity_id: str | None) -> bool:
+    """Return whether an entity is one of OmniBattery's solar outputs.
+
+    Check the stable registry identity as well as current and legacy suggested
+    IDs so renamed aggregate and per-battery entities are both covered.
+    """
+    if not entity_id:
+        return False
+    if entity_id in {
+        system_entity_id("sensor", "solar_power"),
+        "sensor.marstek_venus_system_solar_power",
+    }:
+        return True
+    try:
+        entry = er.async_get(hass).async_get(entity_id)
+    except (AttributeError, KeyError, TypeError):
+        return False
+    return bool(
+        entry
+        and entry.platform in {"omnibattery", "marstek_venus"}
+        and (
+            entry.unique_id == f"{SYSTEM_UNIQUE_ID_PREFIX}solar_power"
+            or entry.unique_id.endswith("_solar_power")
+        )
+    )
 
 
 def excluded_device_name(hass, device: dict) -> str:

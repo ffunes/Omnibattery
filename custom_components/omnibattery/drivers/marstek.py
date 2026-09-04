@@ -18,10 +18,19 @@ duplicated logic.
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
+from dataclasses import replace
 import logging
+import math
 from typing import Optional
 
-from ..const import MESSAGE_WAIT_MS, READ_TIMEOUT_S, REGISTER_MAP
+from ..const import (
+    MESSAGE_WAIT_MS,
+    PACK_SOC_KEYS,
+    READ_TIMEOUT_S,
+    REGISTER_MAP,
+    max_power_for_battery_version,
+)
 from ..infra.modbus_client import MarstekModbusClient, decode_registers
 from .base import (
     BatteryDriver,
@@ -36,6 +45,15 @@ _LOGGER = logging.getLogger(__name__)
 # Firmware families that share the v3 quirks: single TCP slot, int16 power, no
 # hardware SOC cut-off registers, packet correction.
 _V3_FAMILY = ("v3", "vA", "vD")
+
+# Venus A/D pack-SOC discovery (issue #350). How many packs a Venus A/D has is
+# not readable anywhere, so the populated slots are learned from which of them
+# answers. Give each slot this many poll cycles ("low" = 30 s) before deciding it
+# is absent, so one transient read failure cannot hide a real pack. An empty slot
+# may answer 0 rather than failing, so a 0 only disqualifies a slot when the
+# aggregate SOC says the battery holds real charge.
+_PACK_PROBE_CYCLES = 3
+_EMPTY_SLOT_AGGREGATE_SOC = 5
 
 # Marstek force_mode register values.
 _FORCE_NONE = 0
@@ -123,15 +141,27 @@ def _load_definitions(version: str) -> dict[str, list[dict]]:
         binary_sensor = BINARY_SENSOR_DEFINITIONS
         button = BUTTON_DEFINITIONS
 
-    return {
+    # Venus D number definitions contain mutable slider metadata.  Each Venus D
+    # driver needs its own copy because its maxima can change after EMS firmware
+    # detection.  Preserve the established shared-list identity for other models.
+    if version == "vD":
+        number = deepcopy(number)
+    definitions = {
         "sensor": sensor,
         "number": number,
         "select": select,
         "switch": switch,
         "binary_sensor": binary_sensor,
         "button": button,
-        "all": sensor + number + select + switch + binary_sensor,
     }
+    definitions["all"] = (
+        definitions["sensor"]
+        + definitions["number"]
+        + definitions["select"]
+        + definitions["switch"]
+        + definitions["binary_sensor"]
+    )
+    return definitions
 
 
 def _load_register_blocks(version: str) -> list[dict]:
@@ -167,6 +197,7 @@ class MarstekModbusDriver(BatteryDriver):
         definitions: Optional[list[dict]] = None,
         client: Optional[MarstekModbusClient] = None,
         serial_port: Optional[str] = None,
+        ems_version: object = None,
     ) -> None:
         """Build the driver.
 
@@ -180,6 +211,7 @@ class MarstekModbusDriver(BatteryDriver):
         with version-correct timing.
         """
         self._version = version
+        self._ems_version = ems_version
         self._is_v3_family = version in _V3_FAMILY
         self._slave_id = slave_id
 
@@ -233,6 +265,23 @@ class MarstekModbusDriver(BatteryDriver):
         # and lock per group without seeing the register layout.
         self._read_groups = self._build_read_groups()
 
+        # Which pack slots this Venus A/D actually has, learned from the ones
+        # that answer (see _learn_pack). Every indexed slot is polled while
+        # probing; once the set is frozen the absent ones leave the schedule for
+        # good, because re-probing them forever would cost a read timeout per
+        # poll on the single-slot v3-family MCU. Keyed per slot: a slot drops out
+        # of this dict when it is confirmed or when its attempts run out, and an
+        # empty dict means the set is final.
+        self._pack_soc_capable = any(k in self._telemetry_index for k in PACK_SOC_KEYS)
+        self._packs: set[str] = set()
+        self._pack_probes_left: dict[str, int] = {
+            key: _PACK_PROBE_CYCLES for key in PACK_SOC_KEYS if key in self._telemetry_index
+        }
+        # Last aggregate SOC seen, so the probe can tell an empty slot reading 0
+        # from a real pack that is genuinely flat. It arrives in a different read
+        # group, hence the cache.
+        self._last_aggregate_soc: Optional[float] = None
+
         # The apply-path clamp (apply_setpoint) must be this model's *hardware*
         # ceiling — the writable power register's max — not the user's per-battery
         # limit. The user limit is enforced live via coordinator.max_charge_power,
@@ -244,10 +293,18 @@ class MarstekModbusDriver(BatteryDriver):
         number_defs = {d.get("key"): d for d in self._definitions["number"]}
         hw_charge_ceiling = int(number_defs.get("max_charge_power", {}).get("max", max_charge_power_w))
         hw_discharge_ceiling = int(number_defs.get("max_discharge_power", {}).get("max", max_discharge_power_w))
-        # Register floor (v2/v3 = 800 W, vA/vD = 0): the minimum reliable operating
-        # power the thermal derate must not command below. 0 when absent.
-        hw_charge_floor = int(number_defs.get("max_charge_power", {}).get("min", 0))
-        hw_discharge_floor = int(number_defs.get("max_discharge_power", {}).get("min", 0))
+        if version == "vD":
+            firmware_ceiling = max_power_for_battery_version(version, ems_version)
+            hw_charge_ceiling = min(hw_charge_ceiling, firmware_ceiling)
+            hw_discharge_ceiling = min(hw_discharge_ceiling, firmware_ceiling)
+            self._set_power_definition_ceiling(firmware_ceiling)
+        # Minimum operating power = the *setpoint* register floor (0 on every
+        # Marstek model). NOT max_charge_power's min (800 W on v2/v3): that is
+        # only the lowest ceiling the user may configure, not a power the
+        # hardware refuses to deliver, and reading it as a floor pinned
+        # predictive charging at 800 W of grid import.
+        hw_charge_floor = int(number_defs.get("set_charge_power", {}).get("min", 0))
+        hw_discharge_floor = int(number_defs.get("set_discharge_power", {}).get("min", 0))
 
         # Static capabilities, derived from the register map + the seeded entity
         # definitions so the control layer never branches on the version string.
@@ -274,6 +331,39 @@ class MarstekModbusDriver(BatteryDriver):
             actuator_latency_s=0.8 if self._is_v3_family else 0.3,
         )
 
+    def _set_power_definition_ceiling(self, ceiling: int) -> None:
+        """Update the four Venus D power-number bounds in this driver instance."""
+        for definition in self._definitions["number"]:
+            if definition.get("key") in {
+                "set_charge_power",
+                "set_discharge_power",
+                "max_charge_power",
+                "max_discharge_power",
+            }:
+                definition["max"] = int(ceiling)
+
+    def update_ems_version(self, ems_version: object) -> bool:
+        """Apply a newly detected Venus D EMS firmware power envelope.
+
+        Returns True when the effective hardware ceiling changed.
+        """
+        if self._version != "vD":
+            return False
+        ceiling = max_power_for_battery_version(self._version, ems_version)
+        self._ems_version = ems_version
+        changed = (
+            self._capabilities.max_charge_power_w != ceiling
+            or self._capabilities.max_discharge_power_w != ceiling
+        )
+        self._set_power_definition_ceiling(ceiling)
+        if changed:
+            self._capabilities = replace(
+                self._capabilities,
+                max_charge_power_w=ceiling,
+                max_discharge_power_w=ceiling,
+            )
+        return changed
+
     # --- identity -----------------------------------------------------------
 
     @property
@@ -298,7 +388,14 @@ class MarstekModbusDriver(BatteryDriver):
 
     @property
     def sensor_definitions(self) -> list[dict]:
-        return self._definitions["sensor"]
+        if not self._pack_soc_capable or self._pack_probes_left:
+            # Still probing: nothing is hidden, since "has not answered yet" is
+            # not "is not there".
+            return self._definitions["sensor"]
+        return [
+            d for d in self._definitions["sensor"]
+            if d["key"] not in PACK_SOC_KEYS or d["key"] in self._packs
+        ]
 
     @property
     def number_definitions(self) -> list[dict]:
@@ -327,6 +424,33 @@ class MarstekModbusDriver(BatteryDriver):
     def get_register(self, key: str) -> Optional[int]:
         """Resolve a logical control-register name for this version, or None."""
         return REGISTER_MAP.get(self._version, {}).get(key)
+
+    @property
+    def supplemental_discharge_dependency_keys(self) -> frozenset[str]:
+        """Telemetry needed to supplement Venus E v3's discharge counter."""
+        if self._version != "v3":
+            return frozenset()
+        return frozenset({"ac_offgrid_power", "inverter_state"})
+
+    def supplemental_discharge_power_w(
+        self,
+        data: dict,
+        updated_keys: frozenset[str],
+    ) -> Optional[float]:
+        """Return backup output omitted by the Venus E v3 lifetime counter."""
+        if (
+            not self.supplemental_discharge_dependency_keys
+            or "ac_offgrid_power" not in updated_keys
+        ):
+            return None
+        try:
+            in_backup_mode = int(data.get("inverter_state")) == 4
+            power_w = float(data.get("ac_offgrid_power"))
+        except (TypeError, ValueError, OverflowError):
+            return 0.0
+        if not in_backup_mode or not math.isfinite(power_w) or power_w <= 0:
+            return 0.0
+        return power_w
 
     @property
     def _power_dtype(self) -> str:
@@ -369,6 +493,51 @@ class MarstekModbusDriver(BatteryDriver):
                 continue
             groups.append(ReadGroup(scan_interval=defn.get("scan_interval"), keys=(key,)))
         return groups
+
+    @property
+    def _active_pack_keys(self) -> frozenset[str]:
+        """Pack-SOC keys worth polling: every slot while probing, the found ones after."""
+        if not self._pack_soc_capable:
+            return frozenset()
+        if self._pack_probes_left:
+            return frozenset(k for k in PACK_SOC_KEYS if k in self._telemetry_index)
+        return frozenset(self._packs)
+
+    def _learn_pack(self, key: str, raw: object) -> None:
+        """Fold one pack-SOC read into the populated-slot set (issue #350).
+
+        A slot the hardware does not have either fails to answer — its key is
+        missing from the snapshot — or reads a flat 0. Neither is conclusive on
+        its own: a read fails transiently too, and a real pack can sit at 0 %. So
+        a 0 disqualifies a slot only while the aggregate SOC says the battery
+        holds meaningful charge, and each slot gets _PACK_PROBE_CYCLES attempts
+        before it is written off.
+        """
+        confirmed = raw is not None and (
+            raw != 0
+            or (
+                self._last_aggregate_soc is not None
+                and self._last_aggregate_soc <= _EMPTY_SLOT_AGGREGATE_SOC
+            )
+        )
+        if confirmed:
+            self._packs.add(key)
+            self._pack_probes_left.pop(key, None)
+        else:
+            self._pack_probes_left[key] -= 1
+            if self._pack_probes_left[key] <= 0:
+                del self._pack_probes_left[key]
+        if self._pack_probes_left:
+            return
+        absent = set(PACK_SOC_KEYS) - self._packs
+        self._read_groups = [
+            g for g in self._read_groups if absent.isdisjoint(g.keys)
+        ]
+        _LOGGER.info(
+            "[%s] Pack SOC probe finished: %d pack(s) present (%s)",
+            getattr(self._client, "host", "?"),
+            len(self._packs), ", ".join(sorted(self._packs)) or "none",
+        )
 
     @property
     def read_groups(self) -> list[ReadGroup]:
@@ -425,6 +594,12 @@ class MarstekModbusDriver(BatteryDriver):
             )
             if value is not None:
                 snapshot[key] = value
+
+        if "battery_soc" in snapshot:
+            self._last_aggregate_soc = snapshot["battery_soc"]
+        for key in wanted:
+            if key in self._pack_probes_left:
+                self._learn_pack(key, snapshot.get(key))
         return snapshot
 
     # --- control (write) ----------------------------------------------------
@@ -550,6 +725,11 @@ class MarstekModbusDriver(BatteryDriver):
         conversion only changes what is sent to the battery.
         """
         value = int(value)
+        if self._version == "vD" and key in (
+            "max_charge_power",
+            "max_discharge_power",
+        ):
+            return min(value, self._capabilities.max_charge_power_w)
         if self._version not in ("v2", "v3"):
             return value
         if key not in ("max_charge_power", "max_discharge_power"):
@@ -575,12 +755,14 @@ class MarstekModbusDriver(BatteryDriver):
 
     @property
     def control_dependency_keys(self) -> frozenset:
+        # The pack SOCs ship disabled by default but the discharge floor reads
+        # them (issue #350), so they must keep polling regardless.
         return frozenset({
             "set_charge_power", "set_discharge_power",
             "max_charge_power", "max_discharge_power",
             "force_mode",
             "charging_cutoff_capacity", "discharging_cutoff_capacity",
-        })
+        }) | self._active_pack_keys
 
     async def apply_config(
         self,
@@ -718,18 +900,18 @@ class MarstekModbusDriver(BatteryDriver):
         return value == _RS485_ENABLE
 
     @classmethod
-    async def probe(cls, host: str, port: int, version: str, slave_id: int = 1, serial_port: Optional[str] = None) -> bool:
-        """Test whether a Marstek battery responds for this version.
-
-        Creates a temporary client, reads the SOC register, then tears it down.
-        Returns True if a value was read, False on any failure (bad version,
-        connection refused, read timeout, etc.). Used by the config / options flow
-        to validate host/port/version before committing them. ``serial_port``, when
-        set, probes over Modbus RTU instead of TCP (discussion #350).
-        """
+    async def probe_details(
+        cls,
+        host: str,
+        port: int,
+        version: str,
+        slave_id: int = 1,
+        serial_port: Optional[str] = None,
+    ) -> tuple[bool, int | None]:
+        """Probe a Marstek and also return its EMS firmware when available."""
         soc_register = REGISTER_MAP.get(version, {}).get("battery_soc")
         if soc_register is None:
-            return False
+            return False, None
         client = MarstekModbusClient(
             host, port,
             message_wait_ms=MESSAGE_WAIT_MS.get(version, 50),
@@ -740,14 +922,36 @@ class MarstekModbusDriver(BatteryDriver):
         )
         try:
             if not await client.async_connect():
-                return False
+                return False, None
             value = await client.async_read_register(soc_register, "uint16")
-            return value is not None
+            if value is None:
+                return False, None
+            ems_version = (
+                await client.async_read_register(30200, "uint16")
+                if version == "vD"
+                else None
+            )
+            return True, int(ems_version) if ems_version is not None else None
         except Exception as e:
             _LOGGER.debug("Probe of %s:%s (%s) failed: %s", host, port, version, e)
-            return False
+            return False, None
         finally:
             try:
                 await client.async_close()
             except Exception:
                 pass
+
+    @classmethod
+    async def probe(cls, host: str, port: int, version: str, slave_id: int = 1, serial_port: Optional[str] = None) -> bool:
+        """Test whether a Marstek battery responds for this version.
+
+        Creates a temporary client, reads the SOC register, then tears it down.
+        Returns True if a value was read, False on any failure (bad version,
+        connection refused, read timeout, etc.). Used by the config / options flow
+        to validate host/port/version before committing them. ``serial_port``, when
+        set, probes over Modbus RTU instead of TCP (discussion #350).
+        """
+        ok, _ems_version = await cls.probe_details(
+            host, port, version, slave_id, serial_port
+        )
+        return ok

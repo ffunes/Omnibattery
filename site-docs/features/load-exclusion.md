@@ -61,9 +61,12 @@ Dynamic Power Control configurations; existing sensor-less entries keep their
 measured-power fallback.
 
 On first measured demand it blocks battery charging for 30 seconds. Charging may
-then resume only on the export the device left behind. A solar rise triggers a
-new 20-second yield, and a zero-power pause is held for 5 minutes so the battery
-does not prevent the device from restarting. No maximum-demand sensor is needed.
+then resume only on the export the device left behind. A rise of at least 200 W
+in available margin (solar production minus device power) triggers a new
+20-second yield; this also catches a wallbox reducing power while solar
+production is stable. A zero-power pause keeps discharge blocked for five
+minutes and gives charging a short restart grace so the device can restart. No
+maximum-demand sensor is needed.
 
 ## EV charger without power telemetry
 

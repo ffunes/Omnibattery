@@ -16,6 +16,7 @@ def _lifetime_efficiency_sensor(
     *,
     daily_charge_kwh: float | None = None,
     daily_discharge_kwh: float | None = None,
+    backup_discharge_kwh: float | None = None,
 ):
     """Build the non-MPPT sensor path without a live HA coordinator."""
     sensor = object.__new__(MarstekVenusEfficiencySensor)
@@ -28,6 +29,11 @@ def _lifetime_efficiency_sensor(
         data["total_daily_charging_energy"] = daily_charge_kwh
     if daily_discharge_kwh is not None:
         data["total_daily_discharging_energy"] = daily_discharge_kwh
+    if backup_discharge_kwh is not None:
+        data["backup_discharging_energy"] = backup_discharge_kwh
+        data["effective_total_discharging_energy"] = (
+            discharge_kwh + backup_discharge_kwh
+        )
     sensor.coordinator = SimpleNamespace(
         data=data,
         capabilities=SimpleNamespace(has_daily_energy_counters=False),
@@ -59,6 +65,16 @@ def test_daily_counters_do_not_override_lifetime_efficiency():
         discharge_kwh=9.2,
         daily_charge_kwh=3.9,
         daily_discharge_kwh=3.7,
+    )
+
+    assert sensor.native_value == pytest.approx(92.0)
+
+
+def test_backup_discharge_is_included_in_lifetime_efficiency():
+    sensor = _lifetime_efficiency_sensor(
+        charge_kwh=10.0,
+        discharge_kwh=8.4,
+        backup_discharge_kwh=0.8,
     )
 
     assert sensor.native_value == pytest.approx(92.0)

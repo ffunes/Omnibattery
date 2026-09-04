@@ -13,6 +13,7 @@ from custom_components.omnibattery.pricing.curtailment import (
     EXPORT_MODE_SELF_CONSUMPTION,
     calculate_opportunistic_space_kwh,
     distribute_solar_forecast,
+    estimate_consumption_by_slot,
     normalize_export_mode,
     plan_curtailment,
 )
@@ -54,6 +55,30 @@ def test_solar_distribution_uses_cumulative_model_for_15_minute_slots():
     assert distributed[slots[0]] == pytest.approx(0.5)
     assert distributed[slots[1]] == pytest.approx(0.5)
     assert distributed[slots[2]] == 0.0
+
+
+def test_remaining_solar_distribution_is_renormalized_over_future_slots():
+    slots = [_slot(9, 0.2), _slot(10, 0.2)]
+
+    def solar_fraction(hour: float) -> float:
+        return max(0.0, min(1.0, (hour - 6.0) / 6.0))
+
+    distributed = distribute_solar_forecast(
+        slots, 1.81, solar_fraction, normalize_future=True
+    )
+
+    assert sum(distributed.values()) == pytest.approx(1.81)
+
+
+def test_remaining_consumption_distribution_covers_future_horizon():
+    slots = [_slot(20, 0.2), _slot(21, 0.2)]
+
+    distributed = estimate_consumption_by_slot(
+        slots, 2.4, normalize_future=True
+    )
+
+    assert sum(distributed.values()) == pytest.approx(2.4)
+    assert distributed[slots[0]] == pytest.approx(1.2)
 
 
 def test_threshold_is_inclusive_and_hourly_slots_are_supported():

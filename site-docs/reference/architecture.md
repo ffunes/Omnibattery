@@ -52,6 +52,7 @@ subpackages by responsibility.
 | `infra/entity_naming.py` | — | Translation-key based entity IDs and registry migrations |
 | `const/` | — | All Modbus register and entity definitions (split per battery version) |
 | `pricing/engine.py` | — | Predictive charging: dynamic pricing, time slot, real-time price, SOC floor |
+| `pricing/chronological.py` | — | Pure 15-minute energy simulation, cumulative deadlines and price-slot allocation; no Home Assistant or device I/O |
 | `control/power_distribution.py` | — | Splits the system setpoint across active batteries |
 | `control/charge_delay.py` | — | Solar charge delay |
 | `control/max_soc_charge.py` | — | 100 % voltage taper / top-of-charge protection |
@@ -141,3 +142,33 @@ Coordinator → driver.read_telemetry → Entity updates
 | `medium` | 5 s | Voltage, current, temperature |
 | `low` | 30 s | Accumulated energy, alarms |
 | `very_low` | 600 s | Device info, firmware |
+
+## Consumption profile
+
+`tracking/consumption_profile.py` owns the independent
+`omnibattery.<entry_id>.consumption_profile` Store. It captures adjusted home
+power continuously into raw local-date/96-interval energy and coverage arrays,
+then builds a weighted forecast only at query time. Recorder backfill is
+background work and never blocks setup or battery control. The tracker rejects
+invalid samples, isolates corrupt stored days, handles local DST boundaries and
+invalidates the raw profile when its source/configuration fingerprint changes.
+
+Control consumers use one contract: mature profile data for the requested range,
+otherwise an explicit legacy fallback. Neither capture nor runtime household
+forecasts mask predictive charging windows; those windows schedule battery grid
+charging rather than household operation. This keeps the same learned signal usable by daily predictive
+charging, Solar Charge Delay and Dynamic Pricing without coupling their runtime
+decisions to one another.
+
+## Solar temporal profile
+
+`tracking/solar_profile.py` stores direct-PV energy, coverage and compact quality
+flags in `omnibattery.<entry_id>.solar_profile`. It learns a normalized shape on
+solar-window progress, with bounded 42-day retention and an isolated
+fingerprint/generation. It never learns from grid balance, export, weather
+forecast or the rounded public daily-energy sensor.
+
+`pricing/solar_timeline.py` validates dated provider periods, maps learned
+progress bins, builds the sinusoidal fallback and applies the remaining budget
+exactly once. `pricing/chronological.py` continues to receive only finished
+`EnergyInterval` values and remains free of Home Assistant dependencies.

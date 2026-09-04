@@ -57,10 +57,10 @@ class DriverCapabilities:
     max_charge_power_w: int
     max_discharge_power_w: int
 
-    # True if the hardware has DC-coupled PV / MPPT inputs (Marstek Venus D/A).
-    # The control layer uses this to decide whether the unit contributes solar
-    # production and needs DC-plane efficiency integration. AC-only models report
-    # False.
+    # True if the driver exposes individual DC-coupled MPPT channels. The control
+    # layer uses this to decide whether the unit contributes per-channel solar
+    # production and needs the MPPT-aware calculations. Drivers that expose only
+    # an aggregate PV value keep this False and set has_solar_telemetry instead.
     has_mppt_pv: bool
 
     # True if the hardware exposes alarm/fault status registers (Marstek v2 only).
@@ -90,6 +90,13 @@ class DriverCapabilities:
     # entity layer derives daily values from the cumulative counter deltas.
     # Defaults True for backward compatibility with the Marstek register maps.
     has_daily_energy_counters: bool = True
+
+    # True when ``solar_power`` is an independent aggregate DC/PV source.
+    # This is separate from has_mppt_pv because some devices (Anker Solarbank 4)
+    # report the combined PV input but do not expose one telemetry key per MPPT.
+    # A PV-looking value derived from the battery's own AC/P1 calculation must
+    # leave this False so it is never counted as additional production.
+    has_solar_telemetry: bool = False
 
     # True if a setpoint readback reliably reflects the just-written command on the
     # confirmation cycle. Register batteries (Marstek) echo the written value at
@@ -122,12 +129,27 @@ class DriverCapabilities:
     engage_grace_s: Optional[float] = None
 
     # Minimum reliable operating power (watts, per unit) below which the hardware
-    # will not sustain a non-zero charge/discharge. Marstek v2/v3 report 800 W (the
-    # max_charge/discharge_power register floor); vA/vD/Zendure have no such floor
-    # and report 0. The thermal derate clamps its non-zero output up to this value
+    # will not sustain a non-zero charge/discharge. Every Marstek model reports 0
+    # (its setpoint registers accept any power); Anker reports a real floor.
+    # The thermal derate clamps its non-zero output up to this value
     # so it never dribbles an unreliable sub-minimum command. Defaults to 0 (no floor).
     min_charge_power_w: int = 0
     min_discharge_power_w: int = 0
+
+
+def has_connected_mppt_pv(coordinator) -> bool:
+    """Return whether an MPPT-capable battery has panels connected.
+
+    ``has_mppt_pv`` remains a hardware capability. Marstek Venus A/D users can
+    explicitly declare that their physical MPPT inputs are unused; coordinators
+    and test doubles without that installation setting retain the historical
+    capability-based behaviour.
+    """
+    capabilities = getattr(coordinator, "capabilities", None)
+    return bool(
+        getattr(capabilities, "has_mppt_pv", False)
+        and getattr(coordinator, "dc_pv_connected", True)
+    )
 
 
 @dataclass(frozen=True)
@@ -272,6 +294,32 @@ class BatteryDriver(ABC):
         Missing/failed values are omitted rather than set to None.
         """
 
+    @property
+    def supplemental_discharge_dependency_keys(self) -> frozenset[str]:
+        """Telemetry required to derive discharge omitted by hardware counters.
+
+        The coordinator treats this as a semantic driver hook: an empty set means
+        the hardware's cumulative discharge counter is complete. Drivers whose
+        counter omits a discharge path return the native telemetry keys needed to
+        identify and measure that path.
+        """
+        return frozenset()
+
+    def supplemental_discharge_power_w(
+        self,
+        data: dict,
+        updated_keys: frozenset[str],
+    ) -> Optional[float]:
+        """Return a fresh, normalized discharge sample missing from the counter.
+
+        ``None`` means no relevant sample was refreshed in this poll. ``0`` means
+        a relevant sample was refreshed but no supplemental discharge is active.
+        A positive value is integrated by the shared energy layer. Drivers own
+        all native key, state and model interpretation so callers never branch on
+        a brand or firmware version.
+        """
+        return None
+
     # --- control (write) ----------------------------------------------------
 
     @abstractmethod
@@ -305,6 +353,26 @@ class BatteryDriver(ABC):
         does not break here. Returns True if the write was accepted, False if this
         driver has no control for the key or the write failed.
         """
+
+    def dynamic_discharge_limit_w(self, data: dict) -> Optional[int]:
+        """Live discharge ceiling below the static envelope, or None if there is none.
+
+        The static envelope in :class:`DriverCapabilities` describes what the
+        battery can do in isolation. A DC-coupled hybrid breaks that assumption:
+        its battery and its PV strings share one inverter, so the power actually
+        available for discharge is whatever the inverter's AC rating has left
+        over after PV. That headroom changes with the sun, which a value fixed at
+        setup time cannot express.
+
+        Returning a live value lets the load-sharing logic allocate against real
+        headroom rather than a nameplate figure it can never reach. ``data`` is
+        the coordinator's telemetry cache; return None when the inputs are
+        missing so the caller keeps the static limit rather than guessing.
+
+        Drivers for AC batteries with their own inverter have no such coupling
+        and inherit this default.
+        """
+        return None
 
     @abstractmethod
     def net_power_from_data(self, data: dict) -> Optional[int]:

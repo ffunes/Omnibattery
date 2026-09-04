@@ -2,6 +2,8 @@
 
 La integración crea automáticamente entidades para cada batería configurada y sensores agregados del sistema completo.
 
+El sensor binario de estado de carga predictiva incluye diagnósticos de Precio Dinámico con plazos: `chronological_planning_active`, fuentes de curvas, `earliest_projected_depletion`, kWh con plazo/flexibles, *shortfalls*, `energy_deadlines` acumulados y mapas JSON-safe de cuota/plazo por slot. Estos atributos describen la intención del plan; los límites reales de baterías y red siguen siendo autoritativos.
+
 ## Sensores (por batería)
 
 | Entidad | Descripción | Unidad |
@@ -63,8 +65,8 @@ Solo presentes cuando el [monitor de equilibrio de celdas](../features/cell-bala
 | `number.*_min_soc` | SOC mínimo | 0–100 % |
 | `number.*_max_charge_power` | Potencia máx. de carga | W |
 | `number.*_max_discharge_power` | Potencia máx. de descarga | W |
-| `number.marstek_venus_system_system_max_charge_power` | Límite opcional de carga combinada para todo el sistema (`0 W` = desactivado). Solo se crea cuando los límites del sistema están activados. | 0–15000 W |
-| `number.marstek_venus_system_system_max_discharge_power` | Límite opcional de descarga combinada para todo el sistema (`0 W` = desactivado). Solo se crea cuando los límites del sistema están activados. | 0–15000 W |
+| `number.marstek_venus_system_system_max_charge_power` | Límite opcional de carga combinada para todo el sistema (`0 W` = desactivado). Solo se crea cuando los límites del sistema están activados. | Dinámico: suma de potencias de carga configuradas |
+| `number.marstek_venus_system_system_max_discharge_power` | Límite opcional de descarga combinada para todo el sistema (`0 W` = desactivado). Solo se crea cuando los límites del sistema están activados. | Dinámico: suma de potencias de descarga configuradas |
 | `number.omnibattery_predictive_safety_margin_kwh` | Margen de previsión solar usado por la carga predictiva y el anti-vertido en Precio Dinámico | 0–20 kWh |
 | `number.omnibattery_negative_injection_threshold` | Umbral inclusivo de precio para franjas de riesgo de inyección negativa | -2–2 moneda/kWh |
 | `number.omnibattery_predischarge_reserve_soc` | Suelo de SOC adicional para la predescarga inteligente | 0–100 % |
@@ -139,9 +141,10 @@ El sensor también expone diagnósticos del registro de bloqueos como atributos:
 | `oscillating` | Cabeceo — usa un perfil más suave o sube el deadband |
 | `sluggish` | Demasiado lento — usa un perfil más agresivo |
 | `battery_limited` | Batería llena/vacía o en su límite de potencia; el PD no puede actuar (no es problema de ajuste) |
-| `collecting_data` | Calentando |
+| `blocked` | La dirección que exige el error de red no está permitida (retardo de carga, franja horaria, precio, pausa por VE); el PD está bloqueado, no mal ajustado |
+| `collecting_data` | Calentando, o la métrica lleva más de 5 min sin avanzar |
 
-Atributos: `rms_error_w` (error medio de seguimiento), `oscillation_per_min`, los `kp` / `kd` / `deadband_w` / `max_power_change_w` activos, y `active_profile`. La métrica es una media móvil de 60 s y se pausa brevemente tras un cambio de objetivo y mientras está limitada por batería, así que espera 1–2 min tras un cambio.
+Atributos: `rms_error_w` (error medio de seguimiento), `oscillation_per_min`, `metric_age_s` (segundos desde el último avance de la métrica), los `kp` / `kd` / `deadband_w` / `max_power_change_w` activos, y `active_profile`. La métrica es una media móvil de 60 s y se pausa brevemente tras un cambio de objetivo y mientras está limitada por batería o bloqueada, así que espera 1–2 min tras un cambio.
 
 ### Sensores agregados
 
@@ -155,3 +158,51 @@ Disponibles bajo el prefijo `sensor.marstek_venus_system_*`, suman los valores d
 - `system_alarm_status` — Estado de alarma agregado de todas las baterías (`OK` / `Warning` / `Fault`); los atributos listan las condiciones activas por batería
 - `system_home_consumption` — Consumo instantáneo del hogar (W). Lee el sensor del hogar si está configurado, en caso contrario lo deriva de `red + AC de baterías + solar`.
 - `system_daily_home_energy` — Consumo del hogar de hoy (kWh), integrado del valor de Consumo de la Casa anterior. Se reinicia a medianoche (hora local).
+
+### Modo vacaciones
+
+`switch.omnibattery_vacation_mode` pausa el aprendizaje de consumo sin pausar
+la medición física ni el control de batería. Sus atributos muestran la carga
+base constante activa, su origen, las noches válidas y los periodos excluidos
+persistidos. Durante las vacaciones el sensor de perfil esperado usa
+`source: vacation_baseline`.
+
+### Perfil de consumo esperado del hogar
+
+`sensor.omnibattery_expected_home_consumption_profile` es un sensor de
+diagnóstico del perfil aprendido de 28 días. Su estado es la previsión de hoy en
+kWh. Sus atributos incluyen `interval_profile_kwh`, `hourly_profile_kwh`,
+`target_date`, `source`, `mature`, `coverage_ratio`, `weekday_samples`,
+`day_type_samples`, `total_profile_days` y `newest_profile_date`. El resumen
+acotado por día está disponible en los diagnósticos de la integración. El origen
+es `profile` solo cuando se cumple el
+contrato de madurez; `legacy_daily` identifica el fallback.
+
+La carga predictiva también publica `solar_timeline_source`,
+`solar_remaining_raw_kwh`, `solar_remaining_effective_kwh`,
+`solar_timeline_fallback_reason`, `solar_profile_mature`,
+`solar_profile_days`, `solar_profile_coverage_ratio` y
+`solar_profile_generation`. Los diagnósticos contienen una sección acotada
+`solar_profile` con origen de telemetría, contadores de calidad, generación,
+estado de backfill y como máximo 24 valores resumidos de progreso.
+
+### Línea temporal de operación diaria
+
+`sensor.omnibattery_daily_operation_timeline` es un snapshot de diagnóstico del
+día local que usa la tarjeta Resumen. Su estado es la fecha local y sus
+atributos acotados contienen `schema_version`, `timezone`,
+`interval_minutes` (15), `interval_count` (96), `current_index`,
+`current_progress`, `mode`, frescura y los objetos `series`, `operations` y
+`sources`. Las listas se excluyen de Recorder. Los valores `actual_*` son
+medidos; los `planned_*` son proyecciones informativas y pueden ser `null` si
+su fuente está obsoleta.
+
+La línea conserva los intervalos cerrados aunque se reevalúe el plan y, tras un
+reinicio, solo restaura el día local actual. Las máscaras `action_mask` usan
+`solar_charge=1`, `grid_charge=2` y `discharge=4`; las máscaras de contexto
+identifican setpoint, Retraso de Carga y el modo predictivo.
+`grid_charge_decision` es independiente del flujo físico (`scheduled`,
+`not_needed`, `unknown` o `not_applicable`).
+
+Consulta la [guía de la línea temporal diaria](../features/daily-operation-timeline.es.md)
+para las reglas visuales, DST e interacción móvil.

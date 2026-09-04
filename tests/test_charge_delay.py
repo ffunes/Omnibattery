@@ -10,12 +10,16 @@ so the latch logic can be exercised without an event loop or storage.
 """
 from __future__ import annotations
 
-from datetime import date
+import asyncio
+from datetime import date, timedelta
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from custom_components.omnibattery import ChargeDischargeController
+from custom_components.omnibattery import sensor as sensor_module
+from custom_components.omnibattery.control import charge_delay as charge_delay_module
 from custom_components.omnibattery.control.charge_delay import (
     ChargeDelayManager,
     _TRANSIENT_UNLOCK_REASONS,
@@ -112,8 +116,25 @@ def _make_mgr(ctrl, states=None):
     return mgr
 
 
-def _state(value):
-    return SimpleNamespace(state=str(value))
+def _state(value, **attributes):
+    return SimpleNamespace(state=str(value), attributes=attributes)
+
+
+@pytest.mark.asyncio
+async def test_flush_state_replaces_cancelled_deferred_save_with_final_snapshot():
+    ctrl = _controller()
+    mgr = _make_mgr(ctrl)
+    mgr._store = SimpleNamespace(async_save=AsyncMock())
+    pending = asyncio.create_task(asyncio.sleep(60))
+    mgr._save_task = pending
+
+    await mgr.async_flush_state()
+
+    assert pending.cancelled()
+    mgr._store.async_save.assert_awaited_once()
+    payload = mgr._store.async_save.await_args.args[0]
+    assert payload["delay_unlocked"] is False
+    assert payload["delay_setpoint_reached"] is False
 
 
 # ----------------------------------------------------------------------
@@ -220,6 +241,50 @@ def test_setpoint_not_reached_blocks_below_setpoint():
     assert ctrl._delay_setpoint_reached is False
 
 
+def test_setpoint_clears_completed_forecast_status_and_publishes_setpoint():
+    ctrl = _controller(
+        _delay_soc_setpoint_enabled=True,
+        _delay_soc_setpoint=50,
+        coordinators=[_coord(soc=40)],
+        _charge_delay_status={
+            "state": "Unlocking (low_forecast)",
+            "forecast_kwh": 0,
+            "estimated_unlock_time": "07:00",
+            "unlock_reason": "low_forecast",
+            "soc_setpoint": None,
+        },
+    )
+    mgr = _make_mgr(ctrl)
+
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_status == {
+        "state": "Charging to setpoint",
+        "forecast_kwh": None,
+        "estimated_unlock_time": None,
+        "unlock_reason": None,
+        "soc_setpoint": 50,
+        "target_soc": 80,
+    }
+
+
+def test_charge_delay_sensor_exposes_soc_setpoint_and_projected_milestones():
+    entity = sensor_module.ChargeDelaySensor.__new__(sensor_module.ChargeDelaySensor)
+    entity._controller = SimpleNamespace(
+        _charge_delay_status={
+            "state": "Charging to setpoint",
+            "target_soc": 95,
+            "soc_setpoint": 50,
+            "safety_margin_min": 30,
+            "projected_unlock_time": "2026-08-29T11:00:00+02:00",
+            "estimated_setpoint_time": "2026-08-29T01:00:00+02:00",
+        }
+    )
+
+    assert entity.extra_state_attributes["soc_setpoint"] == 50
+    assert entity.extra_state_attributes["projected_unlock_time"].endswith("+02:00")
+    assert entity.extra_state_attributes["estimated_setpoint_time"].endswith("+02:00")
+
+
 def test_setpoint_reached_latches_and_evaluates():
     ctrl = _controller(
         _delay_soc_setpoint_enabled=True,
@@ -286,10 +351,15 @@ def test_zero_capacity_unlocks():
     assert ctrl._charge_delay_status["unlock_reason"] == "no_forecast"
 
 
-def test_balance_needs_charge_unlocks_low_forecast():
+def test_balance_needs_charge_unlocks_low_forecast(monkeypatch):
     # avg_soc 30, min_soc 20, capacity 10 -> usable 1 kWh; RAW forecast 1.0;
     # consumption 5, deadband 0.5 -> (1 + 1.0) < (5 - 0.5) -> grid needed.
     # No pricing manager -> price-aware release is a no-op -> unlock(low_forecast).
+    # The clock is pinned: consumption is trimmed to the hours left in the day,
+    # so an unpinned run follows whatever hour the suite starts at and stops
+    # being a deficit after midday.
+    now = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
     ctrl = _controller(
         coordinators=[_coord(soc=30, total_energy=10.0, min_soc=20)],
         _consumption_tracker=_tracker(get_avg_daily_consumption=lambda: 5.0),
@@ -312,6 +382,84 @@ def test_balanced_day_holds_with_deadband():
     mgr._should_delay_charge(80)
     assert ctrl._charge_delay_balance_needs_charge is False
     assert ctrl._charge_delay_forecast_cache == pytest.approx(15.76)
+
+
+def test_balance_cache_recomputes_when_forecast_source_changes():
+    states = {
+        "sensor.forecast": _state(10.0),
+        "sensor.remaining": _state(10.0),
+    }
+    ctrl = _controller(solar_forecast_remaining_sensor="sensor.remaining")
+    mgr = _make_mgr(ctrl, states=states)
+
+    mgr._should_delay_charge(80)
+    assert ctrl._charge_delay_forecast_source_cache == "remaining"
+
+    states["sensor.remaining"] = _state("unavailable")
+    mgr._should_delay_charge(80)
+    assert ctrl._charge_delay_forecast_source_cache == "today"
+
+
+def test_remaining_periods_override_a_midnight_zero_without_unlocking(monkeypatch):
+    now = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
+    periods = [
+        {
+            "start": (now + timedelta(hours=1)).isoformat(),
+            "end": (now + timedelta(hours=2)).isoformat(),
+            "energy_kwh": 43.54,
+        }
+    ]
+    ctrl = _controller(solar_forecast_remaining_sensor="sensor.remaining")
+    mgr = _make_mgr(ctrl, states={
+        "sensor.remaining": _state(0, solar_forecast_periods=periods),
+    })
+
+    assert mgr.is_charge_delayed() is True
+    assert ctrl._charge_delay_unlocked is False
+    assert ctrl._charge_delay_status["forecast_kwh"] == pytest.approx(43.54)
+    assert ctrl._charge_delay_status["solar_forecast_conversion"] == (
+        "dated_periods_zero_scalar"
+    )
+
+
+def test_scalar_midnight_zero_waits_for_forecast_then_rearms(monkeypatch):
+    now = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
+    states = {"sensor.remaining": _state(0)}
+    ctrl = _controller(solar_forecast_remaining_sensor="sensor.remaining")
+    mgr = _make_mgr(ctrl, states=states)
+
+    assert mgr.is_charge_delayed() is True
+    assert ctrl._charge_delay_unlocked is False
+    assert ctrl._charge_delay_status["state"] == "Waiting for forecast"
+    assert ctrl._charge_delay_status["unlock_reason"] is None
+
+    states["sensor.remaining"] = _state(43.54)
+    assert mgr.is_charge_delayed() is True
+    assert ctrl._charge_delay_unlocked is False
+    assert ctrl._charge_delay_status["forecast_kwh"] == pytest.approx(43.54)
+    assert ctrl._charge_delay_status["unlock_reason"] is None
+
+
+def test_legacy_today_forecast_is_converted_once_before_charge_delay_uses_it(monkeypatch):
+    now = dt_util.now().replace(hour=12, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
+    ctrl = _controller(
+        _daily_solar_energy_kwh=8.0,
+        _consumption_tracker=_tracker(
+            get_avg_daily_consumption=lambda: 0.0,
+            get_solar_fraction_done=lambda *_args: 0.5,
+        ),
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(10.0)})
+
+    mgr._should_delay_charge(80)
+
+    # Midday legacy input is normalized to the remaining half of its curve.
+    # It must not be reduced again by the 8 kWh already measured today.
+    assert ctrl._charge_delay_status["forecast_kwh"] == pytest.approx(5.0)
+    assert ctrl._charge_delay_status["remaining_solar_kwh"] == pytest.approx(5.0)
 
 
 def test_low_forecast_price_release_holds_for_cheaper_hour():
@@ -502,8 +650,6 @@ def test_setpoint_blocks_noop_when_feature_disabled():
 # ----------------------------------------------------------------------
 # _price_optimal_release_h: price-aware release within the feasible window
 # ----------------------------------------------------------------------
-from datetime import timedelta  # noqa: E402
-
 from homeassistant.util import dt as dt_util  # noqa: E402
 
 from custom_components.omnibattery.pricing import (  # noqa: E402

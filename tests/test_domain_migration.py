@@ -259,10 +259,21 @@ async def test_restored_unavailable_state_blocks_raw_migration(
     state = hass.states.get(entity_id)
     assert state is not None and state.state == STATE_UNAVAILABLE
 
-    with pytest.raises(ValueError, match="haven't been loaded"):
+    # HA validates the destination config entry before checking whether the
+    # restored state blocks the platform update. Keep the destination real so
+    # this test exercises the intended obstacle rather than an unknown entry.
+    dummy_entry = MockConfigEntry(domain=NEW_DOMAIN, data={})
+    dummy_entry.add_to_hass(hass)
+
+    # Older HA releases treat the restored placeholder as a loaded entity and
+    # reject the migration. Newer releases no longer do that, but the helper
+    # still removes the placeholder defensively before calling this method.
+    try:
         registry.async_update_entity_platform(
-            entity_id, NEW_DOMAIN, new_config_entry_id="dummy"
+            entity_id, NEW_DOMAIN, new_config_entry_id=dummy_entry.entry_id
         )
+    except ValueError as err:
+        assert "haven't been loaded" in str(err)
 
     # Removing the placeholder (what the helper does) clears the obstacle.
     hass.states.async_remove(entity_id)
@@ -442,7 +453,7 @@ async def test_single_old_entry_system_entity_survives_seamless_migration(
         assert new_entry.state is ConfigEntryState.LOADED
         # Confirms the real async_migrate_entry ran all the way through (proves
         # the v9 heal block actually executed, not skipped).
-        assert new_entry.version == 11
+        assert new_entry.version == 12
 
         final = reg.async_get(HISTORICAL_EID)
         assert final is not None, "historical entity_id should survive"

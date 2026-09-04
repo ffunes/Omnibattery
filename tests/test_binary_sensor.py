@@ -1,9 +1,13 @@
 """Tests for system-level binary sensor diagnostics."""
 from __future__ import annotations
 
+from datetime import date
 from types import SimpleNamespace
 
-from custom_components.omnibattery.binary_sensor import CurtailmentStatusSensor
+from custom_components.omnibattery.binary_sensor import (
+    CurtailmentStatusSensor,
+    PredictiveChargingStatusSensor,
+)
 from custom_components.omnibattery.pricing import CurtailmentPlan
 
 
@@ -40,3 +44,71 @@ def test_curtailment_signal_is_unknown_without_safe_plan():
 
     assert attrs["protected_window_active"] is False
     assert attrs["inverter_curtailment_required"] is None
+
+
+def test_predictive_attributes_omit_redundant_fields():
+    controller = SimpleNamespace(
+        _daily_consumption_history=[(date(2026, 8, 16), 7.5)],
+        _daily_solar_energy_date=None,
+        _daily_solar_forecast_initial_date=None,
+        _daily_solar_forecast_initial_kwh=None,
+        _dynamic_pricing_schedule=None,
+        _household_accumulator_date=date(2026, 8, 17),
+        _household_energy_accumulator=3.25,
+        _last_decision_data={
+            "grid_charge_kwh": 4.0,
+            "min_reserve_kwh": 2.0,
+            "planned_grid_charge_kwh": 1.5,
+            "consumption_accumulator_ready": True,
+            "consumption_accumulator_source": "daily_home_energy",
+        },
+        _last_chronological_diagnostics={
+            "chronological_source": "profile",
+            "solar_timeline_source": "learned",
+            "solar_timeline_effective_kwh": 3.2,
+            "solar_profile_mature": True,
+            "solar_profile_days": 12,
+            "solar_profile_coverage_ratio": 0.84,
+            "minimum_projected_energy_kwh": 1.7,
+            "minimum_projected_soc": 28.5,
+            "chronological_plan_reason": "ok",
+        },
+        _predictive_charge_target_soc=None,
+        _pricing_mgr=None,
+        charging_time_slots=[],
+        coordinators=[],
+        last_evaluation_soc=42.0,
+        max_contracted_power=7000,
+        predictive_charging_mode="time_slot",
+        predictive_charging_overridden=False,
+        solar_forecast_diagnostic_source="remaining_sensor",
+        solar_forecast_remaining_sensor="sensor.solar_remaining",
+        solar_forecast_sensor=None,
+        solar_forecast_source="remaining",
+        _is_in_predictive_charging_slot=lambda: False,
+    )
+
+    attrs = PredictiveChargingStatusSensor(None, None, controller).extra_state_attributes
+
+    assert attrs["solar_forecast_source"] == "remaining"
+    assert attrs["household_consumption_full_day_kwh"] == 3.25
+    assert attrs["daily_consumption_history"] == [("2026-08-16", 7.5)]
+    assert attrs["planned_grid_charge_kwh"] == 1.5
+    assert attrs["consumption_accumulator_source"] == "daily_home_energy"
+    assert attrs["chronological_planning_active"] is False
+    assert attrs["chronological_source"] == "profile"
+    assert attrs["solar_timeline_source"] == "learned"
+    assert attrs["solar_profile_days"] == 12
+    assert attrs["minimum_projected_soc"] == 28.5
+    assert "solar_shadow_selected_source" not in attrs
+
+    redundant = {
+        "consumption_accumulator_ready",
+        "grid_charge_kwh",
+        "history_days",
+        "household_consumption_battery_window_kwh",
+        "min_reserve_kwh",
+        "solar_forecast_diagnostic_source",
+        "solar_production_today_kwh",
+    }
+    assert redundant.isdisjoint(attrs)

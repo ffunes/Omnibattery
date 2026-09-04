@@ -77,7 +77,7 @@ async def test_v9_heals_system_entity_duplicates(hass: HomeAssistant) -> None:
     assert live.entity_id == "switch.marstek_venus_system_manual_mode_2"
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 11
+    assert entry.version == 12
 
     # orphan removed; live re-keyed to the stable uid AND reclaimed the clean id.
     assert reg.async_get_entity_id("switch", DOMAIN, f"{OLD_ULID}_manual_mode") is None

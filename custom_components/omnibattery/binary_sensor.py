@@ -15,10 +15,12 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from .const import (
     DOMAIN,
     CONF_CAPACITY_PROTECTION_ENABLED,
+    CONF_ENABLE_PREDICTIVE_CHARGING,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
 )
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
+from .solar_forecast import read_solar_forecast_kwh
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,8 +44,9 @@ async def async_setup_entry(
         if coordinator.enable_charge_hysteresis:
             entities.append(ChargeHysteresisActiveSensor(coordinator))
 
-    # Add predictive charging status sensor (system-level)
-    if controller and controller.predictive_charging_enabled:
+    # Keep predictive diagnostics registered while the master switch is off so
+    # enabling it live never requires a platform reload.
+    if controller and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data:
         entities.append(PredictiveChargingStatusSensor(hass, entry, controller))
         if controller.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
             entities.append(CurtailmentStatusSensor(hass, entry, controller))
@@ -389,19 +392,20 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
     _unrecorded_attributes = frozenset({
         # heavy nested structures
         "active_slot_per_battery", "manual_slot_owned",
-        "daily_consumption_history", "history_days",
+        "daily_consumption_history",
         "predictive_target_soc_pct", "selected_hours",
         # per-cycle accumulators
-        "household_consumption_battery_window_kwh", "solar_production_today_kwh",
+        "household_consumption_full_day_kwh",
         # last-decision diagnostic dump (changes on every evaluation)
-        "stored_energy_kwh", "usable_energy_kwh", "min_reserve_kwh",
+        "stored_energy_kwh", "usable_energy_kwh",
         "cutoff_energy_kwh", "effective_min_soc", "avg_consumption_kwh",
         "total_available_kwh", "energy_deficit_kwh", "solar_forecast_kwh",
-        "solar_surplus_kwh", "grid_charge_kwh", "planned_grid_charge_kwh",
+        "solar_surplus_kwh", "planned_grid_charge_kwh",
         "consumption_scope", "daily_avg_consumption_kwh", "consumed_today_kwh",
         "remaining_consumption_kwh", "remaining_solar_kwh",
-        "consumption_rate_kwh_h", "consumption_accumulator_ready",
-        "decision_reason",
+        "consumption_rate_kwh_h", "consumption_accumulator_source",
+        "energy_deadlines", "slot_energy_targets_kwh", "slot_deadlines",
+        "decision_reason", "solar_forecast_periods",
     })
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
@@ -467,34 +471,74 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
 
         if self.controller.solar_forecast_sensor:
             attrs["solar_forecast_sensor"] = self.controller.solar_forecast_sensor
+        if getattr(self.controller, "solar_forecast_remaining_sensor", None):
+            attrs["solar_forecast_remaining_sensor"] = self.controller.solar_forecast_remaining_sensor
+        if getattr(self.controller, "solar_forecast_source", None):
+            attrs["solar_forecast_source"] = self.controller.solar_forecast_source
 
         attrs["max_contracted_power"] = self.controller.max_contracted_power
 
         # Home consumption diagnostics: home power is always derived
         # (grid + battery AC + solar); the household sensor was removed.
         attrs["consumption_source"] = "derived (grid + battery AC + solar)"
-        attrs["household_consumption_battery_window_kwh"] = round(self.controller._household_energy_accumulator, 2)
+        full_day_consumption = round(self.controller._household_energy_accumulator, 2)
+        attrs["household_consumption_full_day_kwh"] = full_day_consumption
+        attrs["consumption_history_scope"] = "full_day_home"
         if self.controller._household_accumulator_date is not None:
             attrs["household_accumulator_date"] = self.controller._household_accumulator_date.isoformat()
-        # Measured solar produced today (real solar sensor + Venus MPPT)
-        attrs["solar_production_today_kwh"] = round(self.controller._daily_solar_energy_kwh, 2)
         if self.controller._daily_solar_energy_date is not None:
             attrs["solar_accumulator_date"] = self.controller._daily_solar_energy_date.isoformat()
+
+        initial_forecast = getattr(
+            self.controller, "_daily_solar_forecast_initial_kwh", None
+        )
+        initial_date = getattr(
+            self.controller, "_daily_solar_forecast_initial_date", None
+        )
+        if initial_forecast is not None:
+            attrs["solar_forecast_initial_kwh"] = round(initial_forecast, 2)
+        if initial_date is not None:
+            attrs["solar_forecast_initial_date"] = initial_date.isoformat()
 
         # Persist daily consumption history for restoration after restarts
         if hasattr(self.controller, '_daily_consumption_history') and self.controller._daily_consumption_history:
             attrs["daily_consumption_history"] = [
                 (d.isoformat(), c) for d, c in self.controller._daily_consumption_history
             ]
-            attrs["history_days"] = len(self.controller._daily_consumption_history)
 
-        # Add last decision data if available (for diagnostics)
-        if hasattr(self.controller, '_last_decision_data') and self.controller._last_decision_data:
-            decision = self.controller._last_decision_data
+        # Add last decision data if available (for diagnostics).  Timeline
+        # fields also have an independent snapshot because pre-slot/evening
+        # balance checks replace _last_decision_data without rebuilding them.
+        decision = getattr(self.controller, "_last_decision_data", None)
+        if not isinstance(decision, dict):
+            decision = {}
+        chronological_diagnostics = getattr(
+            self.controller, "_last_chronological_diagnostics", None
+        )
+        if not isinstance(chronological_diagnostics, dict):
+            chronological_diagnostics = {}
+
+        def _chronological_value(key, default=None):
+            if key in decision:
+                return decision[key]
+            return chronological_diagnostics.get(key, default)
+
+        if decision or chronological_diagnostics:
+            if "chronological_planning_active" in decision:
+                chronological_active = bool(
+                    decision.get("chronological_planning_active")
+                )
+            else:
+                chronological_active = bool(
+                    getattr(
+                        getattr(self.controller, "_dynamic_pricing_schedule", None),
+                        "chronological_planning_active",
+                        False,
+                    )
+                )
             attrs.update({
                 "stored_energy_kwh": decision.get("stored_energy_kwh"),
                 "usable_energy_kwh": decision.get("usable_energy_kwh"),
-                "min_reserve_kwh": decision.get("min_reserve_kwh"),
                 "cutoff_energy_kwh": decision.get("cutoff_energy_kwh"),
                 "effective_min_soc": decision.get("effective_min_soc"),
                 "avg_consumption_kwh": decision.get("avg_consumption_kwh"),
@@ -504,15 +548,135 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
                 "remaining_consumption_kwh": decision.get("remaining_consumption_kwh"),
                 "remaining_solar_kwh": decision.get("remaining_solar_kwh"),
                 "consumption_rate_kwh_h": decision.get("consumption_rate_kwh_h"),
-                "consumption_accumulator_ready": decision.get("consumption_accumulator_ready"),
+                "consumption_accumulator_source": decision.get("consumption_accumulator_source"),
                 "total_available_kwh": decision.get("total_available_kwh"),
                 "energy_deficit_kwh": decision.get("energy_deficit_kwh"),
                 "planned_grid_charge_kwh": decision.get("planned_grid_charge_kwh"),
                 "solar_forecast_kwh": decision.get("solar_forecast_kwh"),
+                "solar_forecast_original_source": _chronological_value(
+                    "solar_forecast_original_source"
+                ),
+                "solar_forecast_conversion": _chronological_value(
+                    "solar_forecast_conversion"
+                ),
+                "solar_remaining_raw_kwh": _chronological_value(
+                    "solar_remaining_raw_kwh"
+                ),
+                "solar_safety_margin_kwh": _chronological_value(
+                    "solar_safety_margin_kwh"
+                ),
+                "solar_remaining_effective_kwh": _chronological_value(
+                    "solar_remaining_effective_kwh"
+                ),
                 "solar_surplus_kwh": decision.get("solar_surplus_kwh"),
-                "grid_charge_kwh": decision.get("grid_charge_kwh"),
                 "decision_reason": decision.get("reason"),
+                "chronological_planning_active": chronological_active,
+                "chronological_source": _chronological_value("chronological_source"),
+                "solar_timeline_source": _chronological_value(
+                    "solar_timeline_source"
+                ),
+                "solar_timeline_effective_kwh": _chronological_value(
+                    "solar_timeline_effective_kwh"
+                ),
+                "solar_timeline_fallback_reason": _chronological_value(
+                    "solar_timeline_fallback_reason"
+                ),
+                "solar_timeline_energy_error_kwh": _chronological_value(
+                    "solar_timeline_energy_error_kwh"
+                ),
+                "solar_profile_mature": _chronological_value("solar_profile_mature"),
+                "solar_profile_days": _chronological_value("solar_profile_days"),
+                "solar_profile_coverage_ratio": _chronological_value(
+                    "solar_profile_coverage_ratio"
+                ),
+                "solar_profile_generation": _chronological_value(
+                    "solar_profile_generation"
+                ),
+                "curtailment_timeline_mismatch": _chronological_value(
+                    "curtailment_timeline_mismatch", False
+                ),
+                "earliest_projected_depletion": _chronological_value(
+                    "earliest_projected_depletion"
+                ),
+                "minimum_projected_energy_kwh": _chronological_value(
+                    "minimum_projected_energy_kwh"
+                ),
+                "minimum_projected_soc": _chronological_value(
+                    "minimum_projected_soc"
+                ),
+                "deadline_required_kwh": _chronological_value(
+                    "deadline_required_kwh", 0.0
+                ),
+                "flexible_required_kwh": _chronological_value(
+                    "flexible_required_kwh", 0.0
+                ),
+                "deadline_shortfall_kwh": _chronological_value(
+                    "deadline_shortfall_kwh", 0.0
+                ),
+                "total_shortfall_kwh": _chronological_value(
+                    "total_shortfall_kwh", 0.0
+                ),
+                "energy_deadlines": _chronological_value("energy_deadlines", []),
+                "chronological_plan_reason": _chronological_value(
+                    "chronological_plan_reason"
+                ),
+                "guaranteed_floor_deadline": _chronological_value(
+                    "guaranteed_floor_deadline"
+                ),
             })
+            # This was a rollout-only diagnostic. Keep exposing it for an
+            # explicit legacy shadow evaluation, but do not publish an
+            # ``unknown`` attribute in the normal automatic mode.
+            shadow_source = _chronological_value("solar_shadow_selected_source")
+            if shadow_source is not None:
+                attrs["solar_shadow_selected_source"] = shadow_source
+
+        schedule = getattr(self.controller, "_dynamic_pricing_schedule", None)
+        if schedule is not None and getattr(schedule, "chronological_planning_active", False):
+            attrs["slot_energy_targets_kwh"] = {
+                f"{slot.start.isoformat()}/{slot.end.isoformat()}": round(float(value), 3)
+                for slot, value in schedule.slot_energy_targets_kwh.items()
+            }
+            attrs["slot_deadlines"] = {
+                f"{slot.start.isoformat()}/{slot.end.isoformat()}": (
+                    deadline.isoformat() if deadline is not None else None
+                )
+                for slot, deadline in schedule.slot_deadlines.items()
+            }
+        elif getattr(self.controller, "_time_slot_chronological_plan", None) is not None:
+            plan = self.controller._time_slot_chronological_plan
+            targets = {}
+            deadlines = {}
+            for allocation in plan.allocations:
+                key = (
+                    f"{allocation.slot.start.isoformat()}/"
+                    f"{allocation.slot.end.isoformat()}"
+                )
+                targets[key] = round(
+                    targets.get(key, 0.0) + allocation.planned_battery_kwh,
+                    3,
+                )
+                deadlines[key] = (
+                    allocation.deadline.isoformat()
+                    if allocation.deadline is not None
+                    else None
+                )
+            attrs["slot_energy_targets_kwh"] = targets
+            attrs["slot_deadlines"] = deadlines
+
+        # Keep the live remainder current even between pricing reevaluations.
+        # This also gives legacy whole-day forecast sensors the same dashboard
+        # value as the control path, which maps the forecast's future periods
+        # or remaining solar curve without moving missed past production later.
+        if getattr(self.controller, "_pricing_mgr", None) is not None:
+            try:
+                forecast = read_solar_forecast_kwh(self.hass, self.controller)
+                if forecast is not None:
+                    now = datetime.now()
+                    remaining = self.controller._pricing_mgr._remaining_solar_today_kwh(now)
+                    attrs["remaining_solar_kwh"] = round(max(0.0, float(remaining)), 2)
+            except (AttributeError, TypeError, ValueError):
+                _LOGGER.debug("Predictive status: live solar remainder unavailable", exc_info=True)
 
         # Per-battery grid-only SOC targets (set at charge initialisation, None when not charging)
         if hasattr(self.controller, '_predictive_charge_target_soc') and self.controller._predictive_charge_target_soc:

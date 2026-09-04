@@ -37,6 +37,11 @@ CLAUDE.md
 *.tmp
 .env
 
+# Generated GitHub feature reports and poll drafts
+feature-requests-*.md
+feature-requests-*.json
+feature-poll-draft-*.md
+
 CLAUDE.md
 .agents/scripts/publish_release.py
 .agents/workflows/publish_release.md
@@ -58,3 +63,4 @@ ROADMAP.md
 bash.exe.stackdump
 .agents/
 .codex/
+resumen-2026-08-25.md

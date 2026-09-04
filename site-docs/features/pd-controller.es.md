@@ -65,8 +65,8 @@ Los siguientes controles ajustan los parámetros internos del controlador PD. Ta
 | **Potencia mínima de descarga** | `0 W` | 0–2000 W | Igual que el anterior, para la descarga. `0` lo desactiva. |
 | **Potencia objetivo de red** | `0 W` | −(descarga total configurada) … +(carga total configurada) | Consigna de red que regula el PD. Positivo = importar de red (la batería carga), negativo = exportar a red (la batería descarga), `0` = balance neto cero. El rango sigue tus baterías: tres unidades de 2500 W dan ±7500 W. Activar los límites de potencia del sistema estrecha cada dirección hasta su límite configurado. |
 | **Activar límites de potencia del sistema** | desactivado | activado/desactivado | Activa el límite combinado de carga/descarga de todas las baterías activas. |
-| **Potencia máxima de carga del sistema** | `0 W` | 0–15000 W | Límite opcional para la potencia de carga combinada. `0` lo desactiva. |
-| **Potencia máxima de descarga del sistema** | `0 W` | 0–15000 W | Límite opcional para la potencia de descarga combinada. `0` lo desactiva. |
+| **Potencia máxima de carga del sistema** | `0 W` | Dinámico: suma de potencias de carga configuradas | Límite opcional para la potencia de carga combinada. `0` lo desactiva. |
+| **Potencia máxima de descarga del sistema** | `0 W` | Dinámico: suma de potencias de descarga configuradas | Límite opcional para la potencia de descarga combinada. `0` lo desactiva. |
 
 Las potencias mínimas de carga/descarga son útiles para evitar microciclos ineficientes cuando la demanda de red es muy baja.
 

@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from custom_components.omnibattery import ChargeDischargeController
 
 
@@ -92,6 +94,19 @@ def test_target_never_below_current_soc():
     decision = {"energy_deficit_kwh": 0.0}
     targets = _compute(_ctrl([c], decision))
     assert targets[c] == 60.0
+
+
+def test_time_slot_chronological_quota_overrides_global_daily_target():
+    c = _Coord("c", 20.0, 5.0)
+    ctrl = _ctrl([c], {"energy_deficit_kwh": 2.0, "planned_grid_charge_kwh": 2.0})
+    ctrl.predictive_charging_mode = "time_slot"
+    ctrl._active_time_slot_quota_kwh = 0.5
+    ctrl._dynamic_pricing_schedule = None
+    ctrl._active_dynamic_slot_purpose = None
+
+    targets = ChargeDischargeController._compute_predictive_target_soc(ctrl)
+
+    assert targets[c] == pytest.approx(30.0)
 
 
 def test_proportional_split_favors_larger_gap():

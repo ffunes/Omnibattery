@@ -402,9 +402,14 @@ class BalanceMonitor:
         icon = "🔴" if severe else "⚠️"
         title = f"{icon} Cell balance — {name}"
         message = "\n".join(f"• {line}" for line in issues)
-        self._hass.async_create_task(
-            self._notify(f"{NOTIFICATION_ID_PREFIX}marstek_balance_{host}", title, message)
+        coroutine = self._notify(
+            f"{NOTIFICATION_ID_PREFIX}marstek_balance_{host}", title, message
         )
+        create = getattr(self._controller, "_create_entry_background_task", None)
+        if callable(create):
+            create(coroutine, "omnibattery_balance_notification")
+        else:
+            self._hass.async_create_task(coroutine)
 
     async def _persist_state(self, host: str, state: _BatteryState) -> None:
         bat = self._data.setdefault(host, {"readings": [], "consecutive_red": 0})

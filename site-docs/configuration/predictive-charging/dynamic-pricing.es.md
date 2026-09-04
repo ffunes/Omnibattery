@@ -36,11 +36,13 @@ Selecciona automáticamente las **horas más baratas del día** para cubrir el d
 
 A las 00:05 el controlador:
 
-1. Calcula el déficit energético (batería + solar vs. consumo esperado).
+1. Calcula el déficit y proyecta consumo, solar y energía utilizable de batería en intervalos de 15 minutos hasta medianoche.
 2. Recupera los precios horarios del día de la integración configurada.
-3. Selecciona las horas más baratas necesarias para cubrir el déficit.
+3. Detecta cuándo la energía acumulada alcanzaría el SOC mínimo y reserva los slots elegibles más baratos capaces de entregar cada requisito antes de su plazo.
 4. Calcula y almacena el **precio medio del día** a partir del perfil horario de precios.
-5. Programa los slots de carga para el día.
+5. Asigna una cuota energética a cada slot; solo la energía sin plazo temprano sigue compitiendo libremente por precio durante el día.
+
+«Más barato» significa, por tanto, más barato entre los slots capaces de cumplir el requisito a tiempo. Una franja posterior nunca cuenta como cobertura de energía que ya se necesitaba antes. Un plan parcial sigue siendo ejecutable, pero publica los kWh de *shortfall* y si se deben al filtro de precio o a la capacidad física. Las cuotas son objetivos, no garantías: potencia contratada, hueco de batería, límites de fase, temperatura, ownership y las demás protecciones runtime siguen siendo autoritativos.
 
 ### Lógica de reintentos
 
@@ -188,5 +190,18 @@ El sensor binario `predictive_charging_active` expone:
 | `estimated_cost` | Coste estimado de la carga |
 | `evaluation_timestamp` | Cuándo se realizó la última evaluación |
 | `price_data_status` | Estado del sensor de precios (`ok (N slots)`, `sensor_unavailable`, `no_slots`, `not_evaluated`) |
+| `chronological_planning_active` | Si el calendario activo procede del planificador con plazos |
+| `chronological_source` / `solar_timeline_source` | Origen de las curvas de consumo y solar |
+| `earliest_projected_depletion` | Primer cruce previsto del SOC mínimo sin carga de red |
+| `deadline_required_kwh` / `flexible_required_kwh` | Energía reservada antes de plazos y energía flexible por precio |
+| `deadline_shortfall_kwh` / `total_shortfall_kwh` | Energía urgente y total que los slots elegibles no pueden entregar |
+| `energy_deadlines` | Requisitos acumulados y plazos ISO locales |
+| `slot_energy_targets_kwh` / `slot_deadlines` | Cuotas y plazos por slot, serializados con timestamps locales |
 
 ![Atributos del sensor predictive_charging_active](../../assets/screenshots/configuration/predictive-charging/diagnostic-attributes.png){ width="650"  style="display: block; margin: 0 auto;"}
+
+El calendario dinámico consume el mismo timeline solar fechado que Franja
+Horaria. Una curva del proveedor tiene prioridad sobre un perfil local maduro y
+una candidata inválida cae de forma atómica a la siguiente fuente. El perfil
+aprendido se aplica automáticamente cuando es maduro; mientras tanto se usa la
+curva sinusoidal.

@@ -43,6 +43,11 @@ UNCHANGED = "unchanged"
 ENDPOINT_CONFLICT = "endpoint_conflict"
 STILL_REACHABLE = "still_reachable"
 
+# Decided by the flow rather than by ``evaluate_lease``: answering it means
+# talking to the candidate address, and everything in this module is pure.
+# It belongs here anyway, with the other reasons, so one place lists them all.
+CANDIDATE_SILENT = "candidate_silent"
+
 
 @dataclass(frozen=True)
 class DhcpVerdict:

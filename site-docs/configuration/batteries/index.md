@@ -1,6 +1,6 @@
 # Battery configuration
 
-Omnibattery can coordinate up to six batteries in one installation. Choose the
+Omnibattery can coordinate up to ten batteries in one installation. Choose the
 brand for each unit in the Home Assistant wizard, then use the corresponding
 page below for its connection fields and brand-specific limits. The control
 loop, dashboard, predictive charging and most runtime controls are shared.
@@ -23,7 +23,7 @@ to Home Assistant by a LilyGo bridge.
 
 ## Number of batteries
 
-Select how many battery units you have (1–6). The integration asks you to
+Select how many battery units you have (1–10). The integration asks you to
 configure each unit separately, so a mixed installation can combine supported
 brands.
 

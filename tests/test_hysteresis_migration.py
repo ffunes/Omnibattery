@@ -53,7 +53,7 @@ def _migrate(batteries):
     with _no_registry():
         result = asyncio.run(async_migrate_entry(hass, entry))
     assert result is True
-    assert hass.config_entries.updated["version"] == 11
+    assert hass.config_entries.updated["version"] == 12
     return hass.config_entries.updated["data"]["batteries"]
 
 
@@ -81,8 +81,26 @@ def test_enabled_below_floor_is_clamped_up():
     assert out[0]["charge_hysteresis_percent"] == MIN_CHARGE_HYSTERESIS_PERCENT
 
 
-def test_already_v11_is_noop():
+def test_v11_records_connected_panels_without_changing_existing_venus_behaviour():
     hass = SimpleNamespace(config_entries=_FakeConfigEntries())
-    entry = SimpleNamespace(version=11, data={"batteries": [{}]})
+    entry = SimpleNamespace(
+        version=11,
+        data={
+            "batteries": [
+                {"battery_version": "vD"},
+                {"battery_version": "vA", "dc_pv_connected": False},
+                {"battery_version": "v3"},
+            ]
+        },
+    )
+
+    assert asyncio.run(async_migrate_entry(hass, entry)) is True
+    batteries = hass.config_entries.updated["data"]["batteries"]
+    assert [battery["dc_pv_connected"] for battery in batteries] == [True, False, False]
+
+
+def test_already_v12_is_noop():
+    hass = SimpleNamespace(config_entries=_FakeConfigEntries())
+    entry = SimpleNamespace(version=12, data={"batteries": [{}]})
     assert asyncio.run(async_migrate_entry(hass, entry)) is True
     assert hass.config_entries.updated is None  # nothing rewritten

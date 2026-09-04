@@ -15,8 +15,8 @@
  * The flow Grid/Home nodes use the entities the integration was configured
  * with, forwarded through the panel `config` payload (grid_entity / home_entity).
  * Solar uses the configured production sensor (solar_entity, external inverter)
- * when present, else falls back to per-battery MPPT sensors when the model
- * exposes them.
+ * when present, else falls back to per-battery PV sensors when the model exposes
+ * an independent source.
  *
  * Design tokens (OKLCH) are embedded so the look matches the handoff exactly;
  * dark/light follows the user's HA theme (hass.themes.darkMode).
@@ -30,6 +30,17 @@
 
 const FALLBACK_DOMAIN = "omnibattery";
 const FALLBACK_TITLE = "Omnibattery";
+const DAILY_OPERATION_BASE_INTERVALS = 96;
+const DAILY_OPERATION_EXTENSION_INTERVALS = 48;
+const DAILY_OPERATION_TOTAL_INTERVALS = DAILY_OPERATION_BASE_INTERVALS + DAILY_OPERATION_EXTENSION_INTERVALS;
+const DAILY_OPERATION_TOTAL_HOURS = DAILY_OPERATION_TOTAL_INTERVALS / 4;
+const DAILY_OPERATION_CONTEXT_HOURLY_BALANCE = 32;
+// Covered zero PV intervals (the open cell plus three completed quarters, so
+// ~45-60 minutes) before the remaining solar forecast is treated as
+// post-sunset and removed.
+// ponytail: a clock-blind counter, so an outage longer than an hour at midday
+// still erases the afternoon curve; the real fix is a sunset timestamp.
+const DAILY_OPERATION_SUNSET_ZERO_INTERVALS = 4;
 
 // --- i18n ------------------------------------------------------------------
 // All user-facing panel strings, keyed by a stable id and resolved at render
@@ -44,10 +55,24 @@ const I18N = {
     tabResumen: "Overview", tabBaterias: "Batteries", tabControl: "Control",
     moreInfo: "Show history",
     zoomReset: "All",
-    infoModel: "Model", infoSoftware: "Software", infoSerial: "Serial",
+    infoModel: "Model", infoSoftware: "Software", infoSerial: "Serial", infoInverter: "Inverter", infoPowerModule: "Power module",
     placeholderMsg: "This view is coming in a future phase. For now, use the Overview view.",
     cardFlow: "Energy flow", cardSoc: "System status", cardDaily: "Energy today",
     cardWeekly: "Weekly energy", cardPower: "Power", cardSocToday: "SOC · today",
+    dailyOperationTitle: "Daily operation", dailyOperationDescription: "Observed and projected energy · 15 min",
+    dailyOperationReal: "Real", dailyOperationCurrent: "Current", dailyOperationForecast: "Forecast",
+    dailyOperationStale: "Data may be outdated", dailyOperationNoData: "No daily operation data",
+    dailyOperationSolarWindow: "Solar window", dailyOperationSolarCharge: "Solar charge", dailyOperationGridCharge: "Grid charge", dailyOperationDischarge: "Battery discharge", dailyOperationEnergyToBattery: "Energy to battery", dailyOperationEnergyFromBattery: "Energy from battery", dailyOperationCause: "Cause", dailyOperationHourlyBalance: "Hourly net balance",
+    dailyOperationNotNeeded: "Grid charge not needed", dailyOperationNoAction: "No action", dailyOperationSetpoint: "Until setpoint",
+    dailyOperationDelay: "Charge delayed", dailyOperationUnlock: "Estimated unlock: {time}", dailyOperationAxis: "kWh/15 min",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consumption", dailyOperationSoc: "Total SOC", dailyOperationLearned: "Learned profile",
+    dailyOperationSinusoidal: "Sinusoidal fallback", dailyOperationGenericFallback: "Fallback estimate", dailyOperationZeroFallback: "Zero-solar fallback", dailyOperationFallback: "Fallback: {reason}", dailyOperationPlan: "Plan",
+    dailyOperationObserved: "Observed", dailyOperationProjected: "Projected", dailyOperationPrevious: "Previous",
+    dailyOperationNext: "Next", dailyOperationNow: "Now", dailyOperationCoverage: "Coverage", dailyOperationMode: "Mode",
+    dailyOperationSource: "Source", dailyOperationDSTSkipped: "DST interval skipped", dailyOperationDSTRepeated: "Repeated local hour",
+    dailyOperationProvider: "Provider forecast", dailyOperationConsumptionProfile: "Consumption profile", dailyOperationLegacyDaily: "Daily estimate", dailyOperationDynamicSchedule: "Dynamic schedule", dailyOperationTimeSlot: "Time slot", dailyOperationProfileProjection: "Profile projection", dailyOperationUnavailable: "Unavailable",
+    dailyOperationRealtimeNoFuture: "Real-time price has no future calendar", dailyOperationUnknown: "Unknown",
+    forecastToday: "Solar forecast · 00:05", solarRemaining: "Solar remaining", expectedConsumption: "Expected consumption",
     grid: "Grid", solar: "Solar", home: "Home", battery: "Battery",
     excludedDevices: "Excluded devices",
     importing: "Importing", exporting: "Exporting",
@@ -87,7 +112,7 @@ const I18N = {
     bcChargeToSoc: "Charge to SOC", bcChargeHysteresis: "Charge hysteresis", bcBackup: "Backup function", bcOffgridMode: "Off-grid mode",
     bcBackupThreshold: "Backup threshold", bcVoltageTaper: "100% charge taper", bcBatteryPhase: "Battery phase",
     secPhaseProtection: "Three-phase protection", threePhaseProtection: "Three-phase current protection",
-    secManual: "Manual mode", itemEnable: "Enable",
+    secManual: "Manual mode", secOffgridMeter: "Off-grid meter mode", secVacation: "Vacation mode", itemEnable: "Enable",
     secTempLimit: "Temperature charge limit", itemTempLimitC: "Temperature limit", itemTempLimitBand: "Ramp band", itemTempLimitFloor: "Minimum charge power", itemTempApplyDischarge: "Also throttle discharge",
     itemMaxContracted: "Max contracted power", itemSolarSafety: "Solar safety margin", itemGridChargeMargin: "Grid charge margin", itemMinSocFloorEnable: "SOC floor", itemMinSocFloor: "Guaranteed minimum SOC",
     itemSocThreshold: "SOC threshold", itemPeakLimit: "Peak limit", itemExcludedPeakShaving: "Peak shaving for excluded devices",
@@ -97,7 +122,7 @@ const I18N = {
     secSlots: "Configured slots", itemSlot: "Slot",
     secExcluded: "Excluded devices", itemExcludedDevice: "Excluded device", itemSolarSurplus: "Solar surplus", itemDynamicPowerControl: "Dynamic power control", itemCoverHome: "Cover home", itemExclusionPct: "Exclusion %",
     secSysLimits: "System power limits", itemSysMaxCharge: "System max charge", itemSysMaxDischarge: "System max discharge",
-    secCommon: "Common control (PD + No-PD)",
+    secCommon: "Common control",
     secPd: "PD controller (advanced)", itemPdEnable: "Use PD controller",
     secNoPd: "No-PD direct tracking", itemNoPdDelay: "Command delay",
     itemPdProfile: "Tuning profile", itemPdQuality: "Control quality",
@@ -115,10 +140,24 @@ const I18N = {
     tabResumen: "Resumen", tabBaterias: "Baterías", tabControl: "Control",
     moreInfo: "Ver histórico",
     zoomReset: "Todo",
-    infoModel: "Modelo", infoSoftware: "Software", infoSerial: "N.º serie",
+    infoModel: "Modelo", infoSoftware: "Software", infoSerial: "N.º serie", infoInverter: "Inversor", infoPowerModule: "Módulo de potencia",
     placeholderMsg: "Esta vista llegará en una próxima fase. Por ahora, usa la vista Resumen.",
     cardFlow: "Flujo de energía", cardSoc: "Estado del sistema", cardDaily: "Energía hoy",
     cardWeekly: "Energía semanal", cardPower: "Potencias", cardSocToday: "SOC · hoy",
+    dailyOperationTitle: "Operación diaria", dailyOperationDescription: "Energía real y prevista · 15 min",
+    dailyOperationReal: "Real", dailyOperationCurrent: "Actual", dailyOperationForecast: "Previsto",
+    dailyOperationStale: "Datos posiblemente obsoletos", dailyOperationNoData: "Sin datos de operación diaria",
+    dailyOperationSolarWindow: "Ventana solar", dailyOperationSolarCharge: "Carga solar", dailyOperationGridCharge: "Carga de red", dailyOperationDischarge: "Descarga de batería", dailyOperationEnergyToBattery: "Energía a batería", dailyOperationEnergyFromBattery: "Energía desde batería", dailyOperationCause: "Causa", dailyOperationHourlyBalance: "Balance neto horario",
+    dailyOperationNotNeeded: "Carga de red no necesaria", dailyOperationNoAction: "Sin acción", dailyOperationSetpoint: "Hasta el setpoint",
+    dailyOperationDelay: "Carga retrasada", dailyOperationUnlock: "Desbloqueo estimado: {time}", dailyOperationAxis: "kWh/15 min",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consumo", dailyOperationSoc: "SOC total", dailyOperationLearned: "Perfil aprendido",
+    dailyOperationSinusoidal: "Curva sinusoidal alternativa", dailyOperationGenericFallback: "Estimación alternativa", dailyOperationZeroFallback: "Previsión solar nula", dailyOperationFallback: "Estimación alternativa: {reason}", dailyOperationPlan: "Plan",
+    dailyOperationObserved: "Observado", dailyOperationProjected: "Previsto", dailyOperationPrevious: "Anterior",
+    dailyOperationNext: "Siguiente", dailyOperationNow: "Ahora", dailyOperationCoverage: "Cobertura", dailyOperationMode: "Modo",
+    dailyOperationSource: "Fuente", dailyOperationDSTSkipped: "Intervalo DST omitido", dailyOperationDSTRepeated: "Hora local repetida",
+    dailyOperationProvider: "Previsión del proveedor", dailyOperationConsumptionProfile: "Perfil de consumo", dailyOperationLegacyDaily: "Estimación diaria", dailyOperationDynamicSchedule: "Plan dinámico", dailyOperationTimeSlot: "Franja horaria", dailyOperationProfileProjection: "Proyección del perfil", dailyOperationUnavailable: "No disponible",
+    dailyOperationRealtimeNoFuture: "El precio en tiempo real no tiene calendario futuro", dailyOperationUnknown: "Desconocido",
+    forecastToday: "Previsión solar · 00:05", solarRemaining: "Solar restante", expectedConsumption: "Consumo esperado",
     grid: "Red", solar: "Solar", home: "Casa", battery: "Batería",
     excludedDevices: "Disp. excluidos",
     importing: "Importando", exporting: "Exportando",
@@ -158,7 +197,7 @@ const I18N = {
     bcChargeToSoc: "Cargar hasta SOC", bcChargeHysteresis: "Histéresis de carga", bcBackup: "Función de respaldo", bcOffgridMode: "Modo off-grid",
     bcBackupThreshold: "Umbral de respaldo", bcVoltageTaper: "Reducción carga 100%", bcBatteryPhase: "Fase de la batería",
     secPhaseProtection: "Protección trifásica", threePhaseProtection: "Protección de corriente trifásica",
-    secManual: "Modo manual", itemEnable: "Activar",
+    secManual: "Modo manual", secOffgridMeter: "Modo de medidor off-grid", secVacation: "Modo vacaciones", itemEnable: "Activar",
     secTempLimit: "Límite de carga por temperatura", itemTempLimitC: "Límite de temperatura", itemTempLimitBand: "Banda de reducción", itemTempLimitFloor: "Potencia de carga mínima", itemTempApplyDischarge: "Reducir también la descarga",
     itemMaxContracted: "Potencia contratada máx.", itemSolarSafety: "Margen de seguridad solar", itemGridChargeMargin: "Margen de carga de red", itemMinSocFloorEnable: "Suelo de SOC", itemMinSocFloor: "SOC mínimo garantizado",
     itemSocThreshold: "Umbral de SOC", itemPeakLimit: "Límite de pico", itemExcludedPeakShaving: "Reducción de picos para dispositivos excluidos",
@@ -168,7 +207,7 @@ const I18N = {
     secSlots: "Franjas configuradas", itemSlot: "Franja",
     secExcluded: "Dispositivos excluidos", itemExcludedDevice: "Dispositivo excluido", itemSolarSurplus: "Excedente solar", itemDynamicPowerControl: "Control dinámico de potencia", itemCoverHome: "Cubrir hogar", itemExclusionPct: "% excluido",
     secSysLimits: "Límites de potencia del sistema", itemSysMaxCharge: "Máx. carga del sistema", itemSysMaxDischarge: "Máx. descarga del sistema",
-    secCommon: "Control común (PD + No-PD)",
+    secCommon: "Control común",
     secPd: "Controlador PD (avanzado)", itemPdEnable: "Usar controlador PD",
     secNoPd: "Seguimiento directo sin PD", itemNoPdDelay: "Retardo de orden",
     itemPdProfile: "Perfil de ajuste", itemPdQuality: "Calidad de control",
@@ -186,10 +225,24 @@ const I18N = {
     tabResumen: "Resum", tabBaterias: "Bateries", tabControl: "Control",
     moreInfo: "Veure històric",
     zoomReset: "Tot",
-    infoModel: "Model", infoSoftware: "Programari", infoSerial: "Núm. sèrie",
+    infoModel: "Model", infoSoftware: "Programari", infoSerial: "Núm. sèrie", infoInverter: "Inversor", infoPowerModule: "Mòdul de potència",
     placeholderMsg: "Aquesta vista arribarà en una fase futura. De moment, fes servir la vista Resum.",
     cardFlow: "Flux d'energia", cardSoc: "Estat del sistema", cardDaily: "Energia avui",
     cardWeekly: "Energia setmanal", cardPower: "Potències", cardSocToday: "SOC · avui",
+    dailyOperationTitle: "Operació diària", dailyOperationDescription: "Energia observada i prevista · 15 min",
+    dailyOperationReal: "Real", dailyOperationCurrent: "Actual", dailyOperationForecast: "Previst",
+    dailyOperationStale: "Dades possiblement obsoletes", dailyOperationNoData: "Sense dades d'operació diària",
+    dailyOperationSolarWindow: "Finestra solar", dailyOperationSolarCharge: "Càrrega solar", dailyOperationGridCharge: "Càrrega de xarxa", dailyOperationDischarge: "Descàrrega de bateria", dailyOperationEnergyToBattery: "Energia a la bateria", dailyOperationEnergyFromBattery: "Energia des de la bateria", dailyOperationCause: "Causa", dailyOperationHourlyBalance: "Balanç net horari",
+    dailyOperationNotNeeded: "Càrrega de xarxa no necessària", dailyOperationNoAction: "Sense acció", dailyOperationSetpoint: "Fins al setpoint",
+    dailyOperationDelay: "Càrrega retardada", dailyOperationUnlock: "Desbloqueig estimat: {time}", dailyOperationAxis: "kWh/15 min",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consum", dailyOperationSoc: "SOC total", dailyOperationLearned: "Perfil après",
+    dailyOperationSinusoidal: "Corba sinusoidal alternativa", dailyOperationGenericFallback: "Estimació alternativa", dailyOperationZeroFallback: "Previsió solar nul·la", dailyOperationFallback: "Estimació alternativa: {reason}", dailyOperationPlan: "Pla",
+    dailyOperationObserved: "Observat", dailyOperationProjected: "Previst", dailyOperationPrevious: "Anterior",
+    dailyOperationNext: "Següent", dailyOperationNow: "Ara", dailyOperationCoverage: "Cobertura", dailyOperationMode: "Mode",
+    dailyOperationSource: "Font", dailyOperationDSTSkipped: "Interval DST omès", dailyOperationDSTRepeated: "Hora local repetida",
+    dailyOperationProvider: "Previsió del proveïdor", dailyOperationConsumptionProfile: "Perfil de consum", dailyOperationLegacyDaily: "Estimació diària", dailyOperationDynamicSchedule: "Pla dinàmic", dailyOperationTimeSlot: "Franja horària", dailyOperationProfileProjection: "Projecció del perfil", dailyOperationUnavailable: "No disponible",
+    dailyOperationRealtimeNoFuture: "El preu en temps real no té calendari futur", dailyOperationUnknown: "Desconegut",
+    forecastToday: "Previsió solar · 00:05", solarRemaining: "Solar restant", expectedConsumption: "Consum esperat",
     grid: "Xarxa", solar: "Solar", home: "Casa", battery: "Bateria",
     excludedDevices: "Disp. exclosos",
     importing: "Important", exporting: "Exportant",
@@ -225,7 +278,7 @@ const I18N = {
     bcMaxCharge: "Màx. càrrega", bcMaxDischarge: "Màx. descàrrega",
     bcChargeToSoc: "Carregar fins a SOC", bcChargeHysteresis: "Histèresi de càrrega", bcBackup: "Funció de reserva", bcOffgridMode: "Mode fora de xarxa",
     bcBackupThreshold: "Llindar de reserva", bcVoltageTaper: "Reducció càrrega 100%", bcActiveBalance: "Balanç actiu",
-    secManual: "Mode manual", itemEnable: "Activar",
+    secManual: "Mode manual", secOffgridMeter: "Mode de mesurador off-grid", secVacation: "Mode vacances", itemEnable: "Activar",
     secTempLimit: "Límit de càrrega per temperatura", itemTempLimitC: "Límit de temperatura", itemTempLimitBand: "Banda de reducció", itemTempLimitFloor: "Potència de càrrega mínima", itemTempApplyDischarge: "Redueix també la descàrrega",
     itemMaxContracted: "Potència contractada màx.", itemSolarSafety: "Marge de seguretat solar", itemGridChargeMargin: "Marge de càrrega de xarxa", itemMinSocFloorEnable: "SOC Mínim", itemMinSocFloor: "SOC mínim garantit",
     itemSocThreshold: "Llindar de SOC", itemPeakLimit: "Límit de pic", itemExcludedPeakShaving: "Reducció de pics per a dispositius exclosos",
@@ -235,7 +288,7 @@ const I18N = {
     secSlots: "Franges configurades", itemSlot: "Franja",
     secExcluded: "Dispositius exclosos", itemExcludedDevice: "Dispositiu exclòs", itemSolarSurplus: "Excedent solar", itemDynamicPowerControl: "Control dinàmic de potència", itemCoverHome: "Cobre la llar", itemExclusionPct: "% exclòs",
     secSysLimits: "Límits de potència del sistema", itemSysMaxCharge: "Màx. càrrega del sistema", itemSysMaxDischarge: "Màx. descàrrega del sistema",
-    secCommon: "Control comú (PD + No-PD)",
+    secCommon: "Control comú",
     secPd: "Controlador PD (avançat)",
     secNoPd: "Seguiment directe sense PD", itemNoPdDelay: "Retard d'ordre",
     itemPdProfile: "Perfil d'ajust", itemPdQuality: "Qualitat de control",
@@ -253,10 +306,24 @@ const I18N = {
     tabResumen: "Übersicht", tabBaterias: "Batterien", tabControl: "Steuerung",
     moreInfo: "Verlauf anzeigen",
     zoomReset: "Alles",
-    infoModel: "Modell", infoSoftware: "Software", infoSerial: "Seriennr.",
+    infoModel: "Modell", infoSoftware: "Software", infoSerial: "Seriennr.", infoInverter: "Wechselrichter", infoPowerModule: "Leistungsmodul",
     placeholderMsg: "Diese Ansicht kommt in einer späteren Phase. Nutze vorerst die Übersicht.",
     cardFlow: "Energiefluss", cardSoc: "Systemstatus", cardDaily: "Energie heute",
     cardWeekly: "Wochenenergie", cardPower: "Leistung", cardSocToday: "SOC · heute",
+    dailyOperationTitle: "Tagesbetrieb", dailyOperationDescription: "Beobachtete und prognostizierte Energie · 15 Min.",
+    dailyOperationReal: "Ist", dailyOperationCurrent: "Aktuell", dailyOperationForecast: "Prognose",
+    dailyOperationStale: "Daten möglicherweise veraltet", dailyOperationNoData: "Keine Tagesbetriebsdaten",
+    dailyOperationSolarWindow: "Solarfenster", dailyOperationSolarCharge: "Solarladung", dailyOperationGridCharge: "Netzladung", dailyOperationDischarge: "Batterieentladung", dailyOperationEnergyToBattery: "Energie zur Batterie", dailyOperationEnergyFromBattery: "Energie aus der Batterie", dailyOperationCause: "Ursache", dailyOperationHourlyBalance: "Stündlicher Netzausgleich",
+    dailyOperationNotNeeded: "Keine Netzladung erforderlich", dailyOperationNoAction: "Keine Aktion", dailyOperationSetpoint: "Bis zum Sollwert",
+    dailyOperationDelay: "Laden verzögert", dailyOperationUnlock: "Voraussichtliche Freigabe: {time}", dailyOperationAxis: "kWh/15 Min.",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Verbrauch", dailyOperationSoc: "Gesamt-SOC", dailyOperationLearned: "Gelerntes Profil",
+    dailyOperationSinusoidal: "Sinusförmige Ersatzkurve", dailyOperationGenericFallback: "Ersatzprognose", dailyOperationZeroFallback: "Solarprognose ohne Ertrag", dailyOperationFallback: "Ersatzprognose: {reason}", dailyOperationPlan: "Plan",
+    dailyOperationObserved: "Beobachtet", dailyOperationProjected: "Prognostiziert", dailyOperationPrevious: "Zurück",
+    dailyOperationNext: "Weiter", dailyOperationNow: "Jetzt", dailyOperationCoverage: "Abdeckung", dailyOperationMode: "Modus",
+    dailyOperationSource: "Quelle", dailyOperationDSTSkipped: "DST-Intervall übersprungen", dailyOperationDSTRepeated: "Wiederholte Ortszeit",
+    dailyOperationProvider: "Anbieterprognose", dailyOperationConsumptionProfile: "Verbrauchsprofil", dailyOperationLegacyDaily: "Tagesschätzung", dailyOperationDynamicSchedule: "Dynamischer Zeitplan", dailyOperationTimeSlot: "Zeitfenster", dailyOperationProfileProjection: "Profilprojektion", dailyOperationUnavailable: "Nicht verfügbar",
+    dailyOperationRealtimeNoFuture: "Echtzeitpreis hat keinen Zukunftskalender", dailyOperationUnknown: "Unbekannt",
+    forecastToday: "Solarprognose · 00:05", solarRemaining: "Verbleibende Solarenergie", expectedConsumption: "Erwarteter Verbrauch",
     grid: "Netz", solar: "Solar", home: "Haus", battery: "Batterie",
     excludedDevices: "Ausgeschl. Geräte",
     importing: "Bezug", exporting: "Einspeisung",
@@ -292,7 +359,7 @@ const I18N = {
     bcMaxCharge: "Max. Ladeleistung", bcMaxDischarge: "Max. Entladeleistung",
     bcChargeToSoc: "Laden bis SOC", bcChargeHysteresis: "Ladehysterese", bcBackup: "Backup-Funktion", bcOffgridMode: "Inselnetz-Modus",
     bcBackupThreshold: "Backup-Schwelle", bcVoltageTaper: "100%-Ladungsreduktion", bcActiveBalance: "Aktiver Zellabgleich",
-    secManual: "Manueller Modus", itemEnable: "Aktivieren",
+    secManual: "Manueller Modus", secOffgridMeter: "Off-Grid-Zählermodus", secVacation: "Urlaubsmodus", itemEnable: "Aktivieren",
     secTempLimit: "Temperaturbasierte Ladebegrenzung", itemTempLimitC: "Temperaturgrenze", itemTempLimitBand: "Drosselbereich", itemTempLimitFloor: "Minimale Ladeleistung", itemTempApplyDischarge: "Auch Entladung drosseln",
     itemMaxContracted: "Max. Vertragsleistung", itemSolarSafety: "Sicherheitspuffer Solar", itemGridChargeMargin: "Netzladungs-Marge", itemMinSocFloorEnable: "SOC-Untergrenze", itemMinSocFloor: "Garantierter Mindest-SOC",
     itemSocThreshold: "SOC-Schwelle", itemPeakLimit: "Spitzenlimit", itemExcludedPeakShaving: "Spitzenlastkappung für ausgeschlossene Geräte",
@@ -302,7 +369,7 @@ const I18N = {
     secSlots: "Konfigurierte Zeitfenster", itemSlot: "Zeitfenster",
     secExcluded: "Ausgeschlossene Geräte", itemExcludedDevice: "Ausgeschlossenes Gerät", itemSolarSurplus: "Solarüberschuss", itemDynamicPowerControl: "Dynamische Leistungsregelung", itemCoverHome: "Haus decken", itemExclusionPct: "Ausschluss %",
     secSysLimits: "System-Leistungsgrenzen", itemSysMaxCharge: "System-Max.-Ladeleistung", itemSysMaxDischarge: "System-Max.-Entladeleistung",
-    secCommon: "Gemeinsame Regelung (PD + No-PD)",
+    secCommon: "Gemeinsame Regelung",
     secPd: "PD-Regler (erweitert)",
     secNoPd: "Direkte Nachführung ohne PD", itemNoPdDelay: "Befehlsverzögerung",
     itemPdProfile: "Tuning-Profil", itemPdQuality: "Regelqualität",
@@ -320,10 +387,24 @@ const I18N = {
     tabResumen: "Résumé", tabBaterias: "Batteries", tabControl: "Contrôle",
     moreInfo: "Voir l'historique",
     zoomReset: "Tout",
-    infoModel: "Modèle", infoSoftware: "Logiciel", infoSerial: "N° série",
+    infoModel: "Modèle", infoSoftware: "Logiciel", infoSerial: "N° série", infoInverter: "Onduleur", infoPowerModule: "Module de puissance",
     placeholderMsg: "Cette vue arrivera dans une phase ultérieure. Pour l'instant, utilisez la vue Résumé.",
     cardFlow: "Flux d'énergie", cardSoc: "État du système", cardDaily: "Énergie aujourd'hui",
     cardWeekly: "Énergie hebdomadaire", cardPower: "Puissances", cardSocToday: "SOC · aujourd'hui",
+    dailyOperationTitle: "Opération quotidienne", dailyOperationDescription: "Énergie observée et prévue · 15 min",
+    dailyOperationReal: "Réel", dailyOperationCurrent: "Actuel", dailyOperationForecast: "Prévision",
+    dailyOperationStale: "Données potentiellement obsolètes", dailyOperationNoData: "Aucune donnée d'opération quotidienne",
+    dailyOperationSolarWindow: "Fenêtre solaire", dailyOperationSolarCharge: "Charge solaire", dailyOperationGridCharge: "Charge réseau", dailyOperationDischarge: "Décharge batterie", dailyOperationEnergyToBattery: "Énergie vers la batterie", dailyOperationEnergyFromBattery: "Énergie depuis la batterie", dailyOperationCause: "Cause", dailyOperationHourlyBalance: "Bilan net horaire",
+    dailyOperationNotNeeded: "Charge réseau non nécessaire", dailyOperationNoAction: "Aucune action", dailyOperationSetpoint: "Jusqu'au point de consigne",
+    dailyOperationDelay: "Charge retardée", dailyOperationUnlock: "Déblocage estimé : {time}", dailyOperationAxis: "kWh/15 min",
+    dailyOperationSolar: "Solaire", dailyOperationConsumption: "Consommation", dailyOperationSoc: "SOC total", dailyOperationLearned: "Profil appris",
+    dailyOperationSinusoidal: "Courbe sinusoïdale de secours", dailyOperationGenericFallback: "Estimation de secours", dailyOperationZeroFallback: "Prévision solaire nulle", dailyOperationFallback: "Estimation de secours : {reason}", dailyOperationPlan: "Plan",
+    dailyOperationObserved: "Observé", dailyOperationProjected: "Prévu", dailyOperationPrevious: "Précédent",
+    dailyOperationNext: "Suivant", dailyOperationNow: "Maintenant", dailyOperationCoverage: "Couverture", dailyOperationMode: "Mode",
+    dailyOperationSource: "Source", dailyOperationDSTSkipped: "Intervalle DST ignoré", dailyOperationDSTRepeated: "Heure locale répétée",
+    dailyOperationProvider: "Prévision du fournisseur", dailyOperationConsumptionProfile: "Profil de consommation", dailyOperationLegacyDaily: "Estimation quotidienne", dailyOperationDynamicSchedule: "Plan dynamique", dailyOperationTimeSlot: "Créneau horaire", dailyOperationProfileProjection: "Projection du profil", dailyOperationUnavailable: "Indisponible",
+    dailyOperationRealtimeNoFuture: "Le prix en temps réel n'a pas de calendrier futur", dailyOperationUnknown: "Inconnu",
+    forecastToday: "Prévision solaire · 00:05", solarRemaining: "Solaire restant", expectedConsumption: "Consommation prévue",
     grid: "Réseau", solar: "Solaire", home: "Maison", battery: "Batterie",
     excludedDevices: "Appareils exclus",
     importing: "Importation", exporting: "Exportation",
@@ -359,7 +440,7 @@ const I18N = {
     bcMaxCharge: "Charge max.", bcMaxDischarge: "Décharge max.",
     bcChargeToSoc: "Charger jusqu'à SOC", bcChargeHysteresis: "Hystérésis de charge", bcBackup: "Fonction de secours", bcOffgridMode: "Mode hors-réseau",
     bcBackupThreshold: "Seuil de secours", bcVoltageTaper: "Réduction charge 100%", bcActiveBalance: "Équilibrage actif",
-    secManual: "Mode manuel", itemEnable: "Activer",
+    secManual: "Mode manuel", secOffgridMeter: "Mode compteur hors réseau", secVacation: "Mode vacances", itemEnable: "Activer",
     secTempLimit: "Limite de charge par température", itemTempLimitC: "Limite de température", itemTempLimitBand: "Plage de réduction", itemTempLimitFloor: "Puissance de charge minimale", itemTempApplyDischarge: "Réduire aussi la décharge",
     itemMaxContracted: "Puissance contractuelle max.", itemSolarSafety: "Marge de sécurité solaire", itemGridChargeMargin: "Marge de charge réseau", itemMinSocFloorEnable: "Plancher SOC", itemMinSocFloor: "SOC minimum garanti",
     itemSocThreshold: "Seuil SOC", itemPeakLimit: "Limite de pointe", itemExcludedPeakShaving: "Écrêtement des pointes pour appareils exclus",
@@ -369,7 +450,7 @@ const I18N = {
     secSlots: "Créneaux configurés", itemSlot: "Créneau",
     secExcluded: "Appareils exclus", itemExcludedDevice: "Appareil exclu", itemSolarSurplus: "Surplus solaire", itemDynamicPowerControl: "Contrôle dynamique de puissance", itemCoverHome: "Couvrir maison", itemExclusionPct: "% exclu",
     secSysLimits: "Limites de puissance du système", itemSysMaxCharge: "Charge max. système", itemSysMaxDischarge: "Décharge max. système",
-    secCommon: "Contrôle commun (PD + No-PD)",
+    secCommon: "Contrôle commun",
     secPd: "Régulateur PD (avancé)",
     secNoPd: "Suivi direct sans PD", itemNoPdDelay: "Délai de commande",
     itemPdProfile: "Profil de réglage", itemPdQuality: "Qualité de contrôle",
@@ -387,10 +468,24 @@ const I18N = {
     tabResumen: "Overzicht", tabBaterias: "Batterijen", tabControl: "Bediening",
     moreInfo: "Geschiedenis tonen",
     zoomReset: "Alles",
-    infoModel: "Model", infoSoftware: "Software", infoSerial: "Serienr.",
+    infoModel: "Model", infoSoftware: "Software", infoSerial: "Serienr.", infoInverter: "Omvormer", infoPowerModule: "Vermogensmodule",
     placeholderMsg: "Deze weergave komt in een latere fase. Gebruik voorlopig het Overzicht.",
     cardFlow: "Energiestroom", cardSoc: "Systeemstatus", cardDaily: "Energie vandaag",
     cardWeekly: "Energie per week", cardPower: "Vermogen", cardSocToday: "SOC · vandaag",
+    dailyOperationTitle: "Dagelijkse werking", dailyOperationDescription: "Geobserveerde en verwachte energie · 15 min",
+    dailyOperationReal: "Werkelijk", dailyOperationCurrent: "Huidig", dailyOperationForecast: "Verwachting",
+    dailyOperationStale: "Gegevens zijn mogelijk verouderd", dailyOperationNoData: "Geen gegevens voor dagelijkse werking",
+    dailyOperationSolarWindow: "Zonnevenster", dailyOperationSolarCharge: "Laden met zonne-energie", dailyOperationGridCharge: "Laden vanaf net", dailyOperationDischarge: "Batterij ontladen", dailyOperationEnergyToBattery: "Energie naar batterij", dailyOperationEnergyFromBattery: "Energie uit batterij", dailyOperationCause: "Oorzaak", dailyOperationHourlyBalance: "Uurbalans",
+    dailyOperationNotNeeded: "Laden vanaf net niet nodig", dailyOperationNoAction: "Geen actie", dailyOperationSetpoint: "Tot setpoint",
+    dailyOperationDelay: "Laden vertraagd", dailyOperationUnlock: "Geschatte vrijgave: {time}", dailyOperationAxis: "kWh/15 min",
+    dailyOperationSolar: "Zon", dailyOperationConsumption: "Verbruik", dailyOperationSoc: "Totale SOC", dailyOperationLearned: "Geleerd profiel",
+    dailyOperationSinusoidal: "Alternatieve sinuscurve", dailyOperationGenericFallback: "Alternatieve prognose", dailyOperationZeroFallback: "Zonneprognose zonder opbrengst", dailyOperationFallback: "Alternatieve prognose: {reason}", dailyOperationPlan: "Plan",
+    dailyOperationObserved: "Geobserveerd", dailyOperationProjected: "Verwacht", dailyOperationPrevious: "Vorige",
+    dailyOperationNext: "Volgende", dailyOperationNow: "Nu", dailyOperationCoverage: "Dekking", dailyOperationMode: "Modus",
+    dailyOperationSource: "Bron", dailyOperationDSTSkipped: "DST-interval overgeslagen", dailyOperationDSTRepeated: "Herhaalde lokale tijd",
+    dailyOperationProvider: "Prognose van aanbieder", dailyOperationConsumptionProfile: "Verbruiksprofiel", dailyOperationLegacyDaily: "Dagelijkse schatting", dailyOperationDynamicSchedule: "Dynamische planning", dailyOperationTimeSlot: "Tijdvak", dailyOperationProfileProjection: "Profielprojectie", dailyOperationUnavailable: "Niet beschikbaar",
+    dailyOperationRealtimeNoFuture: "Realtimeprijs heeft geen toekomstige kalender", dailyOperationUnknown: "Onbekend",
+    forecastToday: "Zonneverwachting · 00:05", solarRemaining: "Resterende zonne-energie", expectedConsumption: "Verwacht verbruik",
     grid: "Net", solar: "Zon", home: "Huis", battery: "Batterij",
     excludedDevices: "Uitgesloten app.",
     importing: "Invoer", exporting: "Teruglevering",
@@ -426,7 +521,7 @@ const I18N = {
     bcMaxCharge: "Max. laden", bcMaxDischarge: "Max. ontladen",
     bcChargeToSoc: "Laden tot SOC", bcChargeHysteresis: "Laadhysterese", bcBackup: "Back-upfunctie", bcOffgridMode: "Off-grid-modus",
     bcBackupThreshold: "Back-updrempel", bcVoltageTaper: "100%-laadbegrenzing", bcActiveBalance: "Actieve celbalans",
-    secManual: "Handmatige modus", itemEnable: "Inschakelen",
+    secManual: "Handmatige modus", secOffgridMeter: "Off-grid metermodus", secVacation: "Vakantiemodus", itemEnable: "Inschakelen",
     secTempLimit: "Temperatuurbegrenzing laden", itemTempLimitC: "Temperatuurlimiet", itemTempLimitBand: "Afbouwband", itemTempLimitFloor: "Minimaal laadvermogen", itemTempApplyDischarge: "Ook ontladen terugregelen",
     itemMaxContracted: "Max. gecontracteerd vermogen", itemSolarSafety: "Veiligheidsmarge zon", itemGridChargeMargin: "Netladingsmarge", itemMinSocFloorEnable: "SOC-vloer", itemMinSocFloor: "Gegarandeerde min. SOC",
     itemSocThreshold: "SOC-drempel", itemPeakLimit: "Pieklimiet", itemExcludedPeakShaving: "Piekbegrenzing voor uitgesloten apparaten",
@@ -436,7 +531,7 @@ const I18N = {
     secSlots: "Geconfigureerde tijdvakken", itemSlot: "Tijdvak",
     secExcluded: "Uitgesloten apparaten", itemExcludedDevice: "Uitgesloten apparaat", itemSolarSurplus: "Zonne-overschot", itemDynamicPowerControl: "Dynamische vermogensregeling", itemCoverHome: "Huis dekken", itemExclusionPct: "Uitsluiting %",
     secSysLimits: "Systeemvermogenslimieten", itemSysMaxCharge: "Max. systeemladen", itemSysMaxDischarge: "Max. systeemontladen",
-    secCommon: "Gemeenschappelijke regeling (PD + No-PD)",
+    secCommon: "Gemeenschappelijke regeling",
     secPd: "PD-regelaar (geavanceerd)",
     secNoPd: "Directe tracking zonder PD", itemNoPdDelay: "Commandovertraging",
     itemPdProfile: "Afstemprofiel", itemPdQuality: "Regelkwaliteit",
@@ -450,6 +545,261 @@ const I18N = {
   },
 };
 
+// Backend diagnostics stay stable and machine-readable. Translate them only at
+// the presentation boundary so entities and downloaded diagnostics keep their
+// existing contract while the panel never exposes internal reason codes.
+const DAILY_OPERATION_REASON_KEYS = {
+  no_profile_data: "profileNoData",
+  insufficient_days: "profileInsufficientDays",
+  insufficient_weekday_samples: "profileInsufficientWeekday",
+  insufficient_coverage: "profileInsufficientCoverage",
+  stale_profile: "profileStale",
+  profile_not_mature: "profileLearning",
+  empty_range: "emptyRange",
+  empty_horizon: "emptyRange",
+  provider_period_invalid: "providerInvalid",
+  provider_invalid: "providerInvalid",
+  provider_timestamp_naive: "providerNoTimezone",
+  provider_periods_missing: "providerMissing",
+  provider_period_overlap: "providerOverlap",
+  provider_coverage: "providerCoverage",
+  provider_gap: "providerGap",
+  provider_zero_energy: "providerNoEnergy",
+  legacy_shape_missing: "legacyMissing",
+  legacy_shape_length: "legacyInvalid",
+  legacy_shape_invalid: "legacyInvalid",
+  legacy_shape_zero: "legacyInvalid",
+  solar_window_missing: "solarWindowMissing",
+  solar_window_invalid: "solarWindowInvalid",
+  learned_shape_length: "learnedInvalid",
+  learned_shape_invalid: "learnedInvalid",
+  learned_invalid: "learnedInvalid",
+  learned_shape_no_future_energy: "learnedNoFuture",
+  invalid_mode: "invalidMode",
+  sinusoidal_invalid: "sinusoidalInvalid",
+  forecast_invalid: "forecastInvalid",
+  unsafe_temporal_shape: "temporalInvalid",
+};
+
+const DAILY_OPERATION_REASON_I18N = {
+  en: {
+    profileNoData: "No data for the learned profile",
+    profileInsufficientDays: "Not enough learned days",
+    profileInsufficientWeekday: "Not enough samples for this weekday",
+    profileInsufficientCoverage: "Insufficient profile coverage",
+    profileStale: "The learned profile is outdated",
+    profileLearning: "The profile is still learning",
+    emptyRange: "No future intervals are available for the forecast",
+    providerInvalid: "The provider forecast is invalid",
+    providerNoTimezone: "The provider forecast has no time zone",
+    providerMissing: "No provider forecast intervals are available",
+    providerOverlap: "The provider forecast intervals overlap",
+    providerCoverage: "The provider forecast coverage is insufficient",
+    providerGap: "The provider forecast contains a data gap",
+    providerNoEnergy: "The provider forecast contains no solar energy",
+    legacyMissing: "The previous solar curve is unavailable",
+    legacyInvalid: "The previous solar curve is invalid",
+    solarWindowMissing: "The solar window is unavailable",
+    solarWindowInvalid: "The solar window is invalid",
+    learnedInvalid: "The learned solar profile is invalid",
+    learnedNoFuture: "The learned profile contains no future solar energy",
+    invalidMode: "The solar profile mode is invalid",
+    sinusoidalInvalid: "The sinusoidal solar curve could not be generated",
+    forecastInvalid: "The solar forecast is invalid",
+    temporalInvalid: "The solar time distribution could not be validated",
+    normalizationFailed: "The solar forecast could not be distributed",
+    loadFailed: "The profile data could not be loaded",
+    saveFailed: "The profile data could not be saved",
+    historyUnavailable: "The profile history could not be imported",
+    profileReset: "The profile was reset after a configuration change",
+    fallbackUnavailable: "The fallback estimate is unavailable",
+    projectionUnavailable: "The projection is unavailable",
+    projectionFailed: "The projection could not be calculated",
+    runtimeFailed: "The live data could not be updated",
+    updateFailed: "The chart could not be updated",
+  },
+  es: {
+    profileNoData: "Sin datos para el perfil aprendido",
+    profileInsufficientDays: "No hay suficientes días de aprendizaje",
+    profileInsufficientWeekday: "No hay suficientes muestras para este día de la semana",
+    profileInsufficientCoverage: "Cobertura insuficiente del perfil",
+    profileStale: "El perfil aprendido está desactualizado",
+    profileLearning: "El perfil todavía está aprendiendo",
+    emptyRange: "No hay intervalos futuros para la previsión",
+    providerInvalid: "La previsión del proveedor no es válida",
+    providerNoTimezone: "La previsión del proveedor no incluye zona horaria",
+    providerMissing: "No hay intervalos de previsión del proveedor",
+    providerOverlap: "Los intervalos de previsión del proveedor se solapan",
+    providerCoverage: "La cobertura de la previsión del proveedor es insuficiente",
+    providerGap: "La previsión del proveedor contiene un intervalo sin datos",
+    providerNoEnergy: "La previsión del proveedor no contiene energía solar",
+    legacyMissing: "La curva solar anterior no está disponible",
+    legacyInvalid: "La curva solar anterior no es válida",
+    solarWindowMissing: "La ventana solar no está disponible",
+    solarWindowInvalid: "La ventana solar no es válida",
+    learnedInvalid: "El perfil solar aprendido no es válido",
+    learnedNoFuture: "El perfil aprendido no contiene energía solar futura",
+    invalidMode: "El modo del perfil solar no es válido",
+    sinusoidalInvalid: "No se pudo generar la curva solar sinusoidal",
+    forecastInvalid: "La previsión solar no es válida",
+    temporalInvalid: "No se pudo validar la distribución temporal solar",
+    normalizationFailed: "No se pudo distribuir la previsión solar",
+    loadFailed: "No se pudieron cargar los datos del perfil",
+    saveFailed: "No se pudieron guardar los datos del perfil",
+    historyUnavailable: "No se pudo importar el histórico del perfil",
+    profileReset: "El perfil se reinició tras un cambio de configuración",
+    fallbackUnavailable: "La estimación alternativa no está disponible",
+    projectionUnavailable: "La proyección no está disponible",
+    projectionFailed: "No se pudo calcular la proyección",
+    runtimeFailed: "No se pudieron actualizar los datos en tiempo real",
+    updateFailed: "No se pudo actualizar la gráfica",
+  },
+  ca: {
+    profileNoData: "Sense dades per al perfil après",
+    profileInsufficientDays: "No hi ha prou dies d'aprenentatge",
+    profileInsufficientWeekday: "No hi ha prou mostres per a aquest dia de la setmana",
+    profileInsufficientCoverage: "Cobertura insuficient del perfil",
+    profileStale: "El perfil après està desactualitzat",
+    profileLearning: "El perfil encara està aprenent",
+    emptyRange: "No hi ha intervals futurs per a la previsió",
+    providerInvalid: "La previsió del proveïdor no és vàlida",
+    providerNoTimezone: "La previsió del proveïdor no inclou zona horària",
+    providerMissing: "No hi ha intervals de previsió del proveïdor",
+    providerOverlap: "Els intervals de previsió del proveïdor se superposen",
+    providerCoverage: "La cobertura de la previsió del proveïdor és insuficient",
+    providerGap: "La previsió del proveïdor conté un interval sense dades",
+    providerNoEnergy: "La previsió del proveïdor no conté energia solar",
+    legacyMissing: "La corba solar anterior no està disponible",
+    legacyInvalid: "La corba solar anterior no és vàlida",
+    solarWindowMissing: "La finestra solar no està disponible",
+    solarWindowInvalid: "La finestra solar no és vàlida",
+    learnedInvalid: "El perfil solar après no és vàlid",
+    learnedNoFuture: "El perfil après no conté energia solar futura",
+    invalidMode: "El mode del perfil solar no és vàlid",
+    sinusoidalInvalid: "No s'ha pogut generar la corba solar sinusoidal",
+    forecastInvalid: "La previsió solar no és vàlida",
+    temporalInvalid: "No s'ha pogut validar la distribució temporal solar",
+    normalizationFailed: "No s'ha pogut distribuir la previsió solar",
+    loadFailed: "No s'han pogut carregar les dades del perfil",
+    saveFailed: "No s'han pogut desar les dades del perfil",
+    historyUnavailable: "No s'ha pogut importar l'històric del perfil",
+    profileReset: "El perfil s'ha reiniciat després d'un canvi de configuració",
+    fallbackUnavailable: "L'estimació alternativa no està disponible",
+    projectionUnavailable: "La projecció no està disponible",
+    projectionFailed: "No s'ha pogut calcular la projecció",
+    runtimeFailed: "No s'han pogut actualitzar les dades en temps real",
+    updateFailed: "No s'ha pogut actualitzar la gràfica",
+  },
+  de: {
+    profileNoData: "Keine Daten für das gelernte Profil",
+    profileInsufficientDays: "Nicht genügend Lerntage",
+    profileInsufficientWeekday: "Nicht genügend Messwerte für diesen Wochentag",
+    profileInsufficientCoverage: "Unzureichende Profilabdeckung",
+    profileStale: "Das gelernte Profil ist veraltet",
+    profileLearning: "Das Profil wird noch angelernt",
+    emptyRange: "Für die Prognose sind keine zukünftigen Intervalle verfügbar",
+    providerInvalid: "Die Anbieterprognose ist ungültig",
+    providerNoTimezone: "Die Anbieterprognose enthält keine Zeitzone",
+    providerMissing: "Es sind keine Prognoseintervalle des Anbieters verfügbar",
+    providerOverlap: "Die Prognoseintervalle des Anbieters überschneiden sich",
+    providerCoverage: "Die Abdeckung der Anbieterprognose ist unzureichend",
+    providerGap: "Die Anbieterprognose weist eine Datenlücke auf",
+    providerNoEnergy: "Die Anbieterprognose enthält keine Solarenergie",
+    legacyMissing: "Die bisherige Solarkurve ist nicht verfügbar",
+    legacyInvalid: "Die bisherige Solarkurve ist ungültig",
+    solarWindowMissing: "Das Solarzeitfenster ist nicht verfügbar",
+    solarWindowInvalid: "Das Solarzeitfenster ist ungültig",
+    learnedInvalid: "Das gelernte Solarprofil ist ungültig",
+    learnedNoFuture: "Das gelernte Profil enthält keine zukünftige Solarenergie",
+    invalidMode: "Der Solarprofilmodus ist ungültig",
+    sinusoidalInvalid: "Die sinusförmige Solarkurve konnte nicht erstellt werden",
+    forecastInvalid: "Die Solarprognose ist ungültig",
+    temporalInvalid: "Die zeitliche Solarverteilung konnte nicht validiert werden",
+    normalizationFailed: "Die Solarprognose konnte nicht verteilt werden",
+    loadFailed: "Die Profildaten konnten nicht geladen werden",
+    saveFailed: "Die Profildaten konnten nicht gespeichert werden",
+    historyUnavailable: "Der Profilverlauf konnte nicht importiert werden",
+    profileReset: "Das Profil wurde nach einer Konfigurationsänderung zurückgesetzt",
+    fallbackUnavailable: "Die Ersatzprognose ist nicht verfügbar",
+    projectionUnavailable: "Die Projektion ist nicht verfügbar",
+    projectionFailed: "Die Projektion konnte nicht berechnet werden",
+    runtimeFailed: "Die Live-Daten konnten nicht aktualisiert werden",
+    updateFailed: "Das Diagramm konnte nicht aktualisiert werden",
+  },
+  fr: {
+    profileNoData: "Aucune donnée pour le profil appris",
+    profileInsufficientDays: "Pas assez de jours d'apprentissage",
+    profileInsufficientWeekday: "Pas assez d'échantillons pour ce jour de la semaine",
+    profileInsufficientCoverage: "Couverture du profil insuffisante",
+    profileStale: "Le profil appris est obsolète",
+    profileLearning: "Le profil est encore en cours d'apprentissage",
+    emptyRange: "Aucun intervalle futur n'est disponible pour la prévision",
+    providerInvalid: "La prévision du fournisseur n'est pas valide",
+    providerNoTimezone: "La prévision du fournisseur ne contient pas de fuseau horaire",
+    providerMissing: "Aucun intervalle de prévision du fournisseur n'est disponible",
+    providerOverlap: "Les intervalles de prévision du fournisseur se chevauchent",
+    providerCoverage: "La couverture de la prévision du fournisseur est insuffisante",
+    providerGap: "La prévision du fournisseur contient un intervalle sans données",
+    providerNoEnergy: "La prévision du fournisseur ne contient aucune énergie solaire",
+    legacyMissing: "La courbe solaire précédente n'est pas disponible",
+    legacyInvalid: "La courbe solaire précédente n'est pas valide",
+    solarWindowMissing: "La fenêtre solaire n'est pas disponible",
+    solarWindowInvalid: "La fenêtre solaire n'est pas valide",
+    learnedInvalid: "Le profil solaire appris n'est pas valide",
+    learnedNoFuture: "Le profil appris ne contient aucune énergie solaire future",
+    invalidMode: "Le mode du profil solaire n'est pas valide",
+    sinusoidalInvalid: "La courbe solaire sinusoïdale n'a pas pu être générée",
+    forecastInvalid: "La prévision solaire n'est pas valide",
+    temporalInvalid: "La répartition temporelle solaire n'a pas pu être validée",
+    normalizationFailed: "La prévision solaire n'a pas pu être répartie",
+    loadFailed: "Les données du profil n'ont pas pu être chargées",
+    saveFailed: "Les données du profil n'ont pas pu être enregistrées",
+    historyUnavailable: "L'historique du profil n'a pas pu être importé",
+    profileReset: "Le profil a été réinitialisé après un changement de configuration",
+    fallbackUnavailable: "L'estimation de secours n'est pas disponible",
+    projectionUnavailable: "La projection n'est pas disponible",
+    projectionFailed: "La projection n'a pas pu être calculée",
+    runtimeFailed: "Les données en temps réel n'ont pas pu être actualisées",
+    updateFailed: "Le graphique n'a pas pu être actualisé",
+  },
+  nl: {
+    profileNoData: "Geen gegevens voor het geleerde profiel",
+    profileInsufficientDays: "Onvoldoende leerdagen",
+    profileInsufficientWeekday: "Onvoldoende metingen voor deze weekdag",
+    profileInsufficientCoverage: "Onvoldoende profieldekking",
+    profileStale: "Het geleerde profiel is verouderd",
+    profileLearning: "Het profiel is nog aan het leren",
+    emptyRange: "Er zijn geen toekomstige intervallen beschikbaar voor de prognose",
+    providerInvalid: "De prognose van de aanbieder is ongeldig",
+    providerNoTimezone: "De prognose van de aanbieder bevat geen tijdzone",
+    providerMissing: "Er zijn geen prognose-intervallen van de aanbieder beschikbaar",
+    providerOverlap: "De prognose-intervallen van de aanbieder overlappen",
+    providerCoverage: "De dekking van de prognose van de aanbieder is onvoldoende",
+    providerGap: "De prognose van de aanbieder bevat een gegevenshiaat",
+    providerNoEnergy: "De prognose van de aanbieder bevat geen zonne-energie",
+    legacyMissing: "De vorige zonnecurve is niet beschikbaar",
+    legacyInvalid: "De vorige zonnecurve is ongeldig",
+    solarWindowMissing: "Het zonnevenster is niet beschikbaar",
+    solarWindowInvalid: "Het zonnevenster is ongeldig",
+    learnedInvalid: "Het geleerde zonneprofiel is ongeldig",
+    learnedNoFuture: "Het geleerde profiel bevat geen toekomstige zonne-energie",
+    invalidMode: "De zonneprofielmodus is ongeldig",
+    sinusoidalInvalid: "De sinusvormige zonnecurve kon niet worden gegenereerd",
+    forecastInvalid: "De zonneprognose is ongeldig",
+    temporalInvalid: "De verdeling van zonne-energie over de tijd kon niet worden gevalideerd",
+    normalizationFailed: "De zonneprognose kon niet worden verdeeld",
+    loadFailed: "De profielgegevens konden niet worden geladen",
+    saveFailed: "De profielgegevens konden niet worden opgeslagen",
+    historyUnavailable: "De profielgeschiedenis kon niet worden geïmporteerd",
+    profileReset: "Het profiel is opnieuw ingesteld na een configuratiewijziging",
+    fallbackUnavailable: "De alternatieve prognose is niet beschikbaar",
+    projectionUnavailable: "De projectie is niet beschikbaar",
+    projectionFailed: "De projectie kon niet worden berekend",
+    runtimeFailed: "De livegegevens konden niet worden bijgewerkt",
+    updateFailed: "De grafiek kon niet worden bijgewerkt",
+  },
+};
+
 // translation_key -> role. These are stable identifiers set by the integration
 // (see const.py / *_sensors.py), independent of the user's language or renames.
 const K = {
@@ -458,7 +808,7 @@ const K = {
   acPower: "ac_power", // AC-side power. HA sign: - charge / + discharge (W)
   batteryPower: "battery_power", // synthesised cell power (Zendure). + charge / - discharge (W)
   batteryCellPower: "battery_cell_power", // Venus A/D net cell power. + charge / - discharge (W)
-  solarPower: "solar_power", // Venus A/D total MPPT power (W)
+  solarPower: "solar_power", // aggregate DC PV power (W)
   acOffgridPower: "ac_offgrid_power", // off-grid/backup AC output. HA sign: + discharge (W)
   storedEnergy: "stored_energy", // kWh
   batteryTotalEnergy: "battery_total_energy", // capacity kWh
@@ -477,6 +827,16 @@ const K = {
   cyclesCalc: "battery_cycle_count_calc",
   rte: "round_trip_efficiency_total",
   softwareVersion: "software_version",
+  powerModuleSerial: "power_module_serial_number",
+  powerModuleFirmware: "power_module_firmware_version",
+  inverterSerial: "inverter_serial_number",
+  inverterFirmware: "inverter_software_version",
+  pack1Firmware: "pack1_firmware_version",
+  pack2Firmware: "pack2_firmware_version",
+  pack3Firmware: "pack3_firmware_version",
+  pack1Serial: "pack1_serial_number",
+  pack2Serial: "pack2_serial_number",
+  pack3Serial: "pack3_serial_number",
   bmsVersion: "bms_version",
   vmsVersion: "vms_version",
   emsVersion: "ems_version",
@@ -504,6 +864,7 @@ const K = {
   sysDailyHome: "system_daily_home_energy", // exact daily home consumption (kWh)
   sysDailyGridImport: "system_daily_grid_import_energy", // exact daily grid import (kWh)
   sysDailyGridExport: "system_daily_grid_export_energy", // exact daily grid export (kWh)
+  consumptionProfile: "expected_home_consumption_profile",
   sysAlarm: "system_alarm_status",
   pdQuality: "system_pd_control_quality", // PD control-quality verdict
   // diagnostics / flags
@@ -610,6 +971,13 @@ const SYS_SECTIONS = [
     ],
   },
   {
+    tk: "secOffgridMeter",
+    icon: "mdi:transmission-tower-off",
+    items: [
+      { key: "offgrid_mode", domain: "switch", lk: "secOffgridMeter", icon: "mdi:transmission-tower-off" },
+    ],
+  },
+  {
     tk: "secWeeklyFull",
     icon: "mdi:calendar-check",
     items: [
@@ -685,6 +1053,7 @@ const SYS_SECTIONS = [
     tk: "secCommon",
     icon: "mdi:tune-vertical",
     items: [
+      { key: "vacation_mode", domain: "switch", lk: "secVacation", icon: "mdi:palm-tree" },
       { key: "pd_controller_deadband", lk: "itemPdDeadband", icon: "mdi:arrow-collapse-horizontal" },
       { key: "pd_min_charge_power", lk: "itemPdMinCharge", icon: "mdi:battery-charging-low" },
       { key: "pd_min_discharge_power", lk: "itemPdMinDischarge", icon: "mdi:battery-low" },
@@ -811,7 +1180,7 @@ const SYS_LAYOUT = [
   {
     pair: [
       ["secPhaseProtection", "secManual"],
-      ["secWeeklyFull", null],
+      ["secWeeklyFull", "secOffgridMeter"],
       ["diagPredictive", "diagChargeDelay"],
       ["secHourly", "secSysLimits"],
       ["diagPeak", "secTempLimit"],
@@ -843,11 +1212,13 @@ const SYS_HELP = {
     three_phase_protection: "Enable or disable the three-phase current protection envelope.",
     battery_phase: "Select the physical AC phase for this battery. Choose Unassigned when it is not connected to a protected phase; it then remains outside the three-phase envelope and continues normal automatic operation.",
     secManual: "When ON, automatic control (PD, predictive charging, time slots, peak shaving…) is paused and every battery is set to 0 W (idle). Turn it OFF to resume automatic control.",
+    secOffgridMeter: "Selects the configured off-grid power sensor as the source for control and derived statistics. It does not enable any battery off-grid/EPS port. A battery actively supplying its own off-grid output remains excluded from PD.",
+    vacation_mode: "When ON, household-consumption learning and the legacy daily average are paused. Physical consumption meters, the daily-operation graph and battery control continue normally. Forecasts use a constant baseline calculated from 01:00–05:00: a night is valid after 3 hours of coverage, using the median of up to the last three valid nights. Turn it OFF to resume learning; vacation data remains excluded from Recorder backfill.",
     battery_manual_mode: "When ON, this battery is idled once and removed from automatic control. Its manual force mode and setpoints can then be selected while other batteries continue automatically. Omnibattery software limits do not constrain it, but the battery's own BMS/driver protections still apply. Global Manual Mode is separate.",
     secWeeklyFull: "Select the day of the week when batteries should charge to 100% for cell balancing. After reaching 100%, the system reverts to your configured maximum charge limit.",
     secSlots: "Define when and how the batteries are allowed to operate. The ticks control each direction, SOC and power. Manual mode forces an exact power, bypassing the PD algorithm.",
     secExcluded: "Configure devices with special management: you can EXCLUDE devices that should NOT be powered by battery, or ADD devices that SHOULD be powered by battery even if they're not in the home consumption sensor.",
-    secCommon: "Control knobs shared by both the PD controller and No-PD direct tracking: deadband, min charge/discharge power, relay min-ON cooldown and target grid power. Changing them affects whichever control mode is currently active.",
+    secCommon: "System-wide controls. Vacation Mode pauses household-consumption learning without stopping physical metering or battery control. The remaining knobs are shared by both the PD controller and No-PD direct tracking; changing them affects whichever control mode is active.",
     secPd: "Configure advanced PD controller parameters for expert tuning of battery charge/discharge behavior. Only modify these if you understand PID control theory. Default values work well for most installations.",
     secNoPd: "When ON, the PD controller is bypassed and each battery tracks the grid setpoint 1:1 (raw, kp=1, no integral/derivative/smoothing/rate-limit). It still reuses the deadband, min charge/discharge power, relay cooldown and target-grid-power knobs above. Use only if PD tuning can't tame your meter; PD is the safer default.",
     no_pd_command_delay: "Collapse-debounce window for No-PD mode. Grid-sensor updates arriving within this window collapse into a single command issued on the latest value, so a fast meter can't flood the bus. 0 = act on every event (paced only by PD min cycle interval). Range: 0–3 s, step 0.1, default: 0 s.",
@@ -917,11 +1288,13 @@ const SYS_HELP = {
     three_phase_protection: "Activa o desactiva la envolvente de protección de corriente trifásica.",
     battery_phase: "Selecciona la fase física de CA de esta batería. Elige Sin asignar si no está conectada a una fase protegida; quedará fuera de la envolvente trifásica y seguirá funcionando normalmente en automático.",
     secManual: "Cuando está ACTIVADO, el control automático (PD, carga predictiva, franjas horarias, reducción de picos…) se pausa y todas las baterías se ponen a 0 W (en reposo). DESACTÍVALO para reanudar el control automático.",
+    secOffgridMeter: "Selecciona el sensor de potencia off-grid configurado como fuente del control y de las estadísticas derivadas. No habilita ningún puerto off-grid/EPS. Una batería que suministre por su propia salida off-grid sigue excluida del PD.",
+    vacation_mode: "Al ACTIVARLO se pausan el aprendizaje del consumo doméstico y la media diaria heredada. Los contadores físicos, el gráfico de operación diaria y el control de las baterías siguen funcionando normalmente. Las previsiones usan un baseline constante calculado entre las 01:00 y las 05:00: una noche es válida con 3 horas de cobertura y se usa la mediana de hasta las tres últimas noches válidas. DESACTÍVALO para reanudar el aprendizaje; los datos vacacionales seguirán excluidos del backfill de Recorder.",
     battery_manual_mode: "Al ACTIVARLO, esta batería pasa una vez a 0 W y sale del control automático. Sus modos y consignas manuales se pueden elegir entonces; las demás baterías continúan en automático. Los límites de software de Omnibattery no la restringen, pero sí las protecciones propias del BMS/driver. El Modo manual global es independiente.",
     secWeeklyFull: "Selecciona el día de la semana en el que las baterías deben cargarse al 100% para el balanceo de celdas. Una vez alcanzado el 100%, el sistema revertirá al límite de carga máximo configurado.",
     secSlots: "Define cuándo y cómo se permite operar a las baterías. Los ticks permiten controlar cada dirección, el SOC y la potencia. El modo manual fuerza una potencia exacta ignorando el algoritmo PD.",
     secExcluded: "Configura dispositivos con gestión especial: puedes EXCLUIR dispositivos que NO deben alimentarse por batería, o AÑADIR dispositivos que SÍ debe alimentar la batería aunque no estén en el sensor de consumo del hogar.",
-    secCommon: "Parámetros de control compartidos por el controlador PD y el seguimiento directo sin PD: banda muerta, potencia mín. de carga/descarga, tiempo mín. de relé y potencia objetivo de red. Cambiarlos afecta al modo de control que esté activo.",
+    secCommon: "Controles generales del sistema. Modo vacaciones pausa el aprendizaje del consumo doméstico sin detener la medición física ni el control de las baterías. El resto de parámetros se comparte entre el controlador PD y el seguimiento directo sin PD; cambiarlos afecta al modo que esté activo.",
     secPd: "Configura parámetros avanzados del controlador PD para ajustar el comportamiento de carga/descarga de las baterías. Solo modifica estos valores si comprendes la teoría de control PID. Los valores predeterminados funcionan bien para la mayoría de instalaciones.",
     secNoPd: "Cuando está ACTIVADO, se omite el controlador PD y cada batería sigue la consigna de red 1:1 (en bruto, kp=1, sin integral/derivativo/suavizado/límite de variación). Sigue reutilizando la banda muerta, las potencias mín. de carga/descarga, el tiempo de relé y la potencia objetivo de red de arriba. Úsalo solo si el ajuste PD no puede domar tu medidor; PD es el valor por defecto más seguro.",
     no_pd_command_delay: "Ventana de agrupación (debounce) para el modo sin PD. Las actualizaciones del sensor de red que llegan dentro de esta ventana se agrupan en una sola orden emitida con el último valor, para que un medidor rápido no sature el bus. 0 = actuar en cada evento (acotado solo por el intervalo mín. de ciclo PD). Rango: 0–3 s, paso 0,1, por defecto: 0 s.",
@@ -983,11 +1356,12 @@ const SYS_HELP = {
   },
   ca: {
     secManual: "Quan està ACTIVAT, el control automàtic (PD, càrrega predictiva, franges horàries, reducció de pics…) es pausa i totes les bateries es posen a 0 W (en repòs). DESACTIVA'L per reprendre el control automàtic.",
+    vacation_mode: "Quan està ACTIVAT, es pausen l'aprenentatge del consum domèstic i la mitjana diària heretada. Els comptadors físics, el gràfic d'operació diària i el control de les bateries continuen funcionant normalment. Les previsions utilitzen un baseline constant calculat entre la 01:00 i les 05:00: una nit és vàlida amb 3 hores de cobertura i s'utilitza la mediana de fins a les tres últimes nits vàlides. DESACTIVA'L per reprendre l'aprenentatge; les dades de vacances continuaran excloses del backfill de Recorder.",
     battery_manual_mode: "Quan s'ACTIVA, aquesta bateria passa una vegada a 0 W i surt del control automàtic. Els seus modes i consignes manuals es poden triar aleshores; les altres bateries segueixen en automàtic. Els límits de programari d'Omnibattery no la restringeixen, però sí les proteccions pròpies del BMS/driver. El mode manual global és independent.",
     secWeeklyFull: "Selecciona el dia de la setmana en què les bateries s'han de carregar al 100% per a l'equilibratge de cel·les. Un cop assolit el 100%, el sistema tornarà al límit de càrrega màxim configurat.",
     secSlots: "Defineix quan i com es permet operar a les bateries. Els ticks permeten controlar cada direcció, el SOC i la potència. El mode manual força una potència exacta ignorant l'algorisme PD.",
     secExcluded: "Configura dispositius amb gestió especial: pots EXCLOURE dispositius que NO s'han d'alimentar per bateria, o AFEGIR dispositius que SÍ ha d'alimentar la bateria encara que no estiguin al sensor de consum de la llar.",
-    secCommon: "Paràmetres de control compartits pel controlador PD i el seguiment directe sense PD: banda morta, potència mín. de càrrega/descàrrega, temps mín. de relé i potència objectiu de xarxa. Canviar-los afecta el mode de control que estigui actiu.",
+    secCommon: "Controls generals del sistema. El Mode vacances pausa l'aprenentatge del consum domèstic sense aturar la mesura física ni el control de les bateries. La resta de paràmetres es comparteixen entre el controlador PD i el seguiment directe sense PD; canviar-los afecta el mode actiu.",
     secPd: "Configura paràmetres avançats del controlador PD per ajustar el comportament de càrrega/descàrrega de les bateries. Només modifica aquests valors si comprens la teoria de control PID. Els valors per defecte funcionen bé per a la majoria d'instal·lacions.",
     secNoPd: "Quan està ACTIVAT, s'omet el controlador PD i cada bateria segueix la consigna de xarxa 1:1 (en brut, kp=1, sense integral/derivatiu/suavitzat/límit de variació). Continua reutilitzant la banda morta, les potències mín. de càrrega/descàrrega, el temps de relé i la potència objectiu de xarxa de dalt. Usa'l només si l'ajust PD no pot domar el teu mesurador; PD és el valor per defecte més segur.",
     no_pd_command_delay: "Finestra d'agrupació (debounce) per al mode sense PD. Les actualitzacions del sensor de xarxa que arriben dins d'aquesta finestra s'agrupen en una sola ordre emesa amb l'últim valor, perquè un mesurador ràpid no saturi el bus. 0 = actuar en cada esdeveniment (acotat només per l'interval mín. de cicle PD). Rang: 0–3 s, pas 0,1, per defecte: 0 s.",
@@ -1047,11 +1421,12 @@ const SYS_HELP = {
   },
   de: {
     secManual: "Wenn EIN, wird die automatische Regelung (PD, prädiktives Laden, Zeitfenster, Lastspitzenkappung…) pausiert und jede Batterie auf 0 W (Leerlauf) gesetzt. Schalte AUS, um die automatische Regelung fortzusetzen.",
+    vacation_mode: "Wenn EIN, werden das Lernen des Haushaltsverbrauchs und der bisherige Tagesmittelwert pausiert. Physische Verbrauchszähler, das Tagesbetriebsdiagramm und die Batteriesteuerung laufen normal weiter. Prognosen verwenden eine konstante Grundlast aus 01:00–05:00 Uhr: Eine Nacht gilt ab 3 Stunden Abdeckung; verwendet wird der Median der bis zu drei letzten gültigen Nächte. Schalte AUS, um das Lernen fortzusetzen; Urlaubsdaten bleiben vom Recorder-Backfill ausgeschlossen.",
     battery_manual_mode: "Wenn EIN, wird diese Batterie einmal auf 0 W gesetzt und aus der automatischen Regelung genommen. Ihr manueller Modus und ihre Sollwerte können danach gewählt werden; andere Batterien laufen automatisch weiter. Omnibattery-Softwaregrenzen wirken nicht, die eigenen BMS-/Treiber-Schutzfunktionen jedoch schon. Der globale manuelle Modus ist unabhängig.",
     secWeeklyFull: "Wähle den Wochentag, an dem die Batterien zum Zellausgleich auf 100% geladen werden. Nach Erreichen von 100% kehrt das System zum konfigurierten maximalen Ladelimit zurück.",
     secSlots: "Lege fest, wann und wie die Batterien arbeiten dürfen. Die Häkchen steuern jede Richtung, SOC und Leistung. Der manuelle Modus erzwingt eine exakte Leistung und umgeht den PD-Algorithmus.",
     secExcluded: "Geräte mit spezieller Verwaltung konfigurieren: Du kannst Geräte AUSSCHLIESSEN, die NICHT von der Batterie versorgt werden sollen, oder Geräte HINZUFÜGEN, die von der Batterie versorgt werden SOLLEN, auch wenn sie nicht im Hausverbrauchssensor erfasst sind.",
-    secCommon: "Regelparameter, die sowohl der PD-Regler als auch die direkte Nachführung ohne PD nutzen: Totzone, min. Lade-/Entladeleistung, Relais-Mindestlaufzeit und Ziel-Netzleistung. Änderungen wirken auf den jeweils aktiven Regelmodus.",
+    secCommon: "Systemweite Steuerung. Der Urlaubsmodus pausiert das Lernen des Haushaltsverbrauchs, ohne Messung oder Batteriesteuerung anzuhalten. Die übrigen Parameter werden vom PD-Regler und der direkten Nachführung ohne PD gemeinsam genutzt; Änderungen wirken auf den aktiven Modus.",
     secPd: "Erweiterte PD-Reglerparameter für die Experten-Abstimmung des Lade-/Entladeverhaltens konfigurieren. Ändere diese nur, wenn du die PID-Regelungstheorie verstehst. Die Standardwerte funktionieren für die meisten Installationen gut.",
     secNoPd: "Wenn EIN, wird der PD-Regler umgangen und jede Batterie folgt dem Netz-Sollwert 1:1 (roh, kp=1, ohne Integral/Differential/Glättung/Änderungsbegrenzung). Totzone, min. Lade-/Entladeleistung, Relais-Mindestlaufzeit und Ziel-Netzleistung von oben werden weiterhin genutzt. Nur verwenden, wenn die PD-Abstimmung deinen Zähler nicht bändigen kann; PD ist der sicherere Standard.",
     no_pd_command_delay: "Debounce-Fenster für den No-PD-Modus. Netz-Sensor-Updates innerhalb dieses Fensters werden zu einem einzigen Befehl mit dem neuesten Wert zusammengefasst, damit ein schneller Zähler den Bus nicht überflutet. 0 = bei jedem Ereignis handeln (nur durch das PD-Min.-Zyklusintervall begrenzt). Bereich: 0–3 s, Schritt 0,1, Standard: 0 s.",
@@ -1111,11 +1486,12 @@ const SYS_HELP = {
   },
   fr: {
     secManual: "Quand ACTIVÉ, le contrôle automatique (PD, charge prédictive, plages horaires, écrêtage des pics…) est mis en pause et chaque batterie est réglée à 0 W (repos). DÉSACTIVE-le pour reprendre le contrôle automatique.",
+    vacation_mode: "Quand il est ACTIVÉ, l'apprentissage de la consommation du foyer et l'ancienne moyenne journalière sont suspendus. Les compteurs physiques, le graphique d'opération quotidienne et le contrôle des batteries continuent normalement. Les prévisions utilisent une charge de base constante calculée de 01:00 à 05:00 : une nuit est valide avec 3 heures de couverture et la médiane des trois dernières nuits valides au maximum est utilisée. DÉSACTIVE-le pour reprendre l'apprentissage ; les données de vacances restent exclues du backfill Recorder.",
     battery_manual_mode: "Lorsque cette option est activée, cette batterie passe une fois à 0 W et sort du contrôle automatique. Son mode et ses consignes manuels peuvent ensuite être choisis ; les autres batteries continuent en automatique. Les limites logicielles d'Omnibattery ne s'appliquent pas, mais les protections du BMS/driver restent actives. Le mode manuel global est indépendant.",
     secWeeklyFull: "Sélectionne le jour de la semaine où les batteries doivent se charger à 100% pour l'équilibrage des cellules. Une fois 100% atteint, le système revient à la limite de charge maximale configurée.",
     secSlots: "Définis quand et comment les batteries sont autorisées à fonctionner. Les cases contrôlent chaque direction, le SOC et la puissance. Le mode manuel force une puissance exacte en contournant l'algorithme PD.",
     secExcluded: "Configure des appareils avec une gestion spéciale : tu peux EXCLURE des appareils qui ne doivent PAS être alimentés par la batterie, ou AJOUTER des appareils qui DOIVENT être alimentés par la batterie même s'ils ne sont pas dans le capteur de consommation domestique.",
-    secCommon: "Paramètres de contrôle partagés par le régulateur PD et le suivi direct sans PD : bande morte, puissances min. de charge/décharge, temporisation relais et puissance cible réseau. Les modifier affecte le mode de contrôle actif.",
+    secCommon: "Contrôles généraux du système. Le Mode vacances suspend l'apprentissage de la consommation sans arrêter les mesures physiques ni le contrôle des batteries. Les autres paramètres sont partagés par le régulateur PD et le suivi direct sans PD ; les modifier affecte le mode actif.",
     secPd: "Configure les paramètres avancés du contrôleur PD pour un réglage expert du comportement de charge/décharge des batteries. Ne modifie ces valeurs que si tu comprends la théorie du contrôle PID. Les valeurs par défaut conviennent à la plupart des installations.",
     secNoPd: "Quand ACTIVÉ, le régulateur PD est contourné et chaque batterie suit la consigne réseau 1:1 (brut, kp=1, sans intégral/dérivé/lissage/limite de variation). La bande morte, les puissances min. de charge/décharge, la temporisation relais et la puissance cible réseau ci-dessus restent utilisées. À n'utiliser que si le réglage PD ne parvient pas à dompter ton compteur ; PD est la valeur par défaut la plus sûre.",
     no_pd_command_delay: "Fenêtre de regroupement (debounce) pour le mode sans PD. Les mises à jour du capteur réseau arrivant dans cette fenêtre sont regroupées en une seule commande émise avec la dernière valeur, pour qu'un compteur rapide n'inonde pas le bus. 0 = agir à chaque événement (limité uniquement par l'intervalle min. de cycle PD). Plage : 0–3 s, pas 0,1, défaut : 0 s.",
@@ -1175,11 +1551,12 @@ const SYS_HELP = {
   },
   nl: {
     secManual: "Wanneer AAN, wordt de automatische regeling (PD, voorspellend laden, tijdvensters, piekafvlakking…) gepauzeerd en wordt elke batterij op 0 W (rust) gezet. Zet UIT om de automatische regeling te hervatten.",
+    vacation_mode: "Wanneer AAN, worden het leren van het huishoudverbruik en het oude daggemiddelde gepauzeerd. Fysieke verbruiksmeters, de dagelijkse werkinggrafiek en de batterijregeling blijven normaal werken. Prognoses gebruiken een constante basislast uit 01:00–05:00: een nacht is geldig vanaf 3 uur dekking en de mediaan van maximaal de laatste drie geldige nachten wordt gebruikt. Zet UIT om het leren te hervatten; vakantiegegevens blijven uitgesloten van Recorder-backfill.",
     battery_manual_mode: "Als deze optie AAN staat, wordt deze batterij eenmalig op 0 W gezet en uit de automatische regeling gehaald. De handmatige modus en setpoints kunnen daarna worden gekozen; andere batterijen blijven automatisch werken. Softwarelimieten van Omnibattery gelden niet, maar de eigen BMS-/driverbeveiliging wel. De globale handmatige modus staat hier los van.",
     secWeeklyFull: "Selecteer de dag van de week waarop de batterijen tot 100% moeten laden voor celbalancering. Na het bereiken van 100% keert het systeem terug naar de geconfigureerde maximale laadlimiet.",
     secSlots: "Bepaal wanneer en hoe de batterijen mogen werken. De vinkjes regelen elke richting, SOC en vermogen. De handmatige modus forceert een exact vermogen en omzeilt het PD-algoritme.",
     secExcluded: "Configureer apparaten met speciaal beheer: je kunt apparaten UITSLUITEN die NIET door de batterij gevoed mogen worden, of apparaten TOEVOEGEN die WEL door de batterij gevoed moeten worden, ook al staan ze niet in de huisverbruikssensor.",
-    secCommon: "Regelparameters die zowel de PD-regelaar als directe tracking zonder PD gebruiken: dode band, min. laad-/ontlaadvermogen, relais-wachttijd en doelnetvermogen. Wijzigen beïnvloedt de momenteel actieve regelmodus.",
+    secCommon: "Algemene systeembediening. Vakantiemodus pauzeert het leren van huishoudverbruik zonder fysieke meting of batterijregeling te stoppen. De overige parameters worden gedeeld door de PD-regelaar en directe tracking zonder PD; wijzigingen beïnvloeden de actieve modus.",
     secPd: "Configureer geavanceerde PD-regelaarparameters voor het expert-afstemmen van het laad-/ontlaadgedrag. Wijzig deze alleen als je de PID-regeltheorie begrijpt. De standaardwaarden werken goed voor de meeste installaties.",
     secNoPd: "Wanneer AAN wordt de PD-regelaar omzeild en volgt elke batterij het net-setpoint 1:1 (ruw, kp=1, zonder integraal/afgeleide/afvlakking/snelheidslimiet). De dode band, min. laad-/ontlaadvermogen, relais-wachttijd en doelnetvermogen hierboven blijven in gebruik. Gebruik dit alleen als PD-afstemming je meter niet kan temmen; PD is de veiligere standaard.",
     no_pd_command_delay: "Debounce-venster voor de No-PD-modus. Net-sensorupdates die binnen dit venster binnenkomen worden samengevoegd tot één commando met de laatste waarde, zodat een snelle meter de bus niet overspoelt. 0 = bij elke gebeurtenis handelen (alleen begrensd door het PD-min.-cyclusinterval). Bereik: 0–3 s, stap 0,1, standaard: 0 s.",
@@ -1251,12 +1628,17 @@ class MarstekVenusPanel extends HTMLElement {
     this._r = {}; // dynamic node refs for patch-in-place
     this._edgeSig = {}; // per flow edge: last dot signature
     this._socSeries = []; // SOC % samples for the sparkline (history seed + live)
+    this._dailyOperationSocHistory = Array(96).fill(null);
+    this._dailyOperationSocHistoryDate = null;
     this._socLastPush = 0; // last live-append timestamp (s), to throttle pushes
     this._powerSeries = null; // { t:[...], solar/home/grid/battery:[...] } kW, 24h
     this._weekly = null; // { days:[..7], charge/discharge/import/export:[..7] } kWh
     this._histTimer = null;
     this._historyRefresh = null;
     this._historyStarted = false;
+    this._dailyOperationGlobalListenersAttached = false;
+    this._dailyOperationVisualViewport = null;
+    this._onDailyOperationViewportChange = this._dismissDailyOperationFloatingTooltip.bind(this);
   }
 
   // --- HA-injected properties ------------------------------------------------
@@ -1284,9 +1666,11 @@ class MarstekVenusPanel extends HTMLElement {
   connectedCallback() {
     this._injectFonts();
     this._update();
+    this._attachDailyOperationGlobalListeners();
     this._ensureHistoryStarted();
   }
   disconnectedCallback() {
+    this._detachDailyOperationGlobalListeners();
     if (this._histTimer) clearInterval(this._histTimer);
     this._histTimer = null;
     this._historyStarted = false;
@@ -1301,6 +1685,75 @@ class MarstekVenusPanel extends HTMLElement {
   }
   _lang() {
     return (this._hass && this._hass.locale && this._hass.locale.language) || "es-ES";
+  }
+  /** Time zone selected in the HA user profile. `local` deliberately leaves
+   *  Intl on the browser zone; `server` follows Home Assistant's configured
+   *  IANA zone even when the browser or host runs in UTC. */
+  _timeZone() {
+    const locale = this._hass && this._hass.locale;
+    if (!locale || locale.time_zone === "local") return undefined;
+    return this._hass && this._hass.config && this._hass.config.time_zone;
+  }
+  /** Whether clocks should use AM/PM, following the HA profile preference. */
+  _useAmPm() {
+    const locale = this._hass && this._hass.locale;
+    const preference = locale && locale.time_format;
+    if (preference === "12") return true;
+    if (preference === "24") return false;
+    // HA's `language` setting follows the selected UI language, while
+    // `system` deliberately asks Intl for the browser/OS default.
+    const language = preference === "system" ? undefined : this._lang();
+    return new Date("January 1, 2023 22:00:00")
+      .toLocaleString(language)
+      .includes("10");
+  }
+  _dateTimeOptions(options = {}) {
+    let resolved = options;
+    if (Object.prototype.hasOwnProperty.call(options, "hour")
+        && options.hourCycle == null && options.hour12 == null) {
+      resolved = { ...options, hourCycle: this._useAmPm() ? "h12" : "h23" };
+    }
+    const timeZone = this._timeZone();
+    return timeZone ? { ...resolved, timeZone } : resolved;
+  }
+  /** Calendar fields for an instant in the time zone shown by Home Assistant. */
+  _dateParts(epochMs = Date.now()) {
+    const formatter = new Intl.DateTimeFormat("en-CA", this._dateTimeOptions({
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hourCycle: "h23",
+    }));
+    return Object.fromEntries(
+      formatter.formatToParts(new Date(epochMs))
+        .filter((part) => part.type !== "literal")
+        .map((part) => [part.type, Number(part.value)])
+    );
+  }
+  /** Convert a wall-clock midnight in an IANA zone to its real UTC instant. */
+  _zonedMidnight(year, month, day) {
+    const timeZone = this._timeZone();
+    if (!timeZone) return new Date(year, month - 1, day).getTime();
+    const targetAsUtc = Date.UTC(year, month - 1, day);
+    const offsetAt = (epochMs) => {
+      const p = this._dateParts(epochMs);
+      return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - epochMs;
+    };
+    let instant = targetAsUtc - offsetAt(targetAsUtc);
+    // Re-evaluate at the candidate so transitions near the target use the
+    // offset that actually applies to that local date.
+    instant = targetAsUtc - offsetAt(instant);
+    return instant;
+  }
+  /** Start of the selected HA calendar day, optionally shifted by N days. */
+  _dayStartEpoch(offsetDays = 0, epochMs = Date.now()) {
+    const p = this._dateParts(epochMs);
+    const shifted = new Date(Date.UTC(p.year, p.month - 1, p.day + offsetDays));
+    return this._zonedMidnight(
+      shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate()
+    );
+  }
+  _localHour(epochMs = Date.now()) {
+    return this._dateParts(epochMs).hour;
   }
   /** Two-letter UI language for i18n lookups ("es-ES" -> "es"). */
   _lang2() {
@@ -1383,6 +1836,18 @@ class MarstekVenusPanel extends HTMLElement {
     const n = Number(stateObj.state);
     return Number.isNaN(n) ? null : n;
   }
+  _attrNum(attrs, key) {
+    const value = attrs && attrs[key];
+    if (value == null || value === "") return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  _energyKwh(stateObj) {
+    const n = this._num(stateObj);
+    if (n == null) return null;
+    const unit = String((stateObj.attributes || {}).unit_of_measurement || "kWh").toLowerCase();
+    return unit === "wh" ? n / 1000 : n;
+  }
   /** Sum numeric states for a key across all batteries. */
   _sum(byKey, key) {
     let total = null;
@@ -1398,6 +1863,24 @@ class MarstekVenusPanel extends HTMLElement {
     if (n == null) return null;
     const u = (stateObj.attributes.unit_of_measurement || "").toLowerCase();
     return u === "kw" ? n * 1000 : n;
+  }
+  /** Anker AC models expose a calculated PV-looking value, not DC PV input. */
+  _isAnkerAcOnlyModel(model) {
+    const normalized = String(model || "").trim().toLowerCase();
+    return /(?:^|\s)solarbank\s+(?:max|xe)\s+ac(?:$|\s)/.test(normalized);
+  }
+  /** Only the verified E5000 Anker models may use aggregate PV in the panel. */
+  _isAnkerIndependentPvModel(model) {
+    const normalized = String(model || "").trim().toLowerCase();
+    return normalized.includes("solarbank 4 e5000 pro");
+  }
+  _allowAggregateSolar(model, device) {
+    const manufacturer = String((device && device.manufacturer) || "").toLowerCase();
+    const normalized = String(model || "").trim().toLowerCase();
+    const isAnker = manufacturer.includes("anker") || normalized.includes("solarbank");
+    if (!isAnker) return true;
+    if (this._isAnkerAcOnlyModel(model)) return false;
+    return this._isAnkerIndependentPvModel(model);
   }
   /** Sum live power (W) of every enabled excluded device. Configuration comes
    *  from the panel payload so disabling a control entity cannot remove a load
@@ -1461,6 +1944,10 @@ class MarstekVenusPanel extends HTMLElement {
         return e && e.translation_key === K.batterySoc;
       });
       if (!socObj) continue; // not a battery device
+      const modelLabel = (socObj.attributes && socObj.attributes.model) || "";
+      const socEntity = hass.entities[socObj.entity_id];
+      const device = socEntity && hass.devices && hass.devices[socEntity.device_id];
+      const allowAggregateSolar = this._allowAggregateSolar(modelLabel, device);
       const get = (key) => {
         const id = ids.find((i) => {
           const e = hass.entities[i];
@@ -1472,15 +1959,22 @@ class MarstekVenusPanel extends HTMLElement {
       // Off-grid/backup AC output port (+ discharge). Battery can also discharge
       // through it to backup loads that the grid meter never sees.
       const acoW = this._watts(get(K.acOffgridPower));
-      // DC-coupled PV on Venus D/A: sum this unit's own MPPT inputs (W, >=0).
+      // DC-coupled PV: sum this unit's own MPPT inputs (W, >=0) when exposed.
       let mpptW = null;
       for (const mk of MPPT_KEYS) {
         const s = this._watts(get(mk));
         if (s != null) mpptW = (mpptW || 0) + s;
       }
+      // Some batteries (Anker Solarbank 4) publish only the aggregate DC PV
+      // value. It uses the same canonical translation key as the Venus total,
+      // so it can fill the per-battery model without inventing MPPT channels.
+      if (allowAggregateSolar && mpptW == null) {
+        const aggregateSolarW = this._watts(get(K.solarPower));
+        if (aggregateSolarW != null) mpptW = Math.max(0, aggregateSolarW);
+      }
       // Derive cell power from both AC ports (- charge / + discharge), negated to
-      // the panel's + charge / - discharge convention. On Venus D/A the DC PV
-      // charges the cells without crossing the AC port, so add this unit's MPPT to
+      // the panel's + charge / - discharge convention. On DC-coupled-PV units the
+      // PV charges the cells without crossing the AC port, so add this unit's DC PV to
       // recover the true cell power. ac_power is used instead of the battery_power
       // sensor, whose reported value is unreliable.
       // Zendure exposes no ac_power; fall back to its synthesised battery_power
@@ -1565,8 +2059,8 @@ class MarstekVenusPanel extends HTMLElement {
     const battery = battW != null ? battW / 1000 : 0;
 
     // solar: solar_entity is already the complete production figure — the
-    // system_solar_power aggregate (external + Σ MPPT) on Venus D/A, or the
-    // external-only sensor on non-MPPT systems. So use it directly; ΣMPPT is only
+    // system_solar_power aggregate (external + independent battery-reported DC PV),
+    // or the external-only sensor on AC-derived systems. So use it directly; ΣMPPT is only
     // a fallback for before that aggregate sensor is readable, NOT an addition,
     // otherwise the DC-coupled share is double-counted on vA/vD (#407).
     let solarW = null;
@@ -1634,6 +2128,22 @@ class MarstekVenusPanel extends HTMLElement {
     const dailyHome = this._num(this._stateFor(byKey, K.sysDailyHome));
     const dailyGridImport = this._num(this._stateFor(byKey, K.sysDailyGridImport));
     const dailyGridExport = this._num(this._stateFor(byKey, K.sysDailyGridExport));
+    const profileObj = this._stateFor(byKey, K.consumptionProfile);
+    const predictiveObj = this._stateFor(byKey, K.predictiveActive);
+    const predictiveAttrs = predictiveObj && predictiveObj.attributes ? predictiveObj.attributes : {};
+    const forecastInitial = this._attrNum(
+      predictiveAttrs, "solar_forecast_initial_kwh"
+    );
+    const forecastRemaining = this._attrNum(
+      predictiveAttrs, "remaining_solar_kwh"
+    );
+    const remainingEntity = this._panelConfig.solar_forecast_remaining_entity
+      ? hass.states[this._panelConfig.solar_forecast_remaining_entity]
+      : null;
+    const solarRemaining = forecastRemaining ?? this._energyKwh(remainingEntity);
+    const expectedConsumption =
+      this._num(profileObj) ??
+      this._attrNum(predictiveAttrs, "daily_avg_consumption_kwh");
 
     return {
       nBat,
@@ -1653,6 +2163,9 @@ class MarstekVenusPanel extends HTMLElement {
       dailyHome,
       dailyGridImport,
       dailyGridExport,
+      forecastInitial,
+      solarRemaining,
+      expectedConsumption,
       active,
       offline,
       netBalance,
@@ -1754,6 +2267,7 @@ class MarstekVenusPanel extends HTMLElement {
       el.classList.toggle("active", id === view);
     }
     if (!this._main) return;
+    this._detachDailyOperationGlobalListeners();
     this._main.innerHTML = "";
     if (view === "resumen") {
       this._main.appendChild(this._renderResumen());
@@ -1782,6 +2296,7 @@ class MarstekVenusPanel extends HTMLElement {
 
   // ===== Resumen view ========================================================
   _renderResumen() {
+    this._detachDailyOperationGlobalListeners();
     this._r = {};
     this._edgeSig = {};
     this._buildCards();
@@ -1800,6 +2315,7 @@ class MarstekVenusPanel extends HTMLElement {
         c.flow,
         wrap("charts-2x2", [c.daily, c.weekly, c.power, c.mini]),
       ]),
+      c.dailyOperation,
     ]);
   }
 
@@ -1821,7 +2337,1322 @@ class MarstekVenusPanel extends HTMLElement {
       weekly: this._buildWeeklyCard(),
       power: this._buildPowerHistoryCard(),
       mini: this._buildMiniHistory(),
+      dailyOperation: this._buildDailyOperationTimelineCard(),
     };
+  }
+
+  // ----- Daily operation timeline ------------------------------------------
+  /**
+   * Build the timeline shell once. The sensor is deliberately optional: the
+   * card is hidden until the versioned timeline entity is available, so an
+   * older backend cannot break the rest of Resumen.
+   */
+  _buildDailyOperationTimelineCard() {
+    const { card, head } = this._card(this._t("dailyOperationTitle"), "mdi:chart-timeline-variant");
+    card.classList.add("daily-operation-card");
+    card.hidden = true;
+    this._dailyOpPinnedIndex = null;
+
+    const badge = document.createElement("span");
+    badge.className = "daily-op-badge";
+    badge.innerHTML = `<span class="daily-op-badge-dot"></span><span></span>`;
+    head.appendChild(badge);
+
+    const description = document.createElement("div");
+    description.className = "daily-op-description muted";
+    description.textContent = this._t("dailyOperationDescription");
+    card.appendChild(description);
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "daily-op-toolbar";
+    const legend = document.createElement("div");
+    legend.className = "daily-op-legend";
+    legend.innerHTML =
+      `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-solar-window"></i>${this._t("dailyOperationSolarWindow")}</span>` +
+      `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-solar"></i>${this._t("dailyOperationSolarCharge")}</span>` +
+      `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-grid"></i>${this._t("dailyOperationGridCharge")}</span>` +
+      `<span class="daily-op-legend-item daily-op-legend-hourly-balance"><i class="daily-op-swatch daily-op-swatch-hourly-balance"></i>${this._t("dailyOperationHourlyBalance")}</span>` +
+      `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-discharge"></i>${this._t("dailyOperationDischarge")}</span>` +
+      `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-not-needed"></i>${this._t("dailyOperationNotNeeded")}</span>` +
+      `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-solar"></i>${this._t("dailyOperationSolar")}</span>` +
+      `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-consumption"></i>${this._t("dailyOperationConsumption")}</span>` +
+      `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-soc"></i>${this._t("dailyOperationSoc")}</span>`;
+    toolbar.appendChild(legend);
+
+    const nav = document.createElement("div");
+    nav.className = "daily-op-nav";
+    const previous = document.createElement("button");
+    previous.type = "button";
+    previous.className = "daily-op-nav-btn";
+    previous.setAttribute("aria-label", this._t("dailyOperationPrevious"));
+    previous.title = this._t("dailyOperationPrevious");
+    previous.innerHTML = "<ha-icon icon=\"mdi:chevron-left\"></ha-icon>";
+    const next = document.createElement("button");
+    next.type = "button";
+    next.className = "daily-op-nav-btn";
+    next.setAttribute("aria-label", this._t("dailyOperationNext"));
+    next.title = this._t("dailyOperationNext");
+    next.innerHTML = "<ha-icon icon=\"mdi:chevron-right\"></ha-icon>";
+    previous.addEventListener("click", () => this._scrollDailyOperation(-1));
+    next.addEventListener("click", () => this._scrollDailyOperation(1));
+    nav.append(previous, next);
+    toolbar.appendChild(nav);
+    card.appendChild(toolbar);
+
+    const notice = document.createElement("div");
+    notice.className = "daily-op-notice";
+    notice.setAttribute("role", "status");
+    notice.hidden = true;
+    card.appendChild(notice);
+
+    const layout = document.createElement("div");
+    layout.className = "daily-op-layout";
+    const yAxis = document.createElement("div");
+    yAxis.className = "daily-op-yaxis";
+    yAxis.setAttribute("aria-hidden", "true");
+    layout.appendChild(yAxis);
+
+    const viewport = document.createElement("div");
+    viewport.className = "daily-op-viewport";
+    viewport.tabIndex = 0;
+    viewport.setAttribute("role", "region");
+    viewport.setAttribute("aria-label", this._t("dailyOperationTitle"));
+    const stage = document.createElement("div");
+    stage.className = "daily-op-stage";
+
+    const uid = `mv-daily-op-${(this._dailyOpUid = (this._dailyOpUid || 0) + 1)}`;
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.classList.add("daily-op-svg");
+    svg.setAttribute("viewBox", `0 0 ${DAILY_OPERATION_TOTAL_INTERVALS * 10} 190`);
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("aria-hidden", "true");
+    svg.innerHTML =
+      `<g class="daily-op-grid-lines">` +
+      Array.from({ length: 6 }, (_, i) => `<line x1="0" y1="${32 + i * 26.4}" x2="${DAILY_OPERATION_TOTAL_INTERVALS * 10}" y2="${32 + i * 26.4}"/>`).join("") +
+      Array.from({ length: DAILY_OPERATION_TOTAL_HOURS + 1 }, (_, i) => `<line class="daily-op-hour-line" x1="${i * 40}" y1="24" x2="${i * 40}" y2="170"/>`).join("") +
+      `</g>` +
+      `<path class="daily-op-path daily-op-path-solar-actual" fill="none"></path>` +
+      `<path class="daily-op-path daily-op-path-solar-forecast" fill="none"></path>` +
+      `<path class="daily-op-path daily-op-path-consumption-actual" fill="none"></path>` +
+      `<path class="daily-op-path daily-op-path-consumption-forecast" fill="none"></path>` +
+      `<path class="daily-op-path daily-op-path-soc-actual" fill="none"></path>` +
+      `<path class="daily-op-path daily-op-path-soc-forecast" fill="none"></path>`;
+    stage.appendChild(svg);
+
+    // Keep the current-time marker in HTML so its label has a stable pixel
+    // size instead of stretching with the SVG viewBox.
+    const nowMarker = document.createElement("div");
+    nowMarker.className = "daily-op-now-marker";
+    const nowText = document.createElement("span");
+    nowText.className = "daily-op-now-text";
+    nowMarker.appendChild(nowText);
+    stage.appendChild(nowMarker);
+
+    const labels = document.createElement("div");
+    labels.className = "daily-op-hour-labels";
+    const hours = document.createElement("div");
+    hours.className = "daily-op-hours";
+    const cells = [];
+    for (let hour = 0; hour < DAILY_OPERATION_TOTAL_HOURS; hour++) {
+      const dayOffset = Math.floor(hour / 24);
+      const clockHour = hour % 24;
+      const label = document.createElement("span");
+      label.className = "daily-op-hour-label";
+      label.textContent = dayOffset ? `${String(clockHour).padStart(2, "0")} +${dayOffset}` : String(clockHour).padStart(2, "0");
+      labels.appendChild(label);
+
+      const group = document.createElement("div");
+      group.className = "daily-op-hour";
+      group.dataset.hour = String(hour);
+      for (let quarter = 0; quarter < 4; quarter++) {
+        const index = hour * 4 + quarter;
+        const cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = "daily-op-cell daily-op-base-neutral";
+        cell.dataset.index = String(index);
+        cell.tabIndex = 0;
+        cell.setAttribute("aria-label", this._dailyOperationTimeRange(index));
+        const delay = document.createElement("span");
+        delay.className = "daily-op-delay-mark";
+        delay.hidden = true;
+        delay.innerHTML = "<ha-icon icon=\"mdi:clock-outline\"></ha-icon>";
+        const setpoint = document.createElement("span");
+        setpoint.className = "daily-op-setpoint-mark";
+        setpoint.hidden = true;
+        setpoint.innerHTML = "<ha-icon icon=\"mdi:target\"></ha-icon>";
+        cell.append(delay, setpoint);
+        cell.addEventListener("mouseenter", () => this._showDailyOperationTooltip(index, cell));
+        cell.addEventListener("mouseleave", () => {
+          if (this._dailyOpPinnedIndex == null) this._hideDailyOperationTooltip();
+        });
+        cell.addEventListener("focus", () => this._showDailyOperationTooltip(index, cell));
+        cell.addEventListener("blur", () => {
+          if (this._dailyOpPinnedIndex == null) this._hideDailyOperationTooltip();
+        });
+        cell.addEventListener("click", () => {
+          if (this._dailyOpPinnedIndex === index) {
+            this._dailyOpPinnedIndex = null;
+            this._hideDailyOperationTooltip();
+          } else {
+            this._dailyOpPinnedIndex = index;
+            this._showDailyOperationTooltip(index, cell);
+          }
+        });
+        cell.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") {
+            this._dailyOpPinnedIndex = null;
+            this._hideDailyOperationTooltip();
+            cell.blur();
+            return;
+          }
+          const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1
+            : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+          if (delta) {
+            event.preventDefault();
+            const target = this._r.dailyOperation && this._r.dailyOperation.cells[index + delta];
+            if (target) target.focus();
+          }
+          if (event.key === "Home" || event.key === "End") {
+            event.preventDefault();
+            const target = this._r.dailyOperation && this._r.dailyOperation.cells[event.key === "Home" ? 0 : DAILY_OPERATION_TOTAL_INTERVALS - 1];
+            if (target) target.focus();
+          }
+        });
+        group.appendChild(cell);
+        cells.push(cell);
+      }
+      hours.appendChild(group);
+    }
+    const grid = document.createElement("div");
+    grid.className = "daily-op-grid";
+    grid.append(labels, hours);
+    stage.appendChild(grid);
+
+    const tooltip = document.createElement("div");
+    tooltip.className = "daily-op-tooltip";
+    tooltip.id = `${uid}-tooltip`;
+    tooltip.setAttribute("role", "tooltip");
+    tooltip.setAttribute("aria-live", "polite");
+    tooltip.hidden = true;
+
+    viewport.appendChild(stage);
+    layout.appendChild(viewport);
+    const socAxis = document.createElement("div");
+    socAxis.className = "daily-op-soc-axis";
+    socAxis.setAttribute("aria-hidden", "true");
+    socAxis.innerHTML = `<small>SOC %</small><div class="daily-op-soc-axis-ticks">` +
+      [100, 75, 50, 25, 0].map((value) => `<span>${value}</span>`).join("") + `</div>`;
+    layout.appendChild(socAxis);
+    card.appendChild(layout);
+    // The tooltip is positioned against the card, outside the horizontally
+    // clipped viewport, so the first and last intervals remain fully visible.
+    card.appendChild(tooltip);
+
+    const scrollState = { manual: false, initialized: false, programmaticUntil: 0 };
+    viewport.addEventListener("scroll", () => {
+      if (Date.now() > scrollState.programmaticUntil) {
+        scrollState.manual = true;
+        this._dailyOpPinnedIndex = null;
+        this._hideDailyOperationTooltip();
+      }
+      this._updateDailyOperationNav();
+      this._scheduleDailyOperationPathRefresh();
+    }, { passive: true });
+    const markManualScroll = () => {
+      if (Date.now() > scrollState.programmaticUntil) scrollState.manual = true;
+    };
+    viewport.addEventListener("wheel", markManualScroll, { passive: true });
+    viewport.addEventListener("touchstart", markManualScroll, { passive: true });
+    viewport.addEventListener("pointerdown", markManualScroll, { passive: true });
+    this._r.dailyOperation = {
+      card, badge, notice, legend,
+      hourlyBalanceLegend: legend.querySelector(".daily-op-legend-hourly-balance"),
+      yAxis, socAxis, viewport, stage, svg, tooltip, previous, next,
+      cells, labels, hours,
+      paths: {
+        solarActual: svg.querySelector(".daily-op-path-solar-actual"),
+        solarForecast: svg.querySelector(".daily-op-path-solar-forecast"),
+        consumptionActual: svg.querySelector(".daily-op-path-consumption-actual"),
+        consumptionForecast: svg.querySelector(".daily-op-path-consumption-forecast"),
+        socActual: svg.querySelector(".daily-op-path-soc-actual"),
+        socForecast: svg.querySelector(".daily-op-path-soc-forecast"),
+      },
+      nowMarker,
+      nowText,
+      scrollState,
+      localDate: null,
+    };
+    this._attachDailyOperationGlobalListeners();
+    return card;
+  }
+
+  _dismissDailyOperationFloatingTooltip() {
+    const ref = this._r.dailyOperation;
+    // A fixed tooltip is not clipped by the timeline viewport. Dismiss it
+    // whenever its anchor can move during page/visual-viewport scrolling.
+    if (!ref || ref.tooltip.hidden) return;
+    this._dailyOpPinnedIndex = null;
+    this._hideDailyOperationTooltip();
+  }
+
+  _attachDailyOperationGlobalListeners() {
+    if (this._dailyOperationGlobalListenersAttached || !this._r.dailyOperation) return;
+    window.addEventListener("scroll", this._onDailyOperationViewportChange, { capture: true, passive: true });
+    this._dailyOperationVisualViewport = window.visualViewport || null;
+    if (this._dailyOperationVisualViewport) {
+      this._dailyOperationVisualViewport.addEventListener("scroll", this._onDailyOperationViewportChange, { passive: true });
+      this._dailyOperationVisualViewport.addEventListener("resize", this._onDailyOperationViewportChange, { passive: true });
+    }
+    this._dailyOperationGlobalListenersAttached = true;
+  }
+
+  _detachDailyOperationGlobalListeners() {
+    if (!this._dailyOperationGlobalListenersAttached) return;
+    window.removeEventListener("scroll", this._onDailyOperationViewportChange, true);
+    if (this._dailyOperationVisualViewport) {
+      this._dailyOperationVisualViewport.removeEventListener("scroll", this._onDailyOperationViewportChange);
+      this._dailyOperationVisualViewport.removeEventListener("resize", this._onDailyOperationViewportChange);
+    }
+    this._dailyOperationVisualViewport = null;
+    this._dailyOperationGlobalListenersAttached = false;
+  }
+
+  /**
+   * Resolve the timeline through its stable registry identity first.  Entity
+   * IDs are user-editable in Home Assistant, while translation_key is not.
+   * A config override remains useful on older frontends without registry data.
+   */
+  _dailyOperationEntityId() {
+    const hass = this._hass;
+    if (!hass || !hass.states) return null;
+    const configured = [
+      this._panelConfig.daily_operation_timeline_entity,
+      this._panelConfig.daily_operation_entity,
+      this._panelConfig.dailyOperationTimelineEntity,
+    ].filter(Boolean);
+    const domain = this._domain();
+    const registered = Object.values(hass.entities || {})
+      .filter((entry) => entry && entry.entity_id && entry.entity_id.startsWith("sensor.")
+        && (entry.translation_key === "daily_operation_timeline"
+          || (entry.platform === domain
+            && String(entry.unique_id || "").endsWith("daily_operation_timeline"))))
+      .map((entry) => entry.entity_id);
+    const candidates = [...configured, ...registered, "sensor.omnibattery_daily_operation_timeline"];
+    return candidates.find((id) => hass.states[id]) || null;
+  }
+
+  _dailyOperationArray(value) {
+    const values = Array.isArray(value) ? value : value && Array.isArray(value.values) ? value.values : null;
+    if (!values) return null;
+    const count = arguments.length > 1 ? arguments[1] : DAILY_OPERATION_BASE_INTERVALS;
+    return Array.from({ length: count }, (_, index) => values[index] == null ? null : values[index]);
+  }
+
+  _dailyOperationPick(source, keys) {
+    if (!source || typeof source !== "object") return undefined;
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) return source[key];
+    }
+    return undefined;
+  }
+
+  _dailyOperationBool(value) {
+    if (value === true || value === 1) return true;
+    return typeof value === "string" && ["true", "on", "yes", "1"].includes(value.toLowerCase());
+  }
+
+  _dailyOperationNumber(value) {
+    if (value == null || value === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  _dailyOperationExtensionItems(data) {
+    const raw = data && (
+      data.extended_projection
+      || data.forecast_extension
+      || data.extended_intervals
+    );
+    return Array.isArray(raw) ? raw.filter((item) => item && typeof item === "object") : [];
+  }
+
+  _dailyOperationExtensionIndex(item, fallback) {
+    const candidate = this._dailyOperationNumber(
+      item && (item.extension_index ?? item.index)
+    );
+    const index = Math.floor(candidate ?? fallback);
+    return Math.max(0, Math.min(DAILY_OPERATION_EXTENSION_INTERVALS - 1, index));
+  }
+
+  _dailyOperationExtendedArray(base, extension, keys) {
+    const result = Array.from({ length: DAILY_OPERATION_TOTAL_INTERVALS }, (_, index) =>
+      Array.isArray(base) && index < DAILY_OPERATION_BASE_INTERVALS ? base[index] : null
+    );
+    extension.forEach((item, fallback) => {
+      const value = this._dailyOperationPick(item, keys);
+      if (value === undefined) return;
+      const index = DAILY_OPERATION_BASE_INTERVALS + this._dailyOperationExtensionIndex(item, fallback);
+      result[index] = value;
+    });
+    return result;
+  }
+
+  _dailyOperationState() {
+    const entityId = this._dailyOperationEntityId();
+    if (!entityId) return null;
+    const stateObj = this._hass.states[entityId];
+    const attributes = (stateObj && stateObj.attributes) || {};
+    const nested = attributes.timeline || attributes.daily_operation_timeline;
+    const data = nested && typeof nested === "object" ? { ...attributes, ...nested } : attributes;
+    const unavailable = !stateObj || ["unknown", "unavailable"].includes(String(stateObj.state).toLowerCase());
+    const series = data.series && typeof data.series === "object" ? data.series : data;
+    const operations = data.operations && typeof data.operations === "object" ? data.operations : data;
+    const extension = this._dailyOperationExtensionItems(data);
+    const pickSeries = (keys) => this._dailyOperationArray(this._dailyOperationPick(series, keys));
+    const pickOperation = (keys) => this._dailyOperationArray(this._dailyOperationPick(operations, keys));
+    const actualSolarBase = pickSeries(["solar_actual_kwh", "solar_actual"]);
+    const forecastSolarBase = pickSeries(["solar_forecast_kwh", "solar_forecast"]);
+    const actualConsumptionBase = pickSeries(["consumption_actual_kwh", "consumption_actual", "home_actual_kwh"]);
+    const forecastConsumptionBase = pickSeries(["consumption_forecast_kwh", "consumption_forecast", "home_forecast_kwh"]);
+    const storedActualSocBase = pickOperation(["actual_soc_pct"]);
+    const forecastSocBase = pickOperation(["planned_soc_pct", "soc_end_pct", "stored_soc_end_pct"]);
+    const actualSolar = this._dailyOperationExtendedArray(actualSolarBase, [], []);
+    const forecastSolar = this._dailyOperationExtendedArray(
+      forecastSolarBase, extension, ["solar_kwh", "solar_forecast_kwh"]
+    );
+    const actualConsumption = this._dailyOperationExtendedArray(actualConsumptionBase, [], []);
+    const forecastConsumption = this._dailyOperationExtendedArray(
+      forecastConsumptionBase, extension, ["consumption_kwh", "consumption_forecast_kwh"]
+    );
+    const storedActualSoc = this._dailyOperationExtendedArray(storedActualSocBase, [], []);
+    const forecastSoc = this._dailyOperationExtendedArray(
+      forecastSocBase, extension, ["soc_end_pct", "planned_soc_pct", "stored_soc_end_pct"]
+    );
+    const currentFallback = this._dateParts();
+    const fallbackIndex = currentFallback.hour * 4 + Math.floor(currentFallback.minute / 15);
+    const currentIndex = Math.max(0, Math.min(DAILY_OPERATION_BASE_INTERVALS - 1,
+      Math.floor(this._dailyOperationNumber(data.current_index) ?? fallbackIndex)));
+    const currentProgress = this._clamp(
+      this._dailyOperationNumber(data.current_progress) ?? (currentFallback.minute % 15) / 15,
+      0, 1
+    );
+    const recorderSoc = data.local_date && data.local_date === this._dailyOperationSocHistoryDate
+      ? this._dailyOperationSocHistory : null;
+    const actualSoc = Array.from({ length: DAILY_OPERATION_TOTAL_INTERVALS }, (_, index) => {
+      const stored = this._dailyOperationValueAt(storedActualSoc, index);
+      if (stored != null) return stored;
+      return index <= currentIndex ? this._dailyOperationValueAt(recorderSoc, index) : null;
+    });
+    const rawDecision = this._dailyOperationPick(operations, ["grid_charge_decision"]);
+    const actualDecisionBase = this._dailyOperationArray(this._dailyOperationPick(operations, ["actual_grid_charge_decision"]));
+    const plannedDecisionBase = this._dailyOperationArray(this._dailyOperationPick(operations, ["planned_grid_charge_decision"]));
+    let gridDecisionBase = null;
+    if (Array.isArray(rawDecision)) gridDecisionBase = this._dailyOperationArray(rawDecision);
+    else if (rawDecision && typeof rawDecision === "object") {
+      gridDecisionBase = this._dailyOperationArray(rawDecision.values || rawDecision.planned || rawDecision.actual);
+    }
+    const actualDecision = this._dailyOperationExtendedArray(actualDecisionBase, [], []);
+    const plannedDecision = this._dailyOperationExtendedArray(
+      plannedDecisionBase, extension, ["planned_grid_charge_decision", "grid_charge_decision"]
+    );
+    const gridDecision = this._dailyOperationExtendedArray(
+      gridDecisionBase, extension, ["grid_charge_decision", "planned_grid_charge_decision"]
+    );
+    const flags = this._dailyOperationPick(data, ["dst_flags", "local_time_flags"]);
+    const flagArray = Array.from({ length: DAILY_OPERATION_TOTAL_INTERVALS }, (_, index) =>
+      Array.isArray(flags) && index < DAILY_OPERATION_BASE_INTERVALS ? flags[index] : null
+    );
+    const skippedBase = this._dailyOperationArray(this._dailyOperationPick(data, ["dst_skipped"]));
+    const repeatedBase = this._dailyOperationArray(this._dailyOperationPick(data, ["dst_repeated"]));
+    const skipped = this._dailyOperationExtendedArray(skippedBase, [], []);
+    const repeated = this._dailyOperationExtendedArray(repeatedBase, [], []);
+    const extensionHorizon = data.extended_horizon && typeof data.extended_horizon === "object"
+      ? data.extended_horizon : {};
+    const extensionSkipped = Array.isArray(extensionHorizon.dst_skipped)
+      ? extensionHorizon.dst_skipped : [];
+    const extensionRepeated = Array.isArray(extensionHorizon.dst_repeated)
+      ? extensionHorizon.dst_repeated : [];
+    for (let index = 0; index < DAILY_OPERATION_EXTENSION_INTERVALS; index++) {
+      skipped[DAILY_OPERATION_BASE_INTERVALS + index] = extensionSkipped[index] ?? null;
+      repeated[DAILY_OPERATION_BASE_INTERVALS + index] = extensionRepeated[index] ?? null;
+    }
+    const isSkipped = Array.from({ length: DAILY_OPERATION_TOTAL_INTERVALS }, (_, index) =>
+      this._dailyOperationBool(skipped && skipped[index]) || String(flagArray[index] || "").toLowerCase() === "dst_skipped"
+    );
+    const isRepeated = Array.from({ length: DAILY_OPERATION_TOTAL_INTERVALS }, (_, index) =>
+      this._dailyOperationBool(repeated && repeated[index]) || String(flagArray[index] || "").toLowerCase() === "dst_repeated"
+    );
+    const sourceData = data.sources && typeof data.sources === "object" ? data.sources : {};
+    const source = (kind) => {
+      const keys = kind === "solar"
+        ? ["solar_forecast", "solar", "solar_source"]
+        : kind === "consumption"
+          ? ["consumption_forecast", "consumption", "consumption_source"]
+          : ["operation_plan", "plan", "operation_source"];
+      const value = this._dailyOperationPick(sourceData, keys) ?? data[`${kind}_forecast_source`];
+      return value == null ? null : String(value);
+    };
+    const fallbackReason = (kind) => {
+      const value = this._dailyOperationPick(sourceData, kind === "solar"
+        ? ["solar_fallback_reason", "solar_forecast_fallback_reason"]
+        : ["consumption_fallback_reason", "consumption_forecast_fallback_reason"]
+      ) ?? data[`${kind}_fallback_reason`];
+      return value == null || value === "" ? null : String(value);
+    };
+    const operationArray = (keys, extensionKeys = keys) =>
+      this._dailyOperationExtendedArray(
+        pickOperation(keys), extension, extensionKeys
+      );
+    const actualMask = operationArray(["actual_action_mask"], []);
+    const plannedActions = operationArray(
+      ["planned_action_mask"], ["planned_action_mask", "action_mask"]
+    );
+    const actualCoexistence = operationArray(["actual_coexistence_mask"], []);
+    const plannedCoexistence = operationArray(
+      ["planned_coexistence_mask"], ["planned_coexistence_mask", "coexistence_mask"]
+    );
+    const actualContext = operationArray(["actual_context_mask"], []);
+    const plannedContext = operationArray(
+      ["planned_context_mask"], ["planned_context_mask", "context_mask"]
+    );
+    const actualSource = operationArray(["actual_source", "actual_sources"], []);
+    const plannedSource = operationArray(
+      ["planned_source", "planned_sources"], ["planned_source", "source"]
+    );
+    const delayUntil = operationArray(["delay_until", "planned_delay_until"], ["delay_until"]);
+    const chargePower = operationArray(
+      ["charge_power_w", "actual_charge_power_w", "planned_charge_power_w"],
+      ["charge_power_w"]
+    );
+    const dischargePower = operationArray(
+      ["discharge_power_w", "actual_discharge_power_w", "planned_discharge_power_w"],
+      ["discharge_power_w"]
+    );
+    const solarToBattery = operationArray(["solar_to_battery_kwh"], ["solar_to_battery_kwh"]);
+    const gridToBattery = operationArray(["grid_to_battery_kwh"], ["grid_to_battery_kwh"]);
+    const chargeToBattery = operationArray(
+      ["charge_to_battery_kwh"], ["charge_to_battery_kwh"]
+    );
+    const actualChargeToBattery = operationArray(["actual_charge_to_battery_kwh"], []);
+    const plannedChargeToBattery = operationArray(
+      ["planned_charge_to_battery_kwh"], ["charge_to_battery_kwh"]
+    );
+    const dischargeFromBattery = operationArray(
+      ["discharge_from_battery_kwh"], ["discharge_from_battery_kwh"]
+    );
+    const actualDischargeFromBattery = operationArray(["actual_discharge_from_battery_kwh"], []);
+    const plannedDischargeFromBattery = operationArray(
+      ["planned_discharge_from_battery_kwh", "battery_to_home_kwh"],
+      ["discharge_from_battery_kwh", "battery_to_home_kwh"]
+    );
+    const batteryToHome = operationArray(["battery_to_home_kwh"], ["battery_to_home_kwh"]);
+    const storedEnergyEnd = operationArray(
+      ["stored_energy_end_kwh"], ["stored_energy_end_kwh"]
+    );
+    const socEnd = operationArray(
+      ["soc_end_pct", "stored_soc_end_pct"], ["soc_end_pct"]
+    );
+    const realtimeMode = ["real_time", "realtime_price", "realtime"].some((mode) =>
+      String(data.mode || "").toLowerCase().replace(/[- ]/g, "_").includes(mode)
+    );
+    const hasFutureValues = [plannedActions, forecastSolar, forecastConsumption, forecastSoc].some((array) =>
+      Array.isArray(array) && array.slice(currentIndex + 1).some((value) =>
+        this._dailyOperationNumber(value) != null && this._dailyOperationNumber(value) !== 0
+      )
+    );
+    // Operation masks are structurally emitted as 96 zeroes even if the
+    // manager is absent.  A zero-valued energy/SOC sample is still genuine
+    // evidence, but zero masks alone must not make an empty DTO look valid.
+    const hasSeriesEvidence = [actualSolar, forecastSolar, actualConsumption, forecastConsumption, actualSoc, forecastSoc]
+      .some((array) => Array.isArray(array) && array.some((value) => this._dailyOperationNumber(value) != null));
+    const hasActionEvidence = [actualMask, plannedActions]
+      .some((array) => Array.isArray(array) && array.some((value) => (this._dailyOperationNumber(value) || 0) !== 0));
+    const hasValues = data.timeline_available !== false && (hasSeriesEvidence || hasActionEvidence);
+    const hourlyBalanceState = this._stateFor(this._index().byKey, "hourly_balance");
+    return {
+      entityId, stateObj, data, unavailable, hasValues,
+      hourlyBalanceEnabled: Boolean(hourlyBalanceState && hourlyBalanceState.state === "on"),
+      localDate: data.local_date || null,
+      timezone: data.timezone || null,
+      generatedAt: data.generated_at || null,
+      planEvaluatedAt: data.plan_evaluated_at || null,
+      setpointInfo: data.setpoint && typeof data.setpoint === "object" ? data.setpoint : null,
+      delayInfo: data.delay && typeof data.delay === "object" ? data.delay : null,
+      currentIndex, currentProgress,
+      mode: data.mode == null ? null : String(data.mode),
+      stale: this._dailyOperationBool(data.stale),
+      staleReason: data.stale_reason == null ? null : String(data.stale_reason),
+      actualSolar, forecastSolar, actualConsumption, forecastConsumption, actualSoc, forecastSoc,
+      actualMask,
+      plannedMask: plannedActions,
+      actualCoexistence,
+      plannedCoexistence,
+      actualContext,
+      plannedContext,
+      actualSource,
+      plannedSource,
+      gridDecision, actualDecision, plannedDecision,
+      delayUntil,
+      chargePower,
+      dischargePower,
+      coverage: pickSeries(["actual_coverage_s", "coverage_s"]),
+      solarCoverage: pickSeries(["solar_actual_coverage_s", "actual_coverage_s", "coverage_s"]),
+      consumptionCoverage: pickSeries(["consumption_actual_coverage_s", "actual_coverage_s", "coverage_s"]),
+      solarToBattery,
+      gridToBattery,
+      chargeToBattery,
+      actualChargeToBattery,
+      plannedChargeToBattery,
+      dischargeFromBattery,
+      actualDischargeFromBattery,
+      plannedDischargeFromBattery,
+      batteryToHome,
+      storedEnergyEnd,
+      socEnd,
+      observedSeconds: this._dailyOperationPick(operations, [
+        "observed_seconds_by_action_by_interval",
+        "observed_seconds_by_action",
+      ]),
+      isSkipped, isRepeated, source, fallbackReason,
+      realtimeNoFuture: realtimeMode && !hasFutureValues,
+    };
+  }
+
+  _dailyOperationMaskAt(array, index) {
+    if (!Array.isArray(array) || array[index] == null) return null;
+    const value = this._dailyOperationNumber(array[index]);
+    return value == null ? null : value | 0;
+  }
+
+  _dailyOperationValueAt(array, index) {
+    return Array.isArray(array) ? this._dailyOperationNumber(array[index]) : null;
+  }
+
+  _dailyOperationChoiceAt(array, index) {
+    if (!Array.isArray(array) || array[index] == null || array[index] === "") return null;
+    return String(array[index]).toLowerCase();
+  }
+
+  _dailyOperationActionBits(mask) {
+    const value = Number(mask) || 0;
+    return [1, 2, 4].filter((bit) => (value & bit) !== 0);
+  }
+
+  _dailyOperationActionKey(bit) {
+    return bit === 1 ? "solar" : bit === 2 ? "grid" : "discharge";
+  }
+
+  _dailyOperationActionLabel(bit) {
+    return this._t(bit === 1 ? "dailyOperationSolarCharge" : bit === 2 ? "dailyOperationGridCharge" : "dailyOperationDischarge");
+  }
+
+  _dailyOperationStatus(snapshot, index) {
+    if (index < snapshot.currentIndex) return "real";
+    if (index === snapshot.currentIndex) return "current";
+    return "forecast";
+  }
+
+  _dailyOperationStatusLabel(status) {
+    return this._t(status === "real" ? "dailyOperationReal" : status === "current" ? "dailyOperationCurrent" : "dailyOperationForecast");
+  }
+
+  _dailyOperationTimeRange(index) {
+    const start = index * 15;
+    const end = start + 15;
+    const clock = (minutes) => {
+      const absoluteHour = Math.floor(minutes / 60);
+      const dayOffset = Math.floor(absoluteHour / 24);
+      const hour = absoluteHour % 24;
+      const suffix = dayOffset ? ` (+${dayOffset})` : "";
+      return `${String(hour).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}${suffix}`;
+    };
+    return `${clock(start)}–${clock(end)}`;
+  }
+
+  _dailyOperationSourceLabel(value) {
+    if (!value) return null;
+    const normalized = String(value).toLowerCase();
+    const sourceKeys = {
+      provider: "dailyOperationProvider",
+      profile: "dailyOperationConsumptionProfile",
+      legacy_daily: "dailyOperationLegacyDaily",
+      dynamic_schedule: "dailyOperationDynamicSchedule",
+      time_slot: "dailyOperationTimeSlot",
+      profile_projection: "dailyOperationProfileProjection",
+      unavailable: "dailyOperationUnavailable",
+      zero_fallback: "dailyOperationZeroFallback",
+      fallback: "dailyOperationGenericFallback",
+    };
+    if (sourceKeys[normalized]) return this._t(sourceKeys[normalized]);
+    if (normalized.includes("learned")) return this._t("dailyOperationLearned");
+    if (normalized.includes("sinus")) return this._t("dailyOperationSinusoidal");
+    return String(value).replace(/_/g, " ");
+  }
+
+  _dailyOperationSourceIsObserved(value) {
+    if (!value) return true; // Preserve the legacy contract when no per-cell source exists.
+    return !/(?:^|[_ -])(command|unavailable|unknown|error)(?:$|[_ -])/i.test(String(value));
+  }
+
+  _dailyOperationReasonDict() {
+    return DAILY_OPERATION_REASON_I18N[this._lang2()] || DAILY_OPERATION_REASON_I18N.en;
+  }
+
+  _dailyOperationFallbackReasonLabel(value, phase = "during") {
+    const dictionary = this._dailyOperationReasonDict();
+    const labels = String(value || "").split(";").map((part) => part.trim()).filter(Boolean)
+      // A day with no sun left legitimately has no budget and no future energy
+      // in the learned profile. Both are diagnostics only while PV could still
+      // be producing, otherwise every installation warns all night.
+      .filter((part) => {
+        const reason = part.toLowerCase();
+        if (reason === "zero_budget") return phase === "during";
+        if (reason === "learned_shape_no_future_energy") return phase !== "after";
+        return true;
+      })
+      .map((part) => {
+        const normalized = part.toLowerCase();
+        let key = DAILY_OPERATION_REASON_KEYS[normalized];
+        if (!key && normalized.endsWith("_normalization")) key = "normalizationFailed";
+        else if (!key && normalized.startsWith("load:")) key = "loadFailed";
+        else if (!key && normalized.startsWith("save:")) key = "saveFailed";
+        else if (!key && normalized.startsWith("backfill:")) key = "historyUnavailable";
+        else if (!key && normalized.startsWith("profile invalidated")) key = "profileReset";
+        return dictionary[key || "fallbackUnavailable"];
+      });
+    return [...new Set(labels)].join(" · ");
+  }
+
+  _dailyOperationStaleReasonLabel(value) {
+    if (!value) return "";
+    const normalized = String(value).trim().toLowerCase();
+    const dictionary = this._dailyOperationReasonDict();
+    if (normalized === "projection_unavailable") return dictionary.projectionUnavailable;
+    if (normalized.startsWith("projection:")) return dictionary.projectionFailed;
+    if (normalized.startsWith("runtime:")) return dictionary.runtimeFailed;
+    return dictionary.updateFailed;
+  }
+
+  _dailyOperationItem(snapshot, index) {
+    const status = this._dailyOperationStatus(snapshot, index);
+    const actualMask = this._dailyOperationMaskAt(snapshot.actualMask, index);
+    const plannedMask = this._dailyOperationMaskAt(snapshot.plannedMask, index);
+    let mask = status === "forecast" ? plannedMask : actualMask;
+    if (status === "current") {
+      // The tooltip labels this interval as observed, so never merge actions
+      // projected for its remaining minutes into the observed mask.
+      mask = actualMask || 0;
+    }
+    if (snapshot.isSkipped[index]) mask = 0;
+    const contextActual = this._dailyOperationMaskAt(snapshot.actualContext, index);
+    const contextPlanned = this._dailyOperationMaskAt(snapshot.plannedContext, index);
+    let context = status === "forecast" ? contextPlanned : contextActual;
+    if (status === "current") context = contextActual || 0;
+    const decision = this._dailyOperationChoiceAt(snapshot.gridDecision, index) ||
+      (status === "forecast" ? this._dailyOperationChoiceAt(snapshot.plannedDecision, index) : this._dailyOperationChoiceAt(snapshot.actualDecision, index));
+    const operationSource = this._dailyOperationChoiceAt(
+      status === "forecast" ? snapshot.plannedSource : snapshot.actualSource,
+      index
+    );
+    const actionSeconds = {};
+    if (snapshot.observedSeconds && typeof snapshot.observedSeconds === "object") {
+      for (const bit of [1, 2, 4]) {
+        const key = this._dailyOperationActionKey(bit);
+        if (Array.isArray(snapshot.observedSeconds)) {
+          const cellDurations = snapshot.observedSeconds[index] || {};
+          const canonical = key === "solar" ? "solar_charge" : key === "grid" ? "grid_charge" : "discharge";
+          actionSeconds[key] = this._dailyOperationNumber(
+            cellDurations[key] ?? cellDurations[canonical] ?? cellDurations[String(bit)]
+          );
+        } else {
+          const source = snapshot.observedSeconds[key]
+            || snapshot.observedSeconds[`${key}_charge`]
+            || snapshot.observedSeconds[String(bit)];
+          actionSeconds[key] = this._dailyOperationValueAt(source, index);
+        }
+      }
+    }
+    const coexistence = status === "forecast"
+      ? this._dailyOperationMaskAt(snapshot.plannedCoexistence, index)
+      : this._dailyOperationMaskAt(snapshot.actualCoexistence, index);
+    if (status !== "forecast" && this._dailyOperationActionBits(mask).length > 1
+      && this._dailyOperationActionBits((coexistence || 0) & mask).length < 2) {
+      // A quarter-hour mask is a union of every transition. If those actions
+      // were sequential, render the one observed for longest instead of
+      // implying that contradictory flows happened at the same time.
+      const dominant = this._dailyOperationActionBits(mask).reduce((best, bit) => {
+        const key = this._dailyOperationActionKey(bit);
+        const bestKey = this._dailyOperationActionKey(best);
+        return (actionSeconds[key] || 0) > (actionSeconds[bestKey] || 0) ? bit : best;
+      });
+      mask = dominant;
+    }
+    const actions = this._dailyOperationActionBits(mask).map((bit) => this._dailyOperationActionKey(bit));
+    const solar = status === "forecast"
+      ? this._dailyOperationValueAt(snapshot.forecastSolar, index)
+      : this._dailyOperationValueAt(snapshot.actualSolar, index);
+    const consumption = status === "forecast"
+      ? this._dailyOperationValueAt(snapshot.forecastConsumption, index)
+      : this._dailyOperationValueAt(snapshot.actualConsumption, index);
+    const projectedSolarChargePending = status === "current"
+      && ((plannedMask || 0) & 1) !== 0
+      && ((actualMask || 0) & 1) === 0;
+    const solarSurplus = solar != null && consumption != null && solar > consumption + 0.000001;
+    const solarOpportunity = !snapshot.isSkipped[index]
+      && ((mask || 0) & 1) === 0
+      && (projectedSolarChargePending || solarSurplus);
+    const delayState = snapshot.delayInfo && String(snapshot.delayInfo.state || snapshot.delayInfo.status || "").toLowerCase();
+    // Missing means an older payload, which remains compatible. An explicit
+    // false is authoritative and suppresses stale stored boundaries/statuses.
+    const delayEnabled = !snapshot.delayInfo || snapshot.delayInfo.enabled == null
+      || this._dailyOperationBool(snapshot.delayInfo.enabled);
+    const weeklyDelayBypassed = Boolean(snapshot.delayInfo && (
+      snapshot.delayInfo.weekly_full_charge_bypasses_delay === true
+      || delayState.trim() === "skipped - full charge day"
+    ));
+    const topLevelDelay = index === snapshot.currentIndex && (
+      delayState.startsWith("delayed") || [
+        "waiting for solar", "waiting for forecast", "waiting_for_solar", "waiting", "blocked",
+      ].includes(delayState)
+    );
+    const delayUntil = weeklyDelayBypassed
+      ? null
+      : ((Array.isArray(snapshot.delayUntil) ? snapshot.delayUntil[index] : null) ??
+        (topLevelDelay && snapshot.delayInfo ? snapshot.delayInfo.estimated_unlock_time || snapshot.delayInfo.unlock_time : null));
+    // Older payloads could stamp the delay context on every cell merely because
+    // the feature was enabled. Historical/future clocks need a real boundary;
+    // boundary-less waiting states are meaningful only for the current cell.
+    const delay = delayEnabled && !weeklyDelayBypassed
+      && ((delayUntil != null && delayUntil !== "") || topLevelDelay);
+    // Delay blocks energy entering the battery, not the underlying solar
+    // surplus. Keep that opportunity yellow and overlay the clock context;
+    // the absence of a solar action bit keeps the interval out of green.
+    const solarWindow = solarOpportunity;
+    const setpointState = snapshot.setpointInfo && String(snapshot.setpointInfo.state || snapshot.setpointInfo.status || "").toLowerCase();
+    const topLevelSetpoint = index === snapshot.currentIndex && ["charging_to_setpoint", "to_setpoint", "charging"].includes(setpointState);
+    return {
+      index, status, statusLabel: this._dailyOperationStatusLabel(status),
+      timeRange: this._dailyOperationTimeRange(index),
+      mask: mask || 0, actions, solarWindow, context: context || 0,
+      hourlyBalance: snapshot.hourlyBalanceEnabled
+        && ((context || 0) & DAILY_OPERATION_CONTEXT_HOURLY_BALANCE) !== 0,
+      decision,
+      operationSource,
+      observationTrusted: status === "forecast" || this._dailyOperationSourceIsObserved(operationSource),
+      delay, delayUntil: delayUntil == null ? null : String(delayUntil),
+      setpoint: !weeklyDelayBypassed && (((context || 0) & 1) !== 0 || topLevelSetpoint),
+      skipped: snapshot.isSkipped[index], repeated: snapshot.isRepeated[index],
+      solarActual: this._dailyOperationValueAt(snapshot.actualSolar, index),
+      solarForecast: this._dailyOperationValueAt(snapshot.forecastSolar, index),
+      consumptionActual: this._dailyOperationValueAt(snapshot.actualConsumption, index),
+      consumptionForecast: this._dailyOperationValueAt(snapshot.forecastConsumption, index),
+      socActual: this._dailyOperationValueAt(snapshot.actualSoc, index),
+      socForecast: this._dailyOperationValueAt(snapshot.forecastSoc, index),
+      coverage: this._dailyOperationValueAt(snapshot.coverage, index),
+      chargePower: this._dailyOperationValueAt(snapshot.chargePower, index),
+      dischargePower: this._dailyOperationValueAt(snapshot.dischargePower, index),
+      solarToBattery: this._dailyOperationValueAt(snapshot.solarToBattery, index),
+      gridToBattery: this._dailyOperationValueAt(snapshot.gridToBattery, index),
+      chargeToBattery: this._dailyOperationValueAt(
+        status === "forecast" ? snapshot.plannedChargeToBattery : snapshot.actualChargeToBattery,
+        index
+      ) ?? this._dailyOperationValueAt(snapshot.chargeToBattery, index),
+      dischargeFromBattery: this._dailyOperationValueAt(
+        status === "forecast" ? snapshot.plannedDischargeFromBattery : snapshot.actualDischargeFromBattery,
+        index
+      ) ?? this._dailyOperationValueAt(snapshot.dischargeFromBattery, index),
+      batteryToHome: this._dailyOperationValueAt(snapshot.batteryToHome, index),
+      storedEnergyEnd: this._dailyOperationValueAt(snapshot.storedEnergyEnd, index),
+      socEnd: this._dailyOperationValueAt(snapshot.socEnd, index),
+      actionSeconds,
+    };
+  }
+
+  _dailyOperationEscape(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;",
+    }[character]));
+  }
+
+  _dailyOperationFormatKwh(value) {
+    return value == null ? "—" : `${this._nf(value, 3)} kWh`;
+  }
+
+  _dailyOperationFormatPower(value) {
+    return value == null ? "—" : `${this._nf(value, 0)} W`;
+  }
+
+  _dailyOperationDecisionLabel(decision) {
+    if (!decision) return null;
+    if (decision === "not_needed") return this._t("dailyOperationNotNeeded");
+    if (decision === "not_applicable") return this._t("dailyOperationNoAction");
+    if (decision === "unknown") return this._t("dailyOperationUnknown");
+    return decision.replace(/_/g, " ");
+  }
+
+  _dailyOperationAriaLabel(snapshot, item) {
+    const parts = [item.timeRange, item.statusLabel];
+    if (item.skipped) parts.push(this._t("dailyOperationDSTSkipped"));
+    if (item.repeated) parts.push(this._t("dailyOperationDSTRepeated"));
+    if (item.solarActual != null) parts.push(`${this._t("dailyOperationSolar")} (${this._t("dailyOperationReal")}): ${this._dailyOperationFormatKwh(item.solarActual)}`);
+    if (item.solarForecast != null) parts.push(`${this._t("dailyOperationSolar")} (${this._t("dailyOperationForecast")}): ${this._dailyOperationFormatKwh(item.solarForecast)}`);
+    if (item.consumptionActual != null) parts.push(`${this._t("dailyOperationConsumption")} (${this._t("dailyOperationReal")}): ${this._dailyOperationFormatKwh(item.consumptionActual)}`);
+    if (item.consumptionForecast != null) parts.push(`${this._t("dailyOperationConsumption")} (${this._t("dailyOperationForecast")}): ${this._dailyOperationFormatKwh(item.consumptionForecast)}`);
+    if (item.socActual != null) parts.push(`${this._t("dailyOperationSoc")} (${this._t("dailyOperationReal")}): ${this._nf(item.socActual, 1)} %`);
+    if (item.socForecast != null) parts.push(`${this._t("dailyOperationSoc")} (${this._t("dailyOperationForecast")}): ${this._nf(item.socForecast, 1)} %`);
+    if (item.coverage != null) parts.push(`${this._t("dailyOperationCoverage")}: ${Math.round(item.coverage)} s`);
+    if (item.actions.length) {
+      const actionKind = item.status === "forecast"
+        ? this._t("dailyOperationPlan")
+        : item.observationTrusted ? this._t("dailyOperationObserved") : this._t("dailyOperationSource");
+      parts.push(`${actionKind}: ${item.actions.map((key) => this._dailyOperationActionLabel(key === "solar" ? 1 : key === "grid" ? 2 : 4)).join(", ")}`);
+    }
+    else if (item.solarWindow) parts.push(this._t("dailyOperationSolarWindow"));
+    else if (item.decision === "not_needed") parts.push(this._t("dailyOperationNotNeeded"));
+    else parts.push(this._t("dailyOperationNoAction"));
+    if (!item.observationTrusted && item.operationSource) {
+      parts.push(`${this._t("dailyOperationSource")}: ${this._dailyOperationSourceLabel(item.operationSource)}`);
+    }
+    if (item.hourlyBalance) {
+      parts.push(`${this._t("dailyOperationCause")}: ${this._t("dailyOperationHourlyBalance")}`);
+    }
+    if (item.chargePower != null) parts.push(`${this._t("dailyOperationGridCharge")}: ${this._dailyOperationFormatPower(item.chargePower)}`);
+    if (item.dischargePower != null) parts.push(`${this._t("dailyOperationDischarge")}: ${this._dailyOperationFormatPower(item.dischargePower)}`);
+    if (item.solarToBattery != null) parts.push(`${this._t("dailyOperationSolarCharge")}: ${this._dailyOperationFormatKwh(item.solarToBattery)}`);
+    if (item.gridToBattery != null) parts.push(`${this._t("dailyOperationGridCharge")}: ${this._dailyOperationFormatKwh(item.gridToBattery)}`);
+    if (item.chargeToBattery != null && item.actions.some((action) => action === "solar" || action === "grid")) {
+      parts.push(`${this._t("dailyOperationEnergyToBattery")}: ${this._dailyOperationFormatKwh(item.chargeToBattery)}`);
+    }
+    if (item.dischargeFromBattery != null && item.actions.includes("discharge")) {
+      parts.push(`${this._t("dailyOperationEnergyFromBattery")}: ${this._dailyOperationFormatKwh(item.dischargeFromBattery)}`);
+    }
+    if (item.batteryToHome != null && item.dischargeFromBattery == null) {
+      parts.push(`${this._t("dailyOperationDischarge")}: ${this._dailyOperationFormatKwh(item.batteryToHome)}`);
+    }
+    for (const action of item.actions) {
+      if (item.actionSeconds[action] != null) parts.push(`${this._t("dailyOperationObserved")} · ${this._dailyOperationActionLabel(action === "solar" ? 1 : action === "grid" ? 2 : 4)}: ${Math.round(item.actionSeconds[action])} s`);
+    }
+    if (item.decision) parts.push(`${this._t("dailyOperationMode")}: ${this._dailyOperationDecisionLabel(item.decision)}`);
+    if (item.setpoint) parts.push(this._t("dailyOperationSetpoint"));
+    if (item.delay) {
+      parts.push(item.delayUntil ? this._t("dailyOperationUnlock", { time: item.delayUntil }) : this._t("dailyOperationDelay"));
+    }
+    if (item.socEnd != null) parts.push(`SOC: ${this._nf(item.socEnd, 1)} %`);
+    const solarSource = this._dailyOperationSourceLabel(snapshot.source("solar"));
+    const consumptionSource = this._dailyOperationSourceLabel(snapshot.source("consumption"));
+    const planSource = this._dailyOperationSourceLabel(snapshot.source("plan"));
+    if (solarSource) parts.push(`${this._t("dailyOperationSolar")} · ${this._t("dailyOperationSource")}: ${solarSource}`);
+    if (consumptionSource) parts.push(`${this._t("dailyOperationConsumption")} · ${this._t("dailyOperationSource")}: ${consumptionSource}`);
+    if (planSource) parts.push(`${this._t("dailyOperationPlan")} · ${this._t("dailyOperationSource")}: ${planSource}`);
+    if (snapshot.planEvaluatedAt) parts.push(`${this._t("dailyOperationPlan")}: ${snapshot.planEvaluatedAt}`);
+    if (snapshot.generatedAt) parts.push(`${this._t("dailyOperationSource")}: ${snapshot.generatedAt}`);
+    if (snapshot.stale) {
+      const staleReason = this._dailyOperationStaleReasonLabel(snapshot.staleReason);
+      parts.push(staleReason ? `${this._t("dailyOperationStale")}: ${staleReason}` : this._t("dailyOperationStale"));
+    }
+    return parts.join(". ");
+  }
+
+  _dailyOperationTooltipHTML(snapshot, item) {
+    const escape = (value) => this._dailyOperationEscape(value);
+    const row = (label, value) => `<div class="daily-op-tip-row"><span>${escape(label)}</span><strong>${escape(value)}</strong></div>`;
+    const rows = [];
+    const useForecast = item.status === "forecast";
+    const solar = useForecast ? item.solarForecast : item.solarActual;
+    const consumption = useForecast ? item.consumptionForecast : item.consumptionActual;
+    const soc = useForecast ? item.socForecast : item.socActual;
+    if (solar != null) rows.push(row(this._t("dailyOperationSolar"), this._dailyOperationFormatKwh(solar)));
+    if (consumption != null) rows.push(row(this._t("dailyOperationConsumption"), this._dailyOperationFormatKwh(consumption)));
+    if (soc != null) rows.push(row(this._t("dailyOperationSoc"), `${this._nf(soc, 1)} %`));
+    const actionLabels = item.actions.length
+      ? item.actions.map((key) => this._dailyOperationActionLabel(key === "solar" ? 1 : key === "grid" ? 2 : 4)).join(", ")
+      : item.solarWindow ? this._t("dailyOperationSolarWindow")
+        : item.decision === "not_needed" ? this._t("dailyOperationNotNeeded") : this._t("dailyOperationNoAction");
+    const actionKind = useForecast
+      ? this._t("dailyOperationPlan")
+      : item.observationTrusted ? this._t("dailyOperationObserved") : this._t("dailyOperationSource");
+    rows.push(row(actionKind, actionLabels));
+    if (!item.observationTrusted && item.operationSource) {
+      rows.push(row(this._t("dailyOperationSource"), this._dailyOperationSourceLabel(item.operationSource)));
+    }
+    if (item.hourlyBalance) {
+      rows.push(row(this._t("dailyOperationCause"), this._t("dailyOperationHourlyBalance")));
+    }
+    if (item.chargeToBattery != null && item.actions.some((action) => action === "solar" || action === "grid")) {
+      rows.push(row(this._t("dailyOperationEnergyToBattery"), this._dailyOperationFormatKwh(item.chargeToBattery)));
+    }
+    if (item.dischargeFromBattery != null && item.actions.includes("discharge")) {
+      rows.push(row(this._t("dailyOperationEnergyFromBattery"), this._dailyOperationFormatKwh(item.dischargeFromBattery)));
+    }
+    if (item.setpoint) rows.push(row(this._t("dailyOperationMode"), this._t("dailyOperationSetpoint")));
+    if (item.delay) rows.push(row(this._t("dailyOperationDelay"), item.delayUntil ? this._t("dailyOperationUnlock", { time: item.delayUntil }) : this._t("dailyOperationDelay")));
+    if (item.repeated) rows.push(row(this._t("dailyOperationDSTRepeated"), this._t("dailyOperationDSTRepeated")));
+    return `<div class="daily-op-tip-head"><strong>${escape(item.timeRange)}</strong><span>${escape(item.statusLabel)}</span></div>` + rows.join("");
+  }
+
+  _showDailyOperationTooltip(index, cell) {
+    const ref = this._r.dailyOperation;
+    const snapshot = this._dailyOperationSnapshot;
+    if (!ref || !snapshot || snapshot.unavailable) return;
+    const item = this._dailyOperationItem(snapshot, index);
+    if (this._dailyOpTooltipCell && this._dailyOpTooltipCell !== cell) {
+      this._dailyOpTooltipCell.removeAttribute("aria-describedby");
+    }
+    ref.tooltip.innerHTML = this._dailyOperationTooltipHTML(snapshot, item);
+    ref.tooltip.hidden = false;
+    ref.tooltip.setAttribute("aria-label", this._dailyOperationAriaLabel(snapshot, item));
+    cell.setAttribute("aria-describedby", ref.tooltip.id);
+    this._dailyOpTooltipCell = cell;
+    const cellRect = cell.getBoundingClientRect();
+    const tipWidth = ref.tooltip.offsetWidth || 250;
+    const tipHeight = ref.tooltip.offsetHeight || 100;
+    const visualViewport = window.visualViewport;
+    const viewportLeft = visualViewport ? visualViewport.offsetLeft : 0;
+    const viewportTop = visualViewport ? visualViewport.offsetTop : 0;
+    const viewportRight = viewportLeft + (visualViewport ? visualViewport.width : window.innerWidth);
+    const viewportBottom = viewportTop + (visualViewport ? visualViewport.height : window.innerHeight);
+    let left = cellRect.left + cellRect.width / 2 - tipWidth / 2;
+    const above = cellRect.top - tipHeight - 8;
+    const below = cellRect.bottom + 8;
+    let top = above >= viewportTop + 8 ? above
+      : below + tipHeight <= viewportBottom - 8 ? below
+        : this._clamp(above, viewportTop + 8, Math.max(viewportTop + 8, viewportBottom - tipHeight - 8));
+    left = this._clamp(left, viewportLeft + 8, Math.max(viewportLeft + 8, viewportRight - tipWidth - 8));
+    ref.tooltip.style.left = `${left}px`;
+    ref.tooltip.style.top = `${top}px`;
+  }
+
+  _hideDailyOperationTooltip() {
+    const ref = this._r.dailyOperation;
+    if (!ref) return;
+    ref.tooltip.hidden = true;
+    ref.tooltip.removeAttribute("aria-label");
+    if (this._dailyOpTooltipCell) {
+      this._dailyOpTooltipCell.removeAttribute("aria-describedby");
+      this._dailyOpTooltipCell = null;
+    }
+  }
+
+  _scrollDailyOperation(direction) {
+    const ref = this._r.dailyOperation;
+    if (!ref) return;
+    ref.scrollState.manual = true;
+    const amount = Math.max(160, ref.viewport.clientWidth * 0.72);
+    if (typeof ref.viewport.scrollBy === "function") {
+      ref.viewport.scrollBy({ left: direction * amount, behavior: "smooth" });
+    } else {
+      ref.viewport.scrollLeft += direction * amount;
+    }
+  }
+
+  _centerDailyOperationNow(snapshot) {
+    const ref = this._r.dailyOperation;
+    if (!ref || ref.scrollState.initialized || ref.scrollState.manual) return;
+    const center = () => {
+      if (ref.scrollState.initialized || ref.scrollState.manual) return;
+      if (!ref.viewport.clientWidth) return;
+      const hourWidth = ref.stage.scrollWidth / DAILY_OPERATION_TOTAL_HOURS;
+      const target = snapshot.currentIndex / 4 * hourWidth - (ref.viewport.clientWidth - hourWidth) / 2;
+      // Keep the optional post-midnight extension outside the initial view.
+      // The existing navigation buttons are the deliberate way to reveal it.
+      const baseEnd = ref.stage.scrollWidth * DAILY_OPERATION_BASE_INTERVALS / DAILY_OPERATION_TOTAL_INTERVALS;
+      const baseMax = Math.max(0, baseEnd - ref.viewport.clientWidth);
+      ref.scrollState.programmaticUntil = Date.now() + 250;
+      ref.viewport.scrollLeft = Math.max(0, Math.min(baseMax, target));
+      ref.scrollState.initialized = true;
+      this._updateDailyOperationNav();
+    };
+    if (ref.viewport.clientWidth) center();
+    else if (typeof requestAnimationFrame === "function") requestAnimationFrame(center);
+  }
+
+  _updateDailyOperationNav() {
+    const ref = this._r.dailyOperation;
+    if (!ref) return;
+    const max = Math.max(0, ref.viewport.scrollWidth - ref.viewport.clientWidth);
+    ref.previous.disabled = ref.viewport.scrollLeft <= 2;
+    ref.next.disabled = ref.viewport.scrollLeft >= max - 2;
+  }
+
+  _dailyOperationPlotValues(values, coverage, snapshot, future) {
+    if (!Array.isArray(values)) return values;
+    const plotted = values.slice();
+    if (future) return plotted;
+    const index = snapshot.currentIndex;
+    const value = this._dailyOperationNumber(plotted[index]);
+    const seconds = this._dailyOperationValueAt(coverage, index);
+    const previous = this._dailyOperationValueAt(plotted, index - 1);
+    // The live capture contains energy accumulated so far, so the open cell
+    // has to be completed before it is comparable with the closed 15-minute
+    // cells. Scaling it (value * 900 / seconds) divides by a small number
+    // early in the quarter: an energy sensor that reports every 30 s leaves
+    // ~0 kWh over the first minute, which collapsed the point and made the
+    // forecast hand-off read as a spike -- and dropping it below a minute
+    // punched a 30-minute hole straddling the now marker. Complete it from
+    // the previous closed quarter instead: energy already seen plus that
+    // quarter's share of the time still to come. Continuous at both ends
+    // (all of `previous` at 0 s, all of `value` at 900 s), no small divisor.
+    if (seconds != null && seconds < 900 && (value != null || previous != null)) {
+      plotted[index] = (value ?? 0) + (previous ?? 0) * (900 - seconds) / 900;
+    }
+    return plotted;
+  }
+
+  _dailyOperationForecastPlotValues(values, actual, snapshot) {
+    if (!Array.isArray(values)) return values;
+    const plotted = values.slice();
+    const index = snapshot.currentIndex;
+    const observed = this._dailyOperationValueAt(actual, index);
+    // The projection for the open quarter contains only its remaining energy,
+    // while the observed series is plotted as a complete quarter. Do not put
+    // those different quantities at the same "now" coordinate: use the
+    // observed point as the visual hand-off and keep forecast data unchanged
+    // from the next interval onward. Without an observed point the open cell
+    // is dropped as well, so the forecast never draws its partial remainder
+    // at the now marker.
+    if (!snapshot.isSkipped[index]) plotted[index] = observed;
+    return plotted;
+  }
+
+  // Where the local day sits relative to observed PV: "before" until the first
+  // production, "during" while it can still produce, "after" once a sustained
+  // run of covered zero intervals says it has stopped. A provider curve can
+  // remain optimistic past that point, and several fallback reasons only
+  // describe the ordinary state of a day with no sun left.
+  // ponytail: clock-blind, so an outage longer than the run still reads as
+  // sunset; the real fix is a sunset timestamp in the payload.
+  _dailyOperationSolarPhase(snapshot) {
+    const actual = snapshot.actualSolar;
+    if (!Array.isArray(actual)) return "before";
+    const index = snapshot.currentIndex;
+    // The open cell is not evidence until it has a minute of coverage, so step
+    // over it rather than letting it break the run every quarter of an hour.
+    const openCoverage = this._dailyOperationValueAt(snapshot.solarCoverage, index);
+    const last = openCoverage != null && openCoverage >= 60 ? index : index - 1;
+    const produced = actual
+      .slice(0, Math.max(0, last + 1))
+      .some((value) => (this._dailyOperationNumber(value) || 0) > 0.000001);
+    if (!produced) return "before";
+    let zeroIntervals = 0;
+    for (let cursor = last; cursor >= 0; cursor--) {
+      const sample = this._dailyOperationValueAt(actual, cursor);
+      const coverage = this._dailyOperationValueAt(snapshot.solarCoverage, cursor);
+      if (sample == null || coverage == null || coverage < 60 || sample > 0.000001) break;
+      zeroIntervals++;
+    }
+    return zeroIntervals >= DAILY_OPERATION_SUNSET_ZERO_INTERVALS ? "after" : "during";
+  }
+
+  _dailyOperationSolarForecastPlotValues(values, actual, snapshot) {
+    const plotted = this._dailyOperationForecastPlotValues(values, actual, snapshot);
+    if (!Array.isArray(plotted)) return plotted;
+    if (this._dailyOperationSolarPhase(snapshot) !== "after") return plotted;
+
+    // Keep the optional next-day extension intact; only today's impossible
+    // post-sunset forecast is removed from the graph.
+    for (let cursor = snapshot.currentIndex + 1; cursor < DAILY_OPERATION_BASE_INTERVALS; cursor++) {
+      plotted[cursor] = null;
+    }
+    return plotted;
+  }
+
+  _dailyOperationVisibleRange() {
+    const ref = this._r.dailyOperation;
+    if (!ref || !ref.stage.scrollWidth || !ref.viewport.clientWidth) {
+      return [0, DAILY_OPERATION_BASE_INTERVALS - 1];
+    }
+    const scale = DAILY_OPERATION_TOTAL_INTERVALS / ref.stage.scrollWidth;
+    const start = Math.max(0, Math.floor(ref.viewport.scrollLeft * scale) - 1);
+    const end = Math.min(
+      DAILY_OPERATION_TOTAL_INTERVALS - 1,
+      Math.ceil((ref.viewport.scrollLeft + ref.viewport.clientWidth) * scale) + 1,
+    );
+    return [start, end];
+  }
+
+  _scheduleDailyOperationPathRefresh() {
+    if (this._dailyOperationPathRefreshPending) return;
+    const refresh = () => {
+      this._dailyOperationPathRefreshPending = false;
+      if (this._dailyOperationSnapshot) {
+        this._dailyOperationUpdatePaths(this._dailyOperationSnapshot);
+      }
+    };
+    this._dailyOperationPathRefreshPending = true;
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(refresh);
+    else refresh();
+  }
+
+  _dailyOperationPath(values, snapshot, yMax, future) {
+    if (!Array.isArray(values)) return "";
+    const top = 32, bottom = 164;
+    const y = (value) => bottom - (this._clamp(value, 0, yMax) / yMax) * (bottom - top);
+    const parts = [];
+    let segment = [];
+    const flush = () => {
+      if (segment.length) parts.push(segment.join(" "));
+      segment = [];
+    };
+    values.forEach((value, index) => {
+      const number = this._dailyOperationNumber(value);
+      const inRange = future ? index >= snapshot.currentIndex : index <= snapshot.currentIndex;
+      if (snapshot.isSkipped[index] || number == null || !inRange) {
+        flush();
+        return;
+      }
+      const x = (index === snapshot.currentIndex ? index + snapshot.currentProgress : index + 0.5) * 10;
+      segment.push(`${segment.length ? "L" : "M"}${x.toFixed(2)},${y(number).toFixed(2)}`);
+    });
+    flush();
+    return parts.join(" ");
+  }
+
+  _dailyOperationUpdatePaths(snapshot) {
+    const ref = this._r.dailyOperation;
+    if (!ref) return;
+    const actualSolar = this._dailyOperationPlotValues(snapshot.actualSolar, snapshot.solarCoverage, snapshot, false);
+    const actualConsumption = this._dailyOperationPlotValues(snapshot.actualConsumption, snapshot.consumptionCoverage, snapshot, false);
+    const forecastSolar = this._dailyOperationSolarForecastPlotValues(snapshot.forecastSolar, actualSolar, snapshot);
+    const forecastConsumption = this._dailyOperationForecastPlotValues(snapshot.forecastConsumption, actualConsumption, snapshot);
+    const projectedSoc = Array.isArray(snapshot.forecastSoc) ? snapshot.forecastSoc.slice() : snapshot.forecastSoc;
+    const currentSoc = this._dailyOperationValueAt(snapshot.actualSoc, snapshot.currentIndex);
+    if (Array.isArray(projectedSoc) && currentSoc != null) projectedSoc[snapshot.currentIndex] = currentSoc;
+    const values = [actualSolar, forecastSolar, actualConsumption, forecastConsumption];
+    const [visibleStart, visibleEnd] = this._dailyOperationVisibleRange();
+    const yMax = Math.max(0.1, ...values.flatMap((array) => Array.isArray(array)
+      ? array.slice(visibleStart, visibleEnd + 1)
+        .map((value) => this._dailyOperationNumber(value))
+        .filter((value) => value != null)
+      : []
+    )) * 1.12;
+    ref.yAxis.innerHTML =
+      `<small>${this._t("dailyOperationAxis")}</small>` +
+      `<div class="daily-op-yaxis-ticks">` +
+      [yMax, yMax * 0.75, yMax * 0.5, yMax * 0.25, 0]
+        .map((value) => `<span>${this._nf(value, 2)}</span>`).join("") +
+      `</div>`;
+    const pathValues = [
+      [ref.paths.solarActual, actualSolar, false],
+      [ref.paths.solarForecast, forecastSolar, true],
+      [ref.paths.consumptionActual, actualConsumption, false],
+      [ref.paths.consumptionForecast, forecastConsumption, true],
+    ];
+    for (const [path, series, future] of pathValues) {
+      const d = this._dailyOperationPath(series, snapshot, yMax, future);
+      path.setAttribute("d", d);
+      path.style.display = d ? "" : "none";
+    }
+    const socPaths = [
+      [ref.paths.socActual, snapshot.actualSoc, false],
+      [ref.paths.socForecast, projectedSoc, true],
+    ];
+    for (const [path, series, future] of socPaths) {
+      const d = this._dailyOperationPath(series, snapshot, 100, future);
+      path.setAttribute("d", d);
+      path.style.display = d ? "" : "none";
+    }
+    const now = (snapshot.currentIndex + snapshot.currentProgress) * 10;
+    ref.nowMarker.style.left = `${now / (DAILY_OPERATION_TOTAL_INTERVALS * 0.1)}%`;
+    ref.nowText.textContent = this._t("dailyOperationNow");
+  }
+
+  _dailyOperationUpdateCell(snapshot, index) {
+    const ref = this._r.dailyOperation;
+    const cell = ref.cells[index];
+    const item = this._dailyOperationItem(snapshot, index);
+    // A solar window is the background opportunity. If another action (for
+    // example a small discharge) overlaps it, keep the yellow window visible
+    // and render the action as a hatch instead of replacing the window with
+    // the action's solid colour.
+    const baseAction = item.solarWindow
+      ? "solar-window"
+      : item.actions[0] || (item.decision === "not_needed" ? "not-needed" : "neutral");
+    cell.className = `daily-op-cell daily-op-base-${baseAction}`;
+    cell.classList.toggle("daily-op-real", item.status === "real");
+    cell.classList.toggle("daily-op-current", item.status === "current");
+    cell.classList.toggle("daily-op-forecast", item.status === "forecast");
+    cell.classList.toggle("daily-op-delay", item.delay);
+    cell.classList.toggle("daily-op-setpoint", item.setpoint);
+    cell.classList.toggle("daily-op-hourly-balance", item.hourlyBalance);
+    cell.classList.toggle("daily-op-dst-skipped", item.skipped);
+    cell.classList.toggle("daily-op-dst-repeated", item.repeated);
+    cell.classList.toggle("daily-op-stale", snapshot.stale && item.status === "forecast");
+    const actionColor = {
+      solar: "var(--daily-op-solar-charge)",
+      grid: "var(--daily-op-grid)",
+      discharge: "var(--daily-op-discharge)",
+    };
+    // SVG paint servers cannot be used as CSS backgrounds on HTML buttons.
+    // Layer native CSS gradients instead: the base action keeps its fill and
+    // each simultaneous action is always visible as an alternating hatch.
+    const patternActions = item.solarWindow ? item.actions : item.actions.slice(1, 3);
+    const patterns = patternActions.map((action, patternIndex) =>
+      `repeating-linear-gradient(${patternIndex ? "45deg" : "135deg"}, transparent 0 4px, color-mix(in oklab, ${actionColor[action]} var(--daily-op-shade-opacity), transparent) 4px 6px)`
+    );
+    cell.style.backgroundImage = patterns.join(", ") || "none";
+    cell.setAttribute("aria-label", this._dailyOperationAriaLabel(snapshot, item));
+    cell.removeAttribute("title");
+    const delayMark = cell.querySelector(".daily-op-delay-mark");
+    const setpointMark = cell.querySelector(".daily-op-setpoint-mark");
+    delayMark.hidden = !item.delay;
+    setpointMark.hidden = !item.setpoint;
+  }
+
+  _patchDailyOperationTimeline() {
+    const ref = this._r.dailyOperation;
+    if (!ref) return;
+    const snapshot = this._dailyOperationState();
+    this._dailyOperationSnapshot = snapshot;
+    if (!snapshot) {
+      ref.card.hidden = true;
+      this._hideDailyOperationTooltip();
+      return;
+    }
+    const dayChanged = ref.localDate != null && snapshot.localDate != null
+      && ref.localDate !== snapshot.localDate;
+    ref.localDate = snapshot.localDate;
+    if (dayChanged) {
+      ref.scrollState.manual = false;
+      ref.scrollState.initialized = false;
+      ref.scrollState.programmaticUntil = Date.now() + 250;
+      ref.viewport.scrollLeft = 0;
+      this._dailyOpPinnedIndex = null;
+      this._hideDailyOperationTooltip();
+    }
+    ref.card.hidden = false;
+    ref.hourlyBalanceLegend.hidden = !snapshot.hourlyBalanceEnabled;
+    const badgeText = `${this._t("dailyOperationReal")} / ${this._t("dailyOperationForecast")}`;
+    ref.badge.querySelector("span:last-child").textContent = badgeText;
+    ref.badge.classList.toggle("daily-op-badge-stale", snapshot.stale);
+    const notices = [];
+    if (snapshot.unavailable || !snapshot.hasValues) notices.push(this._t("dailyOperationNoData"));
+    if (snapshot.stale) {
+      const staleReason = this._dailyOperationStaleReasonLabel(snapshot.staleReason);
+      notices.push(staleReason ? `${this._t("dailyOperationStale")}: ${staleReason}` : this._t("dailyOperationStale"));
+    }
+    const solarPhase = this._dailyOperationSolarPhase(snapshot);
+    for (const kind of ["solar", "consumption"]) {
+      const reason = snapshot.fallbackReason(kind);
+      const reasonLabel = this._dailyOperationFallbackReasonLabel(reason, solarPhase);
+      if (reasonLabel) notices.push(this._t("dailyOperationFallback", { reason: reasonLabel }));
+      const source = snapshot.source(kind);
+      if (!reason && source && /fallback|sinus/i.test(source)) {
+        notices.push(this._t("dailyOperationFallback", { reason: this._dailyOperationSourceLabel(source) }));
+      }
+    }
+    if (snapshot.realtimeNoFuture) notices.push(this._t("dailyOperationRealtimeNoFuture"));
+    ref.notice.textContent = notices.join(" · ");
+    ref.notice.hidden = !notices.length;
+    ref.viewport.setAttribute("aria-label", `${this._t("dailyOperationTitle")}. ${badgeText}`);
+    for (let index = 0; index < DAILY_OPERATION_TOTAL_INTERVALS; index++) this._dailyOperationUpdateCell(snapshot, index);
+    this._dailyOperationUpdatePaths(snapshot);
+    this._centerDailyOperationNow(snapshot);
+    this._updateDailyOperationNav();
+    if (this._dailyOpPinnedIndex != null) {
+      const cell = ref.cells[this._dailyOpPinnedIndex];
+      if (cell) this._showDailyOperationTooltip(this._dailyOpPinnedIndex, cell);
+    }
   }
 
   // ----- Flow card -----
@@ -1952,7 +3783,7 @@ class MarstekVenusPanel extends HTMLElement {
   _isDaytime() {
     const sun = this._hass && this._hass.states && this._hass.states["sun.sun"];
     if (sun) return sun.state !== "below_horizon";
-    const h = new Date().getHours();
+    const h = this._localHour();
     return h >= 7 && h < 20;
   }
 
@@ -2086,7 +3917,7 @@ class MarstekVenusPanel extends HTMLElement {
     const body = document.createElement("div");
     body.className = "daily-body";
     const bar = (cls, label, color) => `
-      <div class="daily-row">
+      <div class="daily-row daily-row-${cls}">
         <div class="daily-head"><span class="muted">${label}</span>
           <span class="num daily-${cls}-v">—<span class="dim" style="font-size:11px"> kWh</span></span></div>
         <div class="socbar"><span class="daily-${cls}-bar" style="background:${color}"></span></div>
@@ -2097,7 +3928,10 @@ class MarstekVenusPanel extends HTMLElement {
       bar("sol", this._t("solar"), "var(--solar)") +
       bar("home", this._t("home"), "var(--home)") +
       bar("imp", this._t("gridImport"), "var(--flow-purple)") +
-      bar("exp", this._t("gridExport"), "var(--flow-orange)");
+      bar("exp", this._t("gridExport"), "var(--flow-orange)") +
+      bar("forecast", this._t("forecastToday"), "var(--solar)") +
+      bar("remaining", this._t("solarRemaining"), "var(--solar)") +
+      bar("expected", this._t("expectedConsumption"), "var(--home)");
     card.appendChild(body);
     const rows = body.querySelectorAll(".daily-row");
     // click an energy row -> more-info (history graph)
@@ -2107,6 +3941,9 @@ class MarstekVenusPanel extends HTMLElement {
     this._linkMoreInfo(rows[3], this._sysEntityId(K.sysDailyHome));
     this._linkMoreInfo(rows[4], this._sysEntityId(K.sysDailyGridImport));
     this._linkMoreInfo(rows[5], this._sysEntityId(K.sysDailyGridExport));
+    this._linkMoreInfo(rows[6], this._sysEntityId(K.predictiveActive));
+    this._linkMoreInfo(rows[7], this._sysEntityId(K.predictiveActive));
+    this._linkMoreInfo(rows[8], this._sysEntityId(K.consumptionProfile));
     this._r.dChV = body.querySelector(".daily-ch-v");
     this._r.dChBar = body.querySelector(".daily-ch-bar");
     this._r.dDisV = body.querySelector(".daily-dis-v");
@@ -2123,6 +3960,15 @@ class MarstekVenusPanel extends HTMLElement {
     this._r.dExpRow = rows[5];
     this._r.dExpV = body.querySelector(".daily-exp-v");
     this._r.dExpBar = body.querySelector(".daily-exp-bar");
+    this._r.dForecastRow = rows[6];
+    this._r.dForecastV = body.querySelector(".daily-forecast-v");
+    this._r.dForecastBar = body.querySelector(".daily-forecast-bar");
+    this._r.dRemainingRow = rows[7];
+    this._r.dRemainingV = body.querySelector(".daily-remaining-v");
+    this._r.dRemainingBar = body.querySelector(".daily-remaining-bar");
+    this._r.dExpectedRow = rows[8];
+    this._r.dExpectedV = body.querySelector(".daily-expected-v");
+    this._r.dExpectedBar = body.querySelector(".daily-expected-bar");
     return card;
   }
 
@@ -2185,9 +4031,7 @@ class MarstekVenusPanel extends HTMLElement {
       return;
     }
     // SOC samples are evenly spaced from 00:00 → now; map an original index → clock.
-    const mid = new Date();
-    mid.setHours(0, 0, 0, 0);
-    const startS = mid.getTime() / 1000;
+    const startS = this._dayStartEpoch() / 1000;
     const elapsed = Date.now() / 1000 - startS;
     const fullLast = full.length - 1;
     const clockOf = (origIdx) => startS + (fullLast > 0 ? origIdx / fullLast : 0) * elapsed;
@@ -2286,10 +4130,15 @@ class MarstekVenusPanel extends HTMLElement {
   }
 
   // ----- Chart hover readout (crosshair + value tooltip) -----------------
-  /** Local clock "HH:MM" for an epoch-seconds value. */
+  /** Profile-formatted local clock for an epoch-seconds value. */
   _fmtClock(s) {
     if (s == null) return "";
-    return new Date(s * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(s * 1000).toLocaleTimeString(
+      this._lang(), this._dateTimeOptions({
+        hour: this._useAmPm() ? "numeric" : "2-digit",
+        minute: "2-digit",
+      })
+    );
   }
 
   /** Attach a hover readout to a STABLE element (the .chart-plot or .mini-spark
@@ -2470,11 +4319,11 @@ class MarstekVenusPanel extends HTMLElement {
     const fullSeries = avail.map((d) => ({ color: d.color, data: ps[d.key].map((v) => (v == null ? 0 : v)) }));
     // Anchor each sample to its real time-of-day so a partial day (e.g. 03:00)
     // only fills the left of the fixed 00–24 axis instead of stretching across it.
-    const dayStart = new Date();
-    dayStart.setHours(0, 0, 0, 0);
-    const startS = dayStart.getTime() / 1000;
+    const startS = this._dayStartEpoch() / 1000;
+    const endS = this._dayStartEpoch(1) / 1000;
+    const daySpan = endS - startS;
     const t = Array.isArray(ps.t) ? ps.t : null;
-    const fullXs = t && t.length ? t.map((ts) => (ts - startS) / 86400) : null;
+    const fullXs = t && t.length ? t.map((ts) => (ts - startS) / daySpan) : null;
 
     // apply the active zoom window (fraction of the 24 h day), if set
     const z = plot.__zoom;
@@ -2511,7 +4360,7 @@ class MarstekVenusPanel extends HTMLElement {
       decimals: 2,
       xLabel: (i) => (times ? this._fmtClock(times[i]) : ""),
     };
-    this._updatePowerXaxis(z, startS);
+    this._updatePowerXaxis(z, startS, endS);
   }
 
   // ----- Energía semanal (7 días, barras agrupadas) -----
@@ -2578,11 +4427,13 @@ class MarstekVenusPanel extends HTMLElement {
   /** Natural time domain (epoch s) for a chart: Potencias spans the full day,
    *  SOC spans midnight -> now. */
   _chartDomain(kind) {
-    const mid = new Date();
-    mid.setHours(0, 0, 0, 0);
-    const startS = mid.getTime() / 1000;
+    const startS = this._dayStartEpoch() / 1000;
     const nowS = Date.now() / 1000;
-    return { startS, nowS, endS: kind === "power" ? startS + 86400 : nowS };
+    return {
+      startS,
+      nowS,
+      endS: kind === "power" ? this._dayStartEpoch(1) / 1000 : nowS,
+    };
   }
   /** Range-preset buttons + reset, placed under the chart. */
   _buildZoomBar(host, kind) {
@@ -2689,14 +4540,15 @@ class MarstekVenusPanel extends HTMLElement {
     host.addEventListener("pointerup", onUp);
     window.addEventListener("pointerup", onUp);
   }
-  _updatePowerXaxis(z, startS) {
+  _updatePowerXaxis(z, startS, endS) {
     const ax = this._r.powerXaxis;
     if (!ax) return;
     if (!z) {
       ax.innerHTML = `<span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>`;
       return;
     }
-    const t0 = startS + z.lo * 86400, t1 = startS + z.hi * 86400;
+    const span = endS - startS;
+    const t0 = startS + z.lo * span, t1 = startS + z.hi * span;
     ax.innerHTML = Array.from({ length: 5 }, (_, i) =>
       `<span>${this._fmtClock(t0 + ((t1 - t0) * i) / 4)}</span>`
     ).join("");
@@ -3000,8 +4852,14 @@ class MarstekVenusPanel extends HTMLElement {
     const hm = m.dailyHome;
     const imp = m.dailyGridImport;
     const exp = m.dailyGridExport;
+    const forecast = m.forecastInitial;
+    const remaining = m.solarRemaining;
+    const expected = m.expectedConsumption;
     const u = `<span class="dim" style="font-size:11px"> kWh</span>`;
-    const max = Math.max(m.dailyCharge || 0, m.dailyDischarge || 0, sol || 0, hm || 0, imp || 0, exp || 0, 0.1);
+    const max = Math.max(
+      m.dailyCharge || 0, m.dailyDischarge || 0, sol || 0, hm || 0,
+      imp || 0, exp || 0, forecast || 0, remaining || 0, expected || 0, 0.1
+    );
     r.dChV.innerHTML = `${this._nf(m.dailyCharge, 2)}${u}`;
     r.dChBar.style.width = ((m.dailyCharge || 0) / max) * 100 + "%";
     r.dDisV.innerHTML = `${this._nf(m.dailyDischarge, 2)}${u}`;
@@ -3029,6 +4887,23 @@ class MarstekVenusPanel extends HTMLElement {
       r.dExpBar.style.width = (exp / max) * 100 + "%";
     }
 
+    // ----- daily forecasts -----
+    if (r.dForecastRow) r.dForecastRow.style.display = forecast == null ? "none" : "";
+    if (forecast != null) {
+      r.dForecastV.innerHTML = `${this._nf(forecast, 2)}${u}`;
+      r.dForecastBar.style.width = (forecast / max) * 100 + "%";
+    }
+    if (r.dRemainingRow) r.dRemainingRow.style.display = remaining == null ? "none" : "";
+    if (remaining != null) {
+      r.dRemainingV.innerHTML = `${this._nf(remaining, 2)}${u}`;
+      r.dRemainingBar.style.width = (remaining / max) * 100 + "%";
+    }
+    if (r.dExpectedRow) r.dExpectedRow.style.display = expected == null ? "none" : "";
+    if (expected != null) {
+      r.dExpectedV.innerHTML = `${this._nf(expected, 2)}${u}`;
+      r.dExpectedBar.style.width = (expected / max) * 100 + "%";
+    }
+
     // ----- diagnostics (section 2, two columns) -----
     const ds = m.diagStates || {};
     for (const row of DIAG_ROWS) {
@@ -3038,6 +4913,8 @@ class MarstekVenusPanel extends HTMLElement {
       this._setChip(el, text, tone);
       el.title = `${this._t(row.lk)}: ${text}`; // full value on hover (chips ellipsize)
     }
+
+    this._patchDailyOperationTimeline();
   }
 
   // --- history (SOC sparkline + Potencias + Energía semanal) -----------------
@@ -3106,6 +4983,28 @@ class MarstekVenusPanel extends HTMLElement {
       }
       if (!pts.length) return;
       pts.sort((a, b) => a[0] - b[0]);
+      const nowParts = this._dateParts();
+      const localDate = `${nowParts.year}-${String(nowParts.month).padStart(2, "0")}-${String(nowParts.day).padStart(2, "0")}`;
+      const changes = new Map();
+      let heldSoc = null;
+      for (const [timestamp, value] of pts) {
+        const parts = this._dateParts(timestamp * 1000);
+        const pointDate = `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+        if (pointDate < localDate) {
+          heldSoc = value;
+          continue;
+        }
+        if (pointDate !== localDate) continue;
+        changes.set(parts.hour * 4 + Math.floor(parts.minute / 15), value);
+      }
+      const history = Array(96).fill(null);
+      const currentIndex = nowParts.hour * 4 + Math.floor(nowParts.minute / 15);
+      for (let index = 0; index <= currentIndex; index++) {
+        if (changes.has(index)) heldSoc = changes.get(index);
+        if (heldSoc != null) history[index] = heldSoc;
+      }
+      this._dailyOperationSocHistory = history;
+      this._dailyOperationSocHistoryDate = localDate;
       const series = [];
       let j = 0, cur = pts[0][1];
       for (const gt of grid) {
@@ -3115,6 +5014,7 @@ class MarstekVenusPanel extends HTMLElement {
       this._socSeries = series;
       this._socLastPush = Date.now() / 1000;
       this._drawSpark();
+      this._patchDailyOperationTimeline();
     } catch (e) {
       console.debug("[mvem] SOC history fetch failed", e);
     }
@@ -3122,13 +5022,12 @@ class MarstekVenusPanel extends HTMLElement {
 
   /** Build a step-hold sampler grid from local midnight to now (N+1 points). */
   _historyGrid(n = 144) {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const startS = start.getTime() / 1000;
+    const startMs = this._dayStartEpoch();
+    const startS = startMs / 1000;
     const nowS = Date.now() / 1000;
     const grid = [];
     for (let i = 0; i <= n; i++) grid.push(startS + (nowS - startS) * (i / n));
-    return { grid, startISO: start.toISOString() };
+    return { grid, startISO: new Date(startMs).toISOString() };
   }
 
   /** Resample one entity's recorder history onto `grid` (step-hold), in kW. */
@@ -3293,11 +5192,11 @@ class MarstekVenusPanel extends HTMLElement {
     const impIds = impSys ? [impSys] : [];
     const expIds = expSys ? [expSys] : [];
     const days = 7;
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - (days - 1));
+    const boundaries = Array.from(
+      { length: days + 1 }, (_, k) => this._dayStartEpoch(k - (days - 1))
+    );
     const allIds = [...new Set([...chIds, ...diIds, ...impIds, ...expIds])];
-    const startISO = start.toISOString();
+    const startISO = new Date(boundaries[0]).toISOString();
     const endISO = new Date().toISOString();
     // These sources reset at midnight.  Their Recorder ``sum`` is a
     // lifetime-normalized value, so its daily ``change`` can include reset
@@ -3324,8 +5223,9 @@ class MarstekVenusPanel extends HTMLElement {
       }
     }
     if (!statistics && !history) return;
-    const startMs = start.getTime();
-    const dayIndex = (ms) => Math.floor((ms - startMs) / 86400000);
+    const dayIndex = (ms) => boundaries.findIndex(
+      (start, k) => k < days && ms >= start && ms < boundaries[k + 1]
+    );
     // Prefer each entity's final daily statistics state, then sum across ids.
     // Raw history fallbacks retain the former daily-maximum calculation.
     const dailyTotals = (entIds) => {
@@ -3393,8 +5293,10 @@ class MarstekVenusPanel extends HTMLElement {
     if (expTot && liveExport != null) expTot[todayIndex] = liveExport;
     const labels = [];
     for (let k = 0; k < days; k++) {
-      const dd = new Date(startMs + k * 86400000);
-      labels.push(dd.toLocaleDateString(this._lang(), { weekday: "short" }));
+      const dd = new Date(boundaries[k]);
+      labels.push(dd.toLocaleDateString(
+        this._lang(), this._dateTimeOptions({ weekday: "short" })
+      ));
     }
     this._weekly = {
       days: labels,
@@ -3451,11 +5353,13 @@ class MarstekVenusPanel extends HTMLElement {
       const socObj = byTk[K.batterySoc];
       if (!socObj) continue; // not a battery device
       const acW = this._watts(byTk[K.acPower]);
+      const batteryW = this._watts(byTk[K.batteryPower]);
       const offgridW = this._watts(byTk[K.acOffgridPower]);
       const cmax = this._num(byTk[K.cellMax]);
       const cmin = this._num(byTk[K.cellMin]);
       const mppt = MPPT_KEYS.map((k) => this._num(byTk[k]));
-      const hasMppt = mppt.some((v) => v != null);
+      const dcPvConnected = socObj.attributes?.dc_pv_connected;
+      const hasMppt = dcPvConnected !== false && mppt.some((v) => v != null);
       const mpptTotalW = hasMppt ? mppt.reduce((sum, value) => sum + (value || 0), 0) : null;
       const inverter = byTk[K.inverterState] || null;
       const invBackup = /backup/i.test(this._sval(inverter) || "");
@@ -3467,7 +5371,7 @@ class MarstekVenusPanel extends HTMLElement {
           ? -acW - (invBackup ? offgridW || 0 : 0) + (mpptTotalW || 0)
           : acW != null
             ? -acW
-            : this._watts(byTk[K.batteryPower]);
+            : batteryW;
       const devReg = (hass.devices && hass.devices[dev]) || null;
       const name =
         (devReg && (devReg.name_by_user || devReg.name)) ||
@@ -3486,6 +5390,7 @@ class MarstekVenusPanel extends HTMLElement {
         // AC-port convention: +output to home/grid, -input from the AC bus.
         acFlowW: acW,
         mpptTotalW,
+        dcPvConnected,
         offgridW,
         backupOn: (byTk[K.backupFunction] || {}).state === "on",
         hysteresisActive: (() => {
@@ -3515,7 +5420,21 @@ class MarstekVenusPanel extends HTMLElement {
         entIdsDomain: idByTkDomain,
         info: {
           sw: this._sval(byTk[K.softwareVersion]),
-          serial: (devReg && devReg.serial_number) || null,
+          // Huawei publishes the serial as a sensor; the registry entry has none.
+          serial: (devReg && devReg.serial_number) || this._sval(byTk[K.powerModuleSerial]),
+          powerModuleFw: this._sval(byTk[K.powerModuleFirmware]),
+          inverterModel: this._sval(byTk[K.deviceName]),
+          inverterSn: this._sval(byTk[K.inverterSerial]),
+          inverterFw: this._sval(byTk[K.inverterFirmware]),
+          // A battery built from packs names each one. Empty slots answer with
+          // nothing and are left out rather than listed blank.
+          packs: [1, 2, 3]
+            .map((n) => ({
+              n,
+              fw: this._sval(byTk[K["pack" + n + "Firmware"]]),
+              sn: this._sval(byTk[K["pack" + n + "Serial"]]),
+            }))
+            .filter((pack) => pack.fw || pack.sn),
           bms: this._sval(byTk[K.bmsVersion]),
           vms: this._sval(byTk[K.vmsVersion]),
           ems: this._sval(byTk[K.emsVersion]),
@@ -3935,7 +5854,20 @@ class MarstekVenusPanel extends HTMLElement {
     }
     addRow("WiFi", wifi);
     addRow("MAC", b.info.mac);
-    addRow(this._t("infoSerial"), b.info.serial);
+    // A Huawei storage is three kinds of hardware — inverter, power module,
+    // packs — and each carries its own serial and firmware. Brands with a
+    // single identity keep the plain serial row.
+    if (b.info.powerModuleFw || b.info.inverterSn) {
+      addRow(
+        this._t("infoInverter"),
+        [b.info.inverterModel, b.info.inverterSn, b.info.inverterFw].filter(Boolean).join(" · ")
+      );
+      addRow(this._t("infoPowerModule"), [b.info.serial, b.info.powerModuleFw].filter(Boolean).join(" · "));
+    } else {
+      addRow(this._t("infoSerial"), b.info.serial);
+    }
+    for (const pack of b.info.packs || [])
+      addRow(`Pack ${pack.n}`, [pack.sn, pack.fw].filter(Boolean).join(" · "));
     r.infoGrid.innerHTML = rows.length ? rows.join("") : `<div class="dim">${this._t("noData")}</div>`;
 
     // controls (rebuilt when the available-control set changes; else value-patched)
@@ -4039,19 +5971,23 @@ class MarstekVenusPanel extends HTMLElement {
       wrap.className = "ctl-num";
       const range = document.createElement("input");
       range.type = "range";
+      this._wireRangeInteraction(range);
       const valEl = document.createElement("span");
       valEl.className = "ctl-val";
       const a = (state && state.attributes) || {};
       const unit = a.unit_of_measurement || "";
       range.addEventListener("input", () => {
+        range.__sliding = true;
         valEl.textContent = `${Math.round(this._clampToEntity(id, range.value))}${unit ? " " + unit : ""}`;
       });
-      range.addEventListener("change", () =>
+      range.addEventListener("change", () => {
+        const value = this._clampToEntity(id, range.value);
+        this._markRangePending(range, value);
         this._hass.callService("number", "set_value", {
           entity_id: id,
-          value: this._clampToEntity(id, range.value),
-        })
-      );
+          value,
+        });
+      });
       wrap.appendChild(range);
       wrap.appendChild(valEl);
       frag.appendChild(wrap);
@@ -4083,7 +6019,7 @@ class MarstekVenusPanel extends HTMLElement {
       if (a.min != null) w.el.min = this._sliderMin(a.min, a.step != null ? a.step : 1);
       if (a.max != null) w.el.max = a.max;
       const unit = a.unit_of_measurement || "";
-      if (!focused) {
+      if (!this._rangePatchLocked(w.el, state, a.step)) {
         const v = Number(state.state);
         if (!Number.isNaN(v)) w.el.value = v;
         // Show the real state value, not w.el.value: a native range input snaps
@@ -4581,6 +6517,45 @@ class MarstekVenusPanel extends HTMLElement {
     return v;
   }
 
+  /** Track range interaction explicitly: iOS Safari does not reliably focus a
+   *  range input on touch, so activeElement alone cannot protect a drag from
+   *  the frequent HA state patches. */
+  _wireRangeInteraction(range) {
+    const begin = () => { range.__sliding = true; };
+    const end = () => { range.__sliding = false; };
+    range.addEventListener("pointerdown", begin);
+    range.addEventListener("pointerup", end);
+    range.addEventListener("pointercancel", end);
+    // Older iOS versions may expose touch events without Pointer Events.
+    range.addEventListener("touchstart", begin, { passive: true });
+    range.addEventListener("touchend", end, { passive: true });
+    range.addEventListener("touchcancel", end, { passive: true });
+  }
+
+  /** Keep the thumb at the submitted value until HA echoes it back. Without
+   *  this short optimistic window, an update carrying the previous entity
+   *  state can snap the slider back immediately after the finger is lifted. */
+  _markRangePending(range, value) {
+    range.__sliding = false;
+    range.__pendingValue = Number(value);
+    range.__pendingUntil = Date.now() + 4000;
+  }
+
+  _rangePatchLocked(range, state, step = 1) {
+    const pending = Number(range.__pendingValue);
+    const actual = Number(state.state);
+    const tolerance = Math.max(1e-9, Math.abs(Number(step) || 1) * 1e-6);
+    if (Number.isFinite(pending) && Number.isFinite(actual) && Math.abs(actual - pending) <= tolerance) {
+      range.__pendingValue = undefined;
+      range.__pendingUntil = 0;
+    }
+    if (range.__sliding) return true;
+    if ((range.__pendingUntil || 0) > Date.now()) return true;
+    range.__pendingValue = undefined;
+    range.__pendingUntil = 0;
+    return false;
+  }
+
   /** Decimals implied by a number's step ("0.05" -> 2), capped at 3. */
   _stepDecimals(step) {
     const s = String(step);
@@ -4694,17 +6669,21 @@ class MarstekVenusPanel extends HTMLElement {
       wrap.className = "ctl-num";
       const range = document.createElement("input");
       range.type = "range";
+      this._wireRangeInteraction(range);
       const valEl = document.createElement("span");
       valEl.className = "ctl-val";
       const a = (state && state.attributes) || {};
       const unit = a.unit_of_measurement || "";
       const step = Number(a.step) || 1;
       range.addEventListener("input", () => {
+        range.__sliding = true;
         valEl.textContent = this._fmtCtlNum(this._clampToEntity(id, range.value), step, unit);
       });
-      range.addEventListener("change", () =>
-        hass.callService("number", "set_value", { entity_id: id, value: this._clampToEntity(id, range.value) })
-      );
+      range.addEventListener("change", () => {
+        const value = this._clampToEntity(id, range.value);
+        this._markRangePending(range, value);
+        hass.callService("number", "set_value", { entity_id: id, value });
+      });
       wrap.appendChild(range);
       wrap.appendChild(valEl);
       frag.appendChild(wrap);
@@ -4757,7 +6736,7 @@ class MarstekVenusPanel extends HTMLElement {
       if (a.min != null) w.el.min = this._sliderMin(a.min, step);
       if (a.max != null) w.el.max = a.max;
       const unit = a.unit_of_measurement || w.unit || "";
-      if (!focused) {
+      if (!this._rangePatchLocked(w.el, state, step)) {
         const v = Number(state.state);
         if (!Number.isNaN(v)) w.el.value = v;
         // Format the real state value, not w.el.value: a native range input snaps
@@ -4881,6 +6860,15 @@ class MarstekVenusPanel extends HTMLElement {
         --flow-blue: oklch(0.70 0.15 245);
         --flow-green: oklch(0.78 0.16 150);
         --battery: var(--accent);
+        --daily-op-solar-window: var(--solar);
+        --daily-op-solar-charge: var(--flow-green);
+        --daily-op-solar-line: var(--solar);
+        --daily-op-grid: var(--flow-purple);
+        --daily-op-hourly-balance: var(--flow-orange);
+        --daily-op-discharge: var(--flow-blue);
+        --daily-op-not-needed: var(--ink-dim);
+        --daily-op-soc: oklch(0.74 0.18 330);
+        --daily-op-delay: oklch(0.78 0.15 58);
         --font-ui: "Manrope", system-ui, sans-serif;
         --font-display: "Space Grotesk", system-ui, sans-serif;
         --gap: 18px; --pad: 22px; --radius: 20px; --radius-sm: 13px;
@@ -5010,6 +6998,92 @@ class MarstekVenusPanel extends HTMLElement {
         border-left: 1px solid var(--accent-line); border-right: 1px solid var(--accent-line);
         pointer-events: none; z-index: 5; }
 
+      /* ===== Daily operation timeline ===== */
+      .daily-operation-card { position: relative; min-width: 0; overflow: visible; --daily-op-confirmed-shade-opacity: 50%; --daily-op-future-shade-opacity: 25%; --daily-op-shade-opacity: var(--daily-op-confirmed-shade-opacity); }
+      .daily-operation-card[hidden], .daily-operation-card [hidden] { display: none !important; }
+      .daily-op-description { font-size: 12px; line-height: 1.45; margin: -7px 0 12px; }
+      .daily-op-toolbar { display: flex; align-items: center; gap: 12px; min-width: 0; margin-bottom: 9px; }
+      .daily-op-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+      .daily-op-legend-item { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-mid); font-size: 11px; white-space: nowrap; }
+      .daily-op-swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--line-strong); border-radius: 3px; }
+      .daily-op-swatch-solar-window { background: color-mix(in oklab, var(--daily-op-solar-window) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-swatch-solar { background: color-mix(in oklab, var(--daily-op-solar-charge) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-swatch-grid { background: color-mix(in oklab, var(--daily-op-grid) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-swatch-hourly-balance { background: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in oklab, var(--daily-op-hourly-balance) var(--daily-op-shade-opacity), transparent) 3px 5px); border-color: var(--daily-op-hourly-balance); }
+      .daily-op-swatch-discharge { background: color-mix(in oklab, var(--daily-op-discharge) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-swatch-not-needed { background: color-mix(in oklab, var(--daily-op-not-needed) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-line { display: inline-block; width: 15px; height: 0; border-top: 2px solid var(--ink); }
+      .daily-op-line-solar { border-color: var(--daily-op-solar-line); }
+      .daily-op-line-consumption { border-color: var(--home); border-top-style: dashed; }
+      .daily-op-line-soc { border-color: var(--daily-op-soc); }
+      .daily-op-nav { display: inline-flex; gap: 5px; margin-left: auto; flex-shrink: 0; }
+      .daily-op-nav-btn { display: grid; place-items: center; width: 29px; height: 29px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); color: var(--ink-mid); cursor: pointer; --mdc-icon-size: 18px; }
+      .daily-op-nav-btn:hover:not(:disabled) { color: var(--ink); background: var(--bg-hover); }
+      .daily-op-nav-btn:disabled { opacity: .38; cursor: default; }
+      .daily-op-badge { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding: 5px 9px; border: 1px solid var(--accent-line); border-radius: 999px; color: var(--accent); background: var(--accent-soft); font-size: 11px; font-weight: 600; white-space: nowrap; }
+      .daily-op-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+      .daily-op-badge-stale { color: oklch(0.82 0.14 75); border-color: oklch(0.82 0.14 75 / .4); background: oklch(0.82 0.14 75 / .1); }
+      .daily-op-notice { margin: 0 0 9px; padding: 7px 10px; border: 1px solid oklch(0.82 0.14 75 / .35); border-radius: 9px; color: oklch(0.82 0.14 75); background: oklch(0.82 0.14 75 / .08); font-size: 11px; line-height: 1.4; }
+      .daily-op-layout { display: grid; grid-template-columns: 62px minmax(0, 1fr) 42px; gap: 0; min-width: 0; }
+      .daily-op-yaxis { position: relative; height: 190px; color: var(--ink-dim); font-size: 10px; line-height: 1; white-space: nowrap; }
+      .daily-op-yaxis small { position: absolute; top: 7px; right: 8px; font-size: 9px; writing-mode: horizontal-tb; transform: none; }
+      .daily-op-yaxis-ticks { position: absolute; top: 32px; right: 8px; bottom: 26px; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; }
+      .daily-op-soc-axis { position: relative; height: 190px; color: var(--ink-dim); font-size: 10px; line-height: 1; white-space: nowrap; }
+      .daily-op-soc-axis small { position: absolute; top: 7px; left: 8px; font-size: 9px; }
+      .daily-op-soc-axis-ticks { position: absolute; top: 32px; left: 8px; bottom: 26px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; }
+      .daily-op-viewport { position: relative; min-width: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; scrollbar-width: thin; overscroll-behavior-x: contain; outline: none; }
+      .daily-op-viewport:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-line); border-radius: 8px; }
+      .daily-op-stage { position: relative; width: 150%; min-width: 1440px; height: 190px; }
+      .daily-op-svg { position: absolute; inset: 0; z-index: 1; display: block; width: 100%; height: 190px; overflow: visible; pointer-events: none; }
+      .daily-op-grid-lines line { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+      .daily-op-grid-lines .daily-op-hour-line { stroke: var(--line-strong); }
+      .daily-op-path { stroke-width: 2.2; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
+      .daily-op-path-solar-actual { stroke: var(--daily-op-solar-line); }
+      .daily-op-path-solar-forecast { stroke: var(--daily-op-solar-line); stroke-dasharray: 5 4; opacity: .78; }
+      .daily-op-path-consumption-actual { stroke: var(--home); }
+      .daily-op-path-consumption-forecast { stroke: var(--home); stroke-dasharray: 5 4; opacity: .78; }
+      .daily-op-path-soc-actual { stroke: var(--daily-op-soc); }
+      .daily-op-path-soc-forecast { stroke: var(--daily-op-soc); stroke-dasharray: 5 4; opacity: .82; }
+      .daily-op-grid { position: absolute; inset: 0; z-index: 2; display: grid; grid-template-rows: 24px 146px 20px; pointer-events: none; }
+      .daily-op-now-marker { position: absolute; z-index: 5; top: 3px; bottom: 20px; width: 0; pointer-events: none; }
+      .daily-op-now-marker::before { content: ""; position: absolute; top: 21px; bottom: 0; left: 0; border-left: 1.5px solid var(--accent); }
+      .daily-op-now-marker::after { content: ""; position: absolute; top: 18px; left: -3px; width: 7px; height: 7px; border: 1px solid var(--bg-1); border-radius: 50%; background: var(--accent); }
+      .daily-op-now-text { position: absolute; top: 0; left: 0; transform: translateX(-50%); padding: 2px 7px; border: 1px solid var(--accent-line); border-radius: 999px; background: var(--bg-2); color: var(--accent); box-shadow: 0 2px 8px oklch(0 0 0 / .22); font-size: 9px; line-height: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+      .daily-op-hour-labels, .daily-op-hours { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); min-width: 0; }
+      .daily-op-hour-label { padding-left: 4px; color: var(--ink-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+      .daily-op-hour { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-width: 0; scroll-snap-align: start; border-right: 1px solid var(--line-strong); }
+      .daily-op-cell { position: relative; display: block; min-width: 0; height: 146px; padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; background-color: transparent; background-repeat: repeat; background-size: 8px 8px; cursor: pointer; pointer-events: auto; transition: filter .12s, opacity .12s; }
+      .daily-op-cell:hover, .daily-op-cell:focus-visible { z-index: 4; filter: brightness(1.18); outline: 2px solid var(--accent); outline-offset: -2px; }
+      .daily-op-cell.daily-op-current { box-shadow: inset 0 0 0 1px var(--accent); }
+      .daily-op-cell.daily-op-forecast { border-bottom: 1px dashed var(--line-strong); --daily-op-shade-opacity: var(--daily-op-future-shade-opacity); }
+      .daily-op-cell.daily-op-stale { opacity: .55; }
+      .daily-op-base-solar-window { background-color: color-mix(in oklab, var(--daily-op-solar-window) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-base-solar { background-color: color-mix(in oklab, var(--daily-op-solar-charge) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-base-grid { background-color: color-mix(in oklab, var(--daily-op-grid) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-base-discharge { background-color: color-mix(in oklab, var(--daily-op-discharge) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-base-not-needed { background-color: color-mix(in oklab, var(--daily-op-not-needed) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-base-neutral { background-color: color-mix(in oklab, var(--bg-2) var(--daily-op-shade-opacity), transparent); }
+      .daily-op-cell.daily-op-hourly-balance::after { content: ""; position: absolute; left: 1px; right: 1px; bottom: 0; height: 3px; background: color-mix(in oklab, var(--daily-op-hourly-balance) var(--daily-op-shade-opacity), transparent); opacity: .9; }
+      .daily-op-cell.daily-op-delay::before { content: ""; position: absolute; left: 1px; right: 1px; top: 0; height: 3px; background: var(--daily-op-delay); }
+      .daily-op-delay-mark, .daily-op-setpoint-mark { position: absolute; z-index: 2; display: grid; place-items: center; color: var(--daily-op-delay); --mdc-icon-size: 12px; }
+      .daily-op-delay-mark { top: 4px; right: 2px; }
+      .daily-op-setpoint-mark { right: 2px; bottom: 3px; color: var(--ink-mid); opacity: .85; }
+      .daily-op-dst-skipped { opacity: .25; background-image: repeating-linear-gradient(135deg, transparent 0 4px, var(--line-strong) 4px 5px) !important; }
+      .daily-op-dst-repeated { box-shadow: inset 0 0 0 1px var(--ink-dim); }
+      .daily-op-tooltip { position: fixed; z-index: 10; max-width: min(280px, calc(100vw - 16px)); min-width: min(190px, calc(100vw - 16px)); padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--bg-2); color: var(--ink); box-shadow: 0 8px 24px oklch(0 0 0 / .35); font-size: 11px; line-height: 1.35; pointer-events: none; }
+      .daily-op-tip-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 5px; font-variant-numeric: tabular-nums; }
+      .daily-op-tip-head strong { color: var(--ink); font-weight: 700; }
+      .daily-op-tip-head span { color: var(--ink-dim); font-size: 10px; font-weight: 600; }
+      .daily-op-tip-row { display: flex; justify-content: space-between; gap: 14px; border-top: 1px solid var(--line); padding-top: 3px; margin-top: 3px; }
+      .daily-op-tip-row span { color: var(--ink-mid); }
+      .daily-op-tip-row strong { color: var(--ink); text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+      @media (max-width: 720px) {
+        .daily-op-toolbar { align-items: flex-start; }
+        .daily-op-legend { gap: 8px; }
+        .daily-op-layout { grid-template-columns: 54px minmax(0, 1fr) 38px; }
+        .daily-op-yaxis { padding-right: 6px; }
+      }
+
       .stat-label { font-size: 12.5px; color: var(--ink-mid); font-weight: 600; display: flex; align-items: center; gap: 7px; --mdc-icon-size: 15px; }
       .stat-value { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.02em; line-height: 1; font-size: 26px; }
       .stat-unit { color: var(--ink-dim); font-weight: 500; font-size: 0.5em; }
@@ -5097,6 +7171,10 @@ class MarstekVenusPanel extends HTMLElement {
       .socbar > span { display: block; height: 100%; border-radius: 999px; background: var(--battery); transition: width 0.8s cubic-bezier(.4,0,.2,1); }
       .daily-body { display: flex; flex-direction: column; gap: 10px; }
       .daily-row { display: flex; flex-direction: column; gap: 4px; }
+      .daily-row-forecast { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+      .daily-row-forecast .socbar > span,
+      .daily-row-remaining .socbar > span,
+      .daily-row-expected .socbar > span { opacity: .62; }
       .daily-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
 
       .mini-spark { margin-top: 2px; flex: 1 1 auto; min-height: 96px; }
@@ -5108,8 +7186,8 @@ class MarstekVenusPanel extends HTMLElement {
       .placeholder p { max-width: 360px; font-size: 14px; }
 
       /* ===== Baterías tab ===== */
-      .bat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: var(--gap); align-items: start; }
-      .bat-card { display: flex; flex-direction: column; gap: 16px; }
+      .bat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: var(--gap); align-items: start; }
+      .bat-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
       .bat-head { display: flex; align-items: center; gap: 10px; }
       .bat-title { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 auto; --mdc-icon-size: 18px; }
       .bat-title .ic { color: var(--ink-dim); display: grid; place-items: center; flex-shrink: 0; }

@@ -42,7 +42,7 @@ La carga semanal completa se configura desde el dashboard de Omnibattery. La ún
 
 El **monitor de equilibrio de celdas** está siempre activo. Registra la diferencia de tensión entre la celda más alta y la más baja tras cada medición en tensión alta, y mantiene actualizados los sensores, la tendencia y las alertas.
 
-Consulta [Monitor de equilibrio de celdas](cell-balance-monitor.md) para más detalles.
+Consulta [Monitor de equilibrio de celdas](cell-balance-monitor.md) para más detalles. Si la BMS corta por debajo de 3,60 V mientras la batería está en la zona de reducción, la medición de 60 segundos comienza después de confirmar ese corte; así la carga semanal no pierde la lectura en packs que no alcanzan los 3,60 V.
 
 ## Interacción con el retraso de carga solar
 

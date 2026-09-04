@@ -63,9 +63,12 @@ entradas antiguas sin él conservan el fallback por potencia medida.
 
 Al detectar consumo por primera vez bloquea la carga de batería durante 30
 segundos. Después la batería solo puede aprovechar la exportación que el
-dispositivo deje libre. Una subida solar provoca una nueva cesión de 20 segundos
-y una pausa a 0 W se mantiene durante 5 minutos para no impedir el reinicio del
-dispositivo. No exige ningún sensor de potencia máxima.
+dispositivo deje libre. Un aumento de al menos 200 W en el margen disponible
+(producción solar menos potencia del dispositivo) provoca una nueva cesión de 20
+segundos; esto también detecta que una wallbox reduzca su potencia mientras la
+producción solar permanece estable. Una pausa a 0 W mantiene bloqueada la
+descarga durante 5 minutos y da una breve gracia a la carga para que el
+dispositivo pueda reiniciarse. No exige ningún sensor de potencia máxima.
 
 ## Cargador VE sin telemetría de potencia
 

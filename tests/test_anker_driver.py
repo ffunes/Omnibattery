@@ -46,6 +46,9 @@ def test_capabilities():
     assert caps.has_force_mode is False
     assert caps.has_rs485_control is False
     assert caps.has_mppt_pv is False
+    # Identity is unknown before connect; do not expose PV until the SKU is
+    # positively classified as a Solarbank 4 E5000 Pro.
+    assert caps.has_solar_telemetry is False
     assert caps.has_energy_counters is True
     assert caps.has_daily_energy_counters is False
     assert caps.max_charge_power_w == 3500
@@ -53,6 +56,47 @@ def test_capabilities():
     assert caps.min_charge_power_w == 100
     assert caps.min_discharge_power_w == 100
     assert caps.setpoint_confirm_reliable is False
+
+
+@pytest.mark.parametrize("product_code", ("DMWH", "DMXU", "E25H"))
+def test_max_ac_skus_disable_independent_pv(product_code):
+    driver = _driver()
+    driver._set_product_code(product_code)
+
+    assert driver.is_solarbank_max_ac is True
+    assert driver.capabilities.has_mppt_pv is False
+    assert driver.capabilities.has_solar_telemetry is False
+    sensor_keys = {definition["key"] for definition in driver.sensor_definitions}
+    assert "solar_power" not in sensor_keys
+    read_keys = {key for group in driver.read_groups for key in group.keys}
+    assert not read_keys & {"pv_power", "third_party_pv_power"}
+    # This is a device lifetime counter, not an instantaneous source used by
+    # the solar total, so retain it for diagnostics and energy history.
+    assert "pv_total_generation" in sensor_keys
+
+
+@pytest.mark.parametrize("product_code", ("DN7M", "DPM4"))
+def test_e5000_skus_keep_independent_aggregate_pv(product_code):
+    driver = _driver()
+    driver._set_product_code(product_code)
+
+    assert driver.has_independent_pv is True
+    assert driver.capabilities.has_solar_telemetry is True
+    assert "solar_power" in {definition["key"] for definition in driver.sensor_definitions}
+    read_keys = {key for group in driver.read_groups for key in group.keys}
+    assert {"pv_power", "third_party_pv_power"} <= read_keys
+
+
+@pytest.mark.parametrize("product_code", ("DNMS", "DPP4", "DNN3", "ZZZZ"))
+def test_xe_ac_and_unknown_product_codes_use_safe_external_only_path(product_code):
+    driver = _driver()
+    driver._set_product_code(product_code)
+
+    assert driver.is_solarbank_max_ac is False
+    assert driver.is_solarbank_xe_ac is (product_code != "ZZZZ")
+    assert driver.has_independent_pv is False
+    assert driver.capabilities.has_solar_telemetry is False
+    assert "solar_power" not in {definition["key"] for definition in driver.sensor_definitions}
 
 
 def test_model_label():
@@ -68,6 +112,12 @@ def test_label_for_product_code_maps_official_skus():
     assert _label_for_product_code("DNMS") == "Solarbank XE AC"
     assert _label_for_product_code(None) == "Solarbank Max AC"
     assert _label_for_product_code("ZZZZ") == "Solarbank Max AC"
+
+
+def test_label_for_product_code_extracts_sku_from_serial_number():
+    from custom_components.omnibattery.drivers.anker import _label_for_product_code
+
+    assert _label_for_product_code("AK7DN7M0G22") == "Solarbank 4 E5000 Pro"
 
 
 def test_power_caps_are_read_only_sensors():
@@ -111,6 +161,25 @@ def test_shared_sensor_aliases_are_exposed():
     )
 
 
+def test_official_aggregate_pv_fields_are_exposed():
+    from custom_components.omnibattery.drivers import anker as anker_mod
+
+    fields = {field["key"]: field for field in anker_mod._FIELD_SPECS}
+    sensors = {definition["key"]: definition for definition in anker_mod.SENSOR_DEFINITIONS}
+
+    assert fields["pv_power"] == {
+        "key": "pv_power",
+        "address": 10002,
+        "register_type": "input",
+        "data_type": "int32",
+        "count": 2,
+    }
+    assert fields["third_party_pv_power"]["address"] == 10004
+    assert fields["pv_total_generation"]["address"] == 10018
+    assert sensors["solar_power"]["unit"] == "W"
+    assert sensors["pv_total_generation"]["scale"] == 0.1
+
+
 def test_encode_int32_roundtrip():
     for value in (0, 500, -800, 3500, -3500):
         words = encode_int32(value)
@@ -132,6 +201,8 @@ async def test_connect_does_not_force_third_party_mode():
     client.async_write_register.assert_not_awaited()
     client.async_read_holding_register.assert_not_awaited()
     assert drv.model_label == "Solarbank 4 E5000 Pro"
+    assert drv.capabilities.has_solar_telemetry is True
+    assert "solar_power" in {d["key"] for d in drv.sensor_definitions}
 
 
 @pytest.mark.asyncio
@@ -142,6 +213,35 @@ async def test_connect_maps_max_ac_product_code():
     drv = _driver(client=client)
     assert await drv.connect() is True
     assert drv.model_label == "Solarbank Max AC"
+    assert drv.capabilities.has_solar_telemetry is False
+    assert "solar_power" not in {d["key"] for d in drv.sensor_definitions}
+    assert "pv_total_generation" in {d["key"] for d in drv.sensor_definitions}
+
+
+@pytest.mark.asyncio
+async def test_connect_falls_back_to_serial_product_code():
+    client = _fake_client()
+
+    def _ascii_registers(value: str, count: int) -> list[int]:
+        raw = value.encode("ascii").ljust(count * 2, b"\x00")[: count * 2]
+        return [
+            int.from_bytes(raw[offset:offset + 2], "big")
+            for offset in range(0, len(raw), 2)
+        ]
+
+    async def _input_block(start, count):
+        if start == 32768:
+            return _ascii_registers("GENERIC", count)
+        if start == 10100:
+            return _ascii_registers("AK7DN7M0G22", count)
+        return None
+
+    client.async_read_input_block = AsyncMock(side_effect=_input_block)
+    drv = _driver(client=client)
+
+    assert await drv.connect() is True
+    assert drv.model_label == "Solarbank 4 E5000 Pro"
+    client.async_read_input_block.assert_any_await(10100, 12)
 
 
 # ----------------------------------------------------------------------
@@ -172,6 +272,53 @@ async def test_read_telemetry_uses_fc04_for_input_and_inverts_battery_power():
     assert snap["battery_soc"] == 47
     assert snap["battery_power"] == -612  # inverted to Omnibattery convention
     assert snap["ac_power"] == 612  # shared AC convention: +discharge
+
+
+@pytest.mark.asyncio
+async def test_read_telemetry_sums_official_aggregate_pv_registers():
+    client = _fake_client()
+    # Official range 10000–10050: pv_power at 10002, third-party PV at 10004,
+    # and lifetime PV generation at 10018.
+    buf = [0] * 51
+    pv_words = encode_int32(1200)
+    third_party_words = encode_int32(300)
+    buf[2], buf[3] = pv_words
+    buf[4], buf[5] = third_party_words
+    buf[19] = 1234
+    client.async_read_input_block = AsyncMock(return_value=buf)
+
+    drv = _driver(client=client)
+    drv._set_product_code("DN7M")
+    snap = await drv.read_telemetry(
+        ["solar_power", "pv_total_generation"]
+    )
+
+    client.async_read_input_block.assert_awaited_once_with(10000, 51)
+    assert snap["pv_power"] == 1200
+    assert snap["third_party_pv_power"] == 300
+    assert snap["solar_power"] == 1500
+    assert snap["pv_total_generation"] == 1234
+
+
+@pytest.mark.asyncio
+async def test_max_ac_drops_derived_pv_source_but_keeps_device_counter():
+    client = _fake_client()
+    buf = [0] * 51
+    pv_words = encode_int32(1200)
+    third_party_words = encode_int32(300)
+    buf[2], buf[3] = pv_words
+    buf[4], buf[5] = third_party_words
+    buf[19] = 1234
+    client.async_read_input_block = AsyncMock(return_value=buf)
+
+    drv = _driver(client=client)
+    drv._set_product_code("DMWH")
+    snap = await drv.read_telemetry(["solar_power", "pv_total_generation"])
+
+    assert "solar_power" not in snap
+    assert "pv_power" not in snap
+    assert "third_party_pv_power" not in snap
+    assert snap["pv_total_generation"] == 1234
 
 
 @pytest.mark.asyncio

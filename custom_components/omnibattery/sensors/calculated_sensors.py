@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import date, datetime
-from functools import partial
+from datetime import date
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -16,8 +15,13 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from ..const import DOMAIN, EFFICIENCY_SENSOR_DEFINITIONS, STORED_ENERGY_SENSOR_DEFINITIONS, CYCLE_SENSOR_DEFINITIONS
+from ..energy import (
+    BACKUP_DAILY_DISCHARGING_ENERGY_KEY,
+    effective_total_discharging_energy,
+)
 from ..infra.coordinator import MarstekVenusDataUpdateCoordinator
 from ..infra.entity_naming import english_entity_id
+from ..tracking.backfill import local_day_bounds
 
 # Skip integration across gaps larger than this (stalled coordinator / sensor
 # offline) so a resumed update can't dump one giant energy block.
@@ -72,15 +76,21 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_should_poll = False
         self._dependency_keys = definition["dependency_keys"]
-        # On Venus D/A the AC-side hardware energy counters can't see DC-coupled
+        # On DC-coupled-PV units the AC-side hardware energy counters can't see
         # PV charging the cells, so their round-trip ratio runs >100%. For those
         # units measure the real inverter loss directly while PV is idle (MPPT=0):
         # the AC port (ac_power) and the DC battery terminal (battery_power) are
         # two independent planes whose difference is the conversion loss. Each leg
         # is the ratio of two simultaneous power readings, so unlike a cumulative
         # charge/discharge ratio it has no SoC-endpoint dependence and can't blow
-        # up on partial cycles. AC-only models keep the accurate hardware counters.
-        self._integrate_mode = coordinator.capabilities.has_mppt_pv
+        # up on partial cycles. AC-only models, including Anker Max/XE, keep the
+        # accurate hardware counters; only capabilities marked as independent PV
+        # use integration.
+        capabilities = getattr(coordinator, "capabilities", None)
+        self._integrate_mode = bool(
+            getattr(capabilities, "has_mppt_pv", False)
+            or getattr(capabilities, "has_solar_telemetry", False)
+        )
         self._mppt_keys = ["mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"]
         # Energy on each plane, split by direction (kWh), MPPT=0 windows only.
         self._charge_ac_kwh = 0.0      # AC drawn while charging the cells
@@ -123,7 +133,14 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
             return None
 
         charge_energy = self.coordinator.data.get(self._dependency_keys["charge"], 0)
-        discharge_energy = self.coordinator.data.get(self._dependency_keys["discharge"], 0)
+        if self._dependency_keys["discharge"] == "total_discharging_energy":
+            discharge_energy = effective_total_discharging_energy(
+                self.coordinator.data
+            ) or 0
+        else:
+            discharge_energy = self.coordinator.data.get(
+                self._dependency_keys["discharge"], 0
+            )
 
         if charge_energy <= 0:
             return None
@@ -186,7 +203,12 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
         ac = data.get("ac_power")            # AC port, opposite sign to battery
         if battery is None or ac is None:
             return
-        solar = sum(v for k in self._mppt_keys if (v := data.get(k)) is not None)
+        if getattr(
+            getattr(self.coordinator, "capabilities", None), "has_mppt_pv", False
+        ):
+            solar = sum(v for k in self._mppt_keys if (v := data.get(k)) is not None)
+        else:
+            solar = data.get("solar_power") or 0.0
 
         now = time.monotonic()
         last = self._last_mono
@@ -289,7 +311,14 @@ class MarstekVenusCycleSensor(CoordinatorEntity, SensorEntity):
         if self.coordinator.data is None:
             return None
 
-        discharge = self.coordinator.data.get(self._dependency_keys["discharge"], 0)
+        if self._dependency_keys["discharge"] == "total_discharging_energy":
+            discharge = effective_total_discharging_energy(
+                self.coordinator.data
+            ) or 0
+        else:
+            discharge = self.coordinator.data.get(
+                self._dependency_keys["discharge"], 0
+            )
         charge = self.coordinator.data.get(self._dependency_keys["charge"], 0)
         capacity = self.coordinator.data.get(self._dependency_keys["capacity"], 0)
 
@@ -502,7 +531,8 @@ class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity
         stored = await self.async_get_last_extra_data()
         restored = _CumulativeDailyEnergyData.from_dict(stored.as_dict()) if stored else None
         today = dt_util.now().date().isoformat()
-        if restored is not None and restored.reset_date == today:
+        restored_current_day = restored is not None and restored.reset_date == today
+        if restored_current_day:
             self._energy_data = restored
         # On migration from a Marstek daily-register sensor there is no extra restore
         # payload: that sensor did not inherit RestoreEntity. A previous release
@@ -511,11 +541,27 @@ class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity
         # the greater value: daily counters are monotonic within a day, so this
         # preserves the old reading plus any value already accumulated by the new
         # implementation while ignoring unavailable states and later zeroes.
-        recovered_value = await self._recover_daily_value_from_recorder(today)
-        if recovered_value is None:
-            recovered_value = _legacy_daily_energy_value(
-                await self.async_get_last_state(), today
-            )
+        # A typed discharge restore stores the hardware-derived portion, while
+        # the published state includes today's backup accumulator. Trust that
+        # typed baseline so Recorder cannot fold the same backup kWh in twice.
+        recovered_value = None
+        if (
+            not restored_current_day
+            or self._source_key != "total_discharging_energy"
+        ):
+            recovered_value = await self._recover_daily_value_from_recorder(today)
+            if recovered_value is None:
+                recovered_value = _legacy_daily_energy_value(
+                    await self.async_get_last_state(), today
+                )
+            if (
+                recovered_value is not None
+                and self._source_key == "total_discharging_energy"
+            ):
+                recovered_value = max(
+                    0.0,
+                    recovered_value - self._backup_daily_discharge_kwh(),
+                )
         if recovered_value is not None and recovered_value > self._energy_data.kwh:
             self._energy_data = _CumulativeDailyEnergyData(
                 recovered_value, self._energy_data.last_total, today
@@ -525,26 +571,42 @@ class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity
 
     async def _recover_daily_value_from_recorder(self, today: str) -> float | None:
         """Recover this entity's current-day state from Home Assistant Recorder."""
-        try:
-            from homeassistant.components.recorder import get_instance, history
-
-            local_tz = dt_util.get_time_zone(self.hass.config.time_zone) or dt_util.UTC
-            start = datetime.combine(
-                date.fromisoformat(today), datetime.min.time(), tzinfo=local_tz
+        backfill = getattr(
+            self.coordinator,
+            "_omnibattery_backfill_coordinator",
+            None,
+        )
+        if backfill is not None:
+            configured_timezone = getattr(
+                getattr(self.hass, "config", None), "time_zone", None
             )
-            query = partial(
-                history.state_changes_during_period,
-                self.hass,
+            local_tz = dt_util.get_time_zone(configured_timezone) or dt_util.UTC
+            local_date = date.fromisoformat(today)
+            start, end = local_day_bounds(
+                local_date,
+                local_tz,
+                now=dt_util.now(),
+            )
+            token = backfill.new_token()
+            states = await backfill.async_query(
+                token,
+                self.entity_id,
                 start,
-                entity_id=self.entity_id,
+                end,
+                block=f"daily_energy:{self.entity_id}",
                 include_start_time_state=False,
             )
-            states_map = await get_instance(self.hass).async_add_executor_job(query)
-        except Exception as err:  # Recorder is optional and may not be ready at boot.
-            _LOGGER.debug("Could not recover %s from recorder: %s", self.entity_id, err)
-            return None
-
-        return _highest_daily_energy_value(states_map.get(self.entity_id, []))
+            if states is None:
+                return None
+            try:
+                return _highest_daily_energy_value(states)
+            finally:
+                del states
+        # Real setup always attaches the entry-owned coordinator before this
+        # entity is created.  Without it there is no safe way to issue a
+        # Recorder query without bypassing the entry's serialization and
+        # cancellation guarantees.
+        return None
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -571,7 +633,9 @@ class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity
     def _publish_daily(self) -> None:
         """Make the derived key available to system aggregates and the panel."""
         if self.coordinator.data is not None:
-            self.coordinator.data[self._key] = self._energy_data.kwh
+            self.coordinator.data[self._key] = (
+                self._energy_data.kwh + self._backup_daily_discharge_kwh()
+            )
             self.coordinator.data[f"{self._key}_reset_date"] = (
                 self._energy_data.reset_date
             )
@@ -579,7 +643,28 @@ class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity
     @property
     def native_value(self) -> float:
         """Return energy accumulated since local midnight."""
-        return round(self._energy_data.kwh, self._precision)
+        return round(
+            self._energy_data.kwh + self._backup_daily_discharge_kwh(),
+            self._precision,
+        )
+
+    def _backup_daily_discharge_kwh(self) -> float:
+        """Return today's software-integrated backup leg for discharge sensors."""
+        if (
+            getattr(self, "_source_key", None) != "total_discharging_energy"
+            or self.coordinator.data is None
+        ):
+            return 0.0
+        try:
+            value = float(
+                self.coordinator.data.get(
+                    BACKUP_DAILY_DISCHARGING_ENERGY_KEY,
+                    0.0,
+                )
+            )
+        except (TypeError, ValueError):
+            return 0.0
+        return max(0.0, value)
 
     @property
     def extra_restore_state_data(self) -> _CumulativeDailyEnergyData:
@@ -589,10 +674,19 @@ class CumulativeDailyEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity
     @property
     def extra_state_attributes(self):
         """Expose reset metadata useful when diagnosing daily totals."""
-        return {
+        attributes = {
             "reset_date": self._energy_data.reset_date,
             "source": self._source_key,
         }
+        if (
+            self._source_key == "total_discharging_energy"
+            and self.coordinator.data is not None
+            and BACKUP_DAILY_DISCHARGING_ENERGY_KEY in self.coordinator.data
+        ):
+            attributes["backup_discharging_energy"] = (
+                self._backup_daily_discharge_kwh()
+            )
+        return attributes
 
     @property
     def device_info(self):

@@ -455,3 +455,32 @@ NUMBER_DEFINITIONS_VA = [
         "scan_interval": "high",
     },
 ]
+
+# --- per-pack SOC (issue #350) ----------------------------------------------
+# Venus A/D couple several battery packs and fill them in sequence, so the
+# aggregate SOC at 32104 can read 100 % while a later pack is still empty. Each
+# pack publishes its own SOC on a stride-100 layout — 34000 + 100·(n−1), SOC at
+# offset +2 — in deci-percent (the aggregate is whole percent). The six
+# addresses are 100 registers apart, so no block read applies (REGISTER_BLOCKS
+# never pads gaps, issue #361) and each costs its own frame: polled at "low"
+# because a pack SOC moves ~0.1 %/min in absorption and a handover takes
+# minutes. Slots this installation does not have are dropped by the driver's
+# start-up probe (MarstekModbusDriver._learn_packs).
+PACK_SOC_KEYS = tuple(f"battery_soc_pack_{n}" for n in range(1, 7))
+
+SENSOR_DEFINITIONS_VA.extend(
+    {
+        "name": f"Battery SOC Pack {n}",
+        "register": 34002 + 100 * (n - 1),
+        "scale": 0.1,
+        "unit": "%",
+        "device_class": "battery",
+        "state_class": "measurement",
+        "key": key,
+        "enabled_by_default": False,
+        "data_type": "uint16",
+        "precision": 1,
+        "scan_interval": "low",
+    }
+    for n, key in enumerate(PACK_SOC_KEYS, start=1)
+)

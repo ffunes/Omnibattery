@@ -55,15 +55,15 @@ The switch state is persisted in the config entry and survives restarts.
 Telemetry devices also get a **Dynamic Power Control** switch. It is designed for flexible loads such as wallboxes that regulate themselves from the same grid meter as Omnibattery. Enable it together with **Solar Surplus**.
 
 !!! note "Solar production sensor"
-    The **solar-production sensor is recommended** for this control. When it is configured, Omnibattery detects solar-production increases of at least 200 W and yields battery charging again for 20 seconds. Without that sensor, it runs a 20-second probe every 5 minutes.
+    The **solar-production sensor is recommended** for this control. When it is configured, Omnibattery detects increases of at least 200 W in the available margin (solar production minus device power), including a wallbox power drop, and yields battery charging again for 20 seconds. Without that sensor, it runs a 20-second probe every 5 minutes.
 
 The **Device active / EV charging sensor** lets Omnibattery yield while the wallbox is requesting power but still reads 0 W, avoiding the cold-start deadlock where the battery absorbs all export before the wallbox starts. Omnibattery automatically:
 
 - Bblocks battery charging while the optional activity sensor requests power but the wallbox still reads 0 W.
 - Yields battery charging for 30 seconds when device demand rises above 100 W.
 - Lets the external controller ramp up before the battery takes residual export.
-- Yields again for 20 seconds after solar production rises by at least 200 W.
-- Keeps battery charging blocked for 5 minutes after device power falls, allowing a wallbox to restart after a cloud or phase transition.
+- Yields again for 20 seconds when the available margin (solar production minus device power) rises by at least 200 W, either because solar production rises or the wallbox reduces power.
+- When device power falls, keeps battery discharge blocked for 5 minutes and gives charging a short restart grace so a wallbox can restart after a cloud or phase transition.
 - Probes every 5 minutes when no solar-production sensor is available.
 
 Legacy sensor-less Dynamic Power Control entries still fall back to detection at the first measured load above 100 W. Dynamic Power Control is not available for the state-only **EV charger without power telemetry** mode because that mode already manages the battery directly from the same activity sensor.

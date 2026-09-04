@@ -15,6 +15,10 @@
     "solar_forecast_unusable": {
       "title": "Previsió solar inutilitzable",
       "description": "El sensor de previsió solar configurat {sensor} fa més de {minutes} minuts que no està disponible o no es pot llegir. Omnibattery continua funcionant, però tot allò que depèn de la previsió va a cegues: el retard de càrrega s'allibera la resta del dia, les decisions de càrrega des de la xarxa assumeixen que no hi haurà sol i poden reservar franges innecessàries, i l'estimació de sol restant marca 0 kWh. Reviseu el sensor o la integració que el proporciona."
+    },
+    "solar_forecast_remaining_recommended": {
+      "title": "Utilitza una previsió solar restant",
+      "description": "{sensor} és una previsió solar heretada per a tot el dia. Omnibattery encara l'admet, però els errors de previsió ja produïts poden fer imprecises les decisions intradia. Configura a les opcions d'Omnibattery el sensor de previsió del proveïdor per a \"restant avui\" per calcular amb més precisió el sol restant."
     }
   },
   "config": {
@@ -28,7 +32,10 @@
         "description": "Selecciona el sensor que mesura la importació/exportació de la xarxa elèctrica. Opcionalment, configura el sensor de predicció solar per a funcions avançades.",
         "data": {
           "consumption_sensor": "Sensor de consum de la xarxa",
-          "solar_forecast_sensor": "Sensor de predicció solar (opcional)",
+          "offgrid_power_sensor": "Sensor de potència off-grid (opcional)",
+          "offgrid_meter_inverted": "Signe del mesurador off-grid invertit",
+          "solar_forecast_sensor": "Sensor de predicció solar del dia complet (heretat)",
+          "solar_forecast_remaining_sensor": "Sensor de predicció solar restant d'avui (recomanat)",
           "solar_production_sensor": "Sensor de producció solar (opcional)",
           "meter_inverted": "Signe del comptador invertit",
           "max_contracted_power": "Potència màxima contractada (W)",
@@ -36,7 +43,10 @@
         },
         "data_description": {
           "consumption_sensor": "Sensor en temps real de potència importada (+) o exportada (-) a la xarxa. Es recomanen actualitzacions cada 1-2 segons. S'accepten sensors més lents, però les lectures retardades redueixen la qualitat de la regulació; l'última lectura se segueix durant un màxim de 65 segons.",
-          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si es configura aquí, s'utilitzarà automàticament per la càrrega predictiva i el retard de càrrega solar.",
+          "offgrid_power_sensor": "Mesurador W/kW independent per al circuit amb suport. Ha de ser diferent del sensor de xarxa normal. Configurar-lo exposa un interruptor de programari que selecciona aquesta font per al control i les estadístiques; no activa el port off-grid/EPS físic de la bateria.",
+          "offgrid_meter_inverted": "Activa-ho quan el sensor off-grid utilitzi la convenció oposada: positiu = exportació i negatiu = consum. Només s'aplica mentre el mode de mesurador off-grid està actiu.",
+          "solar_forecast_sensor": "Sensor heretat que proporciona la predicció solar del dia complet. Les instal·lacions existents poden continuar utilitzant-lo durant la transició; per a configuracions noves es recomana Restant d'avui.",
+          "solar_forecast_remaining_sensor": "Sensor que proporciona la producció solar que encara s'espera avui en kWh. En desar-lo substitueix el sensor heretat del dia complet i mai es redueix amb la producció ja mesurada.",
           "solar_production_sensor": "Sensor de potència de producció fotovoltaica en temps real (W/kW) d'un inversor extern que no passa per les entrades MPPT de la bateria. S'utilitza per mostrar el node Solar al diagrama de flux del tauler. Deixa'l buit si els teus panells alimenten directament el MPPT de la bateria.",
           "meter_inverted": "Activa aquesta opció si el teu comptador utilitza el conveni oposat: positiu = exportació, negatiu = importació. La unitat (W/kW) es detecta automàticament.",
           "max_contracted_power": "Potència total contractada en watts. El sistema no superarà aquest límit en carregar per evitar que salti el comptador",
@@ -149,7 +159,8 @@
           "backup_offgrid_threshold": "Llindar de càrrega offgrid (fora de la xarxa) de backup (W)",
           "full_charge_voltage_taper_enabled": "Activa la reducció per voltatge en carregar al 100%",
           "battery_capacity_kwh": "Capacitat nominal de la bateria (kWh)",
-          "battery_phase": "Fase física de la bateria"
+          "battery_phase": "Fase física de la bateria",
+          "dc_pv_connected": "Hi ha panells solars connectats directament a aquesta bateria"
         },
         "data_description": {
           "max_charge_power": "Potència màxima permesa per carregar la bateria",
@@ -160,7 +171,8 @@
           "backup_offgrid_threshold": "Una càrrega offgrid superior a aquest valor es considera un esdeveniment de backup actiu, excloent la bateria del control PD. Augmenta'l si tens càrregues permanents (router, càmeres) al port offgrid.",
           "full_charge_voltage_taper_enabled": "Quan l'objectiu és 100%, limita la càrrega a 200 W des de 3,48 V de cel·la màxima. En Venus E s'atura a 3,60 V per mesurar el desbalanç durant 60 segons; les Venus A/D amb packs acoblats continuen a 200 W fins que la BMS talla.",
           "battery_capacity_kwh": "Capacitat útil nominal del pack de bateries. Es fa servir per calcular energia emmagatzemada i eficiència a partir del SOC. Per a Sessy, introdueix la capacitat real; per a altres bateries, deixa 0 si no la coneixes.",
-          "battery_phase": "Fase AC física (L1/L2/L3) on està cablejada aquesta bateria, o Sense assignar si queda fora de l'esquema de fases protegides. Una bateria sense fase queda fora de l'envolupant trifàsica i continua funcionant normalment en automàtic."
+          "battery_phase": "Fase AC física (L1/L2/L3) on està cablejada aquesta bateria, o Sense assignar si queda fora de l'esquema de fases protegides. Una bateria sense fase queda fora de l'envolupant trifàsica i continua funcionant normalment en automàtic.",
+          "dc_pv_connected": "Només Venus A/D. Activa-ho quan hi hagi panells connectats a les entrades MPPT de la bateria. Desactiva-ho si aquestes entrades no s'utilitzen perquè la potència de bateria continuï basant-se en la potència AC sense afegir producció MPPT."
         }
       },
       "time_slots": {
@@ -223,7 +235,23 @@
           "battery_6__soc_min": "Bateria 6 — SOC mínim (%)",
           "battery_6__soc_max": "Bateria 6 — SOC màxim (%)",
           "battery_6__max_charge_power_w": "Bateria 6 — Potència màx. càrrega (W)",
-          "battery_6__max_discharge_power_w": "Bateria 6 — Potència màx. descàrrega (W)"
+          "battery_6__max_discharge_power_w": "Bateria 6 — Potència màx. descàrrega (W)",
+          "battery_7__soc_min": "Bateria 7 — SOC mínim (%)",
+          "battery_7__soc_max": "Bateria 7 — SOC màxim (%)",
+          "battery_7__max_charge_power_w": "Bateria 7 — Potència màx. càrrega (W)",
+          "battery_7__max_discharge_power_w": "Bateria 7 — Potència màx. descàrrega (W)",
+          "battery_8__soc_min": "Bateria 8 — SOC mínim (%)",
+          "battery_8__soc_max": "Bateria 8 — SOC màxim (%)",
+          "battery_8__max_charge_power_w": "Bateria 8 — Potència màx. càrrega (W)",
+          "battery_8__max_discharge_power_w": "Bateria 8 — Potència màx. descàrrega (W)",
+          "battery_9__soc_min": "Bateria 9 — SOC mínim (%)",
+          "battery_9__soc_max": "Bateria 9 — SOC màxim (%)",
+          "battery_9__max_charge_power_w": "Bateria 9 — Potència màx. càrrega (W)",
+          "battery_9__max_discharge_power_w": "Bateria 9 — Potència màx. descàrrega (W)",
+          "battery_10__soc_min": "Bateria 10 — SOC mínim (%)",
+          "battery_10__soc_max": "Bateria 10 — SOC màxim (%)",
+          "battery_10__max_charge_power_w": "Bateria 10 — Potència màx. càrrega (W)",
+          "battery_10__max_discharge_power_w": "Bateria 10 — Potència màx. descàrrega (W)"
         },
         "data_description": {
           "soc_min": "La bateria no descarregarà per sota d'aquest SOC durant la franja (mínim 12%).",
@@ -582,6 +610,33 @@
           "slave_id": "Modbus slave/unit id (default 1)"
         }
       },
+          "reconfigure_battery_huawei_slave": {
+            "title": "Reconfigura la bateria {battery_num} — Quin inversor?",
+            "description": "{count} inversors amb bateria han respost en aquest bus. Tria el que correspon a aquesta bateria.",
+            "data": {
+              "slave_id": "Inverter"
+            }
+          },
+        "reconfigure_battery_huawei": {
+          "title": "Reconfigura la bateria {battery_num} — Connexió (Huawei)",
+          "description": "Actualitza l'accés Modbus i el dispositiu de bateria de Huawei Solar per a la bateria {battery_num}. La resta d'ajustos es conserven.",
+          "data": {
+            "name": "Name",
+            "host": "IP Address",
+            "port": "Modbus Port",
+            "slave_id": "Modbus slave id (leave empty to search)",
+            "huawei_battery_device": "Huawei Solar battery device",
+            "huawei_direct_write": "Direct Modbus writes"
+          },
+          "data_description": {
+            "name": "Descriptive name to identify this battery",
+            "host": "Address of the Modbus proxy or inverter Omnibattery reads from",
+            "port": "Modbus TCP port (default 502)",
+            "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.",
+            "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.",
+            "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."
+          }
+        },
       "reconfigure_battery_hoymiles": {
         "title": "Reconfigura la bateria {battery_num} — MQTT Hoymiles",
         "description": "Introduïu l'ID MQTT de Hoymiles; Home Assistant gestiona el broker i Omnibattery detecta el model.",
@@ -613,6 +668,17 @@
         "data": {"name": "Nom", "host": "Adreça IP", "port": "Port HTTP", "username": "Usuari", "password": "Contrasenya"},
         "data_description": {"name": "Nom descriptiu per identificar aquesta bateria", "host": "Adreça IP del dispositiu Sessy a la xarxa local", "port": "Port HTTP (per defecte 80)", "username": "Usuari local imprès al dongle Sessy", "password": "Contrasenya local impresa al dongle Sessy"}
       },
+      "battery_connection_huawei": {
+        "title": "Configure battery {battery_num} — Connection (Huawei)",
+        "description": "Omnibattery reads this battery over Modbus and sends its set-points through the Huawei Solar integration, so it needs both: a Modbus endpoint and the battery device. Point the Modbus address at a Modbus proxy rather than straight at the inverter — the Huawei Solar integration already holds a connection to it.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
+        "data": {"name": "Name", "host": "IP Address", "port": "Modbus Port", "slave_id": "Modbus slave id (leave empty to search)", "huawei_battery_device": "Huawei Solar battery device", "huawei_direct_write": "Direct Modbus writes"},
+        "data_description": {"name": "Descriptive name to identify this battery", "host": "Address of the Modbus proxy or inverter Omnibattery reads from", "port": "Modbus TCP port (default 502)", "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.", "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.", "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."}
+      },
+      "battery_connection_huawei_slave": {
+        "title": "Configure battery {battery_num} — Choose inverter",
+        "description": "{count} inverters with a battery answered on this Modbus endpoint. Huawei inverters can be cascaded — pick the one this battery belongs to. For a second battery, add another entry with the other slave id.",
+        "data": {"slave_id": "Inverter"}
+      },
       "battery_connection_anker": {
         "title": "Configure battery {battery_num} — Connection (Anker)",
         "description": "Enter connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. Enable Modbus TCP under Third-Party Control in the Anker app first. Only one Modbus client can connect at a time.",
@@ -632,11 +698,19 @@
     },
     "error": {
       "cannot_connect": "No es pot connectar a la bateria. Verifica l'adreça IP i que la bateria sigui accessible a la xarxa.",
+      "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
+      "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
+      "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
+      "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Al dispositiu ESPHome seleccionat li falten entitats necessàries: {missing}. Assegura't que executa el firmware marstek-lilygo-rs485 amb els noms d'entitat originals.",
       "sensor_not_found": "El sensor de predicció solar no existeix. Verifica que el sensor estigui disponible.",
       "invalid_unit": "El sensor de predicció solar ha de tenir com a unitat 'kWh' o 'Wh'.",
       "solar_production_sensor_not_found": "El sensor de producció solar no existeix. Verifica que el sensor estigui disponible.",
       "solar_production_invalid_unit": "El sensor de producció solar ha de tenir com a unitat 'W' o 'kW'.",
+      "solar_production_sensor_circular": "Un sensor solar creat per OmniBattery no es pot reutilitzar com a entrada externa de producció solar.",
+      "offgrid_sensor_must_differ": "El sensor de potència off-grid ha de ser diferent del sensor de xarxa normal.",
+      "offgrid_sensor_not_found": "El sensor de potència off-grid no existeix o no està disponible.",
+      "offgrid_sensor_invalid_unit": "El sensor de potència off-grid ha de tenir com a unitat 'W' o 'kW'.",
       "phase_sensors_must_differ": "Cada fase ha d'utilitzar un sensor de corrent diferent.",
       "phase_sensor_not_found": "El sensor de corrent de fase no existeix o no està disponible.",
       "phase_sensor_invalid_domain": "La font de corrent de fase ha de ser una entitat sensor.",
@@ -713,7 +787,10 @@
         "description": "Configura els sensors utilitzats per la integració.",
         "data": {
           "consumption_sensor": "Sensor de consum de la xarxa",
-          "solar_forecast_sensor": "Sensor de predicció solar (opcional)",
+          "offgrid_power_sensor": "Sensor de potència off-grid (opcional)",
+          "offgrid_meter_inverted": "Signe del mesurador off-grid invertit",
+          "solar_forecast_sensor": "Sensor de predicció solar del dia complet (heretat)",
+          "solar_forecast_remaining_sensor": "Sensor de predicció solar restant d'avui (recomanat)",
           "solar_production_sensor": "Sensor de producció solar (opcional)",
           "meter_inverted": "Signe del comptador invertit",
           "max_contracted_power": "Potència màxima contractada (W)",
@@ -721,7 +798,10 @@
         },
         "data_description": {
           "consumption_sensor": "Sensor en temps real de potència importada (+) o exportada (-) a la xarxa. Es recomanen actualitzacions cada 1-2 segons. S'accepten sensors més lents, però les lectures retardades redueixen la qualitat de la regulació; l'última lectura se segueix durant un màxim de 65 segons.",
-          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si es configura aquí, s'utilitzarà automàticament en càrrega predictiva i retard de càrrega solar.",
+          "offgrid_power_sensor": "Mesurador W/kW independent per al circuit amb suport. Ha de ser diferent del sensor de xarxa normal. Configurar-lo exposa un interruptor de programari que selecciona aquesta font per al control i les estadístiques; no activa el port off-grid/EPS físic de la bateria.",
+          "offgrid_meter_inverted": "Activa-ho quan el sensor off-grid utilitzi la convenció oposada: positiu = exportació i negatiu = consum. Només s'aplica mentre el mode de mesurador off-grid està actiu.",
+          "solar_forecast_sensor": "Sensor heretat que proporciona la predicció solar del dia complet. Les instal·lacions existents poden continuar utilitzant-lo durant la transició; per a configuracions noves es recomana Restant d'avui.",
+          "solar_forecast_remaining_sensor": "Sensor que proporciona la producció solar que encara s'espera avui en kWh. En desar-lo substitueix el sensor heretat del dia complet i mai es redueix amb la producció ja mesurada.",
           "solar_production_sensor": "Sensor de potència de producció fotovoltaica en temps real (W/kW) d'un inversor extern que no passa per les entrades MPPT de la bateria. S'utilitza per mostrar el node Solar al diagrama de flux del tauler. Deixa'l buit si els teus panells alimenten directament el MPPT de la bateria.",
           "meter_inverted": "Activa aquesta opció si el teu comptador utilitza el conveni oposat: positiu = exportació, negatiu = importació. La unitat (W/kW) es detecta automàticament.",
           "max_contracted_power": "Potència total contractada en watts. El sistema no superarà aquest límit en carregar per evitar que salti el diferencial",
@@ -803,7 +883,8 @@
           "backup_offgrid_threshold": "Llindar de càrrega offgrid de backup (W)",
           "full_charge_voltage_taper_enabled": "Activar reducció per voltatge en carregar al 100%",
           "battery_capacity_kwh": "Capacitat nominal de la bateria (kWh)",
-          "battery_phase": "Fase física de la bateria"
+          "battery_phase": "Fase física de la bateria",
+          "dc_pv_connected": "Hi ha panells solars connectats directament a aquesta bateria"
         },
         "data_description": {
           "max_charge_power": "Potència màxima permesa per carregar la bateria",
@@ -814,7 +895,8 @@
           "backup_offgrid_threshold": "Una càrrega offgrid superior a aquest valor es considera un esdeveniment de backup actiu, excloent la bateria del control PD. Augmenta'l si tens càrregues permanents (router, càmeres) al port offgrid.",
           "full_charge_voltage_taper_enabled": "Quan l'objectiu és 100%, limita la càrrega a 200 W des de 3,48 V de cel·la màxima. En Venus E s'atura a 3,60 V per mesurar el desbalanç durant 60 segons; les Venus A/D amb packs acoblats continuen a 200 W fins que la BMS talla.",
           "battery_capacity_kwh": "Capacitat útil nominal del pack de bateries. Es fa servir per calcular energia emmagatzemada i eficiència a partir del SOC. Per a Sessy, introdueix la capacitat real; per a altres bateries, deixa 0 si no la coneixes.",
-          "battery_phase": "Fase AC física (L1/L2/L3) on està cablejada aquesta bateria, o Sense assignar si queda fora de l'esquema de fases protegides. Una bateria sense fase queda fora de l'envolupant trifàsica i continua funcionant normalment en automàtic."
+          "battery_phase": "Fase AC física (L1/L2/L3) on està cablejada aquesta bateria, o Sense assignar si queda fora de l'esquema de fases protegides. Una bateria sense fase queda fora de l'envolupant trifàsica i continua funcionant normalment en automàtic.",
+          "dc_pv_connected": "Només Venus A/D. Activa-ho quan hi hagi panells connectats a les entrades MPPT de la bateria. Desactiva-ho si aquestes entrades no s'utilitzen perquè la potència de bateria continuï basant-se en la potència AC sense afegir producció MPPT."
         }
       },
       "time_slots": {
@@ -877,7 +959,23 @@
           "battery_6__soc_min": "Bateria 6 — SOC mínim (%)",
           "battery_6__soc_max": "Bateria 6 — SOC màxim (%)",
           "battery_6__max_charge_power_w": "Bateria 6 — Potència màx. càrrega (W)",
-          "battery_6__max_discharge_power_w": "Bateria 6 — Potència màx. descàrrega (W)"
+          "battery_6__max_discharge_power_w": "Bateria 6 — Potència màx. descàrrega (W)",
+          "battery_7__soc_min": "Bateria 7 — SOC mínim (%)",
+          "battery_7__soc_max": "Bateria 7 — SOC màxim (%)",
+          "battery_7__max_charge_power_w": "Bateria 7 — Potència màx. càrrega (W)",
+          "battery_7__max_discharge_power_w": "Bateria 7 — Potència màx. descàrrega (W)",
+          "battery_8__soc_min": "Bateria 8 — SOC mínim (%)",
+          "battery_8__soc_max": "Bateria 8 — SOC màxim (%)",
+          "battery_8__max_charge_power_w": "Bateria 8 — Potència màx. càrrega (W)",
+          "battery_8__max_discharge_power_w": "Bateria 8 — Potència màx. descàrrega (W)",
+          "battery_9__soc_min": "Bateria 9 — SOC mínim (%)",
+          "battery_9__soc_max": "Bateria 9 — SOC màxim (%)",
+          "battery_9__max_charge_power_w": "Bateria 9 — Potència màx. càrrega (W)",
+          "battery_9__max_discharge_power_w": "Bateria 9 — Potència màx. descàrrega (W)",
+          "battery_10__soc_min": "Bateria 10 — SOC mínim (%)",
+          "battery_10__soc_max": "Bateria 10 — SOC màxim (%)",
+          "battery_10__max_charge_power_w": "Bateria 10 — Potència màx. càrrega (W)",
+          "battery_10__max_discharge_power_w": "Bateria 10 — Potència màx. descàrrega (W)"
         },
         "data_description": {
           "soc_min": "La bateria no descarregarà per sota d'aquest SOC durant la franja (mínim 12%).",
@@ -1186,6 +1284,17 @@
         "data": {"name": "Nom", "host": "Adreça IP", "port": "Port HTTP", "username": "Usuari", "password": "Contrasenya"},
         "data_description": {"name": "Nom descriptiu per identificar aquesta bateria", "host": "Adreça IP del dispositiu Sessy a la xarxa local", "port": "Port HTTP (per defecte 80)", "username": "Usuari local imprès al dongle Sessy", "password": "Contrasenya local impresa al dongle Sessy"}
       },
+      "battery_connection_huawei": {
+        "title": "Configure battery {battery_num} — Connection (Huawei)",
+        "description": "Modify the Modbus endpoint and the Huawei Solar battery device used for battery {battery_num}.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
+        "data": {"name": "Name", "host": "IP Address", "port": "Modbus Port", "slave_id": "Modbus slave id (leave empty to search)", "huawei_battery_device": "Huawei Solar battery device", "huawei_direct_write": "Direct Modbus writes"},
+        "data_description": {"name": "Descriptive name to identify this battery", "host": "Address of the Modbus proxy or inverter Omnibattery reads from", "port": "Modbus TCP port (default 502)", "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.", "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.", "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."}
+      },
+      "battery_connection_huawei_slave": {
+        "title": "Configure battery {battery_num} — Choose inverter",
+        "description": "{count} inverters with a battery answered on this Modbus endpoint. Huawei inverters can be cascaded — pick the one this battery belongs to. For a second battery, add another entry with the other slave id.",
+        "data": {"slave_id": "Inverter"}
+      },
       "battery_connection_anker": {
         "title": "Configure battery {battery_num} — Connection (Anker)",
         "description": "Modify connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. Enable Modbus TCP under Third-Party Control in the Anker app first. Only one Modbus client can connect at a time.",
@@ -1205,11 +1314,19 @@
     },
     "error": {
       "cannot_connect": "No es pot connectar a la bateria. Verifica l'adreça IP i que la bateria sigui accessible a la xarxa.",
+      "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
+      "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
+      "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
+      "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Al dispositiu ESPHome seleccionat li falten entitats necessàries: {missing}. Assegura't que executa el firmware marstek-lilygo-rs485 amb els noms d'entitat originals.",
       "sensor_not_found": "El sensor de predicció solar no existeix. Verifica que el sensor estigui disponible.",
       "invalid_unit": "El sensor de predicció solar ha de tenir com a unitat 'kWh' o 'Wh'.",
       "solar_production_sensor_not_found": "El sensor de producció solar no existeix. Verifica que el sensor estigui disponible.",
       "solar_production_invalid_unit": "El sensor de producció solar ha de tenir com a unitat 'W' o 'kW'.",
+      "solar_production_sensor_circular": "Un sensor solar creat per OmniBattery no es pot reutilitzar com a entrada externa de producció solar.",
+      "offgrid_sensor_must_differ": "El sensor de potència off-grid ha de ser diferent del sensor de xarxa normal.",
+      "offgrid_sensor_not_found": "El sensor de potència off-grid no existeix o no està disponible.",
+      "offgrid_sensor_invalid_unit": "El sensor de potència off-grid ha de tenir com a unitat 'W' o 'kW'.",
       "phase_sensors_must_differ": "Cada fase ha d'utilitzar un sensor de corrent diferent.",
       "phase_sensor_not_found": "El sensor de corrent de fase no existeix o no està disponible.",
       "phase_sensor_invalid_domain": "La font de corrent de fase ha de ser una entitat sensor.",
@@ -1301,6 +1418,9 @@
       "no_pd_mode": {
         "name": "Seguiment Directe sense PD"
       },
+      "offgrid_mode": {
+        "name": "Mode de Mesurador Off-grid"
+      },
       "min_soc_floor_enabled": {
         "name": "SOC Mínim Garantit"
       },
@@ -1309,6 +1429,9 @@
       },
       "predictive_charging": {
         "name": "Càrrega Predictiva"
+      },
+      "vacation_mode": {
+        "name": "Mode vacances"
       },
       "charge_delay": {
         "name": "Retard de Càrrega"
@@ -1427,6 +1550,15 @@
       "system_daily_home_energy": {
         "name": "Consum Diari de la Casa"
       },
+      "expected_home_consumption_profile": {
+        "name": "Perfil de consum domèstic esperat"
+      },
+      "consumption_profile_capture": {
+        "name": "Captura del perfil de consum actual"
+      },
+      "daily_operation_timeline": {
+        "name": "Línia temporal d'operació diària"
+      },
       "system_pd_control_quality": {
         "name": "Qualitat de Control PD",
         "state": {
@@ -1435,6 +1567,7 @@
           "oscillating": "Oscil·lant",
           "sluggish": "Lent",
           "battery_limited": "Limitat per bateria",
+          "blocked": "Bloquejat",
           "collecting_data": "Recollint dades"
         }
       },
@@ -1505,6 +1638,24 @@
       "battery_soc": {
         "name": "SOC de la Bateria"
       },
+      "battery_soc_pack_1": {
+        "name": "SOC Bateria Paquet 1"
+      },
+      "battery_soc_pack_2": {
+        "name": "SOC Bateria Paquet 2"
+      },
+      "battery_soc_pack_3": {
+        "name": "SOC Bateria Paquet 3"
+      },
+      "battery_soc_pack_4": {
+        "name": "SOC Bateria Paquet 4"
+      },
+      "battery_soc_pack_5": {
+        "name": "SOC Bateria Paquet 5"
+      },
+      "battery_soc_pack_6": {
+        "name": "SOC Bateria Paquet 6"
+      },
       "battery_total_energy": {
         "name": "Energia Total de la Bateria"
       },
@@ -1540,6 +1691,9 @@
       },
       "total_discharging_energy": {
         "name": "Energia Total de Descàrrega"
+      },
+      "pv_total_generation": {
+        "name": "Generació FV Total"
       },
       "total_daily_charging_energy": {
         "name": "Energia de Càrrega Diària"
@@ -1636,6 +1790,72 @@
       },
       "software_version": {
         "name": "Versió de Programari"
+      },
+      "pv1_voltage": {
+        "name": "Tensió PV1"
+      },
+      "pv2_voltage": {
+        "name": "Tensió PV2"
+      },
+      "pv3_voltage": {
+        "name": "Tensió PV3"
+      },
+      "pv4_voltage": {
+        "name": "Tensió PV4"
+      },
+      "pack1_firmware_version": {
+        "name": "Microprogramari del Paquet de Bateries 1"
+      },
+      "pack2_firmware_version": {
+        "name": "Microprogramari del Paquet de Bateries 2"
+      },
+      "pack3_firmware_version": {
+        "name": "Microprogramari del Paquet de Bateries 3"
+      },
+      "pack1_serial_number": {
+        "name": "Número de Sèrie del Paquet 1"
+      },
+      "pack2_serial_number": {
+        "name": "Número de Sèrie del Paquet 2"
+      },
+      "pack3_serial_number": {
+        "name": "Número de Sèrie del Paquet 3"
+      },
+      "backup_function": {
+        "name": "Funció de Reserva"
+      },
+      "inverter_software_version": {
+        "name": "Microprogramari de l'Inversor"
+      },
+      "grid_power": {
+        "name": "Potència de Xarxa"
+      },
+      "inverter_ac_power": {
+        "name": "Potència CA de l'Inversor"
+      },
+      "charging_cutoff_capacity": {
+        "name": "Límit de Fi de Càrrega"
+      },
+      "discharging_cutoff_capacity": {
+        "name": "Límit de Fi de Descàrrega"
+      },
+      "user_work_mode": {
+        "name": "Mode de Funcionament"
+      },
+      "inverter_max_power": {
+        "name": "Potència Màxima de l'Inversor"
+      },
+      "inverter_rated_power": {
+        "name": "Potència Nominal de l'Inversor"
+      },
+      "power_module_serial_number": {
+        "name": "Número de Sèrie del Mòdul de Potència"
+      },
+      "power_module_firmware_version": {
+        "name": "Microprogramari del Mòdul de Potència"
+      },
+      "inverter_serial_number": {
+        "name": "Número de Sèrie de l'Inversor"
       },
       "battery_runtime_estimate": {
         "name": "Estimació d'Autonomia de la Bateria"

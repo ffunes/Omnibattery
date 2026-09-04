@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
 
+from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import (
     CONF_METER_INVERTED,
     CONF_PHASE_1_FUSE_SIZE,
@@ -206,6 +208,46 @@ def test_phase_budget_uses_controller_battery_sign():
     assert export["base_a"] == -15
     assert export["charge_budget_a"] == 25
     assert export["discharge_budget_a"] == 10
+
+
+@pytest.mark.parametrize(
+    ("grid_charging_active", "expected"),
+    [(False, 1340), (True, -1340)],
+)
+def test_phase_safety_review_preserves_active_power_sign_convention(
+    grid_charging_active, expected
+):
+    battery = FakeCoordinator("L1 battery", PHASE_L1)
+    battery.commanded_charge_power = 1340
+    calls = []
+
+    async def _set_battery_power(coordinator, charge, discharge):
+        calls.append((coordinator, charge, discharge))
+
+    controller = SimpleNamespace(
+        coordinators=[battery],
+        _phase_power_limiter=SimpleNamespace(enabled=True),
+        _power_distribution=SimpleNamespace(
+            _distribute_power_by_limits=lambda total, selected, is_charging: {
+                selected[0]: total
+            },
+        ),
+        _coordinator_delivered_power=ChargeDischargeController._coordinator_delivered_power,
+        _set_battery_power=_set_battery_power,
+        _phase_safety_pending=True,
+        grid_charging_active=grid_charging_active,
+    )
+    controller._signed_power_from_allocations = (
+        lambda charging, discharging: ChargeDischargeController._signed_power_from_allocations(
+            controller, charging, discharging
+        )
+    )
+
+    asyncio.run(ChargeDischargeController._apply_phase_safety_review(controller))
+
+    assert controller.previous_power == expected
+    assert calls == [(battery, 1340, 0)]
+    assert controller._phase_safety_pending is False
 
 
 def test_phase_budgets_never_exceed_configured_current_limit():

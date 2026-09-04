@@ -37,6 +37,38 @@ La red cubre 3 000 W y la batería solo 1 500 W
 
 Si el consumo fuera de 2 000 W (< límite), la batería no descargaría nada.
 
+## Interacción con la carga predictiva desde red
+
+Durante una franja predictiva activa, el consumo del hogar siempre tiene
+prioridad sobre la carga desde red. El controlador reduce primero la potencia
+de carga de la batería; si alcanza el techo de importación, ordena reposo y
+espera a que la telemetría del inversor y del contador se estabilice antes de
+considerar una descarga.
+
+Después de la estabilización:
+
+- Con Protección de Capacidad activa, Peak Shaving descarga únicamente el
+  exceso sobre `min(capacity_protection_limit, max_contracted_power)`.
+- Independientemente del switch de Protección de Capacidad, una importación
+  física superior a `max_contracted_power` activa la emergencia por potencia
+  contratada. Las cargas excluidas de la cobertura ordinaria no pueden
+  excluirse de esta comprobación porque la conexión de red también las ve.
+- Las restricciones económicas de descarga por precio y las ventanas protegidas
+  de precio negativo no pueden impedir una orden legítima de Peak Shaving o
+  emergencia. Siguen aplicándose las protecciones físicas y del usuario: SOC
+  mínimo, disponibilidad, propiedad manual o de franjas, backup, fases y límites
+  de potencia.
+
+Detener la carga predictiva, descargar por Peak Shaving, descargar por PD normal
+y descargar por emergencia de potencia contratada son, por tanto, acciones
+distintas. La protección de pico nunca convierte una franja barata en descarga
+económica normal hacia el objetivo de red del PD. Cuando vuelve un margen
+estable, primero detiene la descarga, espera otra estabilización y reanuda la
+carga predictiva con histéresis. Conserva su SOC objetivo y los kWh pendientes.
+
+Consulta [Consumo del hogar durante una franja de carga predictiva](../configuration/predictive-charging/index.es.md#consumo-del-hogar-durante-una-franja-de-carga)
+para ver la secuencia completa y un ejemplo.
+
 ## Peak shaving para dispositivos excluidos
 
 El switch opcional **Reducción de picos para dispositivos excluidos** extiende

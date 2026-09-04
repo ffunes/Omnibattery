@@ -36,11 +36,13 @@ Automatically selects the **cheapest hours of the day** to cover the calculated 
 
 At 00:05 the controller:
 
-1. Calculates the energy deficit (battery + solar vs. expected consumption).
+1. Calculates the energy deficit and projects consumption, solar and usable battery energy in 15-minute intervals until midnight.
 2. Fetches today's hourly prices from the configured integration.
-3. Selects the cheapest hours needed to cover the deficit.
+3. Detects when cumulative energy would reach the minimum SOC and reserves the cheapest eligible slots that can deliver each requirement before its deadline.
 4. Calculates and stores the **daily average price** from the hourly price profile.
-5. Schedules the charging slots for the day.
+5. Assigns an energy quota to each slot; only energy without an early deadline remains freely optimized across the day.
+
+“Cheapest” therefore means cheapest among slots able to meet a requirement in time. A later slot never counts as coverage for energy already needed earlier. A partial or impossible plan remains executable, but reports the kWh shortfall and whether price filtering or physical slot capacity caused it. Quotas are targets rather than guarantees: contracted power, battery headroom, phase limits, temperature, ownership and other runtime protections remain authoritative.
 
 ### Retry logic
 
@@ -210,5 +212,17 @@ The `predictive_charging_active` binary sensor exposes:
 | `estimated_cost` | Estimated charging cost |
 | `evaluation_timestamp` | When the last evaluation was performed |
 | `price_data_status` | Price sensor status (`ok (N slots)`, `sensor_unavailable`, `no_slots`, `not_evaluated`) |
+| `chronological_planning_active` | Whether deadline-aware planning produced the active schedule |
+| `chronological_source` / `solar_timeline_source` | Consumption and solar curve sources |
+| `earliest_projected_depletion` | First projected minimum-SOC crossing without grid charge |
+| `deadline_required_kwh` / `flexible_required_kwh` | Energy reserved before deadlines and energy optimized freely by price |
+| `deadline_shortfall_kwh` / `total_shortfall_kwh` | Urgent and total energy that eligible slots cannot deliver |
+| `energy_deadlines` | Cumulative energy requirements and local ISO deadlines |
+| `slot_energy_targets_kwh` / `slot_deadlines` | Per-slot quotas and their deadlines, serialized with local timestamps |
 
 ![Diagnostic attributes of predictive_charging_active](../../assets/screenshots/configuration/predictive-charging/diagnostic-attributes.png){ width="650"  style="display: block; margin: 0 auto;"}
+
+The dynamic calendar consumes the same dated solar timeline as Time Slot. A
+provider curve has priority over a mature learned profile, and an invalid
+candidate falls back atomically to the next source. The learned profile is
+applied automatically once mature; until then the sinusoidal curve is used.

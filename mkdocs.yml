@@ -162,6 +162,7 @@ nav:
           - Hourly net balance: features/hourly-net-balance.md
       - Energy management:
           - Daily consumption estimate: features/consumption-estimate.md
+          - Daily operation timeline: features/daily-operation-timeline.md
           - Solar charge delay: features/solar-charge-delay.md
           - Peak shaving: features/peak-shaving.md
           - Load exclusion: features/load-exclusion.md
@@ -181,4 +182,5 @@ nav:
   - For contributors:
       - Architecture: reference/architecture.md
       - Battery driver requirements: reference/driver-requirements-template.md
+      - Driver assessment · Huawei: reference/driver-assessment-huawei.md
   - Changelog: changelog.md

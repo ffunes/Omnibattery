@@ -29,6 +29,8 @@ from .const import (
     CONF_MANUAL_MODE_ENABLED,
     CONF_BATTERY_MANUAL_MODE_ENABLED,
     CONF_NO_PD_MODE_ENABLED,
+    CONF_OFFGRID_POWER_SENSOR,
+    CONF_OFFGRID_MODE_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
     CONF_PREDICTIVE_CHARGING_MODE,
     CONF_DP_PRICE_DISCHARGE_CONTROL,
@@ -41,6 +43,7 @@ from .const import (
     CONF_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_ENABLE_MIN_SOC_FLOOR,
     CONF_ENABLE_PREDICTIVE_CHARGING,
+    CONF_VACATION_MODE_ENABLED,
     CONF_THREE_PHASE_ENABLED,
     NOTIFICATION_ID_PREFIX,
 )
@@ -83,17 +86,21 @@ async def async_setup_entry(
     if controller:
         entities.append(ManualModeSwitch(hass, entry, controller))
         entities.append(NoPdModeSwitch(hass, entry, controller))
+        if entry.data.get(CONF_OFFGRID_POWER_SENSOR):
+            entities.append(OffgridModeSwitch(hass, entry, controller))
         # Keep the protection toggle present even when currently disabled so it
         # can be enabled live from the dashboard without reloading the entry.
         entities.append(ThreePhaseProtectionSwitch(hass, entry, controller))
         # Weekly full charge enable/disable (system-level, always present so it can
         # be turned on from the dashboard even if configured off at setup).
         entities.append(WeeklyFullChargeEnableSwitch(hass, entry, controller))
+        entities.append(VacationModeSwitch(hass, entry, controller))
 
-    # Add price-based discharge control switch, scoped to the active predictive
-    # pricing mode (dynamic pricing or real-time price). The pricing engine reads
-    # the controller flag live each cycle.
-    if controller and entry.data.get(CONF_ENABLE_PREDICTIVE_CHARGING):
+    # Keep mode-specific predictive controls registered while the master switch
+    # is off. The dashboard hides them behind that switch, and the pricing engine
+    # reads their flags live. Removing/recreating them would require a full entry
+    # reload for every predictive toggle.
+    if controller and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data:
         mode = entry.data.get(CONF_PREDICTIVE_CHARGING_MODE)
         if mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
             entities.append(PriceDischargeControlSwitch(hass, entry, controller, "dp"))
@@ -464,6 +471,7 @@ class BatteryFullChargeVoltageTaperSwitch(SwitchEntity):
         for attr in (
             "_normal_balance_bms_cutoff_retry_pending",
             "_normal_balance_bms_cutoff_retry_active",
+            "_normal_balance_bms_cutoff_retry_accept_count",
         ):
             retry_state = getattr(self.controller, attr, None)
             if retry_state is not None:
@@ -486,6 +494,58 @@ class BatteryFullChargeVoltageTaperSwitch(SwitchEntity):
     @property
     def device_info(self):
         return self.coordinator.battery_device_info
+
+class VacationModeSwitch(SwitchEntity):
+    """Persistently pause consumption learning while the household is away."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "vacation_mode"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}vacation_mode"
+        self.entity_id = system_entity_id("switch", "vacation_mode")
+        self._attr_icon = "mdi:palm-tree"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        return bool(getattr(self.controller, "vacation_mode_enabled", False))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        tracker = getattr(self.controller, "_consumption_tracker", None)
+        status = getattr(tracker, "vacation_diagnostics", None)
+        return status() if callable(status) else {}
+
+    async def _set_enabled(self, enabled: bool) -> None:
+        self.controller.vacation_mode_enabled = enabled
+        data = dict(self.entry.data)
+        data[CONF_VACATION_MODE_ENABLED] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=data)
+        tracker = getattr(self.controller, "_consumption_tracker", None)
+        setter = getattr(tracker, "async_set_vacation_mode", None)
+        if callable(setter):
+            await setter(enabled)
+        self.async_write_ha_state()
+        self.controller.schedule_control_cycle()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._set_enabled(False)
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
 
 class PredictiveChargingSwitch(SwitchEntity):
     """Switch to enable/disable predictive grid charging at runtime.
@@ -526,7 +586,6 @@ class PredictiveChargingSwitch(SwitchEntity):
 
     async def async_turn_on(self, **kwargs) -> None:
         """Enable predictive charging (set enabled, clear override)."""
-        was_enabled = self.controller.predictive_charging_enabled
         self.controller.predictive_charging_enabled = True
         self.controller.predictive_charging_overridden = False
         new_data = dict(self.entry.data)
@@ -539,18 +598,29 @@ class PredictiveChargingSwitch(SwitchEntity):
             {"notification_id": f"{NOTIFICATION_ID_PREFIX}predictive_charging_override"},
         )
         _LOGGER.info("Predictive charging enabled")
-        await self._apply_enabled_change(was_enabled, now_enabled=True)
+        self.async_write_ha_state()
+        self.controller.schedule_control_cycle()
+        if self.controller.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
+            coroutine = self._async_rebuild_dynamic_schedule()
+            create = getattr(self.controller, "_create_entry_background_task", None)
+            if callable(create):
+                create(coroutine, "omnibattery_dynamic_pricing_rebuild")
+            else:
+                self.hass.async_create_task(
+                    coroutine, "Rebuild dynamic pricing after predictive charging enable"
+                )
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disable predictive charging (clear enabled, set override)."""
-        was_enabled = self.controller.predictive_charging_enabled
+        was_grid_charging_active = self.controller.grid_charging_active
         self.controller.predictive_charging_enabled = False
         self.controller.predictive_charging_overridden = True
+        self.controller._clear_predictive_runtime("user_disabled")
         new_data = dict(self.entry.data)
         new_data[CONF_ENABLE_PREDICTIVE_CHARGING] = False
         new_data[CONF_PREDICTIVE_CHARGING_OVERRIDDEN] = True
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
-        if self.controller.grid_charging_active:
+        if was_grid_charging_active:
             message = "Predictive grid charging has been paused. Turn the switch back on to resume."
         else:
             message = "Predictive charging is now disabled. It will not activate when the time slot becomes active."
@@ -564,21 +634,22 @@ class PredictiveChargingSwitch(SwitchEntity):
             },
         )
         _LOGGER.info("Predictive charging disabled (overridden)")
-        await self._apply_enabled_change(was_enabled, now_enabled=False)
+        self.async_write_ha_state()
+        self.controller.schedule_control_cycle()
 
-    async def _apply_enabled_change(self, was_enabled: bool, *, now_enabled: bool) -> None:
-        """Finish a toggle. When the ``enabled`` value flips, reload the entry so
-        the setup-time gating re-evaluates: the daily consumption-capture and
-        dynamic-pricing schedules and the predictive status sensor are all armed
-        (or torn down) only in ``async_setup_entry`` against this value, and the
-        entry-update listener does not reload. This mirrors the options flow,
-        which reloads on the same change. When only the runtime override moved
-        (a legacy paused entry resuming with ``enabled`` already True), a plain
-        state write suffices and avoids a needless reload."""
-        if was_enabled != now_enabled:
-            await self.hass.config_entries.async_reload(self.entry.entry_id)
-        else:
-            self.async_write_ha_state()
+    async def _async_rebuild_dynamic_schedule(self) -> None:
+        """Rebuild the remaining calendar after a live master-switch enable."""
+        try:
+            await self.controller._pricing_mgr._evaluate_dynamic_pricing(
+                horizon=DynamicPricingEvaluationHorizon.REMAINING,
+                extended_horizon=True,
+            )
+        except Exception as err:  # keep the runtime toggle fail-safe
+            _LOGGER.warning(
+                "Dynamic pricing evaluation failed after predictive enable: %s",
+                err,
+            )
+            self.controller._clear_predictive_runtime("evaluation_error")
 
     @property
     def device_info(self):
@@ -1584,6 +1655,64 @@ class NoPdModeSwitch(SwitchEntity):
     @property
     def device_info(self):
         """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class OffgridModeSwitch(SwitchEntity):
+    """Select the alternate off-grid meter as the integration data source."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the software-only source selector."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "offgrid_mode"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}offgrid_mode"
+        self.entity_id = system_entity_id("switch", "offgrid_mode")
+        self._attr_icon = "mdi:transmission-tower-off"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return whether the alternate meter is active."""
+        return bool(self.controller.offgrid_mode_enabled)
+
+    async def _set_enabled(self, enabled: bool) -> None:
+        """Persist and apply only the active meter selection."""
+        enabled = bool(enabled and self.entry.data.get(CONF_OFFGRID_POWER_SENSOR))
+        new_data = dict(self.entry.data)
+        new_data[CONF_OFFGRID_MODE_ENABLED] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+
+        async with self.controller._control_lock:
+            self.controller.set_offgrid_mode(enabled)
+
+        self.controller.schedule_control_cycle()
+        _LOGGER.info(
+            "Off-grid meter mode %s; active source is %s",
+            "ENABLED" if enabled else "DISABLED",
+            self.controller.consumption_sensor,
+        )
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Use the configured off-grid power sensor."""
+        await self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Return to the normal grid power sensor."""
+        await self._set_enabled(False)
+
+    @property
+    def device_info(self):
+        """Return information for the system device."""
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",

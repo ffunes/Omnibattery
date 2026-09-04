@@ -4,6 +4,8 @@ Activates or deactivates grid charging every controller cycle (event-driven) bas
 
 Unlike Dynamic Pricing mode, it requires no price forecast and no overnight evaluation. It reacts purely to the live price.
 
+Deadline-based slot selection is intentionally not applied in this mode: a current-price sensor provides no trustworthy future intervals to reserve before a deadline. The energy balance and per-battery target remain predictive, but selecting or promising a future slot would require switching to Dynamic Pricing. Configured charge-permission windows and all physical blockers still apply.
+
 ## Configuration
 
 | Field | Description |
@@ -80,3 +82,8 @@ When discharge is blocked by price, the controller completely freezes its state 
 | Reacts to live price | ❌ | ✅ |
 | Optimal hour selection | ✅ | ❌ |
 | Discharge threshold | Daily average (calculated at 00:05) | Configurable threshold (fixed or dynamic sensor) |
+
+Real-Time Price remains reactive: it uses the normalized remaining total for its
+gate and does not consume the learned temporal curve or create future
+deadlines. A future anticipatory implementation should enter through the same
+chronological planner as the other scheduling modes.

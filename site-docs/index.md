@@ -3,7 +3,7 @@
 **Omnibattery** is a custom Home Assistant integration for monitoring and controlling pluggable solar batteries from several brands. Current supported hardware includes:
 
 - **Marstek** Venus E/C (v2/v3), Venus A and Venus D via Modbus TCP, Modbus RTU or a LilyGo RS485/ESPHome bridge.
-- **Zendure** SolarFlow 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 via local HTTP.
+- **Zendure** SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 via local HTTP.
 - **Anker SOLIX** Solarbank Max AC and Solarbank 4 E5000 Pro via Modbus TCP.
 - **Sessy** Home Battery via its local dongle API (testers welcome).
 - **Hoymiles** MS-A2 via the MQTT integration configured in Home Assistant.
@@ -20,7 +20,7 @@
 
 -   :material-battery-sync: **Multi-battery**
 
-    Coordinates up to 6 batteries with SOC priorities, energy hysteresis and efficiency-aware power sharing.
+    Coordinates up to 10 batteries with SOC priorities, energy hysteresis and efficiency-aware power sharing.
 
 -   :material-brand_family: **Multi-brand**
 
@@ -40,7 +40,7 @@
 
 The panel installs automatically as a Home Assistant sidebar panel — no extra HACS card or YAML configuration is required. It provides three tabs:
 
-- **Overview** with animated SOC ring, Grid↔Home↔Battery↔Solar energy-flow diagram, diagnostics, 2×2 chart grid
+- **Overview** with animated SOC ring, Grid↔Home↔Battery↔Solar energy-flow diagram, diagnostics, 2×2 chart grid and a measured/projected daily operation timeline
 - **Batteries** with per-battery SOC/power, health & cells, daily energy, optional MPPT, firmware info, controls
 - **Control** with system-wide settings grouped by feature, each with its switch + config parameters
 

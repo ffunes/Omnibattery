@@ -1,5 +1,9 @@
 # Solución de problemas
 
+## Precio Dinámico muestra un *shortfall* de plazo
+
+Consulta `deadline_shortfall_kwh`, `earliest_projected_depletion`, `slot_deadlines` y `chronological_plan_reason` en `binary_sensor.omnibattery_predictive_charging_active`. El *shortfall* indica que el mejor plan físicamente realizable no puede entregar toda la energía antes del cruce previsto del SOC mínimo. Las causas habituales son un techo máximo de precio explícito, ausencia de slots elegibles antes del plazo, potencia de carga insuficiente, falta de hueco o ownership manual/por franja. Un slot barato posterior no se presenta deliberadamente como cobertura de una necesidad anterior. La integración continúa el control normal y nunca ignora límites explícitos de seguridad.
+
 ## Compatibilidad con la app de Marstek
 
 **No es necesario realizar ningún cambio en la app de Marstek** para que la integración funcione — incluyendo desactivar el medidor de energía o modificar cualquier configuración. La integración opera junto a la app sin requerir ningún ajuste desde ella.
@@ -63,6 +67,27 @@ La integración monitoriza los registros `Alarm Status` y `Fault Status` de la b
 2. Comprueba el atributo `price_data_status` del sensor `predictive_charging_active` (modo Precio Dinámico).
 3. Revisa las notificaciones de HA: la evaluación de las 00:05 reporta el resultado.
 4. Asegúrate de que el balance energético realmente requiere carga (puede que haya suficiente energía).
+
+### El origen del consumo indica `legacy_daily`
+
+Es normal mientras el perfil de 28 días está aprendiendo o cuando los intervalos
+solicitados no cumplen su contrato de cobertura. Comprueba
+`sensor.omnibattery_expected_home_consumption_profile` y los diagnósticos de la
+integración. Cambiar la fuente o un ajuste de cargas conserva todos los días
+aprendidos, y un cambio de zona horaria los reubica según el desfase entre ambas
+zonas; después el backfill del Recorder reconstruye en segundo plano lo que siga
+faltando. Los huecos de más de cinco minutos no se interpolan.
+
+### El perfil solar sigue inmaduro o usa fallback
+
+Es seguro y esperado durante los primeros días. El aprendizaje necesita
+potencia FV directa del sensor externo configurado o canales MPPT legibles, al
+menos siete días cerrados de calidad, cobertura reciente y evidencia suficiente
+en el rango futuro solicitado. Se excluyen muestras inválidas, negativas y
+huecos largos. Las señales de curtailment pueden excluir intervalos y un cambio
+de fuente o capacidad inicia otra generación. Revisa `solar_profile` en los
+diagnósticos y `solar_timeline_fallback_reason`; el perfil no corrige una
+previsión meteorológica errónea ni modela curtailment no observable.
 
 ---
 

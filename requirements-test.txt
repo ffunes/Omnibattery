@@ -12,3 +12,4 @@ pytest-homeassistant-custom-component
 # imports pymodbus at module load, so it must be present to import any submodule.
 pymodbus>=3.5.0
 pyserial
+voluptuous-serialize

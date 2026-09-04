@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import re
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
@@ -305,9 +306,25 @@ class HoymilesMqttDriver(BatteryDriver):
         return value if isinstance(value, dict) else None
 
     @staticmethod
-    def _number(data: dict, key: str):
+    def _number(data: dict, key: str) -> int | float | None:
+        """Read a finite numeric MQTT value from new and legacy firmware.
+
+        Recent firmware publishes JSON numbers, while older MS-A2 firmware can
+        serialize the same telemetry as numeric strings.  Both representations
+        are valid inputs for the driver; booleans and non-numeric values are not.
+        """
         value = data.get(key)
-        return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return value if math.isfinite(value) else None
+        if isinstance(value, str):
+            try:
+                parsed = float(value.strip())
+            except ValueError:
+                return None
+            return parsed if math.isfinite(parsed) else None
+        return None
 
     @callback
     def _handle_quick(self, message) -> None:
@@ -509,7 +526,10 @@ class HoymilesMqttDriver(BatteryDriver):
 
     def _ensure_keepalive(self) -> None:
         if self._keepalive_task is None or self._keepalive_task.done():
-            self._keepalive_task = self.hass.async_create_task(self._keepalive_loop())
+            self._keepalive_task = self.hass.async_create_background_task(
+                self._keepalive_loop(),
+                "omnibattery_hoymiles_keepalive",
+            )
 
     async def _keepalive_loop(self) -> None:
         delay_s = _KEEPALIVE_S

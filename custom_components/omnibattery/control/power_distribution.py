@@ -31,6 +31,7 @@ from ..const import (
     MULTI_BATTERY_MIN_ACTIVATION,
     MULTI_BATTERY_SELECTION_HOLD_SECONDS,
 )
+from ..energy import effective_total_discharging_energy
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -95,11 +96,7 @@ class PowerDistribution:
                 return (effective_soc, energy - (2.5 if is_active else 0))
 
             effective_soc = soc + (5.0 if is_active else 0)
-            energy = (
-                coordinator.data.get("total_discharging_energy", 0)
-                if coordinator.data
-                else 0
-            )
+            energy = effective_total_discharging_energy(coordinator.data) or 0
             return (-effective_soc, energy - (2.5 if is_active else 0))
 
         return sorted(available_batteries, key=sort_key)

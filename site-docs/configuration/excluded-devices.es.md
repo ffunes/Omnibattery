@@ -58,15 +58,15 @@ mediante el mismo contador de red que Omnibattery. Debe activarse junto con
 **Excedente Solar**.
 
 !!! note "Sensor de producción solar"
-    Se recomienda configurar el **sensor de producción solar** para este control. Si está configurado, Omnibattery detecta aumentos de producción de al menos 200 W y cede de nuevo la carga de batería durante 20 segundos. Sin ese sensor, realiza una comprobación de 20 segundos cada 5 minutos.
+    Se recomienda configurar el **sensor de producción solar** para este control. Si está configurado, Omnibattery detecta aumentos de al menos 200 W en el margen disponible (producción solar menos potencia del dispositivo), incluido cuando una wallbox reduce su potencia, y cede de nuevo la carga de batería durante 20 segundos. Sin ese sensor, realiza una comprobación de 20 segundos cada 5 minutos.
 
 El **Sensor de dispositivo activo / carga del VE** permite que Omnibattery ceda mientras la wallbox solicita potencia pero todavía marca 0 W, evitando el bloqueo de arranque en el que la batería absorbe toda la exportación. Automáticamente:
 
 - Bloquea la carga de batería mientras el sensor de actividad solicita potencia   y la wallbox todavía marca 0 W.
 - Cede la carga de batería durante 30 segundos cuando el dispositivo supera 100 W.
 - Deja que el regulador externo aumente potencia antes de usar el excedente restante.
-- Vuelve a ceder durante 20 segundos si la producción solar aumenta al menos 200 W.
-- Bloquea la carga durante 5 minutos cuando desaparece el consumo, para permitir que una wallbox reinicie tras una nube o un cambio de fase.
+- Vuelve a ceder durante 20 segundos cuando el margen disponible (producción solar menos potencia del dispositivo) aumenta al menos 200 W, ya sea porque sube la producción solar o porque la wallbox reduce su potencia.
+- Cuando cae la potencia del dispositivo, mantiene bloqueada la descarga durante 5 minutos y da una breve gracia a la carga para que la wallbox pueda reiniciarse tras una nube o un cambio de fase.
 - Realiza una comprobación cada 5 minutos si no hay sensor de producción solar.
 
 Las entradas antiguas de Control Dinámico de Potencia sin sensor de actividad siguen usando como fallback la primera lectura superior a 100 W. Este control no está disponible para el modo **Cargador VE sin telemetría de potencia**, porque ese modo ya gestiona la batería directamente con el mismo sensor de actividad.

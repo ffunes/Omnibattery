@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
   pull_request:
 
 jobs:
@@ -15,5 +15,17 @@ jobs:
           python-version: "3.13"
       - name: Install test dependencies
         run: pip install -r requirements-test.txt
-      - name: Run tests
+      # pytest.ini disables the Home Assistant plugin: its autouse fixtures run
+      # for every test, and `enable_event_loop_debug` calls
+      # asyncio.get_event_loop() where a sync test has no loop, which errors the
+      # whole suite at setup. So the unit tests run without it...
+      - name: Run unit tests
         run: pytest
+
+      # ...and the tests that ask for the `hass` fixture run as their own step
+      # with the plugin loaded. Every test in these files is async, so the
+      # autouse fixtures find the loop they expect. A new `hass`-based test in
+      # some other file is skipped by tests/conftest.py in the step above and
+      # says so ("needs the HA test plugin"); add its file here.
+      - name: Run Home Assistant flow tests
+        run: pytest -o addopts="" tests/test_config_backup.py tests/test_domain_migration.py tests/test_system_uid_migration.py

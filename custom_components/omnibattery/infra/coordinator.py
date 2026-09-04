@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import time
+from collections import deque
 from datetime import timedelta, datetime
 
 from homeassistant.core import HomeAssistant
@@ -25,7 +26,10 @@ from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
 from ..drivers.anker import AnkerModbusDriver
 from ..drivers.sessy import SessyLocalDriver
 from ..drivers.hoymiles import HoymilesMqttDriver
+from ..drivers.huawei import HuaweiSolarDriver
 from ..drivers.base import SetpointResult
+from ..backup_discharge_store import BackupDischargeEnergyStore
+from ..energy import BackupDischargeAccumulator
 from .alarm_notifier import AlarmNotifier
 from .mac_tracking import normalise_mac
 
@@ -121,12 +125,19 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  hoymiles_model: str | None = None,
                  serial_port: str | None = None,
                  esphome_device_id: str | None = None,
+                 huawei_battery_device_id: str | None = None,
+                 huawei_direct_write: bool = False,
+                 huawei_emma_slave_id: int | None = None,
                  username: str = "",
                  password: str = "",
                  battery_manual_mode_enabled: bool = False,
+                 dc_pv_connected: bool = True,
                  device_max_charge_power: int | None = None,
                  device_max_discharge_power: int | None = None,
-                 mac: str | None = None) -> None:
+                 ems_version: object = None,
+                 mac: str | None = None,
+                 backup_discharge_store: BackupDischargeEnergyStore | None = None,
+                 backup_discharge_store_key: str | None = None) -> None:
         """Initialize the data update coordinator."""
         super().__init__(
             hass,
@@ -150,7 +161,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.serial_port = serial_port
         self.consumption_sensor = consumption_sensor
         self.brand = brand
-        if self.brand in ("zendure", "anker", "hoymiles"):
+        self.ems_version = ems_version
+        self.zendure_model = zendure_model
+        if self.brand in ("zendure", "anker", "hoymiles", "huawei"):
             full_charge_voltage_taper_enabled = False
 
         # Validate and store battery version
@@ -160,6 +173,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             self.battery_version = DEFAULT_VERSION
         else:
             self.battery_version = battery_version
+
+        self._backup_discharge_store = backup_discharge_store
+        self._backup_discharge_store_key = backup_discharge_store_key
+        self._backup_discharge_accumulator = None
+
+        # Installation topology is distinct from the model's hardware MPPT
+        # capability. Only Venus A/D expose those inputs; existing callers keep
+        # the historical connected default until config-entry migration runs.
+        self.dc_pv_connected = bool(
+            dc_pv_connected and self.battery_version in ("vA", "vD")
+        )
 
         _LOGGER.info("[%s] Initialized as %s battery", name, self.battery_version)
 
@@ -237,6 +261,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # Timestamp-based update tracking
         self._last_update_times = {}
         self._critical_group_failures = {}
+        self._refresh_count = 0
+        self._refresh_times: deque[float] = deque(maxlen=256)
+        self._active_refreshes = 0
+        self._max_concurrent_refreshes = 0
+        self._last_refresh_duration_s = 0.0
         # Last-written select values that override buggy register readbacks.
         # Repopulated from persisted battery_config after construction; initialised
         # here so get_shadow_select before that assignment returns None instead of
@@ -292,6 +321,21 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
             )
+        elif self.brand == "huawei":
+            # Telemetry is read natively over Modbus; set-points go out through
+            # the huawei_solar integration, which owns the battery device named
+            # here. Both halves address the same inverter.
+            self.driver = HuaweiSolarDriver(
+                hass,
+                self.host,
+                port=self.port,
+                slave_id=self.slave_id,
+                battery_device_id=huawei_battery_device_id or "",
+                direct_write=huawei_direct_write,
+                emma_slave_id=huawei_emma_slave_id,
+                max_charge_power_w=self.configured_max_charge_power,
+                max_discharge_power_w=self.configured_max_discharge_power,
+            )
         elif self.brand == "hoymiles":
             self.driver = HoymilesMqttDriver(
                 hass, self.host,
@@ -305,6 +349,28 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
                 serial_port=self.serial_port,
+                ems_version=self.ems_version,
+            )
+
+        # The driver declares whether its native discharge counter omits a power
+        # path and owns the interpretation of the telemetry needed to measure it.
+        # The coordinator only runs the shared accumulator and persistence layer.
+        if self.driver.supplemental_discharge_dependency_keys:
+            today = dt_util.now().date().isoformat()
+            restored = (
+                backup_discharge_store.get(backup_discharge_store_key, today)
+                if backup_discharge_store is not None
+                and backup_discharge_store_key is not None
+                else {
+                    "total_kwh": 0.0,
+                    "daily_kwh": 0.0,
+                    "reset_date": today,
+                }
+            )
+            self._backup_discharge_accumulator = BackupDischargeAccumulator(
+                kwh=restored["total_kwh"],
+                daily_kwh=restored["daily_kwh"],
+                reset_date=restored["reset_date"],
             )
 
         # Driver capabilities are the fallback physical envelope. Config-flow
@@ -321,6 +387,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             if device_max_discharge_power is not None
             else self.driver.capabilities.max_discharge_power_w
         )
+        if self.brand == "marstek" and self.battery_version == "vD":
+            # A stale config entry may still carry the former unconditional
+            # 2500 W device cap.  The firmware-aware driver is authoritative.
+            self.device_max_charge_power = min(
+                self.device_max_charge_power,
+                self.driver.capabilities.max_charge_power_w,
+            )
+            self.device_max_discharge_power = min(
+                self.device_max_discharge_power,
+                self.driver.capabilities.max_discharge_power_w,
+            )
         if self.brand == "sessy":
             # Sessy has a fixed asymmetric envelope. Clamp malformed legacy
             # entries (for example the former symmetric 5,000 W default) so
@@ -336,7 +413,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # its definition's scale/precision/state_class. The driver returns raw
         # decoded telemetry and owns the register layout / block grouping (see
         # ``driver.read_groups``); presentation metadata stays coordinator-side.
-        self._def_by_key = {d["key"]: d for d in self._all_definitions}
+        self._sync_driver_definitions()
 
         # Log sensor count for debugging
         _LOGGER.info("[%s] Total sensors to poll: %d", self.name, len(self._all_definitions))
@@ -349,6 +426,28 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         version string, keeping them device-agnostic.
         """
         return self.driver.capabilities
+
+    def _sync_driver_definitions(self) -> None:
+        """Refresh the coordinator's key metadata after driver identity detection.
+
+        Some drivers discover the exact product only after connecting. Keep the
+        poll-loop definitions aligned with the driver's dynamic definitions so a
+        model-specific entity cannot be created or scaled from the pre-connect
+        fallback set.
+        """
+        self._def_by_key = {d["key"]: d for d in self._all_definitions}
+        # A reconnect can refine an Anker identity after an earlier poll, and
+        # DataUpdateCoordinator merges snapshots instead of expiring keys. Drop
+        # PV fields that are no longer part of the model's contract so a stale
+        # compatible-model reading cannot reach totals or the dashboard.
+        if (
+            self.brand == "anker"
+            and not getattr(self.driver, "has_independent_pv", False)
+        ):
+            data = getattr(self, "data", None)
+            if isinstance(data, dict):
+                for key in ("solar_power", "pv_power", "third_party_pv_power"):
+                    data.pop(key, None)
 
     def _recompute_effective_power_limits(self) -> None:
         """Recompute the control envelope from device and configured limits."""
@@ -563,6 +662,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Anker" if self.brand == "anker"
                 else "Sessy" if self.brand == "sessy"
                 else "Hoymiles" if self.brand == "hoymiles"
+                else "Huawei" if self.brand == "huawei"
                 else "Marstek"
             ),
             "model": self.driver.model_label or (
@@ -573,6 +673,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Venus"
             ),
         }
+        # The registry shows this on the device page, and the panel prefers it
+        # over the sensor. Drivers that cannot read one report None.
+        serial = getattr(getattr(self, "driver", None), "serial", None)
+        if serial:
+            info["serial_number"] = str(serial)
         # getattr: several tests build a stub coordinator and read this
         # property off it, so the attribute cannot be assumed present.
         if getattr(self, "mac", None):
@@ -594,9 +699,128 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         """Connect to the battery via the driver."""
         connected = await self.driver.connect()
         if connected:
+            sync_definitions = getattr(self, "_sync_driver_definitions", None)
+            if sync_definitions is not None:
+                sync_definitions()
+            sync_model = getattr(self, "_sync_detected_zendure_model", None)
+            if sync_model is not None:
+                sync_model()
             self._is_connected = True
             self._consecutive_failures = 0
         return connected
+
+    def _sync_detected_zendure_model(self) -> None:
+        """Promote legacy Zendure entries when the device reports a new profile."""
+        if getattr(self, "brand", None) != "zendure":
+            return
+        detected_model = getattr(self.driver, "model_key", None)
+        if not detected_model:
+            return
+
+        driver_caps = self.driver.capabilities
+        model_changed = detected_model != getattr(self, "zendure_model", None)
+        charge_cap_changed = (
+            self.device_max_charge_power != driver_caps.max_charge_power_w
+        )
+        discharge_cap_changed = (
+            self.device_max_discharge_power != driver_caps.max_discharge_power_w
+        )
+        if not (model_changed or charge_cap_changed or discharge_cap_changed):
+            return
+
+        if model_changed:
+            self.zendure_model = detected_model
+            driver_definitions = getattr(self.driver, "all_definitions", None)
+            if driver_definitions is not None:
+                self._def_by_key = {d["key"]: d for d in driver_definitions}
+            self.persist_battery_config("zendure_model", detected_model)
+        if charge_cap_changed:
+            self.device_max_charge_power = driver_caps.max_charge_power_w
+            self.persist_battery_config(
+                "device_max_charge_power", driver_caps.max_charge_power_w
+            )
+        if discharge_cap_changed:
+            self.device_max_discharge_power = driver_caps.max_discharge_power_w
+            self.persist_battery_config(
+                "device_max_discharge_power", driver_caps.max_discharge_power_w
+            )
+        _LOGGER.info(
+            "[%s] Synchronized Zendure device profile %s (%d W charge / %d W discharge)",
+            self.name,
+            detected_model,
+            self.device_max_charge_power,
+            self.device_max_discharge_power,
+        )
+
+    def _sync_zendure_inverse_max_power(self) -> None:
+        """Keep Zendure's reported inverter cap on the canonical control path."""
+        if getattr(self, "brand", None) != "zendure" or not self.data:
+            return
+        reported_limit = self.data.get("inverse_max_power")
+        if reported_limit is None:
+            return
+        try:
+            reported_limit = int(reported_limit)
+        except (TypeError, ValueError):
+            return
+        if reported_limit <= 0:
+            return
+        if reported_limit == self.configured_max_discharge_power:
+            return
+
+        old_limit = self.effective_max_discharge_power
+        self.configured_max_discharge_power = reported_limit
+        self.persist_battery_config("max_discharge_power", reported_limit)
+        _LOGGER.info(
+            "[%s] Synchronized Zendure inverseMaxPower %d W → %d W",
+            self.name,
+            old_limit,
+            self.effective_max_discharge_power,
+        )
+
+    def _sync_marstek_ems_power_ceiling(self) -> None:
+        """Apply the firmware-dependent Venus D power ceiling after polling."""
+        if self.brand != "marstek" or self.battery_version != "vD" or not self.data:
+            return
+        ems_version = self.data.get("ems_version")
+        if ems_version is None:
+            return
+
+        firmware_changed = str(self.ems_version) != str(ems_version)
+        changed = self.driver.update_ems_version(ems_version)
+        ceiling = self.driver.capabilities.max_charge_power_w
+        device_changed = (
+            self.device_max_charge_power != ceiling
+            or self.device_max_discharge_power != ceiling
+        )
+        self.ems_version = ems_version
+        self.device_max_charge_power = ceiling
+        self.device_max_discharge_power = ceiling
+
+        configured_changed = False
+        if self.configured_max_charge_power > ceiling:
+            self.configured_max_charge_power = ceiling
+            configured_changed = True
+        if self.configured_max_discharge_power > ceiling:
+            self.configured_max_discharge_power = ceiling
+            configured_changed = True
+
+        if not (firmware_changed or changed or device_changed or configured_changed):
+            return
+
+        self.persist_battery_config("ems_version", int(ems_version))
+        self.persist_battery_config("device_max_charge_power", ceiling)
+        self.persist_battery_config("device_max_discharge_power", ceiling)
+        if configured_changed:
+            self.persist_battery_config("max_charge_power", self.configured_max_charge_power)
+            self.persist_battery_config("max_discharge_power", self.configured_max_discharge_power)
+        if changed or configured_changed or device_changed:
+            _LOGGER.info(
+                "[%s] Applied Venus D EMS %s power ceiling: %d W",
+                self.name,
+                ems_version,
+                ceiling,
+            )
 
     async def disconnect(self) -> None:
         """Disconnect from the battery via the driver."""
@@ -624,6 +848,12 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             connected = await self.driver.connect()
 
             if connected:
+                sync_definitions = getattr(self, "_sync_driver_definitions", None)
+                if sync_definitions is not None:
+                    sync_definitions()
+                sync_model = getattr(self, "_sync_detected_zendure_model", None)
+                if sync_model is not None:
+                    sync_model()
                 self._consecutive_failures = 0
                 self._is_connected = True
                 self._suspension_reset_time = None
@@ -745,9 +975,56 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 ",".join(keys): _iso(ts)
                 for keys, ts in self._last_update_times.items()
             },
+            "refresh_count": getattr(self, "_refresh_count", 0),
+            "refreshes_last_minute": MarstekVenusDataUpdateCoordinator._refreshes_last_minute(
+                self
+            ),
+            "active_refreshes": getattr(self, "_active_refreshes", 0),
+            "max_concurrent_refreshes": getattr(
+                self, "_max_concurrent_refreshes", 0
+            ),
+            "last_refresh_duration_s": round(
+                getattr(self, "_last_refresh_duration_s", 0.0), 3
+            ),
         }
 
+    def _refreshes_last_minute(self) -> int:
+        """Return the bounded number of refreshes started in the last minute."""
+        events = getattr(self, "_refresh_times", None)
+        if events is None:
+            return 0
+        now = time.monotonic()
+        while events and now - events[0] > 60.0:
+            events.popleft()
+        return len(events)
+
     async def _async_update_data(self) -> dict:
+        """Run one poll and record bounded refresh metrics."""
+        now = time.monotonic()
+        if not hasattr(self, "_refresh_times"):
+            self._refresh_times = deque(maxlen=256)
+        self._refresh_count = getattr(self, "_refresh_count", 0) + 1
+        self._refresh_times.append(now)
+        self._active_refreshes = getattr(self, "_active_refreshes", 0) + 1
+        self._max_concurrent_refreshes = max(
+            getattr(self, "_max_concurrent_refreshes", 0),
+            self._active_refreshes,
+        )
+        started = time.monotonic()
+        try:
+            # Some unit tests invoke this method unbound with a lightweight
+            # SimpleNamespace instead of a real coordinator instance.
+            update_impl = getattr(self, "_async_update_data_impl", None)
+            if update_impl is None:
+                result = MarstekVenusDataUpdateCoordinator._async_update_data_impl(self)
+            else:
+                result = update_impl()
+            return await result
+        finally:
+            self._active_refreshes = max(0, self._active_refreshes - 1)
+            self._last_refresh_duration_s = max(0.0, time.monotonic() - started)
+
+    async def _async_update_data_impl(self) -> dict:
         """Update all sensors asynchronously with per-sensor interval skipping.
 
         Sensors disabled in Home Assistant are skipped, except dependencies which are always fetched.
@@ -810,6 +1087,15 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             dependency_keys_set.update(
                 {"total_charging_energy", "total_discharging_energy"}
             )
+        # Driver-declared energy inputs must keep polling even when their source
+        # entities are disabled; the coordinator does not know their native keys.
+        dependency_keys_set.update(
+            getattr(
+                self.driver,
+                "supplemental_discharge_dependency_keys",
+                frozenset(),
+            )
+        )
         # Cell voltage keys are always needed by the balance monitor
         dependency_keys_set.update({"max_cell_voltage", "min_cell_voltage"})
         # Control registers must keep polling even when the user disables their
@@ -903,6 +1189,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                     # a block read where the keys cover a contiguous span) and
                     # returns raw decoded values; failed/unknown keys are omitted.
                     snapshot = await self.driver.read_telemetry(fetch_keys)
+                sync_definitions = getattr(self, "_sync_driver_definitions", None)
+                if sync_definitions is not None:
+                    sync_definitions()
                 # Yield so a control writer waiting on self.lock can acquire it
                 # before the loop re-enters `async with` (otherwise the tight loop
                 # starves apply_power).
@@ -1040,6 +1329,25 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # Update the coordinator's data
         self.data.update(updated_data)
 
+        update_backup_discharge = getattr(
+            self, "_update_backup_discharge_energy", None
+        )
+        if update_backup_discharge is not None:
+            update_backup_discharge(updated_data)
+
+        sync_marstek_ceiling = getattr(self, "_sync_marstek_ems_power_ceiling", None)
+        if sync_marstek_ceiling is not None:
+            sync_marstek_ceiling()
+
+        # Zendure names its writable discharge ceiling ``inverseMaxPower``.
+        # Treat the reported value like the canonical max_discharge_power used
+        # by register-backed drivers so an existing 4000 W device setting repairs
+        # a legacy 2400 W config entry immediately after startup, without requiring
+        # the user to move the number entity once after upgrading.
+        sync_inverse_max = getattr(self, "_sync_zendure_inverse_max_power", None)
+        if sync_inverse_max is not None:
+            sync_inverse_max()
+
         # Drivers without a hardware nominal-capacity value (Zendure and Sessy)
         # need the configured value surfaced as battery_total_energy so stored
         # energy, cycle, predictive charging and pricing math work uniformly.
@@ -1123,6 +1431,37 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             )
 
         return self.data
+
+    def _update_backup_discharge_energy(self, updated_data: dict) -> None:
+        """Integrate driver-declared discharge omitted by a hardware counter."""
+        accumulator = self._backup_discharge_accumulator
+        if accumulator is None:
+            return
+
+        changed = False
+        power_w = self.driver.supplemental_discharge_power_w(
+            self.data,
+            frozenset(updated_data),
+        )
+        if power_w is not None:
+            changed = accumulator.observe(
+                now_monotonic=time.monotonic(),
+                power_w=power_w,
+                local_date=dt_util.now().date().isoformat(),
+            )
+        accumulator.publish(self.data)
+
+        if (
+            changed
+            and self._backup_discharge_store is not None
+            and self._backup_discharge_store_key is not None
+        ):
+            self._backup_discharge_store.set(
+                self._backup_discharge_store_key,
+                total_kwh=accumulator.kwh,
+                daily_kwh=accumulator.daily_kwh,
+                reset_date=accumulator.reset_date,
+            )
 
     def _get_entity_type(self, sensor_definition: dict, fallback_key: str | None = None) -> str:
         """Determine entity type based on sensor definition.

@@ -2,6 +2,8 @@
 
 The integration automatically creates entities for each configured battery and aggregated sensors for the whole system.
 
+The predictive-charging status binary sensor includes deadline-aware Dynamic Pricing diagnostics: `chronological_planning_active`, curve sources, `earliest_projected_depletion`, deadline/flexible kWh, shortfalls, cumulative `energy_deadlines`, and JSON-safe per-slot quota/deadline maps. These attributes describe planning intent; live battery and grid limits remain authoritative.
+
 ## Sensors (per battery)
 
 | Entity | Description | Unit |
@@ -71,8 +73,8 @@ Only present when the [cell balance monitor](../features/cell-balance-monitor.md
 | `number.*_min_soc` | Minimum SOC | 0–100 % |
 | `number.*_max_charge_power` | Max charge power | W |
 | `number.*_max_discharge_power` | Max discharge power | W |
-| `number.marstek_venus_system_system_max_charge_power` | Optional combined charge cap for the whole system (`0 W` = disabled). Only created when system power limits are enabled. | 0–15000 W |
-| `number.marstek_venus_system_system_max_discharge_power` | Optional combined discharge cap for the whole system (`0 W` = disabled). Only created when system power limits are enabled. | 0–15000 W |
+| `number.marstek_venus_system_system_max_charge_power` | Optional combined charge cap for the whole system (`0 W` = disabled). Only created when system power limits are enabled. | Dynamic: configured charge-power sum |
+| `number.marstek_venus_system_system_max_discharge_power` | Optional combined discharge cap for the whole system (`0 W` = disabled). Only created when system power limits are enabled. | Dynamic: configured discharge-power sum |
 | `number.omnibattery_predictive_safety_margin_kwh` | Solar forecast buffer used by predictive charging and Dynamic Pricing anti-curtailment | 0–20 kWh |
 | `number.omnibattery_negative_injection_threshold` | Inclusive price threshold for forecast negative-injection risk slots | -2–2 currency/kWh |
 | `number.omnibattery_predischarge_reserve_soc` | Additional SOC floor for smart pre-discharge | 0–100 % |
@@ -110,6 +112,26 @@ Only present when the [cell balance monitor](../features/cell-balance-monitor.md
 | `button.omnibattery_reevaluate_dynamic_pricing` | Rebuild the Dynamic Pricing schedule now; only created in Dynamic Pricing mode |
 
 ## System sensors
+
+### Daily operation timeline
+
+`sensor.omnibattery_daily_operation_timeline` is a diagnostic-only, local-day
+snapshot for the Overview card. Its state is the local date and its bounded
+attributes contain `schema_version`, `timezone`, `interval_minutes` (15),
+`interval_count` (96), `current_index`, `current_progress`, `mode`, freshness
+and the `series`, `operations` and `sources` objects. The arrays are excluded
+from Recorder. `actual_*` values are measured, while `planned_*` values are
+informational projections and may be `null` when their source is stale.
+
+The timeline preserves closed intervals across plan reevaluations and, after a
+restart, restores only the current local day. `action_mask` values are
+`solar_charge=1`, `grid_charge=2` and `discharge=4`; context masks identify
+setpoint, Charge Delay and the predictive mode. `grid_charge_decision` is
+independent of physical flow (`scheduled`, `not_needed`, `unknown` or
+`not_applicable`).
+
+See the [daily operation timeline guide](../features/daily-operation-timeline.md)
+for the visual rules, DST handling and mobile interaction.
 
 ### Integration Status
 
@@ -151,9 +173,10 @@ The sensor also exposes blocker diagnostics as attributes:
 | `oscillating` | Hunting — use a smoother profile or raise the deadband |
 | `sluggish` | Too slow — use a more aggressive profile |
 | `battery_limited` | Battery full/empty or at its power rail; the PD cannot act (not a tuning issue) |
-| `collecting_data` | Warming up |
+| `blocked` | The direction the grid error demands is not allowed (charge delay, time slot, price, EV pause); the PD is muzzled, not mistuned |
+| `collecting_data` | Warming up, or the metric has not advanced for more than 5 min |
 
-Attributes: `rms_error_w` (average grid-tracking error), `oscillation_per_min`, the active `kp` / `kd` / `deadband_w` / `max_power_change_w`, and `active_profile`. The metric is a 60 s rolling average and is paused briefly after a target change and while battery-limited, so allow 1–2 min after a change.
+Attributes: `rms_error_w` (average grid-tracking error), `oscillation_per_min`, `metric_age_s` (seconds since the metric last advanced), the active `kp` / `kd` / `deadband_w` / `max_power_change_w`, and `active_profile`. The metric is a 60 s rolling average and is paused briefly after a target change and while battery-limited or blocked, so allow 1–2 min after a change.
 
 ### Aggregate sensors
 
@@ -167,6 +190,33 @@ Available under the `sensor.marstek_venus_system_*` prefix, summing values acros
 - `system_alarm_status` — Aggregated alarm state across all batteries (`OK` / `Warning` / `Fault`); attributes list active conditions per battery
 - `system_home_consumption` — Instantaneous home consumption (W). Reads the household sensor when configured, otherwise derives it from `grid + battery AC + solar`.
 - `system_daily_home_energy` — Today's home consumption (kWh), integrated from the Home Consumption value above. Resets at midnight (local time).
+
+### Expected home consumption profile
+
+`sensor.omnibattery_expected_home_consumption_profile` is a diagnostic
+sensor for the learned 28-day profile. Its state is today's forecast in kWh.
+Attributes include `interval_profile_kwh`, `hourly_profile_kwh`, `target_date`,
+`source`, `mature`, `coverage_ratio`, `weekday_samples`, `day_type_samples`,
+`total_profile_days` and `newest_profile_date`. The bounded day-level summary is
+available through the integration diagnostics endpoint.
+The source is `profile` only when the maturity contract is satisfied;
+`legacy_daily` identifies the fallback.
+
+### Vacation Mode
+
+`switch.omnibattery_vacation_mode` pauses consumption learning without pausing
+physical metering or battery control. Its attributes report the active constant
+baseline, its source, valid overnight samples and the persisted excluded
+periods. During vacation the expected-profile sensor reports
+`source: vacation_baseline`.
+
+Predictive charging also reports `solar_timeline_source`,
+`solar_remaining_raw_kwh`, `solar_remaining_effective_kwh`,
+`solar_timeline_fallback_reason`, `solar_profile_mature`,
+`solar_profile_days`, `solar_profile_coverage_ratio` and
+`solar_profile_generation`. Integration diagnostics contain a bounded
+`solar_profile` section with telemetry source, quality counters, generation,
+backfill status and at most 24 summarized progress values.
 - `system_battery_power` — Total system power
 - `system_battery_soc` — System average SOC
 - `system_total_charging_energy` — Total system charging energy

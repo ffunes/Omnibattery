@@ -51,6 +51,11 @@ la integración ni inicia la medición de 60 segundos. La carga reducida contin�
 hasta que la BMS confirma su corte, evitando que el primer pack lleno deje sin
 terminar los demás packs acoplados.
 
+Otros packs Venus E/v2/v3 también pueden ser cortados por su BMS justo por
+debajo de 3,60 V. Cuando ese corte se confirma mientras la batería sigue en la
+zona de reducción, el propio corte activa la medición: la integración detiene
+la carga, espera 60 segundos y registra el delta de celdas estabilizado.
+
 Para recuperar activamente un pack con desbalanceo persistente, usa el [blueprint de balanceo activo para una batería Marstek](../blueprints.es.md#balanceo-activo-de-una-batería-marstek). Es una automatización externa de Home Assistant: toma una batería mediante **Battery Manual Mode**, descubre sus entidades estándar a partir del dispositivo seleccionado y deja la propiedad manual activada si no puede confirmar la limpieza.
 
 ## Reducción por voltaje al 100 %
@@ -69,6 +74,7 @@ La carga semanal completa no usa un perfil de balanceo distinto. Solo cambia el 
 |---|---:|
 | `max_cell_voltage` por debajo de 3.48 V | Límite de carga configurado normal |
 | `max_cell_voltage` igual o superior a 3.48 V | Limita la carga a 200 W |
+| Corte de BMS confirmado por debajo de 3.60 V en la zona de reducción | Detiene la carga, espera 60 s sin cargar y registra el delta |
 | `max_cell_voltage` llega a 3.60 V en Venus E | La histéresis de carga configurada toma el control del umbral de parada y reanudación |
 | `max_cell_voltage` llega a 3.60 V en Venus A/D | Mantiene 200 W hasta el corte de la BMS; no aplica la parada de la integración |
 | Tras la espera de 60 s en Venus E | Registra `delta_mV = (Vmax - Vmin) * 1000` |
@@ -77,11 +83,13 @@ La carga semanal completa no usa un perfil de balanceo distinto. Solo cambia el 
 El inicio de la reducción se basa en tensión de celda: el SOC no se usa para decidir cuándo empieza, porque cerca del final de carga los registros de tensión de celda son más fiables que el SOC reportado.
 
 En Venus E, cuando la batería llega a 3.60 V, la histéresis de carga
-configurada evita que vuelva a cargar hasta cruzar su umbral de SOC. La
-medición de 60 segundos continúa como diagnóstico de mejor esfuerzo. Las
-Venus A/D omiten esta pausa y medición antes del corte de la BMS; una vez
-confirmado el corte, esperan 60 segundos sin cargar y registran una medición
-del delta de celdas.
+configurada evita que vuelva a cargar hasta cruzar su umbral de SOC. Si la BMS
+corta antes de 3,60 V, el mismo diagnóstico de 60 segundos empieza después
+del corte confirmado. La medición sigue siendo de mejor esfuerzo; si la carga
+semanal termina antes, se deja completar la medición posterior al corte antes
+de usar una captura alternativa. Las Venus A/D omiten esta pausa y medición
+antes del corte de la BMS; una vez confirmado el corte final, esperan 60
+segundos sin cargar y registran una medición del delta de celdas.
 
 En sistemas con varias baterías, la lógica se evalúa por batería. Una batería puede estar limitada o pausada mientras otra sigue cargando con normalidad.
 
@@ -116,7 +124,7 @@ Llegar al punto de pausa de 3.60 V normalmente solo ocurre en una carga al 100 %
 
 El [blueprint de balanceo activo para una batería Marstek](../blueprints.es.md#balanceo-activo-de-una-batería-marstek) es la ruta recomendada para recuperar un pack cuando el balanceo pasivo de las cargas normales o semanales no basta. Está deliberadamente fuera del bucle de control automático de la integración y debe configurarse una vez por batería. Al crear la automatización se selecciona el dispositivo Omnibattery de la batería; el blueprint resuelve automáticamente las entidades estándar y permite sobrescribir por ID las que se hayan renombrado.
 
-Su perfil predeterminado es: potencia máxima configurada hasta `max_cell_voltage >= 3.49 V`, carga regulada a 95 W hasta 3.60 V, reposo de 60 s para medir, descargas a 200 W hacia 3.49 V hasta que `delta_V <= 0.03 V` y una descarga final a 200 W hasta 3.48 V. Si el BMS rechaza un tramo nuevo de carga, el blueprint espera 10 s y exige tres muestras aproximadamente a 0 W antes de bajar el objetivo de reintento en 0.01 V, hasta 3.40 V.
+Su perfil predeterminado es: potencia máxima configurada hasta `max_cell_voltage >= 3.49 V`, carga regulada a 95 W hasta 3.60 V, reposo de 60 s para medir, descargas a 200 W hacia 3.49 V hasta que `delta_V <= 0.03 V` y una descarga final a 200 W hasta 3.48 V. Si el BMS rechaza un tramo nuevo de carga, el blueprint espera 10 s y exige tres muestras aproximadamente a 0 W. Cuando el rechazo ocurre todavía en la ventana superior, primero reposa 60 s y publica el delta estabilizado; después baja el objetivo de reintento en 0.01 V, hasta 3.40 V, y continúa con la descarga adaptativa. Los rechazos por debajo de la ventana superior no se registran como medidas formales.
 
 La automatización valida las entidades resueltas y las relaciones de tensión/potencia antes de escribir. Fija ambos setpoints a 0 W antes de cambiar el modo forzado, escribe temporalmente un SOC máximo del 100 % y lleva toda cancelación, reinicio o error a la misma limpieza. Restaura el SOC máximo configurado y apaga Battery Manual Mode solo después de confirmar el reposo y el SOC; si no, el interruptor permanece activado como retención de seguridad.
 
@@ -161,14 +169,15 @@ Si el objetivo es recuperar un pack visiblemente desbalanceado, importa el bluep
 
 ## Cómo se mide el desbalanceo
 
-La única lectura que alimenta el estado de balance, los avisos y la tendencia es la medición explícita en tensión alta:
+La única lectura que alimenta el estado de balance, los avisos y la tendencia es la medición explícita en la ventana superior:
 
-1. la batería llega a `max_cell_voltage >= 3.60 V`;
-2. se detiene la carga;
-3. la integración espera 60 segundos;
-4. registra la diferencia entre `max_cell_voltage` y `min_cell_voltage`.
+1. la batería entra en la zona de reducción con `max_cell_voltage >= 3.48 V`;
+2. llega a `max_cell_voltage >= 3.60 V`, o la BMS confirma el corte mientras la celda sigue por debajo de ese punto;
+3. se detiene la carga;
+4. la integración espera 60 segundos;
+5. registra la diferencia entre `max_cell_voltage` y `min_cell_voltage`.
 
-Las antiguas lecturas tipo OCV, las lecturas oportunistas y las retenciones pasivas largas ya no se usan. Medir siempre en el mismo punto de tensión alta hace que las lecturas sean más comparables entre cargas completas.
+Las antiguas lecturas tipo OCV, las lecturas oportunistas y las retenciones pasivas largas ya no se usan. Medir tras un evento estabilizado de tensión alta o de corte BMS mantiene comparables las lecturas y permite trabajar con packs cuyo BMS corta justo por debajo de 3,60 V.
 
 ## Umbrales
 
@@ -219,7 +228,7 @@ El sensor **Integration Status** expone un atributo `normal_balance_protection` 
 | `delta_V` | Diferencia actual de tensión en voltios |
 | `voltage_taper_latched` | Si la reducción normal a 200 W está activa |
 | `bms_cutoff_charge_active` | Si Venus A/D sigue disponible para cargar hasta el corte de la BMS |
-| `bms_cutoff_measurement` | Estado de la medición posterior al corte A/D: `pending` o `done` |
+| `bms_cutoff_measurement` | Estado de la medición posterior a un corte confirmado de la BMS: `pending` o `done` |
 | `soc_recal_active` | Si la carga se mantiene más allá de la pausa de 3.60 V para intentar recalibrar un SOC reportado bajo |
 | `soc_recal_bms_cutoff` | Si se ha alcanzado el corte del BMS durante la recalibración (override enclavado) |
 | `soc_recal_retry_pending` | Si se está esperando a que la celda se relaje a 3.57 V para el único reintento |

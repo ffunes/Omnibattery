@@ -38,6 +38,19 @@ class DynamicPricingSchedule:
     deficit_hours_needed: float = 0.0
     negative_price_hours_needed: float = 0.0
     negative_price_energy_kwh: float = 0.0
+    slot_energy_targets_kwh: dict = field(default_factory=dict)
+    slot_deadlines: dict = field(default_factory=dict)
+    slot_plan_kinds: dict = field(default_factory=dict)
+    chronological_planning_active: bool = False
+    chronological_source: str | None = None
+    solar_timeline_source: str | None = None
+    earliest_depletion_at: datetime | None = None
+    deadline_required_kwh: float = 0.0
+    flexible_required_kwh: float = 0.0
+    deadline_shortfall_kwh: float = 0.0
+    total_shortfall_kwh: float = 0.0
+    energy_deadlines: list = field(default_factory=list)
+    chronological_plan_reason: str | None = None
 
     def __post_init__(self) -> None:
         """Fill purpose metadata for schedules created by older callers/tests."""

@@ -37,16 +37,27 @@ from .const import (
     DOMAIN,
     NOTIFICATION_ID_PREFIX,
     CONF_ENABLE_PREDICTIVE_CHARGING,
+    CONF_VACATION_MODE_ENABLED,
     CONF_CHARGING_TIME_SLOT,
     CONF_SOLAR_FORECAST_SENSOR,
+    CONF_SOLAR_FORECAST_REMAINING_SENSOR,
     CONF_HOUSEHOLD_CONSUMPTION_SENSOR,
     CONF_SOLAR_PRODUCTION_SENSOR,
+    CONF_SOLAR_PROFILE_MODE,
+    SOLAR_PROFILE_MODES,
+    DEFAULT_SOLAR_PROFILE_MODE,
+    normalize_solar_profile_mode,
     CONF_MAX_CONTRACTED_POWER,
+    CONF_OFFGRID_POWER_SENSOR,
+    CONF_OFFGRID_METER_INVERTED,
+    CONF_OFFGRID_MODE_ENABLED,
     CONF_THREE_PHASE_ENABLED,
     CONF_PHASE_1_CURRENT_SENSOR,
     CONF_PHASE_2_CURRENT_SENSOR,
     CONF_PHASE_3_CURRENT_SENSOR,
     CONF_BATTERY_PHASE,
+    CONF_BATTERY_VERSION,
+    CONF_DC_PV_CONNECTED,
     normalize_battery_phase,
     DEFAULT_THREE_PHASE_ENABLED,
     DEFAULT_BASE_CONSUMPTION_KWH,
@@ -182,6 +193,7 @@ from .const import (
     SLOW_SENSOR_WARNING_INTERVAL_S,
     MAX_SENSOR_STALE_S,
     SLOW_SENSOR_WARN_INTERVALS,
+    SLOW_SENSOR_RECOVERY_INTERVALS,
     FORECAST_DATA_ISSUE_DELAY_S,
     HOT_PATH_READBACK_MAX_LATENCY_S,
     DISCHARGE_ENGAGE_GRACE_S,
@@ -194,11 +206,30 @@ from .const import (
     DEFAULT_CHARGE_HYSTERESIS_PERCENT,
     DEBUG_CONTROL_LOOP_DETAIL,
 )
+from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager
+from .drivers.base import has_connected_mppt_pv
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
 from .tracking.hourly_balance import HourlyBalanceManager
 from .tracking.non_responsive_tracker import NonResponsiveTracker
+from .tracking.daily_timeline import (
+    ACTION_DISCHARGE,
+    ACTION_GRID_CHARGE,
+    ACTION_SOLAR_CHARGE,
+    CONTEXT_CHARGE_DELAY,
+    CONTEXT_DYNAMIC_PRICE,
+    CONTEXT_HOURLY_BALANCE,
+    CONTEXT_NONE,
+    CONTEXT_REALTIME_PRICE,
+    CONTEXT_SETPOINT,
+    CONTEXT_TIME_SLOT,
+    DailyOperationTimelineManager,
+    GRID_CHARGE_NOT_APPLICABLE,
+    GRID_CHARGE_NOT_NEEDED,
+    GRID_CHARGE_SCHEDULED,
+)
+from .control.pack_soc import soc_vs_ceiling, soc_vs_floor
 from .control.weekly_full_charge import WeeklyFullChargeManager
 from .control.max_soc_charge import MaxSocChargeManager
 from .control.temperature_limit import TemperatureChargeLimitManager
@@ -212,6 +243,27 @@ from .pricing import (
     notifications,
 )
 from .pricing.engine import DynamicPricingEvaluationHorizon, PricingManager
+
+
+# Predictive charging treats the configured/import ceiling as a regulation
+# target.  A much larger, persistent physical overload is still a safety event,
+# but it must be confirmed from fresh meter publications before the slot is
+# forced through the idle/protection state machine.
+_PREDICTIVE_HARD_LIMIT_CONFIRMATIONS = 3
+_PREDICTIVE_HARD_LIMIT_MIN_MARGIN_W = 200.0
+
+# Daily Operation classifies an otherwise solar-looking AC charge as grid-fed
+# only after the net energy imported while charging exceeds this amount.  A
+# quarter-hour energy threshold avoids repainting the source whenever the PD
+# controller makes the meter oscillate by a few watts around zero.
+_DAILY_OPERATION_GRID_CHARGE_ENERGY_KWH = 0.05  # 50 Wh
+from .solar_forecast import (
+    SolarForecastInput,
+    get_configured_solar_forecast_sensor,
+    normalize_solar_forecast_config,
+    read_remaining_solar_kwh,
+    read_solar_forecast_kwh,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -269,6 +321,38 @@ def _excluded_devices_panel_config(data: dict, ent_reg) -> list[dict]:
     return devices
 
 
+def _has_battery_reported_solar(coordinators) -> bool:
+    """Return whether any connected model has an independent PV source."""
+    return any(
+        bool(
+            has_connected_mppt_pv(coordinator)
+            or getattr(
+                getattr(coordinator, "capabilities", None),
+                "has_solar_telemetry",
+                False,
+            )
+        )
+        for coordinator in coordinators or ()
+    )
+
+
+def _panel_solar_entity(coordinators, ent_reg, external_entity: str | None) -> str | None:
+    """Choose the panel's complete solar source from live model capabilities.
+
+    The system aggregate is preferred only when a connected battery really
+    contributes independent PV. If the aggregate entity is not registered yet
+    (the first registration happens before platforms finish) or no such battery
+    exists, fall back to the configured external sensor.
+    """
+    if _has_battery_reported_solar(coordinators):
+        solar_entity = ent_reg.async_get_entity_id(
+            "sensor", DOMAIN, "marstek_venus_system_solar_power"
+        )
+        if solar_entity:
+            return solar_entity
+    return external_entity
+
+
 async def _async_register_frontend_panel(hass: HomeAssistant, entry: ConfigEntry | None = None) -> None:
     """Register (or refresh) the custom sidebar panel.
 
@@ -315,9 +399,12 @@ async def _async_register_frontend_panel(hass: HomeAssistant, entry: ConfigEntry
 
         panel_config = {"domain": DOMAIN, "title": PANEL_TITLE}
         if entry is not None:
+            panel_config["daily_operation_timeline_entity"] = (
+                "sensor.omnibattery_daily_operation_timeline"
+            )
             from .const import (
-                CONF_BATTERY_VERSION,
                 CONF_SOLAR_FORECAST_SENSOR,
+                CONF_SOLAR_FORECAST_REMAINING_SENSOR,
                 CONF_SOLAR_PRODUCTION_SENSOR,
             )
 
@@ -350,21 +437,24 @@ async def _async_register_frontend_panel(hass: HomeAssistant, entry: ConfigEntry
                 panel_config["home_entity"] = home_eid
             if data.get(CONF_SOLAR_FORECAST_SENSOR):
                 panel_config["solar_forecast_entity"] = data[CONF_SOLAR_FORECAST_SENSOR]
-            # Solar node click target. When any battery has DC-coupled PV (vA/vD)
-            # the node shows external + MPPT, so link the live total-solar sensor
-            # (sensor.marstek_venus_system_solar_power, gated on MPPT in sensor.py)
-            # which sums both — otherwise clicking would open only the external
-            # inverter and mismatch the displayed total (#391). Non-MPPT systems
-            # never get that sensor, so they keep the external-only link (or none).
-            versions = {b.get(CONF_BATTERY_VERSION) for b in data.get("batteries", [])}
-            if versions & {"vA", "vD"}:
-                solar_eid = ent_reg.async_get_entity_id(
-                    "sensor", DOMAIN, "marstek_venus_system_solar_power"
-                )
-                if solar_eid:
-                    panel_config["solar_entity"] = solar_eid
-            elif data.get(CONF_SOLAR_PRODUCTION_SENSOR):
-                panel_config["solar_entity"] = data[CONF_SOLAR_PRODUCTION_SENSOR]
+            if data.get(CONF_SOLAR_FORECAST_REMAINING_SENSOR):
+                panel_config["solar_forecast_remaining_entity"] = data[
+                    CONF_SOLAR_FORECAST_REMAINING_SENSOR
+                ]
+            # Solar node click target. Use the capabilities of the live
+            # coordinators, not the configured brand: Anker model identity is
+            # discovered during connect and Solarbank Max AC must use only the
+            # configured external sensor. The second panel registration at the
+            # end of setup refreshes this payload after all models are known.
+            coordinator_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+            coordinators = coordinator_data.get("coordinators", ())
+            solar_eid = _panel_solar_entity(
+                coordinators,
+                ent_reg,
+                data.get(CONF_SOLAR_PRODUCTION_SENSOR),
+            )
+            if solar_eid:
+                panel_config["solar_entity"] = solar_eid
 
         # Remove any previous registration so the module URL / config refresh.
         # warn_if_unknown=False: on first setup after restart the panel isn't
@@ -407,6 +497,58 @@ def _async_unregister_frontend_panel(hass: HomeAssistant) -> None:
         hass.data[DOMAIN][_PANEL_REGISTERED_KEY] = False
 
 
+def _apply_driver_dynamic_limit(coordinator, current_limit: int) -> int:
+    """Narrow a discharge limit to the live headroom the driver reports.
+
+    Only DC-coupled hybrids report one: battery and PV share an inverter there,
+    so the reachable discharge power falls as PV rises. Every other driver
+    returns None and keeps its static envelope.
+
+    Applied in the control path rather than on the coordinator's power
+    properties on purpose — those also drive the user-facing power sliders, and
+    a bound that moved with the sun would be unusable.
+    """
+    driver = getattr(coordinator, "driver", None)
+    limiter = getattr(driver, "dynamic_discharge_limit_w", None)
+    if limiter is None:
+        return current_limit
+    try:
+        dynamic = limiter(getattr(coordinator, "data", None) or {})
+    except Exception:  # a driver must never break the control cycle
+        _LOGGER.debug(
+            "[%s] dynamic discharge limit raised; keeping static limit",
+            getattr(coordinator, "name", "?"),
+            exc_info=True,
+        )
+        return current_limit
+    if dynamic is None or dynamic >= current_limit:
+        return current_limit
+    _LOGGER.debug(
+        "[%s] discharge limit narrowed %dW -> %dW by inverter AC headroom",
+        getattr(coordinator, "name", "?"), current_limit, dynamic,
+    )
+    return max(0, int(dynamic))
+
+
+def _backup_switch_enabled(value) -> bool:
+    """Whether a battery's backup output is armed, whatever shape it reports in.
+
+    Register drivers publish the switch itself: 0 is on, 1 is off. A hybrid
+    inverter has no such switch — it reports a state, and this driver names the
+    three a SUN2000 distinguishes: off-grid, ready to go off-grid, or the
+    function disabled outright.
+
+    Comparing against 0 alone reads every one of those strings as "off", which
+    would let a Huawei keep taking charge and discharge commands through a power
+    cut. Both shapes are answered here rather than at each call site.
+    """
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value in ("Off-grid", "Ready")
+    return value == 0
+
+
 class ChargeDischargeController:
     """Controller to manage charge/discharge logic for all batteries."""
 
@@ -414,8 +556,16 @@ class ChargeDischargeController:
         """Initialize the controller."""
         self.hass = hass
         self.coordinators = coordinators
-        self.consumption_sensor = consumption_sensor
         self.config_entry = config_entry
+        self.primary_consumption_sensor = consumption_sensor
+        self.offgrid_power_sensor = config_entry.data.get(CONF_OFFGRID_POWER_SENSOR)
+        self.offgrid_meter_inverted = config_entry.data.get(
+            CONF_OFFGRID_METER_INVERTED, False
+        )
+        self.offgrid_mode_enabled = bool(
+            self.offgrid_power_sensor
+            and config_entry.data.get(CONF_OFFGRID_MODE_ENABLED, False)
+        )
 
         # State tracking
         self.previous_sensor = None
@@ -455,6 +605,9 @@ class ChargeDischargeController:
         # belongs per-battery in the power distribution, not in the loop cadence.
         self._min_cycle_interval_s = config_entry.data.get(CONF_PD_MIN_CYCLE_INTERVAL, DEFAULT_PD_MIN_CYCLE_INTERVAL)
         self._last_cycle_monotonic = 0.0
+        self._background_tasks: set[asyncio.Task] = set()
+        self._startup_dynamic_pricing_task: asyncio.Task | None = None
+        self._unloading = False
         self.target_grid_power = config_entry.data.get(CONF_TARGET_GRID_POWER, DEFAULT_TARGET_GRID_POWER)
         # No-PD direct-tracking mode (opt-in): see _apply_no_pd_overrides. Overrides
         # are applied at the end of __init__, after the grid filter tau is set below.
@@ -503,6 +656,10 @@ class ChargeDischargeController:
         self._pd_quality_rms_ema = None  # EMA of error^2 (W^2); sqrt -> RMS error
         self._pd_quality_osc_ema = 0.0   # EMA of error-sign changes per minute
         self._pd_quality_last_ts = None  # monotonic ts of last metric update
+        # Separate from _pd_quality_last_ts, which is also bumped on skipped cycles
+        # to keep the EMA step small when it resumes. Only this one marks a real
+        # advance, so it is what tells the sensor its verdict has gone stale.
+        self._pd_quality_last_advance_ts = None
         # Ignore the tracking transient after any setpoint/target step (hourly
         # balance, capacity protection, user target change, ...) so it doesn't
         # inflate RMS/oscillation. Source-agnostic: keys on active_target moving.
@@ -513,6 +670,20 @@ class ChargeDischargeController:
         # would charge, empty while it would discharge, or output pinned at the power
         # rail). Surfaced as the "battery_limited" quality state; not a tuning fault.
         self._pd_limited = False
+        # True when the direction the grid error demands is not allowed to run
+        # (charge delay, time slot, price/EV/solar-surplus block). The residual
+        # error is then a muzzled loop, not a tuning fault: the metric skips it
+        # and the sensor reports "blocked".
+        self._pd_blocked = False
+        # Both flags are written only in the PD tail, which many cycles never
+        # reach (weekly full charge or predictive charging owning the cycle, max
+        # SOC handling, manual mode, ...). Clearing them at the top of the cycle
+        # therefore erased a verdict that was still true, while never clearing
+        # them latched a stale one for the whole session. Each is instead stamped
+        # when set and expires on its own; see pd_blocked / pd_limited.
+        self._pd_flag_ttl_s = 60.0
+        self._pd_limited_ts = None
+        self._pd_blocked_ts = None
 
         # Measured-power anti-windup (back-calculation): re-anchor the incremental
         # base to the battery's real AC output when commanded power is not being
@@ -544,11 +715,12 @@ class ChargeDischargeController:
         self._control_sample_is_new = True      # result of the current control-loop sample
         self._stale_cycles = 0                  # consecutive cycles without a sensor publication
         self._max_sensor_stale_s = MAX_SENSOR_STALE_S
+        self._consumption_sensor_issue = None   # invalid/missing state already logged this episode
         self._control_lock = asyncio.Lock()     # serialize control cycle across timer + sensor-event triggers
         self._grid_at_min_soc_last_ts = None     # last accumulation timestamp for grid-at-min-soc kWh integration
-        self._slow_sensor_issue_created = False  # at most one Repairs creation per controller run
+        self._slow_sensor_issue_created = False  # slow-sensor repair currently raised
         self._slow_sensor_intervals = 0         # consecutive slow sensor intervals
-        self._fast_sensor_intervals = 0         # startup fast intervals used to clear an old repair
+        self._fast_sensor_intervals = 0         # consecutive fast intervals used to clear the repair
 
         # Normal high-SOC charge protection. These must exist before the first
         # capacity calculation because _battery_power_limit() reads them.
@@ -557,6 +729,7 @@ class ChargeDischargeController:
         self._normal_balance_bms_cutoff_active: dict[MarstekVenusDataUpdateCoordinator, bool] = {}
         self._normal_balance_bms_cutoff_retry_pending: dict[MarstekVenusDataUpdateCoordinator, bool] = {}
         self._normal_balance_bms_cutoff_retry_active: dict[MarstekVenusDataUpdateCoordinator, bool] = {}
+        self._normal_balance_bms_cutoff_retry_accept_count: dict[MarstekVenusDataUpdateCoordinator, int] = {}
         self._normal_balance_bms_cutoff_measurement: dict[
             MarstekVenusDataUpdateCoordinator, str
         ] = {}
@@ -628,14 +801,25 @@ class ChargeDischargeController:
         
         # Predictive Grid Charging state
         self.predictive_charging_enabled = config_entry.data.get(CONF_ENABLE_PREDICTIVE_CHARGING, False)
+        self.vacation_mode_enabled = config_entry.data.get(CONF_VACATION_MODE_ENABLED, False)
         # Predictive charging windows: list of {start_time, end_time, days} dicts.
         # Legacy configs stored a single dict — normalize to a one-element list.
         _raw_slots = config_entry.data.get(CONF_CHARGING_TIME_SLOT, None)
         if isinstance(_raw_slots, dict):
             _raw_slots = [_raw_slots]
         self.charging_time_slots = _raw_slots or []
-        self.solar_forecast_sensor = config_entry.data.get(CONF_SOLAR_FORECAST_SENSOR, None)
+        self.solar_forecast_sensor = get_configured_solar_forecast_sensor(
+            self, "today"
+        )
+        self.solar_forecast_remaining_sensor = get_configured_solar_forecast_sensor(
+            self, "remaining"
+        )
+        self.solar_forecast_source: str | None = None
+        self.solar_forecast_diagnostic_source: str | None = None
         self.solar_production_sensor = config_entry.data.get(CONF_SOLAR_PRODUCTION_SENSOR, None)
+        self.solar_profile_mode = normalize_solar_profile_mode(
+            config_entry.data.get(CONF_SOLAR_PROFILE_MODE, DEFAULT_SOLAR_PROFILE_MODE)
+        )
         self.max_contracted_power = config_entry.data.get(CONF_MAX_CONTRACTED_POWER, 7000)
 
         # Derived Home Consumption sensor (our own aggregate). Resolved lazily by
@@ -644,8 +828,8 @@ class ChargeDischargeController:
         # rename because the unique_id never changes.
         self.home_consumption_sensor: Optional[str] = None
 
-        # Home consumption accumulator (integration of derived home power over the
-        # solar+battery window). Owned by ConsumptionTracker (see consumption_tracker.py);
+        # Home consumption accumulator (24-hour integration of adjusted derived
+        # home power). Owned by ConsumptionTracker (see consumption_tracker.py);
         # these public attrs remain on the controller so binary_sensor.py and
         # aggregate_sensors.py keep reading them.
         self._household_energy_accumulator = 0.0
@@ -665,15 +849,38 @@ class ChargeDischargeController:
         self._daily_grid_import_energy_kwh = 0.0
         self._daily_grid_export_energy_kwh = 0.0
         self._daily_grid_energy_date = None
+        # Stable reference captured by the full-day forecast evaluation. This
+        # remains separate from the live remaining forecast used later today.
+        self._daily_solar_forecast_initial_kwh = None
+        self._daily_solar_forecast_initial_date = None
 
         # State tracking for predictive charging
         self.grid_charging_active = False  # True when mode is active
         self.last_evaluation_soc = None    # SOC at last check
         self.predictive_charging_overridden = config_entry.data.get(CONF_PREDICTIVE_CHARGING_OVERRIDDEN, False)
         self._grid_charging_initialized = False  # Flag for initialization
+        # A predictive slot owns the automatic batteries for its whole lifetime.
+        # A demand spike therefore moves it through an idle/settling/protection
+        # state instead of yielding to normal PD (whose first sample can still
+        # include the just-stopped grid charge).
+        self._predictive_charge_suspended_for_demand = False
+        self._predictive_demand_state = "charging"
+        self._predictive_demand_fresh_samples = 0
+        self._predictive_demand_recovery_samples = 0
+        self._predictive_demand_transition_monotonic = 0.0
+        self._predictive_protection_command_w = 0.0
+        self._predictive_protection_reason = None
+        self._predictive_hard_limit_samples = 0
+        self._predictive_resume_charge_power = None
         self._last_decision_data = None  # Store last decision for diagnostics
+        # Chronological forecast diagnostics survive later balance-only
+        # re-evaluations, which replace _last_decision_data wholesale.
+        self._last_chronological_diagnostics = None
         self._slot_entry_time = None  # When we first entered the time slot (for 5-min delay)
         self._predictive_charge_target_soc: Optional[dict] = None  # Per-battery grid-only SOC targets {coordinator: target_%}
+        self._active_time_slot_quota_kwh: Optional[float] = None
+        self._time_slot_chronological_plan = None
+        self._time_slot_chronological_preview_date = None
         # Snapshot of the deficit-only target at entry to a typed dynamic-price
         # slot.  If a combined slot later loses its opportunistic purpose, this
         # avoids rebasing the same planned deficit on top of energy already stored.
@@ -758,6 +965,7 @@ class ChargeDischargeController:
         self._solar_forecast_bad_since = None     # monotonic ts the forecast sensor became unreadable
         self._solar_forecast_issue_created = False
         self._solar_forecast_issue_cleared = False
+        self._solar_forecast_migration_issue_created = False
         self._dp_evening_reevaluated_date = None  # Prevent multiple evening re-evaluations per day
         self._dp_last_eval_soc = None  # avg SOC at last DP (re)eval; SOC-drop reeval reference (#411)
         # Smart pre-discharge is runtime-only.  Plans are rebuilt after restart;
@@ -866,8 +1074,12 @@ class ChargeDischargeController:
         )
         self._charge_delay_last_date = None       # For daily reset
         self._charge_delay_forecast_cache = None  # Last forecast value used for balance check
+        self._charge_delay_forecast_source_cache = None
+        self._charge_delay_forecast_conversion_cache = None
+        self._charge_delay_profile_source_cache = None
         self._charge_delay_balance_needs_charge = True  # Cached balance result (conservative default)
         self._forecast_unavailable_since = None   # monotonic ts when a configured forecast sensor first read unavailable
+        self._forecast_zero_since = None          # bounded grace for a provisional midnight zero
         self._forecast_grace_s = 300              # hold the delay through forecast blips / HA-startup sensor loading before unlocking
         self._solar_t_start = None
         self._delay_last_log_time = 0           # Throttle logging to every 5 minutes
@@ -884,8 +1096,16 @@ class ChargeDischargeController:
             "remaining_solar_kwh": None,
             "remaining_consumption_kwh": None,
             "net_solar_kwh": None,
+            "consumption_forecast_source": "legacy_daily",
+            "profile_coverage_ratio": 0.0,
+            "profile_days": 0,
+            "profile_fallback_reason": None,
+            "solar_forecast_source": None,
+            "solar_forecast_diagnostic_source": None,
             "charge_time_h": None,
             "estimated_unlock_time": None,
+            "projected_unlock_time": None,
+            "estimated_setpoint_time": None,
             "unlock_reason": None,
             "safety_margin_min": int(self._delay_safety_margin_h * 60),
             "soc_setpoint": self._delay_soc_setpoint if self._delay_soc_setpoint_enabled else None,
@@ -904,6 +1124,15 @@ class ChargeDischargeController:
         # ConsumptionTracker owns its own Stores (consumption history, accumulators,
         # solar T_start). Set from async_setup_entry after the controller exists.
         self._consumption_tracker = None
+        self._daily_operation_timeline = None
+        self.daily_operation_timeline = None
+        self._daily_operation_last_runtime_at: datetime | None = None
+        self._daily_operation_grid_energy_date = None
+        self._daily_operation_grid_energy_kwh = [0.0] * 96
+        self._daily_operation_grid_energy_observed = [False] * 96
+        self._daily_operation_last_decision_signature = None
+        self._daily_operation_last_projection_signature = None
+        self._daily_operation_last_projection_monotonic = 0.0
 
         # Apply no-PD direct-tracking overrides last, so they win over the PD params
         # loaded above (and the grid filter tau just set).
@@ -935,9 +1164,1053 @@ class ChargeDischargeController:
         _LOGGER.info("Hourly Net Balance: %s",
                      "ENABLED" if self.hourly_balance_enabled else "DISABLED")
 
+    @property
+    def consumption_sensor(self) -> str:
+        """Return the meter currently feeding control and derived statistics."""
+        if self.offgrid_mode_enabled and self.offgrid_power_sensor:
+            return self.offgrid_power_sensor
+        return self.primary_consumption_sensor
+
+    @property
+    def consumption_sensor_ids(self) -> list[str]:
+        """Return every meter that may become active without an entry reload."""
+        return list(
+            dict.fromkeys(
+                sensor
+                for sensor in (
+                    self.primary_consumption_sensor,
+                    self.offgrid_power_sensor,
+                )
+                if sensor
+            )
+        )
+
+    def _reset_consumption_source_tracking(self) -> None:
+        """Start a clean sample series after selecting a different meter."""
+        self._grid_filter_ema = None
+        self._last_sensor_report_time = None
+        self._last_sensor_cadence_time = None
+        self._last_control_sample_value = None
+        self._control_sample_is_new = True
+        self._stale_cycles = 0
+        self._consumption_sensor_issue = None
+
+        tracker = getattr(self, "_consumption_tracker", None)
+        if tracker is not None:
+            tracker._daily_home_last_time = None
+            tracker._daily_home_last_power_kw = None
+            tracker._daily_grid_last_time = None
+            tracker._daily_grid_last_power_kw = None
+
+        hourly = getattr(self, "_hourly_balance_mgr", None)
+        if hourly is not None:
+            hourly._last_sample_monotonic = None
+            hourly._last_grid_w = None
+
+    def set_offgrid_mode(self, enabled: bool) -> None:
+        """Select the alternate meter without changing any battery setting."""
+        enabled = bool(enabled and self.offgrid_power_sensor)
+        if enabled == self.offgrid_mode_enabled:
+            return
+        self.offgrid_mode_enabled = enabled
+        self._reset_consumption_source_tracking()
+
     def _schedule_charge_delay_state_save(self) -> None:
         """Persist charge delay latch state (delegates to ChargeDelayManager)."""
         self._charge_delay_mgr.schedule_save()
+
+    @staticmethod
+    def _daily_operation_float(value: Any, default: float = 0.0) -> float:
+        """Return a finite float for the dashboard boundary."""
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return default
+        return parsed if math.isfinite(parsed) else default
+
+    def _daily_operation_mode(self) -> str:
+        """Return the stable mode name used by the timeline contract."""
+        raw = str(getattr(self, "predictive_charging_mode", "normal") or "normal")
+        normalized = raw.strip().lower().replace("-", "_").replace(" ", "_")
+        if normalized in {PREDICTIVE_MODE_DYNAMIC_PRICING, "dynamic"}:
+            return "dynamic_pricing"
+        if normalized in {PREDICTIVE_MODE_REALTIME_PRICE, "real_time_price", "realtime"}:
+            return "realtime_price"
+        if normalized in {PREDICTIVE_MODE_TIME_SLOT, "timeslot"}:
+            return "time_slot"
+        return normalized or "normal"
+
+    def _daily_operation_accumulate_grid_charge_energy(
+        self,
+        now: datetime,
+        grid_power_w: float,
+        duration_s: float,
+        *,
+        charging: bool,
+    ) -> float | None:
+        """Return net grid energy observed while charging in this quarter-hour.
+
+        Import is positive and export is negative, so short PD oscillations
+        cancel as energy instead of changing the charge source sample by
+        sample.  The 96 wall-clock bins deliberately mirror the timeline; both
+        occurrences of a repeated DST hour therefore contribute to the same
+        displayed cell.
+        """
+        local_date = now.date()
+        if getattr(self, "_daily_operation_grid_energy_date", None) != local_date:
+            self._daily_operation_grid_energy_date = local_date
+            self._daily_operation_grid_energy_kwh = [0.0] * 96
+            self._daily_operation_grid_energy_observed = [False] * 96
+
+        index = now.hour * 4 + now.minute // 15
+        energy = getattr(self, "_daily_operation_grid_energy_kwh", None)
+        observed = getattr(self, "_daily_operation_grid_energy_observed", None)
+        if not isinstance(energy, list) or len(energy) != 96:
+            energy = [0.0] * 96
+            self._daily_operation_grid_energy_kwh = energy
+        if not isinstance(observed, list) or len(observed) != 96:
+            observed = [False] * 96
+            self._daily_operation_grid_energy_observed = observed
+
+        if (
+            charging
+            and math.isfinite(grid_power_w)
+            and math.isfinite(duration_s)
+            and duration_s > 0.0
+        ):
+            energy[index] += grid_power_w * min(duration_s, 60.0) / 3_600_000.0
+            observed[index] = True
+
+        return energy[index] if observed[index] else None
+
+    def _daily_operation_delay_unlock(self, now: datetime) -> datetime | None:
+        """Return today's runtime delay boundary as a local datetime."""
+        raw = (getattr(self, "_charge_delay_status", {}) or {}).get(
+            "estimated_unlock_time"
+        )
+        if raw is None or raw == "":
+            return None
+        candidate = raw if isinstance(raw, datetime) else None
+        if candidate is None:
+            text = str(raw).strip()
+            try:
+                candidate = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            except ValueError:
+                try:
+                    hour_text, minute_text = text.split(":", 1)
+                    candidate = now.replace(
+                        hour=int(hour_text),
+                        minute=int(minute_text),
+                        second=0,
+                        microsecond=0,
+                    )
+                except (TypeError, ValueError):
+                    return None
+        if candidate.tzinfo is None:
+            return candidate.replace(tzinfo=now.tzinfo)
+        return (
+            candidate.astimezone(now.tzinfo)
+            if now.tzinfo is not None
+            else candidate
+        )
+
+    @staticmethod
+    def _daily_operation_weekly_delay_bypass(controller: Any) -> bool:
+        """Return whether weekly full charge bypasses the solar delay."""
+        weekly_override = getattr(controller, "_balance_monitor_overrides_delay", None)
+        if not callable(weekly_override):
+            return False
+        try:
+            return bool(weekly_override())
+        except Exception:  # noqa: BLE001 - the timeline must not gate control
+            _LOGGER.debug(
+                "Weekly charge-delay override check failed",
+                exc_info=True,
+            )
+            return False
+
+    def _daily_operation_delay_active(self) -> bool:
+        """Return whether Charge Delay is currently blocking grid charging."""
+        if ChargeDischargeController._daily_operation_weekly_delay_bypass(self):
+            return False
+        if (
+            not getattr(self, "charge_delay_enabled", False)
+            or getattr(self, "_charge_delay_unlocked", False)
+        ):
+            return False
+        state = str(
+            (getattr(self, "_charge_delay_status", {}) or {}).get("state", "")
+        ).strip().lower()
+        return state.startswith("delayed") or state in {
+            "waiting for forecast",
+            "waiting for solar",
+        }
+
+    def _daily_operation_setpoint_enabled(self) -> bool:
+        """Return whether the Charge Delay SOC setpoint is actually in effect.
+
+        The setpoint is a sub-feature of Charge Delay: the controller ignores it
+        when the delay is off (``is_charge_delayed`` returns early), so the
+        timeline must not paint the setpoint marker either.
+        """
+        return bool(
+            getattr(self, "charge_delay_enabled", False)
+            and getattr(self, "_delay_soc_setpoint_enabled", False)
+        )
+
+    def _daily_operation_hourly_balance_context(self, action_mask: int) -> int:
+        """Classify a measured action driven by the hourly net-balance offset.
+
+        The physical action remains a grid charge or battery discharge. The
+        hourly-balance context only explains the active setpoint correction;
+        future projections deliberately do not use it because the future grid
+        signal is not known.
+        """
+        manager = getattr(self, "_hourly_balance_mgr", None)
+        if (
+            manager is None
+            or not getattr(self, "hourly_balance_enabled", False)
+            or not (action_mask & (ACTION_GRID_CHARGE | ACTION_DISCHARGE))
+        ):
+            return CONTEXT_NONE
+
+        try:
+            status = manager.get_status_dict()
+        except Exception:  # noqa: BLE001 - timeline classification is optional
+            return CONTEXT_NONE
+        if not isinstance(status, dict) or status.get("in_active_slot") is False:
+            return CONTEXT_NONE
+
+        try:
+            offset_w = float(status.get("offset_w", 0.0) or 0.0)
+        except (TypeError, ValueError, OverflowError):
+            return CONTEXT_NONE
+        if not math.isfinite(offset_w) or abs(offset_w) <= 10.0:
+            return CONTEXT_NONE
+
+        # Positive offset asks the PD controller to import/charge; negative
+        # offset asks it to export/discharge. Do not label an unrelated solar
+        # charge as hourly-balance grid charging when no grid action was seen.
+        if offset_w > 0.0 and action_mask & ACTION_GRID_CHARGE:
+            return CONTEXT_HOURLY_BALANCE
+        if offset_w < 0.0 and action_mask & ACTION_DISCHARGE:
+            return CONTEXT_HOURLY_BALANCE
+        return CONTEXT_NONE
+
+    @staticmethod
+    def _daily_operation_capture(profile: Any, source: str) -> Any:
+        """Adapt a profile's bounded live capture without exposing its object."""
+        if profile is None:
+            return None
+        capture = profile
+        method = getattr(profile, "current_day_capture", None)
+        if callable(method):
+            try:
+                capture = method()
+            except Exception:  # noqa: BLE001 - telemetry must never stop control
+                return None
+        if isinstance(capture, dict):
+            result = dict(capture)
+            result.setdefault("source", source)
+            return result
+        return capture
+
+    def _daily_operation_runtime_decision(
+        self, now: datetime, *, sample_duration_s: float = 0.0
+    ) -> dict[str, Any]:
+        """Build one measured controller decision for the open quarter-hour."""
+        mode = self._daily_operation_mode()
+        predictive_enabled = bool(getattr(self, "predictive_charging_enabled", False))
+        context_mask = CONTEXT_NONE
+        if predictive_enabled:
+            if mode == "dynamic_pricing":
+                context_mask |= CONTEXT_DYNAMIC_PRICE
+            elif mode == "time_slot":
+                context_mask |= CONTEXT_TIME_SLOT
+            elif mode == "realtime_price":
+                context_mask |= CONTEXT_REALTIME_PRICE
+
+        grid_active = bool(
+            getattr(self, "grid_charging_active", False)
+            or getattr(self, "_realtime_price_charging", False)
+        )
+        solar_power_w = None
+        tracker = getattr(self, "_consumption_tracker", None)
+        read_solar = getattr(tracker, "_read_total_solar_power_kw", None)
+        if callable(read_solar):
+            try:
+                solar_power_kw = self._daily_operation_float(read_solar(), math.nan)
+                if math.isfinite(solar_power_kw):
+                    solar_power_w = max(0.0, solar_power_kw * 1000.0)
+            except Exception:  # noqa: BLE001 - classification is diagnostic only
+                solar_power_w = None
+        solar_measured = solar_power_w is not None and solar_power_w > 10.0
+        # Prefer the raw transformed grid sample integrated immediately before
+        # this timeline refresh. ``previous_sensor`` is the fallback used by
+        # lightweight tests and installations without the accumulator.
+        raw_grid_power_kw = self._daily_operation_float(
+            getattr(tracker, "_daily_grid_last_power_kw", None), math.nan
+        )
+        grid_power_w = (
+            raw_grid_power_kw * 1000.0
+            if math.isfinite(raw_grid_power_kw)
+            else self._daily_operation_float(
+                getattr(self, "previous_sensor", None), math.nan
+            )
+        )
+        total_capacity = 0.0
+        total_stored = 0.0
+        for coordinator in getattr(self, "coordinators", ()):
+            data = getattr(coordinator, "data", None) or {}
+            capacity = self._daily_operation_float(
+                data.get("battery_total_energy"), math.nan
+            )
+            soc = self._daily_operation_float(data.get("battery_soc"), math.nan)
+            if math.isfinite(capacity) and capacity > 0.0 and math.isfinite(soc):
+                total_capacity += capacity
+                total_stored += capacity * max(0.0, min(100.0, soc)) / 100.0
+        system_soc = (
+            total_stored / total_capacity * 100.0 if total_capacity > 0.0 else None
+        )
+        total_power = 0.0
+        charge_power = 0.0
+        discharge_power = 0.0
+        measured = False
+        positive_batteries = 0
+        negative_batteries = 0
+        action_mask = 0
+        direct_solar_charge = False
+        external_ac_charge = False
+        explicit_grid_charge = False
+        ac_grid_draw_with_direct_pv = False
+        for coordinator in getattr(self, "coordinators", ()):
+            if self._is_battery_manual_owned(coordinator):
+                continue
+            delivered = self._coordinator_delivered_power(coordinator)
+            if delivered is None:
+                continue
+            parsed = self._daily_operation_float(delivered, math.nan)
+            if not math.isfinite(parsed):
+                continue
+
+            # AC power alone misses DC-coupled PV charging on Venus A/D and
+            # aggregate-PV devices. Mirror the system battery-cell sensor:
+            # cell power = AC-side battery flow + direct PV, with positive
+            # meaning that energy is entering the cells.
+            data = getattr(coordinator, "data", None) or {}
+            capabilities = getattr(coordinator, "capabilities", None)
+            has_mppt = has_connected_mppt_pv(coordinator)
+            has_aggregate_pv = bool(
+                getattr(capabilities, "has_solar_telemetry", False)
+            )
+            direct_pv_w = 0.0
+            if has_mppt:
+                for key in (
+                    "mppt1_power",
+                    "mppt2_power",
+                    "mppt3_power",
+                    "mppt4_power",
+                ):
+                    value = self._daily_operation_float(data.get(key), math.nan)
+                    if math.isfinite(value) and value >= 0.0:
+                        direct_pv_w += value
+            elif has_aggregate_pv:
+                value = self._daily_operation_float(
+                    data.get("solar_power"), math.nan
+                )
+                if math.isfinite(value) and value >= 0.0:
+                    direct_pv_w = value
+
+            cell_power = parsed
+            ac_power = self._daily_operation_float(data.get("ac_power"), math.nan)
+            if math.isfinite(ac_power) and (has_mppt or has_aggregate_pv):
+                offgrid_power = 0.0
+                if data.get("inverter_state") == 4:
+                    candidate = self._daily_operation_float(
+                        data.get("ac_offgrid_power"), math.nan
+                    )
+                    if math.isfinite(candidate):
+                        offgrid_power = candidate
+                cell_power = -ac_power - offgrid_power + direct_pv_w
+
+            measured = True
+            total_power += cell_power
+            if cell_power > 10.0:
+                charge_power += cell_power
+                positive_batteries += 1
+                if direct_pv_w > 10.0:
+                    direct_solar_charge = True
+                else:
+                    external_ac_charge = True
+                ac_draws_from_grid = math.isfinite(ac_power) and ac_power < -10.0
+                if grid_active and (
+                    not math.isfinite(ac_power) or ac_draws_from_grid
+                ):
+                    explicit_grid_charge = True
+                if direct_pv_w > 10.0 and ac_draws_from_grid:
+                    ac_grid_draw_with_direct_pv = True
+            elif cell_power < -10.0:
+                discharge_power += -cell_power
+                negative_batteries += 1
+                action_mask |= ACTION_DISCHARGE
+
+        if measured and charge_power > 10.0:
+            net_grid_energy_kwh = (
+                ChargeDischargeController._daily_operation_accumulate_grid_charge_energy(
+                    self,
+                    now,
+                    grid_power_w,
+                    sample_duration_s,
+                    charging=True,
+                )
+            )
+            material_grid_energy = (
+                net_grid_energy_kwh is not None
+                and net_grid_energy_kwh > _DAILY_OPERATION_GRID_CHARGE_ENERGY_KWH
+            )
+            if direct_solar_charge:
+                action_mask |= ACTION_SOLAR_CHARGE
+            if external_ac_charge:
+                if solar_measured and not grid_active and not material_grid_energy:
+                    action_mask |= ACTION_SOLAR_CHARGE
+                else:
+                    action_mask |= ACTION_GRID_CHARGE
+            # Direct DC PV and an AC draw can coexist. Only report the AC side
+            # as grid-fed once its accumulated net import is material; an
+            # instantaneous positive meter sample is no longer sufficient.
+            if explicit_grid_charge or (
+                ac_grid_draw_with_direct_pv and material_grid_energy
+            ):
+                action_mask |= ACTION_GRID_CHARGE
+        elif measured:
+            ChargeDischargeController._daily_operation_accumulate_grid_charge_energy(
+                self,
+                now,
+                grid_power_w,
+                sample_duration_s,
+                charging=False,
+            )
+
+        runtime_source = "runtime_measured" if measured else "runtime_command"
+        if not measured:
+            total_power = self._daily_operation_float(
+                getattr(self, "previous_power", 0.0), 0.0
+            )
+            if total_power > 10.0:
+                charge_power = total_power
+                net_grid_energy_kwh = (
+                    ChargeDischargeController._daily_operation_accumulate_grid_charge_energy(
+                        self,
+                        now,
+                        grid_power_w,
+                        sample_duration_s,
+                        charging=True,
+                    )
+                )
+                material_grid_energy = (
+                    net_grid_energy_kwh is not None
+                    and net_grid_energy_kwh > _DAILY_OPERATION_GRID_CHARGE_ENERGY_KWH
+                )
+                if solar_measured and not grid_active and not material_grid_energy:
+                    action_mask |= ACTION_SOLAR_CHARGE
+                else:
+                    action_mask |= ACTION_GRID_CHARGE
+            elif total_power < -10.0:
+                discharge_power = -total_power
+                action_mask |= ACTION_DISCHARGE
+
+        context_mask |= ChargeDischargeController._daily_operation_hourly_balance_context(
+            self, action_mask
+        )
+
+        weekly_charge_bypasses_delay = (
+            ChargeDischargeController._daily_operation_weekly_delay_bypass(self)
+        )
+        delay_active = self._daily_operation_delay_active()
+        setpoint_enabled = (
+            ChargeDischargeController._daily_operation_setpoint_enabled(self)
+        )
+        setpoint_reached = bool(getattr(self, "_delay_setpoint_reached", False))
+        setpoint_active = (
+            setpoint_enabled
+            and not setpoint_reached
+            and not weekly_charge_bypasses_delay
+        )
+        if delay_active:
+            context_mask |= CONTEXT_CHARGE_DELAY
+        if setpoint_active and action_mask & (ACTION_SOLAR_CHARGE | ACTION_GRID_CHARGE):
+            context_mask |= CONTEXT_SETPOINT
+
+        latest_decision = getattr(self, "_last_decision_data", None) or {}
+        if not isinstance(latest_decision, dict):
+            latest_decision = {}
+        selected_schedule = getattr(self, "_dynamic_pricing_schedule", None)
+        has_selected_schedule = bool(
+            selected_schedule is not None
+            and getattr(selected_schedule, "selected_slots", ())
+        )
+        explicit_should_charge = latest_decision.get("should_charge")
+        if mode == "time_slot" and "aggregate_should_charge" in latest_decision:
+            explicit_should_charge = latest_decision["aggregate_should_charge"]
+        if action_mask & ACTION_GRID_CHARGE:
+            grid_decision = GRID_CHARGE_SCHEDULED
+        elif (
+            predictive_enabled
+            and mode in {"dynamic_pricing", "time_slot"}
+            and not has_selected_schedule
+            and explicit_should_charge is False
+        ):
+            grid_decision = GRID_CHARGE_NOT_NEEDED
+        else:
+            grid_decision = GRID_CHARGE_NOT_APPLICABLE
+
+        status = getattr(self, "_charge_delay_status", {}) or {}
+        slot = getattr(self, "_active_dynamic_price_slot", None)
+        if slot is None:
+            slot = getattr(self, "_active_charging_slot", None)
+            if callable(slot):
+                try:
+                    slot = slot()
+                except Exception:  # noqa: BLE001
+                    slot = None
+        slot_label = None
+        if isinstance(slot, dict):
+            slot_label = slot.get("id") or slot.get("name")
+            if slot_label is None:
+                slot_label = (
+                    f"{slot.get('start_time', '')}-{slot.get('end_time', '')}"
+                )
+        elif slot is not None:
+            start = getattr(slot, "start", None)
+            end = getattr(slot, "end", None)
+            if start is not None and end is not None:
+                slot_label = f"{start.isoformat()}-{end.isoformat()}"
+
+        return {
+            "mode": mode,
+            "source": runtime_source,
+            "action_mask": action_mask,
+            "context_mask": context_mask,
+            "hourly_balance_active": bool(context_mask & CONTEXT_HOURLY_BALANCE),
+            "grid_charge_decision": grid_decision,
+            "charge_power_w": charge_power,
+            "discharge_power_w": discharge_power,
+            "soc_pct": system_soc,
+            "delay_active": delay_active,
+            "setpoint_active": setpoint_active,
+            "delay_until": status.get("estimated_unlock_time") if delay_active else None,
+            "slot": slot_label,
+            "simultaneous": bool(
+                (positive_batteries and negative_batteries)
+                or action_mask.bit_count() > 1
+            ),
+        }
+
+    def _daily_operation_battery_inputs(self) -> list[Any]:
+        """Return safe battery snapshots for the pure future projection."""
+        from .pricing.daily_timeline import BatteryProjectionInput
+
+        result = []
+        for index, coordinator in enumerate(getattr(self, "coordinators", ())):
+            manual_owned = self._is_battery_manual_owned(coordinator)
+            data = getattr(coordinator, "data", None) or {}
+            capacity = self._daily_operation_float(data.get("battery_total_energy"), 0.0)
+            soc = self._daily_operation_float(data.get("battery_soc"), 0.0)
+            if capacity <= 0.0:
+                continue
+            charge_limit = self._daily_operation_float(
+                getattr(coordinator, "max_charge_power", None)
+                or data.get("max_charge_power"),
+                0.0,
+            )
+            discharge_limit = self._daily_operation_float(
+                getattr(coordinator, "max_discharge_power", None)
+                or data.get("max_discharge_power"),
+                0.0,
+            )
+            result.append(
+                BatteryProjectionInput(
+                    key=str(getattr(coordinator, "name", None) or f"battery_{index}"),
+                    stored_kwh=capacity * max(0.0, min(100.0, soc)) / 100.0,
+                    capacity_kwh=capacity,
+                    min_soc_pct=self._daily_operation_float(
+                        getattr(coordinator, "min_soc", 0.0), 0.0
+                    ),
+                    max_soc_pct=self._daily_operation_float(
+                        getattr(coordinator, "max_soc", 100.0), 100.0
+                    ),
+                    charge_power_w=max(0.0, charge_limit),
+                    discharge_power_w=max(0.0, discharge_limit),
+                    can_charge=not manual_owned,
+                    can_discharge=not manual_owned,
+                )
+            )
+        return result
+
+    def _daily_operation_build_projection(self, now: datetime) -> dict[str, Any] | None:
+        """Build the dashboard projection from the existing authoritative planner."""
+        from .const import CHARGE_EFFICIENCY
+        from .pricing import PriceSlot
+        from .pricing.chronological import SlotAllocation
+        from .tracking.daily_projection import (
+            DailyOperationProjectionRequest,
+            build_daily_operation_projection,
+        )
+        mode = self._daily_operation_mode()
+        if bool(getattr(self, "manual_mode_enabled", False)):
+            # Global manual mode bypasses the automatic controller entirely.
+            # Future battery flows are unknowable from the automatic plan, so
+            # publish no invented projection rather than a conflicting one.
+            return {
+                "intervals": [],
+                "mode": mode,
+                "stale": False,
+                "sources": {"operation_plan": "manual_mode"},
+            }
+        if mode == "realtime_price":
+            return {
+                "intervals": [],
+                "mode": mode,
+                "stale": False,
+                "sources": {"operation_plan": "realtime_runtime_only"},
+            }
+
+        tracker = getattr(self, "_consumption_tracker", None)
+        planner = getattr(self, "_pricing_mgr", None)
+        if tracker is None or planner is None:
+            return None
+
+        base_decision_data = dict(getattr(self, "_last_decision_data", None) or {})
+        base_decision_data.update(
+            getattr(self, "_last_chronological_diagnostics", None) or {}
+        )
+        decision_data = dict(base_decision_data)
+        raw_slots = []
+        schedule = getattr(self, "_dynamic_pricing_schedule", None)
+        # The 00:05 evaluation also publishes a purely informational cheap-hour
+        # calendar when no charge is needed.  Runtime never executes it (the
+        # slot purpose resolver gates on ``charging_needed``), so the timeline
+        # must not paint it as planned grid charge either.
+        if schedule is not None and not getattr(schedule, "charging_needed", True):
+            schedule = None
+        local_midnight = now.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) + timedelta(days=1)
+        projection_horizon_end = local_midnight + timedelta(hours=12)
+        if mode == "dynamic_pricing" and schedule is not None:
+            raw_slots = list(getattr(schedule, "selected_slots", ()) or ())
+        elif mode == "time_slot":
+            try:
+                # The dashboard deliberately looks beyond today's control
+                # horizon.  Keep the normal Time Slot helper unchanged for
+                # runtime control, but materialize known configured windows
+                # through the end of this read-only preview.
+                preview_slots = getattr(
+                    planner, "_time_slot_price_slots_for_horizon", None
+                )
+                if callable(preview_slots):
+                    raw_slots = list(preview_slots(now, projection_horizon_end))
+                else:
+                    # Compatibility with lightweight planners used by older
+                    # tests and external custom extensions.
+                    raw_slots = list(planner._time_slot_price_slots(now))
+            except (AttributeError, TypeError, ValueError):
+                raw_slots = []
+
+        def projection_datetime(value: datetime) -> datetime:
+            """Align a control-calendar wall time with the dashboard clock."""
+            if now.tzinfo is None:
+                return value.replace(tzinfo=None)
+            if value.tzinfo is None:
+                return value.replace(tzinfo=now.tzinfo)
+            return value.astimezone(now.tzinfo)
+
+        slot_pairs: list[tuple[Any, PriceSlot]] = []
+        for raw_slot in raw_slots:
+            start = getattr(raw_slot, "start", None)
+            end = getattr(raw_slot, "end", None)
+            if not isinstance(start, datetime) or not isinstance(end, datetime):
+                continue
+            slot_pairs.append(
+                (
+                    raw_slot,
+                    PriceSlot(
+                        projection_datetime(start),
+                        projection_datetime(end),
+                        getattr(raw_slot, "price", 0.0),
+                    ),
+                )
+            )
+        slots = [slot for _raw_slot, slot in slot_pairs]
+
+        try:
+            projection_builder = getattr(
+                planner, "build_extended_chronological_projection", None
+            )
+            if not callable(projection_builder):
+                raise RuntimeError("extended chronological projection unavailable")
+            projection_result = projection_builder(
+                now=now,
+                slots=tuple(slots),
+                base_decision_data=base_decision_data,
+                price_ceiling=getattr(self, "max_price_threshold", None),
+                horizon_end=projection_horizon_end,
+            )
+            plan = projection_result.plan
+            # These are projection-local diagnostics. They are deliberately
+            # merged only into the private view copy, never controller state.
+            decision_data.update(dict(projection_result.diagnostics))
+        except Exception as exc:  # noqa: BLE001 - dashboard projection is optional
+            _LOGGER.debug("Daily operation timeline projection failed: %s", exc)
+            return {
+                "intervals": [],
+                "mode": mode,
+                "stale": True,
+                "stale_reason": f"projection: {type(exc).__name__}",
+                "sources": {"operation_plan": "projection_error"},
+            }
+        if plan is None:
+            return None
+
+        allocations = list(getattr(plan, "allocations", ()) or ())
+        if mode == "dynamic_pricing" and schedule is not None:
+            # The selected schedule and its stored-energy targets are the
+            # authoritative grid plan. The diagnostic plan above only supplies
+            # the forecast curve and never replaces these targets.
+            allocations = []
+            targets = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
+            deadlines = getattr(schedule, "slot_deadlines", {}) or {}
+            kinds = getattr(schedule, "slot_plan_kinds", {}) or {}
+            for raw_slot, slot in slot_pairs:
+                target = self._daily_operation_float(targets.get(raw_slot), 0.0)
+                if target <= 0.0:
+                    duration_h = max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
+                    target = (
+                        min(
+                            self._daily_operation_float(
+                                getattr(self, "max_contracted_power", 0.0), 0.0
+                            ),
+                            self._daily_operation_float(
+                                getattr(self, "max_charge_capacity", 0.0), 0.0
+                            ),
+                        )
+                        / 1000.0
+                        * duration_h
+                        * CHARGE_EFFICIENCY
+                    )
+                if target > 0.0:
+                    allocations.append(
+                        SlotAllocation(
+                            slot,
+                            target,
+                            (
+                                projection_datetime(deadlines[raw_slot])
+                                if isinstance(deadlines.get(raw_slot), datetime)
+                                else None
+                            ),
+                            kinds.get(raw_slot, "scheduled"),
+                        )
+                    )
+
+        battery_inputs = self._daily_operation_battery_inputs()
+        system_charge_power_w = None
+        system_discharge_power_w = None
+        if bool(getattr(self, "enable_system_power_limits", False)):
+            configured_charge = self._daily_operation_float(
+                getattr(self, "system_max_charge_power", None), 0.0
+            )
+            configured_discharge = self._daily_operation_float(
+                getattr(self, "system_max_discharge_power", None), 0.0
+            )
+            if configured_charge > 0.0:
+                system_charge_power_w = configured_charge
+            if configured_discharge > 0.0:
+                system_discharge_power_w = configured_discharge
+        setpoint_enabled = (
+            ChargeDischargeController._daily_operation_setpoint_enabled(self)
+        )
+        setpoint_reached = bool(getattr(self, "_delay_setpoint_reached", False))
+        target_soc_pct = None
+        solar_t_end = None
+        if setpoint_enabled:
+            target_getter = getattr(tracker, "get_today_target_soc", None)
+            if callable(target_getter):
+                try:
+                    target_soc_pct = self._daily_operation_float(
+                        target_getter(), None
+                    )
+                except Exception:  # noqa: BLE001 - dashboard projection is optional
+                    target_soc_pct = None
+            t_end_getter = getattr(tracker, "estimate_t_end", None)
+            if callable(t_end_getter):
+                try:
+                    t_end_h = self._daily_operation_float(t_end_getter(), None)
+                    if t_end_h is not None:
+                        solar_t_end = now.replace(
+                            hour=0,
+                            minute=0,
+                            second=0,
+                            microsecond=0,
+                        ) + timedelta(hours=t_end_h)
+                except Exception:  # noqa: BLE001 - dashboard projection is optional
+                    solar_t_end = None
+        weekly_charge_bypasses_delay = (
+            ChargeDischargeController._daily_operation_weekly_delay_bypass(self)
+        )
+        delay_active = self._daily_operation_delay_active()
+        delay_state = str(
+            (getattr(self, "_charge_delay_status", {}) or {}).get("state", "")
+        ).strip().lower()
+        delay_planned = not weekly_charge_bypasses_delay and (
+            delay_active
+            or (
+                setpoint_enabled
+                and not setpoint_reached
+                and delay_state == "charging to setpoint"
+            )
+        )
+        runtime_delay_unlock = (
+            self._daily_operation_delay_unlock(now) if delay_planned else None
+        )
+        has_selected_schedule = bool(
+            schedule is not None and getattr(schedule, "selected_slots", ())
+        )
+        operation_plan_source = (
+            "dynamic_schedule" if mode == "dynamic_pricing" and schedule is not None
+            else "time_slot" if mode == "time_slot" and slots
+            else "profile_projection"
+        )
+        evaluated_at = (
+            getattr(schedule, "evaluation_time", None)
+            if schedule is not None and mode == "dynamic_pricing"
+            else now
+        )
+        return build_daily_operation_projection(
+            DailyOperationProjectionRequest(
+                now=now,
+                plan_intervals=tuple(getattr(plan, "intervals", ()) or ()),
+                allocations=tuple(allocations),
+                battery_inputs=tuple(battery_inputs),
+                mode=mode,
+                decision_data=dict(decision_data),
+                predictive_charging_enabled=bool(
+                    getattr(self, "predictive_charging_enabled", False)
+                ),
+                has_selected_schedule=has_selected_schedule,
+                setpoint_enabled=setpoint_enabled,
+                setpoint_reached=setpoint_reached,
+                weekly_charge_bypasses_delay=weekly_charge_bypasses_delay,
+                delay_active=delay_active,
+                delay_planned=delay_planned,
+                delay_unlock=runtime_delay_unlock,
+                charge_delay_enabled=bool(
+                    getattr(self, "charge_delay_enabled", False)
+                ),
+                setpoint_soc_pct=self._daily_operation_float(
+                    getattr(self, "_delay_soc_setpoint", None), 0.0
+                ),
+                target_soc_pct=target_soc_pct,
+                solar_t_end=solar_t_end,
+                safety_margin_h=self._daily_operation_float(
+                    getattr(self, "_delay_safety_margin_h", None), None
+                ),
+                system_charge_power_w=system_charge_power_w,
+                system_discharge_power_w=system_discharge_power_w,
+                operation_plan_source=operation_plan_source,
+                plan_evaluated_at=evaluated_at,
+            )
+        )
+
+
+    def _refresh_daily_operation_timeline(
+        self, *, now: datetime | None = None, force_projection: bool = False
+    ) -> None:
+        """Refresh actual telemetry and the throttled projection boundary."""
+        manager = getattr(self, "_daily_operation_timeline", None)
+        if manager is None:
+            return
+        current = now if isinstance(now, datetime) else dt_util.now()
+        normalize_time = getattr(manager, "as_local_datetime", None)
+        if callable(normalize_time):
+            try:
+                current = normalize_time(current)
+            except Exception:  # noqa: BLE001 - the timeline must not gate control
+                _LOGGER.debug(
+                    "Daily operation timeline timestamp normalization failed",
+                    exc_info=True,
+                )
+        begin_batch = getattr(manager, "begin_update_batch", None)
+        end_batch = getattr(manager, "end_update_batch", None)
+        batching = callable(begin_batch) and callable(end_batch)
+        if batching:
+            begin_batch()
+        try:
+            tracker = getattr(self, "_consumption_tracker", None)
+            manager.refresh_actual_partial(
+                consumption_capture=self._daily_operation_capture(
+                    getattr(tracker, "consumption_profile", None), "derived_home"
+                ),
+                solar_capture=self._daily_operation_capture(
+                    getattr(tracker, "solar_profile", None), "solar_telemetry"
+                ),
+                now=current,
+            )
+
+            last_at = self._daily_operation_last_runtime_at
+            elapsed = (
+                max(0.0, (current - last_at).total_seconds())
+                if isinstance(last_at, datetime)
+                else 0.0
+            )
+            sample_duration_s = min(elapsed, 60.0)
+            decision = self._daily_operation_runtime_decision(
+                current, sample_duration_s=sample_duration_s
+            )
+            if (
+                decision["action_mask"]
+                or decision["context_mask"]
+                or elapsed > 0.0
+            ):
+                manager.record_runtime_decision(
+                    decision,
+                    at=current,
+                    duration_s=sample_duration_s,
+                    simultaneous=decision.get("simultaneous", False),
+                )
+            self._daily_operation_last_runtime_at = current
+
+            schedule = getattr(self, "_dynamic_pricing_schedule", None)
+            selected = getattr(schedule, "selected_slots", ()) if schedule is not None else ()
+            schedule_signature = tuple(
+                (
+                    str(getattr(slot, "start", "")),
+                    str(getattr(slot, "end", "")),
+                    self._daily_operation_float(
+                        (getattr(schedule, "slot_energy_targets_kwh", {}) or {}).get(slot),
+                        0.0,
+                    ),
+                )
+                for slot in selected or ()
+            )
+            projection_signature = (
+                self._daily_operation_mode(),
+                schedule_signature,
+                bool(getattr(self, "_charge_delay_unlocked", False)),
+                bool(getattr(self, "_delay_setpoint_reached", False)),
+                ChargeDischargeController._daily_operation_weekly_delay_bypass(self),
+                current.date().isoformat(),
+            )
+            monotonic_now = time.monotonic()
+            should_project = (
+                force_projection
+                or projection_signature != self._daily_operation_last_projection_signature
+                or monotonic_now - self._daily_operation_last_projection_monotonic >= 60.0
+            )
+            projection = None
+            if should_project:
+                projection = self._daily_operation_build_projection(current)
+                self._daily_operation_last_projection_signature = projection_signature
+                self._daily_operation_last_projection_monotonic = monotonic_now
+                if projection is None:
+                    projection = {
+                        "intervals": [],
+                        "mode": self._daily_operation_mode(),
+                        "stale": True,
+                        "stale_reason": "projection_unavailable",
+                        "sources": {"operation_plan": "unavailable"},
+                    }
+
+            setpoint = {
+                "enabled": (
+                    ChargeDischargeController._daily_operation_setpoint_enabled(self)
+                ),
+                "target_soc": self._daily_operation_float(
+                    getattr(self, "_delay_soc_setpoint", None), 0.0
+                ),
+                "reached": bool(getattr(self, "_delay_setpoint_reached", False)),
+                "source": "charge_delay",
+            }
+            delay = dict(getattr(self, "_charge_delay_status", {}) or {})
+            delay["enabled"] = bool(getattr(self, "charge_delay_enabled", False))
+            delay["unlocked"] = bool(getattr(self, "_charge_delay_unlocked", False))
+            weekly_delay_bypassed = (
+                ChargeDischargeController._daily_operation_weekly_delay_bypass(self)
+            )
+            if weekly_delay_bypassed:
+                # The control cycle refreshes the diary before the charge-delay
+                # handler runs. Publish the weekly override immediately so a
+                # stale delayed state cannot paint the current cell.
+                delay["state"] = "Skipped - Full Charge Day"
+                delay["estimated_unlock_time"] = None
+                delay["unlock_time"] = None
+                delay["weekly_full_charge_bypasses_delay"] = True
+            if projection is not None:
+                delay_projection = projection.pop("_delay_projection", None)
+                if isinstance(delay_projection, dict) and not weekly_delay_bypassed:
+                    projected_unlock = delay_projection.get("estimated_unlock_at")
+                    if delay.get("estimated_unlock_time") is None:
+                        delay["estimated_unlock_time"] = projected_unlock
+                    # A runtime clock is authoritative once the solar decision
+                    # exists.  Before that (during SOC-setpoint charging), make
+                    # the purely projected milestones explicit rather than
+                    # presenting them as a completed delay decision.
+                    status = self._charge_delay_status
+                    if status.get("state") == "Charging to setpoint":
+                        status["projected_unlock_time"] = projected_unlock
+                        status["estimated_setpoint_time"] = delay_projection.get(
+                            "setpoint_reached_at"
+                        )
+                        delay["projected_unlock_time"] = projected_unlock
+                        delay["estimated_setpoint_time"] = status[
+                            "estimated_setpoint_time"
+                        ]
+                manager.rebuild_future_projection(
+                    projection,
+                    now=current,
+                    mode=projection.get("mode", self._daily_operation_mode()),
+                    evaluated_at=projection.get("plan_evaluated_at"),
+                    stale=projection.get("stale", False),
+                    stale_reason=projection.get("stale_reason"),
+                )
+                manager.update_runtime_metadata(
+                    setpoint=setpoint,
+                    delay=delay,
+                    freshness={"state": "fresh", "updated_at": current.isoformat()},
+                    sources=projection.get("sources"),
+                    stale=projection.get("stale", False),
+                    stale_reason=projection.get("stale_reason"),
+                )
+            else:
+                manager.update_runtime_metadata(
+                    setpoint=setpoint,
+                    delay=delay,
+                    freshness={"state": "fresh", "updated_at": current.isoformat()},
+                )
+        except Exception as exc:  # noqa: BLE001 - never interrupt battery control
+            _LOGGER.debug("Daily operation timeline refresh failed: %s", exc, exc_info=True)
+            try:
+                manager.rebuild_future_projection(
+                    {
+                        "intervals": [],
+                        "mode": self._daily_operation_mode(),
+                        "stale": True,
+                        "stale_reason": f"runtime: {type(exc).__name__}",
+                        "sources": {"operation_plan": "runtime_error"},
+                    },
+                    now=current,
+                )
+                manager.update_runtime_metadata(
+                    freshness={"state": "stale", "updated_at": current.isoformat()},
+                    stale=True,
+                    stale_reason=f"runtime: {type(exc).__name__}",
+                )
+            except Exception:  # noqa: BLE001 - diagnostics remain optional
+                _LOGGER.debug(
+                    "Unable to mark daily operation timeline stale", exc_info=True
+                )
+        finally:
+            if batching:
+                end_batch()
 
     def _configured_system_limit(self, is_charging: bool) -> int:
         """Return the optional system-wide power limit for the direction.
@@ -1037,6 +2310,7 @@ class ChargeDischargeController:
         for attr in (
             "_normal_balance_bms_cutoff_retry_pending",
             "_normal_balance_bms_cutoff_retry_active",
+            "_normal_balance_bms_cutoff_retry_accept_count",
         ):
             retry_state = getattr(self, attr, None)
             if retry_state is not None:
@@ -1306,6 +2580,7 @@ class ChargeDischargeController:
                     coordinator.max_discharge_power,
                 ),
             )
+            limit = _apply_driver_dynamic_limit(coordinator, limit)
             return self._apply_slot_power_ceiling(coordinator, False, limit)
 
         limit = getattr(
@@ -1339,7 +2614,21 @@ class ChargeDischargeController:
 
     def update_pd_parameters(self):
         """Re-read PD controller parameters from config_entry.data (hot-reload)."""
+        old_consumption_sensor = self.consumption_sensor
+        self.offgrid_power_sensor = self.config_entry.data.get(CONF_OFFGRID_POWER_SENSOR)
+        self.offgrid_meter_inverted = self.config_entry.data.get(
+            CONF_OFFGRID_METER_INVERTED, False
+        )
+        self.offgrid_mode_enabled = bool(
+            self.offgrid_power_sensor
+            and self.config_entry.data.get(CONF_OFFGRID_MODE_ENABLED, False)
+        )
+        if self.consumption_sensor != old_consumption_sensor:
+            self._reset_consumption_source_tracking()
         self.meter_inverted = self.config_entry.data.get(CONF_METER_INVERTED, False)
+        self.vacation_mode_enabled = self.config_entry.data.get(
+            CONF_VACATION_MODE_ENABLED, False
+        )
         if self._phase_power_limiter is not None:
             self._phase_power_limiter.refresh_config()
             self._phase_power_limiter.update_manual_mode_warning(
@@ -1408,6 +2697,9 @@ class ChargeDischargeController:
             # Force the balance check to recompute with the new tolerance on the
             # next cycle (it is otherwise cached until the forecast value moves).
             self._charge_delay_forecast_cache = None
+            self._charge_delay_forecast_source_cache = None
+            self._charge_delay_forecast_conversion_cache = None
+            self._charge_delay_profile_source_cache = None
         self._charge_delay_balance_deadband_kwh = new_balance_deadband
         self._delay_soc_setpoint_enabled = self.config_entry.data.get(CONF_DELAY_SOC_SETPOINT_ENABLED, DEFAULT_DELAY_SOC_SETPOINT_ENABLED)
         self._delay_soc_setpoint = self.config_entry.data.get(CONF_DELAY_SOC_SETPOINT, DEFAULT_DELAY_SOC_SETPOINT)
@@ -1429,8 +2721,16 @@ class ChargeDischargeController:
             CONF_ENABLE_CHARGE_DELAY,
             self.config_entry.data.get(CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY, False)
         )
-        self.solar_forecast_sensor = self.config_entry.data.get(CONF_SOLAR_FORECAST_SENSOR, None)
+        self.solar_forecast_sensor = get_configured_solar_forecast_sensor(
+            self, "today"
+        )
+        self.solar_forecast_remaining_sensor = get_configured_solar_forecast_sensor(
+            self, "remaining"
+        )
         self.solar_production_sensor = self.config_entry.data.get(CONF_SOLAR_PRODUCTION_SENSOR, None)
+        self.solar_profile_mode = normalize_solar_profile_mode(
+            self.config_entry.data.get(CONF_SOLAR_PROFILE_MODE, DEFAULT_SOLAR_PROFILE_MODE)
+        )
         self.predictive_charging_mode = self.config_entry.data.get(CONF_PREDICTIVE_CHARGING_MODE, PREDICTIVE_MODE_TIME_SLOT)
         self.price_sensor = self.config_entry.data.get(CONF_PRICE_SENSOR, None)
         self.price_integration_type = self.config_entry.data.get(CONF_PRICE_INTEGRATION_TYPE, PRICE_INTEGRATION_NORDPOOL)
@@ -1552,12 +2852,14 @@ class ChargeDischargeController:
 
         if self._pd_quality_last_ts is None:
             self._pd_quality_last_ts = now
+            self._pd_quality_last_advance_ts = now
             self._pd_quality_rms_ema = error * error
             return
         dt = now - self._pd_quality_last_ts
         self._pd_quality_last_ts = now
         if dt <= 0:
             return
+        self._pd_quality_last_advance_ts = now
         alpha = dt / (self._pd_quality_tau + dt)
         sq = error * error
         if self._pd_quality_rms_ema is None:
@@ -1569,12 +2871,52 @@ class ChargeDischargeController:
         inst_per_min = (60.0 / dt) if sign_changed else 0.0
         self._pd_quality_osc_ema += alpha * (inst_per_min - self._pd_quality_osc_ema)
 
+    def _set_pd_limited(self, value: bool) -> None:
+        """Set the battery-limited flag and stamp it for the TTL."""
+        self._pd_limited = value
+        self._pd_limited_ts = time.monotonic() if value else None
+
+    def _set_pd_blocked(self, value: bool) -> None:
+        """Set the demand-blocked flag and stamp it for the TTL."""
+        self._pd_blocked = value
+        self._pd_blocked_ts = time.monotonic() if value else None
+
+    def _pd_flag_live(self, value: bool, stamped_at: float | None) -> bool:
+        """Return True while a set flag is still within its TTL."""
+        if not value or stamped_at is None:
+            return False
+        return (time.monotonic() - stamped_at) <= self._pd_flag_ttl_s
+
+    @property
+    def pd_limited(self) -> bool:
+        """Battery-limited, as long as a cycle confirmed it recently."""
+        return self._pd_flag_live(self._pd_limited, self._pd_limited_ts)
+
+    @property
+    def pd_blocked(self) -> bool:
+        """Demand-blocked, as long as a cycle confirmed it recently."""
+        return self._pd_flag_live(self._pd_blocked, self._pd_blocked_ts)
+
     @property
     def pd_quality_rms_error(self) -> float | None:
         """RMS of the grid-control error over the metric window (W), or None."""
         if self._pd_quality_rms_ema is None:
             return None
         return math.sqrt(max(0.0, self._pd_quality_rms_ema))
+
+    @property
+    def pd_quality_age_s(self) -> float | None:
+        """Seconds since the quality metric last advanced, or None if never.
+
+        The metric only advances on cycles where the loop is genuinely in
+        control; a long age means the EMAs describe a situation that is hours
+        old and must not be presented as a live verdict. Skipped cycles bump
+        _pd_quality_last_ts (the EMA anchor) but not the advance timestamp, so
+        this measures the age of the numbers rather than of the last call.
+        """
+        if self._pd_quality_last_advance_ts is None:
+            return None
+        return max(0.0, time.monotonic() - self._pd_quality_last_advance_ts)
 
     @property
     def pd_quality_oscillation_per_min(self) -> float:
@@ -1729,13 +3071,19 @@ class ChargeDischargeController:
             return True
         return bool(coordinator is not None and self._battery_charge_blockers.get(coordinator))
 
-    def is_discharge_blocked(self, coordinator=None) -> bool:
+    def is_discharge_blocked(self, coordinator=None, *, ignore_economic: bool = False) -> bool:
         """Return True if discharge is blocked globally or for the given battery."""
-        if self._global_discharge_blockers:
+        economic = {"price_discharge", "curtailment_negative_window"}
+        global_blockers = self._global_discharge_blockers
+        if ignore_economic:
+            global_blockers = {k: v for k, v in global_blockers.items() if k not in economic}
+        if global_blockers:
             return True
         if coordinator is None:
             return False
         blockers = self._battery_discharge_blockers.get(coordinator, {})
+        if ignore_economic:
+            blockers = {k: v for k, v in blockers.items() if k not in economic}
         if self._capacity_protection_overrides_curtailment():
             return bool(
                 set(blockers) - {"curtailment_negative_window"}
@@ -1952,14 +3300,13 @@ class ChargeDischargeController:
 
     def _effective_charge_max_soc(self, coordinator, weekly_100_unlocked: bool) -> tuple[float, str]:
         """Return the current per-battery charge ceiling and the source of that ceiling."""
-        # A typed opportunity must stop at its explicit target even when a
-        # weekly-full-charge window happens to overlap.  The weekly routine can
-        # continue toward 100% after opportunistic grid ownership is released.
+        # A predictive grid-charge target must stop at its explicit target even
+        # when a weekly-full-charge window happens to overlap. The weekly
+        # routine can continue toward 100% with solar after grid ownership is
+        # released.
         if (
             self.grid_charging_active
             and self._predictive_charge_target_soc is not None
-            and getattr(self, "_active_dynamic_slot_purpose", None)
-            in {SLOT_PURPOSE_NEGATIVE_PRICE, SLOT_PURPOSE_COMBINED}
         ):
             per_battery_target = self._predictive_charge_target_soc.get(coordinator)
             if per_battery_target is not None:
@@ -2054,6 +3401,10 @@ class ChargeDischargeController:
                 coordinator,
                 weekly_100_unlocked,
             )
+            # A coupled-pack battery is full when its *least* full pack reaches
+            # the ceiling; its aggregate gets there while the last pack is still
+            # filling (issue #350). Equals current_soc without pack telemetry.
+            ceiling_soc = soc_vs_ceiling(coordinator, current_soc)
 
             should_charge_to_bms = getattr(self, "_should_charge_to_bms_cutoff", None)
             if should_charge_to_bms is not None and should_charge_to_bms(
@@ -2105,9 +3456,11 @@ class ChargeDischargeController:
                     coordinator._hysteresis_active = False
                     coordinator._hysteresis_base_soc = None
 
-                if current_soc >= coordinator.max_soc or bms_cutoff or taper_at_top_voltage:
+                if ceiling_soc >= coordinator.max_soc or bms_cutoff or taper_at_top_voltage:
                     coordinator._hysteresis_active = True
                     if coordinator._hysteresis_base_soc is None:
+                        # Base stays the aggregate: it answers "how far must the
+                        # whole battery fall before recharging", not "is it full".
                         coordinator._hysteresis_base_soc = current_soc
 
                 hysteresis_base = (
@@ -2122,7 +3475,7 @@ class ChargeDischargeController:
                     coordinator._hysteresis_base_soc = None
 
                 if coordinator._hysteresis_active:
-                    if current_soc >= effective_max_soc or bms_cutoff:
+                    if ceiling_soc >= effective_max_soc or bms_cutoff:
                         self.set_charge_block(
                             "max_soc",
                             "max_soc",
@@ -2156,7 +3509,7 @@ class ChargeDischargeController:
 
             self.remove_charge_block("charge_hysteresis", coordinator=coordinator)
 
-            if current_soc >= effective_max_soc or bms_cutoff:
+            if ceiling_soc >= effective_max_soc or bms_cutoff:
                 self.set_charge_block(
                     "max_soc",
                     "max_soc",
@@ -2167,6 +3520,7 @@ class ChargeDischargeController:
                         "effective_max_soc": effective_max_soc,
                         "source": max_soc_source,
                         "bms_cutoff": bms_cutoff,
+                        **({"min_pack_soc": ceiling_soc} if ceiling_soc != current_soc else {}),
                     },
                     coordinator=coordinator,
                 )
@@ -2193,7 +3547,11 @@ class ChargeDischargeController:
 
             current_soc = coordinator.data.get("battery_soc", 0)
             effective_min_soc, min_soc_source = self._effective_discharge_min_soc(coordinator)
-            if current_soc <= effective_min_soc:
+            # A coupled-pack battery is empty when its *fullest* pack reaches the
+            # floor, not when its aggregate does (issue #350). Falls back to the
+            # aggregate on every battery that publishes no per-pack telemetry.
+            floor_soc = soc_vs_floor(coordinator, current_soc)
+            if floor_soc <= effective_min_soc:
                 self.set_discharge_block(
                     "min_soc",
                     "min_soc",
@@ -2203,6 +3561,7 @@ class ChargeDischargeController:
                         "min_soc": coordinator.min_soc,
                         "effective_min_soc": effective_min_soc,
                         "source": min_soc_source,
+                        **({"max_pack_soc": floor_soc} if floor_soc != current_soc else {}),
                     },
                     coordinator=coordinator,
                 )
@@ -2292,6 +3651,38 @@ class ChargeDischargeController:
         """Return True if the refreshed blocker registry allows this operation."""
         return not (self.is_charge_blocked() if is_charging else self.is_discharge_blocked())
 
+    def _operation_blockers_for_log(self, is_charging: bool) -> str:
+        """Return the actual global blocker keys for an operation log."""
+        blockers = self.get_charge_blockers() if is_charging else self.get_discharge_blockers()
+        return ", ".join(blockers) or "unknown"
+
+    def _pd_demand_blocked(self, error: float, commanded_power: float) -> bool:
+        """Return True when the loop cannot act on what the grid error demands.
+
+        The cycle's own restriction check keys on the *commanded* power, which is
+        already 0 once a previous cycle was blocked: a blocked charge demand then
+        reads as "not charging", the discharge direction is checked instead, and
+        the loop counts as active while it cannot act at all. The demand direction
+        comes from the error sign (error < 0 = export = charge demand) and does
+        not decay, so it is what the quality metric must key on.
+
+        A closed gate alone is not enough, though. While discharging into house
+        load with charging blocked, an export error is answered by discharging
+        *less* — the loop has headroom in the direction it is already running, and
+        its tracking there is a fair tuning verdict. Only when the command carries
+        no such headroom (0 W, or already running into the blocked direction) is
+        the loop truly muzzled.
+        """
+        if abs(error) <= self.deadband:
+            return False
+        demand_is_charging = error < 0
+        if self._is_operation_allowed(demand_is_charging):
+            return False
+        demand_sign = 1 if demand_is_charging else -1
+        # Opposite-signed command = room to move toward the demand without
+        # entering the blocked direction.
+        return commanded_power * demand_sign >= 0
+
     def _get_active_slot(self, coordinator=None, direction: str = "any") -> dict | None:
         """Return the active slot for a battery/direction, or None.
 
@@ -2325,7 +3716,33 @@ class ChargeDischargeController:
                 return slot
         return None
 
-    def _get_available_batteries(self, is_charging: bool, include_operation_blocks: bool = True) -> list:
+    def _is_grid_at_min_soc_discharge_window(self) -> bool:
+        """Return whether unmet demand belongs to a manual discharge window.
+
+        A disabled or charge-only timeslot must not restrict the Grid at Min SOC
+        accumulator. Only an enabled slot that explicitly allows discharge
+        changes the default full-day scope.
+        """
+        slots = self.config_entry.data.get("no_discharge_time_slots", [])
+        enabled_discharge_slots = [
+            slot
+            for slot in slots
+            if slot.get("enabled", True) and slot.get("allow_discharge", False)
+        ]
+        if not enabled_discharge_slots:
+            return True
+        return any(
+            self._get_active_slot(coordinator, "discharge") is not None
+            for coordinator in self.coordinators
+        )
+
+    def _get_available_batteries(
+        self,
+        is_charging: bool,
+        include_operation_blocks: bool = True,
+        *,
+        protection_discharge: bool = False,
+    ) -> list:
         """Get list of available batteries for the current operation.
         
         For charging with hysteresis:
@@ -2387,13 +3804,19 @@ class ChargeDischargeController:
                     )
                     continue
 
-            if include_operation_blocks and not is_charging and self.is_discharge_blocked(coordinator):
-                _LOGGER.debug(
-                    "%s: Skipping discharge - blocked by %s",
-                    coordinator.name,
-                    ", ".join(self.get_discharge_blockers(coordinator).keys()),
+            if include_operation_blocks and not is_charging:
+                discharge_blocked = (
+                    self.is_discharge_blocked(coordinator, ignore_economic=True)
+                    if protection_discharge
+                    else self.is_discharge_blocked(coordinator)
                 )
-                continue
+                if discharge_blocked:
+                    _LOGGER.debug(
+                        "%s: Skipping discharge - blocked by %s",
+                        coordinator.name,
+                        ", ".join(self.get_discharge_blockers(coordinator).keys()),
+                    )
+                    continue
 
             current_soc = coordinator.data.get("battery_soc", 0)
             
@@ -2412,6 +3835,10 @@ class ChargeDischargeController:
                     should_charge_to_bms is not None
                     and should_charge_to_bms(coordinator, effective_max_soc)
                 )
+                # Judged on the least full pack for a coupled-pack battery, so a
+                # finished first pack cannot end the charge (issue #350).
+                # Identical to current_soc without pack telemetry.
+                ceiling_soc = soc_vs_ceiling(coordinator, current_soc)
 
                 # Update hysteresis state if enabled
                 if coordinator.enable_charge_hysteresis:
@@ -2465,7 +3892,7 @@ class ChargeDischargeController:
                             coordinator._hysteresis_active = False
                             coordinator._hysteresis_base_soc = None
 
-                        if current_soc >= coordinator.max_soc or _taper_at_top:
+                        if ceiling_soc >= coordinator.max_soc or _taper_at_top:
                             coordinator._hysteresis_active = True
                             # Capture the actual SOC that triggered hysteresis (may be 100% after full charge)
                             if coordinator._hysteresis_base_soc is None:
@@ -2527,7 +3954,7 @@ class ChargeDischargeController:
                     continue
 
                 # Only charge if below effective max SOC
-                if current_soc < effective_max_soc or charge_to_bms_cutoff:
+                if ceiling_soc < effective_max_soc or charge_to_bms_cutoff:
                     available_batteries.append(coordinator)
             else:  # discharging
                 # MIN-SOC RE-ENTRY HYSTERESIS: after emptying to min_soc the
@@ -2535,11 +3962,15 @@ class ChargeDischargeController:
                 # the battery for a sliver of discharge — relay ping-pong and
                 # micro-cycles at the worst SOC region. Latch the exclusion at
                 # min_soc; release only after a real recovery margin.
-                if current_soc <= coordinator.min_soc:
+                # Judged on the fullest pack for a coupled-pack battery: the
+                # aggregate hits the floor while a pack still has charge to give
+                # (issue #350). Identical to current_soc without pack telemetry.
+                floor_soc = soc_vs_floor(coordinator, current_soc)
+                if floor_soc <= coordinator.min_soc:
                     coordinator._discharge_min_soc_latched = True
-                elif current_soc >= coordinator.min_soc + DISCHARGE_MIN_SOC_REENTRY_MARGIN:
+                elif floor_soc >= coordinator.min_soc + DISCHARGE_MIN_SOC_REENTRY_MARGIN:
                     coordinator._discharge_min_soc_latched = False
-                if current_soc > coordinator.min_soc:
+                if floor_soc > coordinator.min_soc:
                     if getattr(coordinator, "_discharge_min_soc_latched", False):
                         _LOGGER.debug(
                             "%s: Skipping discharge - min-SOC re-entry hysteresis "
@@ -2577,7 +4008,7 @@ class ChargeDischargeController:
 
         # From SWITCH_DEFINITIONS: command_on = 0 (enabled), command_off = 1 (disabled)
         backup_value = coordinator.data.get("backup_function")
-        if backup_value is None or backup_value != 0:
+        if not _backup_switch_enabled(backup_value):
             # Switch is off — clear any lingering cooldown and allow PD control
             self._backup_cooldown_until.pop(coordinator, None)
             return False
@@ -2642,7 +4073,7 @@ class ChargeDischargeController:
 
         Handles:
         - Auto kW detection: if unit_of_measurement is 'kW', multiplies by 1000.
-        - Inverted sign: if meter_inverted is True, negates the value.
+        - Inverted sign: applies the setting belonging to the active meter.
 
         Returns the value in Watts with correct sign convention, or None on error.
         """
@@ -2655,9 +4086,40 @@ class ChargeDischargeController:
         unit = state.attributes.get("unit_of_measurement", "W")
         if unit == "kW":
             value *= 1000.0
-        if self.meter_inverted:
+        offgrid_active = bool(
+            getattr(self, "offgrid_mode_enabled", False)
+            and getattr(self, "offgrid_power_sensor", None)
+        )
+        meter_inverted = (
+            getattr(self, "offgrid_meter_inverted", False)
+            if offgrid_active
+            else getattr(self, "meter_inverted", False)
+        )
+        if meter_inverted:
             value = -value
         return value
+
+    def _log_consumption_sensor_issue(self, state) -> None:
+        """Log a grid-meter problem once until the sensor becomes valid again."""
+        sensor_state = None if state is None else state.state
+        if getattr(self, "_consumption_sensor_issue", None) == self.consumption_sensor:
+            return
+        self._consumption_sensor_issue = self.consumption_sensor
+
+        if state is None:
+            _LOGGER.warning("Consumption sensor %s not found", self.consumption_sensor)
+        elif sensor_state in ("unknown", "unavailable"):
+            _LOGGER.debug(
+                "Consumption sensor %s is %s; pausing automatic control",
+                self.consumption_sensor,
+                sensor_state,
+            )
+        else:
+            _LOGGER.warning(
+                "Could not parse consumption sensor %s state: %s",
+                self.consumption_sensor,
+                sensor_state,
+            )
 
     def _balance_monitor_overrides_delay(self) -> bool:
         """Return True when the weekly full charge should bypass the solar charge delay today."""
@@ -2784,9 +4246,20 @@ class ChargeDischargeController:
         # solar surplus and the controller starts a short discharge/stop loop.
         active_target = self.compute_active_target_excluding("capacity_protection")
         original_target = active_target
+        # Reconstruct from AC telemetry co-incident with the grid meter.  A
+        # command can lag by several seconds (and predictive historically uses
+        # the inverse sign), so ``previous_power`` is a last-resort fallback,
+        # never the preferred source for a peak-safety decision.
+        measured_power = None
+        measured_reader = getattr(self, "_measured_battery_power", None)
+        if callable(measured_reader):
+            measured_power = measured_reader()
+        battery_power = (
+            measured_power if measured_power is not None else self.previous_power
+        )
         estimated_house_load = (
             sensor_actual + self._excluded_included_adjustment
-        ) - self.previous_power
+        ) - battery_power
         self._capacity_protection_status["excluded_peak_excess"] = 0
 
         if avg_soc < self.capacity_protection_soc_threshold:
@@ -2979,8 +4452,6 @@ class ChargeDischargeController:
         - usable_energy = stored_energy - cutoff_energy
         - stored_energy = (avg_soc / 100) × total_capacity
         - cutoff_energy = (min_soc / 100) × total_capacity
-        - min_reserve = usable_energy (dynamic buffer above hardware cutoff)
-
         The hardware discharge cutoff is used directly with no safety margin.
 
         Returns:
@@ -2989,7 +4460,6 @@ class ChargeDischargeController:
                 "solar_forecast_kwh": float | None,
                 "stored_energy_kwh": float,
                 "usable_energy_kwh": float,
-                "min_reserve_kwh": float,
                 "cutoff_energy_kwh": float,
                 "effective_min_soc": float,
                 "avg_soc": float,
@@ -3012,7 +4482,6 @@ class ChargeDischargeController:
                 "solar_forecast_kwh": None,
                 "stored_energy_kwh": 0,
                 "usable_energy_kwh": 0,
-                "min_reserve_kwh": 0,
                 "cutoff_energy_kwh": 0,
                 "effective_min_soc": 0,
                 "avg_soc": 0,
@@ -3035,7 +4504,6 @@ class ChargeDischargeController:
                 "solar_forecast_kwh": None,
                 "stored_energy_kwh": 0,
                 "usable_energy_kwh": 0,
-                "min_reserve_kwh": 0,
                 "cutoff_energy_kwh": 0,
                 "effective_min_soc": 0,
                 "avg_soc": 0,
@@ -3059,7 +4527,6 @@ class ChargeDischargeController:
                 "solar_forecast_kwh": None,
                 "stored_energy_kwh": 0,
                 "usable_energy_kwh": 0,
-                "min_reserve_kwh": 0,
                 "cutoff_energy_kwh": 0,
                 "effective_min_soc": 0,
                 "avg_soc": 0,
@@ -3084,10 +4551,25 @@ class ChargeDischargeController:
         min_soc = max(min_soc_values) if min_soc_values else 20  # Default 20% if unavailable
 
         # Calculate energy components
-        stored_energy_kwh = (avg_soc / 100) * total_capacity_kwh
-        cutoff_energy_kwh = (min_soc / 100) * total_capacity_kwh
-        usable_energy_kwh = max(0, stored_energy_kwh - cutoff_energy_kwh)
-        min_reserve_kwh = usable_energy_kwh  # Dynamic buffer: 0 at cutoff, positive above
+        stored_energy_kwh = sum(
+            max(0.0, float(c.data.get("battery_soc", 0) or 0.0)) / 100.0
+            * float(c.data.get("battery_total_energy", 0) or 0.0)
+            for c in coordinators_with_data
+        )
+        cutoff_energy_kwh = sum(
+            max(0.0, float(c.min_soc)) / 100.0
+            * float(c.data.get("battery_total_energy", 0) or 0.0)
+            for c in coordinators_with_data
+        )
+        usable_energy_kwh = sum(
+            max(
+                0.0,
+                (float(c.data.get("battery_soc", 0) or 0.0) - float(c.min_soc))
+                / 100.0
+                * float(c.data.get("battery_total_energy", 0) or 0.0),
+            )
+            for c in coordinators_with_data
+        )
         effective_min_soc = min_soc  # Actual hardware cutoff, no safety margin
 
         # Safety margin: user-configurable buffer added to consumption forecast.
@@ -3105,28 +4587,85 @@ class ChargeDischargeController:
         # at the boundary don't re-fire every cycle (relay churn).
         # Band: soc < (floor - margin) triggers; charges up to floor.
         floor_deficit_kwh = 0.0
-        if self._predictive_min_soc_floor_enabled and self._predictive_min_soc_floor > 0 and avg_soc < self._predictive_min_soc_floor - FLOOR_HYSTERESIS_PCT:
-            floor_deficit_kwh = (self._predictive_min_soc_floor - avg_soc) / 100.0 * total_capacity_kwh
+        if self._predictive_min_soc_floor_enabled and self._predictive_min_soc_floor > 0:
+            floor_deficit_kwh = sum(
+                max(
+                    0.0,
+                    (self._predictive_min_soc_floor - float(c.data.get("battery_soc", 0) or 0.0))
+                    / 100.0
+                    * float(c.data.get("battery_total_energy", 0) or 0.0),
+                )
+                for c in coordinators_with_data
+                if float(c.data.get("battery_soc", 0) or 0.0)
+                < self._predictive_min_soc_floor - FLOOR_HYSTERESIS_PCT
+            )
 
         # Get dynamic consumption forecast.  The normal 00:05 evaluation uses
         # the full-day average; a pre-slot re-evaluation may provide the
         # remaining consumption for the current day instead.
         consumption_scope = "daily"
+        profile_forecast = None
         if consumption_override_kwh is None:
-            avg_consumption_kwh = await self._consumption_tracker.get_dynamic_base_consumption()
+            profile = getattr(
+                getattr(self, "_consumption_tracker", None),
+                "consumption_profile",
+                None,
+            )
+            if profile is not None:
+                try:
+                    profile_now = dt_util.now()
+                    profile_timezone = getattr(profile, "_timezone", lambda: None)()
+                    if profile_timezone is not None:
+                        profile_now = (
+                            profile_now.astimezone(profile_timezone)
+                            if profile_now.tzinfo is not None
+                            else profile_now.replace(tzinfo=profile_timezone)
+                        )
+                    elif profile_now.tzinfo is None:
+                        profile_now = profile_now.replace(tzinfo=dt_util.UTC)
+                    profile_start = profile_now.replace(
+                        hour=0,
+                        minute=0,
+                        second=0,
+                        microsecond=0,
+                    )
+                    profile_forecast = self._consumption_tracker.forecast_consumption_between(
+                        profile_start,
+                        profile_start + timedelta(days=1),
+                        fallback="legacy_daily",
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    _LOGGER.debug("Predictive evaluation: daily profile failed: %s", exc)
+                    profile_forecast = None
+            if profile_forecast is not None and (
+                profile_forecast.mature or profile_forecast.source == "vacation_baseline"
+            ):
+                avg_consumption_kwh = profile_forecast.energy_kwh
+                consumption_scope = (
+                    "daily_vacation_baseline"
+                    if profile_forecast.source == "vacation_baseline"
+                    else "daily_profile"
+                )
+            else:
+                avg_consumption_kwh = await self._consumption_tracker.get_dynamic_base_consumption()
         else:
             try:
                 avg_consumption_kwh = max(0.0, float(consumption_override_kwh))
                 consumption_scope = "remaining"
             except (TypeError, ValueError):
                 avg_consumption_kwh = await self._consumption_tracker.get_dynamic_base_consumption()
-        days_in_history = len(self._daily_consumption_history)
+        days_in_history = (
+            profile_forecast.total_days
+            if profile_forecast is not None and profile_forecast.mature
+            else len(self._daily_consumption_history)
+        )
 
         # === STEP 4: Get Solar Forecast ===
         # Use the live sensor value directly for the daily evaluation.  A
         # pre-slot re-evaluation can provide the remaining solar explicitly so
         # energy already produced today is not counted again.
         solar_forecast_kwh = None
+        solar_forecast_input = None
         if solar_forecast_override_kwh is not None:
             try:
                 solar_forecast_kwh = max(0.0, float(solar_forecast_override_kwh))
@@ -3134,18 +4673,59 @@ class ChargeDischargeController:
                 solar_forecast_kwh = None
 
         forecast_state = None
+        forecast_source = None
+        forecast_diagnostic_source = None
         if solar_forecast_kwh is None:
-            forecast_state = (
-                self.hass.states.get(self.solar_forecast_sensor)
-                if self.solar_forecast_sensor
-                else None
-            )
-        if solar_forecast_kwh is None and (
-            forecast_state is None or forecast_state.state in ("unknown", "unavailable")
+            try:
+                solar_forecast_input = read_remaining_solar_kwh(
+                    self.hass,
+                    self,
+                    now=dt_util.now(),
+                )
+            except (AttributeError, TypeError, ValueError):
+                solar_forecast_input = None
+            # Lightweight callers from the legacy public method contract do
+            # not own the daily accumulator/profile state. Preserve their
+            # historical full-day reading; real controllers always have the
+            # state above and therefore use the normalized adapter path.
+            if (
+                solar_forecast_input is not None
+                and solar_forecast_input.conversion == "unsafe_zero"
+                and not hasattr(self, "_daily_solar_energy_date")
+                and not hasattr(
+                    getattr(self, "_consumption_tracker", None),
+                    "solar_profile",
+                )
+            ):
+                legacy_forecast = read_solar_forecast_kwh(self.hass, self)
+                if legacy_forecast is not None:
+                    solar_forecast_input = SolarForecastInput(
+                        legacy_forecast.kwh,
+                        legacy_forecast.diagnostic_source,
+                        periods=legacy_forecast.periods or None,
+                        original_source="today_legacy",
+                        conversion="compat_full_day",
+                    )
+            if solar_forecast_input is not None and solar_forecast_input.source != "fallback":
+                solar_forecast_kwh = solar_forecast_input.remaining_kwh
+                forecast_source = solar_forecast_input.original_source or solar_forecast_input.source
+                forecast_diagnostic_source = solar_forecast_input.source
+                raw_forecast = read_solar_forecast_kwh(self.hass, self)
+                if raw_forecast is not None:
+                    forecast_state = self.hass.states.get(raw_forecast.sensor)
+        if (
+            solar_forecast_kwh is not None
+            and consumption_override_kwh is None
+            and solar_forecast_override_kwh is None
         ):
+            tracker = getattr(self, "_consumption_tracker", None)
+            capture = getattr(tracker, "capture_daily_solar_forecast", None)
+            if callable(capture):
+                capture(solar_forecast_kwh)
+        if solar_forecast_kwh is None:
             # Conservative mode: assume zero solar, compare usable vs consumption
             total_available_kwh = usable_energy_kwh
-            energy_deficit_kwh = max(avg_consumption_kwh + safety_margin_kwh - total_available_kwh, floor_deficit_kwh)
+            energy_deficit_kwh = max(avg_consumption_kwh - total_available_kwh, floor_deficit_kwh)
             should_charge = energy_deficit_kwh > 0
             planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
                 energy_deficit_kwh,
@@ -3167,9 +4747,11 @@ class ChargeDischargeController:
             return {
                 "should_charge": should_charge,
                 "solar_forecast_kwh": None,
+                "solar_remaining_raw_kwh": None,
+                "solar_safety_margin_kwh": safety_margin_kwh,
+                "solar_remaining_effective_kwh": 0.0,
                 "stored_energy_kwh": stored_energy_kwh,
                 "usable_energy_kwh": usable_energy_kwh,
-                "min_reserve_kwh": min_reserve_kwh,
                 "cutoff_energy_kwh": cutoff_energy_kwh,
                 "effective_min_soc": effective_min_soc,
                 "avg_soc": avg_soc,
@@ -3179,58 +4761,48 @@ class ChargeDischargeController:
                 "planned_grid_charge_kwh": planned_grid_charge_kwh,
                 "days_in_history": days_in_history,
                 "consumption_scope": consumption_scope,
+                "consumption_forecast_source": (
+                    profile_forecast.source
+                    if profile_forecast is not None and (
+                        profile_forecast.mature
+                        or profile_forecast.source == "vacation_baseline"
+                    )
+                    else "legacy_daily"
+                ),
+                "profile_coverage_ratio": (
+                    profile_forecast.coverage_ratio
+                    if profile_forecast is not None and (
+                        profile_forecast.mature
+                        or profile_forecast.source == "vacation_baseline"
+                    )
+                    else 0.0
+                ),
+                "profile_days": (
+                    profile_forecast.total_days
+                    if profile_forecast is not None and (
+                        profile_forecast.mature
+                        or profile_forecast.source == "vacation_baseline"
+                    )
+                    else 0
+                ),
+                "profile_fallback_reason": (
+                    None
+                    if profile_forecast is not None and profile_forecast.mature
+                    else getattr(profile_forecast, "fallback_reason", "profile_not_mature")
+                ),
+                "solar_forecast_source": forecast_diagnostic_source
+                or getattr(self, "solar_forecast_diagnostic_source", None),
+                "solar_forecast_diagnostic_source": forecast_diagnostic_source
+                or getattr(self, "solar_forecast_diagnostic_source", None),
                 "reason": f"Solar unavailable - conservative mode ({'charge' if should_charge else 'safe'})"
             }
 
-        if solar_forecast_kwh is None:
-            try:
-                solar_forecast_kwh = float(forecast_state.state)
-            except (ValueError, TypeError):
-                solar_forecast_kwh = None
-
-        if solar_forecast_kwh is None:
-            # Treat invalid as unavailable - use same conservative logic
-            total_available_kwh = usable_energy_kwh
-            energy_deficit_kwh = max(avg_consumption_kwh + safety_margin_kwh - total_available_kwh, floor_deficit_kwh)
-            should_charge = energy_deficit_kwh > 0
-            planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
-                energy_deficit_kwh,
-                battery_headroom_kwh,
-                self._predictive_grid_charge_margin_pct,
-            )
-
-            _LOGGER.error(
-                "Invalid solar forecast value '%s' - using conservative mode:\n"
-                "  Battery: %.2f kWh usable\n"
-                "  Consumption: %.2f kWh expected\n"
-                "  → Decision: %s",
-                forecast_state.state,
-                usable_energy_kwh,
-                avg_consumption_kwh,
-                "ACTIVATE CHARGING" if should_charge else "NO CHARGING NEEDED"
-            )
-
-            return {
-                "should_charge": should_charge,
-                "solar_forecast_kwh": None,
-                "stored_energy_kwh": stored_energy_kwh,
-                "usable_energy_kwh": usable_energy_kwh,
-                "min_reserve_kwh": min_reserve_kwh,
-                "cutoff_energy_kwh": cutoff_energy_kwh,
-                "effective_min_soc": effective_min_soc,
-                "avg_soc": avg_soc,
-                "avg_consumption_kwh": avg_consumption_kwh,
-                "total_available_kwh": total_available_kwh,
-                "energy_deficit_kwh": energy_deficit_kwh,
-                "planned_grid_charge_kwh": planned_grid_charge_kwh,
-                "days_in_history": days_in_history,
-                "consumption_scope": consumption_scope,
-                "reason": "Invalid solar forecast - conservative mode"
-            }
-
         # === STEP 6: Calculate Energy Balance and Decide ===
-        total_available_kwh = usable_energy_kwh + solar_forecast_kwh
-        base_deficit_kwh = avg_consumption_kwh + safety_margin_kwh - total_available_kwh
+        # Apply the safety margin once to the solar budget before any temporal
+        # shape is constructed from the remaining total.
+        solar_remaining_effective_kwh = max(0.0, solar_forecast_kwh - safety_margin_kwh)
+        total_available_kwh = usable_energy_kwh + solar_remaining_effective_kwh
+        base_deficit_kwh = avg_consumption_kwh - total_available_kwh
         energy_deficit_kwh = max(base_deficit_kwh, floor_deficit_kwh)
         should_charge = energy_deficit_kwh > 0
         floor_active = floor_deficit_kwh > 0 and floor_deficit_kwh > base_deficit_kwh
@@ -3253,7 +4825,7 @@ class ChargeDischargeController:
             avg_soc, stored_energy_kwh,
             min_soc, cutoff_energy_kwh,
             usable_energy_kwh,
-            solar_forecast_kwh,
+            solar_remaining_effective_kwh,
             avg_consumption_kwh, days_in_history,
             safety_margin_kwh,
             total_available_kwh,
@@ -3267,12 +4839,7 @@ class ChargeDischargeController:
         # Cap at battery headroom: only this much solar can actually land in the
         # battery, so the "solar will charge the remaining X" line can't quote a
         # figure larger than the pack (e.g. 12.94 kWh into a 5.12 kWh battery).
-        solar_surplus_kwh = max(0.0, min(solar_forecast_kwh - avg_consumption_kwh, _gap_to_max_kwh))
-        _grid_margin_factor = 1.0 + self._predictive_grid_charge_margin_pct / 100.0
-        grid_charge_kwh = min(
-            _gap_to_max_kwh,
-            max(0.0, _gap_to_max_kwh - solar_surplus_kwh) * _grid_margin_factor,
-        )
+        solar_surplus_kwh = max(0.0, min(solar_remaining_effective_kwh - avg_consumption_kwh, _gap_to_max_kwh))
         planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
             energy_deficit_kwh,
             _gap_to_max_kwh,
@@ -3282,9 +4849,11 @@ class ChargeDischargeController:
         return {
             "should_charge": should_charge,
             "solar_forecast_kwh": solar_forecast_kwh,
+            "solar_remaining_raw_kwh": solar_forecast_kwh,
+            "solar_safety_margin_kwh": safety_margin_kwh,
+            "solar_remaining_effective_kwh": solar_remaining_effective_kwh,
             "stored_energy_kwh": stored_energy_kwh,
             "usable_energy_kwh": usable_energy_kwh,
-            "min_reserve_kwh": min_reserve_kwh,
             "cutoff_energy_kwh": cutoff_energy_kwh,
             "effective_min_soc": effective_min_soc,
             "avg_soc": avg_soc,
@@ -3294,9 +4863,57 @@ class ChargeDischargeController:
             "planned_grid_charge_kwh": planned_grid_charge_kwh,
             "days_in_history": days_in_history,
             "solar_surplus_kwh": solar_surplus_kwh,
-            "grid_charge_kwh": grid_charge_kwh,
             "floor_active": floor_active,
             "consumption_scope": consumption_scope,
+            "consumption_forecast_source": (
+                profile_forecast.source
+                if profile_forecast is not None and (
+                    profile_forecast.mature
+                    or profile_forecast.source == "vacation_baseline"
+                )
+                else "legacy_daily"
+            ),
+            "profile_coverage_ratio": (
+                profile_forecast.coverage_ratio
+                if profile_forecast is not None and (
+                    profile_forecast.mature
+                    or profile_forecast.source == "vacation_baseline"
+                )
+                else 0.0
+            ),
+            "profile_days": (
+                profile_forecast.total_days
+                if profile_forecast is not None and (
+                    profile_forecast.mature
+                    or profile_forecast.source == "vacation_baseline"
+                )
+                else 0
+            ),
+            "profile_fallback_reason": (
+                None
+                if profile_forecast is not None and profile_forecast.mature
+                else getattr(profile_forecast, "fallback_reason", "profile_not_mature")
+            ),
+            "solar_forecast_source": forecast_source or getattr(self, "solar_forecast_source", None),
+            "solar_forecast_diagnostic_source": (
+                forecast_diagnostic_source
+                or getattr(self, "solar_forecast_diagnostic_source", None)
+            ),
+            "solar_forecast_original_source": (
+                solar_forecast_input.original_source
+                if solar_forecast_input is not None
+                else None
+            ),
+            "solar_forecast_conversion": (
+                solar_forecast_input.conversion
+                if solar_forecast_input is not None
+                else "none"
+            ),
+            "solar_forecast_periods": (
+                solar_forecast_input.periods
+                if solar_forecast_input is not None
+                else None
+            ),
             "consumption_source": "derived (grid + battery AC + solar)",
             "reason": (
                 f"Guaranteed minimum SOC: charging {energy_deficit_kwh:.2f} kWh "
@@ -3371,7 +4988,9 @@ class ChargeDischargeController:
 
         return self._check_time_window()
 
-    def _compute_deficit_target_soc(self) -> Optional[dict]:
+    def _compute_deficit_target_soc(
+        self, planned_kwh: float | None = None
+    ) -> Optional[dict]:
         """Calculate per-battery grid-only SOC targets for a forecast deficit.
 
         Each battery's share of grid charge is proportional to its gap to max_soc,
@@ -3419,7 +5038,9 @@ class ChargeDischargeController:
         # additive safety margin; the optional grid-charge percentage margin is
         # applied by the shared planning calculation before the headroom cap. #409
         energy_deficit_kwh = max(0.0, decision_data.get("energy_deficit_kwh", 0.0))
-        planned_grid_charge_kwh = decision_data.get("planned_grid_charge_kwh")
+        planned_grid_charge_kwh = planned_kwh
+        if planned_grid_charge_kwh is None:
+            planned_grid_charge_kwh = decision_data.get("planned_grid_charge_kwh")
         if planned_grid_charge_kwh is None:
             planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
                 energy_deficit_kwh,
@@ -3487,7 +5108,25 @@ class ChargeDischargeController:
         purpose = getattr(self, "_active_dynamic_slot_purpose", None)
         # Call the helpers through the class so this method remains usable in
         # the lightweight controller stand-ins used by the planning tests.
-        deficit_targets = ChargeDischargeController._compute_deficit_target_soc(self)
+        planned_kwh = None
+        if getattr(self, "predictive_charging_mode", None) == PREDICTIVE_MODE_TIME_SLOT:
+            planned_kwh = getattr(self, "_active_time_slot_quota_kwh", None)
+        schedule = getattr(self, "_dynamic_pricing_schedule", None)
+        if (
+            planned_kwh is None
+            and schedule is not None
+            and getattr(schedule, "chronological_planning_active", False)
+        ):
+            now = datetime.now()
+            active_slot = next(
+                (slot for slot in schedule.selected_slots if slot.start <= now < slot.end),
+                None,
+            )
+            if active_slot is not None:
+                planned_kwh = schedule.slot_energy_targets_kwh.get(active_slot)
+        deficit_targets = ChargeDischargeController._compute_deficit_target_soc(
+            self, planned_kwh=planned_kwh
+        )
         self._predictive_deficit_target_soc = (
             deficit_targets
             if purpose in {SLOT_PURPOSE_DEFICIT, SLOT_PURPOSE_COMBINED}
@@ -3519,31 +5158,428 @@ class ChargeDischargeController:
             )
         return combined
 
+    async def _suspend_predictive_grid_charging_for_demand(
+        self, *, grid_power: float, target_power: float,
+        reason: str = "demand_protection",
+    ) -> None:
+        """Stop predictive charging before considering any protective discharge.
+
+        The price slot deliberately keeps ownership.  In particular, do not let
+        the ordinary PD controller use a meter sample which still contains the
+        previous charge command as household demand.
+        """
+        already_suspended = getattr(
+            self, "_predictive_charge_suspended_for_demand", False
+        )
+        self._predictive_charge_suspended_for_demand = True
+        self._predictive_demand_state = "settling_after_charge"
+        self._predictive_demand_fresh_samples = 0
+        self._predictive_demand_recovery_samples = 0
+        if not already_suspended:
+            self._predictive_demand_transition_monotonic = time.monotonic()
+        self._predictive_protection_command_w = 0.0
+        self._predictive_protection_reason = None
+        self._predictive_hard_limit_samples = 0
+        self._predictive_resume_charge_power = None
+        # Keep the predictive mode owning this slot.  grid_charging_active is
+        # historical naming; it means predictive slot active, not necessarily a
+        # physical charge command.
+        self.grid_charging_active = True
+        self._grid_charging_initialized = False
+        self.previous_power = 0
+        self.previous_error = 0
+        self.derivative_filtered = 0.0
+        # Do not use the predictive controller's initialization sentinel while
+        # the slot is deliberately idle.
+        self.first_execution = False
+        self.error_integral = 0.0
+        self.last_output_sign = 0
+        self.sign_changes = 0
+        self._active_discharge_batteries = []
+        self._active_charge_batteries = []
+
+        if not already_suspended:
+            _LOGGER.info(
+                "Predictive: %s (grid %.1fW, target %.1fW); stopping predictive "
+                "charge and waiting for meter settling",
+                reason,
+                grid_power,
+                target_power,
+            )
+
+        # Remove the predictive charging command before any protective decision.
+        # This leaves a safe idle state while the meter and inverter settle.
+        for coordinator in self.coordinators:
+            if ChargeDischargeController._is_battery_manual_owned(coordinator):
+                continue
+            await self._set_battery_power(coordinator, 0, 0)
+
+    def _predictive_charge_ceiling(self) -> float:
+        """Return the import ceiling used while a predictive slot is active."""
+        ceiling = float(self.max_contracted_power)
+        if self.capacity_protection_enabled and self.capacity_protection_limit > 0:
+            ceiling = min(ceiling, float(self.capacity_protection_limit))
+        return ceiling
+
+    def _predictive_min_charge_power(
+        self, available_batteries: list, max_battery_charge: float
+    ) -> float:
+        """Return the smallest positive predictive charge command.
+
+        Predictive control has an inverted internal sign convention (negative
+        means charging), while device writes use positive charge watts.  The
+        floor combines the user's existing PD minimum with the driver's
+        reliable operating floor.  Drivers without a declared floor still get
+        a small non-zero command so a normal PD zero crossing cannot turn a
+        predictive slot into an idle command.
+        """
+        try:
+            configured_floor = max(
+                0.0, float(getattr(self, "min_charge_power", 0.0) or 0.0)
+            )
+        except (TypeError, ValueError):
+            configured_floor = 0.0
+
+        hardware_floor = 0.0
+        for coordinator in available_batteries:
+            capabilities = getattr(coordinator, "capabilities", None)
+            try:
+                hardware_floor = max(
+                    hardware_floor,
+                    float(getattr(capabilities, "min_charge_power_w", 0) or 0),
+                )
+            except (TypeError, ValueError):
+                continue
+
+        # 100 W is the existing relay-cooldown hold and the minimum operating
+        # floor reported by the Anker driver. It is only a fallback for drivers
+        # that do not publish a hardware floor; the available battery capacity
+        # remains the final cap.
+        floor = max(configured_floor, hardware_floor, float(RELAY_COOLDOWN_HOLD_POWER))
+        return min(max(0.0, float(max_battery_charge)), floor)
+
+    def _predictive_hard_limit_confirmed(
+        self,
+        *,
+        sensor_filtered: float,
+        target_power: float,
+        has_fresh_publication: bool,
+        sensor_within_stale_tolerance: bool,
+    ) -> bool:
+        """Confirm a real sustained import/peak emergency.
+
+        ``target_power`` is a regulation target, so crossing it is not enough
+        to stop predictive charging.  The hard path only counts fresh samples
+        where the estimated physical household load exceeds the relevant hard
+        ceiling by a substantial margin.  Battery AC power is removed when
+        available so the charge command itself is not mistaken for household
+        demand.  Missing battery telemetry remains fail-safe after the same
+        confirmation window: a persistent severe import is still protected.
+        """
+        if not has_fresh_publication or not sensor_within_stale_tolerance:
+            # Confirmation means consecutive fresh evidence. A stale/watchdog
+            # pass breaks the streak instead of carrying an old overload toward
+            # a hard stop.
+            self._predictive_hard_limit_samples = 0
+            return False
+
+        measured = self._measured_battery_power()
+        physical_base_load = (
+            sensor_filtered - measured if measured is not None else sensor_filtered
+        )
+        excluded_adjustment = float(
+            getattr(self, "_excluded_included_adjustment", 0.0) or 0.0
+        )
+        base_load = (
+            physical_base_load
+            if getattr(self, "capacity_protection_excluded_devices", False)
+            else physical_base_load - excluded_adjustment
+        )
+        trigger = max(float(self.deadband), 50.0)
+        hard_margin = max(3.0 * trigger, _PREDICTIVE_HARD_LIMIT_MIN_MARGIN_W)
+        emergency = physical_base_load > float(self.max_contracted_power) + hard_margin
+        peak = self.capacity_protection_enabled and base_load > target_power + hard_margin
+
+        if not (emergency or peak):
+            self._predictive_hard_limit_samples = 0
+            return False
+
+        self._predictive_hard_limit_samples = (
+            getattr(self, "_predictive_hard_limit_samples", 0) + 1
+        )
+        if self._predictive_hard_limit_samples < _PREDICTIVE_HARD_LIMIT_CONFIRMATIONS:
+            _LOGGER.debug(
+                "Predictive: hard-limit candidate %.1fW (target %.1fW, "
+                "sample %d/%d); continuing positive charge modulation",
+                physical_base_load,
+                target_power,
+                self._predictive_hard_limit_samples,
+                _PREDICTIVE_HARD_LIMIT_CONFIRMATIONS,
+            )
+            return False
+
+        _LOGGER.warning(
+            "Predictive: confirmed hard demand protection after %d fresh samples "
+            "(physical load %.1fW, target %.1fW, margin %.1fW)",
+            self._predictive_hard_limit_samples,
+            physical_base_load,
+            target_power,
+            hard_margin,
+        )
+        return True
+
+    def _predictive_demand_settle_window_s(self) -> float:
+        """Return the minimum wait before post-command telemetry is trusted."""
+        slowest_readback_s = 0.0
+        for coordinator in self.coordinators:
+            capabilities = getattr(coordinator, "capabilities", None)
+            if capabilities is None:
+                continue
+            latency_s = getattr(capabilities, "readback_latency_s", None)
+            if latency_s is None:
+                latency_s = getattr(capabilities, "actuator_latency_s", 0.0)
+            try:
+                slowest_readback_s = max(slowest_readback_s, float(latency_s))
+            except (TypeError, ValueError):
+                continue
+        return max(PD_ZERO_CROSS_MIN_HOLD_S, 2.0 * slowest_readback_s)
+
+    def _reset_predictive_demand_runtime(self) -> None:
+        """Clear transient predictive demand protection at a slot boundary."""
+        self._predictive_charge_suspended_for_demand = False
+        self._predictive_demand_state = "charging"
+        self._predictive_demand_fresh_samples = 0
+        self._predictive_demand_recovery_samples = 0
+        self._predictive_demand_transition_monotonic = 0.0
+        self._predictive_protection_command_w = 0.0
+        self._predictive_protection_reason = None
+        self._predictive_hard_limit_samples = 0
+        self._predictive_resume_charge_power = None
+        status = getattr(self, "_capacity_protection_status", None)
+        if isinstance(status, dict) and status.get("action") in {
+            "peak_shaving", "emergency", "settling", "idle"
+        }:
+            self._capacity_protection_active = False
+            status.update({"active": False, "action": "idle"})
+
+    def _clear_predictive_runtime(self, reason: str) -> None:
+        """Release all live predictive ownership without unloading the entry.
+
+        The master switch is a runtime control. Disabling it must leave the
+        controller in the same safe state that an entry unload used to provide,
+        while retaining the registered entities and timers needed for a later
+        live enable.
+        """
+        self._pricing_mgr.clear_curtailment_runtime(reason)
+        self._pricing_mgr.clear_negative_price_runtime(reason)
+        self._reset_predictive_demand_runtime()
+        self.grid_charging_active = False
+        self._grid_charging_initialized = False
+        self._current_price_slot_active = False
+        self._realtime_price_charging = False
+        self._active_dynamic_slot_purpose = None
+        self._active_dynamic_price_slot = None
+        self._predictive_charge_target_soc = None
+        self._predictive_deficit_target_soc = None
+        self._curtailment_opportunistic_target_soc = None
+        self._curtailment_opportunity_limited = False
+        self.first_execution = True
+
+    def _set_predictive_protection_status(self, active: bool, action: str, **details) -> None:
+        """Publish a non-stale diagnostic status for predictive protection."""
+        self._capacity_protection_active = active
+        status = getattr(self, "_capacity_protection_status", None)
+        if isinstance(status, dict):
+            status.update({"active": active, "action": action, **details})
+
+    async def _handle_predictive_demand_protection(
+        self, *, sensor_filtered: float, has_new_control_sample: bool,
+        allow_charge_resume: bool = True,
+        sensor_within_stale_tolerance: bool = True,
+    ) -> None:
+        """Run the idle -> settle -> peak/emergency state for a predictive slot.
+
+        Commands and measured AC power use the normal controller convention
+        (+charge / -discharge).  The legacy predictive incremental state uses
+        the inverse convention, so it is reset to zero at the boundary and is
+        never used to infer household load here.
+        """
+        state = getattr(self, "_predictive_demand_state", "settling_after_charge")
+        measured = self._measured_battery_power()
+        settled_w = max(float(self.deadband), 50.0)
+
+        # A watchdog tick must never reinterpret an old grid value after the
+        # battery command has changed.  In particular, subtracting a newly
+        # ramped discharge from an old grid sample would manufacture additional
+        # household load and ratchet the protection command upward.
+        if not sensor_within_stale_tolerance:
+            if state in {"peak_shaving", "emergency_discharge"}:
+                for coordinator in self.coordinators:
+                    if not ChargeDischargeController._is_battery_manual_owned(coordinator):
+                        await self._set_battery_power(coordinator, 0, 0)
+                self._predictive_demand_state = "settling_after_discharge"
+                self._predictive_demand_transition_monotonic = time.monotonic()
+                self._predictive_demand_fresh_samples = 0
+                self._predictive_protection_command_w = 0.0
+                self.previous_power = 0
+            self._set_predictive_protection_status(False, "settling")
+            return
+
+        if state in {"settling_after_charge", "settling_after_discharge"}:
+            # Some drivers do not expose AC telemetry. Two fresh grid samples
+            # after the latency window are still safer than immediately
+            # reversing a charge command.
+            physically_idle = measured is None or abs(measured) <= settled_w
+            if not physically_idle:
+                # Publications observed while the old command is still visible
+                # do not count as post-idle evidence.
+                self._predictive_demand_fresh_samples = 0
+            transition_at = getattr(
+                self, "_predictive_demand_transition_monotonic", 0.0
+            )
+            settle_elapsed_s = time.monotonic() - transition_at
+            latency_elapsed = (
+                transition_at > 0.0
+                and settle_elapsed_s >= self._predictive_demand_settle_window_s()
+            )
+            if physically_idle and latency_elapsed and has_new_control_sample:
+                self._predictive_demand_fresh_samples += 1
+            if (
+                self._predictive_demand_fresh_samples < 2
+                or not physically_idle
+                or not latency_elapsed
+            ):
+                self.previous_power = 0
+                self._set_predictive_protection_status(False, "settling")
+                return
+            state = "holding_idle"
+            self._predictive_demand_state = state
+            self._predictive_demand_fresh_samples = 0
+
+        # Within the normal stale tolerance an unchanged watchdog sample keeps
+        # the current idle/protection command, but cannot recalculate it. A real
+        # meter publication (even with the same numeric value) is required.
+        if not has_new_control_sample:
+            return
+
+        ceiling = self._predictive_charge_ceiling()
+        physical_base_load = (
+            sensor_filtered - measured if measured is not None else sensor_filtered
+        )
+        # Peak Shaving's optional excluded-device switch retains its existing
+        # meaning during a predictive slot.  Contracted-power emergency is
+        # always based on physical import because the meter/ICP sees all loads.
+        excluded_adjustment = float(
+            getattr(self, "_excluded_included_adjustment", 0.0) or 0.0
+        )
+        base_load = (
+            physical_base_load
+            if getattr(self, "capacity_protection_excluded_devices", False)
+            else physical_base_load - excluded_adjustment
+        )
+        trigger = max(float(self.deadband), 50.0)
+        emergency = physical_base_load > float(self.max_contracted_power) + trigger
+        peak = self.capacity_protection_enabled and base_load > ceiling + trigger
+        if emergency or peak:
+            # Emergency is always physical: excluded-device policy may reduce
+            # ordinary Peak Shaving, but never the import seen by the ICP.
+            peak_requested = max(0.0, base_load - ceiling) if peak else 0.0
+            emergency_requested = (
+                max(0.0, physical_base_load - float(self.max_contracted_power))
+                if emergency else 0.0
+            )
+            requested = max(peak_requested, emergency_requested)
+            available = self._get_available_batteries(
+                is_charging=False, protection_discharge=True
+            )
+            capacity = self._effective_system_capacity(available, is_charging=False)
+            requested = min(requested, capacity)
+            selected = self._power_distribution._select_batteries_for_operation(
+                requested, available, is_charging=False
+            )
+            allocation = self._power_distribution._distribute_power_by_limits(
+                requested, selected, is_charging=False
+            )
+            allocated = sum(allocation.values())
+            for coordinator in self.coordinators:
+                power = allocation.get(coordinator, 0)
+                await self._set_battery_power(
+                    coordinator, 0, power,
+                    # Safety protection may only bypass economic policies.
+                    ignore_discharge_blockers={
+                        "price_discharge", "curtailment_negative_window"
+                    },
+                )
+            self._predictive_protection_command_w = allocated
+            self._predictive_protection_reason = "emergency" if emergency else "peak_shaving"
+            self._predictive_demand_state = (
+                "emergency_discharge" if emergency else "peak_shaving"
+            )
+            self.previous_power = 0
+            self._set_predictive_protection_status(
+                bool(peak or emergency), self._predictive_protection_reason,
+                estimated_house_load=round(
+                    physical_base_load if emergency else base_load
+                ),
+                peak_limit=ceiling,
+            )
+            return
+
+        # Do not restart on a single near-limit reading.  First command idle,
+        # wait for its measured effect, then require two headroom samples.
+        if state in {"peak_shaving", "emergency_discharge"}:
+            for coordinator in self.coordinators:
+                if not ChargeDischargeController._is_battery_manual_owned(coordinator):
+                    await self._set_battery_power(coordinator, 0, 0)
+            self._predictive_demand_state = "settling_after_discharge"
+            self._predictive_demand_transition_monotonic = time.monotonic()
+            self._predictive_demand_fresh_samples = 0
+            self._predictive_protection_command_w = 0.0
+            self.previous_power = 0
+            self._set_predictive_protection_status(False, "settling")
+            return
+
+        resume_threshold = ceiling - max(200.0, 2.0 * float(self.deadband))
+        if sensor_filtered <= resume_threshold and has_new_control_sample:
+            self._predictive_demand_recovery_samples += 1
+        elif has_new_control_sample:
+            self._predictive_demand_recovery_samples = 0
+        if not allow_charge_resume:
+            self._set_predictive_protection_status(False, "idle")
+            return
+        if self._predictive_demand_recovery_samples >= 2:
+            physical_base_load = (
+                sensor_filtered - measured if measured is not None else sensor_filtered
+            )
+            self._reset_predictive_demand_runtime()
+            # _reset_predictive_demand_runtime clears transient protection state;
+            # preserve a calculated positive request for the next cycle. This
+            # re-enters from measured headroom, not from the battery rail.
+            self._predictive_resume_charge_power = max(
+                0.0,
+                ceiling - physical_base_load - max(float(self.deadband), 50.0),
+            )
+            self._grid_charging_initialized = False
+            self.previous_power = 0
+            self.previous_error = 0
+            self.derivative_filtered = 0.0
+            self.first_execution = True
+            _LOGGER.info("Predictive: stable headroom recovered; resuming charge")
+
     async def _handle_predictive_grid_charging(self):
         """
         Handle predictive grid charging mode.
 
-        Target: Keep consumption/export sensor at max_contracted_power.
-        If home consumption increases, reduce battery charging to avoid exceeding ICP.
+        Target: regulate grid import toward the predictive ceiling while keeping
+        the battery in a positive charging state. A confirmed hard overload still
+        hands control to demand protection.
         """
-        if self.is_charge_blocked():
-            _LOGGER.debug(
-                "Predictive charging paused by charge blockers: %s",
-                ", ".join(self.get_charge_blockers().keys()),
-            )
-            self.grid_charging_active = False
-            self._grid_charging_initialized = False
-            self.previous_power = 0
-            self.previous_error = 0
-            for coordinator in self.coordinators:
-                await self._set_battery_power(coordinator, 0, 0)
-            return
-
         consumption_state = self.hass.states.get(self.consumption_sensor)
         sensor_raw = self._apply_meter_transform(consumption_state)
         if sensor_raw is None:
-            _LOGGER.warning("Consumption sensor unavailable or invalid during predictive charging")
+            self._log_consumption_sensor_issue(consumption_state)
             return
+        self._consumption_sensor_issue = None
 
         # Cadence-independent time bases (this loop runs event-driven too). The stored
         # timestamp is shared with the main loop; exactly one of the two runs per cycle.
@@ -3551,37 +5587,8 @@ class ChargeDischargeController:
             consumption_state, sensor_raw
         )
         has_new_control_sample = getattr(self, "_control_sample_is_new", True)
-        # A publication can refresh last_reported without changing the transformed
-        # meter value. It still counts for sensor health, but must not integrate the
-        # incremental predictive P/D controller again. Keep the structural
-        # availability check so an SOC/limit transition can still end the mode.
-        if not has_new_control_sample and self._grid_charging_initialized:
-            available_batteries = self._get_available_batteries(is_charging=True)
-            if not available_batteries:
-                _LOGGER.info(
-                    "Predictive charging complete: all batteries reached their active SOC target"
-                )
-                self.grid_charging_active = False
-                self._grid_charging_initialized = False
-                self.first_execution = True
-                return
-            _LOGGER.debug(
-                "Predictive charging: meter publication has no new transformed value; "
-                "maintaining last command %.1fW",
-                self.previous_power,
-            )
-            sensor_within_stale_tolerance = (
-                sensor_report_time is None
-                or self._sensor_is_within_stale_tolerance(sensor_report_time)
-            )
-            if sensor_within_stale_tolerance:
-                return
-            self._stale_cycles = getattr(self, "_stale_cycles", 0) + 1
-            _LOGGER.debug(
-                "Predictive charging: grid sensor stale; maintaining %.1fW for safety review",
-                self.previous_power,
-            )
-        elif is_stale:
+        has_fresh_publication = not is_stale
+        if is_stale:
             self._stale_cycles = getattr(self, "_stale_cycles", 0) + 1
         else:
             self._stale_cycles = 0
@@ -3593,6 +5600,35 @@ class ChargeDischargeController:
         sensor_filtered = self._filter_grid_sample(
             sensor_raw, 0.0 if not has_new_control_sample else sensor_elapsed_s
         )
+        sensor_within_stale_tolerance = (
+            sensor_report_time is None
+            or self._sensor_is_within_stale_tolerance(sensor_report_time)
+        )
+
+        charge_blocked = self.is_charge_blocked()
+        if getattr(self, "_predictive_charge_suspended_for_demand", False):
+            await self._handle_predictive_demand_protection(
+                sensor_filtered=sensor_filtered,
+                # Settling needs distinct meter publications, not distinct
+                # numeric values. A stable 3 kW value reported twice is the
+                # evidence required to distinguish a settled overload from a
+                # stale command-inclusive sample; a timer-only repeat is not.
+                has_new_control_sample=not is_stale,
+                allow_charge_resume=not charge_blocked,
+                sensor_within_stale_tolerance=sensor_within_stale_tolerance,
+            )
+            return
+        if charge_blocked:
+            _LOGGER.debug(
+                "Predictive charging paused by charge blockers: %s",
+                ", ".join(self.get_charge_blockers().keys()),
+            )
+            await self._suspend_predictive_grid_charging_for_demand(
+                grid_power=sensor_filtered,
+                target_power=self._predictive_charge_ceiling(),
+                reason="explicit_charge_block",
+            )
+            return
         
         # Establish the typed per-battery ceiling before availability is
         # evaluated.  This prevents a battery that already reached its
@@ -3620,25 +5656,53 @@ class ChargeDischargeController:
             available_batteries,
             is_charging=True,
         )
+        minimum_charge_power = self._predictive_min_charge_power(
+            available_batteries,
+            max_battery_charge,
+        )
         
-        # TARGET: max_contracted_power (e.g., 7000W)
+        # Capacity protection supplies the predictive regulation target. A normal
+        # target overshoot is handled by the incremental PD; only a confirmed
+        # hard overload below enters the demand-protection state machine.
         # ERROR: target - sensor_actual (INVERTED for predictive mode)
         # Positive error = importing LESS than target → increase charging
         # Negative error = importing MORE than target → reduce charging
         
-        target_power = self.max_contracted_power
+        target_power = self._predictive_charge_ceiling()
         error = target_power - sensor_filtered  # INVERTED: target - sensor
         
         # PD Control with modified target
         if not self._grid_charging_initialized:
-            # Initialize for grid charging mode (first time entering)
+            # Initialize for grid charging mode (first time entering). A
+            # legitimate return from hard protection may provide a calculated
+            # resume power; only a fresh slot with no such context starts at
+            # the available maximum.
             self.previous_error = error
             self.derivative_filtered = 0.0  # drop any derivative carried from the main loop
-            self.previous_power = -min(max_battery_charge, target_power)  # Start at max charge
+            resume_charge = getattr(self, "_predictive_resume_charge_power", None)
+            if resume_charge is not None:
+                try:
+                    resume_charge = max(0.0, float(resume_charge))
+                except (TypeError, ValueError):
+                    resume_charge = 0.0
+                initial_charge = min(
+                    max_battery_charge,
+                    max(minimum_charge_power, resume_charge),
+                )
+                self._predictive_resume_charge_power = None
+                initialization_reason = "calculated resume"
+            else:
+                initial_charge = min(max_battery_charge, target_power)
+                initialization_reason = "new slot"
+            self.previous_power = -initial_charge
             self._grid_charging_initialized = True
             self.first_execution = False  # Mark as initialized to avoid conflicts
-            _LOGGER.info("Initialized predictive charging: target=%dW, initial_charge=%dW",
-                        target_power, abs(self.previous_power))
+            _LOGGER.info(
+                "Initialized predictive charging: target=%dW, initial_charge=%dW (%s)",
+                target_power,
+                abs(self.previous_power),
+                initialization_reason,
+            )
         
         if not has_new_control_sample:
             # A stale-safety pass may still clamp the existing order to the
@@ -3681,14 +5745,69 @@ class ChargeDischargeController:
         else:
             new_power = new_power_raw
         
+        # The configured ceiling is a regulation target, not an immediate idle
+        # trigger. A normal overshoot continues through the incremental PD and
+        # is kept at a positive charge floor below. Only a substantial physical
+        # overload confirmed by fresh samples enters hard demand protection.
+        if self._predictive_hard_limit_confirmed(
+            sensor_filtered=sensor_filtered,
+            target_power=target_power,
+            has_fresh_publication=has_fresh_publication,
+            sensor_within_stale_tolerance=sensor_within_stale_tolerance,
+        ):
+            await self._suspend_predictive_grid_charging_for_demand(
+                grid_power=sensor_filtered,
+                target_power=target_power,
+                reason="confirmed_hard_limit",
+            )
+            return
+
+        # A numerically unchanged publication must not integrate P/D again, but
+        # it is independent fresh evidence for hard-limit confirmation. While a
+        # confirmation streak is active, re-assert the current positive charge
+        # command; otherwise keep the existing no-op behavior for repeated values.
+        if not has_new_control_sample and sensor_within_stale_tolerance:
+            if getattr(self, "_predictive_hard_limit_samples", 0) == 0:
+                _LOGGER.debug(
+                    "Predictive charging: meter publication has no new transformed "
+                    "value; maintaining last command %.1fW",
+                    self.previous_power,
+                )
+                return
+            _LOGGER.debug(
+                "Predictive charging: fresh unchanged overload publication; "
+                "maintaining positive charge while hard-limit confirmation continues"
+            )
+
+        # Clamp normal predictive output to a positive charge floor. The
+        # internal sign remains negative for charging; _set_battery_power below
+        # receives the positive magnitude. Re-apply the rate limit to the floor
+        # so a zero-crossing cannot create a larger reverse step than the PD
+        # limiter permits.
+        if minimum_charge_power <= 0:
+            new_power = 0.0
+        elif new_power > -minimum_charge_power:
+            # A reduction of internal predictive charge moves the negative
+            # value towards zero.  Use the positive-direction ramp boundary
+            # and keep the result no closer to zero than the charge floor;
+            # subtracting max_change here would move farther into charge and
+            # then let the floor clamp create a full-size step to the minimum.
+            ramp_floor = self.previous_power + max_change
+            limited_floor = min(-minimum_charge_power, ramp_floor)
+            if limited_floor != new_power:
+                _LOGGER.info(
+                    "Predictive: keeping positive charge floor %.1fW "
+                    "after PD zero crossing (internal %.1fW -> %.1fW)",
+                    abs(limited_floor),
+                    new_power,
+                    limited_floor,
+                )
+            new_power = limited_floor
+
         # Clamp to battery limits (negative = charging)
         if new_power < -max_battery_charge:
             _LOGGER.info("Predictive: Clamping charge to max available: %dW", max_battery_charge)
             new_power = -max_battery_charge
-        elif new_power > 0:
-            # Should never charge positively (discharge) in this mode
-            _LOGGER.warning("Predictive: Negative power detected (discharge), clamping to 0W")
-            new_power = 0
         
         _LOGGER.info(
             "Predictive Grid Charging: Grid=%.1fW, Target=%dW, Error=%.1fW, P=%.1fW, D=%.1fW, "
@@ -4901,11 +7020,82 @@ class ChargeDischargeController:
         every integration set up after this one. Background tasks are exempt
         from the startup gate and are still cancelled on entry unload.
         """
-        self.config_entry.async_create_background_task(
-            self.hass,
-            self.async_update_charge_discharge(now),
-            "omnibattery_control_cycle",
-        )
+        if getattr(self, "_unloading", False):
+            return
+        coroutine = self.async_update_charge_discharge(now)
+        create = getattr(self, "_create_entry_background_task", None)
+        if callable(create):
+            create(coroutine, "omnibattery_control_cycle")
+        else:
+            self.config_entry.async_create_background_task(
+                self.hass, coroutine, "omnibattery_control_cycle"
+            )
+
+    def _create_entry_background_task(
+        self, coroutine, name: str
+    ) -> asyncio.Task | None:
+        """Create and retain an entry-owned task until it has finished."""
+        if getattr(self, "_unloading", False):
+            close = getattr(coroutine, "close", None)
+            if callable(close):
+                close()
+            return None
+        create = getattr(self.config_entry, "async_create_background_task", None)
+        task = None
+        if callable(create):
+            try:
+                task = create(self.hass, coroutine, name)
+            except TypeError:
+                task = create(coroutine, name)
+        else:
+            create = getattr(self.hass, "async_create_task", None)
+            if callable(create):
+                try:
+                    task = create(coroutine, name=name)
+                except TypeError:
+                    task = create(coroutine)
+            else:
+                try:
+                    task = asyncio.get_running_loop().create_task(coroutine, name=name)
+                except TypeError:
+                    task = asyncio.get_running_loop().create_task(coroutine)
+        if isinstance(task, asyncio.Task):
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+            return task
+        close = getattr(coroutine, "close", None)
+        if callable(close):
+            close()
+        return None
+
+    async def async_stop_background_tasks(self) -> None:
+        """Stop entry-owned control/pricing tasks before hardware teardown."""
+        self._unloading = True
+        self._cancel_no_pd_debounced_run()
+        current = asyncio.current_task()
+        tasks = {
+            task
+            for task in self._background_tasks
+            if task is not current and not task.done()
+        }
+        if self._startup_dynamic_pricing_task is not None:
+            task = self._startup_dynamic_pricing_task
+            if task is not current and not task.done():
+                tasks.add(task)
+            self._startup_dynamic_pricing_task = None
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._background_tasks.clear()
+
+        # Entry-owned persistence tasks above are deliberately cancelled so an
+        # old runtime cannot write after unload. Flush their managers directly
+        # now, while this generation still owns the final coherent state.
+        for manager in (self._charge_delay_mgr, self._weekly_charge_mgr):
+            flush = getattr(manager, "async_flush_state", None)
+            if callable(flush):
+                await flush()
 
     async def async_update_charge_discharge(self, now=None):
         """Run one control cycle, guarded against overlapping triggers.
@@ -4915,6 +7105,8 @@ class ChargeDischargeController:
         trigger is skipped: the in-flight cycle already reads the current state,
         so re-entering would only risk concurrent Modbus writes.
         """
+        if getattr(self, "_unloading", False):
+            return
         # No-PD command delay (debounce): on a sensor event, defer the cycle by
         # the configured delay and collapse any further events in that window into
         # the single deferred run, which reads the latest sensor value at fire time.
@@ -4968,11 +7160,16 @@ class ChargeDischargeController:
         as a startup-tracked task.
         """
         self._no_pd_debounce_unsub = None
-        self.config_entry.async_create_background_task(
-            self.hass,
-            self._run_no_pd_debounced_cycle(),
-            "omnibattery_no_pd_cycle",
-        )
+        if getattr(self, "_unloading", False):
+            return
+        coroutine = self._run_no_pd_debounced_cycle()
+        create = getattr(self, "_create_entry_background_task", None)
+        if callable(create):
+            create(coroutine, "omnibattery_no_pd_cycle")
+        else:
+            self.config_entry.async_create_background_task(
+                self.hass, coroutine, "omnibattery_no_pd_cycle"
+            )
 
     async def _run_no_pd_debounced_cycle(self):
         """Run the deferred no-PD control cycle."""
@@ -5045,11 +7242,27 @@ class ChargeDischargeController:
                 allocations[False].get(coordinator, 0),
             )
 
-        self.previous_power = (
-            sum(allocations[True].values())
-            - sum(allocations[False].values())
+        self.previous_power = self._signed_power_from_allocations(
+            sum(allocations[True].values()),
+            sum(allocations[False].values()),
         )
         self._phase_safety_pending = False
+
+    def _signed_power_from_allocations(
+        self, charging_power: float, discharging_power: float
+    ) -> float:
+        """Return allocated power using the active controller sign convention.
+
+        Normal control stores charging as positive and discharging as negative.
+        Predictive grid charging uses the opposite sign for its incremental
+        state, so a phase-safety replay must preserve that convention or the
+        next predictive cycle interprets an active charge as a discharge.
+        """
+        if self.grid_charging_active:
+            if charging_power > 0:
+                return -charging_power
+            return -discharging_power
+        return charging_power - discharging_power
 
     def _compute_no_pd_new_power(self, error):
         """No-PD direct-tracking control law: deadbeat 1:1 load tracking.
@@ -5554,17 +7767,13 @@ class ChargeDischargeController:
         """
         issue_id = f"solar_forecast_unusable_{self.config_entry.entry_id}"
 
-        usable = False
-        if self.solar_forecast_sensor:
-            state = self.hass.states.get(self.solar_forecast_sensor)
-            if state is not None and state.state not in ("unknown", "unavailable"):
-                try:
-                    float(state.state)
-                    usable = True
-                except (ValueError, TypeError):
-                    usable = False
+        forecast = read_solar_forecast_kwh(self.hass, self)
+        usable = forecast is not None
+        remaining_sensor = get_configured_solar_forecast_sensor(self, "remaining")
+        today_sensor = get_configured_solar_forecast_sensor(self, "today")
+        configured = bool(remaining_sensor or today_sensor)
 
-        if usable or not self.solar_forecast_sensor:
+        if usable or not configured:
             self._solar_forecast_bad_since = None
             if not self._solar_forecast_issue_cleared:
                 self._solar_forecast_issue_cleared = True
@@ -5587,7 +7796,7 @@ class ChargeDischargeController:
         _LOGGER.warning(
             "Solar forecast sensor %s unreadable for over %.0f minutes - charge delay, "
             "grid-charge decisions and remaining-solar estimates are running blind",
-            self.solar_forecast_sensor, FORECAST_DATA_ISSUE_DELAY_S / 60,
+            remaining_sensor or today_sensor, FORECAST_DATA_ISSUE_DELAY_S / 60,
         )
         ir.async_create_issue(
             self.hass,
@@ -5599,10 +7808,40 @@ class ChargeDischargeController:
             severity=ir.IssueSeverity.WARNING,
             translation_key="solar_forecast_unusable",
             translation_placeholders={
-                "sensor": self.solar_forecast_sensor,
+                "sensor": remaining_sensor or today_sensor,
                 "minutes": f"{FORECAST_DATA_ISSUE_DELAY_S / 60:.0f}",
             },
         )
+
+    def _check_solar_forecast_migration(self) -> None:
+        """Nudge legacy whole-day forecast users towards the remaining sensor.
+
+        The legacy sensor remains a supported fallback throughout the migration;
+        this Repair is informational and never changes the configured forecast or
+        affects control.  Always delete the stable issue id when it no longer
+        applies so a config-flow update resolves it immediately.
+        """
+        issue_id = f"solar_forecast_remaining_recommended_{self.config_entry.entry_id}"
+        legacy_sensor = get_configured_solar_forecast_sensor(self, "today")
+        remaining_sensor = get_configured_solar_forecast_sensor(self, "remaining")
+        if legacy_sensor and not remaining_sensor:
+            if not getattr(self, "_solar_forecast_migration_issue_created", False):
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    issue_id,
+                    is_fixable=False,
+                    is_persistent=True,
+                    issue_domain=DOMAIN,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key="solar_forecast_remaining_recommended",
+                    translation_placeholders={"sensor": legacy_sensor},
+                )
+                self._solar_forecast_migration_issue_created = True
+            return
+
+        ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+        self._solar_forecast_migration_issue_created = False
 
     @staticmethod
     def _sensor_report_time(sensor_state):
@@ -5703,6 +7942,9 @@ class ChargeDischargeController:
         still schedules through its separate callback; repeated P1 publications
         are consumed here and by the watchdog without re-running incremental P/D.
         """
+        entity_id = event.data.get("entity_id")
+        if entity_id and entity_id != self.consumption_sensor:
+            return None
         new_state = event.data.get("new_state")
         report_time = ChargeDischargeController._sensor_report_time(new_state)
         if report_time is None:
@@ -5710,7 +7952,7 @@ class ChargeDischargeController:
         return self._observe_sensor_cadence(report_time)
 
     def _check_sensor_cadence(self, sensor_elapsed_s):
-        """Raise one repair per run when the main sensor cadence is slow.
+        """Raise a repair while the main sensor cadence is slow, clear it when it recovers.
 
         Slow sensors remain supported up to the stale tolerance. The repair is
         guidance about control quality, not a rejection of the sensor. Only positive,
@@ -5722,9 +7964,16 @@ class ChargeDischargeController:
         timestamp is not advanced while the sensor reads unavailable, so the first sample
         after any downtime measures the whole gap.
 
-        Once created, the issue is left untouched for the rest of this controller run.
-        On the next integration/Home Assistant restart, sustained fast updates clear a
-        persisted issue. This prevents create/delete churn and repeated log messages.
+        The repair describes the sensor as it behaves now, so a cadence that recovers
+        must clear it: SLOW_SENSOR_RECOVERY_INTERVALS consecutive fast intervals delete
+        the issue, whether it was created in this run or persisted from an earlier one.
+        Creating needs only SLOW_SENSOR_WARN_INTERVALS, so the asymmetry is the
+        hysteresis that keeps a sensor hovering around the threshold from churning
+        create/delete. Each transition acts once per streak.
+
+        A repair persisted from an earlier run is cleared by the same recovery streak,
+        so it survives roughly SLOW_SENSOR_RECOVERY_INTERVALS publications into a new
+        run before disappearing.
         """
         if sensor_elapsed_s is None or sensor_elapsed_s <= 0:
             return
@@ -5733,10 +7982,8 @@ class ChargeDischargeController:
         if sensor_elapsed_s < SLOW_SENSOR_WARNING_INTERVAL_S:
             self._slow_sensor_intervals = 0
             self._fast_sensor_intervals += 1
-            if (
-                self._fast_sensor_intervals == SLOW_SENSOR_WARN_INTERVALS
-                and not self._slow_sensor_issue_created
-            ):
+            if self._fast_sensor_intervals == SLOW_SENSOR_RECOVERY_INTERVALS:
+                self._slow_sensor_issue_created = False
                 ir.async_delete_issue(self.hass, DOMAIN, issue_id)
             return
 
@@ -5801,6 +8048,12 @@ class ChargeDischargeController:
             await self._consumption_tracker.accumulate_daily_home_energy()
             await self._consumption_tracker.accumulate_daily_grid_energy()
             self._consumption_tracker.maybe_save_accumulators()
+
+        # The timeline is a diagnostic boundary. It observes the completed
+        # telemetry/profile work and never gates or alters the control cycle.
+        refresh_timeline = getattr(self, "_refresh_daily_operation_timeline", None)
+        if callable(refresh_timeline):
+            refresh_timeline(now=now or dt_util.now())
 
         # === BALANCE MONITOR ===
         # Run before manual mode and PD control checks so readings are never gated
@@ -5923,13 +8176,11 @@ class ChargeDischargeController:
         consumption_state = self.hass.states.get(self.consumption_sensor)
         sensor_raw = self._apply_meter_transform(consumption_state)
         if sensor_raw is None:
-            if consumption_state is None:
-                _LOGGER.warning(f"Consumption sensor {self.consumption_sensor} not found.")
-            else:
-                _LOGGER.warning(f"Could not parse consumption sensor state: {consumption_state.state}")
+            self._log_consumption_sensor_issue(consumption_state)
             if self._phase_safety_pending:
                 await self._apply_phase_safety_review()
             return
+        self._consumption_sensor_issue = None
 
         # Detect real sensor publications, even when the numeric value is unchanged.
         sensor_report_time, sensor_elapsed_s, is_stale = (
@@ -6140,14 +8391,15 @@ class ChargeDischargeController:
             operation_allowed = self._is_operation_allowed(is_charging)
             if not operation_allowed:
                 if is_charging:
-                    reason = (
-                        "charge delay active"
-                        if self.charge_delay_enabled and self._charge_delay_mgr.is_charge_delayed()
-                        else "time slot configuration"
+                    _LOGGER.debug(
+                        "ChargeDischargeController: First execution - Charging NOT ALLOWED by blockers [%s], starting at 0W",
+                        self._operation_blockers_for_log(True),
                     )
-                    _LOGGER.debug("ChargeDischargeController: First execution - Charging NOT ALLOWED by %s, starting at 0W", reason)
                 else:
-                    _LOGGER.debug("ChargeDischargeController: First execution - Discharging NOT ALLOWED by time slot, starting at 0W")
+                    _LOGGER.debug(
+                        "ChargeDischargeController: First execution - Discharging NOT ALLOWED by blockers [%s], starting at 0W",
+                        self._operation_blockers_for_log(False),
+                    )
                 self.previous_power = 0
                 is_charging = False
                 # Initialize PD state at 0
@@ -6164,7 +8416,10 @@ class ChargeDischargeController:
 
             # Check price-based discharge block (e.g. RT price mode: cheap price blocks discharge)
             if not is_charging and self._price_based_discharge_blocked:
-                _LOGGER.debug("ChargeDischargeController: First execution - Discharging NOT ALLOWED by price-based control, starting at 0W")
+                _LOGGER.debug(
+                    "ChargeDischargeController: First execution - Discharging NOT ALLOWED by blockers [%s] (price-based control), starting at 0W",
+                    self._operation_blockers_for_log(False),
+                )
                 self.previous_power = 0
                 self.error_integral = 0.0
                 self.previous_error = -(sensor_actual - active_target)
@@ -6324,14 +8579,15 @@ class ChargeDischargeController:
         operation_restricted = not self._is_operation_allowed(is_charging)
         if operation_restricted:
             if is_charging:
-                reason = (
-                    "charge delay active"
-                    if self.charge_delay_enabled and self._charge_delay_mgr.is_charge_delayed()
-                    else "time slot configuration"
+                _LOGGER.debug(
+                    "ChargeDischargeController: Charging NOT ALLOWED by blockers [%s] - controller paused",
+                    self._operation_blockers_for_log(True),
                 )
-                _LOGGER.debug("ChargeDischargeController: Charging NOT ALLOWED by %s - controller paused", reason)
             else:
-                _LOGGER.debug("ChargeDischargeController: Discharging NOT ALLOWED by time slot configuration - controller paused")
+                _LOGGER.debug(
+                    "ChargeDischargeController: Discharging NOT ALLOWED by blockers [%s] - controller paused",
+                    self._operation_blockers_for_log(False),
+                )
             new_power = 0
             is_charging = False  # Reset since we're forcing to 0
             self._active_discharge_batteries = []
@@ -6339,7 +8595,10 @@ class ChargeDischargeController:
 
         # Check price-based discharge control (set each cycle by pricing mode handlers)
         if not operation_restricted and self._price_based_discharge_blocked and not is_charging:
-            _LOGGER.debug("ChargeDischargeController: Discharging NOT ALLOWED by price-based control - controller paused")
+            _LOGGER.debug(
+                "ChargeDischargeController: Discharging NOT ALLOWED by blockers [%s] (price-based control) - controller paused",
+                self._operation_blockers_for_log(False),
+            )
             new_power = 0
             self._active_discharge_batteries = []
             self._active_charge_batteries = []
@@ -6438,11 +8697,7 @@ class ChargeDischargeController:
         has_reachable = any(c.is_available for c in self.coordinators)
         all_at_min_soc = (len(discharge_available) == 0) and has_reachable
         if all_at_min_soc and not self.grid_charging_active and sensor_actual > 0:
-            time_slots = self.config_entry.data.get("no_discharge_time_slots", [])
-            in_discharge_window = (not time_slots) or any(
-                self._get_active_slot(c, "discharge") is not None for c in self.coordinators
-            )
-            if in_discharge_window:
+            if self._is_grid_at_min_soc_discharge_window():
                 # Cycle cadence is now variable (event- and timer-driven), so integrate
                 # over the real elapsed time since the last accumulation instead of a
                 # fixed step. A gap (>10s) means the condition was inactive in between;
@@ -6480,7 +8735,9 @@ class ChargeDischargeController:
             self._active_charge_batteries = []
             # No battery can act: demand outside the deadband is battery-limited, not
             # a tuning fault (surfaced as "battery_limited", keeps the metric clean).
-            self._pd_limited = abs(error) > self.deadband
+            self._set_pd_limited(abs(error) > self.deadband)
+            # Everything is at 0 W here, so there is no headroom in any direction.
+            self._set_pd_blocked(self._pd_demand_blocked(error, 0))
             return
         
         # Select batteries via load sharing, then distribute power
@@ -6594,8 +8851,15 @@ class ChargeDischargeController:
                 or (error > 0 and new_power <= -max_total_discharge + 1)
             )
             pd_limited = pd_limited or phase_limited
-            self._pd_limited = pd_limited
-            self._update_pd_quality_metrics(error, sign_changed, active_target, pd_limited)
+            self._set_pd_limited(pd_limited)
+            # The demand direction can be blocked while the commanded power is 0,
+            # which leaves this branch "unrestricted" even though the loop is
+            # muzzled. Skip the metric there too, else a blocked charge demand
+            # (charge delay + solar surplus) scores as sluggish tuning.
+            self._set_pd_blocked(self._pd_demand_blocked(error, new_power))
+            self._update_pd_quality_metrics(
+                error, sign_changed, active_target, pd_limited or self._pd_blocked
+            )
             self.previous_error = error
             # Keep the last direction of flow across idle cycles so directional
             # hysteresis still applies to the next flip. Zeroing it here made the
@@ -6609,6 +8873,7 @@ class ChargeDischargeController:
         else:
             # Controller is paused by restrictions - DO NOT update error tracking
             # This prevents false oscillation detection from natural load fluctuations
+            self._set_pd_blocked(True)
             if DEBUG_CONTROL_LOOP_DETAIL:
                 _LOGGER.debug("ChargeDischargeController: PD state FROZEN (restricted) - error tracking paused to prevent false oscillation warnings")
         
@@ -6621,8 +8886,8 @@ async def _restore_consumption_history(hass: HomeAssistant, entry: ConfigEntry, 
     from datetime import date
     from homeassistant.util import dt as dt_util
     
-    if not controller.predictive_charging_enabled:
-        return  # Not using predictive charging, no history needed
+    if CONF_ENABLE_PREDICTIVE_CHARGING not in entry.data:
+        return  # Predictive charging was never configured; no history needed
     
     # Try to get the predictive charging binary sensor entity
     entity_id = f"binary_sensor.predictive_charging_active"
@@ -6630,6 +8895,13 @@ async def _restore_consumption_history(hass: HomeAssistant, entry: ConfigEntry, 
     
     if state is None or not state.attributes:
         _LOGGER.debug("No previous predictive charging state found for history restoration")
+        return
+
+    if state.attributes.get("consumption_history_scope") != "full_day_home":
+        _LOGGER.info(
+            "Skipping legacy windowed consumption history restoration; "
+            "Recorder backfill will rebuild full-day totals"
+        )
         return
     
     # Extract history from attributes
@@ -6719,8 +8991,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v9 -> v10: rename config entry title to "Omnibattery".
     v10 -> v11: add the disabled-by-default three-phase protection schema and
                 normalize an empty battery phase on existing batteries.
+    v11 -> v12: distinguish MPPT-capable Venus A/D hardware from installations
+                that actually have panels connected; preserve existing behaviour.
     """
-    if entry.version >= 11:
+    if entry.version >= 12:
         return True
 
     new_data = dict(entry.data)
@@ -6963,11 +9237,29 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(three-phase protection disabled; battery phases normalized)",
         )
 
+    if entry.version < 12:
+        new_data["batteries"] = [
+            {
+                **dict(battery),
+                CONF_DC_PV_CONNECTED: bool(
+                    battery.get(
+                        CONF_DC_PV_CONNECTED,
+                        battery.get(CONF_BATTERY_VERSION) in ("vA", "vD"),
+                    )
+                ),
+            }
+            for battery in new_data.get("batteries", [])
+        ]
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 12 "
+            "(recorded whether Venus A/D MPPT panels are connected)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
-        version=11,
+        version=12,
     )
     return True
 
@@ -7221,6 +9513,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Omnibattery from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
+    # Entries saved by early transition builds could contain both horizons.
+    # Remaining-today is the persisted contract now; leave untouched legacy-only
+    # entries alone, but clean the redundant whole-day value during setup.
+    normalized_forecast_data = normalize_solar_forecast_config(dict(entry.data))
+    if normalized_forecast_data != dict(entry.data):
+        hass.config_entries.async_update_entry(entry, data=normalized_forecast_data)
+
     # Register the sidebar dashboard panel (once per HA instance, non-blocking).
     await _async_register_frontend_panel(hass, entry)
 
@@ -7270,6 +9569,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # platforms set up their entities (so the sensors find it cached, no race).
     from .synthetic_energy_backup import async_get_backup
     await async_get_backup(hass)
+    from .backup_discharge_store import async_get_backup_discharge_store
+    backup_discharge_store = await async_get_backup_discharge_store(hass)
 
     coordinators = []
     # A MAC shared by several batteries belongs to a Modbus gateway, not to a
@@ -7288,6 +9589,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             max_discharge_power=battery_config["max_discharge_power"],
             device_max_charge_power=battery_config.get("device_max_charge_power"),
             device_max_discharge_power=battery_config.get("device_max_discharge_power"),
+            ems_version=battery_config.get("ems_version"),
             max_soc=battery_config["max_soc"],
             min_soc=battery_config["min_soc"],
             charge_hysteresis_percent=battery_config.get(
@@ -7300,15 +9602,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
                 DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
             ),
+            backup_discharge_store=backup_discharge_store,
+            backup_discharge_store_key=f"{entry.entry_id}:{battery_index}",
             brand=battery_config.get("brand", "marstek"),
             zendure_model=battery_config.get("zendure_model", "2400ac_pro"),
             hoymiles_model=battery_config.get("hoymiles_model"),
             serial_port=battery_config.get(CONF_SERIAL_PORT) or None,
             esphome_device_id=battery_config.get("esphome_device_id"),
+            huawei_battery_device_id=battery_config.get("huawei_battery_device_id"),
+            huawei_direct_write=battery_config.get("huawei_direct_write", False),
+            huawei_emma_slave_id=battery_config.get("huawei_emma_slave_id"),
             username=battery_config.get(CONF_USERNAME, ""),
             password=battery_config.get(CONF_PASSWORD, ""),
             battery_manual_mode_enabled=battery_config.get(
                 CONF_BATTERY_MANUAL_MODE_ENABLED, False
+            ),
+            dc_pv_connected=battery_config.get(
+                CONF_DC_PV_CONNECTED,
+                battery_config.get(CONF_BATTERY_VERSION) in ("vA", "vD"),
             ),
             mac=entry_macs[battery_index],
         )
@@ -7439,10 +9750,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up the charge/discharge controller BEFORE storing in hass.data
     # This allows the controller to register itself in hass.data[DOMAIN]["pid_controller"]
     controller = ChargeDischargeController(hass, coordinators, entry.data["consumption_sensor"], entry)
+    # This is advisory only and is evaluated at setup and after option updates,
+    # independently of grid-sensor health or the control loop.
+    controller._check_solar_forecast_migration()
+    predictive_configured = CONF_ENABLE_PREDICTIVE_CHARGING in entry.data
 
     from .tracking.consumption_tracker import ConsumptionTracker
     consumption_tracker = ConsumptionTracker(hass, entry, controller)
     controller._consumption_tracker = consumption_tracker
+    # Calculated sensors that need a short Recorder recovery query (currently
+    # the daily counter migration) must use the same entry-owned coordinator
+    # as profile and legacy backfills. Attach it before platform setup starts.
+    for coordinator in coordinators:
+        coordinator._omnibattery_backfill_coordinator = (
+            consumption_tracker._backfill_coordinator
+        )
+    await consumption_tracker.load_vacation_state()
+    daily_operation_timeline = DailyOperationTimelineManager(
+        hass, entry, controller
+    )
+    controller._daily_operation_timeline = daily_operation_timeline
+    controller.daily_operation_timeline = daily_operation_timeline
 
     from .infra.external_loads import ExternalLoads
     controller._external_loads = ExternalLoads(hass, entry, controller)
@@ -7473,6 +9801,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         consumption_tracker.initialize_history_with_defaults()
         await consumption_tracker.save_consumption_history()
 
+    # Restore the independent 15-minute profile after the legacy daily history
+    # is available.  A corrupt or incompatible profile is isolated and never
+    # prevents the integration from starting.
+    await consumption_tracker.load_consumption_profile()
+    await consumption_tracker.load_solar_profile()
+
     # Restore household and solar accumulators from persistent storage
     await consumption_tracker.load_accumulators()
     await consumption_tracker.load_daily_energy()
@@ -7484,7 +9818,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if controller._solar_t_start is None:
         await consumption_tracker.load_solar_t_start()
 
-    # Set up periodic timers and store unsub callbacks for manual cancellation during unload.
+    # Restore the canonical predictive diagnostics through the pricing flow,
+    # before Daily Operation consumes them.  The dashboard is strictly a
+    # read-only view and must never use a refresh to rebuild control state.
+    startup_now = dt_util.now()
+    if (
+        predictive_configured
+        and controller.predictive_charging_enabled
+        and not controller.predictive_charging_overridden
+    ):
+        await controller._pricing_mgr.async_refresh_chronological_diagnostics(
+            now=startup_now
+        )
+
+    # Restore the current-day operation diary only after the profile and charge-delay
+    # state are available, then seed the dashboard with the first authoritative view.
+    await daily_operation_timeline.async_load()
+    controller._refresh_daily_operation_timeline(
+        now=startup_now, force_projection=True
+    )
+
+    # Set up the control safety timer and store unsub callbacks for manual cancellation during unload.
     # Each unsub is registered twice: stored in hass.data so async_unload_entry can cancel
     # the timers early (before platform teardown), and via entry.async_on_unload so HA cleans
     # up on setup failure. The state-change tracker's unsub raises on a second call
@@ -7505,19 +9859,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ))
     entry.async_on_unload(unsub_control)
 
-    # Force coordinator updates every 1.5 seconds with timestamp-based per-sensor polling
-    # This ensures all sensors update according to their scan_interval
-    async def _force_coordinator_refresh(now):
-        """Force coordinator to check and update data based on timestamp thresholds."""
-        await asyncio.gather(*[coordinator.async_request_refresh() for coordinator in coordinators])
-
-    _LOGGER.debug("Setting up periodic refresh for all coordinators")
-
-    unsub_refresh = _call_once(async_track_time_interval(
-        hass, _force_coordinator_refresh, timedelta(seconds=1.5)
-    ))
-    entry.async_on_unload(unsub_refresh)
-
     # Event-driven control: also run the control cycle the instant the grid
     # consumption sensor publishes a new value, so PD reacts at the sensor's
     # native cadence instead of waiting for the next safety-timer tick. The
@@ -7527,6 +9868,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Overlapping triggers are serialized by the controller's _control_lock.
     @callback
     def _on_consumption_changed(event):
+        if event.data.get("entity_id") != controller.consumption_sensor:
+            return
         # Record the publication before scheduling control.  A cycle can be busy
         # with battery I/O when the next meter update arrives; measuring cadence
         # only when that cycle eventually samples hass.states would turn a fast P1
@@ -7536,7 +9879,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         controller.schedule_control_cycle()
 
     unsub_consumption = _call_once(async_track_state_change_event(
-        hass, [controller.consumption_sensor], _on_consumption_changed
+        hass, controller.consumption_sensor_ids, _on_consumption_changed
     ))
     entry.async_on_unload(unsub_consumption)
 
@@ -7555,7 +9898,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             controller._observe_consumption_report(event)
 
         unsub_consumption_reported = _call_once(track_state_report_event(
-            hass, [controller.consumption_sensor], _on_consumption_reported
+            hass, controller.consumption_sensor_ids, _on_consumption_reported
         ))
         entry.async_on_unload(unsub_consumption_reported)
 
@@ -7635,8 +9978,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinators": coordinators,
         "controller": controller,
+        "daily_operation_timeline": daily_operation_timeline,
         "unsub_control": unsub_control,
-        "unsub_refresh": unsub_refresh,
         "unsub_consumption": unsub_consumption,
         "unsub_consumption_reported": unsub_consumption_reported,
         "unsub_phase": unsub_phase,
@@ -7648,9 +9991,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Listen for config entry updates so config entities refresh their state
     async def _async_update_listener(hass: HomeAssistant, updated_entry: ConfigEntry) -> None:
         """Handle config entry updates (from Options Flow or config entities)."""
+        if is_reload_pending(hass, updated_entry.entry_id) or getattr(
+            controller, "_unloading", False
+        ):
+            _LOGGER.debug(
+                "Ignoring stale config update callback for entry %s",
+                updated_entry.entry_id,
+            )
+            return
         _LOGGER.debug("Config entry updated, hot-reloading controller parameters")
         if controller:
             controller.update_pd_parameters()
+            controller._check_solar_forecast_migration()
+            tracker = getattr(controller, "_consumption_tracker", None)
+            reconcile_vacation = getattr(tracker, "async_reconcile_vacation_mode", None)
+            if callable(reconcile_vacation):
+                await reconcile_vacation()
+            profile = getattr(tracker, "consumption_profile", None)
+            if profile is not None and profile.invalidate_if_configuration_changed():
+                tracker.start_consumption_profile_backfill()
+            solar_profile = getattr(tracker, "solar_profile", None)
+            if solar_profile is not None:
+                solar_profile.refresh_mode(getattr(controller, "solar_profile_mode", None))
+                if solar_profile.invalidate_if_configuration_changed():
+                    tracker.start_solar_profile_backfill()
+            if (
+                controller.predictive_charging_enabled
+                and not controller.predictive_charging_overridden
+            ):
+                diagnostic_now = dt_util.now()
+                await controller._pricing_mgr.async_refresh_chronological_diagnostics(
+                    now=diagnostic_now
+                )
+                controller._refresh_daily_operation_timeline(
+                    now=diagnostic_now,
+                    force_projection=True,
+                )
         # Keep the recovery copy in sync with the latest options.
         from .config_backup import async_save_config_backup
         await async_save_config_backup(hass)
@@ -7660,10 +10036,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Schedule daily consumption capture at 23:55 local time every day
     # This captures the day's battery discharge energy before the sensor resets at midnight local
     # Also needed for weekly full charge delay (to estimate remaining consumption)
-    needs_consumption_capture = (
-        controller.predictive_charging_enabled
-        or controller.charge_delay_enabled
-    )
+    needs_consumption_capture = predictive_configured or controller.charge_delay_enabled
     if needs_consumption_capture:
         entry.async_on_unload(
             async_track_time_change(
@@ -7690,7 +10063,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Replace default consumption data with real recorder data
     # On reload HA is already running, so backfill immediately;
     # on fresh boot, wait for homeassistant_started so the recorder is ready
-    if needs_consumption_capture:
+    needs_recorder_backfill = needs_consumption_capture or bool(
+        getattr(consumption_tracker, "_legacy_accumulator_rebuild_pending", False)
+    )
+    if needs_recorder_backfill:
         if hass.state == CoreState.running:
             await consumption_tracker.startup_backfill_consumption()
             _LOGGER.info("Startup consumption backfill executed immediately (reload)")
@@ -7707,13 +10083,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Dynamic pricing: schedule daily evaluation at 00:05 and run startup catch-up
     if (
-        controller.predictive_charging_enabled
+        predictive_configured
         and controller.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING
     ):
         async def _daily_pricing_evaluation(_now):
             # The scheduled 00:05 run is the sole full-day forecast.  Every
             # later rebuild must use the live remainder to avoid counting
             # already-consumed energy again.
+            if (
+                not controller.predictive_charging_enabled
+                or controller.predictive_charging_overridden
+            ):
+                _LOGGER.debug(
+                    "Dynamic pricing: daily evaluation skipped while predictive charging is disabled"
+                )
+                return
             await controller._pricing_mgr._evaluate_dynamic_pricing(
                 horizon=DynamicPricingEvaluationHorizon.DAILY,
             )
@@ -7724,8 +10108,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         )
         _LOGGER.info("Dynamic pricing: daily evaluation scheduled at 00:05 local time")
-        hass.async_create_task(controller._startup_dynamic_pricing_evaluation())
-        _LOGGER.info("Dynamic pricing: startup evaluation task scheduled")
+        if (
+            controller.predictive_charging_enabled
+            and not controller.predictive_charging_overridden
+        ):
+            controller._startup_dynamic_pricing_task = controller._create_entry_background_task(
+                controller._startup_dynamic_pricing_evaluation(),
+                "omnibattery_dynamic_pricing_startup",
+            )
+            _LOGGER.info("Dynamic pricing: startup evaluation task scheduled")
 
     return True
 
@@ -7733,44 +10124,61 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
 
-    if data := hass.data[DOMAIN].get(entry.entry_id):
+    data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if data:
         coordinators = data.get("coordinators", [])
         controller = data.get("controller")
+        tracker = getattr(controller, "_consumption_tracker", None)
+
+        # Stop producers first. Set the guard synchronously before removing
+        # trackers so a callback already queued by HA cannot create a new task
+        # while the entry is being torn down.
+        if controller is not None:
+            controller._unloading = True
+
+        # Cancel periodic timers/callbacks before waiting for long work. The
+        # coordinator owns its 1.5-second update interval; there is no second
+        # explicit refresh loop.
+        for key in (
+            "unsub_control",
+            "unsub_consumption",
+            "unsub_consumption_reported",
+            "unsub_phase",
+            "unsub_phase_reported",
+            "unsub_blueprint_measurement",
+        ):
+            if unsub := data.get(key):
+                unsub()
+
+        # Invalidate lifecycle generations and await every task that can still
+        # touch the entry before any platform/hardware teardown starts.
+        if controller is not None:
+            stop_tasks = getattr(controller, "async_stop_background_tasks", None)
+            if callable(stop_tasks):
+                await stop_tasks()
+        if tracker is not None:
+            stop_tracker = getattr(tracker, "async_stop_background_work", None)
+            if callable(stop_tracker):
+                await stop_tracker()
         if controller is not None:
             # Remove the opt-in runtime override/blockers before the control
             # timer and entities disappear.  The plan itself is never persisted.
             controller._pricing_mgr.clear_curtailment_runtime("unload")
             controller._pricing_mgr.clear_negative_price_runtime("unload")
 
-        # 1. Cancel periodic timers FIRST to stop control loop and coordinator refresh
-        # These run every 2.0s / 1.5s and would write registers on a closing connection
-        if unsub := data.get("unsub_control"):
-            unsub()
-        if unsub := data.get("unsub_refresh"):
-            unsub()
-        if unsub := data.get("unsub_consumption"):
-            unsub()
-        if unsub := data.get("unsub_consumption_reported"):
-            unsub()
-        if unsub := data.get("unsub_phase"):
-            unsub()
-        if unsub := data.get("unsub_phase_reported"):
-            unsub()
-        if unsub := data.get("unsub_blueprint_measurement"):
-            unsub()
-
-        # 2. Set shutdown flag on all coordinators to suppress expected errors
+        # Set shutdown flag on all coordinators to suppress expected errors.
         for coordinator in coordinators:
             coordinator.set_shutting_down(True)
 
-        # 3. Brief delay to let any in-flight control loop iteration complete
+        # Give callbacks owned by older HA versions a short chance to observe
+        # the shutdown flag after their entry task has been cancelled.
         await asyncio.sleep(0.3)
 
-    # 4. Unload platforms (removes entities)
+    # Unload platforms (removes entities)
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    # 5. Write shutdown registers and disconnect (no more interference from timers)
-    if data := hass.data[DOMAIN].get(entry.entry_id):
+    # Write shutdown registers and disconnect (no more interference from timers)
+    if data := hass.data.get(DOMAIN, {}).get(entry.entry_id):
         coordinators = data.get("coordinators", [])
 
         _LOGGER.info("Shutting down integration - stopping all battery operations")
@@ -7787,7 +10195,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                 # Skip batteries that are actively providing offgrid backup power
                 # (backup switch ON and ac_offgrid_power exceeds threshold, or sensor unavailable)
-                if coordinator.data and coordinator.data.get("backup_function") == 0:
+                if coordinator.data and _backup_switch_enabled(
+                    coordinator.data.get("backup_function")
+                ):
                     ac_offgrid = coordinator.data.get("ac_offgrid_power")
                     if ac_offgrid is None or ac_offgrid > coordinator.backup_offgrid_threshold:
                         _LOGGER.info("%s: Skipping shutdown writes - backup function active with offgrid load", coordinator.name)
@@ -7823,6 +10233,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # (~5 min) save, which would step their values backwards and spam the log.
         if controller and controller._consumption_tracker is not None:
             await controller._consumption_tracker.async_save_all()
+
+        if controller:
+            timeline = getattr(controller, "_daily_operation_timeline", None)
+            if timeline is not None:
+                await timeline.async_shutdown()
 
         if unload_ok:
             hass.data[DOMAIN].pop(entry.entry_id, None)

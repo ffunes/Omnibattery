@@ -68,8 +68,8 @@ The following controls tune the internal PD controller. They can also be adjuste
 | **Min discharge power** | `0 W` | 0–2000 W | Same as above, for discharge. `0` disables it. |
 | **Target grid power** | `0 W` | −(total configured discharge power) … +(total configured charge power) | Grid setpoint the PD regulates to. Positive = import from grid (the battery charges), negative = export to grid (the battery discharges), `0` = net zero. The range follows your batteries: three 2500 W units give ±7500 W. Enabling the system power limits narrows each direction to its configured cap. |
 | **Enable system power limits** | `off` | on/off | Enables the combined charge/discharge cap for all active batteries. |
-| **System max charge power** | `0 W` | 0–15000 W | Optional cap for combined charge power. `0` disables it. |
-| **System max discharge power** | `0 W` | 0–15000 W | Optional cap for combined discharge power. `0` disables it. |
+| **System max charge power** | `0 W` | Dynamic: configured charge-power sum | Optional cap for combined charge power. `0` disables it. |
+| **System max discharge power** | `0 W` | Dynamic: configured discharge-power sum | Optional cap for combined discharge power. `0` disables it. |
 
 The minimum charge/discharge power values are useful for preventing inefficient micro-cycling when grid demand is very low.
 
@@ -91,9 +91,10 @@ The **state is a verdict**, not a number:
 | Oscillating | Hunting (frequent charge↔discharge) | Use a smoother profile, or raise the deadband |
 | Sluggish | Too slow to catch up | Use a more aggressive profile |
 | Battery limited | Battery full/empty or at its power rail — the PD cannot act | Not a tuning issue |
-| Collecting data | Warming up (just started) | Wait |
+| Blocked | The needed direction is not allowed (charge delay, time slot, price, EV pause) — the PD is muzzled | Not a tuning issue |
+| Collecting data | Warming up (just started), or the metric has not advanced for over 5 min | Wait |
 
-The attributes carry the raw figures: `rms_error_w` (average grid-tracking error), `oscillation_per_min`, the active gains, and `active_profile`.
+The attributes carry the raw figures: `rms_error_w` (average grid-tracking error), `oscillation_per_min`, `metric_age_s`, the active gains, and `active_profile`.
 
 **How to tune:**
 

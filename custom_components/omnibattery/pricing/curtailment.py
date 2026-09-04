@@ -140,6 +140,7 @@ class CurtailmentPlan:
     solar_forecast_by_slot: dict[PriceSlot, float] = field(default_factory=dict)
     consumption_forecast_by_slot: dict[PriceSlot, float] = field(default_factory=dict)
     solar_forecast_kwh: float = 0.0
+    solar_forecast_is_remaining: bool = False
     headroom_margin_kwh: float = 0.0
 
     # Short aliases make the object convenient for integrations and tests while
@@ -221,6 +222,8 @@ def distribute_solar_forecast(
     slots: Sequence[PriceSlot],
     forecast_kwh: float,
     fraction_fn: Callable[[float], float] | None = None,
+    *,
+    normalize_future: bool = False,
 ) -> dict[PriceSlot, float]:
     """Distribute a daily solar forecast over normalized price slots.
 
@@ -236,9 +239,12 @@ def distribute_solar_forecast(
         shares = {slot: _cumulative_share(fraction_fn, slot.start, slot.end) for slot in slots}
         total_share = sum(shares.values())
         if total_share > EPSILON:
-            # The model is cumulative over the whole solar day.  Do not
-            # renormalize only the future slots: after sunset that would turn
-            # a zero-generation period into a false PV surplus.
+            if normalize_future:
+                # ``forecast`` is already the energy from now on, so allocate
+                # all of it over the provided future slots.  This is the one
+                # intentional renormalisation; legacy ``today`` keeps the old
+                # full-day behaviour above.
+                return {slot: forecast * share / total_share for slot, share in shares.items()}
             return {slot: forecast * share for slot, share in shares.items()}
         return {slot: 0.0 for slot in slots}
 
@@ -255,8 +261,10 @@ def estimate_consumption_by_slot(
     slots: Sequence[PriceSlot],
     daily_consumption_kwh: float,
     fraction_fn: Callable[[float], float] | None = None,
+    *,
+    normalize_future: bool = False,
 ) -> dict[PriceSlot, float]:
-    """Estimate consumption per slot, with a uniform daily-history fallback."""
+    """Estimate consumption per slot, optionally from a remaining total."""
     if not _finite(daily_consumption_kwh) or float(daily_consumption_kwh) <= 0:
         return {slot: 0.0 for slot in slots}
 
@@ -270,8 +278,9 @@ def estimate_consumption_by_slot(
     total_hours = sum(_duration_hours(slot) for slot in slots)
     if total_hours <= EPSILON:
         return {slot: 0.0 for slot in slots}
+    denominator = total_hours if normalize_future else 24.0
     return {
-        slot: consumption * _duration_hours(slot) / 24.0
+        slot: consumption * _duration_hours(slot) / denominator
         for slot in slots
     }
 
@@ -416,6 +425,8 @@ def plan_curtailment(
     max_export_power_w: float | None = 0.0,
     export_mode: str | None = None,
     solar_fraction_fn: Callable[[float], float] | None = None,
+    solar_forecast_is_remaining: bool = False,
+    consumption_forecast_is_remaining: bool = False,
     consumption_fraction_fn: Callable[[float], float] | None = None,
     solar_by_slot: Mapping[PriceSlot, float] | None = None,
     consumption_by_slot: Mapping[PriceSlot, float] | None = None,
@@ -473,10 +484,12 @@ def plan_curtailment(
         return plan
 
     solar = dict(solar_by_slot or distribute_solar_forecast(
-        ordered_slots, float(solar_forecast_kwh), solar_fraction_fn
+        ordered_slots, float(solar_forecast_kwh), solar_fraction_fn,
+        normalize_future=solar_forecast_is_remaining,
     ))
     consumption = dict(consumption_by_slot or estimate_consumption_by_slot(
-        ordered_slots, float(daily_consumption_kwh), consumption_fraction_fn
+        ordered_slots, float(daily_consumption_kwh), consumption_fraction_fn,
+        normalize_future=consumption_forecast_is_remaining,
     ))
     if not _finite(negative_injection_threshold):
         plan.status, plan.reason = "fail_safe", "invalid_negative_injection_threshold"
@@ -507,6 +520,7 @@ def plan_curtailment(
     plan.risk_slots = risk_slots
     plan.solar_surplus_kwh = surplus_kwh
     plan.solar_forecast_kwh = max(0.0, float(solar_forecast_kwh))
+    plan.solar_forecast_is_remaining = solar_forecast_is_remaining
     plan.solar_reserve_by_slot = reserve_by_slot
     plan.solar_forecast_by_slot = {
         slot: max(0.0, float(solar.get(slot, 0.0) or 0.0)) for slot in ordered_slots

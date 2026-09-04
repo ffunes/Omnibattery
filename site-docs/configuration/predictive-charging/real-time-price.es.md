@@ -4,6 +4,8 @@ Activa o desactiva la carga desde la red en cada ciclo del controlador (dirigido
 
 A diferencia del Modo Precio Dinámico, no requiere previsión de precios ni evaluación nocturna. Reacciona puramente al precio en curso.
 
+La selección de slots con plazos no se aplica deliberadamente en este modo: un sensor de precio actual no aporta intervalos futuros fiables que puedan reservarse antes de un deadline. El balance energético y el objetivo por batería siguen siendo predictivos, pero seleccionar o prometer una franja futura exigiría usar Precio Dinámico. Las ventanas configuradas de permiso de carga y todos los bloqueos físicos siguen vigentes.
+
 ## Configuración
 
 | Campo | Descripción |
@@ -80,3 +82,8 @@ Cuando la descarga está bloqueada por precio, el controlador congela completame
 | Reacción al precio en vivo | ❌ | ✅ |
 | Selección de horas óptimas | ✅ | ❌ |
 | Umbral de descarga | Media del día (calculada a las 00:05) | Umbral configurable (fijo o sensor dinámico) |
+
+Precio en Tiempo Real sigue siendo reactivo: usa el total restante normalizado
+para su condición y no consume la curva temporal aprendida ni crea plazos
+futuros. Si adquiere planificación anticipada, deberá entrar por el mismo
+planificador cronológico que los demás modos.

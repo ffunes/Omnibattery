@@ -6,8 +6,11 @@ regardless of the UI language. No hardware, no ``hass`` fixture.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from custom_components.omnibattery.infra.entity_naming import (
     english_entity_id,
+    is_omnibattery_solar_entity,
     system_entity_id,
     SYSTEM_OBJECT_ID_PREFIX,
     SYSTEM_UNIQUE_ID_PREFIX,
@@ -96,3 +99,19 @@ def test_system_prefixes_decoupled():
     assert SYSTEM_UNIQUE_ID_PREFIX == "marstek_venus_system_"
     assert SYSTEM_OBJECT_ID_PREFIX == "omnibattery_"
     assert SYSTEM_UNIQUE_ID_PREFIX != SYSTEM_OBJECT_ID_PREFIX
+
+
+def test_omnibattery_solar_entity_detects_renamed_per_battery_sensor(monkeypatch):
+    entry = SimpleNamespace(
+        platform="omnibattery",
+        unique_id="anker_grange_solar_power",
+    )
+    registry = SimpleNamespace(async_get=lambda entity_id: entry)
+    monkeypatch.setattr(
+        "custom_components.omnibattery.infra.entity_naming.er.async_get",
+        lambda hass: registry,
+    )
+
+    assert is_omnibattery_solar_entity(
+        SimpleNamespace(), "sensor.my_renamed_pv_sensor"
+    ) is True

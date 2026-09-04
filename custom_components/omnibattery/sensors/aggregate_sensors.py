@@ -13,9 +13,24 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
-from ..const import DOMAIN, ALARM_BIT_DESCRIPTIONS, FAULT_BIT_DESCRIPTIONS, DEBUG_POLL_SENSOR_VALUES, CONF_SOLAR_PRODUCTION_SENSOR, CONF_METER_INVERTED, pd_profile_from_params
+from ..const import (
+    DOMAIN,
+    ALARM_BIT_DESCRIPTIONS,
+    FAULT_BIT_DESCRIPTIONS,
+    DEBUG_POLL_SENSOR_VALUES,
+    CONF_SOLAR_PRODUCTION_SENSOR,
+    CONF_METER_INVERTED,
+    CONF_OFFGRID_POWER_SENSOR,
+    CONF_OFFGRID_METER_INVERTED,
+    CONF_OFFGRID_MODE_ENABLED,
+    pd_profile_from_params,
+)
 from ..infra.coordinator import MarstekVenusDataUpdateCoordinator
 from ..infra.entity_naming import system_entity_id
+from ..tracking.consumption_tracker import (
+    has_battery_charging,
+    home_balance_is_suspicious,
+)
 
 
 # Define aggregate sensor definitions
@@ -95,10 +110,10 @@ AGGREGATE_SENSOR_DEFINITIONS = [
 ]
 
 
-# Signed net cell power across all batteries (+charge / -discharge), added only
-# for systems with DC-coupled PV (vA/vD). Mirrors the dashboard's per-battery
-# cell-power formula so the SOC card's Charge/Discharge blocks can link to a value
-# that matches what they display, instead of the AC-only system_charge_power (#347).
+# Signed net cell power across all batteries (+charge / -discharge), added for
+# systems with DC-coupled PV. Mirrors the dashboard's per-battery cell-power
+# formula so the SOC card's Charge/Discharge blocks can link to a value that
+# matches what they display, instead of the AC-only system_charge_power (#347).
 SYSTEM_BATTERY_CELL_POWER_DEFINITION = {
     "key": "system_battery_cell_power",
     "name": "System Battery Cell Power",
@@ -169,7 +184,20 @@ class PdControlQualitySensor(SensorEntity):
     _RMS_HIGH_W = 150.0
     _OSC_LOW_PER_MIN = 1.0
 
-    _STATES = ["disabled", "stable", "oscillating", "sluggish", "battery_limited", "collecting_data"]
+    # The metric only advances while the loop is in control. Past this age the
+    # EMAs describe an old situation, so report "collecting_data" rather than a
+    # stale verdict (5x the 60s metric window).
+    _STALE_AFTER_S = 300.0
+
+    _STATES = [
+        "disabled",
+        "stable",
+        "oscillating",
+        "sluggish",
+        "battery_limited",
+        "blocked",
+        "collecting_data",
+    ]
 
     def __init__(self, controller) -> None:
         """Initialize the sensor."""
@@ -191,10 +219,15 @@ class PdControlQualitySensor(SensorEntity):
         c = self._controller
         if getattr(c, "no_pd_mode_enabled", False):
             return "disabled"  # No-PD direct-tracking mode: PD loop not running
-        if getattr(c, "_pd_limited", False):
+        if getattr(c, "pd_blocked", False):
+            return "blocked"  # charge delay / time slot / price / EV: loop muzzled
+        if getattr(c, "pd_limited", False):
             return "battery_limited"
         rms = c.pd_quality_rms_error
         if rms is None:
+            return "collecting_data"
+        age = getattr(c, "pd_quality_age_s", None)
+        if age is not None and age > self._STALE_AFTER_S:
             return "collecting_data"
         return self._verdict(rms, c.pd_quality_oscillation_per_min)
 
@@ -203,9 +236,11 @@ class PdControlQualitySensor(SensorEntity):
         """Expose the raw RMS error, oscillation rate, and active params/profile."""
         c = self._controller
         rms = c.pd_quality_rms_error
+        age = getattr(c, "pd_quality_age_s", None)
         return {
             "rms_error_w": round(rms) if rms is not None else None,
             "oscillation_per_min": round(c.pd_quality_oscillation_per_min, 2),
+            "metric_age_s": round(age) if age is not None else None,
             "kp": c.kp,
             "kd": c.kd,
             "deadband_w": c.deadband,
@@ -265,6 +300,11 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
         self._daily_source_key = _DAILY_AGGREGATE_SOURCE_KEYS.get(definition["key"])
         self._daily_value: float | None = None
         self._daily_reset_date = dt_util.now().date().isoformat()
+
+        self._last_valid_home_consumption: float | None = None
+        self._last_valid_home_consumption_at = None
+        self._home_consumption_raw_balance: float | None = None
+        self._home_consumption_quality = "unknown"
 
     async def async_added_to_hass(self) -> None:
         """Restore daily aggregates before coordinator callbacks can publish."""
@@ -331,7 +371,11 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
 
         Mirrors the dashboard's per-battery cell-power formula exactly, so the SOC
         card's Charge/Discharge blocks link to a value that matches what they show:
-        ``-ac_power - ac_offgrid_power + sum(MPPT)`` (offgrid only in Backup Mode).
+        ``-ac_power - ac_offgrid_power + DC PV`` (offgrid only in Backup Mode).
+        DC PV is the sum of MPPT channels when available, or the driver's
+        aggregate ``solar_power`` value for verified Anker Solarbank 4 units.
+        AC-derived Anker models do not advertise either capability and therefore
+        contribute no DC PV here.
         ac_power is preferred over the
         unreliable battery_power register; drivers without ac_power (no MPPT, so this
         sensor isn't created for them) fall back to their signed battery_power.
@@ -345,11 +389,33 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
             data = coordinator.data
             ac = data.get("ac_power")
             if ac is not None:
-                mppt = 0.0
-                for mk in ("mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"):
-                    value = data.get(mk)
-                    if value is not None:
-                        mppt += value
+                mppt_values = (
+                    [
+                        data.get(mk)
+                        for mk in (
+                            "mppt1_power",
+                            "mppt2_power",
+                            "mppt3_power",
+                            "mppt4_power",
+                        )
+                        if data.get(mk) is not None
+                    ]
+                    # Coordinators predating the topology setting retain the
+                    # historical MPPT-inclusive calculation. Production Venus
+                    # A/D coordinators set this explicitly from configuration.
+                    if getattr(coordinator, "dc_pv_connected", True)
+                    else []
+                )
+                if mppt_values:
+                    mppt = sum(mppt_values)
+                elif getattr(
+                    getattr(coordinator, "capabilities", None),
+                    "has_solar_telemetry",
+                    False,
+                ):
+                    mppt = data.get("solar_power") or 0.0
+                else:
+                    mppt = 0.0
                 # Off-grid/backup output only draws from the cells in Backup Mode
                 # (inverter_state == 4, grid down). With the grid present it's fed
                 # by passthrough, so counting it would inflate discharge / eat charge.
@@ -547,10 +613,18 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        """Expose the local reset date for safe same-day restoration."""
-        if self._daily_source_key is None:
-            return None
-        return {"reset_date": self._daily_reset_date}
+        """Expose diagnostics for restored daily values and home estimates."""
+        attributes = {}
+        if self._daily_source_key is not None:
+            attributes["reset_date"] = self._daily_reset_date
+
+        if self.definition["key"] == "home_consumption":
+            raw_balance = self._home_consumption_raw_balance
+            if raw_balance is not None:
+                attributes["raw_balance_w"] = raw_balance
+            attributes["balance_quality"] = self._home_consumption_quality
+
+        return attributes or None
 
     def _read_power_w(self, entity_id: str) -> float | None:
         """Read a power entity and return its value in Watts, or None if unusable."""
@@ -574,11 +648,24 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
         """
         data = self.entry.data
 
-        grid_eid = data.get("consumption_sensor")
+        offgrid_active = bool(
+            data.get(CONF_OFFGRID_MODE_ENABLED, False)
+            and data.get(CONF_OFFGRID_POWER_SENSOR)
+        )
+        grid_eid = (
+            data.get(CONF_OFFGRID_POWER_SENSOR)
+            if offgrid_active
+            else data.get("consumption_sensor")
+        )
         grid_w = self._read_power_w(grid_eid) if grid_eid else None
         if grid_w is None:
             return None
-        if data.get(CONF_METER_INVERTED, False):
+        meter_inverted = (
+            data.get(CONF_OFFGRID_METER_INVERTED, False)
+            if offgrid_active
+            else data.get(CONF_METER_INVERTED, False)
+        )
+        if meter_inverted:
             grid_w = -grid_w
         total = grid_w
         for coordinator in self.coordinators:
@@ -600,7 +687,47 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
             if solar_w is not None:
                 total += solar_w
 
-        return round(max(0.0, total))
+        raw_balance = round(total, self.definition.get("precision", 0))
+        self._home_consumption_raw_balance = raw_balance
+
+        # A negative or implausibly small household load is normally caused by
+        # independently polled grid/solar/battery values being sampled at
+        # different instants while the batteries are charging. Keep the last
+        # coherent estimate as a numeric display value instead of turning a
+        # transient mismatch into 0 W or unknown. The consumption tracker has
+        # its own strict validation and will not integrate this held value.
+        if home_balance_is_suspicious(
+            total,
+            battery_charging=has_battery_charging(self.coordinators),
+            last_valid_w=self._last_valid_home_consumption,
+        ):
+            last_value = self._last_valid_home_consumption
+            last_at = self._last_valid_home_consumption_at
+            if last_value is not None and last_at is not None:
+                held_s = (dt_util.utcnow() - last_at).total_seconds()
+                if held_s >= 0:
+                    self._home_consumption_quality = "held_last_valid"
+                    _LOGGER.debug(
+                        "Holding last valid home consumption %.0f W for %.1f s "
+                        "after suspicious balance %.0f W",
+                        last_value,
+                        held_s,
+                        raw_balance,
+                    )
+                    return last_value
+
+            self._home_consumption_quality = "invalid_balance"
+            return None
+
+        value = round(total, self.definition.get("precision", 0))
+        if value <= 0:
+            self._home_consumption_quality = "invalid_balance"
+            return None
+
+        self._last_valid_home_consumption = value
+        self._last_valid_home_consumption_at = dt_util.utcnow()
+        self._home_consumption_quality = "calculated"
+        return value
 
     @property
     def device_info(self):

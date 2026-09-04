@@ -38,6 +38,7 @@ from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import (
     MAX_SENSOR_STALE_S,
     PD_ZERO_CROSS_MIN_HOLD_S,
+    SLOW_SENSOR_RECOVERY_INTERVALS,
     SLOW_SENSOR_WARN_INTERVALS,
 )
 
@@ -177,7 +178,7 @@ def test_unchanged_four_second_reports_do_not_create_slow_sensor_repair(monkeypa
     created, deleted = _capture_repairs(monkeypatch)
     first_report = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
-    for report_number in range(6):
+    for report_number in range(SLOW_SENSOR_RECOVERY_INTERVALS + 1):
         report_time = first_report + timedelta(seconds=4 * report_number)
         state = State(
             "sensor.grid_power",
@@ -221,7 +222,7 @@ def test_identical_publications_are_fresh_health_but_not_new_control_samples(mon
     first_report = datetime(2026, 1, 1, tzinfo=timezone.utc)
     ctrl.previous_power = -700.0
 
-    for report_number in range(6):
+    for report_number in range(SLOW_SENSOR_RECOVERY_INTERVALS + 1):
         report_time = first_report + timedelta(seconds=4 * report_number)
         state = State(
             "sensor.grid_power",
@@ -391,22 +392,65 @@ def test_slow_warning_threshold_is_independent_of_stale_tolerance(caplog, monkey
     assert caplog.text == ""
 
 
-def test_created_repair_is_not_cleared_or_recreated_during_same_run(monkeypatch):
+def test_repair_clears_when_cadence_recovers_in_the_same_run(monkeypatch):
+    """A transient stall must not leave a permanent warning about a fast sensor."""
+    ctrl = _cadence_ctrl()
+    created, deleted = _capture_repairs(monkeypatch)
+
+    for _ in range(SLOW_SENSOR_WARN_INTERVALS):
+        _cadence(ctrl, 12.0)
+    assert len(created) == 1
+
+    for _ in range(SLOW_SENSOR_RECOVERY_INTERVALS):
+        _cadence(ctrl, 3.0)
+
+    assert len(deleted) == 1
+    assert deleted[0][0][2] == "slow_main_sensor_test-entry"
+    assert ctrl._slow_sensor_issue_created is False
+
+
+def test_short_fast_streak_does_not_clear_the_repair(monkeypatch):
+    """Clearing needs the full recovery streak; that asymmetry is the hysteresis."""
     ctrl = _cadence_ctrl()
     created, deleted = _capture_repairs(monkeypatch)
 
     for _ in range(SLOW_SENSOR_WARN_INTERVALS):
         _cadence(ctrl, 60.0)
-    for _ in range(SLOW_SENSOR_WARN_INTERVALS + 3):
+    for _ in range(SLOW_SENSOR_RECOVERY_INTERVALS - 1):
         _cadence(ctrl, 2.0)
 
     assert len(created) == 1
+    assert deleted == []
+    assert ctrl._slow_sensor_issue_created is True
+
+
+def test_repair_is_recreated_when_the_sensor_slows_down_again(monkeypatch):
+    ctrl = _cadence_ctrl()
+    created, deleted = _capture_repairs(monkeypatch)
+
+    for _ in range(SLOW_SENSOR_WARN_INTERVALS):
+        _cadence(ctrl, 60.0)
+    for _ in range(SLOW_SENSOR_RECOVERY_INTERVALS):
+        _cadence(ctrl, 2.0)
     for _ in range(SLOW_SENSOR_WARN_INTERVALS):
         _cadence(ctrl, 60.0)
 
-    assert deleted == []
-    assert len(created) == 1
+    assert len(created) == 2
+    assert len(deleted) == 1
     assert ctrl._slow_sensor_issue_created is True
+
+
+def test_sustained_fast_cadence_clears_and_deletes_only_once(monkeypatch):
+    ctrl = _cadence_ctrl()
+    created, deleted = _capture_repairs(monkeypatch)
+
+    for _ in range(SLOW_SENSOR_WARN_INTERVALS):
+        _cadence(ctrl, 60.0)
+    for _ in range(SLOW_SENSOR_RECOVERY_INTERVALS * 3):
+        _cadence(ctrl, 2.0)
+
+    assert len(created) == 1
+    assert len(deleted) == 1
 
 
 def test_publications_are_counted_while_control_loop_is_busy(monkeypatch):
@@ -443,7 +487,7 @@ def test_persisted_repair_clears_after_fast_startup_cadence(monkeypatch):
     ctrl = _cadence_ctrl()
     created, deleted = _capture_repairs(monkeypatch)
 
-    for _ in range(SLOW_SENSOR_WARN_INTERVALS):
+    for _ in range(SLOW_SENSOR_RECOVERY_INTERVALS):
         _cadence(ctrl, 2.0)
 
     assert created == []

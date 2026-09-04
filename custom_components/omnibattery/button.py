@@ -8,7 +8,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, PREDICTIVE_MODE_DYNAMIC_PRICING
+from .const import (
+    DOMAIN,
+    CONF_ENABLE_PREDICTIVE_CHARGING,
+    PREDICTIVE_MODE_DYNAMIC_PRICING,
+)
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
 from .pricing.engine import DynamicPricingEvaluationHorizon
@@ -34,7 +38,7 @@ async def async_setup_entry(
     # System-level button: re-run the dynamic-pricing predictive evaluation on demand.
     if (
         controller
-        and controller.predictive_charging_enabled
+        and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data
         and controller.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING
     ):
         entities.append(ReevaluateDynamicPricingButton(controller))
@@ -104,4 +108,3 @@ class ReevaluateDynamicPricingButton(ButtonEntity):
             "manufacturer": "Omnibattery",
             "model": "Multi-Battery System",
         }
-

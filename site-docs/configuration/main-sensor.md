@@ -35,26 +35,70 @@ Enable **"Inverted meter sign"** if your sensor uses the opposite convention:
 
 Leave it disabled if you are unsure.
 
+## Off-grid power sensor *(optional)*
+
+You can configure a second W/kW sensor for the backed-up circuit. It must be a
+different entity from the normal grid consumption sensor. Saving it exposes the
+system **Off-grid Meter Mode** switch both as a Home Assistant entity and on the
+dashboard **Controls** tab.
+
+The **Off-grid meter sign inverted** setting is independent from the primary
+meter sign. Enable it when the off-grid sensor reports consumption as negative;
+it applies only while this mode is active.
+
+While the switch is on, Omnibattery uses the second sensor as the source for PD
+and for derived consumption and grid import/export statistics. Turning it off
+returns to the primary sensor. Switching sources breaks the current integration
+interval so a jump between the two meters is not counted as energy.
+Batteries supplying power through their own off-grid port remain excluded from
+PD; the other available batteries use the alternate sensor.
+
+This switch only changes the data source. It does not enable the physical
+off-grid/EPS port, change the battery mode, or write any backup-output setting;
+the user must enable that port separately.
+
 ---
 
 ## Maximum contracted power
 
 The contracted power of your grid connection, in **W** (default `7000`).
 
-The integration caps battery charging so that **projected grid import never exceeds this limit**, preventing the main breaker from tripping. This applies in **every mode** — normal setpoint control, a positive target/offset, hourly net balance and predictive grid charging — not only while charging from the grid on a schedule. It only limits charging; it never forces a discharge.
+The integration caps battery charging so that **projected grid import never exceeds this limit**, preventing the main breaker from tripping. This applies in **every mode** — normal setpoint control, a positive target/offset, hourly net balance and predictive grid charging — not only while charging from the grid on a schedule.
+
+`max_contracted_power` protects the installation in two complementary ways:
+
+- It is a hard ceiling for battery charging in every mode.
+- While a predictive grid-charging slot owns the batteries, it is also the
+  emergency import limit. Omnibattery first stops charging and waits for settled
+  telemetry; if physical import still exceeds the limit, it discharges only the
+  confirmed excess.
+
+This emergency protection does **not** require Capacity Protection/Peak Shaving
+to be enabled. Peak Shaving is a separate optional reserve strategy with its own
+configurable limit. Outside a predictive charging slot, normal PD continues to
+regulate towards its configured grid target. See
+[Household demand during predictive charging](predictive-charging/index.md#household-demand-during-a-charging-slot).
 
 ---
 
-## Solar forecast sensor *(optional)*
+## Solar forecast sensors *(optional)*
 
-Sensor providing today's estimated solar production in **kWh** or **Wh**.
+For new configurations, select the sensor providing the solar production
+**remaining today** in **kWh** or **Wh**. This value is used directly for
+intraday decisions, without subtracting measured production again.
+
+The whole-day forecast field remains available for untouched legacy entries.
+Saving **Remaining Today** replaces and removes that legacy field, resolving the
+transition Repair. Existing installations can continue working until their
+sensor is changed.
 
 Configuring it here makes it available to:
 
 - **Predictive charging** (Time Slot and Dynamic Pricing modes)
 - **Solar charge delay**
 
-You can also leave it blank and configure it later in those specific sections.
+You can also leave it blank and configure it later from the **Sensors** section
+of the integration options.
 
 ---
 
@@ -70,4 +114,33 @@ There is **no household consumption sensor field** in setup — the integration 
 
 **Home consumption = Grid power + Battery AC power + Solar power**
 
-This is the value shown by the energy-flow diagram and the `sensor.marstek_venus_system_home_consumption` sensor, and it feeds the 7-day history used by predictive charging and charge delay. Accumulation runs during the solar+battery window only (outside the configured charging time slot; all day if none); the counter resets at midnight and survives HA restarts.
+This is the value shown by the energy-flow diagram and the `sensor.marstek_venus_system_home_consumption` sensor, and it feeds the 7-day history used by predictive charging and charge delay. Accumulation runs for the full local day, including predictive charging windows; the battery's negative AC power cancels grid energy used to charge it. The counter resets at midnight and survives HA restarts.
+
+Grid, solar and battery telemetry are independent and may not describe exactly
+the same instant. Immediately after a charge command changes, their temporary
+combination can produce an impossible negative or implausibly small home
+balance. The live Home Consumption sensor keeps its last coherent value for up
+to **15 seconds**; if the inputs still disagree, it reports `unknown` instead of
+publishing a false `0 W`. The physical daily-energy accumulator applies its own
+equivalent validation and breaks the integration interval rather than adding a
+fabricated zero. It does not apply predictive external-load exclusions to the
+physical dashboard total.
+
+Fast, coherent grid and battery telemetry shortens these transitions. A brief
+held or `unknown` value during an inverter direction change is therefore a
+data-quality safeguard, not a request for the battery to discharge.
+
+### Forecast total versus solar timeline
+
+The forecast sensor is the energy budget. A `remaining today` sensor is already
+future energy and is never reduced by the local production accumulator. Legacy
+whole-day (`today`) sensors use their dated future periods when available, or
+the remaining part of the solar curve otherwise; measured past production is
+never shifted into later forecast intervals. The
+optional real-time production sensor, and readable battery MPPT channels, are
+used only to learn the intraday shape; they never replace the forecast total.
+
+When enabled, the temporal selection is provider periods, a mature local solar
+profile, then the existing sinusoidal curve. A profile does not predict kWh,
+correct a meteorological forecast, control the inverter, or guarantee output
+during curtailment.

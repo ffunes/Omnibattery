@@ -1,5 +1,9 @@
 # Troubleshooting
 
+## Dynamic Pricing reports a deadline shortfall
+
+Check `deadline_shortfall_kwh`, `earliest_projected_depletion`, `slot_deadlines` and `chronological_plan_reason` on `binary_sensor.omnibattery_predictive_charging_active`. A shortfall means the best physically feasible plan cannot deliver all required energy before the projected minimum-SOC crossing. Common causes are an explicit maximum-price threshold, no eligible slot before the deadline, insufficient charging power, battery headroom or manual/time-slot ownership. A later cheap slot is deliberately not shown as covering an earlier need. The integration continues normal control and never bypasses explicit safety limits.
+
 ## Marstek app compatibility
 
 You do **not** need to make any changes in the Marstek app for the integration to work — including disabling the energy meter setting or changing any configuration. The integration works alongside the app without requiring any app-side adjustments.
@@ -63,6 +67,27 @@ The integration monitors the battery's `Alarm Status` and `Fault Status` registe
 2. Check the `price_data_status` attribute of the `predictive_charging_active` sensor (Dynamic Pricing mode).
 3. Review HA notifications: the 00:05 evaluation reports its result.
 4. Make sure the energy balance actually requires charging (there may already be enough energy).
+
+### The consumption source says `legacy_daily`
+
+This is expected while the 28-day profile is learning or when the requested
+intervals do not meet its coverage contract. Check
+`sensor.omnibattery_expected_home_consumption_profile` and the integration
+diagnostics endpoint. Changing a source or an excluded-load adjustment keeps
+every learned day, and a timezone change re-bins them by the offset between the
+two zones; Recorder backfill then rebuilds whatever is still missing in the
+background. A gap longer than five minutes is not interpolated.
+
+### The solar profile remains immature or falls back
+
+This is safe and expected during the first days. Learning requires direct PV
+power from the configured external sensor or readable MPPT channels, at least
+seven closed quality days, recent coverage and enough evidence in the requested
+future range. Invalid, negative and long-gap samples are excluded. Curtailment
+signals can exclude intervals, and a source or capacity change starts a new
+generation. Check the `solar_profile` diagnostics section and
+`solar_timeline_fallback_reason`; the profile does not repair a bad weather
+forecast or model unobservable curtailment.
 
 ---
 

@@ -133,6 +133,44 @@ def test_predictive_daily_evaluation_expected():
     assert title == "Predictive Charging: Expected today"
 
 
+def test_predictive_remaining_fallback_labels_horizon_and_basis():
+    _, message = notifications.format_predictive_notification_message(
+        _decision(
+            avg_consumption_kwh=12.15,
+            remaining_consumption_kwh=12.15,
+            consumption_scope="remaining_fallback",
+            consumption_forecast_source="legacy_daily",
+            consumption_accumulator_ready=True,
+            solar_forecast_source="remaining_sensor",
+        ),
+        **_CFG,
+    )
+
+    assert "Solar remaining until midnight: 3.00 kWh" in message
+    assert "Home consumption remaining until midnight: 12.15 kWh" in message
+    assert "Basis: temporary daily curve, adjusted with today's consumption" in message
+    assert "7-day avg" not in message
+    assert "Sufficient energy for the rest of today" in message
+
+
+def test_predictive_daily_profile_reports_profile_as_basis():
+    _, message = notifications.format_predictive_notification_message(
+        _decision(
+            avg_consumption_kwh=16.85,
+            consumption_scope="daily_profile",
+            consumption_forecast_source="profile",
+            profile_days=23,
+            solar_forecast_source="remaining_sensor",
+        ),
+        **_CFG,
+    )
+
+    assert "Solar remaining today: 3.00 kWh" in message
+    assert "Expected home consumption today: 16.85 kWh" in message
+    assert "Basis: learned 15-minute profile (23 days)" in message
+    assert "7-day avg" not in message
+
+
 # ----------------------------------------------------------------------
 # format_dynamic_pricing_notification
 # ----------------------------------------------------------------------
@@ -220,17 +258,43 @@ def test_dynamic_remaining_horizon_does_not_label_remainder_as_daily_average():
     _, message = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
-            avg_consumption_kwh=12.15,
+            avg_consumption_kwh=35.52,
             daily_avg_consumption_kwh=17.98,
+            remaining_consumption_kwh=12.15,
             consumption_scope="remaining",
             energy_deficit_kwh=2.0,
         ),
         schedule,
         **_DP_CFG,
     )
-    assert "12.15 kWh remaining until midnight (17.98 kWh 7-day avg)" in message
-    assert "12.15 kWh (7-day avg)" not in message
-    assert "Solar remaining: 3.00 kWh" in message
+    assert "Home consumption remaining until midnight: 12.15 kWh" in message
+    assert "Basis: remaining-day estimate from 7-day daily average" in message
+    assert "17.98 kWh" not in message
+    assert "Solar remaining until midnight: 3.00 kWh" in message
+
+
+def test_dynamic_remaining_profile_scope_is_recognized():
+    schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(
+            should_charge=True,
+            avg_consumption_kwh=11.40,
+            remaining_consumption_kwh=11.40,
+            consumption_scope="remaining_profile",
+            consumption_forecast_source="profile",
+            consumption_accumulator_ready=True,
+            profile_days=21,
+            energy_deficit_kwh=2.0,
+        ),
+        schedule,
+        **_DP_CFG,
+    )
+
+    assert "Solar remaining until midnight: 3.00 kWh" in message
+    assert "Home consumption remaining until midnight: 11.40 kWh" in message
+    assert "Basis: learned 15-minute profile" in message
+    assert "adjusted with today's consumption" not in message
+    assert "7-day avg" not in message
 
 
 # ----------------------------------------------------------------------
@@ -264,6 +328,27 @@ def test_dp_pre_slot_reevaluation():
     assert "confirmed" in title
     assert "0.0900 €/kWh" in message
     assert "Charging will activate" in message
+
+
+def test_dp_pre_slot_reevaluation_recognizes_remaining_fallback():
+    slot = _slots([0.09])[0]
+    _, message = notifications.format_dp_pre_slot_reevaluation_notification(
+        slot,
+        _decision(
+            avg_consumption_kwh=6.25,
+            remaining_consumption_kwh=6.25,
+            consumption_scope="remaining_fallback",
+            consumption_forecast_source="legacy_daily",
+            consumption_accumulator_ready=True,
+            energy_deficit_kwh=1.5,
+        ),
+        unit="€/kWh",
+    )
+
+    assert "Solar remaining until midnight: 3.00 kWh" in message
+    assert "Home consumption remaining until midnight: 6.25 kWh" in message
+    assert "Basis: temporary daily curve, adjusted with today's consumption" in message
+    assert "7-day avg" not in message
 
 
 def test_evening_recharge():

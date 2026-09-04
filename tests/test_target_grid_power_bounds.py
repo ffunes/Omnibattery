@@ -27,6 +27,7 @@ from custom_components.omnibattery.const import (
     CONF_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_TARGET_GRID_POWER,
     DYNAMIC_BOUNDS_SYSTEM_POWER,
+    DYNAMIC_BOUNDS_SYSTEM_POWER_CAP,
     effective_battery_power_limits,
     effective_system_power,
     total_battery_power,
@@ -35,6 +36,12 @@ from custom_components.omnibattery.number import MarstekConfigNumberEntity
 
 TARGET_DEF = next(
     d for d in CONFIG_NUMBER_DEFINITIONS if d["key"] == CONF_TARGET_GRID_POWER
+)
+SYSTEM_CHARGE_CAP_DEF = next(
+    d for d in CONFIG_NUMBER_DEFINITIONS if d["key"] == CONF_SYSTEM_MAX_CHARGE_POWER
+)
+SYSTEM_DISCHARGE_CAP_DEF = next(
+    d for d in CONFIG_NUMBER_DEFINITIONS if d["key"] == CONF_SYSTEM_MAX_DISCHARGE_POWER
 )
 STATIC_MIN, STATIC_MAX = TARGET_DEF["min"], TARGET_DEF["max"]
 
@@ -57,6 +64,19 @@ def _bounds(data, definition=TARGET_DEF):
 def test_bounds_scale_with_battery_count():
     """The headline case: three Venus E v3 reach +/-7500 W, not +/-2500 W."""
     assert _bounds({"batteries": [_bat(2500, 2500)] * 3}) == (-7500, 7500)
+
+
+def test_bounds_scale_to_ten_batteries():
+    """Ten 2500 W batteries expose the full aggregate +/-25000 W range."""
+    assert _bounds({"batteries": [_bat(2500, 2500)] * 10}) == (-25000, 25000)
+
+
+def test_system_cap_bounds_follow_configured_directional_totals():
+    """System cap sliders use the configured battery ceilings, not 2500 W."""
+    data = {"batteries": [_bat(4000, 3500), _bat(2500, 4000)]}
+
+    assert _bounds(data, SYSTEM_CHARGE_CAP_DEF) == (0, 6500)
+    assert _bounds(data, SYSTEM_DISCHARGE_CAP_DEF) == (0, 7500)
 
 
 def test_single_battery_matches_legacy_range():
@@ -205,10 +225,21 @@ def test_other_config_numbers_keep_their_authored_bounds(definition):
     assert _bounds(data, definition) == (definition["min"], definition["max"])
 
 
-def test_only_the_grid_target_is_marked_dynamic():
+def test_dynamic_power_bounds_are_marked_for_target_and_system_caps():
     marked = [d for d in CONFIG_NUMBER_DEFINITIONS if d.get("dynamic_bounds")]
-    assert [d["key"] for d in marked] == [CONF_TARGET_GRID_POWER]
-    assert marked[0]["dynamic_bounds"] == DYNAMIC_BOUNDS_SYSTEM_POWER
+    assert {d["key"] for d in marked} == {
+        CONF_TARGET_GRID_POWER,
+        CONF_SYSTEM_MAX_CHARGE_POWER,
+        CONF_SYSTEM_MAX_DISCHARGE_POWER,
+    }
+    assert TARGET_DEF["dynamic_bounds"] == DYNAMIC_BOUNDS_SYSTEM_POWER
+    assert (
+        SYSTEM_CHARGE_CAP_DEF["dynamic_bounds"] == DYNAMIC_BOUNDS_SYSTEM_POWER_CAP
+    )
+    assert (
+        SYSTEM_DISCHARGE_CAP_DEF["dynamic_bounds"]
+        == DYNAMIC_BOUNDS_SYSTEM_POWER_CAP
+    )
 
 
 def test_effective_power_is_the_battery_sum_then_the_cap():

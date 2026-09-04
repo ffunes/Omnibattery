@@ -328,6 +328,22 @@ def test_opportunity_target_stays_authoritative_during_weekly_full_charge():
     assert (ceiling, source) == (90.0, "predictive_target")
 
 
+def test_normal_predictive_target_stays_authoritative_during_weekly_full_charge():
+    """Weekly full charge permits solar top-up, never extra grid charging."""
+    battery = _Battery("b1", 20, 10, max_soc=95)
+    ctrl = SimpleNamespace(
+        grid_charging_active=True,
+        _active_dynamic_slot_purpose=SLOT_PURPOSE_DEFICIT,
+        _predictive_charge_target_soc={battery: 30.0},
+    )
+
+    ceiling, source = ChargeDischargeController._effective_charge_max_soc(
+        ctrl, battery, weekly_100_unlocked=True
+    )
+
+    assert (ceiling, source) == (30.0, "predictive_target")
+
+
 def test_unavailable_battery_does_not_create_opportunistic_energy():
     battery = _Battery("offline", 10, 10, available=False)
     ctrl = _controller([battery])
@@ -623,6 +639,97 @@ def _prepare_runtime_manager(
     manager._is_dp_soc_drop_reeval = lambda: False
     manager._get_current_price = lambda: slot.price
     return manager
+
+
+def test_demand_protection_keeps_slot_owned_by_predictive_controller():
+    battery = _Battery("b1", 30, 10)
+    ctrl = _controller([battery])
+    now = datetime.now()
+    slot = PriceSlot(now - timedelta(minutes=10), now + timedelta(minutes=50), 0.10)
+    state_holder = {"state": SimpleNamespace(state="1900")}
+    ctrl._dynamic_pricing_schedule = _schedule(
+        [slot], {slot: SLOT_PURPOSE_DEFICIT}, deficit_needed=True
+    )
+    ctrl._dynamic_pricing_evaluated_date = now.date()
+    ctrl._dp_evening_reevaluated_date = now.date()
+    ctrl._current_price_slot_active = True
+    ctrl._active_dynamic_slot_purpose = SLOT_PURPOSE_DEFICIT
+    ctrl._predictive_charge_suspended_for_demand = True
+    ctrl.grid_charging_active = True
+    ctrl.consumption_sensor = "sensor.grid"
+    ctrl._apply_meter_transform = lambda state: float(state.state)
+    ctrl.deadband = 40.0
+    ctrl.max_contracted_power = 2000.0
+
+    calls = []
+
+    async def handle_predictive():
+        calls.append("predictive")
+
+    ctrl._handle_predictive_grid_charging = handle_predictive
+    manager = PricingManager(
+        SimpleNamespace(
+            states=SimpleNamespace(get=lambda _entity_id: state_holder["state"])
+        ),
+        ctrl,
+    )
+    manager._maybe_refresh_service_prices = _noop
+    manager._check_dp_pre_slot_reevaluation = _noop
+    manager._is_evening_reevaluation_time = lambda: False
+    manager._is_dp_soc_drop_reeval = lambda: False
+
+    # PricingManager no longer makes a handoff decision from one meter value.
+    # It delegates the settling/hysteresis state to the controller and preserves
+    # the physical price slot.
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert ctrl._predictive_charge_suspended_for_demand is True
+    assert ctrl._current_price_slot_active is True
+    assert ctrl.grid_charging_active is True
+    assert calls == ["predictive"]
+
+    # Further samples stay in the same slot; the actual controller owns the
+    # two-sample recovery check, not the pricing schedule.
+    state_holder["state"] = SimpleNamespace(state="1700")
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert ctrl._predictive_charge_suspended_for_demand is True
+    assert ctrl._current_price_slot_active is True
+    assert ctrl.grid_charging_active is True
+    assert calls == ["predictive", "predictive"]
+
+
+def test_predictive_shortfall_uses_live_soc_and_preserves_diagnostic():
+    battery = _Battery("b1", 40, 10)
+    ctrl = _controller([battery])
+    ctrl._predictive_charge_target_soc = {battery: 60.0}
+    manager = PricingManager(SimpleNamespace(), ctrl)
+
+    missing = manager._record_predictive_shortfall("realtime_price")
+
+    assert missing == pytest.approx(2.0)
+    assert ctrl._predictive_charge_target_soc is None
+    assert ctrl._last_decision_data["predictive_shortfall_kwh"] == 2.0
+    assert ctrl._last_decision_data["deadline_shortfall_kwh"] == 2.0
+    assert ctrl._last_decision_data["shortfall_mode"] == "realtime_price"
+
+
+def test_safety_discharge_bypasses_only_economic_blockers():
+    battery = _Battery("b1", 40, 10)
+    ctrl = SimpleNamespace(
+        _global_discharge_blockers={"price_discharge": {"reason": "cheap"}},
+        _battery_discharge_blockers={battery: {}},
+        _capacity_protection_overrides_curtailment=lambda: False,
+    )
+    ctrl.is_discharge_blocked = ChargeDischargeController.is_discharge_blocked.__get__(
+        ctrl, ChargeDischargeController
+    )
+
+    assert ctrl.is_discharge_blocked(battery) is True
+    assert ctrl.is_discharge_blocked(battery, ignore_economic=True) is False
+
+    ctrl._battery_discharge_blockers[battery]["minimum_soc"] = {
+        "reason": "reserve"
+    }
+    assert ctrl.is_discharge_blocked(battery, ignore_economic=True) is True
 
 
 def test_reaching_target_stops_inside_slot_prunes_future_and_does_not_resume():

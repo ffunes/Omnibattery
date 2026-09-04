@@ -47,13 +47,18 @@ def clock(monkeypatch):
     return now
 
 
-def _ctrl(forecast_state, sensor="sensor.solar_forecast_today"):
+def _ctrl(
+    forecast_state,
+    sensor="sensor.solar_forecast_today",
+    remaining_sensor=None,
+):
     """Controller stand-in exposing only what the health check reads."""
     state = None if forecast_state is None else SimpleNamespace(state=forecast_state)
     return SimpleNamespace(
         hass=SimpleNamespace(states=SimpleNamespace(get=lambda _eid: state)),
         config_entry=SimpleNamespace(entry_id="abc123"),
         solar_forecast_sensor=sensor,
+        solar_forecast_remaining_sensor=remaining_sensor,
         _solar_forecast_bad_since=None,
         _solar_forecast_issue_created=False,
         _solar_forecast_issue_cleared=False,
@@ -62,6 +67,10 @@ def _ctrl(forecast_state, sensor="sensor.solar_forecast_today"):
 
 def _check(ctrl):
     ChargeDischargeController._check_solar_forecast_health(ctrl)
+
+
+def _check_migration(ctrl):
+    ChargeDischargeController._check_solar_forecast_migration(ctrl)
 
 
 def test_readable_forecast_raises_nothing(issues, clock):
@@ -123,3 +132,41 @@ def test_unconfigured_sensor_is_not_a_defect(issues, clock):
     assert issues.created == []
     # A persistent issue from a run where the sensor WAS configured still clears.
     assert issues.deleted == ["solar_forecast_unusable_abc123"]
+
+
+def test_legacy_forecast_creates_one_migration_repair(issues):
+    ctrl = _ctrl("18.4")
+
+    _check_migration(ctrl)
+    _check_migration(ctrl)
+
+    assert len(issues.created) == 1
+    issue_id, kwargs = issues.created[0]
+    assert issue_id == "solar_forecast_remaining_recommended_abc123"
+    assert kwargs["translation_key"] == "solar_forecast_remaining_recommended"
+    assert kwargs["translation_placeholders"] == {
+        "sensor": "sensor.solar_forecast_today"
+    }
+    assert kwargs["is_fixable"] is False
+    assert kwargs["is_persistent"] is True
+
+
+def test_migration_repair_clears_when_remaining_forecast_is_configured(issues):
+    ctrl = _ctrl("18.4")
+    _check_migration(ctrl)
+
+    ctrl.solar_forecast_remaining_sensor = "sensor.solar_forecast_remaining"
+    _check_migration(ctrl)
+
+    assert issues.deleted == ["solar_forecast_remaining_recommended_abc123"]
+    assert ctrl._solar_forecast_migration_issue_created is False
+
+
+def test_migration_repair_clears_when_legacy_forecast_is_removed(issues):
+    ctrl = _ctrl("18.4")
+    _check_migration(ctrl)
+
+    ctrl.solar_forecast_sensor = None
+    _check_migration(ctrl)
+
+    assert issues.deleted == ["solar_forecast_remaining_recommended_abc123"]

@@ -52,6 +52,7 @@ subpaquetes por responsabilidad.
 | `infra/entity_naming.py` | — | IDs de entidad basados en translation-key y migraciones del registro |
 | `const/` | — | Definiciones de todos los registros Modbus y entidades (divididas por versión de batería) |
 | `pricing/engine.py` | — | Carga predictiva: precio dinámico, franja horaria, precio en tiempo real, SOC garantizado |
+| `pricing/chronological.py` | — | Simulación energética pura de 15 minutos, plazos acumulados y asignación de slots; sin Home Assistant ni E/S de dispositivos |
 | `control/power_distribution.py` | — | Reparte el setpoint del sistema entre las baterías activas |
 | `control/charge_delay.py` | — | Retraso de carga solar |
 | `control/max_soc_charge.py` | — | Reducción por voltaje al 100 % / protección de tope de carga |
@@ -142,3 +143,33 @@ Coordinador → driver.read_telemetry → Actualización de entidades
 | `medium` | 5 s | Tensión, corriente, temperatura |
 | `low` | 30 s | Energía acumulada, alarmas |
 | `very_low` | 600 s | Info de dispositivo, firmware |
+
+## Perfil de consumo
+
+`tracking/consumption_profile.py` posee el Store independiente
+`omnibattery.<entry_id>.consumption_profile`. Captura continuamente la potencia
+corregida del hogar en arrays crudos de energía y cobertura por fecha local y 96
+intervalos, y solo construye la previsión al consultarla. El backfill del
+Recorder se ejecuta en segundo plano y nunca bloquea el arranque ni el control de
+las baterías. El tracker rechaza muestras inválidas, aísla días corruptos,
+gestiona los cambios DST locales e invalida el perfil cuando cambia la huella de
+su fuente o configuración.
+
+Todos los consumidores usan el mismo contrato: datos del perfil maduro para el
+rango solicitado o un fallback heredado explícito. La captura nunca aplica
+franjas de carga, y las previsiones de demanda tampoco: esas franjas programan
+la carga de la batería desde la red, no el funcionamiento del hogar. Así la misma señal sirve a la carga predictiva diaria, el Retraso de
+Carga Solar y Precio Dinámico sin acoplar sus decisiones de ejecución.
+
+## Perfil temporal solar
+
+`tracking/solar_profile.py` guarda energía FV directa, cobertura y flags de
+calidad compactos en `omnibattery.<entry_id>.solar_profile`. Aprende una forma
+normalizada sobre el progreso de la ventana solar, con retención limitada a 42
+días y fingerprint/generación aislados. Nunca aprende del balance de red, la
+exportación, la previsión meteorológica ni del sensor diario redondeado.
+
+`pricing/solar_timeline.py` valida periodos fechados, mapea bins de progreso,
+construye el fallback sinusoidal y aplica el presupuesto restante una sola vez.
+`pricing/chronological.py` sigue recibiendo solo `EnergyInterval` terminados y
+no depende de Home Assistant.

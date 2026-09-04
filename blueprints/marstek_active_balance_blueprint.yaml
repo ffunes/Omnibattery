@@ -132,7 +132,7 @@ blueprint:
 
     charge_stop_voltage_v:
       name: "Charge-stop voltage"
-      description: "Upper voltage at which charging stops and the settled cell delta is measured."
+      description: "Upper voltage at which charging stops and the settled cell delta is measured. A confirmed BMS rejection in the upper window uses the same measurement path below this voltage."
       default: 3.60
       selector:
         number:
@@ -916,7 +916,16 @@ action:
                                              states(max_cell_voltage) | float(3.49) - adaptive_resume_step_v | float(0.01)
                                            ] | min
                                          ] | max | round(3) }}
-                                    phase: "DISCHARGE"
+                                    # A confirmed refusal in the upper window is
+                                    # the BMS-owned equivalent of reaching 3.60 V.
+                                    # Settle and publish that reading before the
+                                    # adaptive discharge; refusals below the window
+                                    # remain retry diagnostics and are not recorded.
+                                    phase: >-
+                                      {{ 'WAIT_MEASURE'
+                                         if is_number(states(max_cell_voltage))
+                                            and (states(max_cell_voltage) | float(0)) >= (top_zone_voltage_v | float(3.49))
+                                         else 'DISCHARGE' }}
 
                     - alias: "WAIT_MEASURE"
                       conditions:

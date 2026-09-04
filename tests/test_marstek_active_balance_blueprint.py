@@ -10,6 +10,7 @@ import pytest
 import yaml
 from homeassistant.components.blueprint.schemas import BLUEPRINT_SCHEMA
 from homeassistant.util import yaml as yaml_util
+from jinja2 import Environment
 
 from custom_components.omnibattery import _async_migrate_legacy_active_balance
 from custom_components.omnibattery.const.registers_v2 import SELECT_DEFINITIONS
@@ -56,6 +57,16 @@ def _event_actions(node):
     elif isinstance(node, list):
         for value in node:
             yield from _event_actions(value)
+
+
+def _dict_nodes(node):
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from _dict_nodes(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _dict_nodes(value)
 
 
 def _force_mode_options(definitions: list[dict]) -> dict:
@@ -220,6 +231,36 @@ def test_blueprint_publishes_each_settled_measurement_to_omnibattery():
         },
     }]
     assert "measurement_index: 0" in raw
+
+
+def test_blueprint_measures_confirmed_bms_cutoff_in_the_top_window():
+    blueprint, _ = _load_blueprint()
+    rejection_branch = next(
+        node
+        for node in _dict_nodes(blueprint["action"])
+        if "rejection_count | int(0) >= rejection_samples"
+        in str(node.get("conditions"))
+    )
+
+    transition = rejection_branch["sequence"][0]["variables"]
+    assert "retry_voltage" in transition
+    assert "'WAIT_MEASURE'" in transition["phase"]
+    assert "top_zone_voltage_v" in transition["phase"]
+    assert "'DISCHARGE'" in transition["phase"]
+
+    phase_template = Environment().from_string(transition["phase"])
+
+    def render_phase(vmax: float) -> str:
+        return phase_template.render(
+            is_number=lambda value: isinstance(value, (int, float)),
+            states=lambda _entity: vmax,
+            max_cell_voltage="sensor.max_cell_voltage",
+            top_zone_voltage_v=3.49,
+        ).strip()
+
+    assert render_phase(3.58) == "WAIT_MEASURE"
+    assert render_phase(3.49) == "WAIT_MEASURE"
+    assert render_phase(3.48) == "DISCHARGE"
 
 
 def _migration_hass():
