@@ -887,9 +887,12 @@ class PricingManager:
             # asks for a short horizon (the solar window), which legitimately
             # empties after sunset. Restore the status so the import diagnostic
             # does not flap to "no_future_slots" on a healthy price feed.
+            # Only that one artifact is restored: an unavailable sensor or a
+            # bad payload is a real fault the health check must still see.
             previous_status = getattr(controller, "_price_data_status", None)
             slots = self.get_future_price_slots(horizon_end)
-            controller._price_data_status = previous_status
+            if getattr(controller, "_price_data_status", None) == "no_future_slots":
+                controller._price_data_status = previous_status
             return slots
         integration_type = (
             getattr(controller, "export_price_integration_type", None)
@@ -899,16 +902,6 @@ class PricingManager:
             entity_id, integration_type, quiet=True
         )
         return self._filter_future_slots(raw_slots, horizon_end)
-
-    def _get_current_export_price(self) -> Optional[float]:
-        """Return the export price for the slot containing now, if known."""
-        if not getattr(self._controller, "export_price_sensor", None):
-            return self._get_current_price()
-        now = datetime.now()
-        for slot in self.get_future_export_price_slots():
-            if slot.start <= now < slot.end:
-                return float(slot.price)
-        return None
 
     def _parse_sensor_price_slots(
         self, entity_id: str, integration_type: str, *, quiet: bool = False

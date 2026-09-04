@@ -85,7 +85,7 @@ const I18N = {
     diagTitle: "Integration status",
     diagIntegration: "Integration", diagPhaseProtection: "Phase protection", diagPdState: "PD state", diagNetBalance: "Net balance", diagAlarm: "Alarm",
     diagActiveBatteries: "Active batteries", diagNonResponsive: "No response",
-    diagDischargeWindow: "Discharge window", diagPredictive: "Predictive charging", diagCurtailment: "Smart pre-discharge",
+    diagDischargeWindow: "Discharge window", diagPredictive: "Predictive charging", diagCurtailment: "Smart pre-discharge", diagSurplusHold: "Surplus price hold",
     diagPeak: "Peak shaving", diagWeeklyCharge: "Weekly charge", diagChargeDelay: "Charge delay",
     nResponsive: "{n} no response", none: "None",
     noBatteriesTitle: "No batteries",
@@ -171,7 +171,7 @@ const I18N = {
     diagTitle: "Estado de la integración",
     diagIntegration: "Integración", diagPhaseProtection: "Protección trifásica", diagPdState: "Estado PD", diagNetBalance: "Balance neto", diagAlarm: "Alarma",
     diagActiveBatteries: "Baterías activas", diagNonResponsive: "Sin respuesta",
-    diagDischargeWindow: "Ventana de descarga", diagPredictive: "Carga predictiva", diagCurtailment: "Predescarga inteligente",
+    diagDischargeWindow: "Ventana de descarga", diagPredictive: "Carga predictiva", diagCurtailment: "Predescarga inteligente", diagSurplusHold: "Retención de excedente por precio",
     diagPeak: "Reducción de picos", diagWeeklyCharge: "Carga semanal", diagChargeDelay: "Retardo de carga",
     nResponsive: "{n} sin respuesta", none: "Ninguna",
     noBatteriesTitle: "Sin baterías",
@@ -257,7 +257,7 @@ const I18N = {
     diagTitle: "Estat de la integració",
     diagIntegration: "Integració", diagPhaseProtection: "Protecció trifàsica", diagPdState: "Estat PD", diagNetBalance: "Balanç net", diagAlarm: "Alarma",
     diagActiveBatteries: "Bateries actives", diagNonResponsive: "Sense resposta",
-    diagDischargeWindow: "Finestra de descàrrega", diagPredictive: "Càrrega predictiva", diagCurtailment: "Predescàrrega intel·ligent",
+    diagDischargeWindow: "Finestra de descàrrega", diagPredictive: "Càrrega predictiva", diagCurtailment: "Predescàrrega intel·ligent", diagSurplusHold: "Retenció d'excedent per preu",
     diagPeak: "Reducció de pics", diagWeeklyCharge: "Càrrega setmanal", diagChargeDelay: "Retard de càrrega",
     nResponsive: "{n} sense resposta", none: "Cap",
     noBatteriesTitle: "Sense bateries",
@@ -339,7 +339,7 @@ const I18N = {
     diagTitle: "Integrationsstatus",
     diagIntegration: "Integration", diagPhaseProtection: "Phasenschutz", diagPdState: "PD-Status", diagNetBalance: "Netto-Balance", diagAlarm: "Alarm",
     diagActiveBatteries: "Aktive Batterien", diagNonResponsive: "Keine Antwort",
-    diagDischargeWindow: "Entladefenster", diagPredictive: "Prädiktives Laden", diagCurtailment: "Intelligente Vorentladung",
+    diagDischargeWindow: "Entladefenster", diagPredictive: "Prädiktives Laden", diagCurtailment: "Intelligente Vorentladung", diagSurplusHold: "Preisbremse Solarüberschuss",
     diagPeak: "Spitzenlastkappung", diagWeeklyCharge: "Wöchentliche Ladung", diagChargeDelay: "Ladeverzögerung",
     nResponsive: "{n} ohne Antwort", none: "Keine",
     noBatteriesTitle: "Keine Batterien",
@@ -421,7 +421,7 @@ const I18N = {
     diagTitle: "État de l'intégration",
     diagIntegration: "Intégration", diagPhaseProtection: "Protection de phase", diagPdState: "État PD", diagNetBalance: "Bilan net", diagAlarm: "Alarme",
     diagActiveBatteries: "Batteries actives", diagNonResponsive: "Sans réponse",
-    diagDischargeWindow: "Fenêtre de décharge", diagPredictive: "Charge prédictive", diagCurtailment: "Pré-décharge intelligente",
+    diagDischargeWindow: "Fenêtre de décharge", diagPredictive: "Charge prédictive", diagCurtailment: "Pré-décharge intelligente", diagSurplusHold: "Retenue de surplus selon le prix",
     diagPeak: "Écrêtement de pointe", diagWeeklyCharge: "Charge hebdomadaire", diagChargeDelay: "Délai de charge",
     nResponsive: "{n} sans réponse", none: "Aucune",
     noBatteriesTitle: "Aucune batterie",
@@ -503,7 +503,7 @@ const I18N = {
     diagTitle: "Integratiestatus",
     diagIntegration: "Integratie", diagPhaseProtection: "Fasebeveiliging", diagPdState: "PD-status", diagNetBalance: "Nettosaldo", diagAlarm: "Alarm",
     diagActiveBatteries: "Actieve batterijen", diagNonResponsive: "Geen reactie",
-    diagDischargeWindow: "Ontlaadvenster", diagPredictive: "Voorspellend laden", diagCurtailment: "Slim voorontladen",
+    diagDischargeWindow: "Ontlaadvenster", diagPredictive: "Voorspellend laden", diagCurtailment: "Slim voorontladen", diagSurplusHold: "Prijsrem zonne-overschot",
     diagPeak: "Piekbegrenzing", diagWeeklyCharge: "Wekelijkse lading", diagChargeDelay: "Laadvertraging",
     nResponsive: "{n} geen reactie", none: "Geen",
     noBatteriesTitle: "Geen batterijen",
@@ -885,6 +885,7 @@ const K = {
   // diagnostic-category entities of the "Marstek Venus System" device
   predictiveActive: "predictive_charging_active",
   curtailmentActive: "curtailment_status",
+  surplusHold: "surplus_price_hold_status",
   capacityActive: "capacity_protection_active",
   weeklyFullCharge: "weekly_full_charge",
   chargeDelay: "charge_delay_status",
@@ -905,6 +906,7 @@ const DIAG_ROWS = [
   { key: K.dischargeWindow, lk: "diagDischargeWindow" },
   { key: K.predictiveActive, lk: "diagPredictive" },
   { key: K.curtailmentActive, lk: "diagCurtailment" },
+  { key: K.surplusHold, lk: "diagSurplusHold" },
   { key: K.chargeDelay, lk: "diagChargeDelay" },
   { key: K.weeklyFullCharge, lk: "diagWeeklyCharge" },
   { key: K.capacityActive, lk: "diagPeak" },
@@ -1126,6 +1128,7 @@ const SYS_SECTIONS = [
       { key: "predischarge_reserve_soc", lk: "itemPredischargeReserve", icon: "mdi:battery-lock" },
       { key: "predischarge_max_export_power_w", lk: "itemPredischargeExport", icon: "mdi:transmission-tower-export" },
       { key: "curtailment_status", domain: "binary_sensor", lk: "diagCurtailment", icon: "mdi:solar-power-variant" },
+      { key: "surplus_price_hold_status", domain: "binary_sensor", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export" },
       // Dynamic-pricing only (system button exists solely in that mode), so on
       // time-slot / real-time installs this row simply doesn't render.
       { key: "reevaluate_dynamic_pricing", domain: "button", lk: "itemReevaluatePrices", icon: "mdi:calendar-refresh" },
@@ -1247,6 +1250,7 @@ const SYS_HELP = {
     predischarge_reserve_soc: "Additional SOC floor for pre-discharge. 0 uses each battery's existing minimum and guaranteed SOC floors.",
     predischarge_max_export_power_w: "Maximum deliberate grid export during pre-discharge. 0 W means self-consumption only; the planner never controls the PV inverter.",
     curtailment_status: "Live plan diagnostics: risk windows, current/required headroom, selected expensive slots, targets and any shortfall or fail-safe reason.",
+    surplus_price_hold_status: "On while PV surplus is deliberately exported instead of stored, because a cheaper feed-in window is still ahead. Attributes show the day's absorption target, the selected cheap slots and the release reason.",
     diagChargeDelay: "Delays battery charging until the solar energy balance indicates it's needed, exporting excess solar to grid in the meantime.",
     secHourly: "Tracks grid import/export per hour and automatically adjusts the battery setpoint to achieve a target net energy balance.\n\n⚠️ Only useful in Spain, under the hourly surplus-compensation scheme (RD 244/2019), where grid surplus is settled hour by hour. In feed-in-tariff or annual-net-metering markets it provides no benefit and may cause lost export revenue and unnecessary battery cycling.",
     diagPeak: "When enabled, if battery SOC drops below a threshold, the system conserves energy by only discharging to offset consumption above a peak limit.",
@@ -4656,6 +4660,7 @@ class MarstekVenusPanel extends HTMLElement {
         };
       case K.predictiveActive:
       case K.curtailmentActive:
+      case K.surplusHold:
       case K.capacityActive:
         return { text: disp, tone: raw === "on" ? "good" : "neutral" };
       case K.dischargeWindow: {

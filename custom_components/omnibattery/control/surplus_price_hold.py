@@ -37,6 +37,7 @@ from ..pricing.surplus_absorption import (
     STATUS_DISABLED,
     calculate_absorption_target_kwh,
     calculate_free_space_kwh,
+    calculate_usable_energy_kwh,
     hold_decision,
     plan_surplus_absorption,
 )
@@ -234,7 +235,11 @@ class SurplusPriceHoldManager:
                 surplus_by_slot,
                 snapshots,
                 remaining_consumption_kwh=decision.get("remaining_consumption_kwh"),
-                usable_energy_kwh=decision.get("usable_energy_kwh"),
+                # Deliberately not decision["usable_energy_kwh"]: that one
+                # counts every coordinator against min_soc, while the live
+                # target counts eligible batteries against their floors. Two
+                # definitions would make the live target unreachable.
+                usable_energy_kwh=calculate_usable_energy_kwh(snapshots),
                 safety_margin_kwh=float(
                     getattr(controller, "_predictive_safety_margin_kwh", 0.0) or 0.0
                 ),
@@ -303,30 +308,12 @@ class SurplusPriceHoldManager:
         self._live_target_failed = False
         self._live_target_kwh = calculate_absorption_target_kwh(
             self._planned_remaining_consumption_kwh,
-            self._usable_energy_kwh(snapshots),
+            calculate_usable_energy_kwh(snapshots),
             calculate_free_space_kwh(snapshots),
             float(getattr(self._controller, "_predictive_safety_margin_kwh", 0.0) or 0.0),
         )
         if self._live_target_kwh is None:
             self._live_target_failed = True
-
-    @staticmethod
-    def _usable_energy_kwh(snapshots) -> float:
-        """Return the energy the eligible batteries hold above their floors."""
-        total = 0.0
-        for snapshot in snapshots:
-            if not getattr(snapshot, "eligible", False):
-                continue
-            try:
-                total += max(
-                    0.0,
-                    (snapshot.soc_pct - snapshot.floor_soc_pct)
-                    / 100.0
-                    * snapshot.capacity_kwh,
-                )
-            except (AttributeError, TypeError, ValueError):
-                continue
-        return total
 
     def _solar_deadline(self, now: datetime) -> datetime | None:
         """Return the moment PV production is expected to end today.
@@ -395,31 +382,21 @@ class SurplusPriceHoldManager:
     ) -> float:
         """Return the part of the remaining load expected before sunset.
 
-        Uses the consumption tracker's own window model where available, so a
-        household whose load is concentrated in the evening is not credited with
-        daytime consumption it will not have.
+        Spread uniformly over the hours left in the day. The consumption
+        tracker has no load-shape model to weight this with -- its window
+        helper returns the plain hour count -- so an evening-heavy household is
+        credited with more daytime load than it will have, which understates
+        the per-slot surplus and biases the plan toward releasing.
         """
         if deadline is None or remaining_load_kwh <= 0:
             return max(0.0, remaining_load_kwh)
         now_h = now.hour + now.minute / 60.0 + now.second / 3600.0
-        end_h = min(24.0, deadline.hour + deadline.minute / 60.0)
+        # From the delta to midnight, not from deadline.hour: a deadline of
+        # tomorrow 00:00 reads as hour 0 and would zero the daylight load.
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        end_h = min(24.0, 24.0 - (midnight - deadline).total_seconds() / 3600.0)
         if end_h <= now_h:
             return 0.0
-
-        tracker = getattr(self._controller, "_consumption_tracker", None)
-        in_range = getattr(tracker, "consumption_window_hours_in_range", None)
-        if callable(in_range):
-            try:
-                until_midnight = float(in_range(now_h, 24.0))
-                until_sunset = float(in_range(now_h, end_h))
-                if until_midnight > 0:
-                    return remaining_load_kwh * max(
-                        0.0, min(1.0, until_sunset / until_midnight)
-                    )
-            except (TypeError, ValueError):
-                pass
-
-        # No window model: fall back to the plain share of the remaining hours.
         return remaining_load_kwh * (end_h - now_h) / (24.0 - now_h)
 
     def _release_guard(self) -> str | None:
@@ -483,7 +460,7 @@ class SurplusPriceHoldManager:
         # EV pause already blocks charging; a second blocker only muddies the
         # status the user reads.
         try:
-            if BLOCKER_SOURCE != "ev_pause" and "ev_pause" in controller.get_charge_blockers():
+            if "ev_pause" in controller.get_charge_blockers():
                 return GUARD_EV_PAUSE
         except (AttributeError, TypeError):
             pass

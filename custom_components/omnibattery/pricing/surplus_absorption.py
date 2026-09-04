@@ -170,6 +170,24 @@ def calculate_free_space_kwh(batteries: Sequence[BatterySnapshot]) -> float:
     return total
 
 
+def calculate_usable_energy_kwh(batteries: Sequence[BatterySnapshot]) -> float:
+    """Return the energy the eligible batteries hold above their floors.
+
+    The plan target and the live target must measure the same energy, or the
+    live target lands above what the plan bought slots for and every cycle
+    after a rebuild reports a shortfall.  Both sides call this.
+    """
+    total = 0.0
+    for snapshot in batteries:
+        if not _usable_battery(snapshot):
+            continue
+        total += max(
+            0.0,
+            (snapshot.soc_pct - snapshot.floor_soc_pct) / 100.0 * snapshot.capacity_kwh,
+        )
+    return total
+
+
 def _usable_battery(snapshot: BatterySnapshot) -> bool:
     return (
         getattr(snapshot, "eligible", False)
@@ -308,9 +326,17 @@ def plan_surplus_absorption(
     if plan.absorbable_total_kwh + EPSILON < target_kwh:
         # Even taking every remaining kWh of surplus falls short.  Absorb
         # everything: holding could only make the shortfall worse.
-        plan.selected_slots = [
-            slot for slot in absorption_slots if slot.absorbable_kwh > EPSILON
+        plan.slots = [
+            AbsorptionSlot(
+                start=slot.start,
+                end=slot.end,
+                export_price=slot.export_price,
+                expected_surplus_kwh=slot.expected_surplus_kwh,
+                selected=slot.absorbable_kwh > EPSILON,
+            )
+            for slot in absorption_slots
         ]
+        plan.selected_slots = [slot for slot in plan.slots if slot.selected]
         plan.status, plan.reason = STATUS_INFEASIBLE, "surplus_below_target"
         return plan
 

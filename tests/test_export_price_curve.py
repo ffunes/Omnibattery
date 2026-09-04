@@ -171,16 +171,6 @@ def test_export_curve_uses_the_import_provider_type_when_unset():
     assert {slot.price for slot in slots} == {0.05}
 
 
-def test_current_export_price_uses_the_export_curve():
-    states = {
-        IMPORT_SENSOR: SimpleNamespace(state="0.30", attributes=_raw_today([0.30, 0.30])),
-        EXPORT_SENSOR: SimpleNamespace(state="0.10", attributes=_raw_today([0.10, 0.10])),
-    }
-    manager = PricingManager(_hass(states), _controller(export_price_sensor=EXPORT_SENSOR))
-
-    assert manager._get_current_export_price() == pytest.approx(0.10)
-
-
 # ----------------------------------------------------------------------
 # Config flow validation
 # ----------------------------------------------------------------------
@@ -287,3 +277,13 @@ def test_the_export_fallback_leaves_the_import_health_status_alone():
     # A horizon in the past yields no slots but says nothing about feed health.
     assert manager.get_future_export_price_slots(datetime.now() - timedelta(days=1)) == []
     assert controller._price_data_status == healthy_status
+
+
+def test_the_export_fallback_still_reports_a_real_import_fault():
+    """Only the empty-horizon artifact is masked, never a broken feed."""
+    states = {IMPORT_SENSOR: SimpleNamespace(state="unavailable", attributes={})}
+    controller = _controller(_price_data_status="ok (24 slots)")
+    manager = PricingManager(_hass(states), controller)
+
+    assert manager.get_future_export_price_slots(datetime.now() + timedelta(hours=12)) == []
+    assert controller._price_data_status != "ok (24 slots)"

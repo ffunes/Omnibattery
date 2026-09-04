@@ -359,8 +359,8 @@
           "dp_price_discharge_control": "Nur entladen wenn Preis über Schwellenwert",
           "negative_price_charging_enabled": "Opportunistisches Laden bei negativen Preisen aktivieren",
           "smart_predischarge_enabled": "Intelligente Vorentladung / Anti-Abregelung",
-          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
-          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
+          "surplus_price_hold_enabled": "Preisbewusste Aufnahme von Solarüberschuss aktivieren",
+          "surplus_hold_min_saving": "Mindestersparnis für das Zurückhalten des Überschusses (Währung/kWh)",
           "export_price_sensor": "Export/feed-in price sensor (optional)",
           "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Schwellenwert für negative Einspeisung",
@@ -378,8 +378,8 @@
           "dp_price_discharge_control": "Wenn aktiviert, entlädt die Batterie nur, wenn der aktuelle Strompreis den konfigurierten maximalen Preisschwellenwert übersteigt. Wenn kein Schwellenwert konfiguriert ist, wird der automatisch aus dem Preissensor berechnete Tagesdurchschnitt verwendet. Falls Zeitfenster die Entladung einschränken, müssen beide Bedingungen erfüllt sein.",
           "negative_price_charging_enabled": "Optionale Funktion für dynamische Preise, die in den negativsten Importpreisfenstern lädt, auch wenn die normale Prognose keine Netzladung erfordert. Ein Solarprognosesensor ist nicht erforderlich.",
           "smart_predischarge_enabled": "Aktiviert die optionale Vorentladung nur im dynamischen Preismodus, um vor negativen Einspeisepreisen Platz zu schaffen.",
-          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
-          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
+          "surplus_price_hold_enabled": "Optionale Funktion für dynamische Preise. Das Speichern von PV-Überschuss verwirkt die Einspeisevergütung dieses Zeitfensters. Die Batterie lässt den Überschuss daher einspeisen, solange noch ein deutlich günstigeres Einspeisefenster bevorsteht, und lädt stattdessen in den günstigsten Stunden. Sie gibt am Ende der Solarproduktion frei, sobald das Tagesziel erreicht ist und sobald die verbleibenden günstigen Fenster es nicht mehr decken können. Bestehende SOC-Untergrenzen, Ladeverzögerung, geplante günstige Netzfenster, Laden bei negativen Preisen, intelligente Vorentladung, wöchentliche Volladung und manuelle Steuerung haben immer Vorrang.",
+          "surplus_hold_min_saving": "Wie viel günstiger das beste verbleibende Zeitfenster sein muss, bevor Überschuss zurückgehalten wird. Verhindert Umschalten bei vernachlässigbaren Preisunterschieden. Angabe in Hauptwährung/kWh.",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Preise gleich oder unter diesem Wert gelten bei erwarteter Solarüberschussenergie als Risikofenster.",
@@ -1095,8 +1095,8 @@
           "dp_price_discharge_control": "Nur entladen wenn Preis über Schwellenwert",
           "negative_price_charging_enabled": "Opportunistisches Laden bei negativen Preisen aktivieren",
           "smart_predischarge_enabled": "Intelligente Vorentladung / Anti-Abregelung",
-          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
-          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
+          "surplus_price_hold_enabled": "Preisbewusste Aufnahme von Solarüberschuss aktivieren",
+          "surplus_hold_min_saving": "Mindestersparnis für das Zurückhalten des Überschusses (Währung/kWh)",
           "export_price_sensor": "Export/feed-in price sensor (optional)",
           "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Schwellenwert für negative Einspeisung",
@@ -1114,8 +1114,8 @@
           "dp_price_discharge_control": "Wenn aktiviert, entlädt die Batterie nur, wenn der aktuelle Strompreis den konfigurierten maximalen Preisschwellenwert übersteigt. Wenn kein Schwellenwert konfiguriert ist, wird der automatisch aus dem Preissensor berechnete Tagesdurchschnitt verwendet. Falls Zeitfenster die Entladung einschränken, müssen beide Bedingungen erfüllt sein.",
           "negative_price_charging_enabled": "Optionale Funktion für dynamische Preise, die in den negativsten Importpreisfenstern lädt, auch wenn die normale Prognose keine Netzladung erfordert. Ein Solarprognosesensor ist nicht erforderlich.",
           "smart_predischarge_enabled": "Aktiviert die optionale Vorentladung nur im dynamischen Preismodus, um vor negativen Einspeisepreisen Platz zu schaffen.",
-          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
-          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
+          "surplus_price_hold_enabled": "Optionale Funktion für dynamische Preise. Das Speichern von PV-Überschuss verwirkt die Einspeisevergütung dieses Zeitfensters. Die Batterie lässt den Überschuss daher einspeisen, solange noch ein deutlich günstigeres Einspeisefenster bevorsteht, und lädt stattdessen in den günstigsten Stunden. Sie gibt am Ende der Solarproduktion frei, sobald das Tagesziel erreicht ist und sobald die verbleibenden günstigen Fenster es nicht mehr decken können. Bestehende SOC-Untergrenzen, Ladeverzögerung, geplante günstige Netzfenster, Laden bei negativen Preisen, intelligente Vorentladung, wöchentliche Volladung und manuelle Steuerung haben immer Vorrang.",
+          "surplus_hold_min_saving": "Wie viel günstiger das beste verbleibende Zeitfenster sein muss, bevor Überschuss zurückgehalten wird. Verhindert Umschalten bei vernachlässigbaren Preisunterschieden. Angabe in Hauptwährung/kWh.",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Preise gleich oder unter diesem Wert gelten bei erwarteter Solarüberschussenergie als Risikofenster.",
@@ -2002,7 +2002,7 @@
         "name": "Status der intelligenten Vorentladung"
       },
       "surplus_price_hold_status": {
-        "name": "Surplus Price Hold"
+        "name": "Preisbremse Solarüberschuss"
       },
       "wifi_status": {
         "name": "WLAN-Status"
@@ -2159,7 +2159,7 @@
     },
     "number": {
       "surplus_hold_min_saving": {
-        "name": "Surplus Hold Minimum Saving"
+        "name": "Mindestersparnis Überschussbremse"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – Ausschluss %"
