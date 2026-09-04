@@ -21,6 +21,7 @@
 - **A device reporting a power ceiling of zero shut itself out of every allocation** (#380): a Marstek came back from a restart with both power registers at 0, and adopting that left the battery unable to charge or discharge, with nothing to write those registers again because the controller had stopped addressing it. The last known ceiling now stands, and the mismatch is logged with the entity that restores it. Thanks to @sphings79.
 - **A battery with native daily counters zeroed the system energy totals** (#380): the aggregates require every battery's daily figure to be stamped as belonging to today, and only the derived counter carried that stamp, so one device keeping its own counters produced 0.00 kWh charged and discharged on the overview with 10.3 and 3.97 kWh sitting in the per-battery sensors. The stamp now waits for evidence that the device's own counter has turned over, so a figure still holding yesterday's accumulation across our midnight is never summed as today's. Thanks to @sphings79.
 - **A battery switched off at start-up no longer takes the whole system down** (#403): it starts unreachable, is reported by the non-responsive batteries sensor, and the integration reloads once it answers. Thanks to @syphernl for the contribution.
+- **The daily timeline keeps its hourly-balance history when the feature is switched off**: the cause row and its marker were gated on the live switch, so turning Hourly Net Balance off erased them from every past interval. The per-cell record now stands on its own.
 
 ## [1.4.0] - 2026-09-04
 
