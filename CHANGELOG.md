@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **One switched-off battery no longer takes the whole system down at start-up**: a battery that did not answer during setup failed the config entry, so every other battery, the controller and the dashboard disappeared with it and Home Assistant retried setup in a loop for as long as the device stayed off — a battery left on its side switch was enough. That battery now starts unreachable while the rest of the system runs, is reported through the non-responsive batteries sensor, and the integration reloads itself once the battery answers again, which restores its hardware configuration write, its model-specific entities and its telemetry. A driver whose connection attempt raises instead of returning a refusal is treated the same way, and the interrupted-active-balance migration waits for a battery it cannot reach rather than latching manual mode on it.
+
 ## [1.4.0] - 2026-09-04
 
 ### Added

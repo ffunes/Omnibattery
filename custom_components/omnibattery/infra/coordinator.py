@@ -109,6 +109,32 @@ def is_untrusted_energy_reading(key: str, value, prev) -> bool:
     return False
 
 
+def _schedule_setup_reload_if_deferred(coordinator) -> None:
+    """Reload the entry once a battery that missed its setup answers.
+
+    A battery that was unreachable during setup was created without the
+    hardware configuration write, without the driver's connect-time entity
+    definitions (model detection, pack discovery) and without a first telemetry
+    snapshot. Writing the configuration from here would leave the other two
+    missing, and entities cannot be added to a platform that already finished
+    setting up, so the battery is adopted by re-running setup with the device
+    present. One-shot: the reloaded runtime only re-arms the flag if the battery
+    is unreachable again.
+    """
+    if not getattr(coordinator, "reload_entry_when_reachable", False):
+        return
+    coordinator.reload_entry_when_reachable = False
+    entry = getattr(coordinator, "_config_entry", None)
+    if entry is None:
+        return
+    _LOGGER.info(
+        "[%s] Battery answered after starting unreachable - reloading the "
+        "integration to complete its setup",
+        coordinator.name,
+    )
+    coordinator.hass.config_entries.async_schedule_reload(entry.entry_id)
+
+
 class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
     """Manages polling for data from a single Marstek Venus battery."""
 
@@ -257,6 +283,13 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # read before the first write returns None rather than raising.
         self._last_write_failure_reason = None
         self._last_rs485_reenable_success = None
+        # Set by setup for a battery that did not answer: setup no longer fails
+        # the whole config entry over one unreachable battery, so this battery
+        # was created without the hardware configuration write, the driver's
+        # connect-time entity definitions and its first telemetry. The entry is
+        # reloaded once the battery answers, which is the only path that
+        # rebuilds all three. See _schedule_setup_reload_if_deferred.
+        self.reload_entry_when_reachable = False
 
         # Timestamp-based update tracking
         self._last_update_times = {}
@@ -879,6 +912,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                     else:
                         self._last_rs485_reenable_success = False
                         _LOGGER.warning("[%s] Failed to re-enable RS485 after reconnection", self.name)
+
+                _schedule_setup_reload_if_deferred(self)
+
             else:
                 self._is_connected = False
                 _LOGGER.warning("[%s] Fresh reconnection failed", self.name)
@@ -1280,6 +1316,10 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 )
             self._consecutive_failures = 0
             self._is_connected = True
+            # A battery can also come back through a plain successful read (a
+            # client that reconnects itself, an entity-backed driver whose
+            # source turned available), without async_reconnect_fresh running.
+            _schedule_setup_reload_if_deferred(self)
         else:
             # All attempted reads failed - connection issue
             self._consecutive_failures += 1
