@@ -23,7 +23,7 @@
 
     Coordinates up to 10 batteries with SOC priorities, energy hysteresis and efficiency-aware power sharing.
 
--   :material-brand_family: **Multi-brand**
+-   :material-brand-family: **Multi-brand**
 
     Combine Marstek, Zendure, Anker SOLIX, Huawei, Sessy and Hoymiles batteries in one installation while sharing the same control loop, system entities and energy-management features.
 
@@ -45,7 +45,7 @@ The panel installs automatically as a Home Assistant sidebar panel — no extra 
 - **Batteries** with per-battery SOC/power, health & cells, daily energy, optional MPPT, firmware info, controls
 - **Control** with system-wide settings grouped by feature, each with its switch + config parameters
 
-![Dashboard](/assets/MVEM%20-%20Dashboard.gif)
+![Dashboard](assets/MVEM%20-%20Dashboard.gif)
 
 ## Key features
 
