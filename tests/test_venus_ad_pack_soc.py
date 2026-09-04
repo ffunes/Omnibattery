@@ -138,11 +138,14 @@ async def test_v3_has_no_pack_sensors():
 
 # --- control: pack-aware charge ceiling and discharge floor -----------------
 #
-# The verdicts are asymmetric because the packs fill in sequence:
+# Both verdicts read min(pack_soc), and the reason is that the hardware is not
+# symmetric:
 #   full  <=> the LEAST full pack reached the ceiling  -> min(pack_soc)
-#   empty <=> the FULLEST pack reached the floor       -> max(pack_soc)
-# Neither may fire on the first pack to get there, which is the #350 bug and its
-# mirror image.
+#   empty <=> the FIRST pack reached the floor         -> min(pack_soc)
+# Charging walks on to the next pack when one fills, which is what the #350
+# handovers showed, so the ceiling must not fire on the first pack to get there.
+# Discharging does not walk on: a Venus D stops the whole battery at its first
+# pack and strands the rest, so the floor must fire exactly there.
 
 
 def _discharge_blocks(data, *, min_soc=10):
@@ -193,28 +196,41 @@ def _chargeable(data, *, max_soc=100):
     return got == [coordinator]
 
 
-# --- discharge: the fullest pack decides ------------------------------------
+# --- discharge: the first pack to empty decides -----------------------------
 
 
-def test_a_pack_at_the_floor_does_not_stop_the_others():
-    # The mirror of #350: the first pack to empty must not end the discharge
-    # while another still holds charge.
+def test_one_pack_at_the_floor_ends_the_discharge():
+    # A Venus D stops the whole battery there. The 50% in the other pack is
+    # real but unreachable, and counting it commands into a stopped battery.
     data = {"battery_soc": 30, "battery_soc_pack_1": 50.0, "battery_soc_pack_2": 10.0}
-    assert not _discharge_blocks(data)
-    assert _dischargeable(data)
-
-
-def test_discharge_stops_when_the_fullest_pack_reaches_the_floor():
-    data = {"battery_soc": 30, "battery_soc_pack_1": 10.0, "battery_soc_pack_2": 8.0}
     assert _discharge_blocks(data)
     assert not _dischargeable(data)
 
 
-def test_packs_override_an_aggregate_already_at_the_floor():
-    # The aggregate is at the floor but a pack still has 40% to give: keep going.
-    data = {"battery_soc": 10, "battery_soc_pack_1": 40.0, "battery_soc_pack_2": 12.0}
+def test_a_battery_above_the_floor_on_every_pack_keeps_going():
+    data = {"battery_soc": 30, "battery_soc_pack_1": 40.0, "battery_soc_pack_2": 12.0}
     assert not _discharge_blocks(data)
     assert _dischargeable(data)
+
+
+def test_the_measured_six_pack_case():
+    """4 September, cutoff 12%: aggregate 15%, three packs on the floor, and the
+    device delivering nothing while the control layer commanded 938 W."""
+    data = {
+        "battery_soc": 15,
+        "battery_soc_pack_1": 12.1, "battery_soc_pack_2": 12.0,
+        "battery_soc_pack_3": 19.0, "battery_soc_pack_4": 12.0,
+        "battery_soc_pack_5": 20.3, "battery_soc_pack_6": 19.3,
+    }
+    assert _discharge_blocks(data, min_soc=12)
+    assert not _dischargeable(data, min_soc=12)
+
+
+def test_an_aggregate_above_the_floor_does_not_override_a_pack_on_it():
+    # The aggregate is what hid the stop for six hours: 15% reads healthy.
+    data = {"battery_soc": 30, "battery_soc_pack_1": 40.0, "battery_soc_pack_2": 10.0}
+    assert _discharge_blocks(data)
+    assert not _dischargeable(data)
 
 
 def test_out_of_range_pack_reading_is_ignored():
