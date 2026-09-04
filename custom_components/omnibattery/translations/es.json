@@ -363,6 +363,8 @@
           "smart_predischarge_enabled": "Predescarga inteligente / anti-vertido",
           "surplus_price_hold_enabled": "Activar la absorción del excedente solar según el precio",
           "surplus_hold_min_saving": "Ahorro mínimo para retener el excedente (moneda/kWh)",
+          "discharge_reserve_enabled": "Activar la reserva de descarga según el precio",
+          "discharge_reserve_min_saving": "Ahorro mínimo para la reserva de descarga (moneda/kWh)",
           "export_price_sensor": "Sensor de precio de inyección/exportación (opcional)",
           "export_price_integration_type": "Integración del precio de exportación (opcional)",
           "negative_injection_threshold": "Umbral de inyección negativa",
@@ -382,6 +384,8 @@
           "smart_predischarge_enabled": "Activa la predescarga opcional solo en el modo de precios dinámicos para crear espacio antes de franjas con precio de inyección negativo.",
           "surplus_price_hold_enabled": "Función opcional de precios dinámicos. Almacenar el excedente fotovoltaico renuncia a la retribución por inyección de esa franja, así que la batería deja que el excedente se inyecte mientras quede por delante una franja de inyección claramente más barata, y absorbe en las horas más baratas. Se libera al final de la producción solar, en cuanto se alcanza el objetivo del día y en cuanto las franjas baratas restantes ya no pueden cubrirlo. Los límites de SOC existentes, el retardo de carga, las franjas de red baratas programadas, la carga con precio negativo, la predescarga inteligente, la carga completa semanal y el control manual siempre tienen prioridad.",
           "surplus_hold_min_saving": "Cuánto más barata debe ser la mejor franja restante antes de retener el excedente. Evita conmutar por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
+          "discharge_reserve_enabled": "Función opcional de precios dinámicos. El bloqueo de descarga por precio solo pregunta si la hora actual es barata, nunca si las horas más caras que quedan por delante necesitan la energía que hay en la batería. Esta reserva proyecta el perfil de consumo aprendido menos la producción fotovoltaica prevista sobre las franjas de precio restantes, da a las más caras el primer derecho sobre la energía almacenada y eleva el límite de descarga de cada batería en lo que esas horas reclaman. Todo lo que supere la reserva sigue disponible ahora mismo para el autoconsumo. Nunca se reserva más allá de medianoche, y el control manual, la predescarga inteligente, el recorte de picos y los límites de SOC por franja siempre tienen prioridad.",
+          "discharge_reserve_min_saving": "Cuánto más cara debe ser una hora posterior que la actual antes de que su demanda pueda reclamar energía almacenada. Evita que el límite se mueva por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
           "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
           "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
           "negative_injection_threshold": "Los precios iguales o inferiores a este umbral son franjas de riesgo cuando se espera excedente solar.",
@@ -1101,6 +1105,8 @@
           "smart_predischarge_enabled": "Predescarga inteligente / anti-vertido",
           "surplus_price_hold_enabled": "Activar la absorción del excedente solar según el precio",
           "surplus_hold_min_saving": "Ahorro mínimo para retener el excedente (moneda/kWh)",
+          "discharge_reserve_enabled": "Activar la reserva de descarga según el precio",
+          "discharge_reserve_min_saving": "Ahorro mínimo para la reserva de descarga (moneda/kWh)",
           "export_price_sensor": "Sensor de precio de inyección/exportación (opcional)",
           "export_price_integration_type": "Integración del precio de exportación (opcional)",
           "negative_injection_threshold": "Umbral de inyección negativa",
@@ -1120,6 +1126,8 @@
           "smart_predischarge_enabled": "Activa la predescarga opcional solo en el modo de precios dinámicos para crear espacio antes de franjas con precio de inyección negativo.",
           "surplus_price_hold_enabled": "Función opcional de precios dinámicos. Almacenar el excedente fotovoltaico renuncia a la retribución por inyección de esa franja, así que la batería deja que el excedente se inyecte mientras quede por delante una franja de inyección claramente más barata, y absorbe en las horas más baratas. Se libera al final de la producción solar, en cuanto se alcanza el objetivo del día y en cuanto las franjas baratas restantes ya no pueden cubrirlo. Los límites de SOC existentes, el retardo de carga, las franjas de red baratas programadas, la carga con precio negativo, la predescarga inteligente, la carga completa semanal y el control manual siempre tienen prioridad.",
           "surplus_hold_min_saving": "Cuánto más barata debe ser la mejor franja restante antes de retener el excedente. Evita conmutar por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
+          "discharge_reserve_enabled": "Función opcional de precios dinámicos. El bloqueo de descarga por precio solo pregunta si la hora actual es barata, nunca si las horas más caras que quedan por delante necesitan la energía que hay en la batería. Esta reserva proyecta el perfil de consumo aprendido menos la producción fotovoltaica prevista sobre las franjas de precio restantes, da a las más caras el primer derecho sobre la energía almacenada y eleva el límite de descarga de cada batería en lo que esas horas reclaman. Todo lo que supere la reserva sigue disponible ahora mismo para el autoconsumo. Nunca se reserva más allá de medianoche, y el control manual, la predescarga inteligente, el recorte de picos y los límites de SOC por franja siempre tienen prioridad.",
+          "discharge_reserve_min_saving": "Cuánto más cara debe ser una hora posterior que la actual antes de que su demanda pueda reclamar energía almacenada. Evita que el límite se mueva por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
           "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
           "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
           "negative_injection_threshold": "Los precios iguales o inferiores a este umbral son franjas de riesgo cuando se espera excedente solar.",
@@ -1623,6 +1631,7 @@
           "weekly_full_charge": "Carga Semanal Completa",
           "charge_delayed": "Carga Retrasada",
           "surplus_price_hold": "Surplus Exporting (Cheaper Window Ahead)",
+          "price_reserve_hold": "Holding Charge for Dearer Hours",
           "waiting_for_solar": "Esperando Solar",
           "charging_to_setpoint": "Cargando al Setpoint",
           "capacity_protection": "Protección de Capacidad",
@@ -2007,6 +2016,9 @@
       },
       "surplus_price_hold_status": {
         "name": "Retención de excedente por precio"
+      },
+      "discharge_reserve_status": {
+        "name": "Reserva de descarga"
       },
       "wifi_status": {
         "name": "Estado WiFi"

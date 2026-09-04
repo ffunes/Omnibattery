@@ -160,6 +160,10 @@ from .const import (
     DEFAULT_PREDISCHARGE_MAX_EXPORT_POWER_W,
     CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
     DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED,
+    CONF_DISCHARGE_RESERVE_ENABLED,
+    CONF_DISCHARGE_RESERVE_MIN_SAVING,
+    DEFAULT_DISCHARGE_RESERVE_ENABLED,
+    DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
     CONF_SURPLUS_PRICE_HOLD_ENABLED,
     DEFAULT_SURPLUS_PRICE_HOLD_ENABLED,
     CONF_SURPLUS_HOLD_MIN_SAVING,
@@ -222,6 +226,7 @@ from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager
 from .control.residual_load import apply_guards, guards_pending
 from .drivers.base import has_connected_mppt_pv
+from .control.discharge_reserve import DischargeReserveManager
 from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
@@ -962,6 +967,12 @@ class ChargeDischargeController:
         self.surplus_hold_min_saving = config_entry.data.get(
             CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
         )
+        self.discharge_reserve_enabled = config_entry.data.get(
+            CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
+        )
+        self.discharge_reserve_min_saving = config_entry.data.get(
+            CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
+        )
         # Optional export/feed-in curve. Unset means "use the import curve",
         # which is what net metering makes correct.
         self.export_price_sensor = config_entry.data.get(CONF_EXPORT_PRICE_SENSOR, None)
@@ -1029,6 +1040,9 @@ class ChargeDischargeController:
         self._curtailment_last_auto_replan = None
         self._pricing_mgr = PricingManager(hass, self)
         self._surplus_hold_mgr = SurplusPriceHoldManager(hass, self)
+        self._discharge_reserve_mgr = DischargeReserveManager(hass, self)
+        # Per-cycle cache of the reserve, refreshed by the discharge blocker pass.
+        self._price_reserve_soc_pct = 0.0
 
         # Consumption history for dynamic base consumption (7-day rolling average)
         # Owned by ConsumptionTracker; the list lives on the controller so
@@ -2563,7 +2577,14 @@ class ChargeDischargeController:
             discharge_blockers = self.get_discharge_blockers(coord)
             # Time-slot blockers don't apply against the slot that owns the battery.
             charge_safety = {k: v for k, v in charge_blockers.items() if k != "time_slot_charge"}
-            discharge_safety = {k: v for k, v in discharge_blockers.items() if k != "time_slot_discharge"}
+            # ``price_reserve`` is economic and is released for a slot-owned
+            # battery anyway; leaving it in would stop the slot from ever
+            # taking ownership, so the release could never happen.
+            discharge_safety = {
+                k: v
+                for k, v in discharge_blockers.items()
+                if k not in ("time_slot_discharge", "price_reserve")
+            }
             if direction == "charge" and charge_safety:
                 _LOGGER.debug(
                     "[%s] Manual slot charge skipped — safety blockers: %s",
@@ -2831,6 +2852,13 @@ class ChargeDischargeController:
         self.surplus_hold_min_saving = self.config_entry.data.get(
             CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
         )
+        old_discharge_reserve_enabled = self.discharge_reserve_enabled
+        self.discharge_reserve_enabled = self.config_entry.data.get(
+            CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
+        )
+        self.discharge_reserve_min_saving = self.config_entry.data.get(
+            CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
+        )
         self.export_price_sensor = self.config_entry.data.get(CONF_EXPORT_PRICE_SENSOR, None)
         self.export_price_integration_type = self.config_entry.data.get(
             CONF_EXPORT_PRICE_INTEGRATION_TYPE, None
@@ -2849,6 +2877,16 @@ class ChargeDischargeController:
         ):
             if self._surplus_hold_mgr is not None:
                 self._surplus_hold_mgr.clear("mode_or_configuration_changed")
+        # A reserve computed against the old price curve, or one left behind by a
+        # feature that was just switched off, must never keep a floor raised.
+        if (
+            old_pricing_mode != self.predictive_charging_mode
+            or old_discharge_reserve_enabled != self.discharge_reserve_enabled
+            or not self.discharge_reserve_enabled
+            or self.predictive_charging_mode != PREDICTIVE_MODE_DYNAMIC_PRICING
+        ):
+            if self._discharge_reserve_mgr is not None:
+                self._discharge_reserve_mgr.clear("mode_or_configuration_changed")
         self.capacity_protection_enabled = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_ENABLED, False)
         self.capacity_protection_excluded_devices = self.config_entry.data.get(
             CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES, False
@@ -3151,7 +3189,11 @@ class ChargeDischargeController:
 
     def is_discharge_blocked(self, coordinator=None, *, ignore_economic: bool = False) -> bool:
         """Return True if discharge is blocked globally or for the given battery."""
-        economic = {"price_discharge", "curtailment_negative_window"}
+        economic = {
+            "price_discharge",
+            "price_reserve",
+            "curtailment_negative_window",
+        }
         global_blockers = self._global_discharge_blockers
         if ignore_economic:
             global_blockers = {k: v for k, v in global_blockers.items() if k not in economic}
@@ -3659,6 +3701,71 @@ class ChargeDischargeController:
             else:
                 self.remove_discharge_block("min_soc", coordinator=coordinator)
 
+    def _price_discharge_reserve_pct(self) -> float:
+        """Extra SOC every battery keeps back for a dearer hour still ahead.
+
+        Zero whenever the feature is off, unplanned or guarded, so discharging
+        behaves exactly as it does without the feature.
+        """
+        manager = getattr(self, "_discharge_reserve_mgr", None)
+        if manager is None:
+            return 0.0
+        try:
+            pct = max(0.0, float(manager.reserve_soc_pct()))
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Discharge reserve: evaluation failed: %s", err)
+            pct = 0.0
+        self._price_reserve_soc_pct = pct
+        return pct
+
+    def _refresh_price_reserve_blocks(self) -> None:
+        """Hold back the energy a dearer hour still ahead is going to need.
+
+        Deliberately a blocker of its own rather than a raised ``min_soc``: the
+        configured floor is read back by the curtailment snapshot builder, which
+        would both feed this calculation into its own input and shrink the
+        pre-discharge budget by the reserve. As an economic blocker it stops PD
+        from discharging without moving any planner's idea of the battery.
+        """
+        reserve_pct = self._price_discharge_reserve_pct()
+        for coordinator in self.coordinators:
+            if reserve_pct <= 0 or ChargeDischargeController._is_battery_manual_owned(
+                coordinator
+            ):
+                self.remove_discharge_block("price_reserve", coordinator=coordinator)
+                continue
+            data = coordinator.data or {}
+            # Same eligibility the reserve was sized against, so a battery that
+            # does not back the reserve is never held by it either.
+            if not data or not coordinator.is_available:
+                self.remove_discharge_block("price_reserve", coordinator=coordinator)
+                continue
+            try:
+                soc = float(data.get("battery_soc"))
+                # The effective floor, not the configured one: a discharge slot
+                # with an explicit SOC override deliberately reaches below
+                # min_soc, and the reserve must not close that window.
+                floor = float(self._effective_discharge_min_soc(coordinator)[0])
+            except (TypeError, ValueError):
+                self.remove_discharge_block("price_reserve", coordinator=coordinator)
+                continue
+            reserved_floor = min(100.0, floor + reserve_pct)
+            if soc_vs_floor(coordinator, soc) <= reserved_floor:
+                self.set_discharge_block(
+                    "price_reserve",
+                    "price_reserve",
+                    {
+                        "battery": coordinator.name,
+                        "soc": soc,
+                        "min_soc": floor,
+                        "reserved_floor": round(reserved_floor, 2),
+                        "reserve_soc_pct": round(reserve_pct, 2),
+                    },
+                    coordinator=coordinator,
+                )
+            else:
+                self.remove_discharge_block("price_reserve", coordinator=coordinator)
+
     def _refresh_ev_blocks(self) -> None:
         """Update EV charger blockers from no-telemetry charger state."""
         ev_pause_active, ev_charging_active = self._external_loads.check_ev_charger_state()
@@ -3741,6 +3848,7 @@ class ChargeDischargeController:
         self._refresh_normal_balance_blocks()
         self._refresh_battery_charge_limit_blocks()
         self._refresh_battery_discharge_limit_blocks()
+        self._refresh_price_reserve_blocks()
         self._price_based_discharge_blocked = "price_discharge" in self._global_discharge_blockers
 
     def _refresh_surplus_price_hold_block(self) -> None:
@@ -5689,7 +5797,9 @@ class ChargeDischargeController:
                     coordinator, 0, power,
                     # Safety protection may only bypass economic policies.
                     ignore_discharge_blockers={
-                        "price_discharge", "curtailment_negative_window"
+                        "price_discharge",
+                        "price_reserve",
+                        "curtailment_negative_window",
                     },
                 )
             self._predictive_protection_command_w = allocated
@@ -8261,6 +8371,8 @@ class ChargeDischargeController:
             # manual session.
             if self._surplus_hold_mgr is not None:
                 self._surplus_hold_mgr.clear("manual_mode")
+            if self._discharge_reserve_mgr is not None:
+                self._discharge_reserve_mgr.clear("manual_mode")
             _LOGGER.debug("Manual Mode active - skipping automatic control")
             # Register-based drivers (Marstek) obey the user's force_mode /
             # set_*_power register writes directly, so we just freeze the

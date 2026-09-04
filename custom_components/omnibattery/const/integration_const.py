@@ -866,6 +866,19 @@ DEFAULT_SURPLUS_PRICE_HOLD_ENABLED = False
 CONF_SURPLUS_HOLD_MIN_SAVING = "surplus_hold_min_saving"
 DEFAULT_SURPLUS_HOLD_MIN_SAVING = 0.02
 
+# Price-aware discharge reserve.  The price_discharge blocker asks whether the
+# current hour is cheap; it never asks whether the dearer hours still ahead need
+# the energy that is in the battery.  This reserve raises each battery's
+# discharge floor by the energy those hours claim, and leaves everything above
+# it available for self-consumption now.  Dynamic pricing only, off by default.
+CONF_DISCHARGE_RESERVE_ENABLED = "discharge_reserve_enabled"
+DEFAULT_DISCHARGE_RESERVE_ENABLED = False
+# Advantage (currency/kWh) a later hour must have over the current one before
+# its demand may claim stored energy.  Keeps the floor from chattering on
+# rounding differences, and prices in the wear of the extra cycle.
+CONF_DISCHARGE_RESERVE_MIN_SAVING = "discharge_reserve_min_saving"
+DEFAULT_DISCHARGE_RESERVE_MIN_SAVING = 0.05
+
 # Optional export/feed-in price curve.  Unset falls back to the import curve,
 # which is both the historical behaviour and correct under net metering.  A
 # separate sensor matters where export is paid differently from import.
