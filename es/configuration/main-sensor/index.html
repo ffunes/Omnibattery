@@ -885,6 +885,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sensor-de-potencia-off-grid-opcional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sensor de potencia off-grid (opcional)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#potencia-maxima-contratada" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -896,10 +907,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#sensor-de-prevision-solar-opcional" class="md-nav__link">
+  <a href="#sensores-de-prevision-solar-opcional" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sensor de previsión solar (opcional)
+        Sensores de previsión solar (opcional)
       
     </span>
   </a>
@@ -925,6 +936,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Consumo del hogar (derivado automáticamente)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#total-de-prevision-frente-al-timeline-solar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Total de previsión frente al timeline solar
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1699,6 +1727,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2364,6 +2420,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2464,6 +2548,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sensor-de-potencia-off-grid-opcional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sensor de potencia off-grid (opcional)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#potencia-maxima-contratada" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2475,10 +2570,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#sensor-de-prevision-solar-opcional" class="md-nav__link">
+  <a href="#sensores-de-prevision-solar-opcional" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sensor de previsión solar (opcional)
+        Sensores de previsión solar (opcional)
       
     </span>
   </a>
@@ -2504,6 +2599,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Consumo del hogar (derivado automáticamente)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#total-de-prevision-frente-al-timeline-solar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Total de previsión frente al timeline solar
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2574,19 +2686,56 @@
 </tbody>
 </table>
 <p>Déjalo desactivado si no estás seguro.</p>
+<h2 id="sensor-de-potencia-off-grid-opcional">Sensor de potencia off-grid <em>(opcional)</em><a class="headerlink" href="#sensor-de-potencia-off-grid-opcional" title="Permanent link">&para;</a></h2>
+<p>Puedes configurar un segundo sensor W/kW para el circuito respaldado. Debe ser
+una entidad distinta del sensor de consumo de red normal. Al guardarlo aparece
+el switch de sistema <strong>Modo de medidor off-grid</strong>, tanto como entidad de Home
+Assistant como en la pestaña <strong>Controles</strong> del dashboard.</p>
+<p>El ajuste <strong>Signo del medidor off-grid invertido</strong> es independiente del signo
+del medidor principal. Actívalo si el sensor off-grid publica el consumo con
+signo negativo; solo se aplica mientras este modo está activo.</p>
+<p>Mientras el switch está activado, Omnibattery usa ese segundo sensor como fuente
+del PD y de las estadísticas derivadas de consumo e importación/exportación. Al
+desactivarlo vuelve al sensor principal. La conmutación corta el intervalo de
+integración en curso para no contabilizar un salto artificial entre ambos
+medidores. Las baterías que estén suministrando por su propio puerto off-grid
+siguen excluidas del PD; el resto de baterías disponibles usa el sensor alternativo.</p>
+<p>Este switch solo cambia la fuente de datos. No habilita el puerto off-grid/EPS,
+no cambia el modo de la batería y no escribe ningún registro relacionado con la
+salida de respaldo; el usuario debe habilitar ese puerto por separado.</p>
 <hr />
 <h2 id="potencia-maxima-contratada">Potencia máxima contratada<a class="headerlink" href="#potencia-maxima-contratada" title="Permanent link">&para;</a></h2>
 <p>La potencia contratada de tu conexión de red, en <strong>W</strong> (por defecto <code>7000</code>).</p>
-<p>La integración limita la carga de las baterías para que la <strong>importación de red proyectada nunca supere este límite</strong>, evitando que salte el diferencial. Aplica en <strong>todos los modos</strong> — control normal de setpoint, un objetivo/offset positivo, balance neto horario y carga predictiva desde red — no solo al cargar desde la red de forma programada. Solo limita la carga; nunca fuerza una descarga.</p>
+<p>La integración limita la carga de las baterías para que la <strong>importación de red proyectada nunca supere este límite</strong>, evitando que salte el diferencial. Aplica en <strong>todos los modos</strong> — control normal de setpoint, un objetivo/offset positivo, balance neto horario y carga predictiva desde red — no solo al cargar desde la red de forma programada.</p>
+<p><code>max_contracted_power</code> protege la instalación de dos formas complementarias:</p>
+<ul>
+<li>Es un techo estricto para la carga de baterías en todos los modos.</li>
+<li>Mientras una franja de carga predictiva mantiene el control, también es el
+  límite de importación de emergencia. Omnibattery detiene primero la carga y
+  espera telemetría estabilizada; si la importación física continúa por encima,
+  descarga únicamente el exceso confirmado.</li>
+</ul>
+<p>Esta protección de emergencia <strong>no</strong> necesita que Protección de Capacidad/Peak
+Shaving esté activado. Peak Shaving es una estrategia de reserva opcional e
+independiente, con su propio límite configurable. Fuera de una franja de carga
+predictiva, el PD normal sigue regulando hacia el objetivo de red configurado.
+Consulta <a href="../predictive-charging/#consumo-del-hogar-durante-una-franja-de-carga">Consumo del hogar durante la carga predictiva</a>.</p>
 <hr />
-<h2 id="sensor-de-prevision-solar-opcional">Sensor de previsión solar <em>(opcional)</em><a class="headerlink" href="#sensor-de-prevision-solar-opcional" title="Permanent link">&para;</a></h2>
-<p>Sensor que proporciona la producción solar estimada para hoy, en <strong>kWh</strong> o <strong>Wh</strong>.</p>
+<h2 id="sensores-de-prevision-solar-opcional">Sensores de previsión solar <em>(opcional)</em><a class="headerlink" href="#sensores-de-prevision-solar-opcional" title="Permanent link">&para;</a></h2>
+<p>Para configuraciones nuevas, selecciona el sensor que proporciona la producción
+solar <strong>restante de hoy</strong> en <strong>kWh</strong> o <strong>Wh</strong>. Este valor se utiliza directamente
+en las decisiones intradía, sin volver a restar la producción medida.</p>
+<p>El campo de previsión del día completo se mantiene para entradas legadas que no
+se han modificado. Al guardar <strong>Restante de hoy</strong>, sustituye y elimina ese campo
+legado, resolviendo el Repair de transición. Las instalaciones existentes pueden
+seguir funcionando hasta que cambien el sensor.</p>
 <p>Configurarlo aquí lo pone a disposición de:</p>
 <ul>
 <li><strong>Carga predictiva</strong> (modos Franja Horaria y Precio Dinámico)</li>
 <li><strong>Retraso de carga solar</strong></li>
 </ul>
-<p>También puedes dejarlo en blanco y configurarlo más tarde en esas secciones específicas.</p>
+<p>También puedes dejarlo en blanco y configurarlo más tarde desde la sección
+<strong>Sensores</strong> de las opciones de la integración.</p>
 <hr />
 <h2 id="sensor-de-produccion-solar-optional">Sensor de producción solar <em>(optional)</em><a class="headerlink" href="#sensor-de-produccion-solar-optional" title="Permanent link">&para;</a></h2>
 <p>Sensor de potencia de producción fotovoltaica (W o kW) en tiempo real de un inversor externo que no está conectado mediante las entradas MPPT de la batería. Se utiliza para mostrar el nodo Solar en el diagrama de flujo energético del panel. Déjalo vacío si tus paneles solares alimentan directamente el MPPT de la batería.</p>
@@ -2594,7 +2743,32 @@
 <h2 id="consumo-del-hogar-derivado-automaticamente">Consumo del hogar <em>(derivado automáticamente)</em><a class="headerlink" href="#consumo-del-hogar-derivado-automaticamente" title="Permanent link">&para;</a></h2>
 <p><strong>No hay campo de sensor de consumo del hogar</strong> en la configuración — la integración deriva el consumo total del hogar de sensores que ya tiene:</p>
 <p><strong>Consumo del hogar = Potencia de red + Potencia AC de baterías + Producción solar</strong></p>
-<p>Es el valor que muestra el diagrama de flujo de energía y el sensor <code>sensor.marstek_venus_system_home_consumption</code>, y alimenta el historial de 7 días que usan la carga predictiva y el retraso de carga. La acumulación corre solo durante la franja solar+batería (fuera de la franja de carga; todo el día si no hay franja); el contador se reinicia a medianoche y sobrevive reinicios de HA.</p>
+<p>Es el valor que muestra el diagrama de flujo de energía y el sensor <code>sensor.marstek_venus_system_home_consumption</code>, y alimenta el historial de 7 días que usan la carga predictiva y el retraso de carga. La acumulación cubre todo el día local, incluidas las franjas de carga predictiva; la potencia AC negativa de la batería cancela la energía de red usada para cargarla. El contador se reinicia a medianoche y sobrevive reinicios de HA.</p>
+<p>La telemetría de red, solar y baterías es independiente y puede no representar
+exactamente el mismo instante. Justo después de cambiar una orden de carga, su
+combinación temporal puede producir un balance doméstico negativo imposible o
+anormalmente pequeño. El sensor de Consumo del Hogar conserva el último valor
+coherente durante un máximo de <strong>15 segundos</strong>; si las entradas siguen sin
+cuadrar, muestra <code>unknown</code> en lugar de publicar un <code>0 W</code> falso. El acumulador
+físico de energía diaria aplica su propia validación equivalente e interrumpe el
+intervalo de integración en vez de sumar un cero inventado. Tampoco aplica las
+exclusiones de cargas externas predictivas al total físico del panel.</p>
+<p>Una telemetría rápida y coherente de red y batería acorta estas transiciones. Un
+valor retenido o <code>unknown</code> breve durante un cambio de dirección del inversor es,
+por tanto, una protección de calidad de datos, no una orden para descargar.</p>
+<h3 id="total-de-prevision-frente-al-timeline-solar">Total de previsión frente al timeline solar<a class="headerlink" href="#total-de-prevision-frente-al-timeline-solar" title="Permanent link">&para;</a></h3>
+<p>El sensor de previsión es el presupuesto energético. Un sensor de «restante de
+hoy» ya representa energía futura y el acumulador de producción local no lo
+reduce otra vez. Los sensores legados de día completo (<code>today</code>) se convierten
+una sola vez a presupuesto restante mediante sus periodos futuros fechados, o
+la parte restante de la curva solar; la producción ya medida nunca se desplaza
+a intervalos futuros. El sensor opcional de producción real, y
+los canales MPPT legibles de las baterías, solo aprenden la forma intradía; no
+sustituyen el total de la previsión.</p>
+<p>Cuando está disponible, la prioridad es periodos fechados del proveedor,
+perfil solar local maduro y, finalmente, la curva sinusoidal existente. El
+perfil no predice kWh, no corrige una previsión meteorológica incorrecta, no
+controla el inversor ni garantiza producción cuando hay curtailment.</p>
 
 
 

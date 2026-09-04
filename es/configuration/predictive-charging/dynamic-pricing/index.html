@@ -1788,6 +1788,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2453,6 +2481,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2776,12 +2832,13 @@
 <h2 id="evaluacion-diaria-0005">Evaluación diaria (00:05)<a class="headerlink" href="#evaluacion-diaria-0005" title="Permanent link">&para;</a></h2>
 <p>A las 00:05 el controlador:</p>
 <ol>
-<li>Calcula el déficit energético (batería + solar vs. consumo esperado).</li>
+<li>Calcula el déficit y proyecta consumo, solar y energía utilizable de batería en intervalos de 15 minutos hasta medianoche.</li>
 <li>Recupera los precios horarios del día de la integración configurada.</li>
-<li>Selecciona las horas más baratas necesarias para cubrir el déficit.</li>
+<li>Detecta cuándo la energía acumulada alcanzaría el SOC mínimo y reserva los slots elegibles más baratos capaces de entregar cada requisito antes de su plazo.</li>
 <li>Calcula y almacena el <strong>precio medio del día</strong> a partir del perfil horario de precios.</li>
-<li>Programa los slots de carga para el día.</li>
+<li>Asigna una cuota energética a cada slot; solo la energía sin plazo temprano sigue compitiendo libremente por precio durante el día.</li>
 </ol>
+<p>«Más barato» significa, por tanto, más barato entre los slots capaces de cumplir el requisito a tiempo. Una franja posterior nunca cuenta como cobertura de energía que ya se necesitaba antes. Un plan parcial sigue siendo ejecutable, pero publica los kWh de <em>shortfall</em> y si se deben al filtro de precio o a la capacidad física. Las cuotas son objetivos, no garantías: potencia contratada, hueco de batería, límites de fase, temperatura, ownership y las demás protecciones runtime siguen siendo autoritativos.</p>
 <h3 id="logica-de-reintentos">Lógica de reintentos<a class="headerlink" href="#logica-de-reintentos" title="Permanent link">&para;</a></h3>
 <p>Si los datos de precios no están disponibles a las 00:05, el sistema reintenta cada 15 minutos durante la primera hora.</p>
 <h3 id="reinicio-de-ha-a-mitad-del-dia">Reinicio de HA a mitad del día<a class="headerlink" href="#reinicio-de-ha-a-mitad-del-dia" title="Permanent link">&para;</a></h3>
@@ -2930,9 +2987,42 @@
 <td><code>price_data_status</code></td>
 <td>Estado del sensor de precios (<code>ok (N slots)</code>, <code>sensor_unavailable</code>, <code>no_slots</code>, <code>not_evaluated</code>)</td>
 </tr>
+<tr>
+<td><code>chronological_planning_active</code></td>
+<td>Si el calendario activo procede del planificador con plazos</td>
+</tr>
+<tr>
+<td><code>chronological_source</code> / <code>solar_timeline_source</code></td>
+<td>Origen de las curvas de consumo y solar</td>
+</tr>
+<tr>
+<td><code>earliest_projected_depletion</code></td>
+<td>Primer cruce previsto del SOC mínimo sin carga de red</td>
+</tr>
+<tr>
+<td><code>deadline_required_kwh</code> / <code>flexible_required_kwh</code></td>
+<td>Energía reservada antes de plazos y energía flexible por precio</td>
+</tr>
+<tr>
+<td><code>deadline_shortfall_kwh</code> / <code>total_shortfall_kwh</code></td>
+<td>Energía urgente y total que los slots elegibles no pueden entregar</td>
+</tr>
+<tr>
+<td><code>energy_deadlines</code></td>
+<td>Requisitos acumulados y plazos ISO locales</td>
+</tr>
+<tr>
+<td><code>slot_energy_targets_kwh</code> / <code>slot_deadlines</code></td>
+<td>Cuotas y plazos por slot, serializados con timestamps locales</td>
+</tr>
 </tbody>
 </table>
 <p><img alt="Atributos del sensor predictive_charging_active" src="../../assets/screenshots/configuration/predictive-charging/diagnostic-attributes.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<p>El calendario dinámico consume el mismo timeline solar fechado que Franja
+Horaria. Una curva del proveedor tiene prioridad sobre un perfil local maduro y
+una candidata inválida cae de forma atómica a la siguiente fuente. El perfil
+aprendido se aplica automáticamente cuando es maduro; mientras tanto se usa la
+curva sinusoidal.</p>
 
 
 

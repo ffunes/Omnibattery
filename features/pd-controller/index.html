@@ -1834,6 +1834,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../solar-charge-delay/" class="md-nav__link">
         
   
@@ -2502,6 +2530,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2991,13 +3047,13 @@
 <tr>
 <td><strong>System max charge power</strong></td>
 <td><code>0 W</code></td>
-<td>0–15000 W</td>
+<td>Dynamic: configured charge-power sum</td>
 <td>Optional cap for combined charge power. <code>0</code> disables it.</td>
 </tr>
 <tr>
 <td><strong>System max discharge power</strong></td>
 <td><code>0 W</code></td>
-<td>0–15000 W</td>
+<td>Dynamic: configured discharge-power sum</td>
 <td>Optional cap for combined discharge power. <code>0</code> disables it.</td>
 </tr>
 </tbody>
@@ -3039,13 +3095,18 @@
 <td>Not a tuning issue</td>
 </tr>
 <tr>
+<td>Blocked</td>
+<td>The needed direction is not allowed (charge delay, time slot, price, EV pause) — the PD is muzzled</td>
+<td>Not a tuning issue</td>
+</tr>
+<tr>
 <td>Collecting data</td>
-<td>Warming up (just started)</td>
+<td>Warming up (just started), or the metric has not advanced for over 5 min</td>
 <td>Wait</td>
 </tr>
 </tbody>
 </table>
-<p>The attributes carry the raw figures: <code>rms_error_w</code> (average grid-tracking error), <code>oscillation_per_min</code>, the active gains, and <code>active_profile</code>.</p>
+<p>The attributes carry the raw figures: <code>rms_error_w</code> (average grid-tracking error), <code>oscillation_per_min</code>, <code>metric_age_s</code>, the active gains, and <code>active_profile</code>.</p>
 <p><strong>How to tune:</strong></p>
 <ol>
 <li>Watch the verdict (and <code>rms_error_w</code>).</li>

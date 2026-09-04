@@ -1560,6 +1560,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -1892,6 +1920,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#precio-dinamico-muestra-un-shortfall-de-plazo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Precio Dinámico muestra un shortfall de plazo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#compatibilidad-con-la-app-de-marstek" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1943,6 +1982,34 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="La carga predictiva no se activa">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#el-origen-del-consumo-indica-legacy_daily" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        El origen del consumo indica legacy_daily
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#el-perfil-solar-sigue-inmaduro-o-usa-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        El perfil solar sigue inmaduro o usa fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2399,6 +2466,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2460,6 +2555,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#precio-dinamico-muestra-un-shortfall-de-plazo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Precio Dinámico muestra un shortfall de plazo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#compatibilidad-con-la-app-de-marstek" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2511,6 +2617,34 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="La carga predictiva no se activa">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#el-origen-del-consumo-indica-legacy_daily" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        El origen del consumo indica legacy_daily
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#el-perfil-solar-sigue-inmaduro-o-usa-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        El perfil solar sigue inmaduro o usa fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2612,6 +2746,8 @@
 
 
 <h1 id="solucion-de-problemas">Solución de problemas<a class="headerlink" href="#solucion-de-problemas" title="Permanent link">&para;</a></h1>
+<h2 id="precio-dinamico-muestra-un-shortfall-de-plazo">Precio Dinámico muestra un <em>shortfall</em> de plazo<a class="headerlink" href="#precio-dinamico-muestra-un-shortfall-de-plazo" title="Permanent link">&para;</a></h2>
+<p>Consulta <code>deadline_shortfall_kwh</code>, <code>earliest_projected_depletion</code>, <code>slot_deadlines</code> y <code>chronological_plan_reason</code> en <code>binary_sensor.omnibattery_predictive_charging_active</code>. El <em>shortfall</em> indica que el mejor plan físicamente realizable no puede entregar toda la energía antes del cruce previsto del SOC mínimo. Las causas habituales son un techo máximo de precio explícito, ausencia de slots elegibles antes del plazo, potencia de carga insuficiente, falta de hueco o ownership manual/por franja. Un slot barato posterior no se presenta deliberadamente como cobertura de una necesidad anterior. La integración continúa el control normal y nunca ignora límites explícitos de seguridad.</p>
 <h2 id="compatibilidad-con-la-app-de-marstek">Compatibilidad con la app de Marstek<a class="headerlink" href="#compatibilidad-con-la-app-de-marstek" title="Permanent link">&para;</a></h2>
 <p><strong>No es necesario realizar ningún cambio en la app de Marstek</strong> para que la integración funcione — incluyendo desactivar el medidor de energía o modificar cualquier configuración. La integración opera junto a la app sin requerir ningún ajuste desde ella.</p>
 <p>Sin embargo, <strong>no cambies ningún modo de operación ni configuración desde la app de Marstek mientras la integración de Home Assistant esté en ejecución</strong>. Hacerlo romperá la compatibilidad y necesitarás deshabilitar y volver a habilitar la integración para restaurar el funcionamiento normal.</p>
@@ -2694,6 +2830,23 @@
 <li>Revisa las notificaciones de HA: la evaluación de las 00:05 reporta el resultado.</li>
 <li>Asegúrate de que el balance energético realmente requiere carga (puede que haya suficiente energía).</li>
 </ol>
+<h3 id="el-origen-del-consumo-indica-legacy_daily">El origen del consumo indica <code>legacy_daily</code><a class="headerlink" href="#el-origen-del-consumo-indica-legacy_daily" title="Permanent link">&para;</a></h3>
+<p>Es normal mientras el perfil de 28 días está aprendiendo o cuando los intervalos
+solicitados no cumplen su contrato de cobertura. Comprueba
+<code>sensor.omnibattery_expected_home_consumption_profile</code> y los diagnósticos de la
+integración. Cambiar la fuente o un ajuste de cargas conserva todos los días
+aprendidos, y un cambio de zona horaria los reubica según el desfase entre ambas
+zonas; después el backfill del Recorder reconstruye en segundo plano lo que siga
+faltando. Los huecos de más de cinco minutos no se interpolan.</p>
+<h3 id="el-perfil-solar-sigue-inmaduro-o-usa-fallback">El perfil solar sigue inmaduro o usa fallback<a class="headerlink" href="#el-perfil-solar-sigue-inmaduro-o-usa-fallback" title="Permanent link">&para;</a></h3>
+<p>Es seguro y esperado durante los primeros días. El aprendizaje necesita
+potencia FV directa del sensor externo configurado o canales MPPT legibles, al
+menos siete días cerrados de calidad, cobertura reciente y evidencia suficiente
+en el rango futuro solicitado. Se excluyen muestras inválidas, negativas y
+huecos largos. Las señales de curtailment pueden excluir intervalos y un cambio
+de fuente o capacidad inicia otra generación. Revisa <code>solar_profile</code> en los
+diagnósticos y <code>solar_timeline_fallback_reason</code>; el perfil no corrige una
+previsión meteorológica errónea ni modela curtailment no observable.</p>
 <hr />
 <h2 id="el-dispositivo-de-medida-no-esta-disponible-o-pierde-conexion">El dispositivo de medida no está disponible o pierde conexión<a class="headerlink" href="#el-dispositivo-de-medida-no-esta-disponible-o-pierde-conexion" title="Permanent link">&para;</a></h2>
 <p>Si el sensor de red (por ejemplo, un medidor con conexión Wi-Fi inestable) se desconecta, el controlador se comporta de forma diferente según cómo falle el sensor.</p>

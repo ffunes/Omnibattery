@@ -1560,6 +1560,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2321,6 +2349,28 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#consumption-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumption profile
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solar-temporal-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solar temporal profile
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2345,6 +2395,34 @@
     
   
     Battery driver requirements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
   
 
     
@@ -2501,6 +2579,28 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#consumption-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumption profile
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solar-temporal-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solar temporal profile
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2638,6 +2738,11 @@ subpackages by responsibility.</p>
 <td><code>pricing/engine.py</code></td>
 <td>—</td>
 <td>Predictive charging: dynamic pricing, time slot, real-time price, SOC floor</td>
+</tr>
+<tr>
+<td><code>pricing/chronological.py</code></td>
+<td>—</td>
+<td>Pure 15-minute energy simulation, cumulative deadlines and price-slot allocation; no Home Assistant or device I/O</td>
 </tr>
 <tr>
 <td><code>control/power_distribution.py</code></td>
@@ -2849,6 +2954,30 @@ setups read back instead of branching on the version string.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="consumption-profile">Consumption profile<a class="headerlink" href="#consumption-profile" title="Permanent link">&para;</a></h2>
+<p><code>tracking/consumption_profile.py</code> owns the independent
+<code>omnibattery.&lt;entry_id&gt;.consumption_profile</code> Store. It captures adjusted home
+power continuously into raw local-date/96-interval energy and coverage arrays,
+then builds a weighted forecast only at query time. Recorder backfill is
+background work and never blocks setup or battery control. The tracker rejects
+invalid samples, isolates corrupt stored days, handles local DST boundaries and
+invalidates the raw profile when its source/configuration fingerprint changes.</p>
+<p>Control consumers use one contract: mature profile data for the requested range,
+otherwise an explicit legacy fallback. Neither capture nor runtime household
+forecasts mask predictive charging windows; those windows schedule battery grid
+charging rather than household operation. This keeps the same learned signal usable by daily predictive
+charging, Solar Charge Delay and Dynamic Pricing without coupling their runtime
+decisions to one another.</p>
+<h2 id="solar-temporal-profile">Solar temporal profile<a class="headerlink" href="#solar-temporal-profile" title="Permanent link">&para;</a></h2>
+<p><code>tracking/solar_profile.py</code> stores direct-PV energy, coverage and compact quality
+flags in <code>omnibattery.&lt;entry_id&gt;.solar_profile</code>. It learns a normalized shape on
+solar-window progress, with bounded 42-day retention and an isolated
+fingerprint/generation. It never learns from grid balance, export, weather
+forecast or the rounded public daily-energy sensor.</p>
+<p><code>pricing/solar_timeline.py</code> validates dated provider periods, maps learned
+progress bins, builds the sinusoidal fallback and applies the remaining budget
+exactly once. <code>pricing/chronological.py</code> continues to receive only finished
+<code>EnergyInterval</code> values and remains free of Home Assistant dependencies.</p>
 
 
 

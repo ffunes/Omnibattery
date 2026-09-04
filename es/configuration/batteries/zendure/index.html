@@ -1666,6 +1666,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2331,6 +2359,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2531,11 +2587,26 @@ límites de potencia del modelo detectado.</p>
 <td style="text-align: right;"><code>2400 W</code></td>
 <td style="text-align: right;"><code>2400 W</code></td>
 </tr>
+<tr>
+<td>SolarFlow 4000 Mix AC+</td>
+<td style="text-align: right;"><code>4000 W</code></td>
+<td style="text-align: right;"><code>4000 W</code></td>
+</tr>
+<tr>
+<td>SolarFlow 4000 Mix Pro</td>
+<td style="text-align: right;"><code>4000 W</code></td>
+<td style="text-align: right;"><code>4000 W</code></td>
+</tr>
 </tbody>
 </table>
 <p>El informe del dispositivo tiene prioridad si anuncia un límite inferior. Los
-modelos acoplados en CA 1600 AC+ y 2400 AC+ no exponen telemetría MPPT de CC a
-través de esta conexión.</p>
+El 4000 Mix Pro expone telemetría MPPT dual de CC; los modelos acoplados en CA
+1600 AC+, 2400 AC+ y 4000 Mix AC+ no exponen telemetría MPPT de CC a través de
+esta conexión.</p>
+<p>Las entradas existentes de 2400 AC+ se promocionan automáticamente cuando el
+equipo informa del identificador de producto 4000 Mix AC+ o 4000 Mix Pro. Se
+conservan los límites de potencia elegidos por el usuario; si quieres usar el
+margen mayor, auméntalos en las opciones de la batería.</p>
 <h2 id="ajustes-especificos-de-zendure">Ajustes específicos de Zendure<a class="headerlink" href="#ajustes-especificos-de-zendure" title="Permanent link">&para;</a></h2>
 <p>La página de límites incluye potencia de carga/descarga, SOC máximo, SOC mínimo,
 histéresis de carga y umbral de backup offgrid. Zendure usa un rango de SOC

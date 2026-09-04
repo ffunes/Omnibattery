@@ -1738,6 +1738,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2403,6 +2431,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2656,7 +2712,7 @@
 </table>
 <h3 id="incluido-en-el-consumo">¿Incluido en el consumo?<a class="headerlink" href="#incluido-en-el-consumo" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Sensor principal lee: toda la casa
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Cargador VE forma parte de &quot;toda la casa&quot; → ✅ Incluido en el consumo
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Cargador VE forma parte de "toda la casa" → ✅ Incluido en el consumo
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>Sensor principal lee: solo circuito doméstico
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Cargador VE está en circuito separado → ❌ No incluido en el consumo
@@ -2681,15 +2737,15 @@ mediante el mismo contador de red que Omnibattery. Debe activarse junto con
 <strong>Excedente Solar</strong>.</p>
 <div class="admonition note">
 <p class="admonition-title">Sensor de producción solar</p>
-<p>Se recomienda configurar el <strong>sensor de producción solar</strong> para este control. Si está configurado, Omnibattery detecta aumentos de producción de al menos 200 W y cede de nuevo la carga de batería durante 20 segundos. Sin ese sensor, realiza una comprobación de 20 segundos cada 5 minutos.</p>
+<p>Se recomienda configurar el <strong>sensor de producción solar</strong> para este control. Si está configurado, Omnibattery detecta aumentos de al menos 200 W en el margen disponible (producción solar menos potencia del dispositivo), incluido cuando una wallbox reduce su potencia, y cede de nuevo la carga de batería durante 20 segundos. Sin ese sensor, realiza una comprobación de 20 segundos cada 5 minutos.</p>
 </div>
 <p>El <strong>Sensor de dispositivo activo / carga del VE</strong> permite que Omnibattery ceda mientras la wallbox solicita potencia pero todavía marca 0 W, evitando el bloqueo de arranque en el que la batería absorbe toda la exportación. Automáticamente:</p>
 <ul>
 <li>Bloquea la carga de batería mientras el sensor de actividad solicita potencia   y la wallbox todavía marca 0 W.</li>
 <li>Cede la carga de batería durante 30 segundos cuando el dispositivo supera 100 W.</li>
 <li>Deja que el regulador externo aumente potencia antes de usar el excedente restante.</li>
-<li>Vuelve a ceder durante 20 segundos si la producción solar aumenta al menos 200 W.</li>
-<li>Bloquea la carga durante 5 minutos cuando desaparece el consumo, para permitir que una wallbox reinicie tras una nube o un cambio de fase.</li>
+<li>Vuelve a ceder durante 20 segundos cuando el margen disponible (producción solar menos potencia del dispositivo) aumenta al menos 200 W, ya sea porque sube la producción solar o porque la wallbox reduce su potencia.</li>
+<li>Cuando cae la potencia del dispositivo, mantiene bloqueada la descarga durante 5 minutos y da una breve gracia a la carga para que la wallbox pueda reiniciarse tras una nube o un cambio de fase.</li>
 <li>Realiza una comprobación cada 5 minutos si no hay sensor de producción solar.</li>
 </ul>
 <p>Las entradas antiguas de Control Dinámico de Potencia sin sensor de actividad siguen usando como fallback la primera lectura superior a 100 W. Este control no está disponible para el modo <strong>Cargador VE sin telemetría de potencia</strong>, porque ese modo ya gestiona la batería directamente con el mismo sensor de actividad.</p>
@@ -2711,7 +2767,7 @@ mediante el mismo contador de red que Omnibattery. Debe activarse junto con
 <li><code>Cargando</code>, <code>Cargando VE</code>, <code>Cargando Vehículo</code> (español)</li>
 </ul>
 <h3 id="comportamiento-cuando-el-ve-empieza-a-cargar">Comportamiento cuando el VE empieza a cargar<a class="headerlink" href="#comportamiento-cuando-el-ve-empieza-a-cargar" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>t = 0  Estado VE → &quot;Charging&quot; detectado
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>t = 0  Estado VE → "Charging" detectado
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>       Batería forzada a 0 W (carga Y descarga bloqueadas)
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>       Estado del controlador PD congelado
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>

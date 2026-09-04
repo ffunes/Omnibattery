@@ -1571,6 +1571,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../solar-charge-delay/" class="md-nav__link">
         
   
@@ -1696,6 +1724,17 @@
     <span class="md-ellipsis">
       
         Example
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interaction-with-predictive-grid-charging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interaction with predictive grid charging
       
     </span>
   </a>
@@ -2352,6 +2391,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2457,6 +2524,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#interaction-with-predictive-grid-charging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interaction with predictive grid charging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#peak-shaving-for-excluded-devices" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2547,6 +2625,32 @@
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>Grid covers 3,000 W and the battery only 1,500 W
 </code></pre></div>
 <p>If consumption were 2,000 W (&lt; limit), the battery would not discharge at all.</p>
+<h2 id="interaction-with-predictive-grid-charging">Interaction with predictive grid charging<a class="headerlink" href="#interaction-with-predictive-grid-charging" title="Permanent link">&para;</a></h2>
+<p>During an active predictive slot, household demand always receives priority
+over grid charging. The controller first reduces the battery's charge command;
+if the import ceiling is reached, it commands idle and waits for inverter and
+meter telemetry to settle before considering any discharge.</p>
+<p>After settling:</p>
+<ul>
+<li>With Capacity Protection enabled, Peak Shaving discharges only the excess
+  above <code>min(capacity_protection_limit, max_contracted_power)</code>.</li>
+<li>Independently of the Capacity Protection switch, physical import above
+  <code>max_contracted_power</code> activates contracted-power emergency protection. Loads
+  excluded from ordinary battery coverage cannot be excluded from this check,
+  because the grid connection still sees them.</li>
+<li>Price-based discharge restrictions and protected negative-price windows may
+  not suppress a legitimate Peak Shaving/emergency command. Physical and user
+  safety restrictions — minimum SOC, battery availability, manual/slot
+  ownership, backup, phase and power limits — still apply.</li>
+</ul>
+<p>Stopping predictive charging, discharging for Peak Shaving, normal PD discharge
+and contracted-power emergency discharge are therefore separate actions. Peak
+protection never turns a cheap charging slot into normal economic discharge
+towards the regular PD grid target. When stable headroom returns, discharge is
+stopped, telemetry settles again and predictive charging resumes with
+hysteresis. Its SOC target and pending kWh are preserved.</p>
+<p>See <a href="../../configuration/predictive-charging/#household-demand-during-a-charging-slot">Household demand during a predictive charging slot</a>
+for the complete sequence and an example.</p>
 <h2 id="peak-shaving-for-excluded-devices">Peak shaving for excluded devices<a class="headerlink" href="#peak-shaving-for-excluded-devices" title="Permanent link">&para;</a></h2>
 <p>The optional <strong>Peak Shaving for Excluded Devices</strong> switch extends the peak
 limit to loads that are normally excluded from battery coverage. It is disabled

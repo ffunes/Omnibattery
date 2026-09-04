@@ -1705,6 +1705,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2370,6 +2398,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2547,6 +2603,7 @@
 <h1 id="predictive-charging-real-time-price-mode">Predictive charging — Real-Time Price mode<a class="headerlink" href="#predictive-charging-real-time-price-mode" title="Permanent link">&para;</a></h1>
 <p>Activates or deactivates grid charging every controller cycle (event-driven) based on the <strong>current electricity price</strong>.</p>
 <p>Unlike Dynamic Pricing mode, it requires no price forecast and no overnight evaluation. It reacts purely to the live price.</p>
+<p>Deadline-based slot selection is intentionally not applied in this mode: a current-price sensor provides no trustworthy future intervals to reserve before a deadline. The energy balance and per-battery target remain predictive, but selecting or promising a future slot would require switching to Dynamic Pricing. Configured charge-permission windows and all physical blockers still apply.</p>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2653,6 +2710,10 @@
 </tr>
 </tbody>
 </table>
+<p>Real-Time Price remains reactive: it uses the normalized remaining total for its
+gate and does not consume the learned temporal curve or create future
+deadlines. A future anticipatory implementation should enter through the same
+chronological planner as the other scheduling modes.</p>
 
 
 

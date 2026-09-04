@@ -1560,6 +1560,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2108,6 +2136,39 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#modo-vacaciones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modo vacaciones
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#perfil-de-consumo-esperado-del-hogar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Perfil de consumo esperado del hogar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#linea-temporal-de-operacion-diaria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Línea temporal de operación diaria
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2416,6 +2477,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2609,6 +2698,39 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#modo-vacaciones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modo vacaciones
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#perfil-de-consumo-esperado-del-hogar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Perfil de consumo esperado del hogar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#linea-temporal-de-operacion-diaria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Línea temporal de operación diaria
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2641,6 +2763,7 @@
 
 <h1 id="entidades-de-home-assistant">Entidades de Home Assistant<a class="headerlink" href="#entidades-de-home-assistant" title="Permanent link">&para;</a></h1>
 <p>La integración crea automáticamente entidades para cada batería configurada y sensores agregados del sistema completo.</p>
+<p>El sensor binario de estado de carga predictiva incluye diagnósticos de Precio Dinámico con plazos: <code>chronological_planning_active</code>, fuentes de curvas, <code>earliest_projected_depletion</code>, kWh con plazo/flexibles, <em>shortfalls</em>, <code>energy_deadlines</code> acumulados y mapas JSON-safe de cuota/plazo por slot. Estos atributos describen la intención del plan; los límites reales de baterías y red siguen siendo autoritativos.</p>
 <h2 id="sensores-por-bateria">Sensores (por batería)<a class="headerlink" href="#sensores-por-bateria" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2867,12 +2990,12 @@
 <tr>
 <td><code>number.marstek_venus_system_system_max_charge_power</code></td>
 <td>Límite opcional de carga combinada para todo el sistema (<code>0 W</code> = desactivado). Solo se crea cuando los límites del sistema están activados.</td>
-<td>0–15000 W</td>
+<td>Dinámico: suma de potencias de carga configuradas</td>
 </tr>
 <tr>
 <td><code>number.marstek_venus_system_system_max_discharge_power</code></td>
 <td>Límite opcional de descarga combinada para todo el sistema (<code>0 W</code> = desactivado). Solo se crea cuando los límites del sistema están activados.</td>
-<td>0–15000 W</td>
+<td>Dinámico: suma de potencias de descarga configuradas</td>
 </tr>
 <tr>
 <td><code>number.omnibattery_predictive_safety_margin_kwh</code></td>
@@ -3100,12 +3223,16 @@
 <td>Batería llena/vacía o en su límite de potencia; el PD no puede actuar (no es problema de ajuste)</td>
 </tr>
 <tr>
+<td><code>blocked</code></td>
+<td>La dirección que exige el error de red no está permitida (retardo de carga, franja horaria, precio, pausa por VE); el PD está bloqueado, no mal ajustado</td>
+</tr>
+<tr>
 <td><code>collecting_data</code></td>
-<td>Calentando</td>
+<td>Calentando, o la métrica lleva más de 5 min sin avanzar</td>
 </tr>
 </tbody>
 </table>
-<p>Atributos: <code>rms_error_w</code> (error medio de seguimiento), <code>oscillation_per_min</code>, los <code>kp</code> / <code>kd</code> / <code>deadband_w</code> / <code>max_power_change_w</code> activos, y <code>active_profile</code>. La métrica es una media móvil de 60 s y se pausa brevemente tras un cambio de objetivo y mientras está limitada por batería, así que espera 1–2 min tras un cambio.</p>
+<p>Atributos: <code>rms_error_w</code> (error medio de seguimiento), <code>oscillation_per_min</code>, <code>metric_age_s</code> (segundos desde el último avance de la métrica), los <code>kp</code> / <code>kd</code> / <code>deadband_w</code> / <code>max_power_change_w</code> activos, y <code>active_profile</code>. La métrica es una media móvil de 60 s y se pausa brevemente tras un cambio de objetivo y mientras está limitada por batería o bloqueada, así que espera 1–2 min tras un cambio.</p>
 <h3 id="sensores-agregados">Sensores agregados<a class="headerlink" href="#sensores-agregados" title="Permanent link">&para;</a></h3>
 <p>Disponibles bajo el prefijo <code>sensor.marstek_venus_system_*</code>, suman los valores de todas las baterías:</p>
 <ul>
@@ -3118,6 +3245,45 @@
 <li><code>system_home_consumption</code> — Consumo instantáneo del hogar (W). Lee el sensor del hogar si está configurado, en caso contrario lo deriva de <code>red + AC de baterías + solar</code>.</li>
 <li><code>system_daily_home_energy</code> — Consumo del hogar de hoy (kWh), integrado del valor de Consumo de la Casa anterior. Se reinicia a medianoche (hora local).</li>
 </ul>
+<h3 id="modo-vacaciones">Modo vacaciones<a class="headerlink" href="#modo-vacaciones" title="Permanent link">&para;</a></h3>
+<p><code>switch.omnibattery_vacation_mode</code> pausa el aprendizaje de consumo sin pausar
+la medición física ni el control de batería. Sus atributos muestran la carga
+base constante activa, su origen, las noches válidas y los periodos excluidos
+persistidos. Durante las vacaciones el sensor de perfil esperado usa
+<code>source: vacation_baseline</code>.</p>
+<h3 id="perfil-de-consumo-esperado-del-hogar">Perfil de consumo esperado del hogar<a class="headerlink" href="#perfil-de-consumo-esperado-del-hogar" title="Permanent link">&para;</a></h3>
+<p><code>sensor.omnibattery_expected_home_consumption_profile</code> es un sensor de
+diagnóstico del perfil aprendido de 28 días. Su estado es la previsión de hoy en
+kWh. Sus atributos incluyen <code>interval_profile_kwh</code>, <code>hourly_profile_kwh</code>,
+<code>target_date</code>, <code>source</code>, <code>mature</code>, <code>coverage_ratio</code>, <code>weekday_samples</code>,
+<code>day_type_samples</code>, <code>total_profile_days</code> y <code>newest_profile_date</code>. El resumen
+acotado por día está disponible en los diagnósticos de la integración. El origen
+es <code>profile</code> solo cuando se cumple el
+contrato de madurez; <code>legacy_daily</code> identifica el fallback.</p>
+<p>La carga predictiva también publica <code>solar_timeline_source</code>,
+<code>solar_remaining_raw_kwh</code>, <code>solar_remaining_effective_kwh</code>,
+<code>solar_timeline_fallback_reason</code>, <code>solar_profile_mature</code>,
+<code>solar_profile_days</code>, <code>solar_profile_coverage_ratio</code> y
+<code>solar_profile_generation</code>. Los diagnósticos contienen una sección acotada
+<code>solar_profile</code> con origen de telemetría, contadores de calidad, generación,
+estado de backfill y como máximo 24 valores resumidos de progreso.</p>
+<h3 id="linea-temporal-de-operacion-diaria">Línea temporal de operación diaria<a class="headerlink" href="#linea-temporal-de-operacion-diaria" title="Permanent link">&para;</a></h3>
+<p><code>sensor.omnibattery_daily_operation_timeline</code> es un snapshot de diagnóstico del
+día local que usa la tarjeta Resumen. Su estado es la fecha local y sus
+atributos acotados contienen <code>schema_version</code>, <code>timezone</code>,
+<code>interval_minutes</code> (15), <code>interval_count</code> (96), <code>current_index</code>,
+<code>current_progress</code>, <code>mode</code>, frescura y los objetos <code>series</code>, <code>operations</code> y
+<code>sources</code>. Las listas se excluyen de Recorder. Los valores <code>actual_*</code> son
+medidos; los <code>planned_*</code> son proyecciones informativas y pueden ser <code>null</code> si
+su fuente está obsoleta.</p>
+<p>La línea conserva los intervalos cerrados aunque se reevalúe el plan y, tras un
+reinicio, solo restaura el día local actual. Las máscaras <code>action_mask</code> usan
+<code>solar_charge=1</code>, <code>grid_charge=2</code> y <code>discharge=4</code>; las máscaras de contexto
+identifican setpoint, Retraso de Carga y el modo predictivo.
+<code>grid_charge_decision</code> es independiente del flujo físico (<code>scheduled</code>,
+<code>not_needed</code>, <code>unknown</code> o <code>not_applicable</code>).</p>
+<p>Consulta la <a href="../../features/daily-operation-timeline/">guía de la línea temporal diaria</a>
+para las reglas visuales, DST e interacción móvil.</p>
 
 
 

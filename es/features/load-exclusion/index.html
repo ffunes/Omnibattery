@@ -1571,6 +1571,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../solar-charge-delay/" class="md-nav__link">
         
   
@@ -2364,6 +2392,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2568,7 +2624,7 @@
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">trigger</span><span class="p">:</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">platform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">state</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">binary_sensor.ev_conectado</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">to</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;on&quot;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">to</span><span class="p">:</span><span class="w"> </span><span class="s">"on"</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">action</span><span class="p">:</span>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.turn_on</span>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">target</span><span class="p">:</span>
@@ -2588,9 +2644,12 @@ Es obligatorio en nuevas configuraciones de Control Dinámico de Potencia; las
 entradas antiguas sin él conservan el fallback por potencia medida.</p>
 <p>Al detectar consumo por primera vez bloquea la carga de batería durante 30
 segundos. Después la batería solo puede aprovechar la exportación que el
-dispositivo deje libre. Una subida solar provoca una nueva cesión de 20 segundos
-y una pausa a 0 W se mantiene durante 5 minutos para no impedir el reinicio del
-dispositivo. No exige ningún sensor de potencia máxima.</p>
+dispositivo deje libre. Un aumento de al menos 200 W en el margen disponible
+(producción solar menos potencia del dispositivo) provoca una nueva cesión de 20
+segundos; esto también detecta que una wallbox reduzca su potencia mientras la
+producción solar permanece estable. Una pausa a 0 W mantiene bloqueada la
+descarga durante 5 minutos y da una breve gracia a la carga para que el
+dispositivo pueda reiniciarse. No exige ningún sensor de potencia máxima.</p>
 <h2 id="cargador-ve-sin-telemetria-de-potencia">Cargador VE sin telemetría de potencia<a class="headerlink" href="#cargador-ve-sin-telemetria-de-potencia" title="Permanent link">&para;</a></h2>
 <p>Para cargadores VE que solo exponen un sensor de estado (sin lectura de potencia en tiempo real), existe la opción <strong>Cargador VE sin telemetría de potencia</strong>. Se utiliza el mismo campo de dispositivo activo / carga del VE. Las entradas antiguas que guardaron ese estado en el campo anterior de sensor del dispositivo siguen funcionando sin cambios.</p>
 <table>

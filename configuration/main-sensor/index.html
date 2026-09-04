@@ -885,6 +885,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#off-grid-power-sensor-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Off-grid power sensor (optional)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#maximum-contracted-power" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -896,10 +907,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#solar-forecast-sensor-optional" class="md-nav__link">
+  <a href="#solar-forecast-sensors-optional" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Solar forecast sensor (optional)
+        Solar forecast sensors (optional)
       
     </span>
   </a>
@@ -925,6 +936,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Home consumption (derived automatically)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#forecast-total-versus-solar-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forecast total versus solar timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1699,6 +1727,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2364,6 +2420,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2464,6 +2548,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#off-grid-power-sensor-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Off-grid power sensor (optional)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#maximum-contracted-power" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2475,10 +2570,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#solar-forecast-sensor-optional" class="md-nav__link">
+  <a href="#solar-forecast-sensors-optional" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Solar forecast sensor (optional)
+        Solar forecast sensors (optional)
       
     </span>
   </a>
@@ -2504,6 +2599,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Home consumption (derived automatically)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#forecast-total-versus-solar-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forecast total versus solar timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2574,19 +2686,56 @@
 </tbody>
 </table>
 <p>Leave it disabled if you are unsure.</p>
+<h2 id="off-grid-power-sensor-optional">Off-grid power sensor <em>(optional)</em><a class="headerlink" href="#off-grid-power-sensor-optional" title="Permanent link">&para;</a></h2>
+<p>You can configure a second W/kW sensor for the backed-up circuit. It must be a
+different entity from the normal grid consumption sensor. Saving it exposes the
+system <strong>Off-grid Meter Mode</strong> switch both as a Home Assistant entity and on the
+dashboard <strong>Controls</strong> tab.</p>
+<p>The <strong>Off-grid meter sign inverted</strong> setting is independent from the primary
+meter sign. Enable it when the off-grid sensor reports consumption as negative;
+it applies only while this mode is active.</p>
+<p>While the switch is on, Omnibattery uses the second sensor as the source for PD
+and for derived consumption and grid import/export statistics. Turning it off
+returns to the primary sensor. Switching sources breaks the current integration
+interval so a jump between the two meters is not counted as energy.
+Batteries supplying power through their own off-grid port remain excluded from
+PD; the other available batteries use the alternate sensor.</p>
+<p>This switch only changes the data source. It does not enable the physical
+off-grid/EPS port, change the battery mode, or write any backup-output setting;
+the user must enable that port separately.</p>
 <hr />
 <h2 id="maximum-contracted-power">Maximum contracted power<a class="headerlink" href="#maximum-contracted-power" title="Permanent link">&para;</a></h2>
 <p>The contracted power of your grid connection, in <strong>W</strong> (default <code>7000</code>).</p>
-<p>The integration caps battery charging so that <strong>projected grid import never exceeds this limit</strong>, preventing the main breaker from tripping. This applies in <strong>every mode</strong> — normal setpoint control, a positive target/offset, hourly net balance and predictive grid charging — not only while charging from the grid on a schedule. It only limits charging; it never forces a discharge.</p>
+<p>The integration caps battery charging so that <strong>projected grid import never exceeds this limit</strong>, preventing the main breaker from tripping. This applies in <strong>every mode</strong> — normal setpoint control, a positive target/offset, hourly net balance and predictive grid charging — not only while charging from the grid on a schedule.</p>
+<p><code>max_contracted_power</code> protects the installation in two complementary ways:</p>
+<ul>
+<li>It is a hard ceiling for battery charging in every mode.</li>
+<li>While a predictive grid-charging slot owns the batteries, it is also the
+  emergency import limit. Omnibattery first stops charging and waits for settled
+  telemetry; if physical import still exceeds the limit, it discharges only the
+  confirmed excess.</li>
+</ul>
+<p>This emergency protection does <strong>not</strong> require Capacity Protection/Peak Shaving
+to be enabled. Peak Shaving is a separate optional reserve strategy with its own
+configurable limit. Outside a predictive charging slot, normal PD continues to
+regulate towards its configured grid target. See
+<a href="../predictive-charging/#household-demand-during-a-charging-slot">Household demand during predictive charging</a>.</p>
 <hr />
-<h2 id="solar-forecast-sensor-optional">Solar forecast sensor <em>(optional)</em><a class="headerlink" href="#solar-forecast-sensor-optional" title="Permanent link">&para;</a></h2>
-<p>Sensor providing today's estimated solar production in <strong>kWh</strong> or <strong>Wh</strong>.</p>
+<h2 id="solar-forecast-sensors-optional">Solar forecast sensors <em>(optional)</em><a class="headerlink" href="#solar-forecast-sensors-optional" title="Permanent link">&para;</a></h2>
+<p>For new configurations, select the sensor providing the solar production
+<strong>remaining today</strong> in <strong>kWh</strong> or <strong>Wh</strong>. This value is used directly for
+intraday decisions, without subtracting measured production again.</p>
+<p>The whole-day forecast field remains available for untouched legacy entries.
+Saving <strong>Remaining Today</strong> replaces and removes that legacy field, resolving the
+transition Repair. Existing installations can continue working until their
+sensor is changed.</p>
 <p>Configuring it here makes it available to:</p>
 <ul>
 <li><strong>Predictive charging</strong> (Time Slot and Dynamic Pricing modes)</li>
 <li><strong>Solar charge delay</strong></li>
 </ul>
-<p>You can also leave it blank and configure it later in those specific sections.</p>
+<p>You can also leave it blank and configure it later from the <strong>Sensors</strong> section
+of the integration options.</p>
 <hr />
 <h2 id="solar-production-sensor-optional">Solar production sensor <em>(optional)</em><a class="headerlink" href="#solar-production-sensor-optional" title="Permanent link">&para;</a></h2>
 <p>This is the real-time PV production power sensor (W or kW) from an external invertor not wired through the battery MPPT inputs. It is used to show the Solar node in the dashboard energy-flow diagram. Leave empty if your solar panels feed the battery MPPT directly.</p>
@@ -2594,7 +2743,31 @@
 <h2 id="home-consumption-derived-automatically">Home consumption <em>(derived automatically)</em><a class="headerlink" href="#home-consumption-derived-automatically" title="Permanent link">&para;</a></h2>
 <p>There is <strong>no household consumption sensor field</strong> in setup — the integration derives your total home consumption from sensors it already has:</p>
 <p><strong>Home consumption = Grid power + Battery AC power + Solar power</strong></p>
-<p>This is the value shown by the energy-flow diagram and the <code>sensor.marstek_venus_system_home_consumption</code> sensor, and it feeds the 7-day history used by predictive charging and charge delay. Accumulation runs during the solar+battery window only (outside the configured charging time slot; all day if none); the counter resets at midnight and survives HA restarts.</p>
+<p>This is the value shown by the energy-flow diagram and the <code>sensor.marstek_venus_system_home_consumption</code> sensor, and it feeds the 7-day history used by predictive charging and charge delay. Accumulation runs for the full local day, including predictive charging windows; the battery's negative AC power cancels grid energy used to charge it. The counter resets at midnight and survives HA restarts.</p>
+<p>Grid, solar and battery telemetry are independent and may not describe exactly
+the same instant. Immediately after a charge command changes, their temporary
+combination can produce an impossible negative or implausibly small home
+balance. The live Home Consumption sensor keeps its last coherent value for up
+to <strong>15 seconds</strong>; if the inputs still disagree, it reports <code>unknown</code> instead of
+publishing a false <code>0 W</code>. The physical daily-energy accumulator applies its own
+equivalent validation and breaks the integration interval rather than adding a
+fabricated zero. It does not apply predictive external-load exclusions to the
+physical dashboard total.</p>
+<p>Fast, coherent grid and battery telemetry shortens these transitions. A brief
+held or <code>unknown</code> value during an inverter direction change is therefore a
+data-quality safeguard, not a request for the battery to discharge.</p>
+<h3 id="forecast-total-versus-solar-timeline">Forecast total versus solar timeline<a class="headerlink" href="#forecast-total-versus-solar-timeline" title="Permanent link">&para;</a></h3>
+<p>The forecast sensor is the energy budget. A <code>remaining today</code> sensor is already
+future energy and is never reduced by the local production accumulator. Legacy
+whole-day (<code>today</code>) sensors use their dated future periods when available, or
+the remaining part of the solar curve otherwise; measured past production is
+never shifted into later forecast intervals. The
+optional real-time production sensor, and readable battery MPPT channels, are
+used only to learn the intraday shape; they never replace the forecast total.</p>
+<p>When enabled, the temporal selection is provider periods, a mature local solar
+profile, then the existing sinusoidal curve. A profile does not predict kWh,
+correct a meteorological forecast, control the inverter, or guarantee output
+during curtailment.</p>
 
 
 

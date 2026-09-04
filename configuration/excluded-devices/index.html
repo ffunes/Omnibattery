@@ -1738,6 +1738,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2403,6 +2431,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2656,7 +2712,7 @@
 </table>
 <h3 id="included-in-consumption">Included in consumption?<a class="headerlink" href="#included-in-consumption" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Main sensor reads: whole house
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>EV charger is part of &quot;whole house&quot; → ✅ Included in consumption
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>EV charger is part of "whole house" → ✅ Included in consumption
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>Main sensor reads: only domestic circuit
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>EV charger is on a separate circuit → ❌ Not included in consumption
@@ -2678,15 +2734,15 @@
 <p>Telemetry devices also get a <strong>Dynamic Power Control</strong> switch. It is designed for flexible loads such as wallboxes that regulate themselves from the same grid meter as Omnibattery. Enable it together with <strong>Solar Surplus</strong>.</p>
 <div class="admonition note">
 <p class="admonition-title">Solar production sensor</p>
-<p>The <strong>solar-production sensor is recommended</strong> for this control. When it is configured, Omnibattery detects solar-production increases of at least 200 W and yields battery charging again for 20 seconds. Without that sensor, it runs a 20-second probe every 5 minutes.</p>
+<p>The <strong>solar-production sensor is recommended</strong> for this control. When it is configured, Omnibattery detects increases of at least 200 W in the available margin (solar production minus device power), including a wallbox power drop, and yields battery charging again for 20 seconds. Without that sensor, it runs a 20-second probe every 5 minutes.</p>
 </div>
 <p>The <strong>Device active / EV charging sensor</strong> lets Omnibattery yield while the wallbox is requesting power but still reads 0 W, avoiding the cold-start deadlock where the battery absorbs all export before the wallbox starts. Omnibattery automatically:</p>
 <ul>
 <li>Bblocks battery charging while the optional activity sensor requests power but the wallbox still reads 0 W.</li>
 <li>Yields battery charging for 30 seconds when device demand rises above 100 W.</li>
 <li>Lets the external controller ramp up before the battery takes residual export.</li>
-<li>Yields again for 20 seconds after solar production rises by at least 200 W.</li>
-<li>Keeps battery charging blocked for 5 minutes after device power falls, allowing a wallbox to restart after a cloud or phase transition.</li>
+<li>Yields again for 20 seconds when the available margin (solar production minus device power) rises by at least 200 W, either because solar production rises or the wallbox reduces power.</li>
+<li>When device power falls, keeps battery discharge blocked for 5 minutes and gives charging a short restart grace so a wallbox can restart after a cloud or phase transition.</li>
 <li>Probes every 5 minutes when no solar-production sensor is available.</li>
 </ul>
 <p>Legacy sensor-less Dynamic Power Control entries still fall back to detection at the first measured load above 100 W. Dynamic Power Control is not available for the state-only <strong>EV charger without power telemetry</strong> mode because that mode already manages the battery directly from the same activity sensor.</p>
@@ -2708,7 +2764,7 @@
 <li><code>Cargando</code>, <code>Cargando VE</code>, <code>Cargando Vehículo</code> (Spanish)</li>
 </ul>
 <h3 id="behaviour-when-the-ev-starts-charging">Behaviour when the EV starts charging<a class="headerlink" href="#behaviour-when-the-ev-starts-charging" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>t = 0  EV state → &quot;Charging&quot; detected
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>t = 0  EV state → "Charging" detected
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>       Battery immediately set to 0 W (charge AND discharge blocked)
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>       PD state frozen
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>

@@ -1705,6 +1705,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2370,6 +2398,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2547,6 +2603,7 @@
 <h1 id="carga-predictiva-modo-precio-en-tiempo-real">Carga predictiva — Modo Precio en Tiempo Real<a class="headerlink" href="#carga-predictiva-modo-precio-en-tiempo-real" title="Permanent link">&para;</a></h1>
 <p>Activa o desactiva la carga desde la red en cada ciclo del controlador (dirigido por eventos) en función del <strong>precio actual de la electricidad</strong>.</p>
 <p>A diferencia del Modo Precio Dinámico, no requiere previsión de precios ni evaluación nocturna. Reacciona puramente al precio en curso.</p>
+<p>La selección de slots con plazos no se aplica deliberadamente en este modo: un sensor de precio actual no aporta intervalos futuros fiables que puedan reservarse antes de un deadline. El balance energético y el objetivo por batería siguen siendo predictivos, pero seleccionar o prometer una franja futura exigiría usar Precio Dinámico. Las ventanas configuradas de permiso de carga y todos los bloqueos físicos siguen vigentes.</p>
 <h2 id="configuracion">Configuración<a class="headerlink" href="#configuracion" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2653,6 +2710,10 @@
 </tr>
 </tbody>
 </table>
+<p>Precio en Tiempo Real sigue siendo reactivo: usa el total restante normalizado
+para su condición y no consume la curva temporal aprendida ni crea plazos
+futuros. Si adquiere planificación anticipada, deberá entrar por el mismo
+planificador cronológico que los demás modos.</p>
 
 
 

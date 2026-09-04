@@ -1560,6 +1560,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2076,6 +2104,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#daily-operation-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily operation timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#integration-status" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2102,6 +2141,28 @@
     <span class="md-ellipsis">
       
         Aggregate sensors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#expected-home-consumption-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expected home consumption profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vacation-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vacation Mode
       
     </span>
   </a>
@@ -2416,6 +2477,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2577,6 +2666,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#daily-operation-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily operation timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#integration-status" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2603,6 +2703,28 @@
     <span class="md-ellipsis">
       
         Aggregate sensors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#expected-home-consumption-profile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expected home consumption profile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vacation-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vacation Mode
       
     </span>
   </a>
@@ -2641,6 +2763,7 @@
 
 <h1 id="home-assistant-entities">Home Assistant entities<a class="headerlink" href="#home-assistant-entities" title="Permanent link">&para;</a></h1>
 <p>The integration automatically creates entities for each configured battery and aggregated sensors for the whole system.</p>
+<p>The predictive-charging status binary sensor includes deadline-aware Dynamic Pricing diagnostics: <code>chronological_planning_active</code>, curve sources, <code>earliest_projected_depletion</code>, deadline/flexible kWh, shortfalls, cumulative <code>energy_deadlines</code>, and JSON-safe per-slot quota/deadline maps. These attributes describe planning intent; live battery and grid limits remain authoritative.</p>
 <h2 id="sensors-per-battery">Sensors (per battery)<a class="headerlink" href="#sensors-per-battery" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2899,12 +3022,12 @@
 <tr>
 <td><code>number.marstek_venus_system_system_max_charge_power</code></td>
 <td>Optional combined charge cap for the whole system (<code>0 W</code> = disabled). Only created when system power limits are enabled.</td>
-<td>0–15000 W</td>
+<td>Dynamic: configured charge-power sum</td>
 </tr>
 <tr>
 <td><code>number.marstek_venus_system_system_max_discharge_power</code></td>
 <td>Optional combined discharge cap for the whole system (<code>0 W</code> = disabled). Only created when system power limits are enabled.</td>
-<td>0–15000 W</td>
+<td>Dynamic: configured discharge-power sum</td>
 </tr>
 <tr>
 <td><code>number.omnibattery_predictive_safety_margin_kwh</code></td>
@@ -3030,6 +3153,22 @@
 </tbody>
 </table>
 <h2 id="system-sensors">System sensors<a class="headerlink" href="#system-sensors" title="Permanent link">&para;</a></h2>
+<h3 id="daily-operation-timeline">Daily operation timeline<a class="headerlink" href="#daily-operation-timeline" title="Permanent link">&para;</a></h3>
+<p><code>sensor.omnibattery_daily_operation_timeline</code> is a diagnostic-only, local-day
+snapshot for the Overview card. Its state is the local date and its bounded
+attributes contain <code>schema_version</code>, <code>timezone</code>, <code>interval_minutes</code> (15),
+<code>interval_count</code> (96), <code>current_index</code>, <code>current_progress</code>, <code>mode</code>, freshness
+and the <code>series</code>, <code>operations</code> and <code>sources</code> objects. The arrays are excluded
+from Recorder. <code>actual_*</code> values are measured, while <code>planned_*</code> values are
+informational projections and may be <code>null</code> when their source is stale.</p>
+<p>The timeline preserves closed intervals across plan reevaluations and, after a
+restart, restores only the current local day. <code>action_mask</code> values are
+<code>solar_charge=1</code>, <code>grid_charge=2</code> and <code>discharge=4</code>; context masks identify
+setpoint, Charge Delay and the predictive mode. <code>grid_charge_decision</code> is
+independent of physical flow (<code>scheduled</code>, <code>not_needed</code>, <code>unknown</code> or
+<code>not_applicable</code>).</p>
+<p>See the <a href="../../features/daily-operation-timeline/">daily operation timeline guide</a>
+for the visual rules, DST handling and mobile interaction.</p>
 <h3 id="integration-status">Integration Status<a class="headerlink" href="#integration-status" title="Permanent link">&para;</a></h3>
 <p><code>sensor.marstek_venus_system_integration_status</code> shows at a glance what the integration is currently doing. It reflects the highest-priority active mode:</p>
 <table>
@@ -3152,12 +3291,16 @@
 <td>Battery full/empty or at its power rail; the PD cannot act (not a tuning issue)</td>
 </tr>
 <tr>
+<td><code>blocked</code></td>
+<td>The direction the grid error demands is not allowed (charge delay, time slot, price, EV pause); the PD is muzzled, not mistuned</td>
+</tr>
+<tr>
 <td><code>collecting_data</code></td>
-<td>Warming up</td>
+<td>Warming up, or the metric has not advanced for more than 5 min</td>
 </tr>
 </tbody>
 </table>
-<p>Attributes: <code>rms_error_w</code> (average grid-tracking error), <code>oscillation_per_min</code>, the active <code>kp</code> / <code>kd</code> / <code>deadband_w</code> / <code>max_power_change_w</code>, and <code>active_profile</code>. The metric is a 60 s rolling average and is paused briefly after a target change and while battery-limited, so allow 1–2 min after a change.</p>
+<p>Attributes: <code>rms_error_w</code> (average grid-tracking error), <code>oscillation_per_min</code>, <code>metric_age_s</code> (seconds since the metric last advanced), the active <code>kp</code> / <code>kd</code> / <code>deadband_w</code> / <code>max_power_change_w</code>, and <code>active_profile</code>. The metric is a 60 s rolling average and is paused briefly after a target change and while battery-limited or blocked, so allow 1–2 min after a change.</p>
 <h3 id="aggregate-sensors">Aggregate sensors<a class="headerlink" href="#aggregate-sensors" title="Permanent link">&para;</a></h3>
 <p>Available under the <code>sensor.marstek_venus_system_*</code> prefix, summing values across all batteries:</p>
 <ul>
@@ -3169,15 +3312,37 @@
 <li><code>system_alarm_status</code> — Aggregated alarm state across all batteries (<code>OK</code> / <code>Warning</code> / <code>Fault</code>); attributes list active conditions per battery</li>
 <li><code>system_home_consumption</code> — Instantaneous home consumption (W). Reads the household sensor when configured, otherwise derives it from <code>grid + battery AC + solar</code>.</li>
 <li><code>system_daily_home_energy</code> — Today's home consumption (kWh), integrated from the Home Consumption value above. Resets at midnight (local time).</li>
-<li><code>system_battery_power</code> — Total system power</li>
-<li><code>system_battery_soc</code> — System average SOC</li>
-<li><code>system_total_charging_energy</code> — Total system charging energy</li>
-<li><code>system_total_discharging_energy</code> — Total system discharging energy</li>
-<li><code>grid_at_min_soc</code> — Grid import during min SOC periods (kWh)</li>
-<li><code>system_alarm_status</code> — Aggregated alarm state across all batteries (<code>OK</code> / <code>Warning</code> / <code>Fault</code>); attributes list active conditions per battery</li>
-<li><code>system_home_consumption</code> — Instantaneous home consumption (W). Reads the household sensor when configured, otherwise derives it from <code>grid + battery AC + solar</code>.</li>
-<li><code>system_daily_home_energy</code> — Today's home consumption (kWh), integrated from the Home Consumption value above. Resets at midnight (local time).</li>
 </ul>
+<h3 id="expected-home-consumption-profile">Expected home consumption profile<a class="headerlink" href="#expected-home-consumption-profile" title="Permanent link">&para;</a></h3>
+<p><code>sensor.omnibattery_expected_home_consumption_profile</code> is a diagnostic
+sensor for the learned 28-day profile. Its state is today's forecast in kWh.
+Attributes include <code>interval_profile_kwh</code>, <code>hourly_profile_kwh</code>, <code>target_date</code>,
+<code>source</code>, <code>mature</code>, <code>coverage_ratio</code>, <code>weekday_samples</code>, <code>day_type_samples</code>,
+<code>total_profile_days</code> and <code>newest_profile_date</code>. The bounded day-level summary is
+available through the integration diagnostics endpoint.
+The source is <code>profile</code> only when the maturity contract is satisfied;
+<code>legacy_daily</code> identifies the fallback.</p>
+<h3 id="vacation-mode">Vacation Mode<a class="headerlink" href="#vacation-mode" title="Permanent link">&para;</a></h3>
+<p><code>switch.omnibattery_vacation_mode</code> pauses consumption learning without pausing
+physical metering or battery control. Its attributes report the active constant
+baseline, its source, valid overnight samples and the persisted excluded
+periods. During vacation the expected-profile sensor reports
+<code>source: vacation_baseline</code>.</p>
+<p>Predictive charging also reports <code>solar_timeline_source</code>,
+<code>solar_remaining_raw_kwh</code>, <code>solar_remaining_effective_kwh</code>,
+<code>solar_timeline_fallback_reason</code>, <code>solar_profile_mature</code>,
+<code>solar_profile_days</code>, <code>solar_profile_coverage_ratio</code> and
+<code>solar_profile_generation</code>. Integration diagnostics contain a bounded
+<code>solar_profile</code> section with telemetry source, quality counters, generation,
+backfill status and at most 24 summarized progress values.
+- <code>system_battery_power</code> — Total system power
+- <code>system_battery_soc</code> — System average SOC
+- <code>system_total_charging_energy</code> — Total system charging energy
+- <code>system_total_discharging_energy</code> — Total system discharging energy
+- <code>grid_at_min_soc</code> — Grid import during min SOC periods (kWh)
+- <code>system_alarm_status</code> — Aggregated alarm state across all batteries (<code>OK</code> / <code>Warning</code> / <code>Fault</code>); attributes list active conditions per battery
+- <code>system_home_consumption</code> — Instantaneous home consumption (W). Reads the household sensor when configured, otherwise derives it from <code>grid + battery AC + solar</code>.
+- <code>system_daily_home_energy</code> — Today's home consumption (kWh), integrated from the Home Consumption value above. Resets at midnight (local time).</p>
 
 
 

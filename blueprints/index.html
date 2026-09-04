@@ -1560,6 +1560,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2360,6 +2388,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2539,7 +2595,7 @@
 <h2 id="active-cell-balancing-for-one-marstek-battery">Active cell balancing for one Marstek battery<a class="headerlink" href="#active-cell-balancing-for-one-marstek-battery" title="Permanent link">&para;</a></h2>
 <p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/marstek_active_balance_blueprint.yaml">Import blueprint</a></p>
 <p>Runs the active cell-balancing profile for exactly one Marstek battery. Create one persistent <code>input_boolean</code> and one automation per battery, then select that battery's Omnibattery device. The blueprint discovers the standard telemetry and control entities from the device automatically, including the <code>charging_cutoff_capacity</code> number used as the maximum-SOC limit. Optional advanced entity-ID overrides remain available for installations where an entity was renamed. The automation uses the per-battery <strong>Battery Manual Mode</strong> switch as its ownership boundary, so Omnibattery's automatic controller and other manual automations cannot write competing setpoints while the run is active.</p>
-<p>The blueprint uses only Home Assistant entities; it does not access Modbus. It validates telemetry, force-mode options, voltage ordering and number limits before taking control. Its defaults are 3.49 V → 3.60 V, 95 W top charge, 200 W discharge, 60 s rest, a 30 mV target and a 3.40 V adaptive retry floor. The <code>force_mode</code> options are named <strong>None</strong>, <strong>Charge</strong> and <strong>Discharge</strong>; old lowercase ESPHome entities remain supported during migration.</p>
+<p>The blueprint uses only Home Assistant entities; it does not access Modbus. It validates telemetry, force-mode options, voltage ordering and number limits before taking control. Its defaults are 3.49 V → 3.60 V, 95 W top charge, 200 W discharge, 60 s rest, a 30 mV target and a 3.40 V adaptive retry floor. If the BMS rejects charge before 3.60 V but still inside the upper window, the blueprint takes the same 60-second settled measurement before continuing with adaptive discharge; rejections below that window are not added to the formal history. The <code>force_mode</code> options are named <strong>None</strong>, <strong>Charge</strong> and <strong>Discharge</strong>; old lowercase ESPHome entities remain supported during migration.</p>
 <p>Turn the request helper ON to start or resume after a restart and OFF to cancel. The only helper you create is this persistent <code>input_boolean</code>; the blueprint does not require a new switch or sensor. Its notification baseline comes from the integration's persisted <code>Cell Delta</code> value, which represents the last formal 100%/OCV reading rather than instantaneous cell telemetry. Every exit attempts to write 0 W in both directions, restore the normal SOC maximum and release Battery Manual Mode. If any safety confirmation fails, the switch is deliberately left ON so the battery can be inspected before another automation is allowed to control it.</p>
 <p>After each settled 60-second measurement the blueprint fires the public <code>omnibattery_balance_measurement_ready</code> event with the selected device and a measurement ID. Omnibattery resolves the device, reads the cell voltages from its own coordinator and records the result in the existing <code>Cell Delta</code> history with <code>source: blueprint</code>. The event is read-only and does not grant the integration control of the battery.</p>
 <h2 id="central-status-webhook-reporter">Central status webhook reporter<a class="headerlink" href="#central-status-webhook-reporter" title="Permanent link">&para;</a></h2>
@@ -2552,7 +2608,7 @@
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="kt">!secret</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">omnibattery_status_webhook_url</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POST</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">content_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">application/json</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">report</span><span class="nv"> </span><span class="s">}}&quot;</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="s">"{{</span><span class="nv"> </span><span class="s">report</span><span class="nv"> </span><span class="s">}}"</span>
 </code></pre></div>
 <p>Store the URL in <code>secrets.yaml</code>, restart Home Assistant, and retain the default REST command service in the blueprint unless you chose a different name. Use HTTPS and treat the endpoint URL as a secret.</p>
 <h2 id="different-grid-target-for-charge-and-discharge">Different grid target for charge and discharge<a class="headerlink" href="#different-grid-target-for-charge-and-discharge" title="Permanent link">&para;</a></h2>

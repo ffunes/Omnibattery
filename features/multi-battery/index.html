@@ -1560,6 +1560,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../solar-charge-delay/" class="md-nav__link">
         
   
@@ -2405,6 +2433,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2618,7 +2674,7 @@
 
 
 <h1 id="multi-battery-management">Multi-battery management<a class="headerlink" href="#multi-battery-management" title="Permanent link">&para;</a></h1>
-<p>The integration manages up to <strong>6 batteries</strong> as an aggregated system, distributing power intelligently to maximise efficiency.</p>
+<p>The integration manages up to <strong>10 batteries</strong> as an aggregated system, distributing power intelligently to maximise efficiency.</p>
 <h2 id="efficiency-principle">Efficiency principle<a class="headerlink" href="#efficiency-principle" title="Permanent link">&para;</a></h2>
 <p>Based on measured Venus efficiency curves, batteries are activated only when total power exceeds the <strong>efficiency crossover point</strong> — the wattage at which splitting load across two batteries becomes more efficient than running one alone. Running fewer batteries at higher power is more efficient than spreading the same load across all of them.</p>
 <p>The crossover points (derived from η external measurements) are:</p>
@@ -3135,6 +3191,7 @@
 <h2 id="manual-control-per-battery">Manual control per battery<a class="headerlink" href="#manual-control-per-battery" title="Permanent link">&para;</a></h2>
 <p>Each battery also exposes <code>switch.*_battery_manual_mode</code>. When enabled, Omnibattery first sends and verifies a <code>0 W</code> command, clears the integration's software force mode and power setpoints, and removes that battery from the automatic pool. The switch state is persisted per battery, so the exclusion survives a restart. The battery continues to be polled and remains included in physical battery/grid telemetry, but it receives no automatic power setpoints; driver and BMS safety handling remains active.</p>
 <p>Turning the switch off keeps the battery under manual ownership while the final idle command is verified. Only then is it returned to the automatic pool and an immediate control cycle scheduled. If the idle handoff fails, the switch stays enabled and the battery remains manual.</p>
+<p>On register-backed drivers (Marstek, ESPHome) the raw <code>Force Mode</code>, <code>Set Charge Power</code> and <code>Set Discharge Power</code> entities write the device registers directly, and the control loop re-asserts those registers every cycle. Writing them while the battery is under automatic control is therefore refused with an error pointing at Manual Mode, instead of being accepted and reverted a second later. Turning on either the global <code>Manual Mode</code> switch or this battery's <code>Battery Manual Mode</code> switch releases the guard. Battery configuration registers such as the SOC cutoffs and power caps are not affected.</p>
 <p>This control is independent from the global <code>Manual Mode</code> switch. For example, with two batteries, battery A can be left in manual mode at a user-selected power while battery B remains automatic. If B is already charging, the PD controller includes A's measured AC grid charge so B reduces its own charge and the meter remains at zero. Once the automatic batteries are no longer charging, A's intentional grid charge is excluded from feedback so B does not discharge to compensate it. DC-coupled solar power is not included when the driver exposes a separate AC-power reading.</p>
 <h2 id="unified-blocker-registry">Unified blocker registry<a class="headerlink" href="#unified-blocker-registry" title="Permanent link">&para;</a></h2>
 <p>Charge and discharge permissions are resolved through a runtime blocker registry. Blockers can be system-wide or scoped to one battery. The controller checks this registry before deadband and stale-sensor early returns, so an active command is stopped as soon as a blocker appears.</p>

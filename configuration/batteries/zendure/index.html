@@ -1666,6 +1666,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2331,6 +2359,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2531,11 +2587,26 @@ the model-specific power limits.</p>
 <td style="text-align: right;"><code>2400 W</code></td>
 <td style="text-align: right;"><code>2400 W</code></td>
 </tr>
+<tr>
+<td>SolarFlow 4000 Mix AC+</td>
+<td style="text-align: right;"><code>4000 W</code></td>
+<td style="text-align: right;"><code>4000 W</code></td>
+</tr>
+<tr>
+<td>SolarFlow 4000 Mix Pro</td>
+<td style="text-align: right;"><code>4000 W</code></td>
+<td style="text-align: right;"><code>4000 W</code></td>
+</tr>
 </tbody>
 </table>
 <p>The device report remains authoritative if it announces a lower limit. The
-AC-coupled 1600 AC+ and 2400 AC+ models do not expose DC MPPT telemetry through
-this connection.</p>
+The 4000 Mix Pro exposes dual DC MPPT telemetry; the AC-coupled 1600 AC+,
+2400 AC+ and 4000 Mix AC+ models do not expose DC MPPT telemetry through this
+connection.</p>
+<p>Existing 2400 AC+ entries are promoted automatically when the device reports
+the 4000 Mix AC+ or 4000 Mix Pro product identifier. The saved user power
+ceilings are retained; raise them in the battery options if you want to use the
+larger envelope.</p>
 <h2 id="zendure-specific-settings">Zendure-specific settings<a class="headerlink" href="#zendure-specific-settings" title="Permanent link">&para;</a></h2>
 <p>The common limits page includes charge/discharge power, maximum SOC, minimum
 SOC, charge hysteresis and the backup offgrid threshold. Zendure uses a minimum

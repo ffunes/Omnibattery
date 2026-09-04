@@ -12,19 +12,19 @@
         <meta name="author" content="ffunes">
       
       
-        <link rel="canonical" href="https://ffunes.github.io/omnibattery/reference/driver-requirements-template/">
+        <link rel="canonical" href="https://ffunes.github.io/omnibattery/reference/driver-assessment-huawei/">
       
       
-        <link rel="prev" href="../architecture/">
+        <link rel="prev" href="../driver-requirements-template/">
       
       
-        <link rel="next" href="../driver-assessment-huawei/">
+        <link rel="next" href="../../changelog/">
       
       
         
           <link rel="alternate" href="./" hreflang="en">
         
-          <link rel="alternate" href="../../es/reference/driver-requirements-template/" hreflang="es">
+          <link rel="alternate" href="../../es/reference/driver-assessment-huawei/" hreflang="es">
         
       
       
@@ -33,7 +33,7 @@
     
     
       
-        <title>Battery driver requirements - Omnibattery</title>
+        <title>Driver assessment · Huawei - Omnibattery</title>
       
     
     
@@ -84,7 +84,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#battery-driver-requirements-template" class="md-skip">
+        <a href="#battery-driver-assessment-huawei-sun2000-luna2000" class="md-skip">
           Skip to content
         </a>
       
@@ -123,7 +123,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Battery driver requirements
+              Driver assessment · Huawei
             
           </span>
         </div>
@@ -176,7 +176,7 @@
           </li>
         
           <li class="md-select__item">
-            <a href="../../es/reference/driver-requirements-template/" hreflang="es" class="md-select__link">
+            <a href="../../es/reference/driver-assessment-huawei/" hreflang="es" class="md-select__link">
               Español
             </a>
           </li>
@@ -2232,6 +2232,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../driver-requirements-template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Battery driver requirements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -2251,7 +2279,7 @@
   <span class="md-ellipsis">
     
   
-    Battery driver requirements
+    Driver assessment · Huawei
   
 
     
@@ -2269,7 +2297,7 @@
   <span class="md-ellipsis">
     
   
-    Battery driver requirements
+    Driver assessment · Huawei
   
 
     
@@ -2356,22 +2384,88 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-omnibattery-canonical-contract" class="md-nav__link">
+  <a href="#3-declared-capabilities" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Omnibattery canonical contract
+        3. Declared capabilities
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="3. Omnibattery canonical contract">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-telemetry-mapping-worksheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Telemetry mapping worksheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-control-mapping-worksheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Control mapping worksheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-feature-degradation-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Feature degradation matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-minimum-acceptance-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Minimum acceptance tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-setup-and-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Setup and identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-what-a-dc-coupled-hybrid-breaks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. What a DC-coupled hybrid breaks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. What a DC-coupled hybrid breaks">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#minimum-driver-surface" class="md-nav__link">
+  <a href="#131-idle-cannot-mean-hold-at-zero" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Minimum driver surface
+        13.1 Idle cannot mean "hold at zero"
       
     </span>
   </a>
@@ -2379,10 +2473,76 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#declared-capabilities" class="md-nav__link">
+  <a href="#132-the-write-path-needs-its-own-throttle" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Declared capabilities
+        13.2 The write path needs its own throttle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#133-the-static-power-envelope-is-not-reachable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.3 The static power envelope is not reachable
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#134-the-status-register-knows-no-direction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.4 The status register knows no direction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#135-backup-output-is-not-metered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.5 Backup output is not metered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#136-ac_power-means-something-else-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.6 ac_power means something else here
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#137-a-read-group-must-never-hold-one-optional-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.7 A read group must never hold one optional key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#138-a-form-schema-must-survive-serialisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.8 A form schema must survive serialisation
       
     </span>
   </a>
@@ -2395,126 +2555,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-minimum-telemetry-and-control-levers" class="md-nav__link">
+  <a href="#11-decision-report" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Minimum telemetry and control levers
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="4. Minimum telemetry and control levers">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#blocking-core" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Blocking core
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#optional-feature-inputs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Optional feature inputs
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#5-reference-behaviour-marstek-venus-e-v3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5. Reference behaviour: Marstek Venus E v3
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#6-accepted-substitutions-the-zendure-pattern" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. Accepted substitutions: the Zendure pattern
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#7-feature-degradation-matrix" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7. Feature degradation matrix
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#8-telemetry-mapping-worksheet" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        8. Telemetry mapping worksheet
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#9-control-mapping-worksheet" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        9. Control mapping worksheet
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#10-minimum-acceptance-tests" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        10. Minimum acceptance tests
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#11-copyable-decision-report" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11. Copyable decision report
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#12-post-approval-implementation-checklist" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        12. Post-approval implementation checklist
+        11. Decision report
       
     </span>
   </a>
@@ -2525,34 +2569,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../driver-assessment-huawei/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Driver assessment · Huawei
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2680,22 +2696,88 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-omnibattery-canonical-contract" class="md-nav__link">
+  <a href="#3-declared-capabilities" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Omnibattery canonical contract
+        3. Declared capabilities
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="3. Omnibattery canonical contract">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-telemetry-mapping-worksheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Telemetry mapping worksheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-control-mapping-worksheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Control mapping worksheet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-feature-degradation-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Feature degradation matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-minimum-acceptance-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Minimum acceptance tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-setup-and-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Setup and identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-what-a-dc-coupled-hybrid-breaks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. What a DC-coupled hybrid breaks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. What a DC-coupled hybrid breaks">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#minimum-driver-surface" class="md-nav__link">
+  <a href="#131-idle-cannot-mean-hold-at-zero" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Minimum driver surface
+        13.1 Idle cannot mean "hold at zero"
       
     </span>
   </a>
@@ -2703,10 +2785,76 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#declared-capabilities" class="md-nav__link">
+  <a href="#132-the-write-path-needs-its-own-throttle" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Declared capabilities
+        13.2 The write path needs its own throttle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#133-the-static-power-envelope-is-not-reachable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.3 The static power envelope is not reachable
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#134-the-status-register-knows-no-direction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.4 The status register knows no direction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#135-backup-output-is-not-metered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.5 Backup output is not metered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#136-ac_power-means-something-else-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.6 ac_power means something else here
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#137-a-read-group-must-never-hold-one-optional-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.7 A read group must never hold one optional key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#138-a-form-schema-must-survive-serialisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13.8 A form schema must survive serialisation
       
     </span>
   </a>
@@ -2719,126 +2867,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-minimum-telemetry-and-control-levers" class="md-nav__link">
+  <a href="#11-decision-report" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Minimum telemetry and control levers
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="4. Minimum telemetry and control levers">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#blocking-core" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Blocking core
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#optional-feature-inputs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Optional feature inputs
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#5-reference-behaviour-marstek-venus-e-v3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5. Reference behaviour: Marstek Venus E v3
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#6-accepted-substitutions-the-zendure-pattern" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. Accepted substitutions: the Zendure pattern
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#7-feature-degradation-matrix" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7. Feature degradation matrix
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#8-telemetry-mapping-worksheet" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        8. Telemetry mapping worksheet
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#9-control-mapping-worksheet" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        9. Control mapping worksheet
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#10-minimum-acceptance-tests" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        10. Minimum acceptance tests
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#11-copyable-decision-report" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11. Copyable decision report
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#12-post-approval-implementation-checklist" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        12. Post-approval implementation checklist
+        11. Decision report
       
     </span>
   </a>
@@ -2862,7 +2894,7 @@
 
 
   
-    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/reference/driver-requirements-template.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/reference/driver-assessment-huawei.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -2870,72 +2902,14 @@
   
 
 
-<h1 id="battery-driver-requirements-template">Battery driver requirements template<a class="headerlink" href="#battery-driver-requirements-template" title="Permanent link">&para;</a></h1>
-<p>Use this template to audit a battery manufacturer's official development
-documentation before implementing an Omnibattery driver. <strong>Marstek Venus E v3</strong>
-is the functional reference, but another brand does not need the same registers
-or modes. It must satisfy the same semantic contract: report the battery's real
-state and accept a safe signed net-power command.</p>
-<p>Complete one assessment per manufacturer, model and firmware family.</p>
+<h1 id="battery-driver-assessment-huawei-sun2000-luna2000">Battery driver assessment: Huawei SUN2000 + LUNA2000<a class="headerlink" href="#battery-driver-assessment-huawei-sun2000-luna2000" title="Permanent link">&para;</a></h1>
+<p>Completed against <a href="../driver-requirements-template/">driver-requirements-template.md</a>.</p>
+<p>Every value below was read from hardware, not from a datasheet. Where a figure
+was measured, the measurement is stated. Where something is unknown, it says so.</p>
 <h2 id="assessment-outcome">Assessment outcome<a class="headerlink" href="#assessment-outcome" title="Permanent link">&para;</a></h2>
-<p>Requirement levels:</p>
-<table>
-<thead>
-<tr>
-<th>Code</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>B</strong></td>
-<td>Blocking. Automatic control must not be enabled without it.</td>
-</tr>
-<tr>
-<td><strong>R</strong></td>
-<td>Required for a robust production integration. A provisional exception needs a documented mitigation.</td>
-</tr>
-<tr>
-<td><strong>O</strong></td>
-<td>Optional. Its absence removes specific entities or features, not core control.</td>
-</tr>
-</tbody>
-</table>
-<p>Source classifications:</p>
-<table>
-<thead>
-<tr>
-<th>Code</th>
-<th>Source</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>N</strong></td>
-<td>Native device value or control.</td>
-</tr>
-<tr>
-<td><strong>D</strong></td>
-<td>Derived by the driver from native data.</td>
-</tr>
-<tr>
-<td><strong>C</strong></td>
-<td>User-configured or validated model constant.</td>
-</tr>
-<tr>
-<td><strong>X</strong></td>
-<td>Unsupported; the dependent entity or feature is omitted.</td>
-</tr>
-</tbody>
-</table>
-<p>Final verdict:</p>
-<ul>
-<li><strong>SUITABLE</strong>: every B and R requirement is covered.</li>
-<li><strong>SUITABLE WITH LIMITATIONS</strong>: every B requirement is covered, but an R or O
-  item is missing. Disabled features and residual risks are listed.</li>
-<li><strong>NOT SUITABLE</strong>: a B item is missing, command semantics cannot be confirmed,
-  or control depends on an unstable or unauthorised interface.</li>
-</ul>
+<p><strong>SUITABLE WITH LIMITATIONS.</strong> Every blocking requirement is covered. The
+limitations are not gaps in the data but two architectural mismatches with the
+existing driver model, both described in <a href="#13-what-a-dc-coupled-hybrid-breaks">§13</a>.</p>
 <h2 id="1-device-and-documentation-evidence">1. Device and documentation evidence<a class="headerlink" href="#1-device-and-documentation-evidence" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2947,62 +2921,58 @@ state and accept a safe signed net-power command.</p>
 <tbody>
 <tr>
 <td>Manufacturer</td>
-<td><code>...</code></td>
+<td>Huawei</td>
 </tr>
 <tr>
 <td>Commercial model</td>
-<td><code>...</code></td>
+<td>SUN2000-8K-MAP0 with LUNA2000</td>
 </tr>
 <tr>
 <td>Device-reported model</td>
-<td><code>...</code></td>
+<td>Storage <code>LUNA2000</code> (register 47000); inverter <code>SUN2000-8K-MAP0</code> (register 30000)</td>
 </tr>
 <tr>
 <td>Verified firmware range</td>
-<td><code>...</code></td>
+<td>Inverter <code>V200R024C00SPC110</code>; power module and packs <code>V200R025C00SPC103</code></td>
 </tr>
 <tr>
 <td>Region/hardware variant</td>
-<td><code>...</code></td>
+<td>EU, three-phase, EMMA-A02 energy manager, SmartGuard-63A-T0</td>
 </tr>
 <tr>
 <td>Rated capacity and power</td>
-<td><code>...</code></td>
+<td>13.8 kWh in two LUNA2000-7-E1 packs on a LUNA2000-10KW-C1 power module; the battery reports 7000 W charge and discharge; inverter 8000 W rated, 8800 W maximum</td>
 </tr>
 <tr>
 <td>Coupling type</td>
-<td><code>AC / DC / hybrid</code></td>
+<td><strong>DC</strong> — battery and PV strings share one inverter</td>
 </tr>
 <tr>
-<td>Official document, revision and date</td>
-<td><code>...</code></td>
+<td>Official document</td>
+<td>Solar Inverter Modbus Interface Definitions v05; SmartHEMS V100R024C00 Modbus Interface Definitions</td>
 </tr>
 <tr>
-<td>URL or archived file</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Manufacturer support channel</td>
-<td><code>...</code></td>
+<td>Interface used</td>
+<td>Modbus TCP throughout. Control optionally through the <code>huawei_solar</code> integration by @wlcrs, whose register map this work builds on</td>
 </tr>
 <tr>
 <td>Hardware used for validation</td>
-<td><code>...</code></td>
+<td>The installation above, one unit</td>
 </tr>
 <tr>
 <td>Test date</td>
-<td><code>...</code></td>
+<td>2026-08-22 / 2026-08-23</td>
 </tr>
 </tbody>
 </table>
 <ul>
-<li>[ ] The interface is published or authorised by the manufacturer.</li>
-<li>[ ] Applicable models and firmware versions are explicitly known.</li>
-<li>[ ] Real request/response examples have been retained without secrets.</li>
-<li>[ ] Every field documents type, unit, scale, sign, range and sentinels.</li>
-<li>[ ] Every write documents range, step, persistence and error response.</li>
-<li>[ ] Rate, concurrency and request-size limits are known.</li>
-<li>[ ] Restart, disconnect and Omnibattery shutdown behaviour is known.</li>
+<li>[x] The interface is published by the manufacturer (PDFs above).</li>
+<li>[x] Applicable models and firmware are known for the tested unit.</li>
+<li>[ ] <strong>Only one installation tested.</strong> Everything below is single-sample.</li>
+<li>[x] Every field used documents type, unit, scale and sign; each was verified
+      against the same value surfaced by <code>huawei_solar</code>.</li>
+<li>[x] Read rate and concurrency measured (see transport).</li>
+<li>[x] Restart and disconnect behaviour known (watchdog, see control).</li>
 </ul>
 <h3 id="firmware-compatibility-matrix">Firmware compatibility matrix<a class="headerlink" href="#firmware-compatibility-matrix" title="Permanent link">&para;</a></h3>
 <table>
@@ -3019,13 +2989,22 @@ state and accept a safe signed net-power command.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>yes/no</code></td>
-<td><code>yes/no</code></td>
-<td><code>...</code></td>
-<td><code>tested/untested</code></td>
+<td>SUN2000-8K-MAP0</td>
+<td>V200R024C00SPC110</td>
+<td>Modbus TCP via proxy</td>
+<td>yes</td>
+<td>via <code>huawei_solar</code></td>
+<td>Per-string current reads 0 below ~100 W; registers 37026/37036 answer with a Modbus exception; the pack 1 address run answers with padding because that slot is unpopulated</td>
+<td>tested</td>
+</tr>
+<tr>
+<td>Other SUN2000</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>String count read from 30071; up to four published</td>
+<td>untested</td>
 </tr>
 </tbody>
 </table>
@@ -3040,642 +3019,168 @@ state and accept a safe signed net-power command.</p>
 <tbody>
 <tr>
 <td>Scope</td>
-<td><code>local / cloud / both</code></td>
+<td>local</td>
 </tr>
 <tr>
-<td>Protocol and version</td>
-<td><code>...</code></td>
+<td>Protocol</td>
+<td>Modbus TCP, FC03 only</td>
 </tr>
 <tr>
-<td>Address, port, endpoint or topic</td>
-<td><code>...</code></td>
+<td>Address</td>
+<td>The inverter, reached through a <code>modbus-proxy</code> add-on</td>
+</tr>
+<tr>
+<td>Unit id</td>
+<td><strong>4</strong> = inverter. Also on the bus: 0 = EMMA (<code>SmartHEMS</code>), 2 = SmartGuard, 9 = charger. Not derivable, but discoverable: a scan reads 30000 on nine candidate ids and keeps those answering as an inverter with an SOC</td>
 </tr>
 <tr>
 <td>Discovery</td>
-<td><code>manual / mDNS / broadcast / cloud / ...</code></td>
+<td>Address manual, unit id scanned. A cascade yields several inverters, and the user picks</td>
 </tr>
 <tr>
-<td>Authentication and renewal</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Encryption/TLS and certificate validation</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Unit/device identifier</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Recommended timeout and retry policy</td>
-<td><code>...</code></td>
+<td>Authentication</td>
+<td>none</td>
 </tr>
 <tr>
 <td>Maximum simultaneous connections</td>
-<td><code>...</code></td>
+<td>The inverter tolerates one client; a Modbus proxy fans it out. Verified: this driver read continuously while <code>huawei_solar</code> held its own connection</td>
 </tr>
 <tr>
-<td>Read/write rate limit</td>
-<td><code>...</code></td>
+<td>Read latency</td>
+<td><strong>median 3.6 ms, 6 ms at p95</strong> over 800 consecutive reads with nothing else on the bus</td>
 </tr>
 <tr>
-<td>Ordering/atomicity of multi-write commands</td>
-<td><code>...</code></td>
+<td>Post-connect pause</td>
+<td><strong>1500 ms required.</strong> The first request after the TCP handshake is dropped without it</td>
 </tr>
 <tr>
-<td>Telemetry timestamp, sequence or TTL</td>
-<td><code>...</code></td>
+<td>Request pacing</td>
+<td>Single in-flight request; the inverter does not tolerate pipelining. 800 reads each at 10 ms and 0 ms pacing produced zero failures, so the reference library's 50 ms is conservative for Modbus TCP; the driver uses 20 ms</td>
 </tr>
 <tr>
-<td>Volatile versus persistent commands</td>
-<td><code>...</code></td>
+<td>Telemetry freshness</td>
+<td>Battery and PV values refresh every <strong>2–3 s</strong> at the register</td>
 </tr>
 <tr>
-<td>Behaviour without network/cloud</td>
-<td><code>...</code></td>
+<td>Volatile vs persistent</td>
+<td>Forcible-charge registers are volatile and carry a duration. SOC cutoffs (47081/47082) are <strong>persistent</strong></td>
+</tr>
+<tr>
+<td>Behaviour without network</td>
+<td>Forcible commands expire on their own; see the watchdog below</td>
 </tr>
 </tbody>
 </table>
-<p>A cloud-only API is not automatically rejected, but its latency, token expiry,
-quotas and outage behaviour must allow safe idle and stable control cadence.
-These constraints are part of the verdict, not merely implementation detail.</p>
+<blockquote>
+<p>The 30 s figure often quoted for Huawei is the <code>huawei_solar</code> coordinator
+interval, not the hardware. Reading the registers directly is ~4 ms and the
+data is 2–3 s old at worst.</p>
+</blockquote>
 <h2 id="2-admission-gate-for-automatic-control">2. Admission gate for automatic control<a class="headerlink" href="#2-admission-gate-for-automatic-control" title="Permanent link">&para;</a></h2>
-<p>Every item below is blocking:</p>
 <ul>
-<li>[ ] A programmable transport supports controlled connect, reconnect and close.</li>
-<li>[ ] Real, fresh battery SOC can be read as a percentage.</li>
-<li>[ ] Real battery power is available directly or can be derived from simultaneous measurements.</li>
-<li>[ ] The device accepts power-limited charging commands.</li>
-<li>[ ] The device accepts power-limited discharging commands.</li>
-<li>[ ] The device accepts and holds a safe idle command (<code>0 W</code>).</li>
-<li>[ ] Safe per-unit charge and discharge maxima are known.</li>
-<li>[ ] The manufacturer's independent BMS protections remain active under external control.</li>
-<li>[ ] The required write cadence neither wears flash nor violates API limits.</li>
-<li>[ ] Stale or lost communications can be detected without reusing old data forever.</li>
+<li>[x] Programmable transport with controlled connect, reconnect and close.</li>
+<li>[x] Real, fresh SOC as a percentage — register 37004, verified against the
+      <code>huawei_solar</code> sensor.</li>
+<li>[x] Real battery power — register 37001, <code>+charge / −discharge</code>, already the
+      Omnibattery convention.</li>
+<li>[x] Power-limited charging — <code>huawei_solar.forcible_charge</code>.</li>
+<li>[x] Power-limited discharging — <code>huawei_solar.forcible_discharge</code>.</li>
+<li>[x] A safe idle. <strong>Not the obvious one</strong> — see §13.1.</li>
+<li>[x] Safe per-unit maxima — registers 37046/37048 report 7000 W each.</li>
+<li>[x] BMS protections remain active; the inverter enforces its own cutoffs.</li>
+<li>[x] Write cadence is safe <strong>only with a driver-side throttle</strong> — see §13.2.</li>
+<li>[x] Stale communications are detectable; a failed block omits its keys.</li>
 </ul>
-<p>Without SOC, measured power, either direction, or reliable idle, the driver is
-<strong>NOT SUITABLE</strong> for bidirectional automatic control. A monitoring-only mode may
-still be considered but is not full support.</p>
-<h2 id="3-omnibattery-canonical-contract">3. Omnibattery canonical contract<a class="headerlink" href="#3-omnibattery-canonical-contract" title="Permanent link">&para;</a></h2>
-<p>The driver translates vendor protocol details into
-<code>drivers/base.py::BatteryDriver</code>; registers, endpoints, topics and proprietary
-names must not leak into the control layer.</p>
-<p>Mandatory conventions:</p>
-<ul>
-<li>Signed net power: <code>+W</code> charges, <code>-W</code> discharges, <code>0 W</code> idles.</li>
-<li><code>battery_power</code> follows the same convention and is a measurement, not merely
-  the last requested setpoint.</li>
-<li>Final units are W, kWh, %, V and °C.</li>
-<li>Failed values are omitted or unknown; never invent zero when zero is valid.</li>
-<li><code>apply_setpoint()</code> clamps to the device envelope and always returns a coherent
-  <code>SetpointResult</code>, even without immediate readback.</li>
-</ul>
-<h3 id="minimum-driver-surface">Minimum driver surface<a class="headerlink" href="#minimum-driver-surface" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Surface</th>
-<th>Requirement</th>
-<th>Level</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Identity/capabilities</td>
-<td><code>capabilities</code>, <code>model_label</code>, and stable <code>serial</code> when available</td>
-<td>R</td>
-</tr>
-<tr>
-<td>Lifecycle</td>
-<td><code>connected</code>, <code>connect()</code>, <code>close()</code>, <code>set_shutting_down()</code></td>
-<td>B</td>
-</tr>
-<tr>
-<td>Read</td>
-<td><code>read_groups</code>, <code>read_telemetry(keys)</code>; cache push data</td>
-<td>B</td>
-</tr>
-<tr>
-<td>Net control</td>
-<td><code>apply_setpoint(+W/-W/0)</code></td>
-<td>B</td>
-</tr>
-<tr>
-<td>Entity controls</td>
-<td><code>write_control(key, value)</code>; return <code>False</code> for unsupported keys</td>
-<td>R</td>
-</tr>
-<tr>
-<td>Command echo</td>
-<td><code>net_power_from_data(data)</code>; <code>None</code> is allowed when no echo exists</td>
-<td>R</td>
-</tr>
-<tr>
-<td>Dependencies</td>
-<td><code>control_dependency_keys</code> for data polled even if its entity is disabled</td>
-<td>R</td>
-</tr>
-<tr>
-<td>Configuration</td>
-<td><code>apply_config(...)</code>, explicitly skipping inapplicable settings</td>
-<td>R</td>
-</tr>
-<tr>
-<td>Shutdown</td>
-<td><code>standby()</code> leaves the device safe before close</td>
-<td>B</td>
-</tr>
-<tr>
-<td>Charge cutoff</td>
-<td><code>set_charge_cutoff()</code> or controlled <code>False</code> for software enforcement</td>
-<td>O/conditional</td>
-</tr>
-<tr>
-<td>External-control gate</td>
-<td><code>set_rs485_control()</code>/<code>get_rs485_control()</code> or equivalent when required</td>
-<td>B/conditional</td>
-</tr>
-</tbody>
-</table>
-<p>The coordinator currently calls some semantic methods that are not yet abstract
-on the base class; a new driver must still implement them.</p>
-<h3 id="declared-capabilities">Declared capabilities<a class="headerlink" href="#declared-capabilities" title="Permanent link">&para;</a></h3>
+<h2 id="3-declared-capabilities">3. Declared capabilities<a class="headerlink" href="#3-declared-capabilities" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th><code>DriverCapabilities</code></th>
 <th style="text-align: right;">Value</th>
-<th>Evidence/rationale</th>
+<th>Evidence</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>hardware_soc_cutoff</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
+<td style="text-align: right;"><code>False</code></td>
+<td>47081/47082 exist and are writable, but accept only 90–100 % and 0–20 % — narrower than the window a user may configure. Claiming hardware enforcement would leave an out-of-range limit unenforced anywhere</td>
 </tr>
 <tr>
 <td><code>has_force_mode</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
+<td style="text-align: right;"><code>True</code></td>
+<td>Forcible charge/discharge/stop</td>
 </tr>
 <tr>
 <td><code>push_telemetry</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
+<td style="text-align: right;"><code>False</code></td>
+<td>Polled</td>
 </tr>
 <tr>
 <td><code>max_charge_power_w</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
+<td style="text-align: right;">7000</td>
+<td>Register 37046</td>
 </tr>
 <tr>
 <td><code>max_discharge_power_w</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td><code>min_charge_power_w</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td><code>min_discharge_power_w</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
+<td style="text-align: right;">7000</td>
+<td>Register 37048</td>
 </tr>
 <tr>
 <td><code>has_mppt_pv</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
+<td style="text-align: right;"><code>False</code></td>
+<td>Deliberate. See §13.3</td>
 </tr>
 <tr>
 <td><code>has_alarm_registers</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
+<td style="text-align: right;"><code>False</code></td>
+<td>37014 exists but was not validated</td>
 </tr>
 <tr>
 <td><code>has_rs485_control</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
+<td style="text-align: right;"><code>False</code></td>
+<td>No external-control gate needed</td>
 </tr>
 <tr>
 <td><code>has_energy_counters</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
+<td style="text-align: right;"><code>True</code></td>
+<td>37066/37068 cumulative, 37015/37017 daily</td>
 </tr>
 <tr>
 <td><code>setpoint_confirm_reliable</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td><code>...</code></td>
+<td style="text-align: right;"><code>False</code></td>
+<td>The command registers echo instantly while the battery is still ramping</td>
 </tr>
 <tr>
 <td><code>actuator_latency_s</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td>Measured physical response timescale</td>
+<td style="text-align: right;">25.0</td>
+<td><strong>Measured 19.7 s</strong> to 90 % of a +1000 W charge from idle, 11.3 s to reverse to −1000 W, sampled at 1 Hz with exclusive access</td>
 </tr>
 <tr>
 <td><code>readback_latency_s</code></td>
-<td style="text-align: right;"><code>...</code></td>
-<td>Worst-case settled telemetry delay, if different</td>
+<td style="text-align: right;">25.0</td>
+<td>Telemetry is milliseconds away; the delay is the physical ramp</td>
+</tr>
+<tr>
+<td><code>engage_grace_s</code></td>
+<td style="text-align: right;">25.0</td>
+<td>Same ramp</td>
 </tr>
 </tbody>
 </table>
-<h2 id="4-minimum-telemetry-and-control-levers">4. Minimum telemetry and control levers<a class="headerlink" href="#4-minimum-telemetry-and-control-levers" title="Permanent link">&para;</a></h2>
-<h3 id="blocking-core">Blocking core<a class="headerlink" href="#blocking-core" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Omnibattery key/operation</th>
-<th>Level</th>
-<th>Vendor requirement</th>
-<th>Accepted substitute</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>battery_soc</code></td>
-<td>B</td>
-<td>Fresh real SOC, 0–100%</td>
-<td>A simple voltage estimate is not full support</td>
-</tr>
-<tr>
-<td><code>battery_power</code></td>
-<td>B</td>
-<td>Instantaneous power in both directions</td>
-<td>D formula from simultaneous validated flows</td>
-</tr>
-<tr>
-<td><code>apply_setpoint(+W)</code></td>
-<td>B</td>
-<td>Power-limited charge</td>
-<td>Mode + limit or one signed property</td>
-</tr>
-<tr>
-<td><code>apply_setpoint(-W)</code></td>
-<td>B</td>
-<td>Power-limited discharge</td>
-<td>Mode + limit or one signed property</td>
-</tr>
-<tr>
-<td><code>apply_setpoint(0)</code> / <code>standby()</code></td>
-<td>B</td>
-<td>Held idle without autonomous import/export</td>
-<td>Documented zero-limit/mode sequence</td>
-</tr>
-<tr>
-<td>Maximum power</td>
-<td>B</td>
-<td>Per-model values or device readings</td>
-<td>C values bounded by official maxima</td>
-</tr>
-<tr>
-<td>Availability/freshness</td>
-<td>B</td>
-<td>Error, timestamp or equivalent</td>
-<td>Driver cache expiry timer</td>
-</tr>
-<tr>
-<td>Setpoint echo</td>
-<td>R</td>
-<td>Applied/accepted mode and limit</td>
-<td>Intent cache only optimises; it is not measured power</td>
-</tr>
-<tr>
-<td>Actuator latency</td>
-<td>R</td>
-<td>Write-to-physical-response delay</td>
-<td>Hardware measurement with conservative margin</td>
-</tr>
-<tr>
-<td>Readback latency</td>
-<td>R</td>
-<td>Write-to-settled-telemetry delay</td>
-<td>Reuse actuator latency only when both are equivalent</td>
-</tr>
-<tr>
-<td>Reliable minimum power</td>
-<td>R</td>
-<td>Sustainable non-zero minimum and command step</td>
-<td>Validated per-model C constant</td>
-</tr>
-</tbody>
-</table>
-<h3 id="optional-feature-inputs">Optional feature inputs<a class="headerlink" href="#optional-feature-inputs" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Canonical key</th>
-<th>Level</th>
-<th>Enables</th>
-<th>If absent</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>battery_total_energy</code></td>
-<td>R</td>
-<td>Stored energy, allocation and predictive charging</td>
-<td>User-configured C capacity</td>
-</tr>
-<tr>
-<td>Charge/discharge energy totals</td>
-<td>O</td>
-<td>Energy and cumulative efficiency</td>
-<td>Integrate <code>battery_power</code> with persistence</td>
-</tr>
-<tr>
-<td><code>max_cell_voltage</code></td>
-<td>O</td>
-<td>100% taper/pause, recalibration and balance</td>
-<td>Disable voltage-dependent features</td>
-</tr>
-<tr>
-<td><code>min_cell_voltage</code></td>
-<td>O</td>
-<td>Cell delta and balance monitor</td>
-<td>Do not expose delta/balance</td>
-</tr>
-<tr>
-<td><code>internal_temperature</code></td>
-<td>O</td>
-<td>Thermal derating</td>
-<td>Do not enable temperature limiting</td>
-</tr>
-<tr>
-<td><code>inverter_state</code></td>
-<td>O</td>
-<td>Extra standby/BMS-cut confirmation</td>
-<td>Use measured power only; omit dependent detections</td>
-</tr>
-<tr>
-<td><code>ac_offgrid_power</code></td>
-<td>O</td>
-<td>Backup-load exclusion from PD</td>
-<td>Disable automatic backup exclusion</td>
-</tr>
-<tr>
-<td>Backup mode/control</td>
-<td>O</td>
-<td>Observe/control backup behaviour</td>
-<td>Omit entity and specific logic</td>
-</tr>
-<tr>
-<td>MPPT/PV power</td>
-<td>O</td>
-<td>DC production and plane efficiency</td>
-<td><code>has_mppt_pv=False</code></td>
-</tr>
-<tr>
-<td>Alarm/fault state</td>
-<td>O</td>
-<td>System alarm notifications</td>
-<td>Omit dependent sensor/notifier</td>
-</tr>
-<tr>
-<td>Battery voltage</td>
-<td>O</td>
-<td>Diagnostics</td>
-<td>Omit entity</td>
-</tr>
-<tr>
-<td>Identity, firmware, RSSI</td>
-<td>O</td>
-<td>Diagnostics/support</td>
-<td>Omit entities; prefer stable serial when available</td>
-</tr>
-<tr>
-<td>Hardware SOC cutoff</td>
-<td>O</td>
-<td>Autonomous persistent SOC limits</td>
-<td>Software enforcement</td>
-</tr>
-<tr>
-<td>Writable power cap</td>
-<td>O</td>
-<td>Persistent device configuration</td>
-<td>Software cap without a fake hardware entity</td>
-</tr>
-<tr>
-<td>External-control gate</td>
-<td>Conditional</td>
-<td>Enables/restores external control</td>
-<td>Required only when setpoints depend on it</td>
-</tr>
-</tbody>
-</table>
-<h2 id="5-reference-behaviour-marstek-venus-e-v3">5. Reference behaviour: Marstek Venus E v3<a class="headerlink" href="#5-reference-behaviour-marstek-venus-e-v3" title="Permanent link">&para;</a></h2>
-<p>The v3 is a behavioural reference, not a required protocol shape:</p>
-<table>
-<thead>
-<tr>
-<th>Semantics</th>
-<th>v3 reference implementation</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>SOC</td>
-<td><code>battery_soc</code>, register <code>37005</code>, <code>uint16</code>, <code>%</code></td>
-</tr>
-<tr>
-<td>Measured power</td>
-<td><code>battery_power</code>, register <code>30001</code>, <code>int16</code>; positive charge, negative discharge</td>
-</tr>
-<tr>
-<td>Charge</td>
-<td>Discharge setpoint 0, charge setpoint W, force mode <code>Charge</code></td>
-</tr>
-<tr>
-<td>Discharge</td>
-<td>Discharge setpoint W, charge setpoint 0, force mode <code>Discharge</code></td>
-</tr>
-<tr>
-<td>Idle</td>
-<td>Both setpoints 0 and force mode <code>None</code></td>
-</tr>
-<tr>
-<td>Power envelope</td>
-<td>Setpoints 0–2500 W, documented 50 W step; installation caps are separate</td>
-</tr>
-<tr>
-<td>Declared minimum</td>
-<td>800 W in v3 power-limit definitions</td>
-</tr>
-<tr>
-<td>External control</td>
-<td>RS485 control gate with device-specific commands</td>
-</tr>
-<tr>
-<td>SOC cutoff</td>
-<td>No v3 cutoff registers; Omnibattery enforces min/max SOC in software</td>
-</tr>
-<tr>
-<td>Confirmation</td>
-<td>Mode, setpoint and measured-power readback with ramp tolerance</td>
-</tr>
-<tr>
-<td>Transport</td>
-<td>Polled Modbus with a single TCP slot and model-specific pacing</td>
-</tr>
-</tbody>
-</table>
-<p><code>force_mode</code> is therefore not mandatory. A signed limit, two directional limits
-or different vendor enum may implement the same contract.</p>
-<h2 id="6-accepted-substitutions-the-zendure-pattern">6. Accepted substitutions: the Zendure pattern<a class="headerlink" href="#6-accepted-substitutions-the-zendure-pattern" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Vendor difference</th>
-<th>Valid driver adaptation</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>No direct <code>battery_power</code></td>
-<td>Derive <code>outputPackPower - packInputPower</code> after validating sign and simultaneity</td>
-</tr>
-<tr>
-<td>No kWh counters</td>
-<td>Integrate <code>battery_power</code> and persist synthetic totals</td>
-</tr>
-<tr>
-<td>No nominal capacity</td>
-<td>Let the user configure <code>battery_total_energy</code></td>
-</tr>
-<tr>
-<td>No Marstek force mode</td>
-<td>Map net power to <code>acMode</code> plus input/output limits</td>
-</tr>
-<tr>
-<td>Read-only charge cap</td>
-<td>Combine the device cap with a user software ceiling</td>
-</tr>
-<tr>
-<td>Cells reported per pack</td>
-<td>Derive global extremes and optionally expose per-pack keys</td>
-</tr>
-<tr>
-<td>Multi-second readback lag</td>
-<td>Set unreliable confirmation and a conservative readback latency</td>
-</tr>
-<tr>
-<td>Frequent writes may touch flash</td>
-<td>Use volatile setpoints and explicit persistent configuration writes</td>
-</tr>
-</tbody>
-</table>
-<p>Accept a substitute only when its sign, timing, range and persistence have been
-tested. Configured values must be labelled as configuration, not device
-telemetry. Do not fabricate SOC, alarms, temperature, cell voltages or delivered
-power without a reliable physical source; a command cache records intent only.</p>
-<h2 id="7-feature-degradation-matrix">7. Feature degradation matrix<a class="headerlink" href="#7-feature-degradation-matrix" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Feature</th>
-<th>Minimum dependencies</th>
-<th>Alternative</th>
-<th>Model status</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>PD charge/discharge</td>
-<td>SOC, measured power, ±W/0 control, limits</td>
-<td>None for full support</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Multi-battery</td>
-<td>Core per unit; capacity improves energy allocation</td>
-<td>C capacity</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Min/max SOC</td>
-<td>SOC + idle command</td>
-<td>Hardware or software</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Predictive/pricing charge</td>
-<td>SOC + kWh capacity + charge control</td>
-<td>C capacity</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Energy/cycles/efficiency</td>
-<td>Counters or timestamped power</td>
-<td>D integration</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>100% taper/protection</td>
-<td>Max cell voltage, SOC and power</td>
-<td>No equivalent</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Balance monitoring</td>
-<td>Max + min cell voltage</td>
-<td>D extremes from cells/packs</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Weekly full charge</td>
-<td>SOC, power and control; cutoff if available</td>
-<td>Software cutoff</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Thermal limit</td>
-<td>Internal temperature</td>
-<td>None</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Backup exclusion</td>
-<td>Off-grid power and backup state/mode</td>
-<td>None reliable</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>MPPT/DC production</td>
-<td>Per-channel or total DC power</td>
-<td>D sum</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Alarms</td>
-<td>Official fault bits/codes</td>
-<td>None</td>
-<td><code>...</code></td>
-</tr>
-<tr>
-<td>Synthetic-energy identity</td>
-<td>Power + stable device ID</td>
-<td>Less-stable device key</td>
-<td><code>...</code></td>
-</tr>
-</tbody>
-</table>
-<p>Unsupported features must be gated by capabilities, entity definitions or
-configuration. They must not receive fabricated zero values.</p>
-<h2 id="8-telemetry-mapping-worksheet">8. Telemetry mapping worksheet<a class="headerlink" href="#8-telemetry-mapping-worksheet" title="Permanent link">&para;</a></h2>
+<h2 id="4-telemetry-mapping-worksheet">4. Telemetry mapping worksheet<a class="headerlink" href="#4-telemetry-mapping-worksheet" title="Permanent link">&para;</a></h2>
+<p>All registers FC03 holding, unit id 4, verified against the corresponding
+<code>huawei_solar</code> sensor on the same installation.</p>
 <table>
 <thead>
 <tr>
 <th>Omnibattery key</th>
 <th>B/R/O</th>
-<th>Vendor field/register/topic</th>
-<th>R/W</th>
-<th>Type/endian</th>
-<th>Scale/final unit</th>
-<th>Range/sentinels</th>
-<th>Cadence/TTL</th>
-<th>N/D/C/X</th>
-<th>Evidence</th>
+<th>Register</th>
+<th>Type</th>
+<th>Scale → unit</th>
+<th>Cadence</th>
+<th>Src</th>
 <th>Tested</th>
 </tr>
 </thead>
@@ -3683,380 +3188,663 @@ configuration. They must not receive fabricated zero values.</p>
 <tr>
 <td><code>battery_soc</code></td>
 <td>B</td>
-<td><code>...</code></td>
-<td>R</td>
-<td><code>...</code></td>
-<td><code>... → %</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td>37004</td>
+<td>u16</td>
+<td>÷10 → %</td>
+<td>high</td>
+<td>N</td>
+<td>[x]</td>
 </tr>
 <tr>
 <td><code>battery_power</code></td>
 <td>B</td>
-<td><code>...</code></td>
-<td>R</td>
-<td><code>...</code></td>
-<td><code>... → W; +charge/-discharge</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td>37001</td>
+<td>i32</td>
+<td>→ W, +charge/−discharge</td>
+<td>high</td>
+<td>N</td>
+<td>[x]</td>
 </tr>
 <tr>
-<td>Setpoint state/echo</td>
-<td>R</td>
-<td><code>...</code></td>
-<td>R</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
-</tr>
-<tr>
-<td><code>battery_total_energy</code></td>
-<td>R</td>
-<td><code>...</code></td>
-<td>R/C</td>
-<td><code>...</code></td>
-<td><code>... → kWh</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
-</tr>
-<tr>
-<td>Charge/discharge totals</td>
+<td><code>battery_voltage</code></td>
 <td>O</td>
-<td><code>...</code></td>
-<td>R</td>
-<td><code>...</code></td>
-<td><code>... → kWh</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
-</tr>
-<tr>
-<td>Max/min cell voltage</td>
-<td>O</td>
-<td><code>...</code></td>
-<td>R</td>
-<td><code>...</code></td>
-<td><code>... → V</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
-</tr>
-<tr>
-<td><code>internal_temperature</code></td>
-<td>O</td>
-<td><code>...</code></td>
-<td>R</td>
-<td><code>...</code></td>
-<td><code>... → °C</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td>37003</td>
+<td>u16</td>
+<td>÷10 → V</td>
+<td>high</td>
+<td>N</td>
+<td>[x]</td>
 </tr>
 <tr>
 <td><code>inverter_state</code></td>
 <td>O</td>
-<td><code>...</code></td>
+<td>37000</td>
+<td>u16</td>
+<td>enum, refined by direction (§13.4)</td>
+<td>high</td>
+<td>D</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>battery_total_energy</code></td>
 <td>R</td>
+<td>37758</td>
+<td>u32</td>
+<td><strong>×0.001 → kWh</strong></td>
+<td>very_low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>total_charging_energy</code></td>
+<td>O</td>
+<td>37066</td>
+<td>u32</td>
+<td>÷100 → kWh</td>
+<td>low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>total_discharging_energy</code></td>
+<td>O</td>
+<td>37068</td>
+<td>u32</td>
+<td>÷100 → kWh</td>
+<td>low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>total_daily_charging_energy</code></td>
+<td>O</td>
+<td>37015</td>
+<td>u32</td>
+<td>÷100 → kWh</td>
+<td>low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>total_daily_discharging_energy</code></td>
+<td>O</td>
+<td>37017</td>
+<td>u32</td>
+<td>÷100 → kWh</td>
+<td>low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>internal_temperature</code></td>
+<td>O</td>
+<td>37022</td>
+<td>i16</td>
+<td>÷10 → °C</td>
+<td>low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>max_charge_power</code></td>
+<td>R</td>
+<td>37046</td>
+<td>u32</td>
+<td>→ W</td>
+<td>low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>max_discharge_power</code></td>
+<td>R</td>
+<td>37048</td>
+<td>u32</td>
+<td>→ W</td>
+<td>low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>charging_cutoff_capacity</code></td>
+<td>O</td>
+<td>47081</td>
+<td>u16</td>
+<td>÷10 → %</td>
+<td>low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>discharging_cutoff_capacity</code></td>
+<td>O</td>
+<td>47082</td>
+<td>u16</td>
+<td>÷10 → %</td>
+<td>low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>user_work_mode</code></td>
+<td>O</td>
+<td>47086</td>
+<td>u16</td>
 <td>enum</td>
-<td><code>map: ...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td>low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>solar_power</code></td>
+<td>O</td>
+<td>32064</td>
+<td>i32</td>
+<td>→ W (DC total)</td>
+<td>high</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>mppt1..4_power</code></td>
+<td>O</td>
+<td>32016+2n</td>
+<td>i16 ×2</td>
+<td>V × I → W</td>
+<td>high</td>
+<td>D</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>inverter_ac_power</code></td>
+<td>O</td>
+<td>32080</td>
+<td>i32</td>
+<td>→ W</td>
+<td>high</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>inverter_max_power</code></td>
+<td>R</td>
+<td>30075</td>
+<td>u32</td>
+<td>→ W</td>
+<td>very_low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>grid_power</code></td>
+<td>O</td>
+<td>31657</td>
+<td>i32</td>
+<td>→ W, +import/−export</td>
+<td>high</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>off_grid_state</code></td>
+<td>O</td>
+<td>32003</td>
+<td>u32</td>
+<td>bitfield</td>
+<td>medium</td>
+<td>N</td>
+<td>[x]</td>
 </tr>
 <tr>
 <td><code>ac_offgrid_power</code></td>
 <td>O</td>
-<td><code>...</code></td>
-<td>R</td>
-<td><code>...</code></td>
-<td><code>... → W</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td>—</td>
+<td>—</td>
+<td>derived (§13.5)</td>
+<td>medium</td>
+<td>D</td>
+<td>[x]</td>
 </tr>
 <tr>
-<td>Alarms/faults</td>
+<td><code>device_name</code></td>
 <td>O</td>
-<td><code>...</code></td>
-<td>R</td>
-<td>bitmap/enum</td>
-<td><code>map: ...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td>30000</td>
+<td>str(15)</td>
+<td>inverter model</td>
+<td>very_low</td>
+<td>N</td>
+<td>[x]</td>
 </tr>
 <tr>
-<td>MPPT/PV</td>
+<td><code>storage_product_model</code></td>
 <td>O</td>
-<td><code>...</code></td>
-<td>R</td>
-<td><code>...</code></td>
-<td><code>... → W</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td>47000</td>
+<td>u16</td>
+<td>enum</td>
+<td>very_low</td>
+<td>N</td>
+<td>—</td>
 </tr>
 <tr>
-<td>Identity/firmware</td>
+<td><code>power_module_serial_number</code></td>
 <td>O</td>
-<td><code>...</code></td>
-<td>R</td>
-<td>string</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td>37052</td>
+<td>str(10)</td>
+<td>—</td>
+<td>very_low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>power_module_firmware_version</code></td>
+<td>O</td>
+<td>37814</td>
+<td>str(15)</td>
+<td>—</td>
+<td>very_low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>inverter_serial_number</code></td>
+<td>O</td>
+<td>30015</td>
+<td>str(10)</td>
+<td>—</td>
+<td>very_low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>inverter_software_version</code></td>
+<td>O</td>
+<td>30050</td>
+<td>str(15)</td>
+<td>—</td>
+<td>very_low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>pack1..3_firmware_version</code></td>
+<td>O</td>
+<td>38210/38252/38294</td>
+<td>str(15)</td>
+<td>—</td>
+<td>very_low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>pack1..3_serial_number</code></td>
+<td>O</td>
+<td>38200/38242/38284</td>
+<td>str(10)</td>
+<td>—</td>
+<td>very_low</td>
+<td>N</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td><code>max_cell_voltage</code> / <code>min_cell_voltage</code></td>
+<td>O</td>
+<td>—</td>
+<td>—</td>
+<td><strong>X</strong></td>
+<td>—</td>
+<td>X</td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
-<h2 id="9-control-mapping-worksheet">9. Control mapping worksheet<a class="headerlink" href="#9-control-mapping-worksheet" title="Permanent link">&para;</a></h2>
+<p><strong>Not available.</strong> A LUNA2000 reports per <em>pack</em> values, not per cell. There is
+nothing honest to put in the cell fields, so balance monitoring and the 100 %
+voltage taper are disabled for this brand.</p>
+<p><strong>Registers that did not answer</strong> on the tested unit: 37026 (DCDC version) and
+37036 (BMS version) return a Modbus exception; the whole pack 1 run (38200)
+returns padding, because that slot holds no pack — the tested unit has packs 2
+and 3 only. All three are optional and omitted rather than shipped as
+permanently-missing entities.</p>
+<h2 id="5-control-mapping-worksheet">5. Control mapping worksheet<a class="headerlink" href="#5-control-mapping-worksheet" title="Permanent link">&para;</a></h2>
+<p>Set-points take either of two paths, selected per battery.</p>
+<p>By default they go through the <code>huawei_solar</code> services. Optionally the driver
+writes the same four-register sequence itself via FC16 — same registers, same
+order — which removes the dependency for control. Verified on hardware: a no-op
+FC16 write was acknowledged through the Modbus proxy while another client held
+its own connection, and a full charge/reverse/release cycle drove the battery as
+commanded.</p>
+<p>Writing directly means reimplementing two things the services provided: the
+power is clamped to the register maximum (<code>huawei_solar</code> refuses an over-range
+value outright, aborting the control cycle), and the mode register is written
+last so a sequence failing earlier leaves the inverter untouched.</p>
 <table>
 <thead>
 <tr>
-<th>Semantic operation</th>
-<th>B/R/O</th>
-<th>Vendor fields/commands</th>
-<th>Sequence</th>
-<th>Range/step</th>
-<th>Volatile/persistent</th>
-<th>ACK/readback</th>
-<th>Timeout/latency</th>
-<th>Safe failure state</th>
-<th>Evidence</th>
+<th>Operation</th>
+<th>Call</th>
+<th>Range</th>
+<th>Persistence</th>
+<th>Latency</th>
+<th>Safe failure</th>
 <th>Tested</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Connect/authenticate</td>
-<td>B</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>—</td>
-<td>—</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>no control</td>
-<td><code>...</code></td>
-<td>[ ]</td>
-</tr>
-<tr>
 <td>Charge at W</td>
-<td>B</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td><code>forcible_charge</code>, or FC16 47247/47083/47246/47100</td>
+<td>0…37046, duration 1–1440 min</td>
+<td>volatile</td>
+<td>19.7 s</td>
+<td>expires</td>
+<td>[x]</td>
 </tr>
 <tr>
 <td>Discharge at W</td>
-<td>B</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td><code>forcible_discharge</code>, or FC16 47249/47083/47246/47100</td>
+<td>0…37048</td>
+<td>volatile</td>
+<td>11.3 s from charge</td>
+<td>expires</td>
+<td>[x]</td>
 </tr>
 <tr>
-<td>Idle at 0 W</td>
-<td>B</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
-</tr>
-<tr>
-<td>Max charge/discharge</td>
-<td>R</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>C limit</td>
-<td><code>...</code></td>
-<td>[ ]</td>
-</tr>
-<tr>
-<td>Max/min SOC cutoff</td>
-<td>O</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>software</td>
-<td><code>...</code></td>
-<td>[ ]</td>
-</tr>
-<tr>
-<td>Enable external control</td>
-<td>Cond.</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>restore control</td>
-<td><code>...</code></td>
-<td>[ ]</td>
-</tr>
-<tr>
-<td>Restore vendor control</td>
-<td>Cond.</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
+<td>Idle</td>
+<td><code>huawei_solar.stop_forcible_charge</code></td>
 <td>—</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td>volatile</td>
+<td>—</td>
+<td>already released</td>
+<td>[x]</td>
 </tr>
 <tr>
-<td>Other UI controls</td>
-<td>O</td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td><code>...</code></td>
-<td>omit entity</td>
-<td><code>...</code></td>
-<td>[ ]</td>
+<td>Shutdown</td>
+<td>same as idle, from <code>standby()</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>[x]</td>
+</tr>
+<tr>
+<td>Max/min SOC</td>
+<td><code>number.set_value</code> on the cutoff entities</td>
+<td>90–100 % / 0–20 %</td>
+<td><strong>persistent</strong></td>
+<td>—</td>
+<td>skipped when out of range</td>
+<td>[x]</td>
 </tr>
 </tbody>
 </table>
-<h2 id="10-minimum-acceptance-tests">10. Minimum acceptance tests<a class="headerlink" href="#10-minimum-acceptance-tests" title="Permanent link">&para;</a></h2>
-<p>Transport and data:</p>
+<p><strong>The service validates power against the register maximum</strong> and raises
+<code>ValueError: Power cannot be more than 7000W</code> — it refuses an over-range command
+rather than trimming it, and the control cycle dies with it. Since the configured
+limit may legitimately sit above the present reading (§12), the driver clamps
+every set-point to 37046/37048 as read, on both control paths. The configured
+figure still binds whenever it is the lower of the two.</p>
+<p><strong>The cutoff entities live on two different devices.</strong> <code>huawei_solar</code> puts the
+charge cutoff on the inverter and the discharge cutoff on the battery, so
+resolving against the configured battery device alone finds one and misses the
+other. The driver searches the whole config entry.</p>
+<p><strong>Watchdog.</strong> Every command carries a duration (10 minutes as issued). If Home
+Assistant dies without unloading, the inverter drops the command by itself and
+returns to its own regulation. This is why a duration is sent rather than an
+open-ended command.</p>
+<h2 id="6-feature-degradation-matrix">6. Feature degradation matrix<a class="headerlink" href="#6-feature-degradation-matrix" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PD charge/discharge</td>
+<td>Supported, with the throttle of §13.2</td>
+</tr>
+<tr>
+<td>Multi-battery</td>
+<td>Supported; capacity is native</td>
+</tr>
+<tr>
+<td>Min/max SOC</td>
+<td>Software-enforced; registers written as a backstop when representable</td>
+</tr>
+<tr>
+<td>Predictive / pricing charge</td>
+<td>Supported</td>
+</tr>
+<tr>
+<td>Energy, cycles, efficiency</td>
+<td>Native counters</td>
+</tr>
+<tr>
+<td>100 % taper, balance monitoring</td>
+<td><strong>Disabled</strong> — no cell voltages</td>
+</tr>
+<tr>
+<td>Thermal limit</td>
+<td>Supported (37022)</td>
+</tr>
+<tr>
+<td>Backup exclusion</td>
+<td>Derived, see §13.5</td>
+</tr>
+<tr>
+<td>MPPT / DC production</td>
+<td>Reported, with the caveat of §13.6</td>
+</tr>
+<tr>
+<td>Alarms</td>
+<td>Omitted — 37014 not validated</td>
+</tr>
+</tbody>
+</table>
+<h2 id="7-minimum-acceptance-tests">7. Minimum acceptance tests<a class="headerlink" href="#7-minimum-acceptance-tests" title="Permanent link">&para;</a></h2>
+<p>Covered by <code>tests/test_huawei_driver.py</code> (152 tests). Beyond the template's
+list, these encode failures found on hardware — each was a live installation
+misbehaving first and a test second:</p>
 <ul>
-<li>[ ] Connect, read identity/SOC and close without leaking resources.</li>
-<li>[ ] Reconnect after timeout, device restart and temporary network loss.</li>
-<li>[ ] Reject partial replies, sentinels and out-of-range values.</li>
-<li>[ ] Expire push caches or last-known data when updates stop.</li>
-<li>[ ] Preserve units and sign in charge, discharge and idle.</li>
-<li>[ ] Respect mutual exclusion when the device allows one connection only.</li>
+<li>Capacity is published in kWh, not the register's Wh.</li>
+<li>A throttled set-point reports the standing command, not the request.</li>
+<li>A reversal skips the deadband but not the ramp.</li>
+<li>The dynamic discharge limit ignores the battery's own contribution.</li>
+<li>No read group may hold a single key.</li>
+<li>The inverter's AC total is not published as the battery's AC port.</li>
+<li>Every form schema survives the serialisation the frontend needs (§13.8).</li>
+<li>An unpopulated pack slot produces no entities at all.</li>
+<li>A battery device belonging to a different inverter is refused.</li>
+<li>The limits form allows more than the battery reports today.</li>
+<li>A set-point above the battery's present reading is trimmed, never sent.</li>
 </ul>
-<p>Control:</p>
-<ul>
-<li>[ ] Positive, negative and zero setpoints work and clamp safely.</li>
-<li>[ ] Charge↔discharge and movement→idle transitions work.</li>
-<li>[ ] Repeated commands are idempotent and do not wear flash.</li>
-<li>[ ] A partially failed multi-write command converges to idle or another defined
-  safe state, and required write ordering has been verified.</li>
-<li>[ ] Readback distinguishes accepted intent from delivered power.</li>
-<li>[ ] Normal and worst-case latency are measured; the conservative value is declared.</li>
-<li>[ ] Failed writes return a reason and do not update cache as confirmed.</li>
-<li>[ ] Max/min SOC cases remain safe.</li>
-<li>[ ] Shutdown calls <code>standby()</code> and restores vendor control when applicable.</li>
-</ul>
-<p>Substitution and degradation:</p>
-<ul>
-<li>[ ] Every D formula has boundary and sign unit tests.</li>
-<li>[ ] Synthetic energy survives restart and skips telemetry gaps.</li>
-<li>[ ] C capacity is range-validated and labelled as configured.</li>
-<li>[ ] X features create no entities or decisions with fake values.</li>
-<li>[ ] The driver works in a mixed-brand battery pool.</li>
-</ul>
-<p>Expected code coverage includes lifecycle, read groups, scaling, missing keys,
-all setpoint paths, clamping, failures, delayed/no readback,
-<code>net_power_from_data</code>, dependency keys, configuration, standby, model detection,
-and the supported firmware matrix.</p>
-<h2 id="11-copyable-decision-report">11. Copyable decision report<a class="headerlink" href="#11-copyable-decision-report" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Manufacturer/model:
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Firmware tested:
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Official documentation (revision/date/link):
+<h2 id="12-setup-and-identity">12. Setup and identity<a class="headerlink" href="#12-setup-and-identity" title="Permanent link">&para;</a></h2>
+<p><strong>What the user is asked for.</strong> An address and a port; everything else the setup
+can find out for itself. The slave id is optional, and left empty it triggers the
+scan — which is the recommended path, because a wrong id reads an energy manager
+or a charger rather than failing outright. One inverter with a battery is taken
+straight away; several mean a cascade and the user picks from a list naming each
+model and id. A single checkbox chooses the control path, and the battery-device
+field is only needed on the service side.</p>
+<p><strong>A Huawei inverter accepts one Modbus connection.</strong> Anything else already
+talking to it — <code>huawei_solar</code>, evcc, another system — takes that one. The setup
+says so and points at a Modbus proxy, and the reference installation runs one:
+this driver read continuously while <code>huawei_solar</code> held its own connection.</p>
+<p><strong>One "battery" is three kinds of hardware.</strong> A LUNA2000 installation is an
+inverter, a power module, and one to three battery packs, and each carries its
+own serial and firmware in its own registers — 30015/30050 for the inverter,
+37052/37814 for the power module, 38200+ per pack. Publishing any one of them as
+<em>the</em> serial mislabels the other two, so the driver names each part. The device
+registry entry stands for the storage, so it takes the power module's serial —
+and its model from 47000 (<code>2</code> = LUNA2000) rather than from 30000, which is the
+inverter's. Calling the device a SUN2000 would read as though the packs belonged
+to the inverter. That enum is telemetry-only: it resolves to a label and is
+dropped, so no entity carries a bare <code>2</code>.</p>
+<p>The Modbus endpoint can be a fourth device again: on the reference installation
+the address answers as <code>SmartHEMS</code> (an EMMA-A02, serial NS24A1211290) on slave 0,
+with the inverter behind it on slave 4. That is the gateway, not the battery, and
+it appears nowhere in the telemetry.</p>
+<p><strong>An EMMA carries the grid meter, and it is worth reading here.</strong> Register
+31657 on the EMMA's own unit id is its built-in meter's active power, already in
+the sign convention Omnibattery uses. It answers live on every request — 25 ms
+per read, 20 of 20 on the reference installation — where <code>huawei_solar</code>
+publishes the same figure on a 30 s coordinator, far too slow to control
+against. An installation with an EMMA is metered by it and may well have no
+other meter, so the setup looks for one by model name (<code>SmartHEMS</code>) and wires it
+up without asking. No EMMA means no entity, rather than one that reads unknown.</p>
+<p>Its neighbour <code>load_power</code> (30356) is <strong>not</strong> usable as a house-load figure,
+despite the name. The EMMA derives it from its own PV, battery and meter, so
+storage it does not control is invisible to it: while a second battery covered
+the whole house, 30356 read 0 W against a real 660 W. Feeding that back into a
+controller would oscillate — the value collapses precisely when the controller
+acts on it.</p>
+<p><strong>The battery's reported power caps are a starting value, not a ceiling.</strong>
+37046/37048 say what the battery permits right now, and that moves with the pack
+count — a third pack raises it. The limits form therefore opens on that figure
+but allows up to the inverter's maximum active power (30075), which is what the
+installation genuinely cannot exceed: charge and discharge both pass through it.
+On the tested unit that is 7000 W reported against an 8800 W inverter.</p>
+<p>The driver then has to hold the other end of that bargain: a command above what
+the battery permits right now is refused outright, so every set-point is clamped
+to the live reading before it is sent (§5).</p>
+<p><strong>The setup names the battery twice.</strong> On the service path a Modbus address
+identifies the inverter and a registry device identifies the battery, and
+nothing forces those to be the same unit — Huawei inverters cascade, so a
+two-inverter bus can readily have telemetry coming from one while the commands
+land on the other. Register 30015 carries the inverter serial, which is also
+what <code>huawei_solar</code> builds its device identifiers from, so the config flow
+compares the two and refuses a pairing that contradicts itself. A serial that
+is simply absent — older <code>huawei_solar</code> releases leave <code>serial_number</code> unset —
+never blocks the setup; only a contradiction does. Where <code>huawei_solar</code> is not
+installed at all, the setup says that rather than asking for a device that
+cannot exist.</p>
+<h2 id="13-what-a-dc-coupled-hybrid-breaks">13. What a DC-coupled hybrid breaks<a class="headerlink" href="#13-what-a-dc-coupled-hybrid-breaks" title="Permanent link">&para;</a></h2>
+<p>This is the part worth reading. Every previous brand is an AC battery with its
+own inverter, and several of the driver model's assumptions quietly depend on
+that. Each item below was found by breaking a live installation.</p>
+<h3 id="131-idle-cannot-mean-hold-at-zero">13.1 Idle cannot mean "hold at zero"<a class="headerlink" href="#131-idle-cannot-mean-hold-at-zero" title="Permanent link">&para;</a></h3>
+<p><code>stop_forcible_charge</code> does not idle the battery — it returns control to the
+inverter's working mode, which resumes self-consumption. The obvious
+alternative, a forcible charge at 0 W, does hold it, and was the driver's first
+implementation.</p>
+<p>It was wrong twice over. A pinned battery cannot absorb its own PV, so the
+inverter derates the strings instead — observed dropping from 4757 W to 55 W
+within one 30 s sample and staying there for over half an hour of daylight. And
+the control layer means something else by idle: manual mode idles once on
+turn-on and then deliberately leaves the device alone, so switching a battery to
+manual left 13.8 kWh frozen with nothing to clear the command.</p>
+<p><strong>A zero set-point must release this battery.</strong> That does hand it back to a
+second regulator on the same meter, which is what the pin was meant to avoid.
+Measured against a derated array and a frozen battery, it is the cheaper
+side-effect.</p>
+<h3 id="132-the-write-path-needs-its-own-throttle">13.2 The write path needs its own throttle<a class="headerlink" href="#132-the-write-path-needs-its-own-throttle" title="Permanent link">&para;</a></h3>
+<p>A set-point costs four serialised Modbus writes inside <code>huawei_solar</code>, and the
+battery needs ~15 s to reach any target. A 2 s control loop that sees no
+response yet keeps revising its request.</p>
+<p>Without a throttle, the battery received a new forced command every 10–20 s
+swinging between 0 and 4190 W, and the inverter answered by derating PV. A
+throttle that lets direction changes bypass it is no throttle at all: the loop
+flip-flops between a held zero and a discharge, so nearly every cycle counts as
+a reversal. The rule that works is <em>a reversal skips the deadband but not the
+ramp</em>.</p>
+<p>The throttle must also report the <strong>standing</strong> command when it suppresses a
+write. Reporting the request tells the control layer the battery was commanded
+to a value it never received; it then measures the older power and flags a
+battery that accepts commands without delivering.</p>
+<h3 id="133-the-static-power-envelope-is-not-reachable">13.3 The static power envelope is not reachable<a class="headerlink" href="#133-the-static-power-envelope-is-not-reachable" title="Permanent link">&para;</a></h3>
+<p>Battery and PV share one inverter, so the discharge power actually available is
+whatever the AC rating has left after PV. At 7 kW of PV on an 8.8 kW inverter
+the battery can contribute 1.8 kW whatever its 7 kW BMS allows — and load
+sharing, allocating proportionally to nameplate limits, hands it 74 % of the
+deficit and starves the batteries that could have delivered.</p>
+<p><code>BatteryDriver.dynamic_discharge_limit_w(data)</code> was added for this, defaulting
+to None so every AC brand keeps its static envelope. The subtraction must
+exclude the battery's own contribution, or the limit chases its own output.</p>
+<h3 id="134-the-status-register-knows-no-direction">13.4 The status register knows no direction<a class="headerlink" href="#134-the-status-register-knows-no-direction" title="Permanent link">&para;</a></h3>
+<p>Register 37000 reports Offline / Standby / Running / Fault / Sleep. The panel
+prints that verbatim, so this brand sat on the word "Running" all day. Running
+is refined by measured battery power into Charge / Discharge / Standby, using
+the Marstek register map's wording so the header reads the same across brands.</p>
+<p>The direction deadband is not cosmetic: this inverter idles around +50 W, so
+comparing against zero labels a standing battery "Charge".</p>
+<h3 id="135-backup-output-is-not-metered">13.5 Backup output is not metered<a class="headerlink" href="#135-backup-output-is-not-metered" title="Permanent link">&para;</a></h3>
+<p>There is no register for off-grid power. Register 32003 bit 0 says on-grid or
+off-grid, and while the grid is disconnected the inverter feeds nothing but the
+backup circuit — so its AC power <em>is</em> the backup output. On-grid the value is
+zero, deliberately: printing the house supply in that tile would be wrong.</p>
+<h3 id="136-ac_power-means-something-else-here">13.6 <code>ac_power</code> means something else here<a class="headerlink" href="#136-ac_power-means-something-else-here" title="Permanent link">&para;</a></h3>
+<p>The system aggregates derive household load as
+<code>home = grid + sum(ac_power) + external_solar</code>, reading <code>ac_power</code> as the
+battery's own AC port with DC-coupled PV already netted into it.</p>
+<p>Register 32080 is the whole inverter's AC output, PV included. Publishing it
+under that key counted the roof array twice — once inside <code>ac_power</code>, once in
+the external solar sensor — and showed 8.42 kW of house load against 8.87 kW of
+PV when the real figure was near 0.7 kW.</p>
+<p>The inverter total is published as <code>inverter_ac_power</code> instead. With no
+<code>ac_power</code> key the aggregates take their documented fallback, <code>-battery_power</code>,
+which is what a battery with no AC port of its own actually contributes.</p>
+<h3 id="137-a-read-group-must-never-hold-one-optional-key">13.7 A read group must never hold one optional key<a class="headerlink" href="#137-a-read-group-must-never-hold-one-optional-key" title="Permanent link">&para;</a></h3>
+<p>Not brand-specific, but it bites here. The coordinator counts a group that
+returns nothing as a failed read, and a cycle in which every attempted group
+fails marks the whole battery unavailable and stops the control loop writing to
+it.</p>
+<p>A block holding a single optional value therefore takes the battery offline on
+every poll of that block. The tested inverter answers register 38210 with
+padding, so the pack 1 firmware string decodes to nothing, and the battery
+flapped in and out of the pool every three seconds all day. Groups are now one
+per cadence rather than one per block.</p>
+<h3 id="138-a-form-schema-must-survive-serialisation">13.8 A form schema must survive serialisation<a class="headerlink" href="#138-a-form-schema-must-survive-serialisation" title="Permanent link">&para;</a></h3>
+<p>Home Assistant hands the frontend a <em>serialised</em> copy of every form schema, and
+not every voluptuous construct has a serialised form. A <code>vol.Any</code> in the
+slave-id field — added so an empty value could mean "search" — made the whole
+step fail with "Unknown error occurred" before the form was ever drawn. Setup
+and reconfiguration alike were unreachable for that brand.</p>
+<p>Nothing caught it, because the tests inspected schema markers and never
+converted them. Any driver contributing a config-flow step should convert its
+schemas in test the way Home Assistant converts them, including the output the
+step actually returns rather than only the helper it calls.</p>
+<h2 id="11-decision-report">11. Decision report<a class="headerlink" href="#11-decision-report" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Manufacturer/model: Huawei SUN2000-8K-MAP0 + LUNA2000 13.8 kWh
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Firmware tested:    inverter V200R024C00SPC110, storage V200R025C00SPC103
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Documentation:      Solar Inverter Modbus Interface Definitions v05
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Verdict: SUITABLE / SUITABLE WITH LIMITATIONS / NOT SUITABLE
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Verdict: SUITABLE WITH LIMITATIONS
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>Blocking items:
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>- Real SOC: N/D/C/X — evidence:
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>- Real power: N/D/C/X — evidence/formula:
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>- Adjustable charge: yes/no — range/step:
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>- Adjustable discharge: yes/no — range/step:
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>- Safe idle: yes/no — sequence:
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>- Safe limits: source/values:
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>- Freshness and connection loss: mechanism:
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>Omnibattery adaptations:
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>- Derived data:
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>- User-configured data:
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>- Software-enforced limits:
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>Disabled features:
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>-
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>- Real SOC:        N — register 37004, verified
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>- Real power:      N — register 37001, sign already matches
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>- Adjustable charge/discharge: yes — 0..7000 W via huawei_solar services
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>- Safe idle:       yes, as a release rather than a hold (§13.1)
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>- Safe limits:     registers 37046/37048
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>- Freshness:       2-3 s at the register; failed blocks omit their keys
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>Omnibattery adaptations:
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>- Split transport: native Modbus for telemetry, services or direct registers for control
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>- Dynamic discharge limit from the inverter's AC headroom
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>- Per-string power derived from separate voltage and current registers
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>- Inverter status refined by measured direction
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>- Unit id discovered by scan; a cascade is resolved by the user
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>- Inverter, power module and each populated pack named separately
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>- Limits form bounded by the inverter rating, not by the battery's reading
 <a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>Open risks:
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>-
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>Pending hardware tests:
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>-
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>
-<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>Approval owner and date:
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>Disabled features:
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>- Cell voltages, balance monitoring, 100% voltage taper (per-pack data only)
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>- Alarms (37014 not validated)
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>Open risks:
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>- One installation, one firmware pair
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>- Direct Modbus writes verified on one installation only; off by default
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>- Two regulators share the meter whenever the battery is released
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>- Cascaded inverters reasoned about and guarded against, but never tested:
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>  the reference bus holds exactly one
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>Pending hardware tests:
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>- A second installation, ideally with more than two strings
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>- A genuine cascade, and a three-pack storage
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>- Off-grid behaviour (the tested unit has its off-grid switch disabled)
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>- Whether per-string current is unpopulated below ~100 W on other models
 </code></pre></div>
-<h2 id="12-post-approval-implementation-checklist">12. Post-approval implementation checklist<a class="headerlink" href="#12-post-approval-implementation-checklist" title="Permanent link">&para;</a></h2>
-<ul>
-<li>[ ] Create the driver without leaking vendor details outside <code>drivers/</code>.</li>
-<li>[ ] Add brand/model selection and detection to the config flow.</li>
-<li>[ ] Instantiate the driver in the coordinator and declare capabilities.</li>
-<li>[ ] Define only supported entities and translations.</li>
-<li>[ ] Add configuration fields for C values such as nominal capacity.</li>
-<li>[ ] Capability-gate every feature that depends on an X key.</li>
-<li>[ ] Add driver unit tests and mixed-brand integration tests.</li>
-<li>[ ] Document device prerequisites, firmware and limitations.</li>
-<li>[ ] Redact credentials, tokens and sensitive serials from diagnostics.</li>
-</ul>
-<p>Document approval allows implementation to start; it does not replace hardware
-validation. Sign, scale, latency, internal clamps and firmware-specific behaviour
-must all be verified before declaring stable support.</p>
 
 
 
@@ -4094,7 +3882,7 @@ must all be verified before declaring stable support.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../architecture/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Architecture">
+          <a href="../driver-requirements-template/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Battery driver requirements">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -4104,20 +3892,20 @@ must all be verified before declaring stable support.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Architecture
+                Battery driver requirements
               </div>
             </div>
           </a>
         
         
           
-          <a href="../driver-assessment-huawei/" class="md-footer__link md-footer__link--next" aria-label="Next: Driver assessment · Huawei">
+          <a href="../../changelog/" class="md-footer__link md-footer__link--next" aria-label="Next: Changelog">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Driver assessment · Huawei
+                Changelog
               </div>
             </div>
             <div class="md-footer__button md-icon">

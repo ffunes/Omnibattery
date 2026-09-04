@@ -1298,10 +1298,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#consumo-del-hogar-durante-una-franja-de-carga" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumo del hogar durante una franja de carga
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#soc-minimo-garantizado" class="md-nav__link">
     <span class="md-ellipsis">
       
         SOC mínimo garantizado
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#origen-de-la-prevision-de-consumo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Origen de la previsión de consumo
       
     </span>
   </a>
@@ -1324,6 +1346,17 @@
     <span class="md-ellipsis">
       
         Notificaciones
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeline-solar-y-modo-de-despliegue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline solar y modo de despliegue
       
     </span>
   </a>
@@ -1679,6 +1712,34 @@
     
   
     Estimación de consumo diario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
   
 
     
@@ -2364,6 +2425,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2475,10 +2564,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#consumo-del-hogar-durante-una-franja-de-carga" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumo del hogar durante una franja de carga
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#soc-minimo-garantizado" class="md-nav__link">
     <span class="md-ellipsis">
       
         SOC mínimo garantizado
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#origen-de-la-prevision-de-consumo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Origen de la previsión de consumo
       
     </span>
   </a>
@@ -2501,6 +2612,17 @@
     <span class="md-ellipsis">
       
         Notificaciones
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeline-solar-y-modo-de-despliegue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeline solar y modo de despliegue
       
     </span>
   </a>
@@ -2533,7 +2655,7 @@
 
 
 <h1 id="carga-predictiva">Carga predictiva<a class="headerlink" href="#carga-predictiva" title="Permanent link">&para;</a></h1>
-<p>La carga predictiva es una función <strong>opcional</strong> que carga las baterías desde la red cuando el balance energético previsto para el día siguiente es negativo.</p>
+<p>La carga predictiva es una función <strong>opcional</strong> que carga las baterías desde la red cuando el balance energético previsto para lo que queda del día es negativo.</p>
 <h2 id="logica-de-decision">Lógica de decisión<a class="headerlink" href="#logica-de-decision" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Si (Batería utilizable + Previsión solar) &lt; Consumo esperado:
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    Cargar desde la red la diferencia exacta
@@ -2542,7 +2664,7 @@
 </code></pre></div>
 <ul>
 <li><strong>Batería utilizable</strong>: energía actual por encima del SOC mínimo configurado.</li>
-<li><strong>Previsión solar</strong>: producción estimada del día siguiente (sensor Solcast/Forecast.Solar).</li>
+<li><strong>Previsión solar</strong>: preferiblemente la producción restante de hoy (sensor Solcast/Forecast.Solar). El sensor del día completo se mantiene como fallback legado durante la transición.</li>
 <li><strong>Consumo esperado</strong>: media móvil de 7 días. Ver <a href="../../features/consumption-estimate/">Estimación del consumo diario</a>.</li>
 </ul>
 <hr />
@@ -2562,11 +2684,87 @@
 <h3 id="sistemas-multibateria">Sistemas multibatería<a class="headerlink" href="#sistemas-multibateria" title="Permanent link">&para;</a></h3>
 <p>En sistemas con varias baterías a distintos niveles de SOC, la carga de red se distribuye <strong>proporcionalmente al hueco individual de cada batería hasta max_soc</strong>. Una batería más lejos del máximo recibe una mayor parte; una batería ya próxima al máximo se apoya principalmente en la solar. Esto evita sobrecargar una única unidad desde la red y minimiza la importación total.</p>
 <hr />
+<h2 id="consumo-del-hogar-durante-una-franja-de-carga">Consumo del hogar durante una franja de carga<a class="headerlink" href="#consumo-del-hogar-durante-una-franja-de-carga" title="Permanent link">&para;</a></h2>
+<p>Una franja predictiva mantiene el control de las baterías hasta que termina o
+alcanza su objetivo. El PD normal no toma el control solo porque aumente el
+consumo doméstico: podría interpretar como demanda real una importación de red
+que todavía incluye la carga anterior de la batería e invertir inmediatamente
+la dirección de forma innecesaria.</p>
+<p>El techo de importación durante la carga predictiva es:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>techo = min(max_contracted_power, capacity_protection_limit si está activado)
+</code></pre></div>
+<p>Omnibattery responde por etapas cuando aumenta el consumo del hogar. El techo es
+el objetivo de regulación del PD predictivo, no una orden inmediata de reposo:</p>
+<ol>
+<li><strong>Reduce la carga.</strong> El margen disponible de red se entrega primero al hogar,
+   por lo que la potencia de carga de la batería disminuye al aumentar el consumo.</li>
+<li><strong>Mantiene una carga positiva.</strong> Si el PD calcula una reducción que cruzaría
+   matemáticamente a descarga, la salida se limita a la mínima carga efectiva de
+   la batería y conserva el estado incremental del PD. No se ordena <code>0 W</code> por un
+   simple sobrepaso del objetivo.</li>
+<li><strong>Confirma una emergencia real.</strong> Solo un exceso físico importante sobre el
+   límite duro, confirmado por tres publicaciones nuevas consecutivas, activa la
+   protección de demanda. Un pico aislado o un sobrepaso ordinario continúa
+   modulando la carga.</li>
+<li><strong>Protege el límite si la emergencia persiste.</strong> La batería pasa entonces por
+   la latencia de respuesta/lectura del inversor, vuelve a reposo y, si la
+   importación estabilizada continúa por encima del límite, descarga únicamente
+   el exceso confirmado. Con Protección de Capacidad activa se aplica Peak
+   Shaving contra su límite configurado.</li>
+<li><strong>Reanuda desde el margen disponible.</strong> Tras dos publicaciones nuevas que
+   confirmen un margen de al menos <code>max(200 W, 2 × banda muerta del PD)</code>, la carga
+   vuelve desde una potencia calculada por el margen, no desde la máxima batería.</li>
+</ol>
+<p><code>0 W</code> queda reservado para bloqueos explícitos, BMS, baterías no disponibles,
+telemetría crítica, fin de franja, SOC alcanzado, protección de fase o una
+emergencia de seguridad confirmada.</p>
+<div class="admonition important">
+<p class="admonition-title">Carga positiva, Peak Shaving y PD normal son acciones distintas</p>
+<p>Durante una franja predictiva barata, un sobrepaso ordinario se corrige
+modulando la carga positiva; no habilita una descarga económica normal hacia
+<code>pd_target_grid_power</code>. Peak Shaving o la emergencia por potencia contratada
+solo actúan tras confirmar un exceso de seguridad. Fuera de la franja
+predictiva vuelve el PD normal y persigue el objetivo de red configurado.</p>
+</div>
+<p>Por ejemplo, con <code>max_contracted_power = 2 000 W</code>, Protección de Capacidad
+desactivada y una carga física estabilizada de <code>2 800 W</code>, la protección de
+emergencia solicita aproximadamente <code>800 W</code> de descarga. Busca mantener la red
+cerca de <code>2 000 W</code>, no de <code>0 W</code>. Un pico breve que desaparece mientras se
+estabiliza la telemetría no provoca descarga.</p>
+<p>La descarga de seguridad solo puede ignorar bloqueos económicos de precio o
+curtailment. Siguen siendo autoritativos el SOC mínimo, las baterías no
+disponibles o bajo control manual, las restricciones de backup/RS485, los
+límites por batería y de sistema, y la protección por fase. La política de
+dispositivos excluidos puede afectar al Peak Shaving ordinario, pero la
+emergencia por potencia contratada siempre usa la importación física que ve el
+contador de red.</p>
+<p>Si el contador deja de publicar, una descarga protectora existente no aumenta
+a partir de la lectura antigua. Cuando la lectura supera el límite de antigüedad,
+el controlador devuelve las baterías automáticas a reposo y espera telemetría
+nueva y estabilizada.</p>
+<p>El objetivo y la energía pendiente permanecen asociados al plan mientras la
+carga está suspendida. Precio Dinámico intenta mover una cuota incompleta a
+franjas futuras elegibles; Franja Horaria reconstruye el plan de ventanas
+restantes desde el SOC real; Precio en Tiempo Real registra el <em>shortfall</em>
+porque no dispone de un calendario futuro de precios. Si no existe capacidad
+futura viable, los kWh restantes se publican como <em>shortfall</em> en vez de
+descartarse silenciosamente.</p>
+<p>Consulta también <a href="../../features/peak-shaving/">Protección de capacidad</a> y
+<a href="../main-sensor/">Sensor principal de red</a>.</p>
+<hr />
 <h2 id="soc-minimo-garantizado">SOC mínimo garantizado<a class="headerlink" href="#soc-minimo-garantizado" title="Permanent link">&para;</a></h2>
 <p>La carga predictiva solo carga desde la red cuando el día arroja un déficit. En un día soleado el balance del día completo puede ser positivo aunque la batería esté casi vacía al amanecer — dejando el hueco de la mañana (antes de que arranque la solar) cubierto desde la red a precio completo, o la batería agotada.</p>
-<p>El slider <strong>SOC Mínimo Garantizado</strong> opcional (pestaña Control, <code>0</code> = desactivado) fuerza una carga de red nocturna para alcanzar <strong>al menos</strong> ese SOC al final de la ventana de carga, sin importar el balance neto del día. Dimensiona el déficit hasta el suelo, así fluye sin cambios por el SOC objetivo de cada batería y por el dimensionado de slots de precio dinámico — siguen eligiéndose los slots más baratos para alcanzarlo.</p>
+<p>El slider <strong>SOC Mínimo Garantizado</strong> opcional (pestaña Control, <code>0</code> = desactivado) reserva energía suficiente para mantener cada batería en ese suelo hasta que comience la producción solar efectiva, sin importar el balance neto del día. Precio Dinámico elige los slots elegibles más baratos que pueden entregar la reserva antes de ese plazo. El techo máximo de precio explícito y los bloqueos físicos siguen siendo autoritativos: una garantía imposible se muestra como <em>shortfall</em> en vez de asignarse a una franja posterior.</p>
 <p>Se reactiva con histéresis: una vez que el SOC recupera el suelo configurado, la carga se detiene si el suelo era la única razón para cargar; se rearma cuando el SOC baja a <code>suelo − 5 %</code>. Configúralo con el slider <code>number.*_predictive_min_soc_floor</code>, junto al switch <strong>SOC Mínimo Garantizado</strong>.</p>
 <hr />
+<h2 id="origen-de-la-prevision-de-consumo">Origen de la previsión de consumo<a class="headerlink" href="#origen-de-la-prevision-de-consumo" title="Permanent link">&para;</a></h2>
+<p>La estimación diaria se conserva como fallback de compatibilidad, pero las
+instalaciones maduras usan el perfil local de 15 minutos descrito en
+<a href="../../features/consumption-estimate/">Estimación diaria y horaria del consumo</a>.
+Precio Dinámico y sus reevaluaciones intradía solicitan únicamente el horizonte
+local restante. Las franjas de carga predictiva no se restan de la demanda del hogar. Los atributos de la
+decisión identifican el origen como <code>profile</code> o <code>legacy_daily</code>, junto con la
+cobertura y el número de días aprendidos.</p>
 <h2 id="modos-disponibles">Modos disponibles<a class="headerlink" href="#modos-disponibles" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2600,6 +2798,30 @@
 <li>En modo Precio Dinámico, el plan también se comprueba <strong>1 hora antes de cada franja futura</strong>, una vez a <strong>última hora de la tarde/noche</strong> y después de una <strong>caída de 30 puntos porcentuales de SOC</strong>.</li>
 </ul>
 <p>Usa el switch <strong>Override Predictive Charging</strong> para cancelar la carga predictiva en cualquier momento.</p>
+<h2 id="timeline-solar-y-modo-de-despliegue">Timeline solar y modo de despliegue<a class="headerlink" href="#timeline-solar-y-modo-de-despliegue" title="Permanent link">&para;</a></h2>
+<p>El total de la previsión y su forma temporal son contratos separados. El total
+procede del sensor de previsión configurado; la telemetría FV directa solo se
+usa para aprender cuándo suele llegar esa energía. La prioridad del timeline es:</p>
+<ol>
+<li>Periodos fechados válidos proporcionados explícitamente por el proveedor.</li>
+<li>Perfil local maduro aprendido de potencia FV directa y MPPT de baterías.</li>
+<li>La curva sinusoidal de luz ya existente.</li>
+<li>Timeline cero cuando no existe una ventana solar segura.</li>
+</ol>
+<p>La selección temporal es automática. Mientras el perfil aprendido no es maduro
+o no puede cubrir el rango solicitado, se usa la curva sinusoidal. Cuando el
+perfil alcanza la madurez, se aplica automáticamente siguiendo la prioridad
+anterior. No hace falta seleccionar ningún modo en la configuración. Las
+entradas antiguas que guardaban <code>shadow</code> se normalizan a este comportamiento;
+<code>off</code> se conserva únicamente como compatibilidad interna.</p>
+<p>El perfil se normaliza para sumar uno antes de aplicar el presupuesto de la
+previsión. No predice kWh, no corrige una previsión meteorológica errónea, no
+controla el inversor ni reconstruye energía perdida por curtailment. El margen
+de seguridad se resta una sola vez del presupuesto restante antes de darle forma.</p>
+<p>Atributos útiles de la decisión son <code>solar_timeline_source</code>,
+<code>solar_remaining_raw_kwh</code>, <code>solar_remaining_effective_kwh</code>,
+<code>solar_timeline_fallback_reason</code>, <code>solar_profile_mature</code> y
+<code>solar_profile_coverage_ratio</code>.</p>
 <p><img alt="Notificación de carga predictiva en HA" src="../../../assets/screenshots/configuration/predictive-charging/notification-example.png" style="display: block; margin: 0 auto;" width="500" /></p>
 
 

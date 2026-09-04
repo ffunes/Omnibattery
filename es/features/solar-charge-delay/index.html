@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://ffunes.github.io/omnibattery/es/features/solar-charge-delay/">
       
       
-        <link rel="prev" href="../consumption-estimate/">
+        <link rel="prev" href="../daily-operation-timeline/">
       
       
         <link rel="next" href="../peak-shaving/">
@@ -1568,6 +1568,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -1657,6 +1685,17 @@
     <span class="md-ellipsis">
       
         Previsión en tiempo real
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#horizonte-de-demanda-del-hogar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Horizonte de demanda del hogar
       
     </span>
   </a>
@@ -2352,6 +2391,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2446,6 +2513,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#horizonte-de-demanda-del-hogar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Horizonte de demanda del hogar
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#soc-de-arranque-del-retraso" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2518,16 +2596,26 @@
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    Iniciar carga (solar o desde la red)
 </code></pre></div>
 <h2 id="prevision-en-tiempo-real">Previsión en tiempo real<a class="headerlink" href="#prevision-en-tiempo-real" title="Permanent link">&para;</a></h2>
-<p>La integración lee el sensor de previsión solar en tiempo real, sin captura ni almacenamiento nocturno. La mayoría de integraciones de previsión solar (Solcast, Forecast.Solar, etc.) actualizan su sensor del día actual varias veces a lo largo del día, siendo progresivamente más precisas conforme se conocen las condiciones meteorológicas reales.</p>
+<p>La integración lee el sensor de previsión solar en tiempo real, sin captura ni almacenamiento nocturno. Al guardar <strong>Restante de hoy</strong>, se usa directamente y sustituye el ajuste legado del día completo. Las entradas legadas que no se modifiquen siguen siendo compatibles durante la transición y se convierten en una estimación de la producción restante.</p>
 <p>Cada vez que el valor del sensor cambia en más de 0,05 kWh, la integración reevalúa el balance energético:</p>
 <ul>
 <li><strong>La previsión empeora</strong> hasta que <code>(energía_usable + previsión) &lt; consumo_diario_medio</code> → desbloquea el retraso y la carga comienza de inmediato.</li>
 <li><strong>La previsión mejora</strong> mientras el retraso sigue activo → el sistema sigue esperando a que el sol cargue la batería.</li>
 </ul>
 <p>Una vez que el retraso se desbloquea, permanece desbloqueado el resto del día.</p>
+<h2 id="horizonte-de-demanda-del-hogar">Horizonte de demanda del hogar<a class="headerlink" href="#horizonte-de-demanda-del-hogar" title="Permanent link">&para;</a></h2>
+<p>Cuando el perfil horario de consumo de 28 días está maduro, el Retraso de Carga
+Solar usa el mismo rango local de consumo restante que la carga predictiva. El
+perfil mantiene las franjas de carga predictiva dentro del rango solicitado
+porque el hogar sigue consumiendo mientras opera la batería; la energía usada
+para cargarla desde la red ya queda cancelada por el término de potencia AC. La
+demanda ya observada hoy no se cuenta de nuevo. Mientras aprende, el retraso vuelve a
+la estimación diaria heredada. Los atributos del sensor de Retraso de Carga
+exponen <code>consumption_forecast_source</code>, <code>profile_coverage_ratio</code> y <code>profile_days</code>
+para verificar esta transición.</p>
 <div class="admonition note">
 <p class="admonition-title">Cortes transitorios de la previsión y reevaluación manual</p>
-<p>Que un sensor de previsión configurado lea <code>unavailable</code>/<code>unknown</code> por un instante —mientras se actualiza, o durante la ventana tras reiniciar Home Assistant antes de que todos los sensores hayan cargado— ya <strong>no</strong> desactiva el retraso durante todo el día. El retraso se mantiene mediante una breve ventana de gracia (estado del sensor <code>Waiting for forecast</code>) y solo se desbloquea si el sensor sigue no disponible al superarla. Si el retraso ya se había desbloqueado y quieres recuperarlo el mismo día, <strong>desactiva y vuelve a activar el switch de Retraso de Carga Solar</strong>: eso reevalúa el retraso desde cero en lugar de esperar al reinicio de medianoche.</p>
+<p>Que un sensor de previsión configurado lea <code>unavailable</code>/<code>unknown</code> por un instante —mientras se actualiza, o durante la ventana tras reiniciar Home Assistant antes de que todos los sensores hayan cargado— ya <strong>no</strong> desactiva el retraso durante todo el día. La misma protección cubre un <code>0 kWh</code> provisional del sensor <strong>Restante de hoy</strong> durante la primera hora tras medianoche. El retraso se mantiene mediante una breve ventana de gracia (estado del sensor <code>Waiting for forecast</code>) y solo se desbloquea si la lectura no se recupera al superarla. Si el retraso ya se había desbloqueado y quieres recuperarlo el mismo día, <strong>desactiva y vuelve a activar el switch de Retraso de Carga Solar</strong>: eso reevalúa el retraso desde cero en lugar de esperar al reinicio de medianoche.</p>
 </div>
 <h2 id="soc-de-arranque-del-retraso">SOC de arranque del retraso<a class="headerlink" href="#soc-de-arranque-del-retraso" title="Permanent link">&para;</a></h2>
 <p>Un SOC de setpoint opcional (12–90 %, desactivado por defecto) divide la carga en dos fases:</p>
@@ -2536,6 +2624,7 @@
 <li><strong>En el setpoint o por encima</strong> — se activa la lógica de retraso solar y decide si continuar cargando o esperar.</li>
 </ol>
 <p>Esto es útil cuando la batería está muy descargada y necesita un mínimo garantizado antes de que entre en juego la decisión solar. Por ejemplo, con un setpoint del 50 % la batería carga hasta el 50 % sin restricciones; a partir de ahí, el sistema evalúa si la producción solar restante es suficiente para completar la carga y espera si lo es.</p>
+<p>Durante esta primera fase, el sensor publica <code>soc_setpoint</code>, <code>estimated_setpoint_time</code> y <code>projected_unlock_time</code>. Las dos horas son proyecciones informativas; cuando el retraso solar ya está activo, <code>estimated_unlock_time</code> pasa a ser la estimación autoritativa calculada por el controlador.</p>
 <p>El setpoint se habilita con un checkbox independiente en la configuración. Si está desactivado, el retraso aplica desde el primer momento de carga. El valor mínimo es el 12 %, correspondiente al SOC mínimo de descarga de las baterías Venus.</p>
 <h2 id="configuracion-desde-el-dashboard">Configuración desde el dashboard<a class="headerlink" href="#configuracion-desde-el-dashboard" title="Permanent link">&para;</a></h2>
 <table>
@@ -2618,7 +2707,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Pie" >
         
           
-          <a href="../consumption-estimate/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Estimación de consumo diario">
+          <a href="../daily-operation-timeline/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Daily operation timeline">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2628,7 +2717,7 @@
                 Anterior
               </span>
               <div class="md-ellipsis">
-                Estimación de consumo diario
+                Daily operation timeline
               </div>
             </div>
           </a>

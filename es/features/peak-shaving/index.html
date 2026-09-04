@@ -1571,6 +1571,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../solar-charge-delay/" class="md-nav__link">
         
   
@@ -1696,6 +1724,17 @@
     <span class="md-ellipsis">
       
         Ejemplo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interaccion-con-la-carga-predictiva-desde-red" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interacción con la carga predictiva desde red
       
     </span>
   </a>
@@ -2352,6 +2391,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2457,6 +2524,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#interaccion-con-la-carga-predictiva-desde-red" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interacción con la carga predictiva desde red
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#peak-shaving-para-dispositivos-excluidos" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2547,6 +2625,34 @@
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>La red cubre 3 000 W y la batería solo 1 500 W
 </code></pre></div>
 <p>Si el consumo fuera de 2 000 W (&lt; límite), la batería no descargaría nada.</p>
+<h2 id="interaccion-con-la-carga-predictiva-desde-red">Interacción con la carga predictiva desde red<a class="headerlink" href="#interaccion-con-la-carga-predictiva-desde-red" title="Permanent link">&para;</a></h2>
+<p>Durante una franja predictiva activa, el consumo del hogar siempre tiene
+prioridad sobre la carga desde red. El controlador reduce primero la potencia
+de carga de la batería; si alcanza el techo de importación, ordena reposo y
+espera a que la telemetría del inversor y del contador se estabilice antes de
+considerar una descarga.</p>
+<p>Después de la estabilización:</p>
+<ul>
+<li>Con Protección de Capacidad activa, Peak Shaving descarga únicamente el
+  exceso sobre <code>min(capacity_protection_limit, max_contracted_power)</code>.</li>
+<li>Independientemente del switch de Protección de Capacidad, una importación
+  física superior a <code>max_contracted_power</code> activa la emergencia por potencia
+  contratada. Las cargas excluidas de la cobertura ordinaria no pueden
+  excluirse de esta comprobación porque la conexión de red también las ve.</li>
+<li>Las restricciones económicas de descarga por precio y las ventanas protegidas
+  de precio negativo no pueden impedir una orden legítima de Peak Shaving o
+  emergencia. Siguen aplicándose las protecciones físicas y del usuario: SOC
+  mínimo, disponibilidad, propiedad manual o de franjas, backup, fases y límites
+  de potencia.</li>
+</ul>
+<p>Detener la carga predictiva, descargar por Peak Shaving, descargar por PD normal
+y descargar por emergencia de potencia contratada son, por tanto, acciones
+distintas. La protección de pico nunca convierte una franja barata en descarga
+económica normal hacia el objetivo de red del PD. Cuando vuelve un margen
+estable, primero detiene la descarga, espera otra estabilización y reanuda la
+carga predictiva con histéresis. Conserva su SOC objetivo y los kWh pendientes.</p>
+<p>Consulta <a href="../../configuration/predictive-charging/#consumo-del-hogar-durante-una-franja-de-carga">Consumo del hogar durante una franja de carga predictiva</a>
+para ver la secuencia completa y un ejemplo.</p>
 <h2 id="peak-shaving-para-dispositivos-excluidos">Peak shaving para dispositivos excluidos<a class="headerlink" href="#peak-shaving-para-dispositivos-excluidos" title="Permanent link">&para;</a></h2>
 <p>El switch opcional <strong>Reducción de picos para dispositivos excluidos</strong> extiende
 el límite de pico a las cargas que normalmente están excluidas de la batería.

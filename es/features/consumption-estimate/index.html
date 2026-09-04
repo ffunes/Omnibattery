@@ -18,7 +18,7 @@
         <link rel="prev" href="../hourly-net-balance/">
       
       
-        <link rel="next" href="../solar-charge-delay/">
+        <link rel="next" href="../daily-operation-timeline/">
       
       
         
@@ -84,7 +84,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#estimacion-del-consumo-diario" class="md-skip">
+        <a href="#estimacion-diaria-y-horaria-del-consumo" class="md-skip">
           Saltar a contenido
         </a>
       
@@ -1603,6 +1603,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#modo-vacaciones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modo vacaciones
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#que-mide-el-consumo-estimado" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1735,10 +1746,49 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#perfil-de-28-dias-por-cuarto-de-hora" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Perfil de 28 días por cuarto de hora
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2419,6 +2469,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2478,6 +2556,17 @@
       Tabla de contenidos
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#modo-vacaciones" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Modo vacaciones
+      
+    </span>
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#que-mide-el-consumo-estimado" class="md-nav__link">
@@ -2612,6 +2701,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#perfil-de-28-dias-por-cuarto-de-hora" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Perfil de 28 días por cuarto de hora
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2637,16 +2737,45 @@
   
 
 
-<h1 id="estimacion-del-consumo-diario">Estimación del consumo diario<a class="headerlink" href="#estimacion-del-consumo-diario" title="Permanent link">&para;</a></h1>
-<p>La carga predictiva necesita saber cuánta energía consume tu hogar cada día para decidir si hace falta cargar desde la red. En lugar de usar un valor fijo, la integración calcula un <strong>consumo estimado dinámico</strong> a partir del historial real de los últimos 7 días.</p>
+<h1 id="estimacion-diaria-y-horaria-del-consumo">Estimación diaria y horaria del consumo<a class="headerlink" href="#estimacion-diaria-y-horaria-del-consumo" title="Permanent link">&para;</a></h1>
+<p>La carga predictiva necesita saber cuánta energía consume tu hogar para decidir si hace falta cargar desde la red. La integración aprende un <strong>perfil de consumo de 15 minutos</strong> a partir de hasta 28 días locales completos. Hasta que ese perfil alcanza la madurez, la estimación diaria existente de 7 días sigue siendo el fallback seguro.</p>
+<h2 id="modo-vacaciones">Modo vacaciones<a class="headerlink" href="#modo-vacaciones" title="Permanent link">&para;</a></h2>
+<p>Activa el interruptor <strong>Modo vacaciones</strong> del dispositivo de sistema de
+Omnibattery cuando el patrón habitual de la vivienda deje de ser representativo.
+Los contadores físicos y el gráfico de consumo real siguen registrando, y el
+control de batería funciona con normalidad. Solo se pausa el aprendizaje: los
+días afectados se eliminan del histórico diario heredado y solo los intervalos
+de 15 minutos afectados se excluyen del perfil de 28 días. Los periodos se
+guardan para que un backfill posterior de Recorder no los reincorpore.</p>
+<p>Durante las vacaciones todas las previsiones de consumo usan una carga base
+constante: la mediana de las tres últimas noches válidas entre 01:00 y 05:00
+(cada noche necesita al menos tres horas de cobertura). Antes de la primera
+noche válida se usa el perfil nocturno aprendido, después la media diaria/24 y
+por último el valor predeterminado. Al cambiar el interruptor se rompe la
+continuidad de los integradores de aprendizaje para no atribuir intervalos al
+modo equivocado.</p>
+<p>Precio Dinámico lo usa como curva cronológica, no solo como total diario. Así puede reservar energía de red antes de un agotamiento temprano previsto y mantener flexible por precio el resto del déficit diario. Tanto el perfil maduro como la curva provisional se normalizan a los mismos kWh agregados usados por la decisión predictiva.</p>
+<p>Mientras el perfil aprendido no está maduro, ese total diario no se reparte de
+forma completamente plana: se usa una curva temporal provisional de hogar. La
+noche (00:00–06:00) recibe el peso mínimo, el desayuno tiene un pequeño repunte,
+las horas centrales del día reciben más peso y la cena es el pico principal. La
+curva se normaliza para que el total siga siendo exactamente el consumo diario
+estimado, incluidos los días de cambio horario, y desaparece en cuanto hay un
+perfil aprendido con datos reales.</p>
+<p>En las reevaluaciones intradía de Precio Dinámico que calculan lo que queda
+hasta medianoche, la curva también se corrige de forma gradual con el consumo
+real acumulado del día. La corrección empieza tras las tres primeras horas,
+alcanza toda su fuerza al mediodía y se limita al 30 % del consumo restante
+previsto para que un pico puntual no distorsione el resto del día.</p>
 <hr />
 <h2 id="que-mide-el-consumo-estimado">Qué mide el consumo estimado<a class="headerlink" href="#que-mide-el-consumo-estimado" title="Permanent link">&para;</a></h2>
-<p>El estimado es el <strong>consumo total del hogar durante la ventana solar+batería</strong> — las horas fuera de la franja de carga de red, cuando se espera que la batería cubra la casa. Se promedia sobre los últimos 7 días.</p>
+<p>El estimado es el <strong>consumo total del hogar durante todo el día local</strong>, incluidas las franjas de carga predictiva desde la red. Se promedia sobre los últimos 7 días naturales.</p>
 <h3 id="origen-del-consumo-del-hogar">Origen del consumo del hogar<a class="headerlink" href="#origen-del-consumo-del-hogar" title="Permanent link">&para;</a></h3>
 <p>La potencia del hogar de cada ciclo se <strong>deriva</strong> de los valores que la integración ya tiene:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>hogar = red + Σ(potencia AC de baterías) + solar
 </code></pre></div>
 <p>Es el mismo valor que muestra el diagrama de flujo de energía y el sensor <strong><code>sensor.marstek_venus_system_home_consumption</code></strong> (Consumo de la Casa, W). La FV acoplada en DC (MPPT) no aparece aquí — ya está neteada en la potencia AC de cada batería en el inversor.</p>
+<p>Cuando la batería carga desde la red, su potencia AC es negativa. Ese término cancela la importación de red correspondiente, por lo que la energía destinada a cargar la batería no se confunde con consumo del hogar. Por ejemplo, importar 2,8 kW mientras la batería carga a 2,5 kW da 0,3 kW de demanda de la casa.</p>
 <div class="admonition note">
 <p class="admonition-title">Sensor de hogar heredado</p>
 <p>Un <code>household_consumption_sensor</code> guardado en una instalación antigua se lee directamente <strong>en vez</strong> de derivar, pero <strong>solo cuando no hay sensor de producción solar configurado</strong> — con sensor solar, el valor derivado es exacto y preferido. El campo ya no se ofrece en la configuración.</p>
@@ -2659,10 +2788,10 @@
 </ul>
 <hr />
 <h2 id="acumulacion-en-tiempo-real">Acumulación en tiempo real<a class="headerlink" href="#acumulacion-en-tiempo-real" title="Permanent link">&para;</a></h2>
-<p>En cada ciclo de control (dirigido por eventos, a la cadencia del sensor de red), la potencia del hogar se integra en un acumulador diario <strong>solo mientras <code>is_in_consumption_window()</code> es verdadero</strong>: las 24 horas completas si no hay franja de carga configurada, o las horas fuera de la franja de carga en los días de la franja. Este acotamiento garantiza que la ventana medida coincide con lo que la carga predictiva espera al proyectar después la demanda restante.</p>
+<p>En cada ciclo de control (dirigido por eventos, a la cadencia del sensor de red), la potencia corregida del hogar se integra durante todo el día local. Las franjas de carga predictiva solo programan cuándo puede cargar la batería desde la red; nunca pausan el aprendizaje del consumo de la casa.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>incremento (kWh) = potencia_hogar (W) × Δt (s) / 3 600 000
 </code></pre></div>
-<p><code>Δt</code> es el tiempo real transcurrido desde la muestra anterior, así se adapta a la cadencia variable. El valor diario en curso se expone como el atributo <code>household_consumption_battery_window_kwh</code> en <code>binary_sensor.marstek_venus_system_predictive_charging_active</code>, y se persiste para sobrevivir reinicios dentro del mismo día.</p>
+<p><code>Δt</code> es el tiempo real transcurrido desde la muestra anterior, así se adapta a la cadencia variable. El valor diario en curso se expone como <code>household_consumption_full_day_kwh</code> en <code>binary_sensor.marstek_venus_system_predictive_charging_active</code>, y se persiste para sobrevivir reinicios dentro del mismo día.</p>
 <hr />
 <h2 id="captura-diaria-a-las-2355">Captura diaria a las 23:55<a class="headerlink" href="#captura-diaria-a-las-2355" title="Permanent link">&para;</a></h2>
 <p>Cada día a las <strong>23:55 (hora local)</strong> la integración guarda una instantánea del acumulador en el historial de 7 días antes de que se resetee a medianoche. El valor solo se almacena si es ≥ 1,5 kWh (para descartar días sin datos significativos).</p>
@@ -2672,7 +2801,7 @@
 <h3 id="valor-de-reserva">Valor de reserva<a class="headerlink" href="#valor-de-reserva" title="Permanent link">&para;</a></h3>
 <p>Mientras no haya 7 días reales acumulados (p. ej. recién instalada la integración), las entradas que falten se rellenan con el valor de reserva <strong><code>DEFAULT_BASE_CONSUMPTION_KWH = 5,0 kWh</code></strong>. Actúa solo como marcador temporal y se reemplaza en cuanto hay datos reales disponibles.</p>
 <h3 id="backfill-desde-el-historial-del-recorder">Backfill desde el historial del recorder<a class="headerlink" href="#backfill-desde-el-historial-del-recorder" title="Permanent link">&para;</a></h3>
-<p>Al arrancar, la integración recupera los días que falten consultando el <strong>recorder de Home Assistant</strong> para el sensor <code>sensor.marstek_venus_system_home_consumption</code> (que ya resuelve al valor derivado, o al sensor de hogar heredado cuando aplica). Para cada día que falte integra el historial de ese sensor sobre la ventana de consumo, aplica los ajustes de dispositivos excluidos/adicionales, y almacena el resultado igual que haría la captura de las 23:55. Así el historial se construye con datos reales incluso tras un reinicio de HA o una instalación nueva.</p>
+<p>Al arrancar, la integración recupera los días que falten consultando el <strong>recorder de Home Assistant</strong> para el sensor <code>sensor.marstek_venus_system_home_consumption</code> (que ya resuelve al valor derivado, o al sensor de hogar heredado cuando aplica). Para cada día que falte integra el historial de ese sensor durante todo el día local, aplica los ajustes de dispositivos excluidos/adicionales, y almacena el resultado igual que haría la captura de las 23:55. Así el historial se construye con datos reales incluso tras un reinicio de HA o una instalación nueva. Los historiales creados por versiones antiguas con ventanas se descartan una vez y se reconstruyen desde Recorder para no mezclar totales parciales y completos.</p>
 <hr />
 <h2 id="media-movil-de-7-dias">Media móvil de 7 días<a class="headerlink" href="#media-movil-de-7-dias" title="Permanent link">&para;</a></h2>
 <p>El consumo estimado que usa la carga predictiva es la <strong>media aritmética</strong> de todos los valores del historial:</p>
@@ -2681,13 +2810,13 @@
 <p>donde <code>n</code> puede ser menor de 7 si aún no hay suficientes días reales (los valores de reserva también cuentan en el promedio hasta ser reemplazados).</p>
 <hr />
 <h2 id="ejemplo-completo">Ejemplo completo<a class="headerlink" href="#ejemplo-completo" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Lunes:     consumo del hogar (ventana batería) = 5,0 kWh
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Martes:    consumo del hogar (ventana batería) = 5,1 kWh
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Miércoles: consumo del hogar (ventana batería) = 5,3 kWh
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>Jueves:    consumo del hogar (ventana batería) = 4,8 kWh
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>Viernes:   consumo del hogar (ventana batería) = 4,9 kWh
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>Sábado:    consumo del hogar (ventana batería) = 6,3 kWh
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>Domingo:   consumo del hogar (ventana batería) = 6,0 kWh
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Lunes:     consumo del hogar del día completo = 5,0 kWh
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Martes:    consumo del hogar del día completo = 5,1 kWh
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Miércoles: consumo del hogar del día completo = 5,3 kWh
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>Jueves:    consumo del hogar del día completo = 4,8 kWh
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>Viernes:   consumo del hogar del día completo = 4,9 kWh
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>Sábado:    consumo del hogar del día completo = 6,3 kWh
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>Domingo:   consumo del hogar del día completo = 6,0 kWh
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>Consumo esperado = (5,0 + 5,1 + 5,3 + 4,8 + 4,9 + 6,3 + 6,0) / 7 = 5,34 kWh
 </code></pre></div>
@@ -2712,6 +2841,52 @@
 <p>Este sensor <strong>Grid at Min SOC</strong> es informativo: muestra la demanda que la batería no atendió por estar vacía. Ya <strong>no</strong> se suma al consumo estimado (el consumo del hogar derivado ya captura la carga total de la casa, incluida la parte servida desde la red).</p>
 <p>El sensor <code>binary_sensor.marstek_venus_system_predictive_charging_active</code> expone en sus atributos el historial de consumo de los últimos 7 días y el número de entradas reales vs. valores de reserva, útil para verificar el estado del aprendizaje.</p>
 <p><img alt="Atributos del historial de consumo en HA" src="../../../assets/screenshots/features/consumption-estimate-attributes.png" style="display: block; margin: 0 auto;" width="700" /></p>
+<h2 id="perfil-de-28-dias-por-cuarto-de-hora">Perfil de 28 días por cuarto de hora<a class="headerlink" href="#perfil-de-28-dias-por-cuarto-de-hora" title="Permanent link">&para;</a></h2>
+<p>La integración captura además la demanda corregida del hogar de forma continua,
+las 24 horas, en <strong>96 intervalos locales de 15 minutos</strong>. Cada muestra se integra
+con regla trapezoidal y se divide al cruzar medianoche, cuartos de hora y cambios
+de horario de verano. Un hueco de más de cinco minutos rompe la continuidad; un
+intervalo solo es válido cuando tiene al menos 675 segundos (75 %) de cobertura.
+Las franjas de carga no se aplican al aprendizaje ni a la previsión de la demanda
+del hogar: programan la carga de la batería, pero no eliminan la carga de la casa
+de esas horas.</p>
+<p>El perfil combina muestras del mismo día de la semana, del mismo tipo
+laborable/fin de semana y globales. Los días recientes pesan <code>1,0</code>, <code>0,75</code>, <code>0,5</code>
+y <code>0,25</code>. Solo se considera maduro con al menos siete días válidos, dos muestras
+—del mismo día de la semana o, en su defecto, del mismo tipo laborable/fin de
+semana— para el 75 % de los intervalos solicitados, un 80 % de cobertura del rango y una
+muestra de menos de siete días. Si no es maduro, se usa automáticamente la media
+diaria heredada o la estimación por potencia actual, según el consumidor.</p>
+<p>En la curva diaria provisional, el consumo restante se aproxima gradualmente
+al presupuesto diario todavía no consumido. La corrección alcanza toda su
+fuerza al mediodía y se limita al 30 % de la curva restante para que un pico
+puntual no elimine la demanda doméstica que aún cabe esperar durante el día.</p>
+<p>Tras arrancar, el backfill del Recorder se ejecuta en segundo plano con una
+consulta por cada fuente configurada. Los datos crudos están aislados en
+<code>omnibattery.&lt;entry_id&gt;.consumption_profile</code>. Nada de lo que configures borra lo
+aprendido: cambiar la fuente o un ajuste de cargas sólo rompe la continuidad del
+muestreo y lanza un backfill de los días que falten, y cambiar la zona horaria
+de Home Assistant reubica los días guardados según el desfase entre ambas zonas
+en vez de descartarlos (los dos días de los extremos se quedan con parte de sus
+horas y el backfill los vuelve a pedir). Sólo una zona horaria guardada que ya
+no exista obliga a aprender de cero.</p>
+<p>El sensor de diagnóstico
+<code>sensor.omnibattery_expected_home_consumption_profile</code> expone la previsión,
+los 96 intervalos/valores horarios, el origen, la madurez, la cobertura y los
+metadatos del fallback. Los diagnósticos de la integración contienen el resumen
+acotado por día. La carga predictiva, el Retraso de Carga
+Solar y Precio Dinámico solo usan el perfil cuando cumple el contrato de madurez.</p>
+<p>Para comprobar cómo se llena el día actual, el sensor de diagnóstico
+<code>sensor.omnibattery_consumption_profile_capture</code> muestra los kWh capturados hasta
+el momento. Sus atributos <code>hourly_capture_kwh</code>, <code>interval_capture_kwh</code> e
+<code>interval_coverage_s</code> permiten localizar el consumo en las 24 horas y en los 96
+intervalos de 15 minutos. Este sensor muestra la captura cruda del día actual;
+no es la previsión y se reinicia al comenzar el siguiente día local.</p>
+<p>Este perfil del hogar es independiente del perfil temporal solar. El consumo
+aprende demanda absoluta por intervalos de hora local y puede servir como
+fallback de carga; el perfil solar solo aprende una forma normalizada de luz a
+partir de potencia FV directa. Ninguno de los dos cambia el presupuesto de kWh
+de la previsión.</p>
 
 
 
@@ -2766,13 +2941,13 @@
         
         
           
-          <a href="../solar-charge-delay/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Retraso de carga solar">
+          <a href="../daily-operation-timeline/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Daily operation timeline">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Siguiente
               </span>
               <div class="md-ellipsis">
-                Retraso de carga solar
+                Daily operation timeline
               </div>
             </div>
             <div class="md-footer__button md-icon">

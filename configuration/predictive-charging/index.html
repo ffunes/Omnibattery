@@ -1298,10 +1298,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#household-demand-during-a-charging-slot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Household demand during a charging slot
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#guaranteed-minimum-soc-floor" class="md-nav__link">
     <span class="md-ellipsis">
       
         Guaranteed minimum SOC floor
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consumption-forecast-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumption forecast source
       
     </span>
   </a>
@@ -1324,6 +1346,17 @@
     <span class="md-ellipsis">
       
         Notifications
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solar-timeline-and-rollout-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solar timeline and rollout mode
       
     </span>
   </a>
@@ -1679,6 +1712,34 @@
     
   
     Daily consumption estimate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
   
 
     
@@ -2364,6 +2425,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2475,10 +2564,32 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#household-demand-during-a-charging-slot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Household demand during a charging slot
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#guaranteed-minimum-soc-floor" class="md-nav__link">
     <span class="md-ellipsis">
       
         Guaranteed minimum SOC floor
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consumption-forecast-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumption forecast source
       
     </span>
   </a>
@@ -2501,6 +2612,17 @@
     <span class="md-ellipsis">
       
         Notifications
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solar-timeline-and-rollout-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solar timeline and rollout mode
       
     </span>
   </a>
@@ -2542,7 +2664,7 @@
 </code></pre></div>
 <ul>
 <li><strong>Usable battery</strong>: energy currently stored above the configured min SOC.</li>
-<li><strong>Solar forecast</strong>: estimated production for today (Solcast/Forecast.Solar sensor).</li>
+<li><strong>Solar forecast</strong>: preferably the production remaining today (Solcast/Forecast.Solar sensor). Whole-day sensors remain a legacy fallback during the transition.</li>
 <li><strong>Expected consumption</strong>: 7-day rolling average. See <a href="../../features/consumption-estimate/">Daily consumption estimate</a>.</li>
 </ul>
 <hr />
@@ -2562,11 +2684,83 @@
 <h3 id="multi-battery-systems">Multi-battery systems<a class="headerlink" href="#multi-battery-systems" title="Permanent link">&para;</a></h3>
 <p>In systems with multiple batteries at different SOC levels the grid charge is distributed <strong>proportionally to each battery's individual gap to max_soc</strong>. A battery further from full receives a larger share; a battery already close to full relies mostly on solar for its remainder. This prevents overcharging any single unit from the grid and minimises total grid import.</p>
 <hr />
+<h2 id="household-demand-during-a-charging-slot">Household demand during a charging slot<a class="headerlink" href="#household-demand-during-a-charging-slot" title="Permanent link">&para;</a></h2>
+<p>A predictive slot remains responsible for the batteries until the slot ends or
+its target is reached. Normal PD does not take over just because household
+demand increases: doing so could interpret grid import that still includes the
+previous battery charge as real household demand and immediately reverse the
+battery into an unnecessary discharge.</p>
+<p>The import ceiling while predictive charging is active is:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ceiling = min(max_contracted_power, capacity_protection_limit when enabled)
+</code></pre></div>
+<p>Omnibattery reacts to increasing household demand in stages. The ceiling is the
+predictive PD's regulation target, not an immediate idle command:</p>
+<ol>
+<li><strong>Reduce charging.</strong> Available grid headroom is given to the house first, so
+   the battery charge command falls as household consumption rises.</li>
+<li><strong>Keep a positive charge.</strong> If the PD calculation would mathematically cross
+   into discharge, the output is clamped to the battery's smallest effective
+   charge and the incremental PD state is preserved. A normal target overshoot
+   never commands <code>0 W</code>.</li>
+<li><strong>Confirm a real emergency.</strong> Only a substantial physical excess over the
+   hard limit, confirmed by three consecutive fresh publications, enters demand
+   protection. An isolated spike or ordinary target overshoot keeps modulating
+   positive charge.</li>
+<li><strong>Protect the import limit if the emergency persists.</strong> The battery then
+   waits for inverter response/readback latency and, if settled import remains
+   above the limit, discharges only the confirmed excess. With Capacity
+   Protection enabled this is Peak Shaving against its configured limit.</li>
+<li><strong>Resume from available headroom.</strong> After two fresh samples show at least
+   <code>max(200 W, 2 × PD deadband)</code> of headroom, predictive charging resumes from a
+   power calculated from that margin rather than from the battery maximum.</li>
+</ol>
+<p><code>0 W</code> is reserved for explicit blockers, BMS, unavailable batteries, critical
+telemetry, the end of a slot, reached SOC, phase protection, or a confirmed
+safety emergency.</p>
+<div class="admonition important">
+<p class="admonition-title">Positive charge, Peak Shaving and normal PD are different</p>
+<p>During a cheap predictive slot, an ordinary overshoot is corrected by
+modulating positive charge; it does <strong>not</strong> enable a normal economic
+discharge towards <code>pd_target_grid_power</code>. Peak Shaving or contracted-power
+emergency control acts only after a safety excess is confirmed. Outside the
+predictive slot, normal PD resumes and follows the configured grid target.</p>
+</div>
+<p>For example, with <code>max_contracted_power = 2,000 W</code>, Capacity Protection off and
+a settled physical household load of <code>2,800 W</code>, emergency protection requests
+approximately <code>800 W</code> of discharge. It aims to keep grid import near <code>2,000 W</code>,
+not <code>0 W</code>. A short inrush that disappears while telemetry settles produces no
+discharge.</p>
+<p>Safety discharge may bypass only economic price/curtailment blocks. Minimum
+SOC, unavailable or manually owned batteries, backup/RS485 restrictions,
+per-battery limits, system limits and phase protection remain authoritative.
+Excluded-device policy may affect ordinary Peak Shaving, but contracted-power
+emergency protection always uses the physical import seen by the grid meter.</p>
+<p>If the grid meter stops publishing, an existing protective command is not
+increased from the old reading. Once the reading exceeds the stale-data limit,
+the controller returns automatic batteries to idle and waits for fresh settled
+telemetry.</p>
+<p>The charge target and undelivered energy remain attached to the predictive
+plan while charging is suspended. Dynamic Pricing attempts to move a missed
+quota to eligible future slots; Time Slot mode rebuilds its remaining-window
+plan from live SOC; Real-Time Price records the shortfall because it has no
+future price calendar. If no feasible future capacity exists, the remaining
+kWh are exposed as a shortfall rather than silently discarded.</p>
+<p>See also <a href="../../features/peak-shaving/">Capacity protection</a> and
+<a href="../main-sensor/">Main grid sensor</a>.</p>
+<hr />
 <h2 id="guaranteed-minimum-soc-floor">Guaranteed minimum SOC floor<a class="headerlink" href="#guaranteed-minimum-soc-floor" title="Permanent link">&para;</a></h2>
 <p>Predictive charging only grid-charges when the day nets to a deficit. On a sunny day the whole-day balance can be positive even though the battery is near empty at dawn — leaving the morning gap (before solar ramps up) covered from the grid at full price, or the battery drained.</p>
-<p>The optional <strong>Guaranteed Minimum SOC</strong> slider (Control tab, <code>0</code> = off) forces an overnight grid charge to reach <strong>at least</strong> that SOC by the end of the charging window, regardless of the day's net balance. It sizes the deficit to the floor, so it flows through the per-battery target SOC and the dynamic-pricing slot sizing unchanged — the cheapest slots are still chosen to reach it.</p>
+<p>The optional <strong>Guaranteed Minimum SOC</strong> slider (Control tab, <code>0</code> = off) reserves enough energy to keep each battery at that floor until effective solar production starts, regardless of the day's net balance. Dynamic Pricing chooses the cheapest eligible slots that can deliver the reserve before that deadline. The explicit maximum-price threshold and physical blockers remain authoritative, so an impossible guarantee is reported as a shortfall instead of being assigned to a later slot.</p>
 <p>It re-triggers with hysteresis: once SOC recovers to the configured floor, charging stops if the floor was the only reason to charge; it re-arms when SOC drops to <code>floor − 5 %</code>. Set it via the <code>number.*_predictive_min_soc_floor</code> slider, paired with the <strong>Guaranteed Minimum SOC</strong> switch.</p>
 <hr />
+<h2 id="consumption-forecast-source">Consumption forecast source<a class="headerlink" href="#consumption-forecast-source" title="Permanent link">&para;</a></h2>
+<p>The daily estimate is retained as a compatibility fallback, but mature
+installations use the local 15-minute profile described in <a href="../../features/consumption-estimate/">Daily and hourly
+consumption estimate</a>. Dynamic Pricing
+and its intraday re-evaluations request only the remaining local-time horizon.
+Predictive charging windows are not subtracted from household demand. The decision attributes identify the
+source as <code>profile</code> or <code>legacy_daily</code>, together with profile coverage and the
+number of learned days.</p>
 <h2 id="available-modes">Available modes<a class="headerlink" href="#available-modes" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2600,6 +2794,30 @@
 <li>In Dynamic Pricing mode, the plan is also checked <strong>1 hour before each future slot</strong>, once in the <strong>late afternoon/evening</strong>, and after a <strong>30 percentage-point SOC drop</strong>.</li>
 </ul>
 <p>Use the <strong>Override Predictive Charging</strong> switch to cancel predictive charging at any time.</p>
+<h2 id="solar-timeline-and-rollout-mode">Solar timeline and rollout mode<a class="headerlink" href="#solar-timeline-and-rollout-mode" title="Permanent link">&para;</a></h2>
+<p>The forecast total and its temporal shape are separate contracts. The total
+comes from the configured forecast sensor; direct PV telemetry is used only to
+learn when that energy normally arrives. The timeline priority is:</p>
+<ol>
+<li>Valid dated periods explicitly supplied by the provider.</li>
+<li>A mature local profile learned from direct PV power and battery MPPT power.</li>
+<li>The existing sinusoidal daylight curve.</li>
+<li>A zero timeline when no safe daylight window exists.</li>
+</ol>
+<p>Solar-timeline selection is automatic. While the learned profile is immature or
+cannot cover the requested range, the integration uses the sinusoidal curve.
+Once the profile is mature, it is applied automatically using the priority
+above. Users do not need to select a rollout mode. Existing entries that stored
+<code>shadow</code> are normalized to this behaviour; <code>off</code> is retained only as an
+internal compatibility override.</p>
+<p>The profile is normalized to sum to one before the forecast budget is applied.
+It does not predict kWh, repair a bad weather forecast, control the inverter or
+reconstruct energy lost to curtailment. A forecast safety margin is subtracted
+once from the remaining budget before shaping.</p>
+<p>Useful decision attributes include <code>solar_timeline_source</code>,
+<code>solar_remaining_raw_kwh</code>, <code>solar_remaining_effective_kwh</code>,
+<code>solar_timeline_fallback_reason</code>, <code>solar_profile_mature</code> and
+<code>solar_profile_coverage_ratio</code>.</p>
 <p><img alt="Predictive charging notification" src="../../assets/screenshots/configuration/predictive-charging/notification-example.png" style="display: block; margin: 0 auto;" width="500" /></p>
 
 

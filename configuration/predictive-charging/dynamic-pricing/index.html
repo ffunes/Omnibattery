@@ -1799,6 +1799,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Daily operation timeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -2464,6 +2492,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/driver-assessment-huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver assessment · Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2798,12 +2854,13 @@
 <h2 id="daily-evaluation-0005">Daily evaluation (00:05)<a class="headerlink" href="#daily-evaluation-0005" title="Permanent link">&para;</a></h2>
 <p>At 00:05 the controller:</p>
 <ol>
-<li>Calculates the energy deficit (battery + solar vs. expected consumption).</li>
+<li>Calculates the energy deficit and projects consumption, solar and usable battery energy in 15-minute intervals until midnight.</li>
 <li>Fetches today's hourly prices from the configured integration.</li>
-<li>Selects the cheapest hours needed to cover the deficit.</li>
+<li>Detects when cumulative energy would reach the minimum SOC and reserves the cheapest eligible slots that can deliver each requirement before its deadline.</li>
 <li>Calculates and stores the <strong>daily average price</strong> from the hourly price profile.</li>
-<li>Schedules the charging slots for the day.</li>
+<li>Assigns an energy quota to each slot; only energy without an early deadline remains freely optimized across the day.</li>
 </ol>
+<p>“Cheapest” therefore means cheapest among slots able to meet a requirement in time. A later slot never counts as coverage for energy already needed earlier. A partial or impossible plan remains executable, but reports the kWh shortfall and whether price filtering or physical slot capacity caused it. Quotas are targets rather than guarantees: contracted power, battery headroom, phase limits, temperature, ownership and other runtime protections remain authoritative.</p>
 <h3 id="retry-logic">Retry logic<a class="headerlink" href="#retry-logic" title="Permanent link">&para;</a></h3>
 <p>If price data is unavailable at 00:05, the system retries every 15 minutes for the first hour.</p>
 <h3 id="ha-restart-mid-day">HA restart mid-day<a class="headerlink" href="#ha-restart-mid-day" title="Permanent link">&para;</a></h3>
@@ -2963,9 +3020,41 @@
 <td><code>price_data_status</code></td>
 <td>Price sensor status (<code>ok (N slots)</code>, <code>sensor_unavailable</code>, <code>no_slots</code>, <code>not_evaluated</code>)</td>
 </tr>
+<tr>
+<td><code>chronological_planning_active</code></td>
+<td>Whether deadline-aware planning produced the active schedule</td>
+</tr>
+<tr>
+<td><code>chronological_source</code> / <code>solar_timeline_source</code></td>
+<td>Consumption and solar curve sources</td>
+</tr>
+<tr>
+<td><code>earliest_projected_depletion</code></td>
+<td>First projected minimum-SOC crossing without grid charge</td>
+</tr>
+<tr>
+<td><code>deadline_required_kwh</code> / <code>flexible_required_kwh</code></td>
+<td>Energy reserved before deadlines and energy optimized freely by price</td>
+</tr>
+<tr>
+<td><code>deadline_shortfall_kwh</code> / <code>total_shortfall_kwh</code></td>
+<td>Urgent and total energy that eligible slots cannot deliver</td>
+</tr>
+<tr>
+<td><code>energy_deadlines</code></td>
+<td>Cumulative energy requirements and local ISO deadlines</td>
+</tr>
+<tr>
+<td><code>slot_energy_targets_kwh</code> / <code>slot_deadlines</code></td>
+<td>Per-slot quotas and their deadlines, serialized with local timestamps</td>
+</tr>
 </tbody>
 </table>
 <p><img alt="Diagnostic attributes of predictive_charging_active" src="../../assets/screenshots/configuration/predictive-charging/diagnostic-attributes.png" style="display: block; margin: 0 auto;" width="650" /></p>
+<p>The dynamic calendar consumes the same dated solar timeline as Time Slot. A
+provider curve has priority over a mature learned profile, and an invalid
+candidate falls back atomically to the next source. The learned profile is
+applied automatically once mature; until then the sinusoidal curve is used.</p>
 
 
 
