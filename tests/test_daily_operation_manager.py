@@ -340,6 +340,24 @@ def test_runtime_diary_omits_delay_and_setpoint_context_on_weekly_full_charge_da
     assert decision["delay_until"] is None
 
 
+def test_runtime_diary_omits_setpoint_context_when_charge_delay_is_off():
+    coordinator = SimpleNamespace(
+        capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
+        data={"battery_power": 1000},
+    )
+    controller = _runtime_controller([coordinator])
+    controller.charge_delay_enabled = False
+    controller._delay_soc_setpoint_enabled = True
+    controller._delay_setpoint_reached = False
+    controller._balance_monitor_overrides_delay = lambda: False
+
+    decision = ChargeDischargeController._daily_operation_runtime_decision(
+        controller, datetime(2026, 8, 24, 10, 0, tzinfo=MADRID)
+    )
+
+    assert not decision["context_mask"] & CONTEXT_SETPOINT
+
+
 def test_runtime_delay_boundary_is_removed_when_delay_stops():
     clock = MutableClock(datetime(2026, 8, 24, 10, 0, tzinfo=MADRID))
     manager = _manager(clock, mode="normal")

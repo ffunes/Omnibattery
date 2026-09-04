@@ -12,6 +12,8 @@
 
 ### Fixed
 
+- **Daily Operation marked the SOC setpoint while Charge Delay was off**: the timeline read the setpoint switch on its own, so leaving "minimum SOC before delay" enabled with the delay disabled painted the setpoint marker on charge cells the controller never treats as setpoint charging.
+
 - **A Huawei hybrid is left alone while its roof is producing** (#381): a forcible command is a ceiling, not a request, so it curtailed the array. The driver now commands nothing under sun except a charge above the harvest, which binds nothing. Thanks to @sphings79.
 
 - **A discharge into a surplus is refused, and a discharge past the house's own load is capped** (#335): with two regulators on one meter, one battery charging and another discharging cancel out and the grid reads zero, so a surplus made a round trip through two conversion losses while the deadband held the command.
