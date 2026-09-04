@@ -275,6 +275,30 @@ async def test_read_telemetry_uses_fc04_for_input_and_inverts_battery_power():
 
 
 @pytest.mark.asyncio
+async def test_read_telemetry_decodes_battery_soh_from_register_10015():
+    client = _fake_client()
+    buf = [0] * 51
+    buf[15] = 92  # SoH at input register 10015
+    client.async_read_input_block = AsyncMock(return_value=buf)
+
+    drv = _driver(client=client)
+    snap = await drv.read_telemetry(["battery_soh"])
+
+    assert snap["battery_soh"] == 92
+
+
+def test_battery_soh_in_sensor_definitions_for_e5000_and_max_ac():
+    client = _fake_client()
+    drv = _driver(client=client)
+
+    drv._set_product_code("DN7M")
+    assert "battery_soh" in {d["key"] for d in drv.sensor_definitions}
+
+    drv._set_product_code("DMWH")
+    assert "battery_soh" in {d["key"] for d in drv.sensor_definitions}
+
+
+@pytest.mark.asyncio
 async def test_read_telemetry_sums_official_aggregate_pv_registers():
     client = _fake_client()
     # Official range 10000–10050: pv_power at 10002, third-party PV at 10004,

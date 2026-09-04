@@ -1638,6 +1638,9 @@
       "battery_soc": {
         "name": "Batterie-SOC"
       },
+      "battery_soh": {
+        "name": "Batterie-Gesundheitszustand"
+      },
       "battery_soc_pack_1": {
         "name": "Batterie-SOC Pack 1"
       },
