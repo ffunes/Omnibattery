@@ -9,8 +9,8 @@ Charges batteries to **100% once a week** so the pack reaches the LFP top-balanc
 | **100% charge voltage taper** | Slows charging near top voltage window to allow some minor cell balancing | `full_charge_voltage_taper` | On |
 
 For Venus E models, the 100% charge voltage taper uses the same voltage profile
-as a normal battery configured with `max_soc = 100`. The weekly feature only
-raises the target to 100%; it does not use a separate balancing algorithm.
+as a normal battery configured with `max_soc = 100`. The weekly feature raises
+the target to 100%; it does not use a separate balancing algorithm.
 
 On Venus A/D with coupled packs, the normal 3.60 V stop is also bypassed and a
 reported 100% SOC from the first pack does not finish the cycle. The tapered
@@ -20,6 +20,12 @@ For deliberate active cell balancing, use the optional [Marstek active-balance b
 
 !!! warning "Cell balancing"
     Active cell balancing is **very slow**. Reducing the top-of-charge cell delta by roughly 5 mV typically takes around 24 hours of cumulative time at the top of the balance window.
+
+## Where the energy comes from
+
+Solar surplus fills the pack first. On the weekly day, [predictive charging](../configuration/predictive-charging/index.md) also adds the remaining gap to 100% to its energy balance, exactly as the guaranteed minimum SOC does, so it buys from the grid whatever the solar forecast will not cover — in the cheapest hours with dynamic pricing, or in the configured window on a flat tariff. If the forecast surplus already covers the gap, nothing is bought.
+
+This needs no configuration beyond enabling predictive charging: the weekly day is the only trigger. Without predictive charging the cycle stays solar-only and may not complete on a cloudy day.
 
 ## Dashboard configuration
 
