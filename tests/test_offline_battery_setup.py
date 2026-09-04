@@ -13,21 +13,30 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+from custom_components.omnibattery.const import DOMAIN
 from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
     _schedule_setup_reload_if_deferred,
 )
 
 
-def _deferred_coordinator(*, deferred: bool, entry=SimpleNamespace(entry_id="abc")):
+def _deferred_coordinator(
+    *, deferred: bool, entry=SimpleNamespace(entry_id="abc"), hass=None
+):
     """Only the attributes the deferred-reload helper touches."""
     return SimpleNamespace(
         name="Battery 1",
         reload_entry_when_reachable=deferred,
         _config_entry=entry,
-        hass=SimpleNamespace(
-            config_entries=SimpleNamespace(async_schedule_reload=Mock())
-        ),
+        hass=hass if hass is not None else _hass(),
+    )
+
+
+def _hass(runtime=None):
+    """A hass stub with the entry runtime dict the dedupe marker lives in."""
+    return SimpleNamespace(
+        config_entries=SimpleNamespace(async_schedule_reload=Mock()),
+        data={DOMAIN: {"abc": runtime}} if runtime is not None else {},
     )
 
 
@@ -78,9 +87,7 @@ def _reconnecting_coordinator(*, deferred: bool):
         capabilities=SimpleNamespace(has_rs485_control=False),
         reload_entry_when_reachable=deferred,
         _config_entry=SimpleNamespace(entry_id="abc"),
-        hass=SimpleNamespace(
-            config_entries=SimpleNamespace(async_schedule_reload=Mock())
-        ),
+        hass=_hass(),
         driver=SimpleNamespace(connect=AsyncMock(return_value=True)),
     )
 
@@ -107,3 +114,29 @@ def test_a_failed_reconnection_leaves_the_deferred_reload_armed():
     assert reconnected is False
     coordinator.hass.config_entries.async_schedule_reload.assert_not_called()
     assert coordinator.reload_entry_when_reachable is True
+
+
+def test_batteries_that_come_back_together_share_one_entry_reload():
+    """The flag is per battery; the reload it asks for is per entry."""
+    runtime: dict = {}
+    hass = _hass(runtime)
+    first = _deferred_coordinator(deferred=True, hass=hass)
+    second = _deferred_coordinator(deferred=True, hass=hass)
+
+    _schedule(first)
+    _schedule(second)
+
+    hass.config_entries.async_schedule_reload.assert_called_once_with("abc")
+    assert second.reload_entry_when_reachable is False
+
+
+def test_the_reload_marker_does_not_survive_into_the_reloaded_runtime():
+    """Setup rebuilds the runtime dict, so a second outage reloads again."""
+    hass = _hass({})
+    _schedule(_deferred_coordinator(deferred=True, hass=hass))
+    assert hass.data[DOMAIN]["abc"]["setup_reload_scheduled"] is True
+
+    hass.data[DOMAIN]["abc"] = {}
+    _schedule(_deferred_coordinator(deferred=True, hass=hass))
+
+    assert hass.config_entries.async_schedule_reload.call_count == 2

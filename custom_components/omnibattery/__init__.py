@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import math
 import time
@@ -9913,7 +9914,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "Connecting to %s at %s:%s raised %s",
                 battery_config[CONF_NAME], coordinator.host, coordinator.port, e,
             )
-            await coordinator.disconnect()
+            # A close on a link that never came up can raise in its own right
+            # (an MQTT publish, a second client). Letting that escape would put
+            # the entry in ERROR with no retry, which is the failure this whole
+            # branch exists to avoid.
+            with contextlib.suppress(Exception):
+                await coordinator.disconnect()
             connected = False
 
         if not connected:
