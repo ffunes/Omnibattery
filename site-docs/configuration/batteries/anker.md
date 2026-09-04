@@ -46,3 +46,17 @@ Discharge Power` values and re-applies non-idle setpoints through the local
 driver while **Battery Manual Control** is enabled. Keep **Third-Party Control**
 enabled in the Anker app; the driver and BMS remain responsible for their own
 hardware safety limits.
+
+## Diagnostics
+
+| Reading | Entity | Source |
+|---|---|---|
+| **State of health** | `sensor.<battery>_battery_soh` | Modbus input register **10015** |
+
+SoH is exposed for all supported Anker Solarbank models that share the common
+register map. It has only been field-verified on **Solarbank Max AC** (product
+code **DMWH**); other models may report the same register but are not yet
+confirmed in the field.
+
+The Omnibattery dashboard shows SoH on the battery card under **Health & cells**
+when the sensor is available.

@@ -1670,6 +1670,9 @@
       "battery_soc": {
         "name": "Batterij SOC"
       },
+      "battery_soh": {
+        "name": "Gezondheidsstatus batterij"
+      },
       "battery_soc_pack_1": {
         "name": "Batterij SOC Pack 1"
       },
