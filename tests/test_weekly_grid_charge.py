@@ -140,3 +140,37 @@ def test_clear_session_resets_weekly_owner():
     ctrl._weekly_grid_charge_mgr.clear_session()
     ctrl._stop_grid_charge_session.assert_called_once_with(owner="weekly")
     assert ctrl._weekly_charge_status["state"] == "Charging to 100%"
+
+
+def test_weekly_grid_power_cap_unchanged_at_100_percent():
+    ctrl = SimpleNamespace(
+        _grid_charge_owner="weekly",
+        weekly_full_charge_grid_power_pct=100.0,
+    )
+    assert ChargeDischargeController._weekly_grid_max_charge_power(ctrl, 3000.0) == 3000.0
+
+
+def test_weekly_grid_power_cap_scales_when_owner_is_weekly():
+    ctrl = SimpleNamespace(
+        _grid_charge_owner="weekly",
+        weekly_full_charge_grid_power_pct=50.0,
+    )
+    assert ChargeDischargeController._weekly_grid_max_charge_power(ctrl, 3000.0) == 1500.0
+
+
+def test_weekly_grid_power_cap_ignored_without_weekly_owner():
+    ctrl = SimpleNamespace(
+        _grid_charge_owner=None,
+        weekly_full_charge_grid_power_pct=50.0,
+    )
+    assert ChargeDischargeController._weekly_grid_max_charge_power(ctrl, 3000.0) == 3000.0
+
+
+def test_weekly_grid_power_cap_respects_minimum_floor():
+    ctrl = SimpleNamespace(
+        _grid_charge_owner="weekly",
+        weekly_full_charge_grid_power_pct=10.0,
+    )
+    assert ChargeDischargeController._weekly_grid_max_charge_power(
+        ctrl, 3000.0, minimum_charge_power=500.0
+    ) == 500.0

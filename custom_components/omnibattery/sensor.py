@@ -695,6 +695,7 @@ class WeeklyFullChargeSensor(SensorEntity):
             "charge_delay_enabled": self._controller.charge_delay_enabled,
             "weekly_grid_charge_enabled": self._controller.weekly_full_charge_grid_enabled,
             "weekly_grid_charge_mode": self._controller.weekly_full_charge_grid_mode,
+            "weekly_grid_charge_power_pct": self._controller.weekly_full_charge_grid_power_pct,
             "grid_charge_owner": getattr(self._controller, "_grid_charge_owner", None),
         }
         completion_reason = self._controller._weekly_charge_status.get("completion_reason")

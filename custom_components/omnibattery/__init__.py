@@ -70,11 +70,13 @@ from .const import (
     DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY,
     CONF_WEEKLY_FULL_CHARGE_GRID,
     CONF_WEEKLY_FULL_CHARGE_GRID_MODE,
+    CONF_WEEKLY_FULL_CHARGE_GRID_POWER_PCT,
     WEEKLY_GRID_MODE_IMMEDIATE,
     WEEKLY_GRID_MODE_SOLAR_FIRST,
     WEEKLY_GRID_MODE_OPTIONS,
     DEFAULT_WEEKLY_FULL_CHARGE_GRID,
     DEFAULT_WEEKLY_FULL_CHARGE_GRID_MODE,
+    DEFAULT_WEEKLY_FULL_CHARGE_GRID_POWER_PCT,
     CONF_ENABLE_CHARGE_DELAY,
     CONF_DELAY_SAFETY_MARGIN_MIN,
     DEFAULT_DELAY_SAFETY_MARGIN_MIN,
@@ -1070,6 +1072,10 @@ class ChargeDischargeController:
         )
         self.weekly_full_charge_grid_mode = (
             grid_mode if grid_mode in WEEKLY_GRID_MODE_OPTIONS else WEEKLY_GRID_MODE_IMMEDIATE
+        )
+        self.weekly_full_charge_grid_power_pct = config_entry.data.get(
+            CONF_WEEKLY_FULL_CHARGE_GRID_POWER_PCT,
+            DEFAULT_WEEKLY_FULL_CHARGE_GRID_POWER_PCT,
         )
         self._predictive_safety_margin_kwh: float = config_entry.data.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
         self._predictive_grid_charge_margin_pct: float = config_entry.data.get(CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT, DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT)
@@ -2740,6 +2746,10 @@ class ChargeDischargeController:
         )
         self.weekly_full_charge_grid_mode = (
             grid_mode if grid_mode in WEEKLY_GRID_MODE_OPTIONS else WEEKLY_GRID_MODE_IMMEDIATE
+        )
+        self.weekly_full_charge_grid_power_pct = self.config_entry.data.get(
+            CONF_WEEKLY_FULL_CHARGE_GRID_POWER_PCT,
+            DEFAULT_WEEKLY_FULL_CHARGE_GRID_POWER_PCT,
         )
         if not self.weekly_full_charge_grid_enabled:
             self._weekly_grid_charge_mgr.clear_session()
@@ -5260,6 +5270,29 @@ class ChargeDischargeController:
                 continue
             await self._set_battery_power(coordinator, 0, 0)
 
+    def _weekly_grid_max_charge_power(
+        self, max_battery_charge: float, minimum_charge_power: float = 0.0
+    ) -> float:
+        """Scale the charge cap during weekly-owned grid sessions."""
+        if getattr(self, "_grid_charge_owner", None) != "weekly":
+            return max_battery_charge
+        try:
+            pct = float(
+                getattr(self, "weekly_full_charge_grid_power_pct", 100.0) or 100.0
+            )
+        except (TypeError, ValueError):
+            pct = 100.0
+        pct = max(0.0, min(100.0, pct))
+        scaled = max_battery_charge * (pct / 100.0)
+        if minimum_charge_power > 0 and scaled < minimum_charge_power:
+            _LOGGER.debug(
+                "Weekly grid charge: cap %.0fW below minimum %.0fW; using minimum",
+                scaled,
+                minimum_charge_power,
+            )
+            return minimum_charge_power
+        return scaled
+
     def _predictive_charge_ceiling(self) -> float:
         """Return the import ceiling used while a predictive slot is active."""
         ceiling = float(self.max_contracted_power)
@@ -5709,6 +5742,10 @@ class ChargeDischargeController:
         minimum_charge_power = self._predictive_min_charge_power(
             available_batteries,
             max_battery_charge,
+        )
+        max_battery_charge = self._weekly_grid_max_charge_power(
+            max_battery_charge,
+            minimum_charge_power,
         )
         
         # Capacity protection supplies the predictive regulation target. A normal

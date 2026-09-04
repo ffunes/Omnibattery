@@ -2235,6 +2235,9 @@
       "predictive_grid_charge_margin_pct": {
         "name": "Predictive Grid Charge Margin"
       },
+      "weekly_full_charge_grid_power_pct": {
+        "name": "Weekly Grid Charge Power"
+      },
       "predictive_min_soc_floor": {
         "name": "Guaranteed Minimum SOC"
       },

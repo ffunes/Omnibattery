@@ -275,6 +275,8 @@ WEEKLY_GRID_MODE_OPTIONS = (
 )
 DEFAULT_WEEKLY_FULL_CHARGE_GRID = False
 DEFAULT_WEEKLY_FULL_CHARGE_GRID_MODE = WEEKLY_GRID_MODE_IMMEDIATE
+CONF_WEEKLY_FULL_CHARGE_GRID_POWER_PCT = "weekly_full_charge_grid_power_pct"
+DEFAULT_WEEKLY_FULL_CHARGE_GRID_POWER_PCT = 100.0
 CONF_ENABLE_BALANCE_MONITOR = "enable_balance_monitor"
 
 # Cell Balance Monitor
@@ -1096,6 +1098,16 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
         "icon": "mdi:transmission-tower-import",
         "condition": CONF_ENABLE_PREDICTIVE_CHARGING,
+    },
+    {
+        "key": CONF_WEEKLY_FULL_CHARGE_GRID_POWER_PCT,
+        "name": "Weekly Grid Charge Power",
+        "min": 10.0,
+        "max": 100.0,
+        "step": 5.0,
+        "unit": "%",
+        "default": DEFAULT_WEEKLY_FULL_CHARGE_GRID_POWER_PCT,
+        "icon": "mdi:speedometer",
     },
     {
         "key": CONF_PREDICTIVE_MIN_SOC_FLOOR,

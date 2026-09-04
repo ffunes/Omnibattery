@@ -2228,6 +2228,9 @@
       "predictive_grid_charge_margin_pct": {
         "name": "Prädiktive Netzladungs-Marge"
       },
+      "weekly_full_charge_grid_power_pct": {
+        "name": "Wöchentliche Netzladungsleistung"
+      },
       "negative_injection_threshold": {
         "name": "Schwellenwert für negative Einspeisung"
       },

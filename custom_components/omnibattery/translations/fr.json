@@ -2241,6 +2241,9 @@
       "predictive_grid_charge_margin_pct": {
         "name": "Marge de Charge Réseau Prédictive"
       },
+      "weekly_full_charge_grid_power_pct": {
+        "name": "Puissance de charge réseau hebdomadaire"
+      },
       "negative_injection_threshold": {
         "name": "Seuil d'injection négative"
       },

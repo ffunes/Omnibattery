@@ -2228,6 +2228,9 @@
       "predictive_grid_charge_margin_pct": {
         "name": "Voorspellende Netladingsmarge"
       },
+      "weekly_full_charge_grid_power_pct": {
+        "name": "Wekelijks netlaadvermogen"
+      },
       "negative_injection_threshold": {
         "name": "Drempelwaarde negatieve teruglevering"
       },

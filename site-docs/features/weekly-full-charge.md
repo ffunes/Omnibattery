@@ -30,6 +30,7 @@ The weekly full charge is configured from the Omnibattery Dashboard. The only re
 | **Day of the week** | The day on which the battery charges to 100% for cell balancing. | — |
 | **Charge from grid** | When enabled, the integration imports from the grid on the weekly day until every battery reaches 100%. | Disabled |
 | **Grid charge mode** | `Immediate` starts grid import as soon as the weekly cycle is active. `Solar first` waits until the solar forecast says the sun cannot cover the remaining energy to 100%. | Immediate |
+| **Grid charge power** | Limits weekly grid charging to a percentage of each battery's max charge power (and the system charge cap if set). Lower values charge more gently. | 100% |
 | **Wait for solar charge delay** | When enabled, solar charge delay has priority and the weekly charge waits for it to unlock. | Disabled |
 
 By default (grid import **off**), weekly full charge only raises the SOC ceiling to 100%. Batteries still need solar surplus or an active predictive grid-charging session to draw power. Turn on **Charge from grid** when you want the integration to complete the weekly cycle from the grid.
