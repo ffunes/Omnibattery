@@ -51,12 +51,26 @@ hardware safety limits.
 
 | Reading | Entity | Source |
 |---|---|---|
-| **State of health** | `sensor.<battery>_battery_soh` | Modbus input register **10015** |
+| **State of health (SoH)** | `sensor.<battery>_battery_soh` | Modbus input register **10015** |
 
 SoH is exposed for all supported Anker Solarbank models that share the common
 register map. It has only been field-verified on **Solarbank Max AC** (product
 code **DMWH**); other models may report the same register but are not yet
 confirmed in the field.
 
-The Omnibattery dashboard shows SoH on the battery card under **Health & cells**
-when the sensor is available.
+Anker does not expose pack voltage, per-cell voltages or cell-balance telemetry
+over Modbus. Omnibattery therefore does not create `battery_voltage`,
+`max_cell_voltage`, `min_cell_voltage` or balance-monitor sensors for Anker
+batteries.
+
+### Dashboard
+
+The Omnibattery battery card **Health & cells** section shows only metrics that
+exist for each device:
+
+- **Anker**: internal temperature and **State of health (SoH)** when available.
+- **Marstek / Zendure / others**: temperature, voltage, cell min/max, cell
+  delta and any other sensors exposed by the driver.
+
+Voltage and cell rows are omitted automatically when the integration has no
+matching entities, so Anker cards no longer show empty placeholders.
