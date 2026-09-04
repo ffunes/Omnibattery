@@ -5743,7 +5743,8 @@ class ChargeDischargeController:
             available_batteries,
             max_battery_charge,
         )
-        max_battery_charge = self._weekly_grid_max_charge_power(
+        max_battery_charge = ChargeDischargeController._weekly_grid_max_charge_power(
+            self,
             max_battery_charge,
             minimum_charge_power,
         )
@@ -8192,7 +8193,8 @@ class ChargeDischargeController:
         self._refresh_operation_blockers()
 
         # Weekly grid import owns the cycle before predictive charging when enabled.
-        if await self._weekly_grid_charge_mgr.handle():
+        weekly_grid_mgr = getattr(self, "_weekly_grid_charge_mgr", None)
+        if weekly_grid_mgr is not None and await weekly_grid_mgr.handle():
             return
 
         # Manual time slots take ownership of their batteries before any other
