@@ -5565,10 +5565,10 @@ class MarstekVenusPanel extends HTMLElement {
     };
     if (b.entIds[K.batterySoh]) addMetric("soh", this._t("mSoh"), K.batterySoh);
     addMetric("temp", this._t("mTemp"), K.internalTemp);
-    addMetric("volt", this._t("mVoltage"), K.batteryVoltage);
-    addMetric("cmax", this._t("mCellMax"), K.cellMax);
-    addMetric("cmin", this._t("mCellMin"), K.cellMin);
-    addMetric("cdelta", this._t("mCellDelta"), K.cellDelta);
+    if (b.entIds[K.batteryVoltage]) addMetric("volt", this._t("mVoltage"), K.batteryVoltage);
+    if (b.entIds[K.cellMax]) addMetric("cmax", this._t("mCellMax"), K.cellMax);
+    if (b.entIds[K.cellMin]) addMetric("cmin", this._t("mCellMin"), K.cellMin);
+    if (b.entIds[K.cellDelta]) addMetric("cdelta", this._t("mCellDelta"), K.cellDelta);
     addMetric("cycles", this._t("mCycles"), b.entIds[K.cycles] ? K.cycles : K.cyclesCalc);
     addMetric("rte", this._t("mEfficiency"), K.rte);
     addMetric("hyst", this._t("mHysteresis"), K.chargeHysteresisActive); // col2 row4: right of Efficiency, below Cycles
@@ -5784,21 +5784,23 @@ class MarstekVenusPanel extends HTMLElement {
     const M = r.M;
     if (M.soh) M.soh.textContent = b.soh != null ? `${this._nf(b.soh, 1)} %` : "—";
     M.temp.textContent = b.temp != null ? `${this._nf(b.temp, 1)} °C` : "—";
-    M.volt.textContent = b.voltage != null ? `${this._nf(b.voltage, 2)} V` : "—";
-    M.cmax.textContent = b.cellMax != null ? `${this._nf(b.cellMax, 3)} V` : "—";
-    M.cmin.textContent = b.cellMin != null ? `${this._nf(b.cellMin, 3)} V` : "—";
-    if (b.cellDelta != null) {
-      const d = b.cellDelta;
-      M.cdelta.textContent = `${Math.round(d)} mV`;
-      // tiers mirror const.py BALANCE_THRESHOLD_YELLOW/ORANGE/RED (raw delta)
-      M.cdelta.style.color =
-        d >= DELTA_MV_RED ? "oklch(0.7 0.18 25)"
-          : d >= DELTA_MV_ORANGE ? "oklch(0.72 0.16 50)"
-            : d >= DELTA_MV_YELLOW ? "oklch(0.82 0.14 75)"
-              : "";
-    } else {
-      M.cdelta.textContent = "—";
-      M.cdelta.style.color = "";
+    if (M.volt) M.volt.textContent = b.voltage != null ? `${this._nf(b.voltage, 2)} V` : "—";
+    if (M.cmax) M.cmax.textContent = b.cellMax != null ? `${this._nf(b.cellMax, 3)} V` : "—";
+    if (M.cmin) M.cmin.textContent = b.cellMin != null ? `${this._nf(b.cellMin, 3)} V` : "—";
+    if (M.cdelta) {
+      if (b.cellDelta != null) {
+        const d = b.cellDelta;
+        M.cdelta.textContent = `${Math.round(d)} mV`;
+        // tiers mirror const.py BALANCE_THRESHOLD_YELLOW/ORANGE/RED (raw delta)
+        M.cdelta.style.color =
+          d >= DELTA_MV_RED ? "oklch(0.7 0.18 25)"
+            : d >= DELTA_MV_ORANGE ? "oklch(0.72 0.16 50)"
+              : d >= DELTA_MV_YELLOW ? "oklch(0.82 0.14 75)"
+                : "";
+      } else {
+        M.cdelta.textContent = "—";
+        M.cdelta.style.color = "";
+      }
     }
     // cycles: prefer the BMS modbus register; fall back to the calculated sensor
     // when the model exposes no cycle-count register.
