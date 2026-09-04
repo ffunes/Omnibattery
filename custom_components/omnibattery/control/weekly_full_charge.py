@@ -306,6 +306,9 @@ class WeeklyFullChargeManager:
                 ctrl._force_full_charge = False
                 ctrl._weekly_charge_status["state"] = "Idle"
                 ctrl._weekly_charge_status.pop("completion_reason", None)
+                grid_mgr = getattr(ctrl, "_weekly_grid_charge_mgr", None)
+                if grid_mgr is not None:
+                    grid_mgr.clear_session()
                 # Save the cleared state asynchronously (don't await to avoid blocking)
                 self._create_background_task(
                     self.save_state(), "omnibattery_weekly_charge_state_save"
@@ -691,6 +694,9 @@ class WeeklyFullChargeManager:
         ctrl.weekly_full_charge_complete = True
         ctrl._weekly_charge_status["state"] = "Complete"
         ctrl._weekly_charge_status["completion_reason"] = reason
+        grid_mgr = getattr(ctrl, "_weekly_grid_charge_mgr", None)
+        if grid_mgr is not None:
+            grid_mgr.clear_session()
         completion_batteries: dict = {}
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):

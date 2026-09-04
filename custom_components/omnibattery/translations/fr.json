@@ -1461,6 +1461,9 @@
       "weekly_full_charge_delay": {
         "name": "Retarder la Charge Complète Hebdomadaire"
       },
+      "weekly_full_charge_grid": {
+        "name": "Charge complète hebdomadaire depuis le réseau"
+      },
       "capacity_protection": {
         "name": "Écrêtement de Pointe"
       },
@@ -1633,6 +1636,7 @@
           "idle": "Inactif",
           "disabled": "Désactivé",
           "charging": "Charge à 100%",
+          "grid_charging": "Charge réseau",
           "complete": "Terminé"
         }
       },
@@ -2105,6 +2109,13 @@
           "friday": "Vendredi",
           "saturday": "Samedi",
           "sunday": "Dimanche"
+        }
+      },
+      "weekly_full_charge_grid_mode": {
+        "name": "Mode de charge réseau (hebdomadaire)",
+        "state": {
+          "immediate": "Importer du réseau immédiatement",
+          "solar_first": "Solaire d'abord, puis réseau"
         }
       },
       "pd_tuning_profile": {

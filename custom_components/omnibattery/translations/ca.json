@@ -1448,6 +1448,9 @@
       "weekly_full_charge_delay": {
         "name": "Retardar Càrrega Setmanal Completa"
       },
+      "weekly_full_charge_grid": {
+        "name": "Càrrega setmanal completa des de xarxa"
+      },
       "capacity_protection": {
         "name": "Reducció de Pics"
       },
@@ -2092,6 +2095,13 @@
           "friday": "Divendres",
           "saturday": "Dissabte",
           "sunday": "Diumenge"
+        }
+      },
+      "weekly_full_charge_grid_mode": {
+        "name": "Mode de càrrega des de xarxa (setmanal)",
+        "state": {
+          "immediate": "Importar de la xarxa immediatament",
+          "solar_first": "Solar primer, després xarxa"
         }
       },
       "pd_tuning_profile": {

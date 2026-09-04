@@ -68,6 +68,13 @@ from .const import (
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
     CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY,
     DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY,
+    CONF_WEEKLY_FULL_CHARGE_GRID,
+    CONF_WEEKLY_FULL_CHARGE_GRID_MODE,
+    WEEKLY_GRID_MODE_IMMEDIATE,
+    WEEKLY_GRID_MODE_SOLAR_FIRST,
+    WEEKLY_GRID_MODE_OPTIONS,
+    DEFAULT_WEEKLY_FULL_CHARGE_GRID,
+    DEFAULT_WEEKLY_FULL_CHARGE_GRID_MODE,
     CONF_ENABLE_CHARGE_DELAY,
     CONF_DELAY_SAFETY_MARGIN_MIN,
     DEFAULT_DELAY_SAFETY_MARGIN_MIN,
@@ -231,6 +238,7 @@ from .tracking.daily_timeline import (
 )
 from .control.pack_soc import soc_vs_ceiling, soc_vs_floor
 from .control.weekly_full_charge import WeeklyFullChargeManager
+from .control.weekly_grid_charge import WeeklyGridChargeManager
 from .control.max_soc_charge import MaxSocChargeManager
 from .control.temperature_limit import TemperatureChargeLimitManager
 from .control.phase_power_limit import PhasePowerLimiter
@@ -856,6 +864,7 @@ class ChargeDischargeController:
 
         # State tracking for predictive charging
         self.grid_charging_active = False  # True when mode is active
+        self._grid_charge_owner: str | None = None  # "weekly" | None (predictive uses None)
         self.last_evaluation_soc = None    # SOC at last check
         self.predictive_charging_overridden = config_entry.data.get(CONF_PREDICTIVE_CHARGING_OVERRIDDEN, False)
         self._grid_charging_initialized = False  # Flag for initialization
@@ -1053,6 +1062,15 @@ class ChargeDischargeController:
         self._weekly_full_charge_skip_delay = config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
         )
+        self.weekly_full_charge_grid_enabled = config_entry.data.get(
+            CONF_WEEKLY_FULL_CHARGE_GRID, DEFAULT_WEEKLY_FULL_CHARGE_GRID
+        )
+        grid_mode = config_entry.data.get(
+            CONF_WEEKLY_FULL_CHARGE_GRID_MODE, DEFAULT_WEEKLY_FULL_CHARGE_GRID_MODE
+        )
+        self.weekly_full_charge_grid_mode = (
+            grid_mode if grid_mode in WEEKLY_GRID_MODE_OPTIONS else WEEKLY_GRID_MODE_IMMEDIATE
+        )
         self._predictive_safety_margin_kwh: float = config_entry.data.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
         self._predictive_grid_charge_margin_pct: float = config_entry.data.get(CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT, DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT)
         self._predictive_min_soc_floor: float = config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
@@ -1118,6 +1136,7 @@ class ChargeDischargeController:
 
         # Weekly full charge management (owns its own Store internally)
         self._weekly_charge_mgr = WeeklyFullChargeManager(hass, config_entry, self)
+        self._weekly_grid_charge_mgr = WeeklyGridChargeManager(self)
         # Backward-compat alias to the manager's underlying Store
         self._store = self._weekly_charge_mgr.store
 
@@ -2660,6 +2679,7 @@ class ChargeDischargeController:
                 self._weekly_charge_needs_restore = True
             self.weekly_full_charge_complete = False
             self.weekly_full_charge_registers_written = False
+            self._weekly_grid_charge_mgr.clear_session()
         self.weekly_full_charge_enabled = new_weekly_enabled
         self.weekly_full_charge_day = new_weekly_day
 
@@ -2712,6 +2732,17 @@ class ChargeDischargeController:
         self._weekly_full_charge_skip_delay = self.config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
         )
+        self.weekly_full_charge_grid_enabled = self.config_entry.data.get(
+            CONF_WEEKLY_FULL_CHARGE_GRID, DEFAULT_WEEKLY_FULL_CHARGE_GRID
+        )
+        grid_mode = self.config_entry.data.get(
+            CONF_WEEKLY_FULL_CHARGE_GRID_MODE, DEFAULT_WEEKLY_FULL_CHARGE_GRID_MODE
+        )
+        self.weekly_full_charge_grid_mode = (
+            grid_mode if grid_mode in WEEKLY_GRID_MODE_OPTIONS else WEEKLY_GRID_MODE_IMMEDIATE
+        )
+        if not self.weekly_full_charge_grid_enabled:
+            self._weekly_grid_charge_mgr.clear_session()
         self._predictive_safety_margin_kwh = self.config_entry.data.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
         self._predictive_grid_charge_margin_pct = self.config_entry.data.get(CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT, DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT)
         self._predictive_min_soc_floor = self.config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
@@ -3298,8 +3329,23 @@ class ChargeDischargeController:
             or self._balance_monitor_overrides_delay()
         )
 
+    def _stop_grid_charge_session(self, *, owner: str | None = None) -> None:
+        """Clear an owned grid-charging session and reset predictive state."""
+        if owner is not None and getattr(self, "_grid_charge_owner", None) != owner:
+            return
+        if getattr(self, "_grid_charge_owner", None) is None and not self.grid_charging_active:
+            return
+        self._grid_charge_owner = None
+        self.grid_charging_active = False
+        self._grid_charging_initialized = False
+        self._predictive_charge_target_soc = None
+        self._reset_predictive_demand_runtime()
+        self.first_execution = True
+
     def _effective_charge_max_soc(self, coordinator, weekly_100_unlocked: bool) -> tuple[float, str]:
         """Return the current per-battery charge ceiling and the source of that ceiling."""
+        if getattr(self, "_grid_charge_owner", None) == "weekly":
+            return 100, "weekly_full_charge"
         # A predictive grid-charge target must stop at its explicit target even
         # when a weekly-full-charge window happens to overlap. The weekly
         # routine can continue toward 100% with solar after grid ownership is
@@ -5646,9 +5692,13 @@ class ChargeDischargeController:
             _LOGGER.info(
                 "Predictive charging complete: all batteries reached their active SOC target"
             )
-            self.grid_charging_active = False
-            self._grid_charging_initialized = False
-            self.first_execution = True
+            if getattr(self, "_grid_charge_owner", None) == "weekly":
+                self._stop_grid_charge_session(owner="weekly")
+                self._weekly_grid_charge_mgr.clear_session()
+            else:
+                self.grid_charging_active = False
+                self._grid_charging_initialized = False
+                self.first_execution = True
             return
         
         # Calculate max available charging power from batteries
@@ -8103,6 +8153,10 @@ class ChargeDischargeController:
         # This makes charge/discharge permission a shared registry instead of a
         # collection of independent flags and one-off checks.
         self._refresh_operation_blockers()
+
+        # Weekly grid import owns the cycle before predictive charging when enabled.
+        if await self._weekly_grid_charge_mgr.handle():
+            return
 
         # Manual time slots take ownership of their batteries before any other
         # control logic runs. Owned batteries are skipped by PD/predictive.

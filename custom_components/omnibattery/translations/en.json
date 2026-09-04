@@ -1476,6 +1476,9 @@
       "weekly_full_charge_delay": {
         "name": "Delay Weekly Full Charge"
       },
+      "weekly_full_charge_grid": {
+        "name": "Weekly Full Charge from Grid"
+      },
       "capacity_protection": {
         "name": "Peak Shaving"
       },
@@ -1630,6 +1633,7 @@
           "idle": "Idle",
           "disabled": "Disabled",
           "charging": "Charging to 100%",
+          "grid_charging": "Grid charging",
           "complete": "Complete"
         }
       },
@@ -2110,6 +2114,13 @@
           "friday": "Friday",
           "saturday": "Saturday",
           "sunday": "Sunday"
+        }
+      },
+      "weekly_full_charge_grid_mode": {
+        "name": "Weekly Full Charge Grid Mode",
+        "state": {
+          "immediate": "Import from grid immediately",
+          "solar_first": "Solar first, then grid"
         }
       },
       "pd_tuning_profile": {

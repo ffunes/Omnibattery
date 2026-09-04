@@ -1466,6 +1466,9 @@
       "weekly_full_charge_delay": {
         "name": "Retrasar Carga Semanal Completa"
       },
+      "weekly_full_charge_grid": {
+        "name": "Carga semanal completa desde red"
+      },
       "capacity_protection": {
         "name": "Reducción de Picos"
       },
@@ -1620,6 +1623,7 @@
           "idle": "Inactivo",
           "disabled": "Desactivado",
           "charging": "Cargando al 100%",
+          "grid_charging": "Carga desde red",
           "complete": "Completado"
         }
       },
@@ -2100,6 +2104,13 @@
           "friday": "Viernes",
           "saturday": "Sábado",
           "sunday": "Domingo"
+        }
+      },
+      "weekly_full_charge_grid_mode": {
+        "name": "Modo de carga desde red (semanal)",
+        "state": {
+          "immediate": "Importar de la red de inmediato",
+          "solar_first": "Primero solar, luego red"
         }
       },
       "pd_tuning_profile": {

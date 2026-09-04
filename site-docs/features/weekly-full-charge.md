@@ -28,7 +28,22 @@ The weekly full charge is configured from the Omnibattery Dashboard. The only re
 | Field | Description | Default |
 |---|---|---|
 | **Day of the week** | The day on which the battery charges to 100% for cell balancing. | — |
+| **Charge from grid** | When enabled, the integration imports from the grid on the weekly day until every battery reaches 100%. | Disabled |
+| **Grid charge mode** | `Immediate` starts grid import as soon as the weekly cycle is active. `Solar first` waits until the solar forecast says the sun cannot cover the remaining energy to 100%. | Immediate |
 | **Wait for solar charge delay** | When enabled, solar charge delay has priority and the weekly charge waits for it to unlock. | Disabled |
+
+By default (grid import **off**), weekly full charge only raises the SOC ceiling to 100%. Batteries still need solar surplus or an active predictive grid-charging session to draw power. Turn on **Charge from grid** when you want the integration to complete the weekly cycle from the grid.
+
+## Grid import
+
+When **Charge from grid** is enabled, the integration reuses the same regulated grid-import path as [predictive charging](../configuration/predictive-charging/index.md): import is capped by your contracted power and capacity protection settings.
+
+| Mode | Behaviour |
+| --- | --- |
+| **Immediate** | Start grid import on the weekly day as soon as any battery is below 100%. Solar production still reduces net import when available. |
+| **Solar first** | Use solar surplus first. Grid import starts only when the solar-forecast energy balance says the remaining sun cannot cover the energy still needed to reach 100%. Without a forecast sensor, the fail-safe is to allow grid import (same as solar charge delay). |
+
+Weekly grid import takes priority over predictive charging targets on the weekly day while the grid session is active.
 
 ![Weekly full charge configuration](../assets/screenshots/configuration/advanced-weekly-full-charge-config.png){ width="650" style="display: block; margin: 0 auto;"}
 

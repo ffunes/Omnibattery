@@ -14,6 +14,9 @@ from .const import (
     CONF_BATTERY_PHASE,
     CONF_THREE_PHASE_ENABLED,
     CONF_WEEKLY_FULL_CHARGE_DAY,
+    CONF_WEEKLY_FULL_CHARGE_GRID_MODE,
+    WEEKLY_GRID_MODE_IMMEDIATE,
+    WEEKLY_GRID_MODE_OPTIONS,
     DEFAULT_THREE_PHASE_ENABLED,
     PHASE_ASSIGNMENT_VALUES,
     PHASE_UNASSIGNED,
@@ -58,6 +61,7 @@ async def async_setup_entry(
     # switch is always available, so the day must be pickable before enabling —
     # toggling the switch does not reload platforms).
     entities.append(WeeklyFullChargeDaySelect(hass, entry))
+    entities.append(WeeklyFullChargeGridModeSelect(hass, entry))
 
     # Add PD tuning profile select (system-level, always available)
     entities.append(PdTuningProfileSelect(hass, entry))
@@ -227,6 +231,55 @@ class WeeklyFullChargeDaySelect(SelectEntity):
         new_data[CONF_WEEKLY_FULL_CHARGE_DAY] = code
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         _LOGGER.info("Weekly full charge day updated to %s (%s)", option, code)
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class WeeklyFullChargeGridModeSelect(SelectEntity):
+    """Select how weekly full charge uses the grid when grid import is enabled."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Initialize the weekly full charge grid mode select."""
+        self.hass = hass
+        self.entry = entry
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "weekly_full_charge_grid_mode"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}weekly_full_charge_grid_mode"
+        self.entity_id = system_entity_id("select", "weekly_full_charge_grid_mode")
+        self._attr_icon = "mdi:transmission-tower"
+        self._attr_options = list(WEEKLY_GRID_MODE_OPTIONS)
+        self._attr_should_poll = False
+
+    @property
+    def current_option(self) -> str:
+        """Return the configured weekly grid import mode."""
+        return self.entry.data.get(
+            CONF_WEEKLY_FULL_CHARGE_GRID_MODE,
+            WEEKLY_GRID_MODE_IMMEDIATE,
+        )
+
+    async def async_select_option(self, option: str) -> None:
+        """Update the weekly grid import mode in config_entry.data."""
+        if option not in WEEKLY_GRID_MODE_OPTIONS:
+            return
+        new_data = dict(self.entry.data)
+        new_data[CONF_WEEKLY_FULL_CHARGE_GRID_MODE] = option
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        controller = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {}).get("controller")
+        if controller is not None:
+            controller.weekly_full_charge_grid_mode = option
+            controller._weekly_grid_charge_mgr.clear_session()
+        _LOGGER.info("Weekly Full Charge grid mode updated to %s", option)
         self.async_write_ha_state()
 
     @property

@@ -1448,6 +1448,9 @@
       "weekly_full_charge_delay": {
         "name": "Wöchentliche Vollladung verzögern"
       },
+      "weekly_full_charge_grid": {
+        "name": "Wöchentliche Vollladung vom Netz"
+      },
       "capacity_protection": {
         "name": "Spitzenlastkappung"
       },
@@ -1620,6 +1623,7 @@
           "idle": "Bereit",
           "disabled": "Deaktiviert",
           "charging": "Lädt auf 100%",
+          "grid_charging": "Netzladung",
           "complete": "Abgeschlossen"
         }
       },
@@ -2092,6 +2096,13 @@
           "friday": "Freitag",
           "saturday": "Samstag",
           "sunday": "Sonntag"
+        }
+      },
+      "weekly_full_charge_grid_mode": {
+        "name": "Netzladungsmodus (wöchentlich)",
+        "state": {
+          "immediate": "Sofort vom Netz laden",
+          "solar_first": "Erst Solar, dann Netz"
         }
       },
       "pd_tuning_profile": {

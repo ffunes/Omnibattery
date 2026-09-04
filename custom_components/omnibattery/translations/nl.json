@@ -1448,6 +1448,9 @@
       "weekly_full_charge_delay": {
         "name": "Wekelijkse Volledige Lading Vertragen"
       },
+      "weekly_full_charge_grid": {
+        "name": "Wekelijkse volledige lading vanaf net"
+      },
       "capacity_protection": {
         "name": "Piekbegrenzing"
       },
@@ -1620,6 +1623,7 @@
           "idle": "Inactief",
           "disabled": "Uitgeschakeld",
           "charging": "Laden naar 100%",
+          "grid_charging": "Netladen",
           "complete": "Voltooid"
         }
       },
@@ -2092,6 +2096,13 @@
           "friday": "Vrijdag",
           "saturday": "Zaterdag",
           "sunday": "Zondag"
+        }
+      },
+      "weekly_full_charge_grid_mode": {
+        "name": "Netlaadmodus (wekelijks)",
+        "state": {
+          "immediate": "Onmiddellijk van net importeren",
+          "solar_first": "Eerst zon, daarna net"
         }
       },
       "pd_tuning_profile": {

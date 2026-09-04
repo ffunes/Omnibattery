@@ -25,6 +25,9 @@ from .const import (
     CONF_ENABLE_WEEKLY_FULL_CHARGE,
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
     CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY,
+    CONF_WEEKLY_FULL_CHARGE_GRID,
+    CONF_WEEKLY_FULL_CHARGE_GRID_MODE,
+    DEFAULT_WEEKLY_FULL_CHARGE_GRID,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     CONF_MANUAL_MODE_ENABLED,
     CONF_BATTERY_MANUAL_MODE_ENABLED,
@@ -94,6 +97,7 @@ async def async_setup_entry(
         # Weekly full charge enable/disable (system-level, always present so it can
         # be turned on from the dashboard even if configured off at setup).
         entities.append(WeeklyFullChargeEnableSwitch(hass, entry, controller))
+        entities.append(WeeklyFullChargeGridSwitch(hass, entry, controller))
         entities.append(VacationModeSwitch(hass, entry, controller))
 
     # Keep mode-specific predictive controls registered while the master switch
@@ -1103,6 +1107,60 @@ class WeeklyFullChargeDelaySwitch(SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Bypass the delay so the weekly full charge starts immediately."""
         await self._set_skip(True)
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class WeeklyFullChargeGridSwitch(SwitchEntity):
+    """Switch to import grid power to complete the weekly 100% charge."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the weekly full charge grid switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "weekly_full_charge_grid"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}weekly_full_charge_grid"
+        self.entity_id = system_entity_id("switch", "weekly_full_charge_grid")
+        self._attr_icon = "mdi:transmission-tower"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True when weekly full charge may import from the grid."""
+        return self.controller.weekly_full_charge_grid_enabled
+
+    async def _set_enabled(self, enabled: bool) -> None:
+        """Persist the grid-import flag and sync the controller."""
+        self.controller.weekly_full_charge_grid_enabled = enabled
+        new_data = dict(self.entry.data)
+        new_data[CONF_WEEKLY_FULL_CHARGE_GRID] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        if not enabled:
+            self.controller._weekly_grid_charge_mgr.clear_session()
+        _LOGGER.info(
+            "Weekly Full Charge grid import %s",
+            "ENABLED" if enabled else "DISABLED",
+        )
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable grid import for the weekly full charge."""
+        await self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable grid import for the weekly full charge."""
+        await self._set_enabled(False)
 
     @property
     def device_info(self):
