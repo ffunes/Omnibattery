@@ -1525,6 +1525,7 @@ class PricingManager:
             blockers = self._controller.get_discharge_blockers(coordinator)
             hard_blockers = set(blockers) - {
                 "price_discharge",
+                "price_reserve",
                 "curtailment_negative_window",
                 "curtailment_floor",
             }
@@ -1581,6 +1582,16 @@ class PricingManager:
                     },
                     coordinator=coordinator,
                 )
+
+    def _solar_forecast_is_remaining(self) -> bool:
+        """Whether the configured solar sensor reports production still to come.
+
+        A whole-day figure must keep its cumulative day-share when it is spread
+        over future slots; only a remaining-today figure may be renormalised
+        onto them. One reader, so every consumer answers this the same way.
+        """
+        forecast = read_solar_forecast_kwh(self._hass, self._controller)
+        return bool(forecast is not None and forecast.source == "remaining")
 
     def _curtailment_forecast_model(self, now: datetime) -> tuple[float | None, object | None, float | None]:
         """Return the forecast and matching future horizon for curtailment."""
@@ -3096,6 +3107,7 @@ class PricingManager:
         # Marked before the branches below: whichever path this evaluation takes,
         # the absorption plan was derived from the inputs it is about to replace.
         self._mark_surplus_hold_stale(f"dp_evaluation_{horizon.value}")
+        self._mark_discharge_reserve_stale(f"dp_evaluation_{horizon.value}")
 
         now = datetime.now()
         today = now.date()
@@ -4203,6 +4215,7 @@ class PricingManager:
 
         _LOGGER.info("Dynamic pricing: running evening re-evaluation at %s", now.strftime("%H:%M"))
         self._mark_surplus_hold_stale("evening_reevaluation")
+        self._mark_discharge_reserve_stale("evening_reevaluation")
 
         # Ensure service-based provider slots are current.
         await self._maybe_refresh_service_prices(force=True)
@@ -4643,6 +4656,35 @@ class PricingManager:
                 await controller._set_battery_power(coordinator, 0, 0)
         _LOGGER.info("Dynamic pricing: stopped active slot (%s)", reason)
 
+    def _mark_discharge_reserve_stale(self, reason: str) -> None:
+        """Ask the discharge reserve to rebuild on the next control cycle."""
+        manager = getattr(self._controller, "_discharge_reserve_mgr", None)
+        if manager is not None:
+            manager.mark_stale(reason)
+
+    def _clear_discharge_reserve(self, reason: str) -> None:
+        """Drop any cached reserve plan so no discharge floor stays raised."""
+        manager = getattr(self._controller, "_discharge_reserve_mgr", None)
+        if manager is not None:
+            manager.clear(reason)
+
+    async def _refresh_discharge_reserve_plan(
+        self, reason: str, *, force: bool = False
+    ) -> None:
+        """Rebuild the reserve plan, tolerating a partial controller.
+
+        Test doubles and early startup may not carry the manager; no plan means
+        no reserve, which is the safe direction.
+        """
+        manager = getattr(self._controller, "_discharge_reserve_mgr", None)
+        if manager is None:
+            return
+        try:
+            await manager.async_rebuild_plan(reason, force=force)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Discharge reserve: rebuild failed (%s): %s", reason, err)
+            manager.clear("rebuild_error")
+
     def _mark_surplus_hold_stale(self, reason: str) -> None:
         """Ask the surplus-absorption plan to rebuild on the next control cycle."""
         manager = getattr(self._controller, "_surplus_hold_mgr", None)
@@ -4755,11 +4797,16 @@ class PricingManager:
                 self._reset_predictive_demand_runtime()
                 self.clear_curtailment_runtime("new_day")
                 self._clear_surplus_hold("new_day")
+                self._clear_discharge_reserve("new_day")
 
         # Phase 3.5: keep the surplus-absorption plan current. The manager
         # throttles itself; between rebuilds it only refreshes the live target,
         # which is what lets an under-delivering cheap window release the hold.
         await self._refresh_surplus_hold_plan("control_cycle")
+
+        # Phase 3.6: keep the discharge reserve current. Same throttle, same
+        # failure direction: without a plan the discharge floor is untouched.
+        await self._refresh_discharge_reserve_plan("control_cycle")
 
         # Reaching the opportunistic target outside the control handler (for
         # example through solar or a manual charge) invalidates every remaining

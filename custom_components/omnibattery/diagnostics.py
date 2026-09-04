@@ -450,6 +450,28 @@ def _surplus_hold_info(controller) -> dict[str, Any]:
     return info
 
 
+def _discharge_reserve_info(controller) -> dict[str, Any]:
+    """Return price-aware discharge-reserve diagnostics.
+
+    The manager already publishes a JSON-safe snapshot, so this only adds the
+    configuration that explains it.
+    """
+    if controller is None:
+        return {"status": "unavailable", "reason": "controller_unavailable"}
+    manager = getattr(controller, "_discharge_reserve_mgr", None)
+    info: dict[str, Any] = {
+        "enabled": bool(getattr(controller, "discharge_reserve_enabled", False)),
+        "min_saving": getattr(controller, "discharge_reserve_min_saving", None),
+        "applied_soc_pct": getattr(controller, "_price_reserve_soc_pct", None),
+    }
+    if manager is None:
+        info["status"] = "unavailable"
+        info["reason"] = "manager_unavailable"
+        return info
+    info.update(manager.get_status())
+    return info
+
+
 def _dynamic_pricing_info(controller) -> dict[str, Any]:
     """Return JSON-safe typed calendar diagnostics."""
     if controller is None:
@@ -468,6 +490,9 @@ def _dynamic_pricing_info(controller) -> dict[str, Any]:
         ),
         "surplus_price_hold_enabled": getattr(
             controller, "surplus_price_hold_enabled", False
+        ),
+        "discharge_reserve_enabled": getattr(
+            controller, "discharge_reserve_enabled", False
         ),
         "export_price_sensor": getattr(controller, "export_price_sensor", None),
         "export_price_integration_type": getattr(
@@ -912,6 +937,7 @@ async def async_get_config_entry_diagnostics(
         "solar_profile": solar_profile,
         "curtailment": _curtailment_info(controller),
         "surplus_price_hold": _surplus_hold_info(controller),
+        "discharge_reserve": _discharge_reserve_info(controller),
         "phase_protection": async_redact_data(
             controller._phase_power_limiter.diagnostics(), TO_REDACT
         )
