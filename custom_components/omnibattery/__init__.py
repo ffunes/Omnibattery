@@ -1370,6 +1370,18 @@ class ChargeDischargeController:
             "waiting for solar",
         }
 
+    def _daily_operation_setpoint_enabled(self) -> bool:
+        """Return whether the Charge Delay SOC setpoint is actually in effect.
+
+        The setpoint is a sub-feature of Charge Delay: the controller ignores it
+        when the delay is off (``is_charge_delayed`` returns early), so the
+        timeline must not paint the setpoint marker either.
+        """
+        return bool(
+            getattr(self, "charge_delay_enabled", False)
+            and getattr(self, "_delay_soc_setpoint_enabled", False)
+        )
+
     def _daily_operation_hourly_balance_context(self, action_mask: int) -> int:
         """Classify a measured action driven by the hourly net-balance offset.
 
@@ -1639,7 +1651,9 @@ class ChargeDischargeController:
             ChargeDischargeController._daily_operation_weekly_delay_bypass(self)
         )
         delay_active = self._daily_operation_delay_active()
-        setpoint_enabled = bool(getattr(self, "_delay_soc_setpoint_enabled", False))
+        setpoint_enabled = (
+            ChargeDischargeController._daily_operation_setpoint_enabled(self)
+        )
         setpoint_reached = bool(getattr(self, "_delay_setpoint_reached", False))
         setpoint_active = (
             setpoint_enabled
@@ -1936,7 +1950,9 @@ class ChargeDischargeController:
                 system_charge_power_w = configured_charge
             if configured_discharge > 0.0:
                 system_discharge_power_w = configured_discharge
-        setpoint_enabled = bool(getattr(self, "_delay_soc_setpoint_enabled", False))
+        setpoint_enabled = (
+            ChargeDischargeController._daily_operation_setpoint_enabled(self)
+        )
         setpoint_reached = bool(getattr(self, "_delay_setpoint_reached", False))
         target_soc_pct = None
         solar_t_end = None
@@ -2129,7 +2145,9 @@ class ChargeDischargeController:
                     }
 
             setpoint = {
-                "enabled": bool(getattr(self, "_delay_soc_setpoint_enabled", False)),
+                "enabled": (
+                    ChargeDischargeController._daily_operation_setpoint_enabled(self)
+                ),
                 "target_soc": self._daily_operation_float(
                     getattr(self, "_delay_soc_setpoint", None), 0.0
                 ),
