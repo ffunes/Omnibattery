@@ -20,6 +20,7 @@ If you have a 7 kW EV charger and a 2.5 kW battery, without exclusion the batter
 | **Cover home while device is active** | Allow the battery to cover genuine household load while only the device's grid share remains excluded. Requires **Allow solar surplus** and a solar-production sensor. |
 | **EV charger without power telemetry** | Check if the sensor is a state sensor that reads `Charging` (or a localised equivalent) instead of a watt value. See [EV charger without power telemetry](#ev-charger-without-power-telemetry) below. |
 | **Expected remaining demand (kWh)** | Optional sensor reporting the energy the device still expects to consume today. Predictive charging reserves that share of the remaining solar forecast for the device. See [Expected remaining demand](#expected-remaining-demand) below. |
+| **Presence entity for the remaining demand** | Optional. While set, the claim above counts only when this entity reports the device as present. See [Expected remaining demand](#expected-remaining-demand) below. |
 
 ### Included in consumption?
 
@@ -112,6 +113,18 @@ Notes:
 - The sensor must report an energy unit (kWh, Wh, MJ, …). If it is unavailable, unknown,
   unparsable or carries a non-energy unit, no claim is made.
 - evcc publishes a suitable entity per loadpoint: `sensor.evcc_<loadpoint>_charge_remaining_energy`.
+- **That sensor does not go to zero when the car leaves.** evcc derives it from the vehicle's SOC
+  target, so it keeps reporting a demand with nothing plugged in, and the claim then takes solar
+  away from the battery for a car that is not there. Set **Presence entity for the remaining
+  demand** to `binary_sensor.evcc_<loadpoint>_connected` and the claim counts only while a vehicle
+  is actually connected. A `binary_sensor`, a `device_tracker` or a text status sensor all work:
+  `on`, `true`, `home`, `connected`, `plugged` and `present` count as present, as does a state
+  containing a connected or charging keyword in any supported language (`Verbunden`,
+  `Aangesloten`, `Connesso`, `Branché`, `Charging`, …). An unavailable, unknown or missing entity
+  counts as absent, so a broken sensor stops reserving rather than reserving for a device that may
+  not be there, and the refusal is written to the debug log. A device judged absent contributes a
+  zero claim rather than no reading, so the intraday re-evaluation still sees the change. Leave the
+  field empty to keep the previous behaviour.
 - The reservation is taken from today's remaining solar in proportion to each interval's energy, so
   a sunny hour gives up more than a dim one and every hour keeps the same share. The plan does not
   assume *when* the device will draw. In a cross-midnight projection tomorrow's forecast is never
