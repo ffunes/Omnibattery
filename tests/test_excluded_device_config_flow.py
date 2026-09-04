@@ -425,3 +425,31 @@ async def test_options_flow_legacy_device_without_the_field_round_trips():
     await flow.async_step_add_excluded_device({"power_sensor": "sensor.wallbox_power"})
 
     assert flow.excluded_devices[0]["remaining_demand_sensor"] is None
+
+
+async def test_initial_flow_saves_presence_sensor():
+    flow = MarstekVenusConfigFlow()
+
+    form = await flow.async_step_add_excluded_device()
+    assert "remaining_demand_presence_sensor" in _schema_fields(form)
+
+    await flow.async_step_add_excluded_device(
+        {
+            "power_sensor": "sensor.wallbox_power",
+            "remaining_demand_sensor": "sensor.evcc_charge_remaining_energy",
+            "remaining_demand_presence_sensor": "binary_sensor.evcc_connected",
+        }
+    )
+
+    assert (
+        flow.excluded_devices[0]["remaining_demand_presence_sensor"]
+        == "binary_sensor.evcc_connected"
+    )
+
+
+async def test_initial_flow_stores_no_presence_sensor_by_default():
+    flow = MarstekVenusConfigFlow()
+
+    await flow.async_step_add_excluded_device({"power_sensor": "sensor.wallbox_power"})
+
+    assert flow.excluded_devices[0]["remaining_demand_presence_sensor"] is None

@@ -28,6 +28,27 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# States that mean "the device is here and can draw". Kept wider than ``on`` so
+# a device_tracker can serve as the presence entity without a template helper in
+# between.
+_PRESENT_STATES = frozenset({"on", "true", "home", "connected", "plugged", "present"})
+
+# Substrings for the same verdict on a text status sensor, matched the way the
+# charging detection below does. A charger reporting "Verbunden", "Aangesloten"
+# or "Charging" must not read as absent just because it is not the word "on".
+_PRESENT_SUBSTRINGS: frozenset[str] = frozenset({
+    "connect",    # EN: connected; also NL "geconnecteerd"
+    "verbund",    # DE: verbunden
+    "aangeslot",  # NL: aangesloten
+    "conness",    # IT: connesso
+    "connect",    # FR/ES/CA: connecté, conectado, connectat
+    "conect",     # ES/PT: conectado
+    "plug",       # EN: plugged in
+    "branch",     # FR: branché
+    "present",    # EN/NL/DE/FR/ES
+    "aanwezig",   # NL
+})
+
 # Substrings that indicate an EV is actively charging, across supported languages.
 # Case-insensitive match against the sensor state string.
 # Add new entries here when a new language reports a different charging keyword.
@@ -625,8 +646,16 @@ class ExternalLoads:
             they are skipped there: their demand stays inside the consumption
             forecast, which already covers it.
 
+        A device may also declare a presence entity. Some upstreams keep
+        publishing a remaining demand while the device cannot possibly draw --
+        evcc reports the energy to the vehicle's SOC target whether or not a
+        car is plugged in -- and reserving solar for that takes it away from the
+        battery for nothing.
+
         Returns None when no device contributes a usable reading, so callers
-        can keep today's behaviour untouched.
+        can keep today's behaviour untouched. A device whose presence entity
+        says it is absent contributes 0.0 rather than nothing: it is a reading,
+        and the difference decides whether the intraday re-plan runs.
         """
         total: float | None = None
         for device in self._config_entry.data.get("excluded_devices", []):
@@ -639,12 +668,56 @@ class ExternalLoads:
                 continue
             if not device.get("included_in_consumption", True):
                 continue
+            if not self._demand_is_present(device):
+                # Zero, not "skip". Callers read None as "no usable reading" and
+                # keep their last reference, which would leave the intraday
+                # re-plan blind to a car that has just left.
+                total = 0.0 if total is None else total
+                continue
             value = self._read_sensor_kwh_opt(sensor_id)
             if value is None:
                 continue
             value *= self._exclusion_factor(device)
             total = value if total is None else total + value
         return total
+
+    def _demand_is_present(self, device: dict) -> bool:
+        """Whether this device's declared demand can actually be drawn.
+
+        True when no presence entity is configured, which is every existing
+        installation. With one configured, the state must read as present:
+        either one of ``_PRESENT_STATES`` or, for a text status sensor, one of
+        ``_PRESENT_SUBSTRINGS`` and the charging keywords the EV detection
+        already recognises. An unavailable, unknown or missing entity is treated
+        as absent, so a broken sensor falls back to not reserving rather than to
+        reserving for a device that may not be there.
+
+        A refusal is logged, because a state nobody anticipated would otherwise
+        zero a claim the user deliberately configured, in silence.
+        """
+        entity_id = device.get("remaining_demand_presence_sensor")
+        if not entity_id:
+            return True
+        state = self._hass.states.get(entity_id)
+        if state is None:
+            _LOGGER.debug(
+                "Presence entity %s does not exist; its device claims no solar",
+                entity_id,
+            )
+            return False
+        value = str(state.state).strip().lower()
+        if value in _PRESENT_STATES:
+            return True
+        for needle in _PRESENT_SUBSTRINGS | _CHARGING_SUBSTRINGS:
+            if needle in value:
+                return True
+        _LOGGER.debug(
+            "Presence entity %s reports %s, which does not read as present; "
+            "its device claims no solar",
+            entity_id,
+            state.state,
+        )
+        return False
 
     def _read_home_consumption_w_opt(self, entity_id: str | None) -> float | None:
         """Read Home Consumption only when its balance is currently coherent.

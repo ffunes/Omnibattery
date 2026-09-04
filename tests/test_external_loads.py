@@ -1107,3 +1107,110 @@ def test_claim_eligibility_matches_consumption_delta():
         loads = _controller([device], states)
         assert loads.consumption_delta_kw() == pytest.approx(0.0)
         assert loads.claimable_solar_demand_kwh() in (None, 0.0)
+
+
+# ----------------------------------------------------------------------
+# Presence gate on the claim
+# ----------------------------------------------------------------------
+
+
+def test_claim_counts_while_the_presence_entity_reports_present():
+    loads = _controller(
+        [_claim_device(remaining_demand_presence_sensor="binary_sensor.connected")],
+        {
+            "sensor.demand": _state(6.5, unit="kWh"),
+            "binary_sensor.connected": _state("on"),
+        },
+    )
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(6.5)
+
+
+def test_claim_is_dropped_while_nothing_is_plugged_in():
+    """evcc keeps reporting demand to the SOC target with no car connected."""
+    loads = _controller(
+        [_claim_device(remaining_demand_presence_sensor="binary_sensor.connected")],
+        {
+            "sensor.demand": _state(12.6, unit="kWh"),
+            "binary_sensor.connected": _state("off"),
+        },
+    )
+    # 0.0, not None: None means "no usable reading" to the callers, which keeps
+    # their last reference and blinds the intraday re-plan to the car leaving.
+    assert loads.claimable_solar_demand_kwh() == 0.0
+
+
+@pytest.mark.parametrize("value", ["on", "true", "home", "connected", "plugged", "present"])
+def test_present_states_are_accepted(value):
+    loads = _controller(
+        [_claim_device(remaining_demand_presence_sensor="device_tracker.car")],
+        {
+            "sensor.demand": _state(6.5, unit="kWh"),
+            "device_tracker.car": _state(value),
+        },
+    )
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(6.5)
+
+
+@pytest.mark.parametrize("value", ["off", "unavailable", "unknown", "not_home", "idle"])
+def test_absent_and_broken_presence_entities_stop_the_claim(value):
+    loads = _controller(
+        [_claim_device(remaining_demand_presence_sensor="binary_sensor.connected")],
+        {
+            "sensor.demand": _state(6.5, unit="kWh"),
+            "binary_sensor.connected": _state(value),
+        },
+    )
+    assert loads.claimable_solar_demand_kwh() == 0.0
+
+
+def test_a_missing_presence_entity_stops_the_claim():
+    loads = _controller(
+        [_claim_device(remaining_demand_presence_sensor="binary_sensor.gone")],
+        {"sensor.demand": _state(6.5, unit="kWh")},
+    )
+    assert loads.claimable_solar_demand_kwh() == 0.0
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["Verbunden", "Aangesloten", "Connesso", "Branché", "Charging", "Plugged in"],
+)
+def test_a_text_status_sensor_reads_as_present(value):
+    """A charger status entity must not read as absent in its own language."""
+    loads = _controller(
+        [_claim_device(remaining_demand_presence_sensor="sensor.charger_status")],
+        {
+            "sensor.demand": _state(6.5, unit="kWh"),
+            "sensor.charger_status": _state(value),
+        },
+    )
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(6.5)
+
+
+def test_a_gated_device_does_not_hide_another_device_claim():
+    present = _claim_device(
+        remaining_demand_sensor="sensor.demand",
+        remaining_demand_presence_sensor="binary_sensor.connected",
+    )
+    absent = _claim_device(
+        remaining_demand_sensor="sensor.other_demand",
+        remaining_demand_presence_sensor="binary_sensor.other_connected",
+    )
+    loads = _controller(
+        [present, absent],
+        {
+            "sensor.demand": _state(6.5, unit="kWh"),
+            "sensor.other_demand": _state(9.0, unit="kWh"),
+            "binary_sensor.connected": _state("on"),
+            "binary_sensor.other_connected": _state("off"),
+        },
+    )
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(6.5)
+
+
+def test_without_a_presence_entity_nothing_changes():
+    loads = _controller(
+        [_claim_device()],
+        {"sensor.demand": _state(6.5, unit="kWh")},
+    )
+    assert loads.claimable_solar_demand_kwh() == pytest.approx(6.5)
