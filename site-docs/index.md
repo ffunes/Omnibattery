@@ -5,6 +5,7 @@
 - **Marstek** Venus E/C (v2/v3), Venus A and Venus D via Modbus TCP, Modbus RTU or a LilyGo RS485/ESPHome bridge.
 - **Zendure** SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 via local HTTP.
 - **Anker SOLIX** Solarbank Max AC and Solarbank 4 E5000 Pro via Modbus TCP.
+- **Huawei** SUN2000 + LUNA2000 via Modbus TCP (validated on SUN2000-8K-MAP0).
 - **Sessy** Home Battery via its local dongle API (testers welcome).
 - **Hoymiles** MS-A2 via the MQTT integration configured in Home Assistant.
 
@@ -24,7 +25,7 @@
 
 -   :material-brand_family: **Multi-brand**
 
-    Combine Marstek, Zendure, Anker SOLIX, Sessy and Hoymiles batteries in one installation while sharing the same control loop, system entities and energy-management features.
+    Combine Marstek, Zendure, Anker SOLIX, Huawei, Sessy and Hoymiles batteries in one installation while sharing the same control loop, system entities and energy-management features.
 
 -   :material-view-dashboard: **Integrated dashboard**
 
@@ -51,7 +52,7 @@ The panel installs automatically as a Home Assistant sidebar panel — no extra 
 - **PD Controller (Zero Export/Import)**: adjusts battery power in real time to keep grid exchange close to zero.
 - **One-click PD profiles and control-quality sensor**: select a response from Very smooth to Very aggressive, then use the quality verdict to see whether regulation is stable, oscillating or sluggish.
 - **No-PD direct-tracking mode** (opt-in): the battery follows the consumption sensor 1:1 in a single cycle — no integral, derivative, smoothing or rate limiter — for installations that prefer raw tracking over the PD control law.
-- **Multi-brand support**: combine compatible Marstek, Zendure, Anker SOLIX, Sessy and Hoymiles batteries in the same installation.
+- **Multi-brand support**: combine compatible Marstek, Zendure, Anker SOLIX, Huawei, Sessy and Hoymiles batteries in the same installation.
 - **Predictive charging**: three modes (time slot, dynamic pricing, real-time price — including Tibber) that charge from the grid only when the energy balance requires it. Uses a 7-day rolling average of real household consumption to decide whether grid charging is needed.
 - **Multi-battery management**: smart selection with SOC priorities, energy hysteresis and efficiency zone operation.
 - **Time slots**: independently control charge and discharge windows, with per-slot SOC and power parameters.

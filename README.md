@@ -7,12 +7,13 @@
 - Marstek Venus E and C (v2 and v3), Venus D and Venus A via Modbus TCP
 - Zendure SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 (Local API)
 - Anker SOLIX Solarbank Max AC and Solarbank 4 E5000 Pro via Modbus TCP (thanks @wouterbouvy!)
+- Huawei SUN2000 + LUNA2000 via Modbus TCP (validated on SUN2000-8K-MAP0; thanks @sphings79!)
 - Sessy Home Battery (Looking for testers!!!)
 - Hoymiles MS-A2 and HiBattery MQTT models
 
 ## Key Features
 
-- **Mix and match different battery brands**: Marstek, Zendure, Anker Solix, Sessy, Hoymiles MQTT and more to come!
+- **Mix and match different battery brands**: Marstek, Zendure, Anker Solix, Huawei, Sessy, Hoymiles MQTT and more to come!
 - **Zero Export/Import PD Controller**: Keeps grid exchange near zero using a Proportional-Derivative algorithm.
 - **Integrated dashboard**: All the controls and adjustments from a single place. Graphs and power flow diagram included!
 - **One-Click PD Profiles + Quality Sensor**: Pick a tuning profile (Very smooth → Very aggressive) instead of tuning gains by hand; a control-quality sensor reports whether the result is stable, oscillating or sluggish.
@@ -54,8 +55,8 @@ Full documentation (configuration, features, entities, troubleshooting) is avail
 
 | Requirement | Details |
 |---|---|
-| Battery | Marstek Venus E v2/v3, Venus A, Venus D, Zendure SolarFlow 4000 Mix Pro / 4000 Mix AC+, 2400 AC+, 2400 AC Pro, Anker SOLIX Solarbank Max AC / 4 E5000 Pro |
-| Modbus bridge | Elfin-EW11 or compatible RS485-to-TCP converter. Venus E v3, Venus A and Venus D can also be connected via Ethernet with native Modbus TCP support. Anker Solarbank Max AC and 4 E5000 Pro use native Modbus TCP (enable in the Anker app under Third-Party Control; only one Modbus client at a time). |
+| Battery | Marstek Venus E v2/v3, Venus A, Venus D, Zendure SolarFlow 4000 Mix Pro / 4000 Mix AC+, 2400 AC+, 2400 AC Pro, Anker SOLIX Solarbank Max AC / 4 E5000 Pro, Huawei SUN2000 + LUNA2000 |
+| Modbus bridge | Elfin-EW11 or compatible RS485-to-TCP converter. Venus E v3, Venus A and Venus D can also be connected via Ethernet with native Modbus TCP support. Anker Solarbank Max AC and 4 E5000 Pro use native Modbus TCP (enable in the Anker app under Third-Party Control; only one Modbus client at a time). Huawei uses the SUN2000 Modbus TCP endpoint; use a shared Modbus proxy when another client is connected. |
 | Wireless connection | Required for Zendure SolarFlow 4000 Mix AC+, 2400 AC+ and 2400 AC Pro |
 | Grid sensor | HA sensor measuring total grid consumption (e.g. Shelly EM3, Neurio, smart meter) |
 | Network | Battery reachable by IP from Home Assistant |

@@ -12,6 +12,7 @@ compatible. Los adaptadores y puentes solo son necesarios cuando se indican.
 | **Marstek Venus E/C (v2/v3), Venus A, Venus D** | Modbus TCP; Modbus RTU por USB–RS485; o puente LilyGo RS485/ESPHome *(Venus E v2)* | **Modbus TCP:** Venus E v2 necesita un conversor RS485 → TCP (p. ej. Elfin-EW11); Venus E v3, Venus A y Venus D usan Ethernet nativo. **Modbus RTU:** adaptador USB–RS485. **ESPHome:** el puente LilyGo debe exponer sus entidades requeridas en Home Assistant. |
 | **Zendure SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus, 800** | API HTTP local | Mantén **HEMS desactivado** en la aplicación de Zendure. Si está activo, HEMS sobrescribe la consigna manual de potencia de Omnibattery. |
 | **Anker SOLIX Solarbank Max AC, 4 E5000 Pro** | Modbus TCP | Activa **Third-Party Control** en la aplicación de Anker. Solo puede conectarse un cliente Modbus a la vez. |
+| **Huawei SUN2000 + LUNA2000** | Modbus TCP a través del inversor SUN2000 | La vía de control predeterminada necesita la integración Huawei Solar y un proxy Modbus compartido. Las escrituras directas son opcionales. Consulta la [guía de instalación de Huawei](configuration/batteries/huawei.md). |
 | **Sessy Home Battery** | API HTTP local mediante el dongle de Sessy | El dongle debe ser accesible desde Home Assistant. Introduce su IP/nombre de host, puerto y credenciales; el puerto predeterminado es `80`. |
 | **Hoymiles MS-A2 / HiBattery** | MQTT mediante la integración MQTT configurada en Home Assistant | Hace falta un broker MQTT local operativo (por ejemplo, Mosquitto; se puede reutilizar uno existente). Activa **MQTT Service** en S-Miles Home y asegúrate de que la batería puede alcanzar el broker. |
 | **Sensor de red** | Entidad de Home Assistant | Sensor que mida el consumo total de la red (p. ej. Shelly EM3, Neurio o integración de contador inteligente). |
@@ -27,6 +28,7 @@ compatible. Los adaptadores y puentes solo son necesarios cuando se indican.
 
 - Home Assistant **2024.1.0** o superior
 - Solo para **baterías Hoymiles mediante MQTT**: la integración MQTT de Home Assistant y un broker MQTT local operativo. Omnibattery usa el broker a través de Home Assistant; no instala uno.
+- Para el método de control **Huawei** predeterminado: la integración Huawei Solar. No es necesaria si se activan las escrituras Modbus directas.
 - (Opcional) Sensor de previsión solar para la carga predictiva (Solcast, Forecast.Solar, etc.)
 
 ### Red

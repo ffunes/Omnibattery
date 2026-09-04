@@ -12,6 +12,7 @@ battery. Adapters and bridges are only required where noted.
 | **Marstek Venus E/C (v2/v3), Venus A, Venus D** | Modbus TCP; Modbus RTU over USB–RS485; or LilyGo RS485/ESPHome bridge *(Venus E v2)* | **Modbus TCP:** Venus E v2 needs an RS485 → TCP converter (e.g. Elfin-EW11); Venus E v3, Venus A and Venus D use native Ethernet. **Modbus RTU:** USB–RS485 adapter. **ESPHome:** the LilyGo bridge must expose its required entities in Home Assistant. |
 | **Zendure SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus, 800** | Local HTTP API | Keep **HEMS disabled** in the Zendure app. HEMS overrides Omnibattery's manual power setpoint when enabled. |
 | **Anker SOLIX Solarbank Max AC, 4 E5000 Pro** | Modbus TCP | Enable **Third-Party Control** in the Anker app. Only one Modbus client can connect at a time. |
+| **Huawei SUN2000 + LUNA2000** | Modbus TCP through the SUN2000 inverter | The default control path requires the Huawei Solar integration and a shared Modbus proxy. Direct writes are optional. See the [Huawei setup guide](configuration/batteries/huawei.md). |
 | **Sessy Home Battery** | Local HTTP API through the Sessy dongle | The dongle must be reachable from Home Assistant. Enter its IP/hostname, port and dongle credentials; port `80` is the default. |
 | **Hoymiles MS-A2 / HiBattery** | MQTT through Home Assistant's configured MQTT integration | A working local MQTT broker is required (for example, Mosquitto; an existing broker can be reused). Enable **MQTT Service** in S-Miles Home and make the broker reachable from the battery. |
 | **Grid sensor** | Home Assistant entity | Sensor measuring total grid consumption (e.g. Shelly EM3, Neurio, smart-meter integration). |
@@ -26,6 +27,7 @@ battery. Adapters and bridges are only required where noted.
 
 - Home Assistant **2024.1.0** or later
 - For **Hoymiles MQTT batteries** only: the Home Assistant MQTT integration and a working local MQTT broker. Omnibattery uses the broker through Home Assistant; it does not install one.
+- For the default **Huawei** control method: the Huawei Solar integration. It is not required when direct Modbus writes are enabled.
 - (Optional) Solar forecast sensor for predictive charging (Solcast, Forecast.Solar, etc.)
 
 ### Network

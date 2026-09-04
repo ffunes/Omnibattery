@@ -13,6 +13,7 @@ parte de los controles en tiempo de ejecución son comunes.
 | **Marstek** | Modbus TCP, Modbus RTU o puente LilyGo/ESPHome | [Marstek](marstek.md) |
 | **Zendure** | API HTTP local | [Zendure](zendure.md) |
 | **Anker SOLIX** | Modbus TCP | [Anker SOLIX](anker.md) |
+| **Huawei SUN2000 + LUNA2000** | Modbus TCP, con servicios Huawei Solar o control directo | [Huawei](huawei.md) |
 | **Sessy** | API HTTP local mediante el dongle de Sessy | [Sessy](sessy.md) |
 | **Hoymiles MS-A2 / HiBattery** | MQTT mediante Home Assistant | [Hoymiles MQTT](hoymiles.md) |
 

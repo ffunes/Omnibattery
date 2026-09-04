@@ -12,6 +12,7 @@ loop, dashboard, predictive charging and most runtime controls are shared.
 | **Marstek** | Modbus TCP, Modbus RTU or a LilyGo/ESPHome bridge | [Marstek](marstek.md) |
 | **Zendure** | Local HTTP API | [Zendure](zendure.md) |
 | **Anker SOLIX** | Modbus TCP | [Anker SOLIX](anker.md) |
+| **Huawei SUN2000 + LUNA2000** | Modbus TCP, with Huawei Solar services or direct control | [Huawei](huawei.md) |
 | **Sessy** | Local HTTP API through the Sessy dongle | [Sessy](sessy.md) |
 | **Hoymiles MS-A2 / HiBattery** | MQTT through Home Assistant | [Hoymiles MQTT](hoymiles.md) |
 
