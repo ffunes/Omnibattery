@@ -9,9 +9,10 @@ The predictive-charging status binary sensor includes deadline-aware Dynamic Pri
 | Entity | Description | Unit |
 |---|---|---|
 | `sensor.*_battery_soc` | State of charge | % |
+| `sensor.*_battery_soh` | State of health (SoH); Anker Modbus input register **10015** | % |
 | `sensor.*_battery_power` | Current power | W |
 | `sensor.*_ac_power` | AC-side power; on Anker it is derived from battery power using the shared sign convention | W |
-| `sensor.*_battery_voltage` | Voltage | V |
+| `sensor.*_battery_voltage` | Voltage (not exposed on Anker) | V |
 | `sensor.*_battery_current` | Current | A |
 | `sensor.*_battery_temperature` | Temperature | °C |
 | `sensor.*_internal_temperature` | Internal temperature used by thermal protection; on Anker it aliases `temperature` | °C |
@@ -21,8 +22,8 @@ The predictive-charging status binary sensor includes deadline-aware Dynamic Pri
 | `sensor.*_total_daily_discharging_energy` | Energy discharged today (daily register on Marstek; derived from the cumulative counter on Anker; integrated on Zendure) | kWh |
 | `sensor.*_battery_cycle_count` | Cycle count (register, v3/vA/vD) | — |
 | `sensor.*_battery_cycle_count_calc` | Calculated cycle count (all versions) | — |
-| `sensor.*_max_cell_voltage` | Max cell voltage (v3/vA/vD) | V |
-| `sensor.*_min_cell_voltage` | Min cell voltage (v3/vA/vD) | V |
+| `sensor.*_max_cell_voltage` | Max cell voltage (v3/vA/vD; not exposed on Anker) | V |
+| `sensor.*_min_cell_voltage` | Min cell voltage (v3/vA/vD; not exposed on Anker) | V |
 | `sensor.*_alarm_status` | Active alarm conditions (v2) — diagnostic | text |
 | `sensor.*_fault_status` | Active fault conditions (v2) — diagnostic | text |
 
