@@ -1187,6 +1187,36 @@ def test_a_text_status_sensor_reads_as_present(value):
     assert loads.claimable_solar_demand_kwh() == pytest.approx(6.5)
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "Disconnected",
+        "Nicht verbunden",
+        "Niet aangesloten",
+        "Desconectado",
+        "Non connesso",
+        "Débranché",
+        "Unplugged",
+        "Not present",
+        "ontladen",
+    ],
+)
+def test_a_negative_text_status_stops_the_claim(value):
+    """Every negative phrasing contains its own positive word.
+
+    Matching on substrings would read all of these as present and keep
+    reserving solar for a car that is not there.
+    """
+    loads = _controller(
+        [_claim_device(remaining_demand_presence_sensor="sensor.charger_status")],
+        {
+            "sensor.demand": _state(6.5, unit="kWh"),
+            "sensor.charger_status": _state(value),
+        },
+    )
+    assert loads.claimable_solar_demand_kwh() == 0.0
+
+
 def test_a_gated_device_does_not_hide_another_device_claim():
     present = _claim_device(
         remaining_demand_sensor="sensor.demand",

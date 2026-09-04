@@ -29,24 +29,31 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 # States that mean "the device is here and can draw". Kept wider than ``on`` so
-# a device_tracker can serve as the presence entity without a template helper in
-# between.
-_PRESENT_STATES = frozenset({"on", "true", "home", "connected", "plugged", "present"})
-
-# Substrings for the same verdict on a text status sensor, matched the way the
-# charging detection below does. A charger reporting "Verbunden", "Aangesloten"
-# or "Charging" must not read as absent just because it is not the word "on".
-_PRESENT_SUBSTRINGS: frozenset[str] = frozenset({
-    "connect",    # EN: connected; also NL "geconnecteerd"
-    "verbund",    # DE: verbunden
-    "aangeslot",  # NL: aangesloten
-    "conness",    # IT: connesso
-    "connect",    # FR/ES/CA: connecté, conectado, connectat
-    "conect",     # ES/PT: conectado
-    "plug",       # EN: plugged in
-    "branch",     # FR: branché
-    "present",    # EN/NL/DE/FR/ES
-    "aanwezig",   # NL
+# a device_tracker or a localised text status sensor can serve as the presence
+# entity without a template helper in between. Matched whole, never as a
+# substring: every negative phrasing contains its own positive ("disconnected"
+# contains "connected", "ontladen" contains "laden"), so a substring pass would
+# read every absent state as present. Anything unknown reads as absent, which is
+# the safe direction.
+_PRESENT_STATES: frozenset[str] = frozenset({
+    "on",
+    "true",
+    "home",
+    "present",
+    "connected",   # EN
+    "plugged",     # EN
+    "plugged in",  # EN
+    "verbunden",   # DE
+    "aangesloten", # NL
+    "aanwezig",    # NL
+    "connesso",    # IT
+    "connecté",    # FR
+    "branché",     # FR
+    "conectado",   # ES/PT
+    "connectat",   # CA
+    "charging",    # EN
+    "cargando",    # ES
+    "laden",       # NL/DE
 })
 
 # Substrings that indicate an EV is actively charging, across supported languages.
@@ -685,12 +692,11 @@ class ExternalLoads:
         """Whether this device's declared demand can actually be drawn.
 
         True when no presence entity is configured, which is every existing
-        installation. With one configured, the state must read as present:
-        either one of ``_PRESENT_STATES`` or, for a text status sensor, one of
-        ``_PRESENT_SUBSTRINGS`` and the charging keywords the EV detection
-        already recognises. An unavailable, unknown or missing entity is treated
-        as absent, so a broken sensor falls back to not reserving rather than to
-        reserving for a device that may not be there.
+        installation. With one configured, the state must match one of
+        ``_PRESENT_STATES`` whole. An unavailable, unknown, unrecognised or
+        missing entity is treated as absent, so a broken sensor falls back to
+        not reserving rather than to reserving for a device that may not be
+        there.
 
         A refusal is logged, because a state nobody anticipated would otherwise
         zero a claim the user deliberately configured, in silence.
@@ -708,9 +714,6 @@ class ExternalLoads:
         value = str(state.state).strip().lower()
         if value in _PRESENT_STATES:
             return True
-        for needle in _PRESENT_SUBSTRINGS | _CHARGING_SUBSTRINGS:
-            if needle in value:
-                return True
         _LOGGER.debug(
             "Presence entity %s reports %s, which does not read as present; "
             "its device claims no solar",
