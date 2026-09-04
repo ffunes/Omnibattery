@@ -911,6 +911,15 @@ class IntegrationStatusSensor(SensorEntity):
             and not getattr(coordinator, "battery_manual_mode_enabled", False)
         ]
 
+    def _price_reserve_batteries(self) -> list[str]:
+        """Return batteries holding energy back for a dearer hour still ahead."""
+        controller = self._controller
+        return [
+            coordinator.name
+            for coordinator in controller.coordinators
+            if "price_reserve" in controller.get_discharge_blockers(coordinator)
+        ]
+
     def _backup_cooldown_batteries(self) -> list[str]:
         """Return batteries temporarily excluded because backup/offgrid load was active."""
         from homeassistant.util import dt as dt_util
@@ -979,6 +988,10 @@ class IntegrationStatusSensor(SensorEntity):
         discharge_blockers = c.get_discharge_blockers()
         if "price_discharge" in discharge_blockers:
             return "price_discharge_blocked"
+
+        # Per-battery, so it is not in the global registry above.
+        if self._price_reserve_batteries():
+            return "price_reserve_hold"
 
         hourly_state = self._hourly_balance_state_key()
         if hourly_state:

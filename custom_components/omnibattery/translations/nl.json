@@ -363,6 +363,8 @@
           "smart_predischarge_enabled": "Slim voorontladen / anti-afregeling",
           "surplus_price_hold_enabled": "Prijsbewuste opname van zonne-overschot inschakelen",
           "surplus_hold_min_saving": "Minimale besparing voor vasthouden overschot (valuta/kWh)",
+          "discharge_reserve_enabled": "Prijsbewuste ontlaadreserve inschakelen",
+          "discharge_reserve_min_saving": "Minimale besparing voor ontlaadreserve (valuta/kWh)",
           "export_price_sensor": "Sensor voor teruglever-/exportprijs (optioneel)",
           "export_price_integration_type": "Integratie voor de exportprijs (optioneel)",
           "negative_injection_threshold": "Drempelwaarde negatieve teruglevering",
@@ -382,6 +384,8 @@
           "smart_predischarge_enabled": "Schakelt optioneel voorontladen alleen in de dynamische prijsmode in om ruimte te maken vóór slots met negatieve terugleveringsprijzen.",
           "surplus_price_hold_enabled": "Optionele functie voor dynamische prijzen. Zonne-overschot opslaan kost de terugleververgoeding van dat slot, dus laat de batterij het overschot terugleveren zolang er nog een duidelijk goedkoper terugleververvenster komt, en laadt ze in de goedkoopste uren. De rem gaat los aan het einde van de zonneproductie, zodra het dagdoel is gehaald en zodra de resterende goedkope vensters het doel niet meer kunnen dekken. Bestaande SOC-ondergrenzen, laadvertraging, geplande goedkope netsloten, laden bij negatieve prijzen, slim voorontladen, wekelijkse volledige lading en handmatige bediening gaan altijd voor.",
           "surplus_hold_min_saving": "Hoeveel goedkoper het beste resterende slot moet zijn voordat overschot wordt vastgehouden. Voorkomt schakelen op verwaarloosbare prijsverschillen. Gebruik hoofdvaluta/kWh.",
+          "discharge_reserve_enabled": "Optionele functie voor dynamische prijzen. De bestaande prijsrem op ontladen vraagt alleen of het huidige uur goedkoop is, nooit of de duurdere uren die nog komen de energie in de batterij nodig hebben. Deze reserve projecteert het geleerde verbruiksprofiel min de verwachte zonneopbrengst op de resterende prijssloten, geeft de duurste sloten als eerste recht op de opgeslagen energie en verhoogt de ontlaadondergrens van elke batterij met wat die uren opeisen. Alles boven de reserve blijft nu beschikbaar voor eigen verbruik. Er wordt nooit over middernacht heen gereserveerd, en handmatige bediening, slim voorontladen, piekscheren en SOC-overschrijvingen per tijdslot gaan altijd voor.",
+          "discharge_reserve_min_saving": "Hoeveel duurder een later uur moet zijn dan het huidige voordat de vraag van dat uur opgeslagen energie mag opeisen. Voorkomt dat de ondergrens beweegt op verwaarloosbare prijsverschillen. Gebruik hoofdvaluta/kWh.",
           "export_price_sensor": "Sensor met de terugleverprijzen. Laat leeg om de importprijscurve te gebruiken; dat klopt wanneer teruglevering tegen de importprijs wordt vergoed (salderen).",
           "export_price_integration_type": "Attribuutindeling van de exportprijssensor. Laat leeg om de importintegratie te hergebruiken. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve.",
           "negative_injection_threshold": "Prijzen gelijk aan of lager dan deze drempel zijn risicoslots wanneer een zonne-overschot wordt verwacht.",
@@ -1101,6 +1105,8 @@
           "smart_predischarge_enabled": "Slim voorontladen / anti-afregeling",
           "surplus_price_hold_enabled": "Prijsbewuste opname van zonne-overschot inschakelen",
           "surplus_hold_min_saving": "Minimale besparing voor vasthouden overschot (valuta/kWh)",
+          "discharge_reserve_enabled": "Prijsbewuste ontlaadreserve inschakelen",
+          "discharge_reserve_min_saving": "Minimale besparing voor ontlaadreserve (valuta/kWh)",
           "export_price_sensor": "Sensor voor teruglever-/exportprijs (optioneel)",
           "export_price_integration_type": "Integratie voor de exportprijs (optioneel)",
           "negative_injection_threshold": "Drempelwaarde negatieve teruglevering",
@@ -1120,6 +1126,8 @@
           "smart_predischarge_enabled": "Schakelt optioneel voorontladen alleen in de dynamische prijsmode in om ruimte te maken vóór slots met negatieve terugleveringsprijzen.",
           "surplus_price_hold_enabled": "Optionele functie voor dynamische prijzen. Zonne-overschot opslaan kost de terugleververgoeding van dat slot, dus laat de batterij het overschot terugleveren zolang er nog een duidelijk goedkoper terugleververvenster komt, en laadt ze in de goedkoopste uren. De rem gaat los aan het einde van de zonneproductie, zodra het dagdoel is gehaald en zodra de resterende goedkope vensters het doel niet meer kunnen dekken. Bestaande SOC-ondergrenzen, laadvertraging, geplande goedkope netsloten, laden bij negatieve prijzen, slim voorontladen, wekelijkse volledige lading en handmatige bediening gaan altijd voor.",
           "surplus_hold_min_saving": "Hoeveel goedkoper het beste resterende slot moet zijn voordat overschot wordt vastgehouden. Voorkomt schakelen op verwaarloosbare prijsverschillen. Gebruik hoofdvaluta/kWh.",
+          "discharge_reserve_enabled": "Optionele functie voor dynamische prijzen. De bestaande prijsrem op ontladen vraagt alleen of het huidige uur goedkoop is, nooit of de duurdere uren die nog komen de energie in de batterij nodig hebben. Deze reserve projecteert het geleerde verbruiksprofiel min de verwachte zonneopbrengst op de resterende prijssloten, geeft de duurste sloten als eerste recht op de opgeslagen energie en verhoogt de ontlaadondergrens van elke batterij met wat die uren opeisen. Alles boven de reserve blijft nu beschikbaar voor eigen verbruik. Er wordt nooit over middernacht heen gereserveerd, en handmatige bediening, slim voorontladen, piekscheren en SOC-overschrijvingen per tijdslot gaan altijd voor.",
+          "discharge_reserve_min_saving": "Hoeveel duurder een later uur moet zijn dan het huidige voordat de vraag van dat uur opgeslagen energie mag opeisen. Voorkomt dat de ondergrens beweegt op verwaarloosbare prijsverschillen. Gebruik hoofdvaluta/kWh.",
           "export_price_sensor": "Sensor met de terugleverprijzen. Laat leeg om de importprijscurve te gebruiken; dat klopt wanneer teruglevering tegen de importprijs wordt vergoed (salderen).",
           "export_price_integration_type": "Attribuutindeling van de exportprijssensor. Laat leeg om de importintegratie te hergebruiken. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve.",
           "negative_injection_threshold": "Prijzen gelijk aan of lager dan deze drempel zijn risicoslots wanneer een zonne-overschot wordt verwacht.",
@@ -1623,6 +1631,7 @@
           "weekly_full_charge": "Wekelijkse Volledige Lading",
           "charge_delayed": "Lading Vertraagd",
           "surplus_price_hold": "Surplus Exporting (Cheaper Window Ahead)",
+          "price_reserve_hold": "Holding Charge for Dearer Hours",
           "waiting_for_solar": "Wachten op Zon",
           "charging_to_setpoint": "Laden naar Instelpunt",
           "capacity_protection": "Capaciteitsbescherming",
@@ -2007,6 +2016,9 @@
       },
       "surplus_price_hold_status": {
         "name": "Prijsrem zonne-overschot"
+      },
+      "discharge_reserve_status": {
+        "name": "Ontlaadreserve"
       },
       "wifi_status": {
         "name": "WiFi-status"

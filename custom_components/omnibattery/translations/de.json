@@ -363,6 +363,8 @@
           "smart_predischarge_enabled": "Intelligente Vorentladung / Anti-Abregelung",
           "surplus_price_hold_enabled": "Preisbewusste Aufnahme von Solarüberschuss aktivieren",
           "surplus_hold_min_saving": "Mindestersparnis für das Zurückhalten des Überschusses (Währung/kWh)",
+          "discharge_reserve_enabled": "Preisbewusste Entladereserve aktivieren",
+          "discharge_reserve_min_saving": "Mindestersparnis für die Entladereserve (Währung/kWh)",
           "export_price_sensor": "Sensor für Einspeise-/Exportpreise (optional)",
           "export_price_integration_type": "Integration für den Exportpreis (optional)",
           "negative_injection_threshold": "Schwellenwert für negative Einspeisung",
@@ -382,6 +384,8 @@
           "smart_predischarge_enabled": "Aktiviert die optionale Vorentladung nur im dynamischen Preismodus, um vor negativen Einspeisepreisen Platz zu schaffen.",
           "surplus_price_hold_enabled": "Optionale Funktion für dynamische Preise. Das Speichern von PV-Überschuss verwirkt die Einspeisevergütung dieses Zeitfensters. Die Batterie lässt den Überschuss daher einspeisen, solange noch ein deutlich günstigeres Einspeisefenster bevorsteht, und lädt stattdessen in den günstigsten Stunden. Sie gibt am Ende der Solarproduktion frei, sobald das Tagesziel erreicht ist und sobald die verbleibenden günstigen Fenster es nicht mehr decken können. Bestehende SOC-Untergrenzen, Ladeverzögerung, geplante günstige Netzfenster, Laden bei negativen Preisen, intelligente Vorentladung, wöchentliche Volladung und manuelle Steuerung haben immer Vorrang.",
           "surplus_hold_min_saving": "Wie viel günstiger das beste verbleibende Zeitfenster sein muss, bevor Überschuss zurückgehalten wird. Verhindert Umschalten bei vernachlässigbaren Preisunterschieden. Angabe in Hauptwährung/kWh.",
+          "discharge_reserve_enabled": "Optionale Funktion für dynamische Preise. Die bestehende preisbasierte Entladesperre fragt nur, ob die aktuelle Stunde günstig ist, nie, ob die noch bevorstehenden teureren Stunden die Energie in der Batterie brauchen. Diese Reserve projiziert das gelernte Verbrauchsprofil abzüglich der erwarteten PV-Erzeugung auf die verbleibenden Preisfenster, gibt den teuersten davon den ersten Anspruch auf die gespeicherte Energie und hebt die Entladeuntergrenze jeder Batterie um das an, was diese Stunden beanspruchen. Alles oberhalb der Reserve bleibt sofort für den Eigenverbrauch verfügbar. Über Mitternacht hinaus wird nie reserviert, und manuelle Steuerung, intelligente Vorentladung, Lastspitzenkappung sowie SOC-Überschreibungen je Zeitfenster haben immer Vorrang.",
+          "discharge_reserve_min_saving": "Wie viel teurer eine spätere Stunde als die aktuelle sein muss, bevor ihr Bedarf gespeicherte Energie beanspruchen darf. Verhindert, dass sich die Untergrenze bei vernachlässigbaren Preisunterschieden bewegt. Angabe in Hauptwährung/kWh.",
           "export_price_sensor": "Sensor, der die Einspeisevergütung liefert. Leer lassen, um die Importpreiskurve zu verwenden — das ist korrekt, wenn die Einspeisung zum Importpreis vergütet wird (Net Metering).",
           "export_price_integration_type": "Attributaufbau des Exportpreis-Sensors. Leer lassen, um die Import-Integration zu übernehmen. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve.",
           "negative_injection_threshold": "Preise gleich oder unter diesem Wert gelten bei erwarteter Solarüberschussenergie als Risikofenster.",
@@ -1101,6 +1105,8 @@
           "smart_predischarge_enabled": "Intelligente Vorentladung / Anti-Abregelung",
           "surplus_price_hold_enabled": "Preisbewusste Aufnahme von Solarüberschuss aktivieren",
           "surplus_hold_min_saving": "Mindestersparnis für das Zurückhalten des Überschusses (Währung/kWh)",
+          "discharge_reserve_enabled": "Preisbewusste Entladereserve aktivieren",
+          "discharge_reserve_min_saving": "Mindestersparnis für die Entladereserve (Währung/kWh)",
           "export_price_sensor": "Sensor für Einspeise-/Exportpreise (optional)",
           "export_price_integration_type": "Integration für den Exportpreis (optional)",
           "negative_injection_threshold": "Schwellenwert für negative Einspeisung",
@@ -1120,6 +1126,8 @@
           "smart_predischarge_enabled": "Aktiviert die optionale Vorentladung nur im dynamischen Preismodus, um vor negativen Einspeisepreisen Platz zu schaffen.",
           "surplus_price_hold_enabled": "Optionale Funktion für dynamische Preise. Das Speichern von PV-Überschuss verwirkt die Einspeisevergütung dieses Zeitfensters. Die Batterie lässt den Überschuss daher einspeisen, solange noch ein deutlich günstigeres Einspeisefenster bevorsteht, und lädt stattdessen in den günstigsten Stunden. Sie gibt am Ende der Solarproduktion frei, sobald das Tagesziel erreicht ist und sobald die verbleibenden günstigen Fenster es nicht mehr decken können. Bestehende SOC-Untergrenzen, Ladeverzögerung, geplante günstige Netzfenster, Laden bei negativen Preisen, intelligente Vorentladung, wöchentliche Volladung und manuelle Steuerung haben immer Vorrang.",
           "surplus_hold_min_saving": "Wie viel günstiger das beste verbleibende Zeitfenster sein muss, bevor Überschuss zurückgehalten wird. Verhindert Umschalten bei vernachlässigbaren Preisunterschieden. Angabe in Hauptwährung/kWh.",
+          "discharge_reserve_enabled": "Optionale Funktion für dynamische Preise. Die bestehende preisbasierte Entladesperre fragt nur, ob die aktuelle Stunde günstig ist, nie, ob die noch bevorstehenden teureren Stunden die Energie in der Batterie brauchen. Diese Reserve projiziert das gelernte Verbrauchsprofil abzüglich der erwarteten PV-Erzeugung auf die verbleibenden Preisfenster, gibt den teuersten davon den ersten Anspruch auf die gespeicherte Energie und hebt die Entladeuntergrenze jeder Batterie um das an, was diese Stunden beanspruchen. Alles oberhalb der Reserve bleibt sofort für den Eigenverbrauch verfügbar. Über Mitternacht hinaus wird nie reserviert, und manuelle Steuerung, intelligente Vorentladung, Lastspitzenkappung sowie SOC-Überschreibungen je Zeitfenster haben immer Vorrang.",
+          "discharge_reserve_min_saving": "Wie viel teurer eine spätere Stunde als die aktuelle sein muss, bevor ihr Bedarf gespeicherte Energie beanspruchen darf. Verhindert, dass sich die Untergrenze bei vernachlässigbaren Preisunterschieden bewegt. Angabe in Hauptwährung/kWh.",
           "export_price_sensor": "Sensor, der die Einspeisevergütung liefert. Leer lassen, um die Importpreiskurve zu verwenden — das ist korrekt, wenn die Einspeisung zum Importpreis vergütet wird (Net Metering).",
           "export_price_integration_type": "Attributaufbau des Exportpreis-Sensors. Leer lassen, um die Import-Integration zu übernehmen. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve.",
           "negative_injection_threshold": "Preise gleich oder unter diesem Wert gelten bei erwarteter Solarüberschussenergie als Risikofenster.",
@@ -1623,6 +1631,7 @@
           "weekly_full_charge": "Wöchentliche Volladung",
           "charge_delayed": "Ladung verzögert",
           "surplus_price_hold": "Surplus Exporting (Cheaper Window Ahead)",
+          "price_reserve_hold": "Holding Charge for Dearer Hours",
           "waiting_for_solar": "Warten auf Solar",
           "charging_to_setpoint": "Laden bis Sollwert",
           "capacity_protection": "Kapazitätsschutz",
@@ -2007,6 +2016,9 @@
       },
       "surplus_price_hold_status": {
         "name": "Preisbremse Solarüberschuss"
+      },
+      "discharge_reserve_status": {
+        "name": "Entladereserve"
       },
       "wifi_status": {
         "name": "WLAN-Status"

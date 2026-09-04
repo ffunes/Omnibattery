@@ -367,6 +367,8 @@
           "smart_predischarge_enabled": "Pré-décharge intelligente / anti-écrêtement",
           "surplus_price_hold_enabled": "Activer l'absorption du surplus solaire selon le prix",
           "surplus_hold_min_saving": "Économie minimale pour retenir le surplus (devise/kWh)",
+          "discharge_reserve_enabled": "Activer la réserve de décharge selon le prix",
+          "discharge_reserve_min_saving": "Économie minimale pour la réserve de décharge (devise/kWh)",
           "export_price_sensor": "Capteur de prix d'injection/revente (optionnel)",
           "export_price_integration_type": "Intégration du prix d'export (optionnel)",
           "negative_injection_threshold": "Seuil d'injection négative",
@@ -386,6 +388,8 @@
           "smart_predischarge_enabled": "Active la pré-décharge optionnelle uniquement en mode de tarification dynamique pour créer de l'espace avant les créneaux d'injection négative.",
           "surplus_price_hold_enabled": "Fonction optionnelle de tarification dynamique. Stocker le surplus PV fait perdre la rémunération d'injection de ce créneau : la batterie laisse donc le surplus être injecté tant qu'un créneau d'injection nettement moins cher reste à venir, et absorbe pendant les heures les moins chères. Elle relâche à la fin de la production solaire, dès que l'objectif du jour est atteint et dès que les créneaux bon marché restants ne peuvent plus le couvrir. Les seuils de SOC existants, le report de charge, les créneaux réseau bon marché planifiés, la charge à prix négatif, la pré-décharge intelligente, la charge complète hebdomadaire et le pilotage manuel restent prioritaires.",
           "surplus_hold_min_saving": "De combien le meilleur créneau restant doit être moins cher avant de retenir le surplus. Évite les bascules sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
+          "discharge_reserve_enabled": "Fonction optionnelle de tarification dynamique. Le blocage de décharge basé sur le prix demande seulement si l'heure actuelle est bon marché, jamais si les heures plus chères à venir ont besoin de l'énergie stockée dans la batterie. Cette réserve projette le profil de consommation appris moins la production PV attendue sur les créneaux de prix restants, donne aux plus chers d'entre eux la priorité sur l'énergie stockée et relève le seuil de décharge de chaque batterie de ce que ces heures réclament. Tout ce qui dépasse la réserve reste disponible immédiatement pour l'autoconsommation. Rien n'est jamais réservé au-delà de minuit, et le pilotage manuel, la pré-décharge intelligente, l'écrêtage de pointe et les seuils de SOC par créneau restent prioritaires.",
+          "discharge_reserve_min_saving": "De combien une heure ultérieure doit être plus chère que l'heure actuelle avant que son besoin puisse réclamer de l'énergie stockée. Évite que le seuil bouge sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
           "export_price_sensor": "Capteur fournissant les prix d'injection. Laisser vide pour utiliser la courbe des prix d'import, ce qui est correct lorsque l'injection est rémunérée au prix d'import (net metering).",
           "export_price_integration_type": "Disposition des attributs du capteur de prix d'export. Laisser vide pour réutiliser l'intégration d'import. Tibber n'est pas disponible ici : il repose sur un service et son cache appartient à la courbe d'import.",
           "negative_injection_threshold": "Les prix inférieurs ou égaux à ce seuil sont considérés comme des créneaux à risque lorsqu'un surplus solaire est prévu.",
@@ -1113,6 +1117,8 @@
           "smart_predischarge_enabled": "Pré-décharge intelligente / anti-écrêtement",
           "surplus_price_hold_enabled": "Activer l'absorption du surplus solaire selon le prix",
           "surplus_hold_min_saving": "Économie minimale pour retenir le surplus (devise/kWh)",
+          "discharge_reserve_enabled": "Activer la réserve de décharge selon le prix",
+          "discharge_reserve_min_saving": "Économie minimale pour la réserve de décharge (devise/kWh)",
           "export_price_sensor": "Capteur de prix d'injection/revente (optionnel)",
           "export_price_integration_type": "Intégration du prix d'export (optionnel)",
           "negative_injection_threshold": "Seuil d'injection négative",
@@ -1132,6 +1138,8 @@
           "smart_predischarge_enabled": "Active la pré-décharge optionnelle uniquement en mode de tarification dynamique pour créer de l'espace avant les créneaux d'injection négative.",
           "surplus_price_hold_enabled": "Fonction optionnelle de tarification dynamique. Stocker le surplus PV fait perdre la rémunération d'injection de ce créneau : la batterie laisse donc le surplus être injecté tant qu'un créneau d'injection nettement moins cher reste à venir, et absorbe pendant les heures les moins chères. Elle relâche à la fin de la production solaire, dès que l'objectif du jour est atteint et dès que les créneaux bon marché restants ne peuvent plus le couvrir. Les seuils de SOC existants, le report de charge, les créneaux réseau bon marché planifiés, la charge à prix négatif, la pré-décharge intelligente, la charge complète hebdomadaire et le pilotage manuel restent prioritaires.",
           "surplus_hold_min_saving": "De combien le meilleur créneau restant doit être moins cher avant de retenir le surplus. Évite les bascules sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
+          "discharge_reserve_enabled": "Fonction optionnelle de tarification dynamique. Le blocage de décharge basé sur le prix demande seulement si l'heure actuelle est bon marché, jamais si les heures plus chères à venir ont besoin de l'énergie stockée dans la batterie. Cette réserve projette le profil de consommation appris moins la production PV attendue sur les créneaux de prix restants, donne aux plus chers d'entre eux la priorité sur l'énergie stockée et relève le seuil de décharge de chaque batterie de ce que ces heures réclament. Tout ce qui dépasse la réserve reste disponible immédiatement pour l'autoconsommation. Rien n'est jamais réservé au-delà de minuit, et le pilotage manuel, la pré-décharge intelligente, l'écrêtage de pointe et les seuils de SOC par créneau restent prioritaires.",
+          "discharge_reserve_min_saving": "De combien une heure ultérieure doit être plus chère que l'heure actuelle avant que son besoin puisse réclamer de l'énergie stockée. Évite que le seuil bouge sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
           "export_price_sensor": "Capteur fournissant les prix d'injection. Laisser vide pour utiliser la courbe des prix d'import, ce qui est correct lorsque l'injection est rémunérée au prix d'import (net metering).",
           "export_price_integration_type": "Disposition des attributs du capteur de prix d'export. Laisser vide pour réutiliser l'intégration d'import. Tibber n'est pas disponible ici : il repose sur un service et son cache appartient à la courbe d'import.",
           "negative_injection_threshold": "Les prix inférieurs ou égaux à ce seuil sont considérés comme des créneaux à risque lorsqu'un surplus solaire est prévu.",
@@ -1636,6 +1644,7 @@
           "weekly_full_charge": "Charge Complète Hebdomadaire",
           "charge_delayed": "Charge Retardée",
           "surplus_price_hold": "Surplus Exporting (Cheaper Window Ahead)",
+          "price_reserve_hold": "Holding Charge for Dearer Hours",
           "waiting_for_solar": "En Attente du Solaire",
           "charging_to_setpoint": "Charge jusqu'au Seuil",
           "capacity_protection": "Protection de Capacité",
@@ -2020,6 +2029,9 @@
       },
       "surplus_price_hold_status": {
         "name": "Retenue de surplus selon le prix"
+      },
+      "discharge_reserve_status": {
+        "name": "Réserve de décharge"
       },
       "wifi_status": {
         "name": "État WiFi"
