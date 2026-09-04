@@ -3699,11 +3699,12 @@ class ChargeDischargeController:
         pricing_mgr = getattr(self, "_pricing_mgr", None)
         if pricing_mgr is not None:
             pricing_mgr.refresh_curtailment_runtime()
-        # Price-aware surplus absorption reads the curtailment runtime status it
-        # guards on, so it must be evaluated after that refresh. It only reads
-        # the plan the dynamic-pricing handler builds asynchronously.
-        self._refresh_surplus_price_hold_block()
         self._refresh_ev_blocks()
+        # Price-aware surplus absorption guards on both the curtailment runtime
+        # status and the ev_pause blocker, so it runs after both are current.
+        # Reading a stale registry released the hold for a whole cycle whenever
+        # EV pause lifted.
+        self._refresh_surplus_price_hold_block()
         self._refresh_dynamic_power_control_block()
         self._refresh_user_battery_blocks()
         self._refresh_normal_balance_blocks()
@@ -8181,6 +8182,11 @@ class ChargeDischargeController:
         # If manual mode is enabled, skip all automatic control logic
         if self.manual_mode_enabled:
             self._pricing_mgr.clear_curtailment_runtime("manual_mode")
+            # This path returns before _refresh_operation_blockers(), so the
+            # hold's charge blocker would otherwise stay latched for the whole
+            # manual session.
+            if self._surplus_hold_mgr is not None:
+                self._surplus_hold_mgr.clear("manual_mode")
             _LOGGER.debug("Manual Mode active - skipping automatic control")
             # Register-based drivers (Marstek) obey the user's force_mode /
             # set_*_power register writes directly, so we just freeze the

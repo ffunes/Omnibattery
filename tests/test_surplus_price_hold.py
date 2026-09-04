@@ -498,6 +498,43 @@ def test_the_minimum_saving_slider_takes_effect_without_a_rebuild():
     assert manager.is_hold_active() is False
 
 
+async def test_the_plan_target_and_the_live_target_measure_the_same_energy():
+    """A reserve above the hardware floor must not strand the plan.
+
+    The pricing engine reports usable energy against ``min_soc`` and counts
+    every coordinator; the live refresh counts eligible batteries against
+    ``floor_soc_pct``. Feeding the first into the plan made the live target
+    exceed the planned one on the first cycle after every rebuild, so the hold
+    reported a shortfall and never engaged.
+    """
+    slots = [_slot(10, 0.28), _slot(12, 0.12)]
+    # 50% of 10 kWh is 5.0 kWh above min_soc but only 3.0 kWh above the 20%
+    # pre-discharge floor the snapshot carries.
+    snapshot = BatterySnapshot("battery-1", 50.0, 10.0, 100.0, 20.0, 2500.0, True)
+
+    async def _decision(**_kwargs):
+        return {
+            "remaining_consumption_kwh": 8.0,
+            "remaining_solar_kwh": 12.0,
+            "usable_energy_kwh": 5.0,
+        }
+
+    pricing = _pricing(
+        get_future_export_price_slots=lambda horizon_end=None: slots,
+        _evaluate_remaining_grid_charging=_decision,
+        _curtailment_battery_snapshots=lambda: [snapshot],
+        _curtailment_forecast_model=lambda now: (12.0, None, None),
+    )
+    controller = _controller(_pricing_mgr=pricing)
+    manager = _manager(controller)
+
+    await manager.async_rebuild_plan("test", force=True)
+    planned_target = manager.plan.target_kwh
+    manager._refresh_live_target()
+
+    assert planned_target == pytest.approx(manager._live_target_kwh)
+
+
 def test_the_live_target_refresh_reads_only_battery_snapshots():
     """The per-cycle path must never run the remaining-horizon evaluation."""
     def _forbidden(**_kwargs):
@@ -539,16 +576,22 @@ def test_the_daylight_share_scales_the_load_to_the_solar_window():
     assert share == pytest.approx(9.5, abs=0.05)
 
 
-def test_the_daylight_share_uses_the_consumption_window_model():
-    controller = _controller()
-    controller._consumption_tracker.consumption_window_hours_in_range = (
-        lambda start, end: 2.0 if end <= 19.0 else 8.0
-    )
-    manager = _manager(controller)
+def test_the_daylight_share_spreads_the_remaining_load_over_the_day():
+    manager = _manager()
 
     share = manager._daylight_share(8.0, NOW, DAY + timedelta(hours=19))
 
-    assert share == pytest.approx(2.0)
+    # 09:30 to 19:00 is 9.5 of the 14.5 hours left before midnight.
+    assert share == pytest.approx(8.0 * 9.5 / 14.5)
+
+
+def test_a_midnight_deadline_still_carries_the_whole_remaining_load():
+    """A deadline of tomorrow 00:00 reads as hour 0, which zeroed the load."""
+    manager = _manager()
+
+    share = manager._daylight_share(8.0, NOW, DAY + timedelta(hours=24))
+
+    assert share == pytest.approx(8.0)
 
 
 def test_the_daylight_share_is_zero_after_the_deadline():

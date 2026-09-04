@@ -363,8 +363,8 @@
           "dp_price_discharge_control": "Décharger uniquement si le prix dépasse le seuil",
           "negative_price_charging_enabled": "Activer la charge opportuniste à prix négatif",
           "smart_predischarge_enabled": "Pré-décharge intelligente / anti-écrêtement",
-          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
-          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
+          "surplus_price_hold_enabled": "Activer l'absorption du surplus solaire selon le prix",
+          "surplus_hold_min_saving": "Économie minimale pour retenir le surplus (devise/kWh)",
           "export_price_sensor": "Export/feed-in price sensor (optional)",
           "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Seuil d'injection négative",
@@ -382,8 +382,8 @@
           "dp_price_discharge_control": "Si activé, la batterie ne se décharge que lorsque le prix actuel dépasse le seuil de prix maximum configuré. Si aucun seuil n'est configuré, la moyenne journalière calculée automatiquement depuis le capteur de prix est utilisée. Si les plages horaires limitent la décharge, les deux conditions doivent être remplies.",
           "negative_price_charging_enabled": "Fonction optionnelle de tarification dynamique qui charge pendant les créneaux d'importation les plus négatifs, même si la prévision normale ne demande pas de charge réseau. Aucun capteur de prévision solaire n'est requis.",
           "smart_predischarge_enabled": "Active la pré-décharge optionnelle uniquement en mode de tarification dynamique pour créer de l'espace avant les créneaux d'injection négative.",
-          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
-          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
+          "surplus_price_hold_enabled": "Fonction optionnelle de tarification dynamique. Stocker le surplus PV fait perdre la rémunération d'injection de ce créneau : la batterie laisse donc le surplus être injecté tant qu'un créneau d'injection nettement moins cher reste à venir, et absorbe pendant les heures les moins chères. Elle relâche à la fin de la production solaire, dès que l'objectif du jour est atteint et dès que les créneaux bon marché restants ne peuvent plus le couvrir. Les seuils de SOC existants, le report de charge, les créneaux réseau bon marché planifiés, la charge à prix négatif, la pré-décharge intelligente, la charge complète hebdomadaire et le pilotage manuel restent prioritaires.",
+          "surplus_hold_min_saving": "De combien le meilleur créneau restant doit être moins cher avant de retenir le surplus. Évite les bascules sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Les prix inférieurs ou égaux à ce seuil sont considérés comme des créneaux à risque lorsqu'un surplus solaire est prévu.",
@@ -1107,8 +1107,8 @@
           "dp_price_discharge_control": "Décharger uniquement si le prix dépasse le seuil",
           "negative_price_charging_enabled": "Activer la charge opportuniste à prix négatif",
           "smart_predischarge_enabled": "Pré-décharge intelligente / anti-écrêtement",
-          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
-          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
+          "surplus_price_hold_enabled": "Activer l'absorption du surplus solaire selon le prix",
+          "surplus_hold_min_saving": "Économie minimale pour retenir le surplus (devise/kWh)",
           "export_price_sensor": "Export/feed-in price sensor (optional)",
           "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Seuil d'injection négative",
@@ -1126,8 +1126,8 @@
           "dp_price_discharge_control": "Si activé, la batterie ne se décharge que lorsque le prix actuel dépasse le seuil de prix maximum configuré. Si aucun seuil n'est configuré, la moyenne journalière calculée automatiquement depuis le capteur de prix est utilisée. Si les plages horaires limitent la décharge, les deux conditions doivent être remplies.",
           "negative_price_charging_enabled": "Fonction optionnelle de tarification dynamique qui charge pendant les créneaux d'importation les plus négatifs, même si la prévision normale ne demande pas de charge réseau. Aucun capteur de prévision solaire n'est requis.",
           "smart_predischarge_enabled": "Active la pré-décharge optionnelle uniquement en mode de tarification dynamique pour créer de l'espace avant les créneaux d'injection négative.",
-          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
-          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
+          "surplus_price_hold_enabled": "Fonction optionnelle de tarification dynamique. Stocker le surplus PV fait perdre la rémunération d'injection de ce créneau : la batterie laisse donc le surplus être injecté tant qu'un créneau d'injection nettement moins cher reste à venir, et absorbe pendant les heures les moins chères. Elle relâche à la fin de la production solaire, dès que l'objectif du jour est atteint et dès que les créneaux bon marché restants ne peuvent plus le couvrir. Les seuils de SOC existants, le report de charge, les créneaux réseau bon marché planifiés, la charge à prix négatif, la pré-décharge intelligente, la charge complète hebdomadaire et le pilotage manuel restent prioritaires.",
+          "surplus_hold_min_saving": "De combien le meilleur créneau restant doit être moins cher avant de retenir le surplus. Évite les bascules sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Les prix inférieurs ou égaux à ce seuil sont considérés comme des créneaux à risque lorsqu'un surplus solaire est prévu.",
@@ -2015,7 +2015,7 @@
         "name": "État de la pré-décharge intelligente"
       },
       "surplus_price_hold_status": {
-        "name": "Surplus Price Hold"
+        "name": "Retenue de surplus selon le prix"
       },
       "wifi_status": {
         "name": "État WiFi"
@@ -2172,7 +2172,7 @@
     },
     "number": {
       "surplus_hold_min_saving": {
-        "name": "Surplus Hold Minimum Saving"
+        "name": "Économie minimale de retenue du surplus"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % exclu"

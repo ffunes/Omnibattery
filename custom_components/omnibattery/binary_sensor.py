@@ -282,6 +282,15 @@ class SurplusPriceHoldSensor(BinarySensorEntity):
         attrs.update(self._status())
         return attrs
 
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
 
 class CurtailmentStatusSensor(BinarySensorEntity):
     """Diagnostic state for the dynamic-pricing smart pre-discharge planner."""
