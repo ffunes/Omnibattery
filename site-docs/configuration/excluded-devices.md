@@ -118,11 +118,15 @@ Notes:
   away from the battery for a car that is not there. Set **Presence entity for the remaining
   demand** to `binary_sensor.evcc_<loadpoint>_connected` and the claim counts only while a vehicle
   is actually connected. A `binary_sensor`, a `device_tracker` or a text status sensor all work:
-  `on`, `true`, `home`, `connected`, `plugged` and `present` count as present, as does a state
-  containing a connected or charging keyword in any supported language (`Verbunden`,
-  `Aangesloten`, `Connesso`, `Branché`, `Charging`, …). An unavailable, unknown or missing entity
-  counts as absent, so a broken sensor stops reserving rather than reserving for a device that may
-  not be there, and the refusal is written to the debug log. A device judged absent contributes a
+  `on`, `true`, `home`, `connected`, `plugged` and `present` count as present, as does the whole
+  state matching a connected or charging word in any supported language (`Verbunden`,
+  `Aangesloten`, `Connesso`, `Branché`, `Charging`, …). The match is on the whole state, never on a
+  fragment of it, because every negative phrasing contains its own positive one — `Disconnected`
+  contains `connected`. A compound state such as `Connected, not charging` is therefore not
+  recognised and counts as absent; point the field at a `binary_sensor` in that case. An
+  unavailable, unknown or missing entity counts as absent too, so a broken sensor stops reserving
+  rather than reserving for a device that may not be there, and the refusal is written to the debug
+  log. A device judged absent contributes a
   zero claim rather than no reading, so the intraday re-evaluation still sees the change. Leave the
   field empty to keep the previous behaviour.
 - The reservation is taken from today's remaining solar in proportion to each interval's energy, so
