@@ -49,6 +49,10 @@ from ..const import (
     EXCLUDED_DEMAND_REEVAL_KWH,
     EXCLUDED_DEMAND_REEVAL_COOLDOWN_MIN,
     EXCLUDED_DEMAND_REEVAL_MAX_PER_DAY,
+    SOLAR_FORECAST_REEVAL_KWH,
+    SOLAR_FORECAST_REEVAL_COOLDOWN_MIN,
+    SOLAR_FORECAST_REEVAL_MAX_PER_DAY,
+    SOLAR_FORECAST_DAILY_RETRY_LIMIT,
     T_START_FALLBACK_HOUR,
     FLOOR_HYSTERESIS_PCT,
     CHARGE_EFFICIENCY,
@@ -3135,6 +3139,31 @@ class PricingManager:
         else:
             decision_data = await self._evaluate_remaining_grid_charging(now=now)
 
+        # A configured forecast sensor that reads zero minutes after midnight is
+        # a provider that has not published the new day yet, not a day without
+        # sun. Planning on it books a full day of grid charging the sun would
+        # have covered, and nothing later in the day can undo those slots. Reuse
+        # the price-data retry ladder instead: leave the evaluated date unset so
+        # the control loop comes back every 15 minutes within the first hour.
+        if (
+            horizon is DynamicPricingEvaluationHorizon.DAILY
+            and get_configured_solar_forecast_sensor(self._controller, "remaining")
+            and self._controller._dp_eval_retry_count < SOLAR_FORECAST_DAILY_RETRY_LIMIT
+        ):
+            forecast_kwh = decision_data.get("solar_forecast_kwh")
+            # Only a reported zero is evidence of an unpublished provider day.
+            # A missing or non-numeric value means the balance never used the
+            # remaining sensor, and deferring on that would stall the day.
+            if isinstance(forecast_kwh, (int, float)) and float(forecast_kwh) <= 0.0:
+                self._controller._dp_eval_retry_count += 1
+                _LOGGER.warning(
+                    "Dynamic pricing: solar forecast still reads zero at %s (retry %d/%d)",
+                    now.strftime("%H:%M"),
+                    self._controller._dp_eval_retry_count,
+                    SOLAR_FORECAST_DAILY_RETRY_LIMIT,
+                )
+                return
+
         # Keep the first full-day forecast separate from the live remaining
         # horizon used by later reevaluations. With a configured remaining-today
         # sensor, its value at 00:05 is the full-day forecast; the legacy today
@@ -3152,6 +3181,7 @@ class PricingManager:
         # Same debounce for the excluded-device claim (#341): the next claim
         # trigger is measured against the reading this plan was built on.
         self._refresh_excluded_demand_reference()
+        self._refresh_solar_forecast_reference(now)
         deficit_charging_needed = bool(decision_data["should_charge"])
 
         # Step 2: Parse price data (always, even without deficit — for diagnostics)
@@ -3660,6 +3690,7 @@ class PricingManager:
             # This plan already accounts for the current claim (#341); re-arm the
             # trigger so it does not immediately ask for another re-evaluation.
             self._refresh_excluded_demand_reference()
+            self._refresh_solar_forecast_reference(now)
             deficit_needed = bool(decision["should_charge"])
             if (
                 getattr(schedule, "chronological_planning_active", False)
@@ -3827,6 +3858,53 @@ class PricingManager:
         if self._remaining_solar_today_kwh(now) <= 0.0:
             return False
         return True
+
+    def _is_solar_forecast_reeval(self, now: datetime) -> bool:
+        """Return True when the remaining solar forecast moved materially.
+
+        The whole plan is a balance between what the sun will deliver and what
+        must be bought. A provider revising that forecast down leaves the
+        battery short with no way back in: ``_check_dp_pre_slot_reevaluation``
+        can only drop planned slots, never add them. An upward revision matters
+        for the same reason in reverse, so this predicate is bidirectional like
+        the excluded-device claim (#341).
+
+        Debounced identically: the reference is refreshed on every evaluation,
+        so it re-arms only after another material move. A ``None`` reference
+        (before the first evaluation of the day) never triggers.
+        """
+        controller = self._controller
+        ref = getattr(controller, "_dp_last_eval_solar_remaining_kwh", None)
+        if ref is None:
+            return False
+        if now.hour >= 23:
+            # The 00:05 evaluation is close enough; don't clash with it.
+            return False
+        current = self._remaining_solar_today_kwh(now)
+        if abs(current - ref) < SOLAR_FORECAST_REEVAL_KWH:
+            return False
+        if (
+            getattr(controller, "_dp_solar_forecast_reeval_count", 0)
+            >= SOLAR_FORECAST_REEVAL_MAX_PER_DAY
+        ):
+            return False
+        last_at = getattr(controller, "_dp_solar_forecast_reeval_at", None)
+        if last_at is not None and (now - last_at) < timedelta(
+            minutes=SOLAR_FORECAST_REEVAL_COOLDOWN_MIN
+        ):
+            return False
+        return True
+
+    def _refresh_solar_forecast_reference(self, now: datetime) -> None:
+        """Re-arm the forecast trigger against the value this plan was built on.
+
+        Called from every path that rebuilds the plan, so a re-evaluation that
+        already accounts for the current forecast does not immediately trigger
+        another one.
+        """
+        self._controller._dp_last_eval_solar_remaining_kwh = (
+            self._remaining_solar_today_kwh(now)
+        )
 
     def _read_excluded_demand_claim_kwh(self) -> float | None:
         """Raw excluded-device claim reading, or None when unavailable."""
@@ -4332,6 +4410,7 @@ class PricingManager:
         )
         self._controller._last_decision_data = decision_data
         self._refresh_excluded_demand_reference()
+        self._refresh_solar_forecast_reference(now)
 
         # Battery energy available above the discharge floor right now.
         usable_now_kwh = sum(
@@ -4732,6 +4811,23 @@ class PricingManager:
                 horizon=DynamicPricingEvaluationHorizon.REMAINING,
             )
 
+        # Phase 2.8: Re-plan when the provider revises the remaining solar
+        # forecast. Left unguarded by _current_price_slot_active for the same
+        # reason as the claim trigger above: the forecast is the input the whole
+        # schedule was built on, so a running slot was planned against solar
+        # that no longer exists. Cooldown and daily cap bound the disturbance.
+        elif self._is_solar_forecast_reeval(now):
+            self._controller._dp_solar_forecast_reeval_at = now
+            self._controller._dp_solar_forecast_reeval_count = (
+                getattr(self._controller, "_dp_solar_forecast_reeval_count", 0) + 1
+            )
+            _LOGGER.info(
+                "Dynamic pricing: remaining solar forecast changed — re-evaluating"
+            )
+            await self._evaluate_dynamic_pricing(
+                horizon=DynamicPricingEvaluationHorizon.REMAINING,
+            )
+
         # Phase 3: Daily reset at midnight
         today = now.date()
         if self._controller._dynamic_pricing_evaluated_date is not None:
@@ -4752,6 +4848,9 @@ class PricingManager:
                 self._controller._dp_last_eval_excluded_claim_kwh = None
                 self._controller._dp_excluded_demand_reeval_at = None
                 self._controller._dp_excluded_demand_reeval_count = 0
+                self._controller._dp_last_eval_solar_remaining_kwh = None
+                self._controller._dp_solar_forecast_reeval_at = None
+                self._controller._dp_solar_forecast_reeval_count = 0
                 self._reset_predictive_demand_runtime()
                 self.clear_curtailment_runtime("new_day")
                 self._clear_surplus_hold("new_day")
