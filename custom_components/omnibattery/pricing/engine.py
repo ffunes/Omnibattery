@@ -66,6 +66,7 @@ from ..solar_forecast import (
     solar_forecast_local_timezone,
     solar_forecast_period_energy_between,
 )
+from ..drivers.base import has_connected_mppt_pv
 from ..tracking.consumption_profile import adjust_remaining_fallback_energy
 from . import (
     DynamicPricingSchedule,
@@ -3185,7 +3186,14 @@ class PricingManager:
         # horizon used by later reevaluations. With a configured remaining-today
         # sensor, its value at 00:05 is the full-day forecast; the legacy today
         # path already returns that same full-day quantity.
-        if horizon is DynamicPricingEvaluationHorizon.DAILY:
+        #
+        # A deferred day (late prices, or a forecast that still read zero) is
+        # replanned by the retry ladder with REMAINING, so the DAILY test alone
+        # would leave the reference unset for the whole day. Within the first
+        # hour nothing has been produced yet, which makes the remaining figure
+        # the full-day figure; the capture itself only ever keeps the first
+        # value of the day.
+        if horizon is DynamicPricingEvaluationHorizon.DAILY or now.hour == 0:
             tracker = getattr(self._controller, "_consumption_tracker", None)
             capture = getattr(tracker, "capture_daily_solar_forecast", None)
             if callable(capture):
@@ -3895,11 +3903,34 @@ class PricingManager:
             return None
         return value if math.isfinite(value) else None
 
+    def _has_solar_production_source(self) -> bool:
+        """True when production is actually measured, not merely accumulated.
+
+        The daily accumulator is rolled over at midnight whether or not any
+        source feeds it, so its date says nothing about whether a reading ever
+        arrives. Without a source it stays at 0.0 all day, which would make the
+        projection below read the ordinary forecast decline as a revision.
+        """
+        controller = self._controller
+        if getattr(controller, "solar_production_sensor", None):
+            return True
+        return any(
+            has_connected_mppt_pv(coordinator)
+            or getattr(
+                getattr(coordinator, "capabilities", None),
+                "has_solar_telemetry",
+                False,
+            )
+            for coordinator in getattr(controller, "coordinators", None) or ()
+        )
+
     def _read_solar_produced_today_kwh(self, now: datetime) -> float | None:
-        """Solar produced so far today, or None when the accumulator is stale."""
+        """Solar produced so far today, or None when nothing measured it."""
         controller = self._controller
         actual_date = getattr(controller, "_daily_solar_energy_date", None)
         if actual_date is None or actual_date != now.date():
+            return None
+        if not self._has_solar_production_source():
             return None
         try:
             value = float(getattr(controller, "_daily_solar_energy_kwh", 0.0) or 0.0)

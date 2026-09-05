@@ -207,3 +207,36 @@ def test_zero_forecast_outside_the_first_hour_plans_normally(_frozen_clock):
 
     assert ctrl._dp_eval_retry_count == 0
     assert ctrl._dynamic_pricing_evaluated_date is not None
+
+
+def _capture_recorder(ctrl):
+    """Record the full-day forecast reference the evaluation captures."""
+    captured: list = []
+    ctrl._consumption_tracker = SimpleNamespace(
+        capture_daily_solar_forecast=lambda value: captured.append(value)
+    )
+    return captured
+
+
+def test_deferred_day_still_captures_the_full_day_reference():
+    # The ladder replays with REMAINING, so a DAILY-only capture would leave the
+    # dashboard and the solar-profile reference unset for the whole day. Within
+    # the first hour nothing has been produced, so remaining is the full day.
+    ctrl = _controller(retry_count=1)
+    captured = _capture_recorder(ctrl)
+    _run(ctrl, 12.5, horizon=DynamicPricingEvaluationHorizon.REMAINING)
+
+    assert ctrl._dynamic_pricing_evaluated_date is not None
+    assert len(captured) == 1
+
+
+def test_midday_rebuild_does_not_capture_a_remaining_figure(_frozen_clock):
+    # Past the first hour the remaining figure is not the full-day figure and
+    # must never be stored as the day's reference.
+    _frozen_clock._value = datetime(2026, 9, 4, 12, 0)
+    ctrl = _controller()
+    ctrl._dynamic_pricing_evaluated_date = _MIDNIGHT_RUN.date()
+    captured = _capture_recorder(ctrl)
+    _run(ctrl, 4.0, horizon=DynamicPricingEvaluationHorizon.REMAINING)
+
+    assert captured == []
