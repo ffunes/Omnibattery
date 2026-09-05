@@ -539,6 +539,10 @@ def _forecast_ctrl(reference, produced_reference=0.0, **overrides):
         _dp_last_eval_solar_produced_kwh=produced_reference,
         _daily_solar_energy_kwh=0.0,
         _daily_solar_energy_date=_CLAIM_NOW.date(),
+        # The accumulator only advances when something feeds it; the projection
+        # is silent without a configured source.
+        solar_production_sensor="sensor.pv_production",
+        coordinators=[],
         _last_decision_data={},
         _dp_solar_forecast_reeval_at=None,
         _dp_solar_forecast_reeval_count=0,
@@ -600,6 +604,15 @@ def test_solar_forecast_reeval_false_when_the_sensor_is_unavailable():
     # An unavailable read is None, not a collapse to zero.
     ctrl = _forecast_ctrl(13.1)
     manager = _forecast_mgr(ctrl, None, produced=1.8)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
+
+
+def test_solar_forecast_reeval_false_without_a_production_source():
+    # No solar sensor and no battery PV: the accumulator is rolled over at
+    # midnight anyway, so its date proves nothing and it stays at 0.0 all day.
+    # Comparing against it would read the ordinary decline as a revision.
+    ctrl = _forecast_ctrl(13.1, solar_production_sensor=None)
+    manager = _forecast_mgr(ctrl, 4.1)
     assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
 
 
