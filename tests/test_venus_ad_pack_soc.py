@@ -226,11 +226,28 @@ def test_the_measured_six_pack_case():
     assert not _dischargeable(data, min_soc=12)
 
 
-def test_an_aggregate_above_the_floor_does_not_override_a_pack_on_it():
-    # The aggregate is what hid the stop for six hours: 15% reads healthy.
-    data = {"battery_soc": 30, "battery_soc_pack_1": 40.0, "battery_soc_pack_2": 10.0}
-    assert _discharge_blocks(data)
-    assert not _dischargeable(data)
+def test_packs_override_an_aggregate_already_at_the_floor():
+    # Unchanged by the swap to min(): the aggregate is at the floor but every
+    # pack is above it, so the battery keeps going.
+    data = {"battery_soc": 10, "battery_soc_pack_1": 40.0, "battery_soc_pack_2": 12.0}
+    assert not _discharge_blocks(data)
+    assert _dischargeable(data)
+
+
+def test_a_slot_written_off_by_the_probe_does_not_read_as_empty():
+    """The stale zero. An absent slot answers a flat 0 for the probe's cycles;
+    the driver then stops polling it, so the coordinator keeps that 0 for good.
+    Harmless against the fullest pack, fatal against the first: a battery at
+    80% would be excluded from discharge and never released, because the
+    min-SOC latch only clears on a recovery the stale key can never show."""
+    data = {
+        "battery_soc": 80,
+        "battery_soc_pack_1": 80.0, "battery_soc_pack_2": 80.0,
+        "battery_soc_pack_3": None, "battery_soc_pack_4": None,
+        "battery_soc_pack_5": None, "battery_soc_pack_6": None,
+    }
+    assert not _discharge_blocks(data)
+    assert _dischargeable(data)
 
 
 def test_out_of_range_pack_reading_is_ignored():
@@ -339,3 +356,36 @@ def test_full_verdict_waits_for_the_least_full_pack():
     assert _weekly(coord).is_battery_full(coord) is False
     coord.data["battery_soc_pack_2"] = 100.0
     assert _weekly(coord).is_battery_full(coord) is True
+
+
+@pytest.mark.asyncio
+async def test_a_written_off_slot_is_purged_not_merely_dropped():
+    """Stopping the polls is not enough: the zeros already stored stay unless
+    the slot's key is overwritten once, on the cycle it is written off."""
+    reads = {32104: 80, _pack_register(1): 800, _pack_register(2): 800}
+    driver = _driver(reads)
+
+    # Every slot answers during the probe; the absent ones answer a flat 0.
+    for n in range(3, 7):
+        reads[_pack_register(n)] = 0
+
+    seen = []
+    for _ in range(_PACK_PROBE_CYCLES):
+        await driver.read_telemetry(["battery_soc"])
+        for key in PACK_SOC_KEYS:
+            seen.append(await driver.read_telemetry([key]))
+
+    assert driver._packs == {"battery_soc_pack_1", "battery_soc_pack_2"}
+
+    # Exactly one snapshot carries the purge, on the cycle the probe finished,
+    # and it names every written-off slot.
+    purges = [s for s in seen if s.get("battery_soc_pack_3", "missing") is None]
+    assert len(purges) == 1
+    for n in range(3, 7):
+        assert purges[0][f"battery_soc_pack_{n}"] is None
+    # Only the written-off slots are purged; a populated one is never nulled.
+    assert not any(
+        s.get("battery_soc_pack_1", "missing") is None
+        or s.get("battery_soc_pack_2", "missing") is None
+        for s in seen
+    )
