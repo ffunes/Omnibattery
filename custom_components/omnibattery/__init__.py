@@ -3643,9 +3643,10 @@ class ChargeDischargeController:
 
             current_soc = coordinator.data.get("battery_soc", 0)
             effective_min_soc, min_soc_source = self._effective_discharge_min_soc(coordinator)
-            # A coupled-pack battery is empty when its *fullest* pack reaches the
-            # floor, not when its aggregate does (issue #350). Falls back to the
-            # aggregate on every battery that publishes no per-pack telemetry.
+            # A coupled-pack battery is empty when its *first* pack reaches the
+            # floor: a Venus D stops the whole battery there and strands the
+            # charge in the others (issue #350). Falls back to the aggregate on
+            # every battery that publishes no per-pack telemetry.
             floor_soc = soc_vs_floor(coordinator, current_soc)
             if floor_soc <= effective_min_soc:
                 self.set_discharge_block(
@@ -4086,9 +4087,10 @@ class ChargeDischargeController:
                 # the battery for a sliver of discharge — relay ping-pong and
                 # micro-cycles at the worst SOC region. Latch the exclusion at
                 # min_soc; release only after a real recovery margin.
-                # Judged on the fullest pack for a coupled-pack battery: the
-                # aggregate hits the floor while a pack still has charge to give
-                # (issue #350). Identical to current_soc without pack telemetry.
+                # Judged on the first pack to empty for a coupled-pack
+                # battery: the aggregate still reads above the floor after the
+                # device has already stopped (issue #350). Identical to
+                # current_soc without pack telemetry.
                 floor_soc = soc_vs_floor(coordinator, current_soc)
                 if floor_soc <= coordinator.min_soc:
                     coordinator._discharge_min_soc_latched = True
