@@ -594,3 +594,40 @@ async def test_config_flow_seeds_4020_x_characteristics_from_discovery(monkeypat
         "MSA-4020",
         model_hint="hibattery_4020_x",
     )
+
+
+@pytest.mark.asyncio
+async def test_quick_payload_publishes_ac_port_power_beside_cell_power(mqtt_mock):
+    """Issue #399: sys_bat_p is cell power. With PV (and a microinverter on the
+    off-grid port) feeding the DC bus it reads "charging" regardless of what the
+    AC port is doing, so the on-grid exchange is published as its own key."""
+    hass = _hass()
+    driver = HoymilesMqttDriver(hass, "HB-1", model="HB-4020-X")
+    assert await driver.connect()
+
+    mqtt_mock.callbacks[driver._quick_topic](SimpleNamespace(payload=(
+        '{"grid_on_p":1.4,"grid_off_p":-217.7,"pv_p":567.9,"bat_sts":"charge",'
+        '"bat_p":-784.2,"soc":22.7,"sys_pv_p":567.9,"sys_plug_p":1.4,'
+        '"sys_bat_p":-784.2,"sys_soc":22.7,"sys_eps_p":-217.7}'
+    )))
+
+    snapshot = await driver.read_telemetry(["battery_power", "ac_delivered_power"])
+    assert snapshot == {"battery_power": 784.2, "ac_delivered_power": -1.4}
+    # Polled as a telemetry-only key, and kept polling even with no entity for it.
+    assert "ac_delivered_power" in driver.read_groups[0].keys
+    assert "ac_delivered_power" in driver.control_dependency_keys
+
+
+@pytest.mark.asyncio
+async def test_ac_port_key_absent_when_firmware_omits_the_fields(mqtt_mock):
+    """Firmware without sys_plug_p/grid_on_p must leave the key unset so the
+    control layer falls back to the cell-only delivery judgement."""
+    hass = _hass()
+    driver = HoymilesMqttDriver(hass, "HB-2", model="HB-4020-X")
+    assert await driver.connect()
+
+    mqtt_mock.callbacks[driver._quick_topic](
+        SimpleNamespace(payload='{"sys_soc":50,"sys_bat_p":300,"bat_sts":"discharge"}')
+    )
+
+    assert await driver.read_telemetry(["ac_delivered_power"]) == {}

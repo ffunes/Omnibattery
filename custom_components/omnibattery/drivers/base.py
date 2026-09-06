@@ -30,6 +30,19 @@ from dataclasses import dataclass
 from typing import Optional
 
 
+# Optional telemetry key a driver may publish alongside ``battery_power``.
+#
+# ``battery_power`` is cell-side (+charge / -discharge). On a battery whose PV or
+# an off-grid microinverter feeds the same DC bus, the cells can read "charging"
+# while the AC port is delivering the commanded discharge, and can absorb a
+# commanded charge straight from PV with nothing crossing the AC port at all
+# (issue #399). A driver that can measure the exchange at the device's own AC
+# port publishes it under this key, in the same sign convention as
+# ``battery_power``. Drivers that cannot measure it simply omit the key and the
+# control layer keeps judging delivery from the cells alone.
+DELIVERED_AC_POWER_KEY = "ac_delivered_power"
+
+
 @dataclass(frozen=True)
 class DriverCapabilities:
     """Static, brand/model-specific traits the control layer branches on.
