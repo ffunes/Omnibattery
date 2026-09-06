@@ -363,6 +363,8 @@
           "smart_predischarge_enabled": "Predescàrrega intel·ligent / anti-abocament",
           "surplus_price_hold_enabled": "Activar l'absorció de l'excedent solar segons el preu",
           "surplus_hold_min_saving": "Estalvi mínim per retenir l'excedent (moneda/kWh)",
+          "discharge_reserve_enabled": "Activar la reserva de descàrrega segons el preu",
+          "discharge_reserve_min_saving": "Estalvi mínim per a la reserva de descàrrega (moneda/kWh)",
           "export_price_sensor": "Sensor de preu d'injecció/exportació (opcional)",
           "export_price_integration_type": "Integració del preu d'exportació (opcional)",
           "negative_injection_threshold": "Llindar d'injecció negativa",
@@ -382,6 +384,8 @@
           "smart_predischarge_enabled": "Activa la predescàrrega optativa només en el mode de preus dinàmics per crear espai abans de franges amb preu d'injecció negatiu.",
           "surplus_price_hold_enabled": "Funció opcional de preus dinàmics. Emmagatzemar l'excedent fotovoltaic renuncia a la retribució per injecció d'aquella franja, així que la bateria deixa que l'excedent s'injecti mentre encara hi hagi al davant una franja d'injecció clarament més barata, i absorbeix en les hores més barates. S'allibera al final de la producció solar, quan s'assoleix l'objectiu del dia i quan les franges barates restants ja no el poden cobrir. Els límits de SOC existents, el retard de càrrega, les franges de xarxa barates programades, la càrrega amb preu negatiu, la predescàrrega intel·ligent, la càrrega completa setmanal i el control manual sempre tenen prioritat.",
           "surplus_hold_min_saving": "Quant més barata ha de ser la millor franja restant abans de retenir l'excedent. Evita commutar per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
+          "discharge_reserve_enabled": "Funció opcional de preus dinàmics. El bloqueig de descàrrega per preu només pregunta si l'hora actual és barata, mai si les hores més cares que encara han de venir necessiten l'energia que hi ha a la bateria. Aquesta reserva projecta el perfil de consum après menys la producció fotovoltaica prevista sobre les franges de preu restants, dona a les més cares el primer dret sobre l'energia emmagatzemada i apuja el límit de descàrrega de cada bateria en allò que aquelles hores reclamen. Tot el que superi la reserva continua disponible ara mateix per a l'autoconsum. Mai es reserva més enllà de mitjanit, i el control manual, la predescàrrega intel·ligent, la reducció de puntes i els límits de SOC per franja sempre tenen prioritat.",
+          "discharge_reserve_min_saving": "Quant més cara ha de ser una hora posterior que l'actual abans que la seva demanda pugui reclamar energia emmagatzemada. Evita que el límit es mogui per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
           "export_price_sensor": "Sensor que proporciona els preus d'injecció. Deixa'l buit per fer servir la corba de preus d'importació, que és el correcte quan la injecció es retribueix al preu d'importació (balanç net).",
           "export_price_integration_type": "Disposició d'atributs del sensor de preu d'exportació. Deixa'l buit per reutilitzar la integració d'importació. Tibber no hi és disponible: està basat en servei i la seva memòria cau pertany a la corba d'importació.",
           "negative_injection_threshold": "Preus iguals o inferiors a aquest llindar es consideren franges de risc quan hi ha excedent solar previst.",
@@ -1101,6 +1105,8 @@
           "smart_predischarge_enabled": "Predescàrrega intel·ligent / anti-abocament",
           "surplus_price_hold_enabled": "Activar l'absorció de l'excedent solar segons el preu",
           "surplus_hold_min_saving": "Estalvi mínim per retenir l'excedent (moneda/kWh)",
+          "discharge_reserve_enabled": "Activar la reserva de descàrrega segons el preu",
+          "discharge_reserve_min_saving": "Estalvi mínim per a la reserva de descàrrega (moneda/kWh)",
           "export_price_sensor": "Sensor de preu d'injecció/exportació (opcional)",
           "export_price_integration_type": "Integració del preu d'exportació (opcional)",
           "negative_injection_threshold": "Llindar d'injecció negativa",
@@ -1120,6 +1126,8 @@
           "smart_predischarge_enabled": "Activa la predescàrrega optativa només en el mode de preus dinàmics per crear espai abans de franges amb preu d'injecció negatiu.",
           "surplus_price_hold_enabled": "Funció opcional de preus dinàmics. Emmagatzemar l'excedent fotovoltaic renuncia a la retribució per injecció d'aquella franja, així que la bateria deixa que l'excedent s'injecti mentre encara hi hagi al davant una franja d'injecció clarament més barata, i absorbeix en les hores més barates. S'allibera al final de la producció solar, quan s'assoleix l'objectiu del dia i quan les franges barates restants ja no el poden cobrir. Els límits de SOC existents, el retard de càrrega, les franges de xarxa barates programades, la càrrega amb preu negatiu, la predescàrrega intel·ligent, la càrrega completa setmanal i el control manual sempre tenen prioritat.",
           "surplus_hold_min_saving": "Quant més barata ha de ser la millor franja restant abans de retenir l'excedent. Evita commutar per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
+          "discharge_reserve_enabled": "Funció opcional de preus dinàmics. El bloqueig de descàrrega per preu només pregunta si l'hora actual és barata, mai si les hores més cares que encara han de venir necessiten l'energia que hi ha a la bateria. Aquesta reserva projecta el perfil de consum après menys la producció fotovoltaica prevista sobre les franges de preu restants, dona a les més cares el primer dret sobre l'energia emmagatzemada i apuja el límit de descàrrega de cada bateria en allò que aquelles hores reclamen. Tot el que superi la reserva continua disponible ara mateix per a l'autoconsum. Mai es reserva més enllà de mitjanit, i el control manual, la predescàrrega intel·ligent, la reducció de puntes i els límits de SOC per franja sempre tenen prioritat.",
+          "discharge_reserve_min_saving": "Quant més cara ha de ser una hora posterior que l'actual abans que la seva demanda pugui reclamar energia emmagatzemada. Evita que el límit es mogui per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
           "export_price_sensor": "Sensor que proporciona els preus d'injecció. Deixa'l buit per fer servir la corba de preus d'importació, que és el correcte quan la injecció es retribueix al preu d'importació (balanç net).",
           "export_price_integration_type": "Disposició d'atributs del sensor de preu d'exportació. Deixa'l buit per reutilitzar la integració d'importació. Tibber no hi és disponible: està basat en servei i la seva memòria cau pertany a la corba d'importació.",
           "negative_injection_threshold": "Preus iguals o inferiors a aquest llindar es consideren franges de risc quan hi ha excedent solar previst.",
@@ -1623,6 +1631,7 @@
           "weekly_full_charge": "Càrrega Setmanal Completa",
           "charge_delayed": "Càrrega Retardada",
           "surplus_price_hold": "Surplus Exporting (Cheaper Window Ahead)",
+          "price_reserve_hold": "Holding Charge for Dearer Hours",
           "waiting_for_solar": "Esperant Solar",
           "charging_to_setpoint": "Carregant al Setpoint",
           "capacity_protection": "Protecció de Capacitat",
@@ -2007,6 +2016,9 @@
       },
       "surplus_price_hold_status": {
         "name": "Retenció d'excedent per preu"
+      },
+      "discharge_reserve_status": {
+        "name": "Reserva de descàrrega"
       },
       "wifi_status": {
         "name": "Estat WiFi"

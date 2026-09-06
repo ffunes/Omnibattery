@@ -202,6 +202,33 @@ In the idle band the battery neither grid-charges nor discharges — but **solar
 
 Both thresholds are also exposed as live `number` entities (**Max Price Threshold** and **Discharge Price Floor**) so automations can rewrite them without entering the options flow.
 
+### Price-aware discharge reserve
+
+The thresholds above ask one question: *is the current hour cheap?* They never ask the second one: *do the dearer hours still ahead need the energy that is in the battery?* So a full battery at noon is held out of a mild hour it could have covered for nothing, and a nearly empty battery at 16:00 is drained into that same mild hour before the evening peak it was saved for.
+
+The optional **Price-aware discharge reserve** answers the second question. It is an **opt-in subfunction of Dynamic Pricing** and works on energy, not on a price line:
+
+1. It takes the price slots between now and local midnight.
+2. It projects the learned 15-minute consumption profile onto them and subtracts the expected PV, leaving the net grid demand each slot is expected to carry.
+3. It gives the **dearest** of those slots first claim on the energy currently above the SOC floors, up to what each slot actually needs, and only for slots at least the **Discharge reserve minimum saving** above the current price.
+4. It subtracts the PV surplus expected to reach the battery *before* the first claiming slot, capped by the room left in it. Holding energy back that the sun is about to replace would import now and export that production instead.
+5. What is left is converted into one percentage of fleet capacity, and each battery sitting at or below its effective discharge floor plus that percentage gets a `price_reserve` discharge blocker.
+
+Everything above the reserve stays available for self-consumption right now, which is what makes this compose with the thresholds instead of competing with them. The floor is recomputed every control cycle against the live price and the live SOC, so it falls away the moment the current hour becomes the dear one, and it can never rise above the energy the battery still holds.
+
+`price_reserve` is an **economic** blocker, like `price_discharge`: peak shaving and emergency protection may spend the reserve, and the smart pre-discharge planner still sees the battery as dischargeable. The configured `min_soc` is never rewritten, so no other planner's view of the battery moves.
+
+The reserve stops at midnight by design: reserving overnight for tomorrow's evening would be wrong on every day the sun refills the battery in between, and the planner has no model of tomorrow's PV.
+
+| Control | Meaning |
+|---|---|
+| **Price-aware discharge reserve** | Opt-in; default off |
+| **Discharge reserve minimum saving** | How much dearer a later hour must be than the current one before its demand may claim stored energy. Prevents the floor from moving on negligible differences |
+
+A missing price, a missing consumption profile, no usable energy and no future demand all leave the floor at the configured `min_soc`. So do the features that spend the battery on purpose: smart pre-discharge, peak shaving, manual mode and manual time-slot ownership. An explicit per-slot SOC override also wins — that is the user speaking about that window.
+
+The binary sensor `discharge_reserve_status` reports whether a reserve is active, the reason, the reserved energy and percentage, the reference price and the slots that claim it. The **Integration Status** sensor reports `price_reserve_hold` while a battery is held.
+
 ### Minimum arbitrage margin
 
 A fixed charge ceiling answers "is this price low?" but not "is it low *enough*". Those come apart in winter, when a flat price curve can sit entirely below the ceiling while offering no spread to trade against. Charging then runs the battery through a cycle that the round-trip losses eat.
