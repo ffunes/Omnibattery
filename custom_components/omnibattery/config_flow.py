@@ -112,6 +112,10 @@ from .const import (
     DEFAULT_SURPLUS_PRICE_HOLD_ENABLED,
     CONF_SURPLUS_HOLD_MIN_SAVING,
     DEFAULT_SURPLUS_HOLD_MIN_SAVING,
+    CONF_DISCHARGE_RESERVE_ENABLED,
+    DEFAULT_DISCHARGE_RESERVE_ENABLED,
+    CONF_DISCHARGE_RESERVE_MIN_SAVING,
+    DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_EXPORT_PRICE_INTEGRATION_TYPE,
     CONF_NEGATIVE_INJECTION_THRESHOLD,
@@ -2662,6 +2666,12 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                         self.config_data[CONF_SURPLUS_HOLD_MIN_SAVING] = user_input.get(
                             CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
                         )
+                        self.config_data[CONF_DISCHARGE_RESERVE_ENABLED] = user_input.get(
+                            CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
+                        )
+                        self.config_data[CONF_DISCHARGE_RESERVE_MIN_SAVING] = user_input.get(
+                            CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
+                        )
                         self.config_data[CONF_EXPORT_PRICE_SENSOR] = user_input.get(
                             CONF_EXPORT_PRICE_SENSOR
                         )
@@ -2717,6 +2727,10 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         schema_dict[vol.Optional(CONF_SMART_PREDISCHARGE_ENABLED, default=DEFAULT_SMART_PREDISCHARGE_ENABLED)] = bool
         schema_dict[vol.Optional(CONF_SURPLUS_PRICE_HOLD_ENABLED, default=DEFAULT_SURPLUS_PRICE_HOLD_ENABLED)] = bool
         schema_dict[vol.Optional(CONF_SURPLUS_HOLD_MIN_SAVING, default=DEFAULT_SURPLUS_HOLD_MIN_SAVING)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
+        )
+        schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_ENABLED, default=DEFAULT_DISCHARGE_RESERVE_ENABLED)] = bool
+        schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_MIN_SAVING, default=DEFAULT_DISCHARGE_RESERVE_MIN_SAVING)] = NumberSelector(
             NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
         )
         schema_dict[vol.Optional(CONF_EXPORT_PRICE_SENSOR)] = EntitySelector(
@@ -5456,6 +5470,20 @@ class OptionsFlowHandler(OptionsFlow):
                                 DEFAULT_SURPLUS_HOLD_MIN_SAVING,
                             ),
                         )
+                        self.config_data[CONF_DISCHARGE_RESERVE_ENABLED] = user_input.get(
+                            CONF_DISCHARGE_RESERVE_ENABLED,
+                            existing_config.get(
+                                CONF_DISCHARGE_RESERVE_ENABLED,
+                                DEFAULT_DISCHARGE_RESERVE_ENABLED,
+                            ),
+                        )
+                        self.config_data[CONF_DISCHARGE_RESERVE_MIN_SAVING] = user_input.get(
+                            CONF_DISCHARGE_RESERVE_MIN_SAVING,
+                            existing_config.get(
+                                CONF_DISCHARGE_RESERVE_MIN_SAVING,
+                                DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
+                            ),
+                        )
                         # Cleared entity/select fields arrive absent, so read them
                         # straight from the submission rather than falling back to
                         # the stored value — that is what makes the × button work.
@@ -5515,6 +5543,12 @@ class OptionsFlowHandler(OptionsFlow):
         default_surplus_min_saving = existing_config.get(
             CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
         )
+        default_discharge_reserve = existing_config.get(
+            CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
+        )
+        default_discharge_reserve_min_saving = existing_config.get(
+            CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
+        )
         default_export_sensor = existing_config.get(CONF_EXPORT_PRICE_SENSOR)
         default_export_type = existing_config.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
         default_negative_threshold = existing_config.get(
@@ -5561,6 +5595,10 @@ class OptionsFlowHandler(OptionsFlow):
         schema_dict[vol.Optional(CONF_SMART_PREDISCHARGE_ENABLED, default=default_smart_predischarge)] = bool
         schema_dict[vol.Optional(CONF_SURPLUS_PRICE_HOLD_ENABLED, default=default_surplus_hold)] = bool
         schema_dict[vol.Optional(CONF_SURPLUS_HOLD_MIN_SAVING, default=default_surplus_min_saving)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
+        )
+        schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_ENABLED, default=default_discharge_reserve)] = bool
+        schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_MIN_SAVING, default=default_discharge_reserve_min_saving)] = NumberSelector(
             NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
         )
         # Clearable: suggested_value pre-fills without voluptuous restoring the
