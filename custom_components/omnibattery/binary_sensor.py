@@ -51,6 +51,7 @@ async def async_setup_entry(
         if controller.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
             entities.append(CurtailmentStatusSensor(hass, entry, controller))
             entities.append(SurplusPriceHoldSensor(hass, entry, controller))
+            entities.append(DischargeReserveSensor(hass, entry, controller))
 
     # Add capacity protection status sensor (system-level, when configured, regardless of enabled state)
     if controller and CONF_CAPACITY_PROTECTION_ENABLED in entry.data:
@@ -277,6 +278,63 @@ class SurplusPriceHoldSensor(BinarySensorEntity):
             "export_price_source": (
                 getattr(self.controller, "export_price_sensor", None)
                 or "import_fallback"
+            ),
+        }
+        attrs.update(self._status())
+        return attrs
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class DischargeReserveSensor(BinarySensorEntity):
+    """Diagnostic state for the price-aware discharge reserve.
+
+    ``on`` means part of the stored energy is being kept back because a dearer
+    hour is still ahead today. The reserve itself is published as
+    ``reserve_soc_pct``: everything above it stays available right now.
+    """
+
+    _unrecorded_attributes = frozenset({"reserved_slots"})
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "discharge_reserve_status"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}discharge_reserve_status"
+        self.entity_id = system_entity_id("binary_sensor", "discharge_reserve_status")
+        self._attr_device_class = "running"
+        self._attr_icon = "mdi:battery-lock"
+        self._attr_should_poll = True
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def _status(self) -> dict:
+        manager = getattr(self.controller, "_discharge_reserve_mgr", None)
+        return manager.get_status() if manager is not None else {}
+
+    @property
+    def is_on(self) -> bool:
+        try:
+            return float(self._status().get("reserve_soc_pct", 0.0) or 0.0) > 0.0
+        except (TypeError, ValueError):
+            return False
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        attrs = {
+            "enabled": bool(
+                getattr(self.controller, "discharge_reserve_enabled", False)
+            ),
+            "min_saving": getattr(
+                self.controller, "discharge_reserve_min_saving", None
             ),
         }
         attrs.update(self._status())
