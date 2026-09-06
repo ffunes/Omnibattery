@@ -626,3 +626,45 @@ async def test_read_telemetry_rejects_transient_zero_power_glitch():
     third = await drv.read_telemetry(["battery_power"])
     assert third.get("battery_power") == 0
     assert drv._zero_power_streak == 3
+
+
+@pytest.mark.asyncio
+async def test_dc_coupled_sku_publishes_its_ac_port_beside_pack_power():
+    """Issue #366: on a DC-coupled Solarbank, 10008 is *pack* power — with the
+    MPPTs producing it reads 0 (array passing straight through) while 10012
+    exports the commanded discharge. Reported telemetry satisfies
+    grid_power == battery_power - pv_power, so 10012 is this unit's own AC port
+    and is published as the delivery signal."""
+    client = _fake_client()
+    buf = [0] * 51
+    buf[2], buf[3] = encode_int32(1350)    # 10002 pv_power
+    buf[8], buf[9] = encode_int32(0)       # 10008 pack power: array passes through
+    buf[12], buf[13] = encode_int32(-1350) # 10012 AC port: exporting as commanded
+    client.async_read_input_block = AsyncMock(return_value=buf)
+
+    drv = _driver(client=client)
+    drv._set_product_code("DN7M")
+    snap = await drv.read_telemetry(["battery_power", "grid_power", "solar_power"])
+
+    assert snap["battery_power"] == 0        # pack idle — what excluded the battery
+    assert snap["ac_delivered_power"] == -1350  # ...while the AC port delivers
+    assert "grid_power" in drv.control_dependency_keys
+
+
+@pytest.mark.asyncio
+async def test_ac_coupled_sku_publishes_no_ac_port_signal():
+    """An AC family has no DC array, so 10008 is already the AC value and 10012
+    buys the delivery check nothing. Leave the key unset rather than feed the
+    check a value whose meaning is unverified on those SKUs."""
+    client = _fake_client()
+    buf = [0] * 51
+    buf[8], buf[9] = encode_int32(-800)
+    buf[12], buf[13] = encode_int32(-800)
+    client.async_read_input_block = AsyncMock(return_value=buf)
+
+    drv = _driver(client=client)
+    drv._set_product_code("DMWH")
+    snap = await drv.read_telemetry(["battery_power", "grid_power"])
+
+    assert snap["battery_power"] == 800  # invert:True -> +charge convention
+    assert "ac_delivered_power" not in snap

@@ -222,7 +222,7 @@ from .const import (
 from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager
 from .control.residual_load import apply_guards, guards_pending
-from .drivers.base import has_connected_mppt_pv
+from .drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
 from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
@@ -562,6 +562,28 @@ def _backup_switch_enabled(value) -> bool:
     if isinstance(value, str):
         return value in ("Off-grid", "Ready")
     return value == 0
+
+
+def _delivered_toward(data: dict, cell_power: float, *, is_charge: bool) -> float:
+    """Power (W, unsigned) delivered toward the commanded direction.
+
+    Two independent signals can prove a move command is being followed: the cells
+    (``battery_power``) and, on drivers that measure it, the device's own AC port
+    (``DELIVERED_AC_POWER_KEY``). They disagree whenever PV feeds the same DC bus
+    as the actuator — the battery can export the commanded discharge while its
+    cells keep charging from surplus PV, or absorb a commanded charge straight
+    from that PV with nothing crossing the AC port (issue #399). Judging on the
+    cells alone reads the first case as 0 W out and excludes a healthy battery.
+
+    Take whichever signal shows the command being obeyed. Drivers that publish no
+    AC value keep the historical cell-only judgement unchanged.
+    """
+    sign = 1.0 if is_charge else -1.0
+    delivered = sign * float(cell_power)
+    ac_power = data.get(DELIVERED_AC_POWER_KEY)
+    if ac_power is not None:
+        delivered = max(delivered, sign * float(ac_power))
+    return max(0.0, delivered)
 
 
 class ChargeDischargeController:
@@ -6471,7 +6493,8 @@ class ChargeDischargeController:
                 batt_power = data.get("battery_power")
                 skip_write = (
                     batt_power is not None
-                    and float(batt_power) <= -0.10 * abs(net_power)
+                    and _delivered_toward(data, float(batt_power), is_charge=False)
+                    >= 0.10 * abs(net_power)
                 )
                 # Slow actuators (Zendure HTTP) never read back per-write, so the
                 # ACK-path non-delivery detection further down never runs for them.
@@ -6492,7 +6515,8 @@ class ChargeDischargeController:
                 batt_power = data.get("battery_power")
                 skip_write = (
                     batt_power is not None
-                    and float(batt_power) >= 0.10 * net_power
+                    and _delivered_toward(data, float(batt_power), is_charge=True)
+                    >= 0.10 * net_power
                 )
                 if (
                     batt_power is not None
@@ -6699,9 +6723,8 @@ class ChargeDischargeController:
         re-commanded forever.
         """
         is_charge = direction == "charge"
-        delivered_power = max(
-            0.0,
-            float(actual_power) if is_charge else -float(actual_power),
+        delivered_power = _delivered_toward(
+            coordinator.data or {}, actual_power, is_charge=is_charge
         )
         if delivered_power >= 0.10 * commanded_power:
             self._non_responsive.clear(coordinator)

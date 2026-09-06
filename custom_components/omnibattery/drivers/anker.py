@@ -28,6 +28,7 @@ from ..infra.modbus_client import decode_registers
 from .base import (
     BatteryDriver,
     DriverCapabilities,
+    DELIVERED_AC_POWER_KEY,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -636,6 +637,16 @@ class AnkerModbusDriver(BatteryDriver):
             snapshot["ac_power"] = -battery_power
         else:
             snapshot.pop("ac_power", None)
+        # On a DC-coupled SKU 10008 is pack power, so with the MPPTs producing it
+        # reads "charging" (or 0, passing the array straight through) while the AC
+        # port exports the commanded discharge — issue #366. 10012 is this unit's
+        # own AC exchange, in the same +in/-out convention, and satisfies
+        # grid_power == battery_power - pv_power on the reported hardware. The AC
+        # families have no DC array, so 10008 is already the AC value there and
+        # 10012 buys the delivery check nothing.
+        grid_power = snapshot.get("grid_power")
+        if self.has_independent_pv and isinstance(grid_power, (int, float)):
+            snapshot[DELIVERED_AC_POWER_KEY] = grid_power
         temperature = snapshot.get("temperature")
         if isinstance(temperature, (int, float)):
             snapshot["internal_temperature"] = temperature
@@ -764,6 +775,9 @@ class AnkerModbusDriver(BatteryDriver):
             "battery_power",
             "battery_status",
             "temperature",
+            # AC-port feedback for the delivery check (#366). Already in the
+            # 10000-10050 batch, so keeping it costs no extra read.
+            "grid_power",
         })
 
     async def apply_config(

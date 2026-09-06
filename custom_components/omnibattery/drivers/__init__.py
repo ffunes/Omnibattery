@@ -24,6 +24,7 @@ See ``docs/plans/driver_abstraction.md`` for the phased extraction plan.
 """
 
 from .base import (
+    DELIVERED_AC_POWER_KEY,
     BatteryDriver,
     DriverCapabilities,
     ReadGroup,
@@ -39,6 +40,7 @@ from .hoymiles import HoymilesMqttDriver
 from .huawei import HuaweiSolarDriver
 
 __all__ = [
+    "DELIVERED_AC_POWER_KEY",
     "BatteryDriver",
     "DriverCapabilities",
     "ReadGroup",

@@ -819,3 +819,101 @@ async def test_pv_gated_charge_is_not_diagnosed_as_a_broken_battery():
 
     record.assert_not_called()
     comm_fail.assert_not_called()
+
+
+async def test_discharge_delivered_at_ac_port_while_pv_charges_cells():
+    """Issue #399: a PV-coupled battery exports the commanded discharge at its AC
+    port while surplus PV keeps charging the cells, so ``battery_power`` reads
+    *positive*. Judging on the cells alone excluded a healthy battery — the AC
+    reading must count as delivery (skip the write, never record)."""
+    coord = _SlowCoordFake({
+        "force_mode": 2,
+        "set_charge_power": 0,
+        "set_discharge_power": 780,
+        "battery_power": 720,          # cells still charging from PV surplus
+        "ac_delivered_power": -780,    # ...while the AC port exports as commanded
+        "battery_soc": 40,
+    })
+    ctrl = _controller()
+    record = MagicMock(return_value=False)
+    ctrl._non_responsive.record_non_delivery = record
+
+    result = await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 780)
+
+    assert result is True
+    coord.apply_power.assert_not_called()
+    record.assert_not_called()
+
+
+async def test_charge_absorbed_from_own_pv_with_idle_ac_port():
+    """Mirror case: a charge order met from the battery's own PV moves nothing
+    across the AC port. The cells prove delivery, so the idle AC reading must not
+    pull the verdict back to non-delivery."""
+    coord = _SlowCoordFake({
+        "force_mode": 1,
+        "set_charge_power": 780,
+        "set_discharge_power": 0,
+        "battery_power": 780,        # cells charging as commanded
+        "ac_delivered_power": 0,     # entirely from own PV, nothing from grid
+        "battery_soc": 40,
+    })
+    ctrl = _controller()
+    record = MagicMock(return_value=False)
+    ctrl._non_responsive.record_non_delivery = record
+
+    result = await ChargeDischargeController._set_battery_power(ctrl, coord, 780, 0)
+
+    assert result is True
+    coord.apply_power.assert_not_called()
+    record.assert_not_called()
+
+
+async def test_genuine_non_delivery_still_recorded_when_ac_port_is_idle():
+    """Neither signal moving is a real fault: the AC fallback must not blind the
+    tracker to a battery that has actually stopped."""
+    coord = _SlowCoordFake({
+        "force_mode": 2,
+        "set_charge_power": 0,
+        "set_discharge_power": 780,
+        "battery_power": 0,
+        "ac_delivered_power": 0,
+        "battery_soc": 80,
+        "inverter_state": None,
+    })
+    coord.apply_power = AsyncMock(return_value=SetpointResult(
+        ok=True, net_power_w=-780, confirmed=False, battery_power_w=None,
+    ))
+    ctrl = _controller()
+    ctrl._last_commanded_net_sign[coord] = -1  # steady state, past engage grace
+    record = MagicMock(return_value=False)
+    ctrl._non_responsive.record_non_delivery = record
+
+    result = await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 780)
+
+    assert result is True
+    record.assert_called_once()
+
+
+async def test_missing_ac_key_keeps_cell_only_judgement():
+    """A driver that publishes no AC value must behave exactly as before: cells
+    charging while a discharge is commanded is still non-delivery."""
+    coord = _SlowCoordFake({
+        "force_mode": 2,
+        "set_charge_power": 0,
+        "set_discharge_power": 780,
+        "battery_power": 720,   # no ac_delivered_power key at all
+        "battery_soc": 80,
+        "inverter_state": None,
+    })
+    coord.apply_power = AsyncMock(return_value=SetpointResult(
+        ok=True, net_power_w=-780, confirmed=False, battery_power_w=None,
+    ))
+    ctrl = _controller()
+    ctrl._last_commanded_net_sign[coord] = -1
+    record = MagicMock(return_value=False)
+    ctrl._non_responsive.record_non_delivery = record
+
+    result = await ChargeDischargeController._set_battery_power(ctrl, coord, 0, 780)
+
+    assert result is True
+    record.assert_called_once()

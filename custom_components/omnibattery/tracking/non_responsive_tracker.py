@@ -120,15 +120,19 @@ class NonResponsiveTracker:
         self, coordinator, commanded: float, actual: float,
         *, reason: str = "non_delivery", retry_attempted: bool = False,
     ) -> str | None:
-        """Record a cycle where the battery ACK'd but delivered ~0 W.
+        """Record a cycle where the battery took the command but delivered ~0 W.
 
         Returns ``"wake"`` on the grace round (caller should attempt a wake
         nudge and leave the battery in the pool), ``"excluded"`` on the call
         that excludes the battery for real, or ``None`` otherwise.
         """
+        # Not phrased as "ACK ok": a fire-and-forget driver (Hoymiles publishes
+        # the setpoint over MQTT and never reads it back) reaches here from the
+        # poll-time delivery check, with no ACK to report either way.
         return self._record_fail(
             coordinator, reason,
-            f"ACK ok but not delivering power: commanded={int(commanded)}W, actual={int(actual)}W",
+            f"command accepted but power not delivered: "
+            f"commanded={int(commanded)}W, actual={int(actual)}W",
             retry_attempted=retry_attempted,
             allow_wake_grace=True,
         )

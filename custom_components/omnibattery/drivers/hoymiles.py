@@ -18,7 +18,14 @@ from typing import Any, Callable, Optional
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
 
-from .base import BatteryDriver, DriverCapabilities, ReadGroup, SetpointResult, TelemetrySnapshot
+from .base import (
+    DELIVERED_AC_POWER_KEY,
+    BatteryDriver,
+    DriverCapabilities,
+    ReadGroup,
+    SetpointResult,
+    TelemetrySnapshot,
+)
 
 _LOGGER = logging.getLogger(__name__)
 _DEFAULT_MAX_POWER_W = 1000
@@ -203,7 +210,12 @@ class HoymilesMqttDriver(BatteryDriver):
         self._write_lock = asyncio.Lock()
         self._keepalive_task: asyncio.Task | None = None
         self._last_net_power_w: int | None = None
-        self._read_groups = [ReadGroup("high", tuple(d["key"] for d in SENSOR_DEFINITIONS))]
+        # Telemetry-only key: no entity, but the control layer needs it polled
+        # alongside battery_power to judge delivery at the AC port.
+        self._read_groups = [ReadGroup(
+            "high",
+            tuple(d["key"] for d in SENSOR_DEFINITIONS) + (DELIVERED_AC_POWER_KEY,),
+        )]
 
     @property
     def capabilities(self): return self._capabilities
@@ -231,7 +243,11 @@ class HoymilesMqttDriver(BatteryDriver):
     @property
     def all_definitions(self): return SENSOR_DEFINITIONS
     @property
-    def control_dependency_keys(self): return frozenset({"battery_soc", "battery_power", "commanded_net_power"})
+    def control_dependency_keys(self):
+        return frozenset({
+            "battery_soc", "battery_power", "commanded_net_power",
+            DELIVERED_AC_POWER_KEY,
+        })
 
     def _topic(self, component: str, object_id: str, suffix: str) -> str:
         return f"homeassistant/{component}/{self.device_id}/{object_id}/{suffix}"
@@ -489,6 +505,14 @@ class HoymilesMqttDriver(BatteryDriver):
         if power is None: power = self._number(data, "bat_p")
         if soc is not None: self._cache["battery_soc"] = soc
         if power is not None: self._cache["battery_power"] = -power
+        # On-grid port exchange, same sign convention as battery_power. sys_bat_p
+        # is cell power, so on a unit with PV (or a microinverter on the off-grid
+        # port) feeding the DC bus it reads "charging" while the AC port delivers
+        # the commanded discharge — issue #399. Firmware that publishes neither
+        # field leaves the key unset and delivery is judged from the cells alone.
+        plug_power = self._number(data, "sys_plug_p")
+        if plug_power is None: plug_power = self._number(data, "grid_on_p")
+        if plug_power is not None: self._cache[DELIVERED_AC_POWER_KEY] = -plug_power
 
     async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:
         data = dict(self._cache)
