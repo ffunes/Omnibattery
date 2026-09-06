@@ -287,6 +287,18 @@ async def test_read_telemetry_decodes_battery_soh_from_register_10015():
     assert snap["battery_soh"] == 92
 
 
+@pytest.mark.asyncio
+async def test_read_telemetry_omits_battery_soh_when_register_10015_is_zero():
+    client = _fake_client()
+    buf = [0] * 51
+    client.async_read_input_block = AsyncMock(return_value=buf)
+
+    drv = _driver(client=client)
+    snap = await drv.read_telemetry(["battery_soh"])
+
+    assert "battery_soh" not in snap
+
+
 def test_battery_soh_in_sensor_definitions_for_e5000_and_max_ac():
     client = _fake_client()
     drv = _driver(client=client)
