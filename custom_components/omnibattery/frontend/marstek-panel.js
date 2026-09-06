@@ -894,6 +894,12 @@ const K = {
 
 const MPPT_KEYS = ["mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"];
 
+// translation_keys that change which health-metric rows a battery card renders.
+const BAT_CARD_LAYOUT_KEYS = [
+  K.batterySoh, K.batteryVoltage, K.cellMax, K.cellMin, K.cellDelta,
+  K.cycles, K.cyclesCalc, K.rte, K.chargeHysteresisActive,
+];
+
 // Diagnostic rows shown in the SOC card's second section (2-column grid).
 // One per diagnostic-category entity on the system device, except balance_neto
 // (own dedicated card).
@@ -5494,10 +5500,15 @@ class MarstekVenusPanel extends HTMLElement {
     return list;
   }
 
+  _batteryCardSig(b) {
+    const keys = BAT_CARD_LAYOUT_KEYS.filter((k) => b.entIds[k]).sort().join(",");
+    return `${b.dev}:${keys}`;
+  }
+
   _renderBaterias() {
     this._batCards = {};
     const list = this._batteryModel();
-    this._batSig = list.map((b) => b.dev).sort().join("|");
+    this._batSig = list.map((b) => this._batteryCardSig(b)).sort().join("|");
     const wrap = document.createElement("div");
     wrap.className = "bat-grid";
     if (!list.length) {
@@ -5701,7 +5712,7 @@ class MarstekVenusPanel extends HTMLElement {
 
   _patchBatteries(list) {
     if (!this._batCards) return;
-    const sig = list.map((b) => b.dev).sort().join("|");
+    const sig = list.map((b) => this._batteryCardSig(b)).sort().join("|");
     if (sig !== this._batSig && this._main) {
       // battery set changed under us: rebuild the whole view, then patch fresh
       this._main.innerHTML = "";
@@ -5823,7 +5834,7 @@ class MarstekVenusPanel extends HTMLElement {
 
     // health / cells
     const M = r.M;
-    if (M.soh) M.soh.textContent = b.soh != null ? `${this._nf(b.soh, 1)} %` : "—";
+    if (M.soh) M.soh.textContent = b.soh != null ? `${this._nf(b.soh, 0)} %` : "—";
     M.temp.textContent = b.temp != null ? `${this._nf(b.temp, 1)} °C` : "—";
     if (M.volt) M.volt.textContent = b.voltage != null ? `${this._nf(b.voltage, 2)} V` : "—";
     if (M.cmax) M.cmax.textContent = b.cellMax != null ? `${this._nf(b.cellMax, 3)} V` : "—";
