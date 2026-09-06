@@ -51,7 +51,7 @@ Mantén **Third-Party Control** activado en la aplicación de Anker; el driver y
 el BMS siguen siendo responsables de sus propios límites de seguridad de
 hardware.
 
-## Diagnóstico
+## Telemetría de salud
 
 | Lectura | Entidad | Fuente |
 |---|---|---|
@@ -60,7 +60,11 @@ hardware.
 El SoH se expone para todos los modelos Anker Solarbank compatibles que comparten
 el mapa de registros común. Solo se ha verificado en campo en **Solarbank Max AC**
 (código de producto **DMWH**); otros modelos pueden informar el mismo registro,
-pero aún no están confirmados en campo.
+pero aún no están confirmados en campo. Un valor de registro **0** se trata como
+no disponible (desconocido o no implementado) en lugar de 0 % SoH.
+
+El sensor SoH es una entidad de medición normal (no categoría de diagnóstico de
+HA) y se muestra en el panel cuando está disponible.
 
 Anker no expone tensión del pack, tensiones por celda ni telemetría de equilibrio
 de celdas por Modbus. Por eso Omnibattery no crea `battery_voltage`,
@@ -78,5 +82,5 @@ muestra solo las métricas disponibles en cada dispositivo:
   de celda y cualquier otro sensor expuesto por el driver.
 
 Las filas de tensión y celdas se omiten automáticamente cuando la integración no
-tiene entidades equivalentes, de modo que las tarjetas Anker ya no muestran
-marcadores vacíos.
+tiene entidades equivalentes (esto aplica a todas las marcas de batería, no solo
+Anker), de modo que las tarjetas Anker ya no muestran marcadores vacíos.
