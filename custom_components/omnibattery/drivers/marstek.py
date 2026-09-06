@@ -503,7 +503,7 @@ class MarstekModbusDriver(BatteryDriver):
             return frozenset(k for k in PACK_SOC_KEYS if k in self._telemetry_index)
         return frozenset(self._packs)
 
-    def _learn_pack(self, key: str, raw: object) -> None:
+    def _learn_pack(self, key: str, raw: object, snapshot: dict) -> None:
         """Fold one pack-SOC read into the populated-slot set (issue #350).
 
         A slot the hardware does not have either fails to answer — its key is
@@ -512,6 +512,17 @@ class MarstekModbusDriver(BatteryDriver):
         a 0 disqualifies a slot only while the aggregate SOC says the battery
         holds meaningful charge, and each slot gets _PACK_PROBE_CYCLES attempts
         before it is written off.
+
+        The zeros a written-off slot produced have to be purged, not merely
+        stopped. They were stored on every probe cycle, and the coordinator keeps
+        what it was last given: dropping the slot from the read groups leaves the
+        last 0 behind for good. That is harmless to a verdict taken on the
+        fullest pack and fatal to one taken on the first, which is what the floor
+        now is — a battery whose real packs sit at 80 % would read 0 and be
+        excluded from discharge permanently, since the min-SOC latch releases
+        only on a recovery the stale key can never show. So the slot's key is
+        overwritten with None on the cycle it is written off; the coordinator
+        stores None as given and the control layer filters it out.
         """
         confirmed = raw is not None and (
             raw != 0
@@ -533,6 +544,8 @@ class MarstekModbusDriver(BatteryDriver):
         self._read_groups = [
             g for g in self._read_groups if absent.isdisjoint(g.keys)
         ]
+        for gone in absent:
+            snapshot[gone] = None
         _LOGGER.info(
             "[%s] Pack SOC probe finished: %d pack(s) present (%s)",
             getattr(self._client, "host", "?"),
@@ -599,7 +612,7 @@ class MarstekModbusDriver(BatteryDriver):
             self._last_aggregate_soc = snapshot["battery_soc"]
         for key in wanted:
             if key in self._pack_probes_left:
-                self._learn_pack(key, snapshot.get(key))
+                self._learn_pack(key, snapshot.get(key), snapshot)
         return snapshot
 
     # --- control (write) ----------------------------------------------------
