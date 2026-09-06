@@ -399,13 +399,14 @@ def test_a_manually_owned_battery_is_left_alone():
     assert registry == {}
 
 
-def test_a_coupled_pack_battery_is_judged_by_its_fullest_pack():
-    """Mirrors the min_soc blocker: the last pack with charge decides."""
+def test_a_coupled_pack_battery_is_judged_by_its_emptiest_pack():
+    """Mirrors the min_soc blocker: the first pack to empty decides (#350)."""
     coordinator = _coordinator(soc=45.0)
     coordinator.data = dict(
         coordinator.data, battery_soc_pack_1=80.0, battery_soc_pack_2=10.0
     )
-    assert _blocks(40.0, [coordinator]) == {}
+    # min(pack) = 10 %, below the 10 + 40 reserved floor, so the reserve holds.
+    assert ("battery-1", "price_reserve") in _blocks(40.0, [coordinator])
 
 
 def test_an_unreadable_soc_blocks_nothing():
