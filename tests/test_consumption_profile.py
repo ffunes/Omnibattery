@@ -31,6 +31,8 @@ MADRID = ZoneInfo("Europe/Madrid")
 
 def _profile(days=None, *, slots=None, fallback_daily=5.0):
     profile = ConsumptionProfileTracker.__new__(ConsumptionProfileTracker)
+    profile._aggregate_cache = {}
+    profile._aggregate_cache_date = None
     profile._days = days or {}
     profile._controller = SimpleNamespace(
         charging_time_slots=slots or [],
@@ -734,3 +736,239 @@ def test_one_week_of_day_type_samples_matures_without_a_weekday_pair():
     assert forecast.source == "profile"
     assert forecast.fallback_reason is None
     assert forecast.energy_kwh == pytest.approx(0.25 * INTERVAL_COUNT)
+
+
+def _mature_days(reference: date, count: int = 21) -> dict[date, ProfileDay]:
+    return {
+        reference - timedelta(days=offset): _day(reference - timedelta(days=offset), 2.0)
+        for offset in range(1, count + 1)
+    }
+
+
+def _count_aggregate_builds(profile):
+    """Count real aggregate builds, ignoring the cheap cached lookups."""
+    calls = {"count": 0}
+    original = profile._profile_aggregate
+
+    def _counting(target_date, today, days):
+        if (target_date.weekday(), profile._day_type(target_date)) not in (
+            profile._aggregate_cache
+        ):
+            calls["count"] += 1
+        return original(target_date, today, days)
+
+    profile._profile_aggregate = _counting
+    return calls
+
+
+def test_forecast_reuses_the_training_aggregate_for_a_repeated_date():
+    today = date.today()
+    profile = _profile(_mature_days(today))
+    calls = _count_aggregate_builds(profile)
+
+    first = profile.forecast_for_date(today)
+    second = profile.forecast_for_date(today)
+
+    # The charge-delay binary search asks for the same day dozens of times per
+    # control cycle; only the first pass may walk the 28-day training set.
+    assert calls["count"] == 1
+    assert second.intervals_kwh == first.intervals_kwh
+    assert second.energy_kwh == pytest.approx(first.energy_kwh)
+
+
+def test_forecast_aggregate_is_shared_by_dates_with_the_same_shape():
+    today = date.today()
+    profile = _profile(_mature_days(today))
+    calls = _count_aggregate_builds(profile)
+
+    first = profile.forecast_for_date(today)
+    same_shape = profile.forecast_for_date(today + timedelta(days=7))
+
+    assert calls["count"] == 1
+    assert same_shape.intervals_kwh == first.intervals_kwh
+
+
+def test_forecast_aggregate_is_rebuilt_after_a_new_day_lands():
+    today = date.today()
+    profile = _profile(_mature_days(today))
+    calls = _count_aggregate_builds(profile)
+    before = profile.forecast_for_date(today)
+
+    profile.add_day(_day(today - timedelta(days=22), 20.0))
+    after = profile.forecast_for_date(today)
+
+    assert calls["count"] == 2
+    assert after.total_days == before.total_days + 1
+
+
+def test_forecast_aggregate_is_rebuilt_after_an_exclusion_change():
+    today = date.today()
+    # The oldest week carries a different level, so masking it has to move the
+    # forecast. A partial mask keeps the profile mature, where a stale
+    # aggregate would still look like a valid answer.
+    days = {
+        today - timedelta(days=offset): _day(
+            today - timedelta(days=offset), 10.0 if offset > 14 else 2.0
+        )
+        for offset in range(1, 22)
+    }
+    profile = _profile(days)
+    before = profile.forecast_for_date(today)
+
+    changed = profile.set_excluded_periods(
+        [
+            {
+                "start": datetime.combine(
+                    today - timedelta(days=21), datetime.min.time(), tzinfo=MADRID
+                ).isoformat(),
+                "end": datetime.combine(
+                    today - timedelta(days=14), datetime.min.time(), tzinfo=MADRID
+                ).isoformat(),
+            }
+        ]
+    )
+    after = profile.forecast_for_date(today)
+
+    assert changed is True
+    assert after.source == before.source == "profile"
+    assert after.energy_kwh < before.energy_kwh
+
+
+def test_forecast_aggregate_is_dropped_when_the_local_date_turns_over():
+    today = date.today()
+    profile = _profile(_mature_days(today))
+    days = profile._usable_days()
+
+    profile._profile_aggregate(today, today, days)
+    assert len(profile._aggregate_cache) == 1
+    assert profile._aggregate_cache_date == today
+
+    # Ageing weights move with the local date, so yesterday's entries are dead.
+    profile._profile_aggregate(today + timedelta(days=1), today + timedelta(days=1), days)
+
+    assert profile._aggregate_cache_date == today + timedelta(days=1)
+    assert len(profile._aggregate_cache) == 1
+
+
+def test_forecast_aggregate_is_rebuilt_when_a_thin_day_is_filled_in():
+    today = date.today()
+    thin_date = today - timedelta(days=7)
+    days = _mature_days(today)
+    days[thin_date] = _day(thin_date, 2.0, coverage=INTERVAL_SECONDS * 0.8)
+    profile = _profile(days)
+    before = profile.forecast_for_date(today)
+
+    # Gap filling rewrites the bins of a day that is already complete, the
+    # same in-place write the recorder backfill performs.
+    profile.add_day(_day(thin_date, 20.0))
+    after = profile.forecast_for_date(today)
+
+    assert after.energy_kwh > before.energy_kwh
+
+
+def test_forecast_aggregate_is_rebuilt_when_the_previous_day_closes():
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    days = {
+        today - timedelta(days=offset): _day(today - timedelta(days=offset), 2.0)
+        for offset in range(2, 22)
+    }
+    days[yesterday] = _day(yesterday, 20.0)
+    days[yesterday].complete = False
+    profile = _profile(days)
+    calls = _count_aggregate_builds(profile)
+    before = profile.forecast_for_date(today)
+
+    # The first sample of a new local day closes yesterday, which promotes it
+    # into the training set.
+    profile._last_local_date = yesterday
+    profile.record_power_sample(
+        None,
+        local_time=datetime.combine(today, datetime.min.time()).replace(
+            hour=0, minute=10, tzinfo=MADRID
+        ),
+    )
+    after = profile.forecast_for_date(today)
+
+    assert before.total_days == 20
+    assert after.total_days == 21
+    assert calls["count"] == 2
+    assert before.newest_profile_date == today - timedelta(days=2)
+    assert after.newest_profile_date == yesterday
+
+
+def test_forecast_aggregate_is_rebuilt_by_a_sample_spanning_midnight():
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    profile = _profile(_mature_days(today))
+    calls = _count_aggregate_builds(profile)
+    before = profile.forecast_for_date(today)
+
+    # A sample that straddles midnight still writes into yesterday's bins,
+    # and yesterday is already closed and part of the training set.
+    profile._last_local_date = today
+    profile._last_sample_time = datetime.combine(
+        yesterday, datetime.min.time()
+    ).replace(hour=23, minute=58, tzinfo=MADRID)
+    profile._last_power_kw = 200.0
+    profile.record_power_sample(
+        200.0,
+        local_time=datetime.combine(today, datetime.min.time()).replace(
+            hour=0, minute=2, tzinfo=MADRID
+        ),
+    )
+    after = profile.forecast_for_date(today)
+
+    assert profile._days[yesterday].energy_kwh[95] > before.intervals_kwh[95]
+    assert calls["count"] == 2
+    assert after.intervals_kwh == profile.forecast_for_date(today).intervals_kwh
+
+
+def test_backfill_merge_rebuilds_the_aggregate_when_it_fills_a_complete_day():
+    today = date.today()
+    thin_date = today - timedelta(days=7)
+    days = _mature_days(today)
+    days[thin_date] = _day(thin_date, 2.0, coverage=INTERVAL_SECONDS * 0.8)
+    profile = _profile(days)
+    calls = _count_aggregate_builds(profile)
+    before = profile.forecast_for_date(today)
+
+    # `_day_needs_backfill` deliberately re-fetches days that are complete but
+    # thin, so the recorder merge writes into the training set.
+    day_changed = profile._merge_backfilled_day(thin_date, _day(thin_date, 20.0))
+    after = profile.forecast_for_date(today)
+
+    assert day_changed is True
+    assert calls["count"] == 2
+    assert after.energy_kwh > before.energy_kwh
+
+
+def test_backfill_merge_without_better_coverage_keeps_the_cached_aggregate():
+    today = date.today()
+    profile = _profile(_mature_days(today))
+    calls = _count_aggregate_builds(profile)
+    profile.forecast_for_date(today)
+
+    day_changed = profile._merge_backfilled_day(
+        today - timedelta(days=7), _day(today - timedelta(days=7), 20.0)
+    )
+    profile.forecast_for_date(today)
+
+    assert day_changed is False
+    assert calls["count"] == 1
+
+
+def test_backfill_merge_rebuilds_the_aggregate_for_a_day_it_had_never_seen():
+    today = date.today()
+    profile = _profile(_mature_days(today))
+    calls = _count_aggregate_builds(profile)
+    before = profile.forecast_for_date(today)
+
+    day_changed = profile._merge_backfilled_day(
+        today - timedelta(days=22), _day(today - timedelta(days=22), 2.0)
+    )
+    after = profile.forecast_for_date(today)
+
+    assert day_changed is True
+    assert calls["count"] == 2
+    assert after.total_days == before.total_days + 1

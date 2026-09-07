@@ -581,6 +581,24 @@ def _apply_external_load_to_day(
         )
 
 
+@dataclass(frozen=True)
+class _ProfileAggregate:
+    """Per-interval training aggregate shared by every date with the same shape.
+
+    The weighted weekday/day-type/global blend depends on the target date only
+    through its weekday and its day type, so one aggregate serves every date
+    that matches both.  Caching it keeps a repeated query - the charge-delay
+    binary search evaluates the same day dozens of times per control cycle -
+    from rebuilding the same 28-day sum for each call.
+    """
+
+    values: tuple[float, ...]
+    weekday_counts: tuple[int, ...]
+    day_type_counts: tuple[int, ...]
+    interval_has_candidate: tuple[bool, ...]
+    interval_latest: tuple[date | None, ...]
+
+
 class ConsumptionProfileTracker:
     """Capture and query the 28-day local quarter-hour profile."""
 
@@ -601,6 +619,8 @@ class ConsumptionProfileTracker:
             f"{DOMAIN}.{config_entry.entry_id}.{PROFILE_STORE_KEY}",
         )
         self._days: dict[date, ProfileDay] = {}
+        self._aggregate_cache: dict[tuple[int, str], _ProfileAggregate] = {}
+        self._aggregate_cache_date: date | None = None
         self._last_sample_time: datetime | None = None
         self._last_sample_monotonic: float | None = None
         self._last_power_kw: float | None = None
@@ -682,6 +702,8 @@ class ConsumptionProfileTracker:
             parsed.append((start, end))
         changed = parsed != self._excluded_periods
         self._excluded_periods = parsed
+        if changed:
+            self._invalidate_forecast_cache()
         return changed
 
     def _interval_is_excluded(self, local_date: date, index: int) -> bool:
@@ -809,6 +831,8 @@ class ConsumptionProfileTracker:
 
     def _prune(self, reference_date: date | None = None) -> None:
         """Keep the current day plus the previous 28 local dates."""
+        # No cache invalidation here: everything this drops is older than the
+        # retention floor, where ``_age_weight`` is already 0.0.
         floor = self._retention_floor(reference_date)
         self._days = {
             local_date: day
@@ -849,6 +873,7 @@ class ConsumptionProfileTracker:
             previous_tz = _named_timezone(stored_timezone)
             if previous_tz is None:
                 self._days = {}
+                self._invalidate_forecast_cache()
                 self._invalidated = True
                 self._active_fingerprint = expected_fingerprint
                 self._last_error = "profile invalidated after unknown timezone change"
@@ -866,6 +891,7 @@ class ConsumptionProfileTracker:
 
         if data.get("capture_version") != PROFILE_CAPTURE_VERSION:
             self._days = {}
+            self._invalidate_forecast_cache()
             self._invalidated = True
             self._active_fingerprint = expected_fingerprint
             self._last_error = "profile invalidated after capture contract change"
@@ -898,6 +924,7 @@ class ConsumptionProfileTracker:
                 current_timezone,
             )
         self._days = loaded
+        self._invalidate_forecast_cache()
         self._prune()
         self._active_fingerprint = expected_fingerprint
         self._loaded = True
@@ -999,6 +1026,7 @@ class ConsumptionProfileTracker:
             if local_date < current_date and not day.complete:
                 day.complete = True
                 changed = True
+                self._invalidate_forecast_cache()
         self._prune(current_date)
         return changed
 
@@ -1119,6 +1147,10 @@ class ConsumptionProfileTracker:
                     index = contribution.interval_index
                     day.energy_kwh[index] += contribution.energy_kwh
                     day.coverage_s[index] += contribution.coverage_s
+                    if day.complete:
+                        # A sample spanning midnight still writes into the
+                        # closed previous day, which the aggregate uses.
+                        self._invalidate_forecast_cache()
             elif elapsed > MAX_SAMPLE_GAP_SECONDS:
                 _LOGGER.debug(
                     "Consumption profile: discarded %.1fs sample gap",
@@ -1142,12 +1174,14 @@ class ConsumptionProfileTracker:
         existing = self._days.get(parsed.local_date)
         if existing is None:
             self._days[parsed.local_date] = parsed
+            self._invalidate_forecast_cache()
             return
         for index in range(INTERVAL_COUNT):
             if parsed.coverage_s[index] > existing.coverage_s[index]:
                 existing.energy_kwh[index] = parsed.energy_kwh[index]
                 existing.coverage_s[index] = parsed.coverage_s[index]
         existing.complete = existing.complete or parsed.complete
+        self._invalidate_forecast_cache()
 
     def current_day_capture(
         self, local_date: date | None = None
@@ -1260,6 +1294,117 @@ class ConsumptionProfileTracker:
             if day.complete and self._day_has_training_data(day)
         ]
 
+    def _invalidate_forecast_cache(self) -> None:
+        """Drop the cached training aggregates after the profile data changed."""
+        self._aggregate_cache.clear()
+
+    def _profile_aggregate(
+        self, target_date: date, today: date, days: list[ProfileDay]
+    ) -> _ProfileAggregate:
+        """Return the per-interval training aggregate for ``target_date``.
+
+        Cached on the only inputs that vary it: the target weekday and the
+        target day type.  The whole cache is dropped when the local date turns
+        over, and ``_invalidate_forecast_cache`` drops it whenever the stored
+        days or the exclusion mask change.
+        """
+        if self._aggregate_cache_date != today:
+            # Ageing weights move with the local date, so yesterday's entries
+            # are dead the moment it turns over.
+            self._aggregate_cache.clear()
+            self._aggregate_cache_date = today
+        cache_key = (target_date.weekday(), self._day_type(target_date))
+        cached = self._aggregate_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        target_weekday = target_date.weekday()
+        target_day_type = self._day_type(target_date)
+        day_meta: list[tuple[ProfileDay, float, date, bool, bool]] = []
+        for day in days:
+            age = max(0, (today - day.local_date).days)
+            weight = self._age_weight(age)
+            if weight <= 0.0:
+                continue
+            day_meta.append(
+                (
+                    day,
+                    weight,
+                    day.local_date,
+                    day.local_date.weekday() == target_weekday,
+                    self._day_type(day.local_date) == target_day_type,
+                )
+            )
+
+        values: list[float] = []
+        weekday_counts: list[int] = []
+        day_type_counts: list[int] = []
+        interval_has_candidate: list[bool] = []
+        interval_latest: list[date | None] = []
+
+        for interval_index in range(INTERVAL_COUNT):
+            weekday_values: list[tuple[float, float]] = []
+            day_type_values: list[tuple[float, float]] = []
+            global_values: list[tuple[float, float]] = []
+            latest: date | None = None
+            for day, weight, local_date, is_weekday, is_day_type in day_meta:
+                value = self._training_interval(day, interval_index)
+                if value is None:
+                    continue
+                item = (value, weight)
+                global_values.append(item)
+                latest = local_date if latest is None else max(latest, local_date)
+                if is_weekday:
+                    weekday_values.append(item)
+                if is_day_type:
+                    day_type_values.append(item)
+
+            weekday_counts.append(len(weekday_values))
+            day_type_counts.append(len(day_type_values))
+            interval_latest.append(latest)
+
+            if weekday_values:
+                weekday_weight_sum = sum(weight for _, weight in weekday_values)
+                weekday_sum = sum(value * weight for value, weight in weekday_values)
+                weekday_mean = weekday_sum / weekday_weight_sum if weekday_weight_sum else 0.0
+            else:
+                weekday_mean = 0.0
+
+            if day_type_values:
+                day_type_weight_sum = sum(weight for _, weight in day_type_values)
+                day_type_sum = sum(value * weight for value, weight in day_type_values)
+                day_type_mean = day_type_sum / day_type_weight_sum if day_type_weight_sum else 0.0
+            else:
+                day_type_mean = 0.0
+
+            if global_values:
+                global_weight_sum = sum(weight for _, weight in global_values)
+                global_sum = sum(value * weight for value, weight in global_values)
+                global_mean = global_sum / global_weight_sum if global_weight_sum else 0.0
+            else:
+                global_mean = 0.0
+
+            if weekday_values:
+                confidence = min(1.0, len(weekday_values) / 4.0)
+                weekday_weight = 0.65 * confidence
+                base = day_type_mean or global_mean
+                value = weekday_weight * weekday_mean + (1.0 - weekday_weight) * base
+            else:
+                value = day_type_mean or global_mean
+            has_candidate = bool(global_values)
+            interval_has_candidate.append(has_candidate)
+            values.append(max(0.0, value if has_candidate else 0.0))
+
+        aggregate = _ProfileAggregate(
+            values=tuple(values),
+            weekday_counts=tuple(weekday_counts),
+            day_type_counts=tuple(day_type_counts),
+            interval_has_candidate=tuple(interval_has_candidate),
+            interval_latest=tuple(interval_latest),
+        )
+        self._aggregate_cache[cache_key] = aggregate
+        return aggregate
+
     def forecast_for_date(
         self,
         target_date: date,
@@ -1280,69 +1425,17 @@ class ConsumptionProfileTracker:
         if not requested_indices:
             requested_indices = set(range(INTERVAL_COUNT))
 
-        values: list[float] = []
-        weekday_counts: list[int] = []
-        day_type_counts: list[int] = []
-        interval_has_candidate: list[bool] = []
+        aggregate = self._profile_aggregate(target_date, today, days)
+        values = list(aggregate.values)
+        weekday_counts = aggregate.weekday_counts
+        day_type_counts = aggregate.day_type_counts
+        interval_has_candidate = aggregate.interval_has_candidate
         newest: date | None = None
-
-        for interval_index in range(INTERVAL_COUNT):
-            weekday_values: list[tuple[float, float, date]] = []
-            day_type_values: list[tuple[float, float, date]] = []
-            global_values: list[tuple[float, float, date]] = []
-            for day in days:
-                value = self._training_interval(day, interval_index)
-                if value is None:
-                    continue
-                age = max(0, (today - day.local_date).days)
-                weight = self._age_weight(age)
-                if weight <= 0.0:
-                    continue
-                item = (value, weight, day.local_date)
-                global_values.append(item)
-                if day.local_date.weekday() == target_date.weekday():
-                    weekday_values.append(item)
-                if self._day_type(day.local_date) == self._day_type(target_date):
-                    day_type_values.append(item)
-
-            weekday_counts.append(len(weekday_values))
-            day_type_counts.append(len(day_type_values))
-            candidates = weekday_values + day_type_values + global_values
-            if candidates and interval_index in requested_indices:
-                candidate_dates = [item[2] for item in candidates]
-                latest = max(candidate_dates)
-                newest = latest if newest is None else max(newest, latest)
-            if weekday_values:
-                weekday_sum = sum(value * weight for value, weight, _ in weekday_values)
-                weekday_weight_sum = sum(weight for _, weight, _ in weekday_values)
-                weekday_mean = weekday_sum / weekday_weight_sum if weekday_weight_sum else 0.0
-            else:
-                weekday_mean = 0.0
-
-            if day_type_values:
-                day_type_sum = sum(value * weight for value, weight, _ in day_type_values)
-                day_type_weight_sum = sum(weight for _, weight, _ in day_type_values)
-                day_type_mean = day_type_sum / day_type_weight_sum if day_type_weight_sum else 0.0
-            else:
-                day_type_mean = 0.0
-
-            if global_values:
-                global_sum = sum(value * weight for value, weight, _ in global_values)
-                global_weight_sum = sum(weight for _, weight, _ in global_values)
-                global_mean = global_sum / global_weight_sum if global_weight_sum else 0.0
-            else:
-                global_mean = 0.0
-
-            if weekday_values:
-                confidence = min(1.0, len(weekday_values) / 4.0)
-                weekday_weight = 0.65 * confidence
-                base = day_type_mean or global_mean
-                value = weekday_weight * weekday_mean + (1.0 - weekday_weight) * base
-            else:
-                value = day_type_mean or global_mean
-            has_candidate = bool(weekday_values or day_type_values or global_values)
-            interval_has_candidate.append(has_candidate)
-            values.append(max(0.0, value if has_candidate else 0.0))
+        for interval_index in requested_indices:
+            latest = aggregate.interval_latest[interval_index]
+            if latest is None:
+                continue
+            newest = latest if newest is None else max(newest, latest)
 
         requested_count = len(requested_indices)
         coverage_ratio = (
@@ -1669,6 +1762,32 @@ class ConsumptionProfileTracker:
     # Recorder backfill
     # ------------------------------------------------------------------
 
+    def _merge_backfilled_day(self, local_date: date, adjusted: ProfileDay) -> bool:
+        """Fold one recorder-derived day in, keeping the better coverage.
+
+        Returns whether anything changed.  Gap filling rewrites the bins of a
+        day that is already complete, so any write here has to drop the cached
+        training aggregate.
+        """
+        before = self._days.get(local_date)
+        if before is None:
+            self._days[local_date] = adjusted
+            self._invalidate_forecast_cache()
+            return True
+
+        day_changed = False
+        for index in range(INTERVAL_COUNT):
+            if adjusted.coverage_s[index] > before.coverage_s[index]:
+                before.energy_kwh[index] = adjusted.energy_kwh[index]
+                before.coverage_s[index] = adjusted.coverage_s[index]
+                day_changed = True
+        if adjusted.complete and not before.complete:
+            before.complete = True
+            day_changed = True
+        if day_changed:
+            self._invalidate_forecast_cache()
+        return day_changed
+
     def _day_needs_backfill(self, local_date: date) -> bool:
         """Return whether a day lacks enough interval coverage to be trusted."""
         day = self._days.get(local_date)
@@ -1811,20 +1930,8 @@ class ConsumptionProfileTracker:
                 if not self._backfill_token_valid(token, generation):
                     self._backfill_status = "cancelled"
                     return False
-                before = self._days.get(local_date)
-                day_changed = False
-                if before is None:
-                    self._days[local_date] = adjusted
-                    changed = day_changed = True
-                else:
-                    for index in range(INTERVAL_COUNT):
-                        if adjusted.coverage_s[index] > before.coverage_s[index]:
-                            before.energy_kwh[index] = adjusted.energy_kwh[index]
-                            before.coverage_s[index] = adjusted.coverage_s[index]
-                            changed = day_changed = True
-                    if adjusted.complete and not before.complete:
-                        before.complete = True
-                        changed = day_changed = True
+                day_changed = self._merge_backfilled_day(local_date, adjusted)
+                changed = changed or day_changed
                 self._backfill_blocks += 1
                 self._prune(today)
                 # A checkpoint after every completed local day bounds both the

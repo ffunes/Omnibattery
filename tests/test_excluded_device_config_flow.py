@@ -298,6 +298,8 @@ async def test_options_flow_keeps_runtime_fields_when_power_sensor_is_added():
 def _profile_fingerprint(entry: SimpleNamespace) -> str:
     """Fingerprint the 28-day consumption profile reports source changes with."""
     profile = ConsumptionProfileTracker.__new__(ConsumptionProfileTracker)
+    profile._aggregate_cache = {}
+    profile._aggregate_cache_date = None
     profile._config_entry = entry
     profile._hass = SimpleNamespace(config=SimpleNamespace(time_zone="Europe/Madrid"))
     return profile.configuration_fingerprint()
