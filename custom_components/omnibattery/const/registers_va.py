@@ -460,13 +460,18 @@ NUMBER_DEFINITIONS_VA = [
 # Venus A/D couple several battery packs and fill them in sequence, so the
 # aggregate SOC at 32104 can read 100 % while a later pack is still empty. Each
 # pack publishes its own SOC on a stride-100 layout — 34000 + 100·(n−1), SOC at
-# offset +2 — in deci-percent (the aggregate is whole percent). The six
-# addresses are 100 registers apart, so no block read applies (REGISTER_BLOCKS
-# never pads gaps, issue #361) and each costs its own frame: polled at "low"
-# because a pack SOC moves ~0.1 %/min in absorption and a handover takes
-# minutes. Slots this installation does not have are dropped by the driver's
-# start-up probe (MarstekModbusDriver._learn_packs).
-PACK_SOC_KEYS = tuple(f"battery_soc_pack_{n}" for n in range(1, 7))
+# offset +2 — in deci-percent (the aggregate is whole percent). The addresses
+# are 100 registers apart, so no block read applies (REGISTER_BLOCKS never pads
+# gaps, issue #361) and each costs its own frame: polled at "low" because a pack
+# SOC moves ~0.1 %/min in absorption and a handover takes minutes. Slots this
+# installation does not have are dropped by the driver's start-up probe
+# (MarstekModbusDriver._learn_packs), so an unused slot costs three probe reads
+# once and nothing after that.
+#
+# Eight slots, not the six of #350: issue #415 reports a seven-pack Venus D. A
+# slot missing from this tuple is not polled at all, so its SOC never reaches
+# the min() the charge ceiling and discharge floor are taken on.
+PACK_SOC_KEYS = tuple(f"battery_soc_pack_{n}" for n in range(1, 9))
 
 SENSOR_DEFINITIONS_VA.extend(
     {
