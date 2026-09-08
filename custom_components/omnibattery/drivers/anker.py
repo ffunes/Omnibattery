@@ -152,8 +152,8 @@ SENSOR_DEFINITIONS: list[dict] = [
      "device_class": "battery", "state_class": "measurement", "scale": 1, "precision": 0,
      "scan_interval": "medium", "enabled_by_default": True},
     {"key": "battery_soh", "name": "Battery State of Health (SoH)", "unit": "%",
-     "device_class": None, "state_class": "measurement", "scale": 1, "precision": 1,
-     "icon": "mdi:battery-heart", "scan_interval": "low", "enabled_by_default": True},
+     "device_class": None, "state_class": "measurement", "scale": 1, "precision": 0,
+     "icon": "mdi:battery-heart", "enabled_by_default": True},
     {"key": "battery_power", "name": "Battery Power", "unit": "W",
      "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
      "scan_interval": "high", "enabled_by_default": True},
@@ -580,6 +580,12 @@ class AnkerModbusDriver(BatteryDriver):
                     capped = max(0, min(_HW_MAX_POWER_W, int(value)))
                     snapshot[field["key"]] = capped or _HW_MAX_POWER_W
                     self._dynamic_max_discharge_w = snapshot[field["key"]]
+
+        # Register 10015 is shared across Solarbank SKUs but only field-verified on
+        # DMWH. Units that do not implement SoH may answer 0 instead of omitting the
+        # field; treat that as unknown rather than a dead battery.
+        if snapshot.get("battery_soh") == 0:
+            snapshot.pop("battery_soh", None)
 
         pv_power = snapshot.get("pv_power")
         third_party_pv_power = snapshot.get("third_party_pv_power")

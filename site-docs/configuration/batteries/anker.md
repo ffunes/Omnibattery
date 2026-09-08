@@ -47,7 +47,7 @@ driver while **Battery Manual Control** is enabled. Keep **Third-Party Control**
 enabled in the Anker app; the driver and BMS remain responsible for their own
 hardware safety limits.
 
-## Diagnostics
+## Health telemetry
 
 | Reading | Entity | Source |
 |---|---|---|
@@ -56,7 +56,11 @@ hardware safety limits.
 SoH is exposed for all supported Anker Solarbank models that share the common
 register map. It has only been field-verified on **Solarbank Max AC** (product
 code **DMWH**); other models may report the same register but are not yet
-confirmed in the field.
+confirmed in the field. A register value of **0** is treated as unavailable
+(unknown or unimplemented) rather than 0 % SoH.
+
+The SoH sensor is a normal measurement entity (not an HA diagnostic category) and
+is shown on the dashboard when available.
 
 Anker does not expose pack voltage, per-cell voltages or cell-balance telemetry
 over Modbus. Omnibattery therefore does not create `battery_voltage`,
@@ -73,4 +77,5 @@ exist for each device:
   delta and any other sensors exposed by the driver.
 
 Voltage and cell rows are omitted automatically when the integration has no
-matching entities, so Anker cards no longer show empty placeholders.
+matching entities (this applies across all battery brands, not only Anker), so
+Anker cards no longer show empty placeholders.
