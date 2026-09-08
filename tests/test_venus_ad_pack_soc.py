@@ -239,7 +239,7 @@ def test_a_seventh_pack_decides_like_any_other():
 
 
 def test_every_pack_slot_has_its_stride_100_address():
-    assert len(PACK_SOC_KEYS) == 8
+    assert len(PACK_SOC_KEYS) == 7
     addresses = {
         d["key"]: d["register"]
         for d in SENSOR_DEFINITIONS_VA

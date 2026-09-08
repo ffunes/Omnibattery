@@ -468,10 +468,13 @@ NUMBER_DEFINITIONS_VA = [
 # (MarstekModbusDriver._learn_packs), so an unused slot costs three probe reads
 # once and nothing after that.
 #
-# Eight slots, not the six of #350: issue #415 reports a seven-pack Venus D. A
+# Seven slots, not the six of #350: issue #415 reports a seven-pack Venus D. A
 # slot missing from this tuple is not polled at all, so its SOC never reaches
-# the min() the charge ceiling and discharge floor are taken on.
-PACK_SOC_KEYS = tuple(f"battery_soc_pack_{n}" for n in range(1, 9))
+# the min() the charge ceiling and discharge floor are taken on. Whether the
+# firmware answers at 34602 is unconfirmed — the published register map stops at
+# six packs — so slot 7 rests on the probe: it costs three reads once and leaves
+# the schedule for good if nothing answers.
+PACK_SOC_KEYS = tuple(f"battery_soc_pack_{n}" for n in range(1, 8))
 
 SENSOR_DEFINITIONS_VA.extend(
     {
