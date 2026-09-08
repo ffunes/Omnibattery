@@ -289,11 +289,61 @@ async def test_accumulator_counts_power_during_predictive_charge_window(monkeypa
     monkeypatch.setattr(tracker, "get_adjusted_home_power_kw", lambda: 0.5)
 
     import custom_components.omnibattery.tracking.consumption_tracker as ct
-    monkeypatch.setattr(ct, "monotonic", lambda: 3700.0)
+    monkeypatch.setattr(ct, "monotonic", lambda: 280.0)
 
     await tracker.accumulate_household_consumption()
 
-    assert tracker._controller._household_energy_accumulator == pytest.approx(2.5)
+    assert tracker._controller._household_energy_accumulator == pytest.approx(2.025)
+
+
+@pytest.mark.asyncio
+async def test_accumulator_does_not_bill_a_telemetry_outage(monkeypatch):
+    """Issue #427: an unavailable battery must break integration, not backfill it.
+
+    Modbus dies for two hours; the first sample after it must add one cycle of
+    energy, not two hours of the current power level.
+    """
+    tracker = _make_history_tracker([], _MON_FRI)
+    tracker._controller._household_energy_accumulator = 4.0
+    tracker._household_last_accumulation_time = 100.0
+    tracker._consumption_profile = SimpleNamespace(record_power_sample=lambda *a, **kw: None)
+
+    import custom_components.omnibattery.tracking.consumption_tracker as ct
+
+    # Telemetry gone: home power cannot be derived.
+    monkeypatch.setattr(tracker, "get_adjusted_home_power_kw", lambda: None)
+    monkeypatch.setattr(ct, "monotonic", lambda: 200.0)
+    await tracker.accumulate_household_consumption()
+    assert tracker._household_last_accumulation_time is None
+
+    # Two hours later Modbus is back and the house is pulling 3 kW.
+    monkeypatch.setattr(tracker, "get_adjusted_home_power_kw", lambda: 3.0)
+    monkeypatch.setattr(ct, "monotonic", lambda: 7400.0)
+    await tracker.accumulate_household_consumption()
+    assert tracker._controller._household_energy_accumulator == pytest.approx(4.0)
+
+    # Normal cadence resumes and accounts normally.
+    monkeypatch.setattr(ct, "monotonic", lambda: 7460.0)
+    await tracker.accumulate_household_consumption()
+    assert tracker._controller._household_energy_accumulator == pytest.approx(4.05)
+
+
+@pytest.mark.asyncio
+async def test_accumulator_caps_a_stalled_control_loop(monkeypatch):
+    """A long stall with no None sample must not integrate across the gap."""
+    tracker = _make_history_tracker([], _MON_FRI)
+    tracker._controller._household_energy_accumulator = 1.0
+    tracker._household_last_accumulation_time = 100.0
+    tracker._consumption_profile = SimpleNamespace(record_power_sample=lambda *a, **kw: None)
+    monkeypatch.setattr(tracker, "get_adjusted_home_power_kw", lambda: 3.0)
+
+    import custom_components.omnibattery.tracking.consumption_tracker as ct
+    monkeypatch.setattr(ct, "monotonic", lambda: 100.0 + 3 * 3600.0)
+
+    await tracker.accumulate_household_consumption()
+
+    assert tracker._controller._household_energy_accumulator == pytest.approx(1.0)
+    assert tracker._household_last_accumulation_time == pytest.approx(100.0 + 3 * 3600.0)
 
 
 class _FakeConsumptionStore:
