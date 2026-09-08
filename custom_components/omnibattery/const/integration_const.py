@@ -424,6 +424,12 @@ PRICE_DATA_ISSUE_DELAY_S = 7200.0
 # out a provider outage, short enough to catch a dead sensor the same day.
 FORECAST_DATA_ISSUE_DELAY_S = 7200.0
 
+# How long a configured sensor entity must stay absent from the state machine
+# before a Repairs issue names it (#419). Long enough for the integration that
+# provides it to finish setting up after a restart, short enough that a stale
+# reference the options flow preserved becomes visible the same session.
+MISSING_SENSOR_ISSUE_DELAY_S = 900.0
+
 # A readback at or below this settle latency (seconds,
 # DriverCapabilities.readback_latency_s with actuator_latency_s as fallback)
 # reflects the new command within one poll. Slower telemetry paths skip the

@@ -212,6 +212,7 @@ from .const import (
     SLOW_SENSOR_WARN_INTERVALS,
     SLOW_SENSOR_RECOVERY_INTERVALS,
     FORECAST_DATA_ISSUE_DELAY_S,
+    MISSING_SENSOR_ISSUE_DELAY_S,
     HOT_PATH_READBACK_MAX_LATENCY_S,
     DISCHARGE_ENGAGE_GRACE_S,
     IDLE_RUNAWAY_POWER_W,
@@ -1040,6 +1041,8 @@ class ChargeDischargeController:
         self._solar_forecast_issue_created = False
         self._solar_forecast_issue_cleared = False
         self._solar_forecast_migration_issue_created = False
+        self._missing_sensors_since = None     # monotonic ts a configured sensor entity went missing
+        self._missing_sensors_reported = None  # entity ids named by the current Repairs issue
         self._dp_evening_reevaluated_date = None  # Prevent multiple evening re-evaluations per day
         self._dp_last_eval_soc = None  # avg SOC at last DP (re)eval; SOC-drop reeval reference (#411)
         self._dp_last_eval_excluded_claim_kwh = None  # excluded-device solar claim at last DP (re)eval (#341)
@@ -8192,6 +8195,66 @@ class ChargeDischargeController:
         ir.async_delete_issue(self.hass, DOMAIN, issue_id)
         self._solar_forecast_migration_issue_created = False
 
+    def _check_missing_configured_sensors(self) -> None:
+        """Name configured sensors whose entity does not exist (#419).
+
+        The options flow keeps a stored sensor when the entity picker could not
+        render it, so a reference to a deleted or renamed entity would otherwise
+        be invisible and unclearable: this issue is what makes it actionable.
+        The delay rides out a restart, when the integration that provides the
+        entity may not have finished setting up yet.
+        """
+        issue_id = f"configured_sensor_missing_{self.config_entry.entry_id}"
+        missing = sorted(
+            entity
+            for entity in (
+                self.config_entry.data.get(key)
+                for key in (
+                    "consumption_sensor",
+                    CONF_OFFGRID_POWER_SENSOR,
+                    CONF_SOLAR_PRODUCTION_SENSOR,
+                    CONF_SOLAR_FORECAST_SENSOR,
+                    CONF_SOLAR_FORECAST_REMAINING_SENSOR,
+                )
+            )
+            if entity and self.hass.states.get(entity) is None
+        )
+
+        if not missing:
+            self._missing_sensors_since = None
+            if self._missing_sensors_reported is not None:
+                self._missing_sensors_reported = None
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+
+        mono = time.monotonic()
+        if self._missing_sensors_since is None:
+            self._missing_sensors_since = mono
+            return
+        if (
+            self._missing_sensors_reported == missing
+            or mono - self._missing_sensors_since < MISSING_SENSOR_ISSUE_DELAY_S
+        ):
+            return
+
+        self._missing_sensors_reported = missing
+        _LOGGER.warning(
+            "Configured sensor(s) %s do not exist in Home Assistant - Omnibattery "
+            "keeps the stored reference; pick a replacement in the options flow",
+            ", ".join(missing),
+        )
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            is_persistent=True,
+            issue_domain=DOMAIN,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="configured_sensor_missing",
+            translation_placeholders={"sensors": ", ".join(missing)},
+        )
+
     @staticmethod
     def _sensor_report_time(sensor_state):
         """Return the publication timestamp available on a Home Assistant state."""
@@ -8529,6 +8592,9 @@ class ChargeDischargeController:
         blocked_active_changed = await self._stop_blocked_active_batteries()
 
         # === Continue with normal PD control ===
+        # Before the grid-sensor read: a missing grid sensor returns below, and
+        # that is precisely a case this issue has to name.
+        self._check_missing_configured_sensors()
         consumption_state = self.hass.states.get(self.consumption_sensor)
         sensor_raw = self._apply_meter_transform(consumption_state)
         if sensor_raw is None:

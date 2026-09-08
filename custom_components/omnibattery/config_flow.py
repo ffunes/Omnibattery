@@ -365,6 +365,40 @@ def _validate_solar_production_sensor(
     return {}
 
 
+def _restore_unrenderable_sensors(
+    hass: HomeAssistant, user_input: dict[str, Any], stored: dict[str, Any]
+) -> dict[str, Any]:
+    """Re-add optional sensors the entity picker could not render (#419).
+
+    Home Assistant's ``ha-form`` drops a cleared field from ``user_input``, so an
+    untouched field and a deliberately cleared one arrive here identically. The
+    one case that stays distinguishable: the stored entity is missing from the
+    state machine, which is exactly when ``ha-entity-picker`` shows an empty box
+    and commits that emptiness on close. An empty submission is then not a user
+    decision, so the stored value survives. Clearing a sensor whose entity does
+    exist keeps working, and a preserved dead reference is surfaced by the
+    ``configured_sensor_missing`` Repairs issue.
+    """
+    restored = dict(user_input)
+    for key in (
+        CONF_SOLAR_FORECAST_SENSOR,
+        CONF_SOLAR_FORECAST_REMAINING_SENSOR,
+        CONF_SOLAR_PRODUCTION_SENSOR,
+        CONF_OFFGRID_POWER_SENSOR,
+    ):
+        current = stored.get(key)
+        if restored.get(key) or not current:
+            continue
+        if hass.states.get(current) is None:
+            _LOGGER.warning(
+                "Options flow submitted %s empty while %s does not exist - keeping "
+                "the stored sensor instead of clearing it",
+                key, current,
+            )
+            restored[key] = current
+    return restored
+
+
 def _predischarge_export_defaults(
     config: dict[str, Any],
     *,
@@ -3846,6 +3880,14 @@ class OptionsFlowHandler(OptionsFlow):
                 errors.update(_validate_offgrid_power_sensor(self.hass, user_input))
 
                 if not errors:
+                    # Runs after validation so a preserved dead reference cannot
+                    # block the save with `sensor_not_found` (#419).
+                    user_input = _restore_unrenderable_sensors(
+                        self.hass, user_input, self.config_entry.data
+                    )
+                    forecast_sensor = user_input.get(CONF_SOLAR_FORECAST_SENSOR)
+                    remaining_sensor = user_input.get(CONF_SOLAR_FORECAST_REMAINING_SENSOR)
+                    solar_sensor = user_input.get(CONF_SOLAR_PRODUCTION_SENSOR)
                     self.config_data["consumption_sensor"] = user_input["consumption_sensor"]
                     self.config_data[CONF_OFFGRID_POWER_SENSOR] = (
                         user_input.get(CONF_OFFGRID_POWER_SENSOR) or None

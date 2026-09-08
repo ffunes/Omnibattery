@@ -1,5 +1,9 @@
 {
   "issues": {
+    "configured_sensor_missing": {
+      "title": "Un sensor configurat ja no existeix",
+      "description": "Omnibattery està configurat amb {sensors}, que no existeix a Home Assistant. Totes les funcions que el llegeixen estan inactives. La referència desada es manté expressament, perquè el selector d'entitats no pot mostrar una entitat que ja no hi és i esborraria el teu ajust en silenci: obre Opcions → Sensors i tria un substitut, o buida el camp quan l'entitat torni."
+    },
     "three_phase_manual_mode": {
       "title": "La protecció trifàsica es pot saltar amb ordres manuals",
       "description": "La protecció trifàsica està activa, però les ordres manuals de registre o de franja poden escriure directament a una bateria sense l'envolupant automàtica. Mantén-les dins dels límits configurats."

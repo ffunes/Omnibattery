@@ -1,5 +1,9 @@
 {
   "issues": {
+    "configured_sensor_missing": {
+      "title": "Konfigurierter Sensor existiert nicht mehr",
+      "description": "Omnibattery ist mit {sensors} konfiguriert, das in Home Assistant nicht existiert. Alle Funktionen, die ihn lesen, sind inaktiv. Der gespeicherte Verweis wird absichtlich beibehalten, denn die Entitätsauswahl kann eine verschwundene Entität nicht anzeigen und würde Ihre Einstellung stillschweigend löschen: Öffnen Sie Optionen → Sensoren und wählen Sie einen Ersatz, oder leeren Sie das Feld, sobald die Entität zurück ist."
+    },
     "three_phase_manual_mode": {
       "title": "Dreiphasenschutz kann durch manuelle Befehle umgangen werden",
       "description": "Der Dreiphasenschutz ist aktiviert, aber manuelle Register- oder Zeitplanbefehle können direkt an eine Batterie schreiben. Halten Sie diese Befehle innerhalb der konfigurierten Phasengrenzen."
