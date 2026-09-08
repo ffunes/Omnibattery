@@ -972,3 +972,22 @@ def test_backfill_merge_rebuilds_the_aggregate_for_a_day_it_had_never_seen():
     assert day_changed is True
     assert calls["count"] == 2
     assert after.total_days == before.total_days + 1
+
+
+def test_pruning_a_future_dated_day_rebuilds_the_aggregate():
+    today = date.today()
+    days = _mature_days(today)
+    # A clock that ran a day ahead and was then corrected leaves a *complete*
+    # day dated after today. Its age clamps to 0, so it trains at full weight
+    # until `_prune` drops it - and the cached aggregate has to go with it.
+    ahead = today + timedelta(days=1)
+    days[ahead] = _day(ahead, 50.0)
+    profile = _profile(days)
+    before = profile.forecast_for_date(today)
+
+    profile._prune()
+    after = profile.forecast_for_date(today)
+
+    assert ahead not in profile._days
+    assert after.total_days == before.total_days - 1
+    assert after.energy_kwh < before.energy_kwh
