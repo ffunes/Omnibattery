@@ -91,6 +91,28 @@ def test_soc_above_floor_no_effect():
     assert result["should_charge"] is False
 
 
+def test_floor_deficit_covers_every_battery_under_the_floor():
+    # Three 5.12 kWh batteries at 14/15/15%, floor 20%, hysteresis 5% → the 14%
+    # one triggers. Sizing the deficit from that battery alone (0.31 kWh) left
+    # the other two under the floor, so the average never cleared the band and
+    # the slot re-fired hourly all night. The deficit must cover all three:
+    # (6 + 5 + 5)% * 5.12 kWh = 0.82 kWh.
+    result = _run(
+        _ctrl([_Coord(14.0, 5.12), _Coord(15.0, 5.12), _Coord(15.0, 5.12)], floor=20.0)
+    )
+    assert result["should_charge"] is True
+    assert abs(result["energy_deficit_kwh"] - 0.8192) < 0.01
+    assert result["floor_active"] is True
+
+
+def test_no_battery_under_the_band_does_not_charge_the_others():
+    # All three inside the band [15%, 20%) → the trigger never fires.
+    result = _run(
+        _ctrl([_Coord(16.0, 5.12), _Coord(17.0, 5.12), _Coord(18.0, 5.12)], floor=20.0)
+    )
+    assert result["should_charge"] is False
+
+
 def test_soc_in_hysteresis_band_no_charge():
     # SOC between (floor - margin) and floor: hysteresis band — should NOT re-trigger.
     # floor=30%, margin=5% → band is [25%, 30%]; SOC=27% is inside, no charge.
@@ -524,6 +546,8 @@ def test_slot_exit_noop_when_nothing_to_clean():
 
 if __name__ == "__main__":
     test_floor_forces_charge_on_solar_positive_day()
+    test_floor_deficit_covers_every_battery_under_the_floor()
+    test_no_battery_under_the_band_does_not_charge_the_others()
     test_floor_disabled_does_not_charge()
     test_soc_above_floor_no_effect()
     test_soc_in_hysteresis_band_no_charge()

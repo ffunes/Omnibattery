@@ -1240,3 +1240,18 @@ def test_in_progress_interval_publishes_the_full_quarter_forecast():
     closed = manager.build_public_snapshot()["series"]
     assert closed["consumption_forecast_kwh"][52] == pytest.approx(0.2)
     assert closed["solar_forecast_kwh"][52] == pytest.approx(0.4)
+
+
+def test_memoized_wall_grid_is_not_mutated_between_builds():
+    """The wall-clock grid is cached per local day, so builds must only read it."""
+    clock = MutableClock(datetime(2026, 10, 25, 12, 0, tzinfo=MADRID))
+    manager = _manager(clock)
+
+    first = copy.deepcopy(manager.build_public_snapshot()["interval_grid"])
+    manager._revision += 1
+    manager._snapshot_cache_revision = -1
+    second = manager.build_public_snapshot()["interval_grid"]
+
+    assert second == first
+    # A fall-back day still owns 25 physical hours after the second build.
+    assert sum(second["duration_s"]) == 25 * 3600

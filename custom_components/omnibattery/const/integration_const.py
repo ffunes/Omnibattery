@@ -240,7 +240,7 @@ DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT = 0.0
 # The whole-day energy balance can read zero deficit on a solar-positive day,
 # yet the battery still hits the hardware floor in the morning before solar
 # ramps up. This forces a charge sized to reach the floor SOC regardless of the
-# daily balance. 0 = disabled.
+# daily balance. Disabled via the CONF_ENABLE_MIN_SOC_FLOOR switch.
 CONF_PREDICTIVE_MIN_SOC_FLOOR = "predictive_min_soc_floor"
 DEFAULT_PREDICTIVE_MIN_SOC_FLOOR = 20.0
 CONF_ENABLE_MIN_SOC_FLOOR = "enable_min_soc_floor"
@@ -423,6 +423,12 @@ PRICE_DATA_ISSUE_DELAY_S = 7200.0
 # Repairs issue is raised. Same reasoning as the price feed: long enough to ride
 # out a provider outage, short enough to catch a dead sensor the same day.
 FORECAST_DATA_ISSUE_DELAY_S = 7200.0
+
+# How long a configured sensor entity must stay absent from the state machine
+# before a Repairs issue names it (#419). Long enough for the integration that
+# provides it to finish setting up after a restart, short enough that a stale
+# reference the options flow preserved becomes visible the same session.
+MISSING_SENSOR_ISSUE_DELAY_S = 900.0
 
 # A readback at or below this settle latency (seconds,
 # DriverCapabilities.readback_latency_s with actuator_latency_s as fallback)
@@ -872,6 +878,19 @@ DEFAULT_SURPLUS_PRICE_HOLD_ENABLED = False
 # on rounding differences across the control cycle.
 CONF_SURPLUS_HOLD_MIN_SAVING = "surplus_hold_min_saving"
 DEFAULT_SURPLUS_HOLD_MIN_SAVING = 0.02
+
+# Price-aware discharge reserve.  The price_discharge blocker asks whether the
+# current hour is cheap; it never asks whether the dearer hours still ahead need
+# the energy that is in the battery.  This reserve raises each battery's
+# discharge floor by the energy those hours claim, and leaves everything above
+# it available for self-consumption now.  Dynamic pricing only, off by default.
+CONF_DISCHARGE_RESERVE_ENABLED = "discharge_reserve_enabled"
+DEFAULT_DISCHARGE_RESERVE_ENABLED = False
+# Advantage (currency/kWh) a later hour must have over the current one before
+# its demand may claim stored energy.  Keeps the floor from chattering on
+# rounding differences, and prices in the wear of the extra cycle.
+CONF_DISCHARGE_RESERVE_MIN_SAVING = "discharge_reserve_min_saving"
+DEFAULT_DISCHARGE_RESERVE_MIN_SAVING = 0.05
 
 # Optional export/feed-in price curve.  Unset falls back to the import curve,
 # which is both the historical behaviour and correct under net metering.  A
