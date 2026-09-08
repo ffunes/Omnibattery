@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.util import dt as dt_util
 
+from .pack_soc import control_vmax
 from ..const import (
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
@@ -385,6 +386,9 @@ class MaxSocChargeManager:
         if active:
             return True
 
+        # Deliberately the raw register, not control_vmax: True here means
+        # "stay charge-eligible", so a pack-1-only top cell (issue #415) must
+        # keep the charge alive rather than qualify it away.
         try:
             vmax = float((coordinator.data or {}).get("max_cell_voltage"))
         except (TypeError, ValueError):
@@ -396,14 +400,8 @@ class MaxSocChargeManager:
         if not self._taper_applies(coordinator):
             return False
 
-        data = coordinator.data or {}
-        vmax = data.get("max_cell_voltage")
-        try:
-            if vmax is not None and float(vmax) >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE:
-                return True
-        except (TypeError, ValueError):
-            return False
-        return False
+        vmax = control_vmax(coordinator)
+        return vmax is not None and vmax >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
 
     @staticmethod
     def _bms_cut_signature(coordinator, data: dict) -> bool:
@@ -614,21 +612,12 @@ class MaxSocChargeManager:
                 continue
 
             in_zone = self._zone_active(coordinator)
-            vmax_raw = (coordinator.data or {}).get("max_cell_voltage")
-            try:
-                vmax_now = float(vmax_raw) if vmax_raw is not None else None
-            except (TypeError, ValueError):
-                vmax_now = None
-            vmax = data.get("max_cell_voltage")
+            vmax_f = control_vmax(coordinator)
             current_soc = data.get("battery_soc")
-            try:
-                vmax_f = float(vmax) if vmax is not None else None
-            except (TypeError, ValueError):
-                vmax_f = None
             # Hysteresis: only clear the taper latch once the cell has dropped to the
             # exit threshold (below entry), not the moment it slips under 3.48 V at
             # low charge power. This prevents full-power ↔ tapered-power oscillation.
-            if not in_zone and (vmax_now is None or vmax_now < NORMAL_BALANCE_TAPER_EXIT_CELL_VOLTAGE):
+            if not in_zone and (vmax_f is None or vmax_f < NORMAL_BALANCE_TAPER_EXIT_CELL_VOLTAGE):
                 c._normal_balance_voltage_tapered.pop(coordinator, None)
             if not in_zone:
                 # Battery has dropped out of the top zone: end any recal session so
@@ -764,23 +753,18 @@ class MaxSocChargeManager:
         if not self._taper_applies(coordinator):
             return limit
 
-        data = coordinator.data or {}
-        max_cell_voltage = data.get("max_cell_voltage")
+        vmax = control_vmax(coordinator)
         voltage_tapered = c._normal_balance_voltage_tapered
         voltage_taper_latched = voltage_tapered.get(coordinator, False)
-        if max_cell_voltage is not None:
-            try:
-                max_cell_voltage_f = float(max_cell_voltage)
-                if max_cell_voltage_f >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE:
-                    voltage_taper_latched = True
-                    voltage_tapered[coordinator] = True
-                elif max_cell_voltage_f < NORMAL_BALANCE_TAPER_EXIT_CELL_VOLTAGE:
-                    voltage_tapered.pop(coordinator, None)
-                    voltage_taper_latched = False
-                if voltage_taper_latched:
-                    limit = min(limit, NORMAL_BALANCE_CHARGE_POWER_W)
-            except (TypeError, ValueError):
-                pass
+        if vmax is not None:
+            if vmax >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE:
+                voltage_taper_latched = True
+                voltage_tapered[coordinator] = True
+            elif vmax < NORMAL_BALANCE_TAPER_EXIT_CELL_VOLTAGE:
+                voltage_tapered.pop(coordinator, None)
+                voltage_taper_latched = False
+            if voltage_taper_latched:
+                limit = min(limit, NORMAL_BALANCE_CHARGE_POWER_W)
 
         return limit
 

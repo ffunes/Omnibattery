@@ -148,6 +148,53 @@ def test_zone_active_false_below_taper_voltage():
 
 
 # ----------------------------------------------------------------------
+# coupled packs: registers 37007/37008 report pack 1 alone (issue #415)
+# ----------------------------------------------------------------------
+
+def _venus_d(**packs):
+    """Venus D holding a top cell on pack 1, with the packs at the given SOCs."""
+    return _Coord(
+        battery_version="vD",
+        data={"max_cell_voltage": 3.50, "battery_soc": 94, **packs},
+    )
+
+
+def test_a_finished_first_pack_does_not_taper_the_whole_battery():
+    # The measured #415 case: pack 1 is done and holds 3.50 V while five packs
+    # are still filling. Tapering here cost an hour at 196 W with the battery
+    # half empty.
+    c = _venus_d(battery_soc_pack_1=100.0, battery_soc_pack_2=89.9)
+    m = _mgr(_controller([c]))
+    assert m._zone_active(c) is False
+    assert m.apply_charge_taper(c, 2500) == 2500
+
+
+def test_the_taper_still_engages_once_every_pack_is_at_the_top():
+    c = _venus_d(battery_soc_pack_1=100.0, battery_soc_pack_2=99.4)
+    m = _mgr(_controller([c]))
+    assert m._zone_active(c) is True
+    assert m.apply_charge_taper(c, 2500) == NORMAL_BALANCE_CHARGE_POWER_W
+
+
+def test_a_top_cell_on_pack_1_keeps_the_charge_alive():
+    # should_charge_to_bms_cutoff() is the one place the raw register is still
+    # right: True means "stay charge-eligible", so pack 1 reaching the pause
+    # voltage while other packs fill must not be qualified away.
+    c = _venus_d(battery_soc_pack_1=100.0, battery_soc_pack_2=89.9)
+    c.data["max_cell_voltage"] = NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
+    assert _mgr(_controller([c])).should_charge_to_bms_cutoff(c, 100) is True
+
+
+def test_a_battery_without_per_pack_soc_tapers_exactly_as_before():
+    # Every model except Venus A/D: no pack telemetry, so the reading is taken
+    # at face value.
+    c = _Coord(data={"max_cell_voltage": 3.50, "battery_soc": 94})
+    m = _mgr(_controller([c]))
+    assert m._zone_active(c) is True
+    assert m.apply_charge_taper(c, 2500) == NORMAL_BALANCE_CHARGE_POWER_W
+
+
+# ----------------------------------------------------------------------
 # apply_charge_taper
 # ----------------------------------------------------------------------
 
