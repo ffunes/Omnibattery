@@ -6,7 +6,7 @@ pack publishes its own SOC on a stride-100 layout (34002, 34102, ...).
 
 Two things are pinned here:
 
-* the start-up probe that learns which of the six slots exist — an absent slot
+* the start-up probe that learns which slots exist — an absent slot
   may either fail to answer or read a flat 0, and the probe must be right under
   both without knowing which the firmware does;
 * the *additional* discharge floor: a pack at min_soc blocks discharge even
@@ -23,6 +23,7 @@ import pytest
 
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import PACK_SOC_KEYS
+from custom_components.omnibattery.const.registers_va import SENSOR_DEFINITIONS_VA
 from custom_components.omnibattery.drivers import MarstekModbusDriver
 from custom_components.omnibattery.drivers.marstek import _PACK_PROBE_CYCLES
 
@@ -224,6 +225,29 @@ def test_the_measured_six_pack_case():
     }
     assert _discharge_blocks(data, min_soc=12)
     assert not _dischargeable(data, min_soc=12)
+
+
+def test_a_seventh_pack_decides_like_any_other():
+    # #415 added a seventh pack to this installation. A slot missing from
+    # PACK_SOC_KEYS is never polled, so its SOC never reaches the min() the
+    # floor is taken on and the battery keeps being commanded to discharge a
+    # pack that is already at the cutoff.
+    data = {"battery_soc": 40, "battery_soc_pack_7": 12.0}
+    data.update({f"battery_soc_pack_{n}": 40.0 for n in range(1, 7)})
+    assert _discharge_blocks(data, min_soc=12)
+    assert not _dischargeable(data, min_soc=12)
+
+
+def test_every_pack_slot_has_its_stride_100_address():
+    assert len(PACK_SOC_KEYS) == 8
+    addresses = {
+        d["key"]: d["register"]
+        for d in SENSOR_DEFINITIONS_VA
+        if d["key"] in PACK_SOC_KEYS
+    }
+    assert addresses == {
+        key: _pack_register(n) for n, key in enumerate(PACK_SOC_KEYS, start=1)
+    }
 
 
 def test_packs_override_an_aggregate_already_at_the_floor():
