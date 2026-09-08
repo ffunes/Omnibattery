@@ -250,7 +250,7 @@ from .tracking.daily_timeline import (
     GRID_CHARGE_NOT_NEEDED,
     GRID_CHARGE_SCHEDULED,
 )
-from .control.pack_soc import soc_vs_ceiling, soc_vs_floor
+from .control.pack_soc import control_vmax, soc_vs_ceiling, soc_vs_floor
 from .control.weekly_full_charge import WeeklyFullChargeManager
 from .control.max_soc_charge import MaxSocChargeManager
 from .control.temperature_limit import TemperatureChargeLimitManager
@@ -3601,12 +3601,9 @@ class ChargeDischargeController:
                 # Uses effective_max_soc so slot/predictive overrides are respected.
                 taper_at_top_voltage = False
                 if effective_max_soc >= 100:
-                    _vmax = coordinator.data.get("max_cell_voltage")
+                    _vmax = control_vmax(coordinator)
                     if _vmax is not None:
-                        try:
-                            taper_at_top_voltage = float(_vmax) >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
-                        except (TypeError, ValueError):
-                            pass
+                        taper_at_top_voltage = _vmax >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
                 # If the configured ceiling was raised above the latched base SOC,
                 # the latch is stale: it captured a lower, since-raised ceiling
                 # (e.g. Target SOC bumped back up after a temporary reduction).
@@ -4132,13 +4129,10 @@ class ChargeDischargeController:
                         coordinator._hysteresis_base_soc = None
                     else:
                         # Normal hysteresis logic
-                        _vmax_hysteresis = coordinator.data.get("max_cell_voltage") if coordinator.data else None
+                        _vmax_hysteresis = control_vmax(coordinator)
                         _taper_at_top = False
                         if effective_max_soc >= 100 and _vmax_hysteresis is not None:
-                            try:
-                                _taper_at_top = float(_vmax_hysteresis) >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
-                            except (TypeError, ValueError):
-                                pass
+                            _taper_at_top = _vmax_hysteresis >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
                         # If the configured ceiling was raised above the latched
                         # base SOC, the latch is stale (Target SOC bumped back up
                         # after a temporary reduction). Clear it so charge resumes
