@@ -30,7 +30,12 @@ from ..const import DEFAULT_BASE_CONSUMPTION_KWH, DOMAIN
 from ..infra.entity_naming import is_omnibattery_solar_entity
 from ..drivers.base import has_connected_mppt_pv
 from .backfill import BackfillToken, RecorderBackfillCoordinator, local_day_bounds
-from .consumption_profile import ConsumptionForecast, ConsumptionProfileTracker, INTERVAL_COUNT
+from .consumption_profile import (
+    ConsumptionForecast,
+    ConsumptionProfileTracker,
+    INTERVAL_COUNT,
+    MAX_SAMPLE_GAP_SECONDS,
+)
 from .solar_profile import SolarProfileTracker
 
 if TYPE_CHECKING:
@@ -1959,12 +1964,19 @@ class ConsumptionTracker:
         )
 
         if power_kw is None:
+            # Break continuity like every other integrator here: leaving the
+            # timestamp behind would make the next valid sample bill the whole
+            # telemetry outage at that one power level.
+            self._household_last_accumulation_time = None
             return
 
         now = profile_mono
         if self._household_last_accumulation_time is not None:
-            dt_hours = (now - self._household_last_accumulation_time) / 3600.0
-            ctrl._household_energy_accumulator += max(0.0, power_kw) * dt_hours
+            elapsed = now - self._household_last_accumulation_time
+            # Same gap cap as the quarter-hour profile: a stalled control loop
+            # must not integrate one sample across hours of missing data.
+            if 0.0 < elapsed <= MAX_SAMPLE_GAP_SECONDS:
+                ctrl._household_energy_accumulator += max(0.0, power_kw) * (elapsed / 3600.0)
         self._household_last_accumulation_time = now
 
     def _record_vacation_night_sample(
