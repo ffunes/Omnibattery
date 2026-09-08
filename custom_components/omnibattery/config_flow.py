@@ -112,6 +112,10 @@ from .const import (
     DEFAULT_SURPLUS_PRICE_HOLD_ENABLED,
     CONF_SURPLUS_HOLD_MIN_SAVING,
     DEFAULT_SURPLUS_HOLD_MIN_SAVING,
+    CONF_DISCHARGE_RESERVE_ENABLED,
+    DEFAULT_DISCHARGE_RESERVE_ENABLED,
+    CONF_DISCHARGE_RESERVE_MIN_SAVING,
+    DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_EXPORT_PRICE_INTEGRATION_TYPE,
     CONF_NEGATIVE_INJECTION_THRESHOLD,
@@ -359,6 +363,40 @@ def _validate_solar_production_sensor(
     if state.attributes.get("unit_of_measurement", "") not in ("W", "kW"):
         return {CONF_SOLAR_PRODUCTION_SENSOR: "solar_production_invalid_unit"}
     return {}
+
+
+def _restore_unrenderable_sensors(
+    hass: HomeAssistant, user_input: dict[str, Any], stored: dict[str, Any]
+) -> dict[str, Any]:
+    """Re-add optional sensors the entity picker could not render (#419).
+
+    Home Assistant's ``ha-form`` drops a cleared field from ``user_input``, so an
+    untouched field and a deliberately cleared one arrive here identically. The
+    one case that stays distinguishable: the stored entity is missing from the
+    state machine, which is exactly when ``ha-entity-picker`` shows an empty box
+    and commits that emptiness on close. An empty submission is then not a user
+    decision, so the stored value survives. Clearing a sensor whose entity does
+    exist keeps working, and a preserved dead reference is surfaced by the
+    ``configured_sensor_missing`` Repairs issue.
+    """
+    restored = dict(user_input)
+    for key in (
+        CONF_SOLAR_FORECAST_SENSOR,
+        CONF_SOLAR_FORECAST_REMAINING_SENSOR,
+        CONF_SOLAR_PRODUCTION_SENSOR,
+        CONF_OFFGRID_POWER_SENSOR,
+    ):
+        current = stored.get(key)
+        if restored.get(key) or not current:
+            continue
+        if hass.states.get(current) is None:
+            _LOGGER.warning(
+                "Options flow submitted %s empty while %s does not exist - keeping "
+                "the stored sensor instead of clearing it",
+                key, current,
+            )
+            restored[key] = current
+    return restored
 
 
 def _predischarge_export_defaults(
@@ -2662,6 +2700,12 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                         self.config_data[CONF_SURPLUS_HOLD_MIN_SAVING] = user_input.get(
                             CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
                         )
+                        self.config_data[CONF_DISCHARGE_RESERVE_ENABLED] = user_input.get(
+                            CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
+                        )
+                        self.config_data[CONF_DISCHARGE_RESERVE_MIN_SAVING] = user_input.get(
+                            CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
+                        )
                         self.config_data[CONF_EXPORT_PRICE_SENSOR] = user_input.get(
                             CONF_EXPORT_PRICE_SENSOR
                         )
@@ -2717,6 +2761,10 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         schema_dict[vol.Optional(CONF_SMART_PREDISCHARGE_ENABLED, default=DEFAULT_SMART_PREDISCHARGE_ENABLED)] = bool
         schema_dict[vol.Optional(CONF_SURPLUS_PRICE_HOLD_ENABLED, default=DEFAULT_SURPLUS_PRICE_HOLD_ENABLED)] = bool
         schema_dict[vol.Optional(CONF_SURPLUS_HOLD_MIN_SAVING, default=DEFAULT_SURPLUS_HOLD_MIN_SAVING)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
+        )
+        schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_ENABLED, default=DEFAULT_DISCHARGE_RESERVE_ENABLED)] = bool
+        schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_MIN_SAVING, default=DEFAULT_DISCHARGE_RESERVE_MIN_SAVING)] = NumberSelector(
             NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
         )
         schema_dict[vol.Optional(CONF_EXPORT_PRICE_SENSOR)] = EntitySelector(
@@ -3832,6 +3880,14 @@ class OptionsFlowHandler(OptionsFlow):
                 errors.update(_validate_offgrid_power_sensor(self.hass, user_input))
 
                 if not errors:
+                    # Runs after validation so a preserved dead reference cannot
+                    # block the save with `sensor_not_found` (#419).
+                    user_input = _restore_unrenderable_sensors(
+                        self.hass, user_input, self.config_entry.data
+                    )
+                    forecast_sensor = user_input.get(CONF_SOLAR_FORECAST_SENSOR)
+                    remaining_sensor = user_input.get(CONF_SOLAR_FORECAST_REMAINING_SENSOR)
+                    solar_sensor = user_input.get(CONF_SOLAR_PRODUCTION_SENSOR)
                     self.config_data["consumption_sensor"] = user_input["consumption_sensor"]
                     self.config_data[CONF_OFFGRID_POWER_SENSOR] = (
                         user_input.get(CONF_OFFGRID_POWER_SENSOR) or None
@@ -5456,6 +5512,20 @@ class OptionsFlowHandler(OptionsFlow):
                                 DEFAULT_SURPLUS_HOLD_MIN_SAVING,
                             ),
                         )
+                        self.config_data[CONF_DISCHARGE_RESERVE_ENABLED] = user_input.get(
+                            CONF_DISCHARGE_RESERVE_ENABLED,
+                            existing_config.get(
+                                CONF_DISCHARGE_RESERVE_ENABLED,
+                                DEFAULT_DISCHARGE_RESERVE_ENABLED,
+                            ),
+                        )
+                        self.config_data[CONF_DISCHARGE_RESERVE_MIN_SAVING] = user_input.get(
+                            CONF_DISCHARGE_RESERVE_MIN_SAVING,
+                            existing_config.get(
+                                CONF_DISCHARGE_RESERVE_MIN_SAVING,
+                                DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
+                            ),
+                        )
                         # Cleared entity/select fields arrive absent, so read them
                         # straight from the submission rather than falling back to
                         # the stored value — that is what makes the × button work.
@@ -5515,6 +5585,12 @@ class OptionsFlowHandler(OptionsFlow):
         default_surplus_min_saving = existing_config.get(
             CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
         )
+        default_discharge_reserve = existing_config.get(
+            CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
+        )
+        default_discharge_reserve_min_saving = existing_config.get(
+            CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
+        )
         default_export_sensor = existing_config.get(CONF_EXPORT_PRICE_SENSOR)
         default_export_type = existing_config.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
         default_negative_threshold = existing_config.get(
@@ -5561,6 +5637,10 @@ class OptionsFlowHandler(OptionsFlow):
         schema_dict[vol.Optional(CONF_SMART_PREDISCHARGE_ENABLED, default=default_smart_predischarge)] = bool
         schema_dict[vol.Optional(CONF_SURPLUS_PRICE_HOLD_ENABLED, default=default_surplus_hold)] = bool
         schema_dict[vol.Optional(CONF_SURPLUS_HOLD_MIN_SAVING, default=default_surplus_min_saving)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
+        )
+        schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_ENABLED, default=default_discharge_reserve)] = bool
+        schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_MIN_SAVING, default=default_discharge_reserve_min_saving)] = NumberSelector(
             NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
         )
         # Clearable: suggested_value pre-fills without voluptuous restoring the

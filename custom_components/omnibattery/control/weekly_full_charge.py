@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.storage import Store
 
-from .pack_soc import pack_socs, soc_vs_ceiling
+from .pack_soc import control_vmax, soc_vs_ceiling
 from ..const import (
     DOMAIN,
     NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
@@ -139,23 +139,13 @@ class WeeklyFullChargeManager:
             # reports e.g. 95-98% SOC. Not gated on weekly charge: an everyday BMS
             # cutoff below 99% during normal charging needs this too, otherwise the
             # charge hysteresis never latches and we keep commanding a refusing BMS.
-            in_taper_zone = False
-            vmax = c.data.get("max_cell_voltage")
-            try:
-                in_taper_zone = vmax is not None and float(vmax) >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
-            except (TypeError, ValueError):
-                pass
-            # On a coupled-pack battery the taper clause alone is a false
-            # positive machine (issue #350): a pack that finished hours ago holds
-            # the top cell high while later packs are still filling, so a lull in
-            # acceptance during a hand-over gets counted as a cutoff at 89% SOC.
-            # Require the *least* full pack to be at the top as well. Only where
-            # packs actually report: the taper clause exists precisely to fire
-            # below 99% aggregate SOC (coulomb drift), so falling back to the
-            # aggregate here would disable it for every other battery.
-            packs = pack_socs(c)
-            if in_taper_zone and packs and min(packs) < 99:
-                in_taper_zone = False
+            # control_vmax carries the coupled-pack qualifier this clause has
+            # applied since #350: on a battery whose packs fill in sequence, a
+            # pack that finished hours ago holds the top cell high while later
+            # packs are still filling, so a lull in acceptance during a handover
+            # would be counted as a cutoff at 89% SOC.
+            vmax = control_vmax(c)
+            in_taper_zone = vmax is not None and vmax >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
             if soc >= 99 or in_taper_zone:
                 power = c.data.get("battery_power", None)
                 inv_state = c.data.get("inverter_state", None)
