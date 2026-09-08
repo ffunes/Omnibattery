@@ -1701,6 +1701,9 @@
       "battery_soc_pack_6": {
         "name": "Batterie-SOC Pack 6"
       },
+      "battery_soc_pack_7": {
+        "name": "Batterie-SOC Pack 7"
+      },
       "battery_total_energy": {
         "name": "Batteriegesamtenergie"
       },
