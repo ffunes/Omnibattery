@@ -240,7 +240,7 @@ DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT = 0.0
 # The whole-day energy balance can read zero deficit on a solar-positive day,
 # yet the battery still hits the hardware floor in the morning before solar
 # ramps up. This forces a charge sized to reach the floor SOC regardless of the
-# daily balance. 0 = disabled.
+# daily balance. Disabled via the CONF_ENABLE_MIN_SOC_FLOOR switch.
 CONF_PREDICTIVE_MIN_SOC_FLOOR = "predictive_min_soc_floor"
 DEFAULT_PREDICTIVE_MIN_SOC_FLOOR = 20.0
 CONF_ENABLE_MIN_SOC_FLOOR = "enable_min_soc_floor"
