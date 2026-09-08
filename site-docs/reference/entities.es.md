@@ -9,9 +9,10 @@ El sensor binario de estado de carga predictiva incluye diagnósticos de Precio 
 | Entidad | Descripción | Unidad |
 |---|---|---|
 | `sensor.*_battery_soc` | Estado de carga | % |
+| `sensor.*_battery_soh` | Estado de salud (SoH); registro de entrada Modbus Anker **10015** | % |
 | `sensor.*_battery_power` | Potencia actual | W |
 | `sensor.*_ac_power` | Potencia en el lado AC; en Anker se deriva de la potencia de batería con la convención de signo común | W |
-| `sensor.*_battery_voltage` | Tensión | V |
+| `sensor.*_battery_voltage` | Tensión (no expuesta en Anker) | V |
 | `sensor.*_battery_current` | Corriente | A |
 | `sensor.*_battery_temperature` | Temperatura | °C |
 | `sensor.*_internal_temperature` | Temperatura interna usada por la protección térmica; en Anker es un alias de `temperature` | °C |
@@ -21,8 +22,8 @@ El sensor binario de estado de carga predictiva incluye diagnósticos de Precio 
 | `sensor.*_total_daily_discharging_energy` | Energía descargada hoy (registro diario en Marstek; derivada del contador acumulado en Anker; integrada en Zendure) | kWh |
 | `sensor.*_battery_cycle_count` | Ciclos (registros, v3/vA/vD) | — |
 | `sensor.*_battery_cycle_count_calc` | Ciclos calculados (todos) | — |
-| `sensor.*_max_cell_voltage` | Tensión máx. de celda (v3/vA/vD) | V |
-| `sensor.*_min_cell_voltage` | Tensión mín. de celda (v3/vA/vD) | V |
+| `sensor.*_max_cell_voltage` | Tensión máx. de celda (v3/vA/vD; no expuesta en Anker) | V |
+| `sensor.*_min_cell_voltage` | Tensión mín. de celda (v3/vA/vD; no expuesta en Anker) | V |
 | `sensor.*_alarm_status` | Condiciones de alarma activas (v2) — diagnóstico | texto |
 | `sensor.*_fault_status` | Condiciones de fallo activas (v2) — diagnóstico | texto |
 
