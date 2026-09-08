@@ -22,6 +22,7 @@ import math
 from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import lru_cache
 from datetime import date, datetime, time, timedelta, timezone
 from time import monotonic
 from typing import Any
@@ -404,7 +405,11 @@ def _datetime_candidates(wall: datetime, tz: Any) -> list[datetime]:
     return result
 
 
+@lru_cache(maxsize=512)
 def _wall_interval_info(local_date: date, index: int, tz: Any) -> dict[str, Any]:
+    # The wall-clock grid of a local day is constant, but every public snapshot
+    # rebuilt it (96 + 48 DST probes, ~55% of the build).  Callers must treat
+    # the returned dict as read-only; today they only read fields out of it.
     hour, quarter = divmod(index, 4)
     minute = quarter * INTERVAL_MINUTES
     start_wall = datetime.combine(local_date, time(hour, minute))
