@@ -831,14 +831,21 @@ class ConsumptionProfileTracker:
 
     def _prune(self, reference_date: date | None = None) -> None:
         """Keep the current day plus the previous 28 local dates."""
-        # No cache invalidation here: everything this drops is older than the
-        # retention floor, where ``_age_weight`` is already 0.0.
         floor = self._retention_floor(reference_date)
+        before = len(self._days)
         self._days = {
             local_date: day
             for local_date, day in self._days.items()
             if floor <= local_date <= (reference_date or self._today())
         }
+        if len(self._days) != before:
+            # Dropping past the retention floor cannot move the aggregate -
+            # ``_age_weight`` is already 0.0 there - but this also drops days
+            # dated *after* the reference, whose age clamps to 0 and whose
+            # weight is therefore 1.0.  Invalidating on any real drop costs
+            # nothing: pruning only removes anything on the local-date
+            # rollover, which drops the cache anyway.
+            self._invalidate_forecast_cache()
 
     async def async_load(self) -> bool:
         """Restore the raw profile, dropping corrupt days without failing setup."""
