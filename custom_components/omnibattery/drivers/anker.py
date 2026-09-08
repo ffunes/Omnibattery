@@ -583,9 +583,11 @@ class AnkerModbusDriver(BatteryDriver):
 
         # Register 10015 is shared across Solarbank SKUs but only field-verified on
         # DMWH. Units that do not implement SoH may answer 0 instead of omitting the
-        # field; treat that as unknown rather than a dead battery.
+        # field; treat that as unknown rather than a dead battery. None (not a pop)
+        # so the coordinator clears the sensor: it only writes the keys the snapshot
+        # carries, so dropping the key would freeze the last non-zero reading.
         if snapshot.get("battery_soh") == 0:
-            snapshot.pop("battery_soh", None)
+            snapshot["battery_soh"] = None
 
         pv_power = snapshot.get("pv_power")
         third_party_pv_power = snapshot.get("third_party_pv_power")
