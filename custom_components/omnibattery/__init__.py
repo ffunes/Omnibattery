@@ -4845,19 +4845,27 @@ class ChargeDischargeController:
         # Trigger only when SOC drops (floor - margin) below the floor, so tiny dips
         # at the boundary don't re-fire every cycle (relay churn).
         # Band: soc < (floor - margin) triggers; charges up to floor.
+        # The hysteresis gates the *trigger* only. Sizing the deficit from the
+        # triggering battery alone left every other battery under the floor, so
+        # the fleet average never cleared the band and the slot re-fired about
+        # once an hour (eight short charges in a single night).
         floor_deficit_kwh = 0.0
         if self._predictive_min_soc_floor_enabled and self._predictive_min_soc_floor > 0:
-            floor_deficit_kwh = sum(
-                max(
-                    0.0,
-                    (self._predictive_min_soc_floor - float(c.data.get("battery_soc", 0) or 0.0))
-                    / 100.0
-                    * float(c.data.get("battery_total_energy", 0) or 0.0),
-                )
+            floor = float(self._predictive_min_soc_floor)
+            socs = {
+                c: float(c.data.get("battery_soc", 0) or 0.0)
                 for c in coordinators_with_data
-                if float(c.data.get("battery_soc", 0) or 0.0)
-                < self._predictive_min_soc_floor - FLOOR_HYSTERESIS_PCT
-            )
+            }
+            if any(soc < floor - FLOOR_HYSTERESIS_PCT for soc in socs.values()):
+                floor_deficit_kwh = sum(
+                    max(
+                        0.0,
+                        (floor - soc)
+                        / 100.0
+                        * float(c.data.get("battery_total_energy", 0) or 0.0),
+                    )
+                    for c, soc in socs.items()
+                )
 
         # Weekly full charge (#404): the balance below answers "will I run out
         # of battery", never "is the battery full", so a weekly 100% day never
@@ -5082,6 +5090,13 @@ class ChargeDischargeController:
                 "solar_forecast_diagnostic_source": forecast_diagnostic_source
                 or getattr(self, "solar_forecast_diagnostic_source", None),
                 "weekly_full_charge_active": weekly_gap_kwh >= energy_deficit_kwh > 0,
+                # Consumers (the per-battery stop target) need to know the floor
+                # is the binding constraint here too, not only in the balanced
+                # branch below.
+                "floor_active": (
+                    floor_deficit_kwh > 0
+                    and floor_deficit_kwh > avg_consumption_kwh - total_available_kwh
+                ),
                 "reason": f"Solar unavailable - conservative mode ({'charge' if should_charge else 'safe'})"
             }
 
@@ -5367,6 +5382,16 @@ class ChargeDischargeController:
             )
         grid_charge_kwh = min(total_gap_kwh, max(0.0, planned_grid_charge_kwh))
 
+        # When the guaranteed floor is what asked for this charge, it is also
+        # the stop condition. The proportional split above spreads the floor
+        # deficit over every battery by gap-to-ceiling, so a battery under the
+        # floor stopped short of it and the slot re-triggered within the hour.
+        floor_soc = 0.0
+        if decision_data.get("floor_active") and getattr(
+            self, "_predictive_min_soc_floor_enabled", False
+        ):
+            floor_soc = float(getattr(self, "_predictive_min_soc_floor", 0.0) or 0.0)
+
         targets: dict = {}
         for c in coordinators_with_data:
             capacity = c.data.get("battery_total_energy", 0)
@@ -5377,6 +5402,8 @@ class ChargeDischargeController:
                 continue
             share_kwh = (gaps[c] / total_gap_kwh) * grid_charge_kwh
             target = min(ceiling, current_soc + (share_kwh / capacity) * 100.0)
+            if floor_soc:
+                target = min(ceiling, max(target, floor_soc))
             targets[c] = max(target, current_soc)  # never go below current SOC
 
         _LOGGER.info(
