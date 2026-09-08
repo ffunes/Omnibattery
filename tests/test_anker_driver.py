@@ -288,7 +288,7 @@ async def test_read_telemetry_decodes_battery_soh_from_register_10015():
 
 
 @pytest.mark.asyncio
-async def test_read_telemetry_omits_battery_soh_when_register_10015_is_zero():
+async def test_read_telemetry_reports_battery_soh_unknown_when_register_10015_is_zero():
     client = _fake_client()
     buf = [0] * 51
     client.async_read_input_block = AsyncMock(return_value=buf)
@@ -296,7 +296,9 @@ async def test_read_telemetry_omits_battery_soh_when_register_10015_is_zero():
     drv = _driver(client=client)
     snap = await drv.read_telemetry(["battery_soh"])
 
-    assert "battery_soh" not in snap
+    # Explicit None, not a missing key: the coordinator only overwrites the keys a
+    # snapshot carries, so omitting it would keep the previous reading on screen.
+    assert snap["battery_soh"] is None
 
 
 def test_battery_soh_in_sensor_definitions_for_e5000_and_max_ac():
