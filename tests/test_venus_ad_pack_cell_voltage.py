@@ -9,6 +9,8 @@ Pinned here:
 
 * the per-pack registers sit on the same stride-100 block as the SOC, at
   offsets +5/+6, and are block-read one frame per pack;
+* a pack whose cell registers never answer leaves the poll schedule after three
+  tries, and takes nothing else with it;
 * they poll with their entities disabled, so the delta is right for everyone
   and nobody has to opt in to a correct health number;
 * an absent slot loses its cell entities along with its SOC, on the SOC probe's
@@ -116,15 +118,20 @@ def test_a_v3_never_gets_the_pack_cell_blocks():
 # --- slot probe -------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_absent_slot_loses_its_cell_entities_with_its_soc():
-    """Two packs present: slots 3-7 must drop all three of their keys."""
-    driver = _driver({32104: 80, 34002: 812, 34102: 795})
-
+async def _probe(driver):
+    """Run the coordinator's poll shape until the start-up probe has settled."""
     for _ in range(_PACK_PROBE_CYCLES):
         await driver.read_telemetry(["battery_soc"])
-        for key in PACK_SOC_KEYS:
+        for key in PACK_SOC_KEYS + PACK_MAX_CELL_KEYS + PACK_MIN_CELL_KEYS:
             await driver.read_telemetry([key])
+
+
+@pytest.mark.asyncio
+async def test_absent_slot_loses_its_cell_registers_with_its_soc():
+    """Two packs present: slots 3-7 must drop all three of their keys."""
+    driver = _driver({32104: 80, 34002: 812, 34102: 795,
+                      34005: 3340, 34006: 3330, 34105: 3352, 34106: 3348})
+    await _probe(driver)
 
     present = {d["key"] for d in driver.sensor_definitions}
     polled = {k for g in driver.read_groups for k in g.keys}
@@ -133,14 +140,53 @@ async def test_absent_slot_loses_its_cell_entities_with_its_soc():
         assert f"min_cell_voltage_pack_{n}" in present
     for n in range(3, 8):
         assert f"max_cell_voltage_pack_{n}" not in present
-        assert f"min_cell_voltage_pack_{n}" not in present
         assert f"max_cell_voltage_pack_{n}" not in polled
-    # An absent slot must also stop being forced to poll, or the dependency set
-    # would drag its pruned keys back onto the bus.
     assert driver.balance_dependency_keys == {
         "max_cell_voltage_pack_1", "min_cell_voltage_pack_1",
         "max_cell_voltage_pack_2", "min_cell_voltage_pack_2",
     }
+
+
+@pytest.mark.asyncio
+async def test_a_pack_whose_cell_registers_never_answer_stops_being_asked():
+    """The whole objection to this feature is the single TCP slot.
+
+    If the extrapolated +5/+6 offsets are not there on some firmware, the reads
+    must leave the schedule after three tries instead of costing a frame per pack
+    per cycle forever — and the SOC, which the charge ceiling and discharge floor
+    stand on, must survive that untouched.
+    """
+    driver = _driver({32104: 80, 34002: 812, 34102: 795})
+    await _probe(driver)
+
+    polled = {k for g in driver.read_groups for k in g.keys}
+    assert polled.isdisjoint(PACK_MAX_CELL_KEYS)
+    assert polled.isdisjoint(PACK_MIN_CELL_KEYS)
+    assert driver.balance_dependency_keys == frozenset()
+    # The SOC verdict is unaffected.
+    assert polled.intersection(PACK_SOC_KEYS) == {
+        "battery_soc_pack_1", "battery_soc_pack_2",
+    }
+    assert driver.control_dependency_keys.issuperset(
+        {"battery_soc_pack_1", "battery_soc_pack_2"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_soc_write_off_does_not_wait_on_the_cell_probe():
+    """Cell registers are a diagnostic; the SOC verdict must not hang on them.
+
+    The coordinator only polls what its entities and dependencies ask for, so a
+    build where the cell keys are never requested must still settle the SOC.
+    """
+    driver = _driver({32104: 80, 34002: 812})
+    for _ in range(_PACK_PROBE_CYCLES):
+        await driver.read_telemetry(["battery_soc"])
+        for key in PACK_SOC_KEYS:
+            await driver.read_telemetry([key])
+
+    polled = {k for g in driver.read_groups for k in g.keys}
+    assert polled.intersection(PACK_SOC_KEYS) == {"battery_soc_pack_1"}
 
 
 # --- the delta --------------------------------------------------------------
@@ -175,19 +221,21 @@ def test_no_per_pack_telemetry_leaves_the_reading_alone():
     assert worst_pack_delta(SimpleNamespace(data=None)) is None
 
 
-def test_implausible_readings_are_dropped_not_shown():
-    # The +5/+6 offsets come from a third-party map and are not hardware-confirmed
-    # the way the SOC's +2 is. A slot pointing at something that is not a cell
-    # voltage must not surface as a health number.
+def test_only_the_two_impossible_pairs_are_dropped():
+    # A pack is trusted exactly as far as a Venus E's 37007/37008 are. The two
+    # things thrown out are the ones that cannot be a measurement at all: a zero,
+    # and a max below its min. Nothing else is second-guessed.
     coord = _coord(
         max_cell_voltage_pack_1=3.340, min_cell_voltage_pack_1=3.330,
         max_cell_voltage_pack_2=0.0, min_cell_voltage_pack_2=0.0,
-        max_cell_voltage_pack_3=65.0, min_cell_voltage_pack_3=3.3,
         # Inverted: a decode error, not a 300 mV imbalance.
-        max_cell_voltage_pack_4=3.10, min_cell_voltage_pack_4=3.40,
+        max_cell_voltage_pack_3=3.10, min_cell_voltage_pack_3=3.40,
+        # Wide but real: #415 measured 197 mV inside one pack, and the status
+        # thresholds go to 250 mV, so this must reach the sensor, not be filtered.
+        max_cell_voltage_pack_4=3.517, min_cell_voltage_pack_4=3.320,
     )
-    assert pack_cell_deltas(coord) == {1: 10.0}
-    assert worst_pack_delta(coord)["pack"] == 1
+    assert pack_cell_deltas(coord) == {1: 10.0, 4: 197.0}
+    assert worst_pack_delta(coord)["pack"] == 4
 
 
 @pytest.mark.asyncio

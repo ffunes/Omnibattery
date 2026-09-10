@@ -60,21 +60,13 @@ def pack_socs(coordinator) -> list[float]:
 _PACK_VMAX_PREFIX = "max_cell_voltage_pack_"
 _PACK_VMIN_PREFIX = "min_cell_voltage_pack_"
 
-# A LiFePO4 cell lives between roughly 2.5 V empty and 3.65 V full, and the
-# registers these come from are a third-party map whose +5/+6 offsets are not
-# confirmed on hardware the way the SOC's +2 is (#415, #439). A slot pointing at
-# something that is not a cell voltage answers outside this band, so a reading
-# outside it is dropped rather than shown as a health number.
-_CELL_V_MIN = 2.0
-_CELL_V_MAX = 4.0
-
 
 def pack_cell_voltages(coordinator) -> dict[int, tuple[float, float]]:
     """Return ``{pack number: (vmax, vmin)}`` for every pack reporting both.
 
     Empty for every battery that publishes no per-pack cell voltage, which is
-    every model except Venus A/D, and any Venus A/D slot whose registers did not
-    answer. The entities ship disabled but the reads do not depend on that (see
+    every model except Venus A/D, and any Venus A/D slot the probe wrote off. The
+    entities ship disabled but the reads do not depend on that (see
     ``balance_dependency_keys``), so a multi-pack owner gets the per-pack delta
     without opting in.
     """
@@ -85,8 +77,6 @@ def pack_cell_voltages(coordinator) -> dict[int, tuple[float, float]]:
         for key, value in data.items():
             if not key.startswith(prefix) or not isinstance(value, (int, float)):
                 continue
-            if not _CELL_V_MIN <= value <= _CELL_V_MAX:
-                continue
             try:
                 out[int(key[len(prefix):])] = float(value)
             except ValueError:
@@ -95,10 +85,13 @@ def pack_cell_voltages(coordinator) -> dict[int, tuple[float, float]]:
 
     vmax = _slot_values(_PACK_VMAX_PREFIX)
     vmin = _slot_values(_PACK_VMIN_PREFIX)
+    # A pack is trusted exactly as far as a Venus E's 37007/37008 are: if the
+    # registers answer, the reading stands. The only pairs thrown out are the two
+    # that cannot be a measurement at all — a zero, and a max below its min.
     return {
         n: (vmax[n], vmin[n])
         for n in sorted(vmax.keys() & vmin.keys())
-        if vmax[n] >= vmin[n]
+        if vmax[n] >= vmin[n] > 0
     }
 
 

@@ -523,9 +523,12 @@ SENSOR_DEFINITIONS_VA.extend(
 # (REGISTER_BLOCKS_VA_PACK_CELLS below) at "low". On a four-pack Venus D that is
 # four extra frames per 30 s cycle, ~600 ms of a bus with one TCP slot.
 #
-# The stride is confirmed for the SOC at +2 (34602/pack 7 read on hardware,
-# #415). Offsets +5/+6 come from the same third-party map, so readings are
-# bounded on use rather than trusted; see pack_cell_deltas().
+# Pack 1's pair is firmware-confirmed (the shared pointers above). Packs 2-7 are
+# the same stride the SOC uses at +2, which is confirmed on hardware up to
+# 34602 (#415), applied to offsets +5/+6 — reasoned, not read. Nothing guards
+# that beyond what the hardware itself says: a slot whose registers do not answer
+# is written off by the start-up probe after three tries, exactly like a slot
+# with no pack in it.
 PACK_MAX_CELL_KEYS = tuple(f"max_cell_voltage_pack_{n}" for n in range(1, 8))
 PACK_MIN_CELL_KEYS = tuple(f"min_cell_voltage_pack_{n}" for n in range(1, 8))
 
