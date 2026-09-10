@@ -323,6 +323,18 @@ class BatteryDriver(ABC):
         """
 
     @property
+    def balance_dependency_keys(self) -> frozenset[str]:
+        """Telemetry the cell-balance monitor needs beyond max/min cell voltage.
+
+        The coordinator keeps these polling even when their entities are
+        disabled, so a driver may expose a finer-grained breakdown as opt-in
+        entities without the balance reading depending on the user enabling them.
+        Empty for drivers whose max/min cell voltage already describes the whole
+        battery.
+        """
+        return frozenset()
+
+    @property
     def supplemental_discharge_dependency_keys(self) -> frozenset[str]:
         """Telemetry required to derive discharge omitted by hardware counters.
 

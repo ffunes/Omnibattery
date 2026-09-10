@@ -181,17 +181,17 @@ class BalanceMonitor:
         # pack 1's registers and nothing else (#415): on a battery that fills its
         # packs in sequence that is one pack's spread wearing a whole-battery
         # label, and the pack it describes is usually not even the one under
-        # load. When the per-pack registers are enabled, judge the battery on its
+        # load. Where the per-pack registers answer, judge the battery on its
         # *worst* pack instead and record which one that was, so a red status
-        # points at something the owner can go and look at. Every other battery,
-        # and every Venus A/D with the entities left disabled, keeps the caller's
-        # reading unchanged.
+        # points at something the owner can go and look at. Those entities ship
+        # disabled but their registers poll regardless, so this needs no opting
+        # in; every other battery keeps the caller's reading unchanged.
         #
-        # ponytail: enabling the entities steps the series up once, since the
-        # worst pack is never tighter than pack 1, and that step can cost one
-        # spurious rising-trend notification before the four-reading window has
-        # turned over. Left unguarded: the imbalance it reports was always there,
-        # only invisible, and the alert is cooldown-limited to one.
+        # ponytail: on a multi-pack battery the upgrade steps the series up once,
+        # since the worst pack is never tighter than pack 1, and that step can
+        # cost one spurious rising-trend notification before the four-reading
+        # window has turned over. Left unguarded: the imbalance it reports was
+        # always there, only invisible, and the alert is cooldown-limited to one.
         worst = worst_pack_delta(coordinator)
         if worst is not None:
             delta_mv = worst["delta_mV"]
