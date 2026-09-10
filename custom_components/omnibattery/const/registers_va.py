@@ -470,10 +470,12 @@ NUMBER_DEFINITIONS_VA = [
 #
 # Seven slots, not the six of #350: issue #415 reports a seven-pack Venus D. A
 # slot missing from this tuple is not polled at all, so its SOC never reaches
-# the min() the charge ceiling and discharge floor are taken on. Whether the
-# firmware answers at 34602 is unconfirmed — the published register map stops at
-# six packs — so slot 7 rests on the probe: it costs three reads once and leaves
-# the schedule for good if nothing answers.
+# the min() the charge ceiling and discharge floor are taken on. 34602 is
+# confirmed on that installation (#415): it tracks pack 7 independently, and the
+# stride is not an artefact — adding a pack renumbers from the top, so the new
+# pack takes slot 1 and the old six shift up to 34102–34602, addresses included.
+# A slot beyond the last populated one still rests on the probe: three reads
+# once, then off the schedule for good if nothing answers.
 PACK_SOC_KEYS = tuple(f"battery_soc_pack_{n}" for n in range(1, 8))
 
 SENSOR_DEFINITIONS_VA.extend(
