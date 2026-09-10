@@ -20,6 +20,8 @@ from custom_components.omnibattery.drivers import (
     MarstekModbusDriver,
 )
 from custom_components.omnibattery.const import (
+    MESSAGE_WAIT_MS,
+    MESSAGE_WAIT_MS_RS485_GATEWAY,
     REGISTER_MAP,
     max_power_for_battery_version,
 )
@@ -1119,3 +1121,27 @@ async def test_probe_always_closes_client(monkeypatch):
 
     assert result is False
     client.async_close.assert_awaited_once()
+
+
+def test_rs485_gateway_drops_the_v3_message_wait(monkeypatch):
+    """The 150 ms wait is a TCP-server delay; an RS485 gateway skips it (#411)."""
+    captured = {}
+
+    def _fake_client_factory(*args, **kwargs):
+        captured.update(kwargs)
+        return _fake_client()
+
+    monkeypatch.setattr(
+        "custom_components.omnibattery.drivers.marstek.MarstekModbusClient",
+        _fake_client_factory,
+    )
+
+    MarstekModbusDriver("1.2.3.4", 502, "v3")
+    assert captured["message_wait_ms"] == MESSAGE_WAIT_MS["v3"]
+
+    MarstekModbusDriver("1.2.3.4", 502, "vD", rs485_gateway=True)
+    assert captured["message_wait_ms"] == MESSAGE_WAIT_MS_RS485_GATEWAY
+
+    # The gateway replaces the TCP server for every firmware version, v2 too.
+    MarstekModbusDriver("1.2.3.4", 502, "v2", rs485_gateway=True)
+    assert captured["message_wait_ms"] == MESSAGE_WAIT_MS_RS485_GATEWAY

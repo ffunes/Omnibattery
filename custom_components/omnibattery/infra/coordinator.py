@@ -287,6 +287,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  zendure_model: str = ZENDURE_MODEL_2400AC_PRO,
                  hoymiles_model: str | None = None,
                  serial_port: str | None = None,
+                 rs485_gateway: bool = False,
                  esphome_device_id: str | None = None,
                  huawei_battery_device_id: str | None = None,
                  huawei_direct_write: bool = False,
@@ -322,6 +323,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # of TCP (discussion #350); None = TCP. host/port still identify the
         # battery (device_key, naming); the link uses this path. Marstek only.
         self.serial_port = serial_port
+        # Marstek reached through an RS485 gateway instead of its own Modbus
+        # TCP server: drops the inter-message wait (issue #411).
+        self.rs485_gateway = bool(rs485_gateway)
         self.consumption_sensor = consumption_sensor
         self.brand = brand
         self.ems_version = ems_version
@@ -520,6 +524,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 max_discharge_power_w=self.configured_max_discharge_power,
                 serial_port=self.serial_port,
                 ems_version=self.ems_version,
+                rs485_gateway=self.rs485_gateway,
             )
 
         # The driver declares whether its native discharge counter omits a power

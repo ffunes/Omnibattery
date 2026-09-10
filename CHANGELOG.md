@@ -4,6 +4,7 @@
 
 ### Added
 
+- **"Reached through an RS485 gateway" option for Marstek** (#411): the inter-message wait lives in the battery's Modbus TCP server task, not in its RS485 one, so a battery behind a gateway (Elfin EW11, USB-RS485 bridge) does not need it. New per-battery checkbox in the connection step drops the spacing to 30 ms on any firmware version — measured on a v3, a poll cycle of 0.7 s instead of 1.9 s. Off by default; no effect on a battery reached at its own IP. Thanks to @ShockWaveFlash for the measurements and the firmware disassembly.
 - **Charge share follows the room each battery has left, not its power rating** (#335): batteries aim at one finish time instead of the fastest filling first and the slowest running out of daylight. Discharge is unchanged. Thanks to @sphings79 for the measurements.
 - **Charge order follows the day** (#335): longest to fill first with sun to spare, the DC-coupled battery first on a day the forecast cannot fill it. New `Charge priority` select overrides both.
 - **Primary battery and demand feedforward** (#335, opt-in, off by default): hands the nominated battery the load the fleet must cover, or the fleet the surplus that wants storing, instead of waiting for the meter to deviate — for installations where a second regulator shares the meter. Its figures are shown in the switch attributes whether or not it is on.

@@ -40,6 +40,12 @@ DEFAULT_SLAVE_ID = 1
 CONF_SERIAL_PORT = "serial_port"
 SERIAL_BAUDRATE = 115200
 
+# Per-battery opt-in: the Modbus TCP connection lands on an RS485 gateway
+# (Elfin EW11 and friends) instead of the battery's own TCP server, so the
+# inter-message wait that server imposes does not apply (issue #411). Drops the
+# spacing to MESSAGE_WAIT_MS_RS485_GATEWAY for any Marstek firmware version.
+CONF_RS485_GATEWAY = "rs485_gateway"
+
 # Maximum power (W) per battery version — used by config_flow to set slider limits
 MAX_POWER_BY_VERSION = {
     "v2": 2500,

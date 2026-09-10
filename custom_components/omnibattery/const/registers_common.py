@@ -73,6 +73,16 @@ MESSAGE_WAIT_MS = {
     "vD": 150,
 }
 
+# The waits above live in the battery's Modbus *TCP* server task, not in its
+# RS485 one (firmware disassembly of a v3, issue #411): reached through an
+# RS485 gateway (Elfin EW11, USB-RS485 adapter, ...) that delay buys nothing
+# and costs ~1 s of every v3 poll cycle. Opt-in per battery via
+# CONF_RS485_GATEWAY, and it replaces the wait for every firmware version.
+# Each battery paces its own socket, so N batteries daisy-chained on one
+# gateway put N times the frames on the shared bus; only a single-battery
+# gateway is field-tested (#411).
+MESSAGE_WAIT_MS_RS485_GATEWAY = 30
+
 # Version-specific per-attempt timeout (seconds), passed to pymodbus.
 # The v3 weak MCU answers in well under a second at the 150ms cadence, but
 # occasionally stalls for several seconds and then flushes queued replies in a

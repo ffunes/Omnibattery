@@ -108,7 +108,8 @@
           "port": "Modbus-Port",
           "battery_version": "Batteriemodell",
           "slave_id": "Modbus-Slave-ID",
-          "serial_port": "Serieller Port (Modbus RTU)"
+          "serial_port": "Serieller Port (Modbus RTU)",
+          "rs485_gateway": "Über ein RS485-Gateway verbunden"
         },
         "data_description": {
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
@@ -116,7 +117,8 @@
           "port": "Modbus-Port (normalerweise 502)",
           "battery_version": "Wählen Sie die Modellversion Ihrer Batterie. Ev2 für ältere Modelle, Ev3 für neuere Modelle mit aktualisierter Registerkarte, A (Venus A) oder D (Venus D) für Hybrid-Wechselrichter-Modelle",
           "slave_id": "Modbus Slave-/Unit-ID (Standard 1). Nur ändern, wenn ein Modbus-Proxy mehrere Batterien über dieselbe IP:Port mit unterschiedlichen Slave-IDs abbildet.",
-          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen."
+          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen.",
+          "rs485_gateway": "Aktivieren, wenn die Modbus-TCP-Verbindung auf einem RS485-Gateway (Elfin EW11, USB-RS485-Brücke ...) endet statt am TCP-Port der Batterie selbst. Die Wartezeit zwischen Nachrichten existiert nur im TCP-Server der Batterie; auf 30 ms gesenkt wird die Abfrage einer Venus Ev3/A/D rund dreimal schneller. Die Wartezeit gilt pro Batterie: teilen sich mehrere Batterien ein Gateway, trägt der Bus entsprechend mehr Verkehr — dann wieder deaktivieren, wenn Lesevorgänge fehlschlagen oder in Zeitüberschreitungen laufen. Bei direkter Verbindung zur IP der Batterie ausgeschaltet lassen."
         }
       },
       "battery_connection_zendure": {
@@ -583,7 +585,8 @@
           "port": "Modbus-Port",
           "battery_version": "Batteriemodell",
           "slave_id": "Modbus-Slave-ID",
-          "serial_port": "Serieller Port (Modbus RTU)"
+          "serial_port": "Serieller Port (Modbus RTU)",
+          "rs485_gateway": "Über ein RS485-Gateway verbunden"
         },
         "data_description": {
           "name": "Beschreibender Name zur Identifikation dieser Batterie",
@@ -591,7 +594,8 @@
           "port": "Modbus-Port (normalerweise 502)",
           "battery_version": "Wählen Sie Ihre Batteriemodellversion",
           "slave_id": "Modbus Slave-/Unit-ID (Standard 1). Nur ändern, wenn ein Modbus-Proxy mehrere Batterien über dieselbe IP:Port mit unterschiedlichen Slave-IDs abbildet.",
-          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen."
+          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen.",
+          "rs485_gateway": "Aktivieren, wenn die Modbus-TCP-Verbindung auf einem RS485-Gateway (Elfin EW11, USB-RS485-Brücke ...) endet statt am TCP-Port der Batterie selbst. Die Wartezeit zwischen Nachrichten existiert nur im TCP-Server der Batterie; auf 30 ms gesenkt wird die Abfrage einer Venus Ev3/A/D rund dreimal schneller. Die Wartezeit gilt pro Batterie: teilen sich mehrere Batterien ein Gateway, trägt der Bus entsprechend mehr Verkehr — dann wieder deaktivieren, wenn Lesevorgänge fehlschlagen oder in Zeitüberschreitungen laufen. Bei direkter Verbindung zur IP der Batterie ausgeschaltet lassen."
         }
       },
       "reconfigure_battery_zendure": {
@@ -856,7 +860,8 @@
           "port": "Modbus-Port",
           "battery_version": "Batteriemodell",
           "slave_id": "Modbus-Slave-ID",
-          "serial_port": "Serieller Port (Modbus RTU)"
+          "serial_port": "Serieller Port (Modbus RTU)",
+          "rs485_gateway": "Über ein RS485-Gateway verbunden"
         },
         "data_description": {
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
@@ -864,7 +869,8 @@
           "port": "Modbus-Port (normalerweise 502)",
           "battery_version": "Wählen Sie die Modellversion Ihrer Batterie. Ev2 für ältere Modelle, Ev3 für neuere Modelle mit aktualisierter Registerkarte, A (Venus A) oder D (Venus D) für Hybrid-Wechselrichter-Modelle",
           "slave_id": "Modbus Slave-/Unit-ID (Standard 1). Nur ändern, wenn ein Modbus-Proxy mehrere Batterien über dieselbe IP:Port mit unterschiedlichen Slave-IDs abbildet.",
-          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen."
+          "serial_port": "Pfad des USB-RS485-Adapters, z. B. /dev/ttyUSB0 oder COM3. Statt der IP-Adresse ausfüllen, um Modbus RTU über die serielle Schnittstelle zu nutzen; für TCP leer lassen.",
+          "rs485_gateway": "Aktivieren, wenn die Modbus-TCP-Verbindung auf einem RS485-Gateway (Elfin EW11, USB-RS485-Brücke ...) endet statt am TCP-Port der Batterie selbst. Die Wartezeit zwischen Nachrichten existiert nur im TCP-Server der Batterie; auf 30 ms gesenkt wird die Abfrage einer Venus Ev3/A/D rund dreimal schneller. Die Wartezeit gilt pro Batterie: teilen sich mehrere Batterien ein Gateway, trägt der Bus entsprechend mehr Verkehr — dann wieder deaktivieren, wenn Lesevorgänge fehlschlagen oder in Zeitüberschreitungen laufen. Bei direkter Verbindung zur IP der Batterie ausgeschaltet lassen."
         }
       },
       "battery_connection_zendure": {
