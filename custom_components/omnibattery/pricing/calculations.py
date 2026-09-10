@@ -230,6 +230,62 @@ def parse_epex_prices(attrs: dict) -> list:
     return slots
 
 
+def parse_zonneplan_prices(attrs: dict) -> list:
+    """Parse zonneplan_one hourly, quarter-hourly and legacy forecasts.
+
+    Forecast amounts are tax-inclusive EUR/kWh multiplied by 10,000,000;
+    the sensor state is already EUR/kWh and must not be scaled again.
+    Modern entries have explicit start_date/end_date. Legacy electricity_price
+    entries are hourly, with only datetime/start_date. Never bridge missing
+    intervals by inferring an end from the next available price.
+    """
+    from homeassistant.util import dt as dt_util
+
+    if attrs.get("unit_of_measurement", "€/kWh") not in ("€/kWh", "EUR/kWh"):
+        return []
+    entries = attrs.get("forecast")
+    if not isinstance(entries, (list, tuple)):
+        return []
+
+    slots = {}
+    for entry in entries:
+        try:
+            start = entry.get("start_date") or entry.get("datetime")
+            if isinstance(start, str):
+                start = datetime.fromisoformat(start)
+            if not isinstance(start, datetime):
+                continue
+            if "price_tax_included" in entry:
+                amount = entry["price_tax_included"]["amount"]
+                end = entry.get("end_date")
+                if isinstance(end, str):
+                    end = datetime.fromisoformat(end)
+                if not isinstance(end, datetime):
+                    continue
+            else:
+                amount = entry["electricity_price"]
+                # Add elapsed time in UTC across daylight-saving changes.
+                end = dt_util.as_utc(start) + timedelta(hours=1) if start.tzinfo else start + timedelta(hours=1)
+            if isinstance(amount, bool):
+                continue
+            price = float(amount) / 10_000_000
+            if not math.isfinite(price) or end <= start:
+                continue
+            if start.tzinfo is not None:
+                start = dt_util.as_local(start).replace(tzinfo=None)
+            if end.tzinfo is not None:
+                end = dt_util.as_local(end).replace(tzinfo=None)
+            # The shared planner uses naive local times. Omit intervals it
+            # cannot represent during a clock rollback rather than inventing
+            # a negative duration.
+            if end <= start:
+                continue
+            slots[(start, end)] = PriceSlot(start, end, price)
+        except (AttributeError, KeyError, TypeError, ValueError, OverflowError):
+            _LOGGER.debug("Dynamic pricing: invalid Zonneplan forecast entry")
+    return sorted(slots.values(), key=lambda slot: slot.start)
+
+
 def parse_entsoe_prices(attrs: dict) -> list:
     """Parse ENTSO-e Transparency Platform prices (HA jaapp integration).
 

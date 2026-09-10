@@ -38,6 +38,7 @@ from ..const import (
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_ENTSOE,
     PRICE_INTEGRATION_TIBBER,
+    PRICE_INTEGRATION_ZONNEPLAN,
     NORDPOOL_REFRESH_MINUTES,
     TIBBER_REFRESH_MINUTES,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
@@ -119,6 +120,7 @@ CURTAILMENT_AUTO_REPLAN_COOLDOWN_S = 60.0
 # Used only to detect an attribute that arrived as a string; PVPC is absent
 # because it reads scalar per-hour attributes, not a list.
 _PRICE_LIST_ATTRS = {
+    PRICE_INTEGRATION_ZONNEPLAN: ("forecast",),
     PRICE_INTEGRATION_NORDPOOL: ("raw_today", "raw_tomorrow"),
     PRICE_INTEGRATION_CKW: ("prices",),
     PRICE_INTEGRATION_EPEX: ("data",),
@@ -896,6 +898,8 @@ class PricingManager:
                 raw_slots = calculations.parse_ckw_prices(attrs)
             elif self._controller.price_integration_type == PRICE_INTEGRATION_EPEX:
                 raw_slots = calculations.parse_epex_prices(attrs)
+            elif self._controller.price_integration_type == PRICE_INTEGRATION_ZONNEPLAN:
+                raw_slots = calculations.parse_zonneplan_prices(attrs)
             elif self._controller.price_integration_type == PRICE_INTEGRATION_ENTSOE:
                 raw_slots = calculations.parse_entsoe_prices(attrs)
             else:

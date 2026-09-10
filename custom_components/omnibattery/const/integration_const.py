@@ -843,6 +843,7 @@ PRICE_INTEGRATION_CKW = "ckw"
 PRICE_INTEGRATION_EPEX = "epex"
 PRICE_INTEGRATION_ENTSOE = "entsoe"
 PRICE_INTEGRATION_TIBBER = "tibber"
+PRICE_INTEGRATION_ZONNEPLAN = "zonneplan"
 
 # Tibber and the official Nord Pool integration are service-based rather than
 # forecast-attribute based. How stale either cache may get before a refresh.
