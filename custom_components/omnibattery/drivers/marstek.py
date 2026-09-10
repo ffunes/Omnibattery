@@ -26,6 +26,7 @@ from typing import Optional
 
 from ..const import (
     MESSAGE_WAIT_MS,
+    MESSAGE_WAIT_MS_RS485_GATEWAY,
     PACK_SOC_KEYS,
     READ_TIMEOUT_S,
     REGISTER_MAP,
@@ -45,6 +46,19 @@ _LOGGER = logging.getLogger(__name__)
 # Firmware families that share the v3 quirks: single TCP slot, int16 power, no
 # hardware SOC cut-off registers, packet correction.
 _V3_FAMILY = ("v3", "vA", "vD")
+
+
+def _message_wait_ms(version: str, rs485_gateway: bool = False) -> int:
+    """Inter-message spacing for this version and transport.
+
+    The per-version wait is a delay inside the battery's Modbus *TCP* server
+    task; the RS485 task has no equivalent (issue #411, disassembled on v3), so
+    a battery reached through an RS485 gateway only needs ordinary RTU spacing,
+    whatever its firmware.
+    """
+    if rs485_gateway:
+        return MESSAGE_WAIT_MS_RS485_GATEWAY
+    return MESSAGE_WAIT_MS.get(version, 50)
 
 # Venus A/D pack-SOC discovery (issue #350). How many packs a Venus A/D has is
 # not readable anywhere, so the populated slots are learned from which of them
@@ -198,6 +212,7 @@ class MarstekModbusDriver(BatteryDriver):
         client: Optional[MarstekModbusClient] = None,
         serial_port: Optional[str] = None,
         ems_version: object = None,
+        rs485_gateway: bool = False,
     ) -> None:
         """Build the driver.
 
@@ -208,7 +223,9 @@ class MarstekModbusDriver(BatteryDriver):
         itself; tests inject a flat list to drive telemetry/capabilities in
         isolation. ``client`` is injectable so unit tests can supply a fake;
         production passes None and a real :class:`MarstekModbusClient` is built
-        with version-correct timing.
+        with version-correct timing. ``rs485_gateway`` says the link reaches the
+        battery over RS485 rather than its own Modbus TCP server, which is where
+        the v3-family 150 ms inter-message wait lives (issue #411).
         """
         self._version = version
         self._ems_version = ems_version
@@ -219,7 +236,7 @@ class MarstekModbusDriver(BatteryDriver):
             client = MarstekModbusClient(
                 host,
                 port,
-                message_wait_ms=MESSAGE_WAIT_MS.get(version, 50),
+                message_wait_ms=_message_wait_ms(version, rs485_gateway),
                 timeout=READ_TIMEOUT_S.get(version, 10),
                 is_v3=self._is_v3_family,
                 slave_id=slave_id,

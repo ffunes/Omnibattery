@@ -95,6 +95,7 @@ from .const import (
     CONF_SLAVE_ID,
     DEFAULT_SLAVE_ID,
     CONF_SERIAL_PORT,
+    CONF_RS485_GATEWAY,
     DEFAULT_VERSION,
     MAX_POWER_BY_VERSION,
     max_power_for_battery_version,
@@ -1616,6 +1617,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             battery_version = user_input.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
             slave_id = user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
             serial_port = (user_input.get(CONF_SERIAL_PORT) or "").strip()
+            rs485_gateway = bool(user_input.get(CONF_RS485_GATEWAY, False))
             host = (user_input.get(CONF_HOST) or "").strip()
             is_serial = bool(serial_port)
 
@@ -1647,6 +1649,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                         CONF_HOST: host,
                         CONF_PORT: port,
                         CONF_SERIAL_PORT: serial_port,
+                        CONF_RS485_GATEWAY: rs485_gateway,
                         CONF_SLAVE_ID: slave_id,
                         CONF_BATTERY_VERSION: battery_version,
                         "brand": "marstek",
@@ -1662,6 +1665,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     vol.Optional(CONF_HOST): str,
                     vol.Optional(CONF_PORT, default=502): int,
                     vol.Optional(CONF_SERIAL_PORT): str,
+                    vol.Optional(CONF_RS485_GATEWAY, default=False): bool,
                     vol.Required(CONF_SLAVE_ID, default=DEFAULT_SLAVE_ID):
                         vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
                     vol.Required(CONF_BATTERY_VERSION, default=DEFAULT_VERSION):
@@ -2999,6 +3003,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             battery_version = user_input.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
             slave_id = user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
             serial_port = (user_input.get(CONF_SERIAL_PORT) or "").strip()
+            rs485_gateway = bool(user_input.get(CONF_RS485_GATEWAY, False))
             new_host = (user_input.get(CONF_HOST) or "").strip()
             is_serial = bool(serial_port)
 
@@ -3034,6 +3039,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 updated[CONF_HOST] = new_host
                 updated[CONF_PORT] = new_port
                 updated[CONF_SERIAL_PORT] = serial_port
+                updated[CONF_RS485_GATEWAY] = rs485_gateway
                 updated[CONF_SLAVE_ID] = slave_id
                 updated[CONF_BATTERY_VERSION] = battery_version
                 updated["ems_version"] = getattr(
@@ -3054,6 +3060,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             CONF_HOST: current.get(CONF_HOST, ""),
             CONF_PORT: current.get(CONF_PORT, 502),
             CONF_SERIAL_PORT: current.get(CONF_SERIAL_PORT, ""),
+            CONF_RS485_GATEWAY: current.get(CONF_RS485_GATEWAY, False),
             CONF_SLAVE_ID: current.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
             CONF_BATTERY_VERSION: current.get(CONF_BATTERY_VERSION, DEFAULT_VERSION),
         }
@@ -3069,6 +3076,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     vol.Optional(CONF_HOST, default=host_default): str,
                     vol.Optional(CONF_PORT, default=defaults[CONF_PORT]): int,
                     vol.Optional(CONF_SERIAL_PORT, default=defaults[CONF_SERIAL_PORT]): str,
+                    vol.Optional(CONF_RS485_GATEWAY, default=defaults[CONF_RS485_GATEWAY]): bool,
                     vol.Required(CONF_SLAVE_ID, default=defaults[CONF_SLAVE_ID]):
                         vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
                     vol.Required(
@@ -4136,6 +4144,7 @@ class OptionsFlowHandler(OptionsFlow):
                 battery_version = user_input.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
                 slave_id = user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
                 serial_port = (user_input.get(CONF_SERIAL_PORT) or "").strip()
+                rs485_gateway = bool(user_input.get(CONF_RS485_GATEWAY, False))
                 host = (user_input.get(CONF_HOST) or "").strip()
                 is_serial = bool(serial_port)
 
@@ -4159,6 +4168,7 @@ class OptionsFlowHandler(OptionsFlow):
                         CONF_HOST: host,
                         CONF_PORT: port,
                         CONF_SERIAL_PORT: serial_port,
+                        CONF_RS485_GATEWAY: rs485_gateway,
                         CONF_SLAVE_ID: slave_id,
                         CONF_BATTERY_VERSION: battery_version,
                         "brand": "marstek",
@@ -4173,6 +4183,7 @@ class OptionsFlowHandler(OptionsFlow):
                     CONF_HOST: current_battery.get(CONF_HOST, ""),
                     CONF_PORT: current_battery.get(CONF_PORT, 502),
                     CONF_SERIAL_PORT: current_battery.get(CONF_SERIAL_PORT, ""),
+                    CONF_RS485_GATEWAY: current_battery.get(CONF_RS485_GATEWAY, False),
                     CONF_SLAVE_ID: current_battery.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
                     CONF_BATTERY_VERSION: current_battery.get(CONF_BATTERY_VERSION, DEFAULT_VERSION),
                 }
@@ -4182,6 +4193,7 @@ class OptionsFlowHandler(OptionsFlow):
                     CONF_HOST: "",
                     CONF_PORT: 502,
                     CONF_SERIAL_PORT: "",
+                    CONF_RS485_GATEWAY: False,
                     CONF_SLAVE_ID: DEFAULT_SLAVE_ID,
                     CONF_BATTERY_VERSION: DEFAULT_VERSION,
                 }
@@ -4201,6 +4213,7 @@ class OptionsFlowHandler(OptionsFlow):
                     vol.Optional(CONF_HOST, default=host_default): str,
                     vol.Optional(CONF_PORT, default=defaults[CONF_PORT]): int,
                     vol.Optional(CONF_SERIAL_PORT, default=defaults[CONF_SERIAL_PORT]): str,
+                    vol.Optional(CONF_RS485_GATEWAY, default=defaults[CONF_RS485_GATEWAY]): bool,
                     vol.Required(CONF_SLAVE_ID, default=defaults[CONF_SLAVE_ID]):
                         vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
                     vol.Required(CONF_BATTERY_VERSION, default=defaults[CONF_BATTERY_VERSION]):

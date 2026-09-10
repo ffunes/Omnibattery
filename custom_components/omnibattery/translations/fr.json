@@ -108,7 +108,8 @@
           "port": "Port Modbus",
           "battery_version": "Modèle de batterie",
           "slave_id": "ID d'esclave Modbus",
-          "serial_port": "Port série (Modbus RTU)"
+          "serial_port": "Port série (Modbus RTU)",
+          "rs485_gateway": "Accessible via une passerelle RS485"
         },
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
@@ -116,7 +117,8 @@
           "port": "Port Modbus (généralement 502)",
           "battery_version": "Sélectionnez la version du modèle de votre batterie. Ev2 pour les anciens modèles, Ev3 pour les nouveaux modèles avec cartographie mise à jour, A (Venus A) ou D (Venus D) pour les onduleurs hybrides",
           "slave_id": "ID d'esclave/unité Modbus (par défaut 1). À modifier uniquement lorsqu'un proxy Modbus expose plusieurs batteries sur une même IP:port avec des ID d'esclave distincts.",
-          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP."
+          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP.",
+          "rs485_gateway": "Cochez si la connexion Modbus TCP aboutit à une passerelle RS485 (Elfin EW11, pont USB-RS485...) plutôt qu'au port TCP de la batterie elle-même. L'attente entre messages n'existe que dans le serveur TCP de la batterie ; la réduire à 30 ms rend l'interrogation d'une Venus Ev3/A/D environ trois fois plus rapide. L'attente s'applique par batterie : si plusieurs batteries partagent une passerelle, le bus transporte d'autant plus de trafic — décochez alors de nouveau si les lectures échouent ou expirent. Laissez décoché si vous vous connectez directement à l'IP de la batterie."
         }
       },
       "battery_connection_zendure": {
@@ -587,7 +589,8 @@
           "port": "Port Modbus",
           "battery_version": "Modèle de batterie",
           "slave_id": "ID d'esclave Modbus",
-          "serial_port": "Port série (Modbus RTU)"
+          "serial_port": "Port série (Modbus RTU)",
+          "rs485_gateway": "Accessible via une passerelle RS485"
         },
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
@@ -595,7 +598,8 @@
           "port": "Port Modbus (généralement 502)",
           "battery_version": "Sélectionnez la version de votre modèle de batterie",
           "slave_id": "ID d'esclave/unité Modbus (par défaut 1). À modifier uniquement lorsqu'un proxy Modbus expose plusieurs batteries sur une même IP:port avec des ID d'esclave distincts.",
-          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP."
+          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP.",
+          "rs485_gateway": "Cochez si la connexion Modbus TCP aboutit à une passerelle RS485 (Elfin EW11, pont USB-RS485...) plutôt qu'au port TCP de la batterie elle-même. L'attente entre messages n'existe que dans le serveur TCP de la batterie ; la réduire à 30 ms rend l'interrogation d'une Venus Ev3/A/D environ trois fois plus rapide. L'attente s'applique par batterie : si plusieurs batteries partagent une passerelle, le bus transporte d'autant plus de trafic — décochez alors de nouveau si les lectures échouent ou expirent. Laissez décoché si vous vous connectez directement à l'IP de la batterie."
         }
       },
       "reconfigure_battery_zendure": {
@@ -864,7 +868,8 @@
           "port": "Port Modbus",
           "battery_version": "Modèle de batterie",
           "slave_id": "ID d'esclave Modbus",
-          "serial_port": "Port série (Modbus RTU)"
+          "serial_port": "Port série (Modbus RTU)",
+          "rs485_gateway": "Accessible via une passerelle RS485"
         },
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
@@ -872,7 +877,8 @@
           "port": "Port Modbus (généralement 502)",
           "battery_version": "Sélectionnez la version du modèle de votre batterie. Ev2 pour les anciens modèles, Ev3 pour les nouveaux modèles avec cartographie mise à jour, A (Venus A) ou D (Venus D) pour les onduleurs hybrides",
           "slave_id": "ID d'esclave/unité Modbus (par défaut 1). À modifier uniquement lorsqu'un proxy Modbus expose plusieurs batteries sur une même IP:port avec des ID d'esclave distincts.",
-          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP."
+          "serial_port": "Chemin de l'adaptateur USB-RS485, p. ex. /dev/ttyUSB0 ou COM3. Renseignez-le à la place de l'adresse IP pour utiliser Modbus RTU en série ; laissez vide pour le TCP.",
+          "rs485_gateway": "Cochez si la connexion Modbus TCP aboutit à une passerelle RS485 (Elfin EW11, pont USB-RS485...) plutôt qu'au port TCP de la batterie elle-même. L'attente entre messages n'existe que dans le serveur TCP de la batterie ; la réduire à 30 ms rend l'interrogation d'une Venus Ev3/A/D environ trois fois plus rapide. L'attente s'applique par batterie : si plusieurs batteries partagent une passerelle, le bus transporte d'autant plus de trafic — décochez alors de nouveau si les lectures échouent ou expirent. Laissez décoché si vous vous connectez directement à l'IP de la batterie."
         }
       },
       "battery_connection_zendure": {

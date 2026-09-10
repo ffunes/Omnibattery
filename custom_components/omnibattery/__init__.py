@@ -9975,7 +9975,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_frontend_panel(hass, entry)
 
     # Migration: Add default version for existing installations
-    from .const import CONF_BATTERY_VERSION, DEFAULT_VERSION, CONF_SLAVE_ID, DEFAULT_SLAVE_ID, CONF_SERIAL_PORT
+    from .const import (
+        CONF_BATTERY_VERSION, DEFAULT_VERSION, CONF_SLAVE_ID, DEFAULT_SLAVE_ID,
+        CONF_SERIAL_PORT, CONF_RS485_GATEWAY,
+    )
 
     for battery_config in entry.data["batteries"]:
         if CONF_BATTERY_VERSION not in battery_config:
@@ -10059,6 +10062,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             zendure_model=battery_config.get("zendure_model", "2400ac_pro"),
             hoymiles_model=battery_config.get("hoymiles_model"),
             serial_port=battery_config.get(CONF_SERIAL_PORT) or None,
+            rs485_gateway=battery_config.get(CONF_RS485_GATEWAY, False),
             esphome_device_id=battery_config.get("esphome_device_id"),
             huawei_battery_device_id=battery_config.get("huawei_battery_device_id"),
             huawei_direct_write=battery_config.get("huawei_direct_write", False),

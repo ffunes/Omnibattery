@@ -110,7 +110,8 @@
           "port": "Modbus Port",
           "slave_id": "Modbus Slave ID",
           "battery_version": "Battery Model",
-          "serial_port": "Serial port (Modbus RTU)"
+          "serial_port": "Serial port (Modbus RTU)",
+          "rs485_gateway": "Reached through an RS485 gateway"
         },
         "data_description": {
           "name": "Descriptive name to identify this battery",
@@ -118,7 +119,8 @@
           "port": "Modbus port (usually 502)",
           "slave_id": "Modbus slave/unit id (default 1). Change only when a Modbus proxy maps several batteries to one IP:port using distinct slave ids.",
           "battery_version": "Select your battery model version. Ev2 for older models, Ev3 for newer models with updated register map, A (Venus A) or D (Venus D) for hybrid inverter models",
-          "serial_port": "USB-RS485 adapter path, e.g. /dev/ttyUSB0 or COM3. Fill this instead of the IP address to use Modbus RTU over serial; leave empty for TCP."
+          "serial_port": "USB-RS485 adapter path, e.g. /dev/ttyUSB0 or COM3. Fill this instead of the IP address to use Modbus RTU over serial; leave empty for TCP.",
+          "rs485_gateway": "Tick when the Modbus TCP connection goes to an RS485 gateway (Elfin EW11, USB-RS485 bridge, ...) instead of the battery's own TCP port. The wait between messages only exists in the battery's TCP server, so dropping it to 30 ms makes polling roughly three times faster on a Venus Ev3/A/D. The wait is applied per battery: on a gateway shared by several batteries the bus carries that many times the traffic, so untick it again if reads start failing or timing out. Leave off when you connect straight to the battery's IP."
         }
       },
       "battery_connection_zendure": {
@@ -583,7 +585,8 @@
           "port": "Modbus Port",
           "slave_id": "Modbus Slave ID",
           "battery_version": "Battery Model",
-          "serial_port": "Serial port (Modbus RTU)"
+          "serial_port": "Serial port (Modbus RTU)",
+          "rs485_gateway": "Reached through an RS485 gateway"
         },
         "data_description": {
           "name": "Descriptive name to identify this battery",
@@ -591,7 +594,8 @@
           "port": "Modbus port (usually 502)",
           "slave_id": "Modbus slave/unit id (default 1). Change only when a Modbus proxy maps several batteries to one IP:port using distinct slave ids.",
           "battery_version": "Select your battery model version",
-          "serial_port": "USB-RS485 adapter path, e.g. /dev/ttyUSB0 or COM3. Fill this instead of the IP address to use Modbus RTU over serial; leave empty for TCP."
+          "serial_port": "USB-RS485 adapter path, e.g. /dev/ttyUSB0 or COM3. Fill this instead of the IP address to use Modbus RTU over serial; leave empty for TCP.",
+          "rs485_gateway": "Tick when the Modbus TCP connection goes to an RS485 gateway (Elfin EW11, USB-RS485 bridge, ...) instead of the battery's own TCP port. The wait between messages only exists in the battery's TCP server, so dropping it to 30 ms makes polling roughly three times faster on a Venus Ev3/A/D. The wait is applied per battery: on a gateway shared by several batteries the bus carries that many times the traffic, so untick it again if reads start failing or timing out. Leave off when you connect straight to the battery's IP."
         }
       },
       "reconfigure_battery_zendure": {
@@ -862,7 +866,8 @@
           "port": "Modbus Port",
           "slave_id": "Modbus Slave ID",
           "battery_version": "Battery Model",
-          "serial_port": "Serial port (Modbus RTU)"
+          "serial_port": "Serial port (Modbus RTU)",
+          "rs485_gateway": "Reached through an RS485 gateway"
         },
         "data_description": {
           "name": "Descriptive name to identify this battery",
@@ -870,7 +875,8 @@
           "port": "Modbus port (usually 502)",
           "slave_id": "Modbus slave/unit id (default 1). Change only when a Modbus proxy maps several batteries to one IP:port using distinct slave ids.",
           "battery_version": "Select your battery model version. Ev2 for older models, Ev3 for newer models with updated register map, A (Venus A) or D (Venus D) for hybrid inverter models",
-          "serial_port": "USB-RS485 adapter path, e.g. /dev/ttyUSB0 or COM3. Fill this instead of the IP address to use Modbus RTU over serial; leave empty for TCP."
+          "serial_port": "USB-RS485 adapter path, e.g. /dev/ttyUSB0 or COM3. Fill this instead of the IP address to use Modbus RTU over serial; leave empty for TCP.",
+          "rs485_gateway": "Tick when the Modbus TCP connection goes to an RS485 gateway (Elfin EW11, USB-RS485 bridge, ...) instead of the battery's own TCP port. The wait between messages only exists in the battery's TCP server, so dropping it to 30 ms makes polling roughly three times faster on a Venus Ev3/A/D. The wait is applied per battery: on a gateway shared by several batteries the bus carries that many times the traffic, so untick it again if reads start failing or timing out. Leave off when you connect straight to the battery's IP."
         }
       },
       "battery_connection_zendure": {

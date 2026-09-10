@@ -108,7 +108,8 @@
           "port": "Modbus-poort",
           "battery_version": "Batterijmodel",
           "slave_id": "Modbus slave-ID",
-          "serial_port": "Seriële poort (Modbus RTU)"
+          "serial_port": "Seriële poort (Modbus RTU)",
+          "rs485_gateway": "Bereikt via een RS485-gateway"
         },
         "data_description": {
           "name": "Beschrijvende naam om deze batterij te identificeren",
@@ -116,7 +117,8 @@
           "port": "Modbus-poort (meestal 502)",
           "battery_version": "Selecteer de modelversie van uw batterij. Ev2 voor oudere modellen, Ev3 voor nieuwere modellen met bijgewerkte registerkaart, A (Venus A) of D (Venus D) voor hybride omvormermodellen",
           "slave_id": "Modbus slave-/unit-id (standaard 1). Wijzig dit alleen wanneer een Modbus-proxy meerdere batterijen op één IP:poort koppelt met verschillende slave-id's.",
-          "serial_port": "Pad van de USB-RS485-adapter, bijv. /dev/ttyUSB0 of COM3. Vul dit in plaats van het IP-adres in om Modbus RTU via serieel te gebruiken; laat leeg voor TCP."
+          "serial_port": "Pad van de USB-RS485-adapter, bijv. /dev/ttyUSB0 of COM3. Vul dit in plaats van het IP-adres in om Modbus RTU via serieel te gebruiken; laat leeg voor TCP.",
+          "rs485_gateway": "Vink aan wanneer de Modbus TCP-verbinding op een RS485-gateway uitkomt (Elfin EW11, USB-RS485-brug ...) in plaats van op de TCP-poort van de batterij zelf. De wachttijd tussen berichten bestaat alleen in de TCP-server van de batterij; verlagen naar 30 ms maakt het uitlezen van een Venus Ev3/A/D ongeveer drie keer sneller. De wachttijd geldt per batterij: delen meerdere batterijen één gateway, dan draagt de bus evenveel keer zoveel verkeer — vink het weer uit als uitlezingen mislukken of verlopen. Laat uit als je rechtstreeks verbindt met het IP-adres van de batterij."
         }
       },
       "battery_connection_zendure": {
@@ -583,7 +585,8 @@
           "port": "Modbus-poort",
           "battery_version": "Batterijmodel",
           "slave_id": "Modbus slave-ID",
-          "serial_port": "Seriële poort (Modbus RTU)"
+          "serial_port": "Seriële poort (Modbus RTU)",
+          "rs485_gateway": "Bereikt via een RS485-gateway"
         },
         "data_description": {
           "name": "Beschrijvende naam om deze batterij te identificeren",
@@ -591,7 +594,8 @@
           "port": "Modbus-poort (gewoonlijk 502)",
           "battery_version": "Selecteer uw batterijmodelversie",
           "slave_id": "Modbus slave-/unit-id (standaard 1). Wijzig dit alleen wanneer een Modbus-proxy meerdere batterijen op één IP:poort koppelt met verschillende slave-id's.",
-          "serial_port": "Pad van de USB-RS485-adapter, bijv. /dev/ttyUSB0 of COM3. Vul dit in plaats van het IP-adres in om Modbus RTU via serieel te gebruiken; laat leeg voor TCP."
+          "serial_port": "Pad van de USB-RS485-adapter, bijv. /dev/ttyUSB0 of COM3. Vul dit in plaats van het IP-adres in om Modbus RTU via serieel te gebruiken; laat leeg voor TCP.",
+          "rs485_gateway": "Vink aan wanneer de Modbus TCP-verbinding op een RS485-gateway uitkomt (Elfin EW11, USB-RS485-brug ...) in plaats van op de TCP-poort van de batterij zelf. De wachttijd tussen berichten bestaat alleen in de TCP-server van de batterij; verlagen naar 30 ms maakt het uitlezen van een Venus Ev3/A/D ongeveer drie keer sneller. De wachttijd geldt per batterij: delen meerdere batterijen één gateway, dan draagt de bus evenveel keer zoveel verkeer — vink het weer uit als uitlezingen mislukken of verlopen. Laat uit als je rechtstreeks verbindt met het IP-adres van de batterij."
         }
       },
       "reconfigure_battery_zendure": {
@@ -856,7 +860,8 @@
           "port": "Modbus-poort",
           "battery_version": "Batterijmodel",
           "slave_id": "Modbus slave-ID",
-          "serial_port": "Seriële poort (Modbus RTU)"
+          "serial_port": "Seriële poort (Modbus RTU)",
+          "rs485_gateway": "Bereikt via een RS485-gateway"
         },
         "data_description": {
           "name": "Beschrijvende naam om deze batterij te identificeren",
@@ -864,7 +869,8 @@
           "port": "Modbus-poort (meestal 502)",
           "battery_version": "Selecteer de modelversie van uw batterij. Ev2 voor oudere modellen, Ev3 voor nieuwere modellen met bijgewerkte registerkaart, A (Venus A) of D (Venus D) voor hybride omvormermodellen",
           "slave_id": "Modbus slave-/unit-id (standaard 1). Wijzig dit alleen wanneer een Modbus-proxy meerdere batterijen op één IP:poort koppelt met verschillende slave-id's.",
-          "serial_port": "Pad van de USB-RS485-adapter, bijv. /dev/ttyUSB0 of COM3. Vul dit in plaats van het IP-adres in om Modbus RTU via serieel te gebruiken; laat leeg voor TCP."
+          "serial_port": "Pad van de USB-RS485-adapter, bijv. /dev/ttyUSB0 of COM3. Vul dit in plaats van het IP-adres in om Modbus RTU via serieel te gebruiken; laat leeg voor TCP.",
+          "rs485_gateway": "Vink aan wanneer de Modbus TCP-verbinding op een RS485-gateway uitkomt (Elfin EW11, USB-RS485-brug ...) in plaats van op de TCP-poort van de batterij zelf. De wachttijd tussen berichten bestaat alleen in de TCP-server van de batterij; verlagen naar 30 ms maakt het uitlezen van een Venus Ev3/A/D ongeveer drie keer sneller. De wachttijd geldt per batterij: delen meerdere batterijen één gateway, dan draagt de bus evenveel keer zoveel verkeer — vink het weer uit als uitlezingen mislukken of verlopen. Laat uit als je rechtstreeks verbindt met het IP-adres van de batterij."
         }
       },
       "battery_connection_zendure": {
