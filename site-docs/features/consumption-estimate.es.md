@@ -38,6 +38,36 @@ previsto para que un pico puntual no distorsione el resto del día.
 
 ---
 
+## Excluir un día que no es representativo
+
+Un día que la vivienda no consumió de verdad — un corte del contador que infló
+el consumo derivado, un evento puntual, una ausencia — arrastra tanto la media
+de 7 días como el perfil de 28 días. Usa la acción **Excluir días de consumo**
+(`omnibattery.exclude_consumption_days`) desde Herramientas para desarrolladores
+→ Acciones:
+
+```yaml
+action: omnibattery.exclude_consumption_days
+data:
+  start_date: "2026-09-07"
+  end_date: "2026-09-07"   # opcional, por defecto igual a start_date
+```
+
+Los días excluidos salen de inmediato del histórico diario heredado y quedan
+enmascarados en el perfil de 28 días, igual que hace el modo vacaciones con los
+días que cubre. Los contadores físicos, el gráfico de consumo real y el
+historial del Recorder no se tocan, y el control de batería no se ve afectado.
+Solo se aceptan días dentro de los últimos 35, porque los más antiguos ya no
+participan en el aprendizaje.
+
+!!! warning "Borrar el día de `.storage` no funciona"
+    Los dos almacenes de consumo son caché del Recorder. Un día borrado a mano
+    es un día *que falta*, así que el backfill de arranque vuelve a consultar
+    el Recorder y lo reescribe tal cual. La exclusión guardada es lo único que
+    respeta una reconstrucción.
+
+---
+
 ## Qué mide el consumo estimado
 
 El estimado es el **consumo total del hogar durante todo el día local**, incluidas las franjas de carga predictiva desde la red. Se promedia sobre los últimos 7 días naturales.

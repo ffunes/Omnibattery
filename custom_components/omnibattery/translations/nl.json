@@ -2362,8 +2362,30 @@
     }
   },
   "exceptions": {
+    "exclude_days_invalid_range": {
+      "message": "De einddatum kan niet vóór de startdatum liggen."
+    },
+    "exclude_days_too_old": {
+      "message": "Verbruiksleren bewaart alleen de laatste {days} dagen, dus een oudere dag kan niet meer worden uitgesloten."
+    },
     "manual_control_required": {
       "message": "{battery} staat onder automatische besturing, dus Force Mode en de laad-/ontlaadsetpoints worden elke regelcyclus overschreven. Zet eerst Manual Mode aan (systeembreed of voor deze accu) voordat je hem rechtstreeks aanstuurt."
+    }
+  },
+  "services": {
+    "exclude_consumption_days": {
+      "name": "Verbruiksdagen uitsluiten",
+      "description": "Houdt volledige lokale dagen buiten het geleerde verbruik, voor een dag die het huishouden niet vertegenwoordigt: een meteruitval, een eenmalige gebeurtenis, een afwezigheid. Fysieke energiemeters en geschiedenis blijven ongemoeid; alleen het leren negeert die dagen. De uitsluiting wordt bewaard, zodat een latere Recorder-backfill de dagen niet kan terugzetten.",
+      "fields": {
+        "start_date": {
+          "name": "Startdatum",
+          "description": "Eerste lokale dag die wordt uitgesloten."
+        },
+        "end_date": {
+          "name": "Einddatum",
+          "description": "Laatste lokale dag die wordt uitgesloten. Zonder opgave wordt alleen de startdag uitgesloten."
+        }
+      }
     }
   }
 }

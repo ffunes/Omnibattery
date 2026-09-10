@@ -19,8 +19,13 @@ from homeassistant.const import (
     CONF_USERNAME,
     CONF_PASSWORD,
 )
-from homeassistant.core import CoreState, HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
+from homeassistant.core import CoreState, HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import (
+    ConfigEntryNotReady,
+    HomeAssistantError,
+    ServiceValidationError,
+)
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers import event as event_helpers
 from homeassistant.helpers.device_registry import DeviceEntry
@@ -32,6 +37,7 @@ from homeassistant.helpers.event import (
 )
 from homeassistant.util import dt as dt_util
 
+import voluptuous as vol
 from pymodbus.exceptions import ConnectionException
 
 from .const import (
@@ -10003,8 +10009,62 @@ async def _async_migrate_legacy_active_balance(
         hass.config_entries.async_update_entry(entry, data=new_data)
 
 
+SERVICE_EXCLUDE_CONSUMPTION_DAYS = "exclude_consumption_days"
+ATTR_START_DATE = "start_date"
+ATTR_END_DATE = "end_date"
+
+EXCLUDE_CONSUMPTION_DAYS_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_START_DATE): cv.date,
+        vol.Optional(ATTR_END_DATE): cv.date,
+    }
+)
+
+
+def _async_register_services(hass: HomeAssistant) -> None:
+    """Register the domain-wide actions once, on the first entry setup."""
+    if hass.services.has_service(DOMAIN, SERVICE_EXCLUDE_CONSUMPTION_DAYS):
+        return
+
+    from .tracking.consumption_tracker import VACATION_RETENTION_DAYS
+
+    async def _async_exclude_consumption_days(call: ServiceCall) -> None:
+        """Keep unrepresentative days out of the learned consumption."""
+        start_date = call.data[ATTR_START_DATE]
+        end_date = call.data.get(ATTR_END_DATE, start_date)
+        if end_date < start_date:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="exclude_days_invalid_range",
+            )
+        today = dt_util.now().date()
+        if (today - end_date).days > VACATION_RETENTION_DAYS:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="exclude_days_too_old",
+                translation_placeholders={"days": str(VACATION_RETENTION_DAYS)},
+            )
+        for data in list(hass.data.get(DOMAIN, {}).values()):
+            controller = data.get("controller") if isinstance(data, dict) else None
+            tracker = getattr(controller, "_consumption_tracker", None)
+            if tracker is None:
+                continue
+            await tracker.async_exclude_dates(start_date, end_date)
+            invalidate = getattr(controller, "invalidate_predictive_plan", None)
+            if callable(invalidate):
+                invalidate("consumption days excluded")
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_EXCLUDE_CONSUMPTION_DAYS,
+        _async_exclude_consumption_days,
+        schema=EXCLUDE_CONSUMPTION_DAYS_SCHEMA,
+    )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Omnibattery from a config entry."""
+    _async_register_services(hass)
     hass.data.setdefault(DOMAIN, {})
 
     # Entries saved by early transition builds could contain both horizons.
@@ -10798,6 +10858,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ]
     if not remaining:
         _async_unregister_frontend_panel(hass)
+        hass.services.async_remove(DOMAIN, SERVICE_EXCLUDE_CONSUMPTION_DAYS)
 
     return unload_ok
 

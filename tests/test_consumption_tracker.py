@@ -128,6 +128,44 @@ def test_vacation_period_marks_a_partial_legacy_day_as_excluded():
     )
 
 
+@pytest.mark.asyncio
+async def test_exclude_dates_drops_the_day_and_blocks_its_rebuild():
+    """A bad day must leave learning and never come back from a backfill."""
+    history = [
+        (date(2026, 9, 6), 18.0),
+        (date(2026, 9, 7), 49.71),
+        (date(2026, 9, 8), 19.34),
+    ]
+    tracker = _make_tracker(history)
+    tracker._controller._daily_grid_at_min_soc_kwh = 0.0
+    tracker._hass = SimpleNamespace(config=SimpleNamespace(time_zone="Europe/Madrid"))
+    tracker._vacation_periods = []
+    tracker._vacation_nights = []
+    tracker._vacation_save_task = None
+    tracker._consumption_store = _FakeConsumptionStore({})
+    tracker._vacation_store = _FakeConsumptionStore({})
+    excluded = []
+    tracker._consumption_profile = SimpleNamespace(
+        set_excluded_periods=excluded.append
+    )
+
+    await tracker.async_exclude_dates(date(2026, 9, 7), date(2026, 9, 7))
+
+    assert [day for day, _ in tracker._controller._daily_consumption_history] == [
+        date(2026, 9, 6), date(2026, 9, 8),
+    ]
+    # The persisted period is what a later Recorder rebuild honours.
+    madrid = ZoneInfo("Europe/Madrid")
+    assert tracker._period_intersects(
+        datetime(2026, 9, 7, tzinfo=madrid), datetime(2026, 9, 8, tzinfo=madrid)
+    )
+    assert not tracker._period_intersects(
+        datetime(2026, 9, 8, tzinfo=madrid), datetime(2026, 9, 9, tzinfo=madrid)
+    )
+    assert excluded and excluded[-1] == tracker._vacation_periods
+    assert tracker._vacation_store._data["periods"] == tracker._vacation_periods
+
+
 def test_vacation_baseline_ignores_nights_without_three_hours_coverage():
     tracker = _make_tracker([])
     tracker._vacation_nights = [

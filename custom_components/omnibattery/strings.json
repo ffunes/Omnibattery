@@ -2352,8 +2352,30 @@
     }
   },
   "exceptions": {
+    "exclude_days_invalid_range": {
+      "message": "The end date cannot be earlier than the start date."
+    },
+    "exclude_days_too_old": {
+      "message": "Consumption learning only keeps the last {days} days, so an older day can no longer be excluded."
+    },
     "manual_control_required": {
       "message": "{battery} is under automatic control, so Force Mode and the charge/discharge setpoints are rewritten every control cycle. Enable Manual Mode (system-wide or for this battery) before commanding it directly."
+    }
+  },
+  "services": {
+    "exclude_consumption_days": {
+      "name": "Exclude consumption days",
+      "description": "Keeps whole local days out of the learned consumption, for a day that does not represent the household: a meter outage, a one-off event, a stay away from home. Physical energy counters and history are untouched; only learning ignores the days. The exclusion is persisted, so a later Recorder backfill cannot bring the days back.",
+      "fields": {
+        "start_date": {
+          "name": "Start date",
+          "description": "First local day to exclude."
+        },
+        "end_date": {
+          "name": "End date",
+          "description": "Last local day to exclude. Defaults to the start date, excluding a single day."
+        }
+      }
     }
   }
 }

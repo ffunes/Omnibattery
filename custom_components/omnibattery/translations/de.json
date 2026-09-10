@@ -2360,5 +2360,29 @@
         "name": "Prädiktives Laden neu bewerten"
       }
     }
+  },
+  "exceptions": {
+    "exclude_days_invalid_range": {
+      "message": "Das Enddatum darf nicht vor dem Startdatum liegen."
+    },
+    "exclude_days_too_old": {
+      "message": "Das Verbrauchslernen behält nur die letzten {days} Tage, ein älterer Tag kann daher nicht mehr ausgeschlossen werden."
+    }
+  },
+  "services": {
+    "exclude_consumption_days": {
+      "name": "Verbrauchstage ausschließen",
+      "description": "Nimmt vollständige lokale Tage aus dem gelernten Verbrauch heraus, wenn ein Tag den Haushalt nicht repräsentiert: ein Zählerausfall, ein einmaliges Ereignis, eine Abwesenheit. Physische Zähler und Verlauf bleiben unverändert; nur das Lernen ignoriert diese Tage. Der Ausschluss wird gespeichert, sodass ein späterer Recorder-Backfill die Tage nicht zurückholen kann.",
+      "fields": {
+        "start_date": {
+          "name": "Startdatum",
+          "description": "Erster lokaler Tag, der ausgeschlossen wird."
+        },
+        "end_date": {
+          "name": "Enddatum",
+          "description": "Letzter lokaler Tag, der ausgeschlossen wird. Ohne Angabe wird nur der Starttag ausgeschlossen."
+        }
+      }
+    }
   }
 }
