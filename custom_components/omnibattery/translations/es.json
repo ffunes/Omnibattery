@@ -166,7 +166,9 @@
           "full_charge_voltage_taper_enabled": "Activar reduccion por voltaje al cargar al 100%",
           "battery_capacity_kwh": "Capacidad nominal de la batería (kWh)",
           "battery_phase": "Fase física de la batería",
-          "dc_pv_connected": "Hay paneles solares conectados directamente a esta batería"
+          "dc_pv_connected": "Hay paneles solares conectados directamente a esta batería",
+          "track_mac": "Volver a encontrar esta batería por su dirección MAC si cambia su dirección IP",
+          "mac": "Dirección MAC"
         },
         "data_description": {
           "max_charge_power": "Potencia máxima permitida para cargar la batería",
@@ -178,7 +180,9 @@
           "full_charge_voltage_taper_enabled": "Cuando el objetivo es 100%, limita la carga a 200 W desde 3.48 V de celda máxima. En Venus E se detiene a 3.60 V para medir el desbalanceo tras 60 segundos; Venus A/D con packs acoplados siguen a 200 W hasta que corta la BMS.",
           "battery_capacity_kwh": "Capacidad utilizable nominal del pack de baterías. Se usa para calcular la energía almacenada y la eficiencia a partir del SOC. Para Sessy, introduce la capacidad real; en otras baterías puedes dejar 0 si no la conoces.",
           "battery_phase": "Fase AC física (L1/L2/L3) donde está cableada esta batería, o Sin asignar si queda fuera del esquema de fases protegidas. Una batería sin fase queda fuera de la envolvente trifásica y sigue funcionando normalmente en automático.",
-          "dc_pv_connected": "Solo Venus A/D. Actívalo cuando haya paneles conectados a las entradas MPPT de la batería. Desactívalo si esas entradas no se usan para que la potencia de batería siga basándose en la potencia AC sin añadir producción MPPT."
+          "dc_pv_connected": "Solo Venus A/D. Actívalo cuando haya paneles conectados a las entradas MPPT de la batería. Desactívalo si esas entradas no se usan para que la potencia de batería siga basándose en la potencia AC sin añadir producción MPPT.",
+          "track_mac": "La dirección MAC es la dirección física permanente de la batería: a diferencia de la dirección IP de arriba, no cambia nunca. Home Assistant la usa para volver a encontrar la batería y actualizar la dirección IP por sí solo. Detrás de un puente Wi-Fi a Ethernet o de un adaptador PLC, la dirección que ves es la del propio adaptador y la comparte todo lo que hay detrás, así que el seguimiento solo funciona si hay una única batería detrás de ese adaptador.",
+          "mac": "Dirección física permanente de la interfaz que la batería usa en tu red. Cógela de la lista de dispositivos de tu router: una batería puede indicar una MAC distinta de la que realmente usa su interfaz cableada. Se rellena automáticamente cuando la caché DHCP de Home Assistant está disponible."
         }
       },
       "time_slots": {
@@ -912,7 +916,9 @@
           "full_charge_voltage_taper_enabled": "Activar reduccion por voltaje al cargar al 100%",
           "battery_capacity_kwh": "Capacidad nominal de la batería (kWh)",
           "battery_phase": "Fase física de la batería",
-          "dc_pv_connected": "Hay paneles solares conectados directamente a esta batería"
+          "dc_pv_connected": "Hay paneles solares conectados directamente a esta batería",
+          "track_mac": "Volver a encontrar esta batería por su dirección MAC si cambia su dirección IP",
+          "mac": "Dirección MAC"
         },
         "data_description": {
           "max_charge_power": "Potencia máxima permitida para cargar la batería",
@@ -924,7 +930,9 @@
           "full_charge_voltage_taper_enabled": "Cuando el objetivo es 100%, limita la carga a 200 W desde 3.48 V de celda máxima. En Venus E se detiene a 3.60 V para medir el desbalanceo tras 60 segundos; Venus A/D con packs acoplados siguen a 200 W hasta que corta la BMS.",
           "battery_capacity_kwh": "Capacidad utilizable nominal del pack de baterías. Se usa para calcular la energía almacenada y la eficiencia a partir del SOC. Para Sessy, introduce la capacidad real; en otras baterías puedes dejar 0 si no la conoces.",
           "battery_phase": "Fase AC física (L1/L2/L3) donde está cableada esta batería, o Sin asignar si queda fuera del esquema de fases protegidas. Una batería sin fase queda fuera de la envolvente trifásica y sigue funcionando normalmente en automático.",
-          "dc_pv_connected": "Solo Venus A/D. Actívalo cuando haya paneles conectados a las entradas MPPT de la batería. Desactívalo si esas entradas no se usan para que la potencia de batería siga basándose en la potencia AC sin añadir producción MPPT."
+          "dc_pv_connected": "Solo Venus A/D. Actívalo cuando haya paneles conectados a las entradas MPPT de la batería. Desactívalo si esas entradas no se usan para que la potencia de batería siga basándose en la potencia AC sin añadir producción MPPT.",
+          "track_mac": "La dirección MAC es la dirección física permanente de la batería: a diferencia de la dirección IP de arriba, no cambia nunca. Home Assistant la usa para volver a encontrar la batería y actualizar la dirección IP por sí solo. Detrás de un puente Wi-Fi a Ethernet o de un adaptador PLC, la dirección que ves es la del propio adaptador y la comparte todo lo que hay detrás, así que el seguimiento solo funciona si hay una única batería detrás de ese adaptador.",
+          "mac": "Dirección física permanente de la interfaz que la batería usa en tu red. Cógela de la lista de dispositivos de tu router: una batería puede indicar una MAC distinta de la que realmente usa su interfaz cableada. Se rellena automáticamente cuando la caché DHCP de Home Assistant está disponible."
         }
       },
       "time_slots": {

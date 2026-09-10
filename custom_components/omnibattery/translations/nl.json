@@ -166,7 +166,9 @@
           "full_charge_voltage_taper_enabled": "100%-lading op spanning begrenzen",
           "battery_capacity_kwh": "Nominale batterijcapaciteit (kWh)",
           "battery_phase": "Fysieke batterijfase",
-          "dc_pv_connected": "Zonnepanelen zijn rechtstreeks op deze batterij aangesloten"
+          "dc_pv_connected": "Zonnepanelen zijn rechtstreeks op deze batterij aangesloten",
+          "track_mac": "Deze batterij terugvinden via het MAC-adres als het IP-adres verandert",
+          "mac": "MAC-adres"
         },
         "data_description": {
           "max_charge_power": "Maximaal toegestaan vermogen om de batterij op te laden",
@@ -178,7 +180,9 @@
           "full_charge_voltage_taper_enabled": "Wanneer het doel 100% is, wordt laden vanaf 3.48 V maximale celspanning beperkt tot 200 W. Venus E-modellen stoppen bij 3.60 V om de onbalans na 60 seconden te meten; Venus A/D met gekoppelde packs blijven laden op 200 W totdat de BMS uitschakelt.",
           "battery_capacity_kwh": "Nominale bruikbare capaciteit van het batterijpakket. Deze wordt gebruikt om opgeslagen energie en efficiëntie uit SOC te berekenen. Voor Sessy is de werkelijke capaciteit verplicht; laat voor andere batterijen 0 staan als deze onbekend is.",
           "battery_phase": "Fysieke AC-fase (L1/L2/L3) waarop deze batterij is aangesloten, of Niet toegewezen buiten het beschermde faseschema. Een batterij zonder fase valt buiten de driefasenbeveiliging en blijft normaal automatisch werken.",
-          "dc_pv_connected": "Alleen Venus A/D. Schakel dit in wanneer zonnepanelen op de MPPT-ingangen van de batterij zijn aangesloten. Schakel het uit wanneer die ingangen ongebruikt zijn, zodat het batterijvermogen op AC-vermogen gebaseerd blijft zonder MPPT-productie toe te voegen."
+          "dc_pv_connected": "Alleen Venus A/D. Schakel dit in wanneer zonnepanelen op de MPPT-ingangen van de batterij zijn aangesloten. Schakel het uit wanneer die ingangen ongebruikt zijn, zodat het batterijvermogen op AC-vermogen gebaseerd blijft zonder MPPT-productie toe te voegen.",
+          "track_mac": "Het MAC-adres is het permanente hardware-adres van de batterij: anders dan het IP-adres hierboven verandert het nooit. Home Assistant gebruikt het om de batterij terug te vinden en het IP-adres zelf bij te werken. Achter een wifi-naar-LAN-bridge of een powerline-adapter is het zichtbare adres dat van de adapter zelf, gedeeld met alles erachter, dus het bijhouden werkt alleen zolang er één batterij achter die adapter zit.",
+          "mac": "Permanent hardware-adres van de interface die de batterij in je netwerk gebruikt. Neem het over uit de apparatenlijst van je router: een batterij kan een ander MAC-adres melden dan de bekabelde interface daadwerkelijk gebruikt. Wordt automatisch ingevuld als de DHCP-cache van Home Assistant beschikbaar is."
         }
       },
       "time_slots": {
@@ -912,7 +916,9 @@
           "full_charge_voltage_taper_enabled": "100%-lading op spanning begrenzen",
           "battery_capacity_kwh": "Nominale batterijcapaciteit (kWh)",
           "battery_phase": "Fysieke batterijfase",
-          "dc_pv_connected": "Zonnepanelen zijn rechtstreeks op deze batterij aangesloten"
+          "dc_pv_connected": "Zonnepanelen zijn rechtstreeks op deze batterij aangesloten",
+          "track_mac": "Deze batterij terugvinden via het MAC-adres als het IP-adres verandert",
+          "mac": "MAC-adres"
         },
         "data_description": {
           "max_charge_power": "Maximaal toegestaan vermogen om de batterij op te laden",
@@ -924,7 +930,9 @@
           "full_charge_voltage_taper_enabled": "Wanneer het doel 100% is, wordt laden vanaf 3.48 V maximale celspanning beperkt tot 200 W. Venus E-modellen stoppen bij 3.60 V om de onbalans na 60 seconden te meten; Venus A/D met gekoppelde packs blijven laden op 200 W totdat de BMS uitschakelt.",
           "battery_capacity_kwh": "Nominale bruikbare capaciteit van het batterijpakket. Deze wordt gebruikt om opgeslagen energie en efficiëntie uit SOC te berekenen. Voor Sessy is de werkelijke capaciteit verplicht; laat voor andere batterijen 0 staan als deze onbekend is.",
           "battery_phase": "Fysieke AC-fase (L1/L2/L3) waarop deze batterij is aangesloten, of Niet toegewezen buiten het beschermde faseschema. Een batterij zonder fase valt buiten de driefasenbeveiliging en blijft normaal automatisch werken.",
-          "dc_pv_connected": "Alleen Venus A/D. Schakel dit in wanneer zonnepanelen op de MPPT-ingangen van de batterij zijn aangesloten. Schakel het uit wanneer die ingangen ongebruikt zijn, zodat het batterijvermogen op AC-vermogen gebaseerd blijft zonder MPPT-productie toe te voegen."
+          "dc_pv_connected": "Alleen Venus A/D. Schakel dit in wanneer zonnepanelen op de MPPT-ingangen van de batterij zijn aangesloten. Schakel het uit wanneer die ingangen ongebruikt zijn, zodat het batterijvermogen op AC-vermogen gebaseerd blijft zonder MPPT-productie toe te voegen.",
+          "track_mac": "Het MAC-adres is het permanente hardware-adres van de batterij: anders dan het IP-adres hierboven verandert het nooit. Home Assistant gebruikt het om de batterij terug te vinden en het IP-adres zelf bij te werken. Achter een wifi-naar-LAN-bridge of een powerline-adapter is het zichtbare adres dat van de adapter zelf, gedeeld met alles erachter, dus het bijhouden werkt alleen zolang er één batterij achter die adapter zit.",
+          "mac": "Permanent hardware-adres van de interface die de batterij in je netwerk gebruikt. Neem het over uit de apparatenlijst van je router: een batterij kan een ander MAC-adres melden dan de bekabelde interface daadwerkelijk gebruikt. Wordt automatisch ingevuld als de DHCP-cache van Home Assistant beschikbaar is."
         }
       },
       "time_slots": {
