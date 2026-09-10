@@ -21,6 +21,7 @@ from custom_components.omnibattery.drivers.zendure import (
     ZENDURE_MODEL_SOLARFLOW_800_PRO,
     ZENDURE_MODEL_1600AC_PLUS,
     ZENDURE_MODEL_2400AC_PLUS,
+    ZENDURE_MODEL_3000MIX_AC_PLUS,
     ZENDURE_MODEL_4000MIX_AC_PLUS,
     ZENDURE_MODEL_4000MIX_PRO,
     detect_model,
@@ -249,6 +250,45 @@ async def test_legacy_zendure_profile_promotes_from_report_product(product, mode
     assert driver.capabilities.max_charge_power_w == 4000
     assert driver.capabilities.max_discharge_power_w == 4000
     assert driver.capabilities.has_mppt_pv is (model == ZENDURE_MODEL_4000MIX_PRO)
+
+
+@pytest.mark.parametrize("product", [
+    "SolarFlow 3000 Mix AC+",
+    "solarFlow3000MixAC+",
+])
+def test_detect_model_identifies_solarflow_3000_mix_ac_plus(product):
+    assert detect_model(product) == ZENDURE_MODEL_3000MIX_AC_PLUS
+
+
+def test_solarflow_3000_mix_ac_plus_profile():
+    driver = ZendureLocalDriver(
+        "192.168.1.100", model=ZENDURE_MODEL_3000MIX_AC_PLUS
+    )
+    keys = {d["key"] for d in driver.sensor_definitions}
+
+    assert driver.capabilities.max_charge_power_w == 3000
+    assert driver.capabilities.max_discharge_power_w == 3000
+    assert next(
+        d for d in driver.number_definitions if d["key"] == "inverse_max_power"
+    )["max"] == 3000
+    assert driver.capabilities.has_mppt_pv is False
+    assert not keys & {"solar_power", "mppt1_power", "mppt2_power"}
+
+
+async def test_legacy_profile_promotes_to_3000_mix_ac_plus():
+    """Entries added before the profile existed are stored as 2400 AC+."""
+    report = {**_REPORT, "product": "solarFlow3000MixAC+"}
+    driver = ZendureLocalDriver(
+        "192.168.1.100",
+        model=ZENDURE_MODEL_2400AC_PLUS,
+        session=_session(get_data=report),
+    )
+
+    assert await driver.connect() is True
+    assert driver.model_key == ZENDURE_MODEL_3000MIX_AC_PLUS
+    assert driver.capabilities.max_charge_power_w == 3000
+    assert driver.capabilities.max_discharge_power_w == 3000
+    assert driver.capabilities.has_mppt_pv is False
 
 
 # ---------------------------------------------------------------------------
