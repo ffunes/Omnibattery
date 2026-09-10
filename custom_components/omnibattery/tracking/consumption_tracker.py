@@ -389,6 +389,34 @@ class ConsumptionTracker:
         await self.save_consumption_history()
         await self._flush_vacation_state()
 
+    async def async_exclude_dates(self, start_date: date, end_date: date) -> None:
+        """Mask whole local days out of learning, exactly as a vacation does.
+
+        Deleting a day from the stores cannot work: both are caches over
+        Recorder, so the startup backfill re-queries whatever is missing and
+        puts the day straight back. The persisted exclusion is the only thing
+        a rebuild honours.
+        """
+        local_tz = dt_util.get_time_zone(
+            getattr(getattr(self._hass, "config", None), "time_zone", None)
+        ) or dt_util.UTC
+        start = datetime.combine(start_date, time.min, tzinfo=local_tz)
+        end = datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=local_tz)
+        self._vacation_periods.append(
+            {"start": start.isoformat(), "end": end.isoformat()}
+        )
+        self._controller._daily_consumption_history = [
+            (day, energy)
+            for day, energy in self._controller._daily_consumption_history
+            if not start_date <= day <= end_date
+        ]
+        self._sync_profile_vacation_exclusions()
+        await self.save_consumption_history()
+        await self._flush_vacation_state()
+        _LOGGER.info(
+            "Excluded %s to %s from consumption learning", start_date, end_date
+        )
+
     def _vacation_baseline_kw(self) -> tuple[float, str]:
         """Return median valid-night load, then prior profile, history, default."""
         valid = [item for item in self._vacation_nights

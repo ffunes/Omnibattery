@@ -2365,5 +2365,29 @@
         "name": "Réévaluer la Charge Prédictive"
       }
     }
+  },
+  "exceptions": {
+    "exclude_days_invalid_range": {
+      "message": "La date de fin ne peut pas être antérieure à la date de début."
+    },
+    "exclude_days_too_old": {
+      "message": "L'apprentissage de la consommation ne conserve que les {days} derniers jours ; un jour plus ancien ne peut plus être exclu."
+    }
+  },
+  "services": {
+    "exclude_consumption_days": {
+      "name": "Exclure des jours de consommation",
+      "description": "Retire des journées locales entières de la consommation apprise, pour un jour qui ne représente pas le foyer : une panne du compteur, un événement ponctuel, une absence. Les compteurs physiques et l'historique restent intacts ; seul l'apprentissage ignore ces jours. L'exclusion est enregistrée, de sorte qu'un backfill ultérieur du Recorder ne peut pas les réintroduire.",
+      "fields": {
+        "start_date": {
+          "name": "Date de début",
+          "description": "Premier jour local exclu."
+        },
+        "end_date": {
+          "name": "Date de fin",
+          "description": "Dernier jour local exclu. Par défaut, seul le jour de début est exclu."
+        }
+      }
+    }
   }
 }

@@ -37,6 +37,34 @@ spike cannot distort the rest of the day.
 
 ---
 
+## Excluding a day that is not representative
+
+A day the household did not really consume — a meter outage that inflated the
+derived home consumption, a one-off event, a stay away — pulls both the 7-day
+average and the 28-day profile with it. Use the **Exclude consumption days**
+action (`omnibattery.exclude_consumption_days`) from Developer tools → Actions:
+
+```yaml
+action: omnibattery.exclude_consumption_days
+data:
+  start_date: "2026-09-07"
+  end_date: "2026-09-07"   # optional, defaults to start_date
+```
+
+The excluded days leave the legacy daily history immediately and are masked out
+of the 28-day profile, exactly as Vacation mode does for the days it covers.
+Physical energy counters, the real-consumption chart and Recorder history are
+untouched, and battery control is unaffected. Only days within the last 35 are
+accepted, since older ones no longer take part in learning.
+
+!!! warning "Deleting the day from `.storage` does not work"
+    Both consumption stores are caches over Recorder. A day removed by hand is
+    a day that is *missing*, so the startup backfill re-queries Recorder and
+    writes it straight back. The stored exclusion is the only thing a rebuild
+    honours.
+
+---
+
 ## What the estimate measures
 
 The estimate is the **total home consumption over the full local day**, including predictive grid-charging windows. It is averaged over the last 7 calendar days.

@@ -1,0 +1,12 @@
+exclude_consumption_days:
+  fields:
+    start_date:
+      required: true
+      example: "2026-09-07"
+      selector:
+        date:
+    end_date:
+      required: false
+      example: "2026-09-08"
+      selector:
+        date:

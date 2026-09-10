@@ -2360,5 +2360,29 @@
         "name": "Reavalua la Càrrega Predictiva"
       }
     }
+  },
+  "exceptions": {
+    "exclude_days_invalid_range": {
+      "message": "La data de fi no pot ser anterior a la d'inici."
+    },
+    "exclude_days_too_old": {
+      "message": "L'aprenentatge de consum només conserva els darrers {days} dies, així que ja no es pot excloure un dia més antic."
+    }
+  },
+  "services": {
+    "exclude_consumption_days": {
+      "name": "Exclou dies de consum",
+      "description": "Deixa fora del consum après dies locals sencers, per a un dia que no representa l'habitatge: una aturada del comptador, un esdeveniment puntual, una absència. Els comptadors físics i l'historial no es toquen; només l'aprenentatge ignora aquests dies. L'exclusió es desa, de manera que un backfill posterior del Recorder no els pot reincorporar.",
+      "fields": {
+        "start_date": {
+          "name": "Data d'inici",
+          "description": "Primer dia local que s'exclou."
+        },
+        "end_date": {
+          "name": "Data de fi",
+          "description": "Darrer dia local que s'exclou. Si s'omet, només s'exclou el dia d'inici."
+        }
+      }
+    }
   }
 }
