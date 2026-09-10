@@ -110,7 +110,7 @@ Only present when the [cell balance monitor](../features/cell-balance-monitor.md
 | Entity | Description |
 |---|---|
 | `button.*_reset` | Device reset |
-| `button.omnibattery_reevaluate_dynamic_pricing` | Rebuild the Dynamic Pricing schedule now; only created in Dynamic Pricing mode |
+| `button.omnibattery_reevaluate_dynamic_pricing` | **Re-evaluate Predictive Charging**: rebuild the plan now. Created in Dynamic Pricing and Time Slot mode; real-time price re-decides every cycle and does not need it |
 
 ## System sensors
 

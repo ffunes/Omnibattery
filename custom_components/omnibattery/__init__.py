@@ -1052,6 +1052,9 @@ class ChargeDischargeController:
         self._dp_last_eval_solar_produced_kwh = None  # solar produced when that forecast was read
         self._dp_solar_forecast_reeval_at = None  # last forecast-driven re-evaluation (cooldown)
         self._dp_solar_forecast_reeval_count = 0  # forecast-driven re-evaluations today (daily cap)
+        self._dp_solar_forecast_reeval_date = None  # day that cap belongs to (time slot has no daily reset)
+        self._dp_config_dirty = False  # a balance knob moved; rebuild on the next DP cycle
+        self._predictive_balance_fingerprint = None  # seeded once the coordinators exist
         # Smart pre-discharge is runtime-only.  Plans are rebuilt after restart;
         # no plan or override is persisted in Home Assistant storage.
         self._curtailment_plan = None
@@ -2706,6 +2709,46 @@ class ChargeDischargeController:
         # to the slowest actuator: doing so smooths the spike away for the fast
         # batteries too. Slow-actuator pacing belongs per-battery in distribution.
         self._grid_filter_tau = 0.0 if self.no_pd_mode_enabled else DEFAULT_GRID_FILTER_TAU
+
+    def predictive_balance_fingerprint(self) -> tuple:
+        """The user-set inputs the predictive energy balance is built on.
+
+        Compared before and after a config-entry update so that a knob which
+        moves the balance invalidates the plan, while the many unrelated writes
+        that also land in entry data — shadow selects, manual force mode,
+        capability detection at startup — do not. Battery capacity is telemetry,
+        not a setting, so it is deliberately absent.
+        """
+        return (
+            round(float(self._predictive_safety_margin_kwh or 0.0), 3),
+            round(float(self._predictive_grid_charge_margin_pct or 0.0), 3),
+            round(float(self._predictive_min_soc_floor or 0.0), 3),
+            bool(self._predictive_min_soc_floor_enabled),
+            tuple(
+                (
+                    getattr(c, "device_key", None),
+                    getattr(c, "min_soc", None),
+                    getattr(c, "max_soc", None),
+                )
+                for c in self.coordinators
+            ),
+        )
+
+    def invalidate_predictive_plan(self, reason: str) -> None:
+        """Force the next control cycle to rebuild the predictive charge plan.
+
+        A plan decided against grid charging on the old value of a knob the user
+        has since moved — a raised max SOC, a raised guaranteed floor, a larger
+        margin — used to stand until the next scheduled evaluation, and time
+        slot mode has no manual rebuild to fall back on at all.
+
+        Time slot re-enters its own initial-evaluation path by clearing the SOC
+        reference; dynamic pricing consumes the flag on its next cycle. Real-time
+        price re-decides every cycle on its own and needs neither.
+        """
+        self.last_evaluation_soc = None
+        self._dp_config_dirty = True
+        _LOGGER.info("Predictive plan invalidated: %s", reason)
 
     def update_pd_parameters(self):
         """Re-read PD controller parameters from config_entry.data (hot-reload)."""
@@ -10495,6 +10538,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if controller:
             controller.update_pd_parameters()
             controller._check_solar_forecast_migration()
+            # Per-battery SOC limits are written straight onto the coordinator
+            # and persisted through this same entry update, so the fingerprint
+            # covers them as well as the predictive margins and the floor.
+            fingerprint = controller.predictive_balance_fingerprint()
+            if (
+                controller._predictive_balance_fingerprint is not None
+                and fingerprint != controller._predictive_balance_fingerprint
+            ):
+                controller.invalidate_predictive_plan("configuration changed")
+            controller._predictive_balance_fingerprint = fingerprint
             tracker = getattr(controller, "_consumption_tracker", None)
             reconcile_vacation = getattr(tracker, "async_reconcile_vacation_mode", None)
             if callable(reconcile_vacation):
@@ -10522,6 +10575,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Keep the recovery copy in sync with the latest options.
         from .config_backup import async_save_config_backup
         await async_save_config_backup(hass)
+
+    # Seed the balance fingerprint now the coordinators exist, so the first
+    # config change after startup is compared against the running values rather
+    # than treated as the seed and silently ignored.
+    controller._predictive_balance_fingerprint = controller.predictive_balance_fingerprint()
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 

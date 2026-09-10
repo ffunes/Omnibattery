@@ -2349,7 +2349,7 @@
         "name": "Apparaat Resetten"
       },
       "reevaluate_dynamic_pricing": {
-        "name": "Dynamische Prijzen Herevalueren"
+        "name": "Voorspellend Laden Herevalueren"
       }
     }
   },

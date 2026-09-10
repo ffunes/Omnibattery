@@ -264,7 +264,9 @@ def test_initial_evaluation_with_valid_forecast_does_not_wait():
 
     assert calls["activate"] == 1
     assert calls["notify"] == 1
-    assert calls["sensor_reads"] == 1
+    # One pre-check read plus the read that arms the forecast-revision trigger
+    # against the values this evaluation decided on. No retry wait either way.
+    assert calls["sensor_reads"] == 2
     assert controller.last_evaluation_soc == 50.0
 
 

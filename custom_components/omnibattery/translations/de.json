@@ -2349,7 +2349,7 @@
         "name": "Gerät zurücksetzen"
       },
       "reevaluate_dynamic_pricing": {
-        "name": "Dynamische Preise neu bewerten"
+        "name": "Prädiktives Laden neu bewerten"
       }
     }
   }

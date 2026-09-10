@@ -30,9 +30,19 @@ Charges from the grid during a **fixed time window** (typically cheap overnight 
 
 The planner never opens an unconfigured charging window. A deadline shortfall means the configured windows or physical charging power cannot deliver enough energy in time; normal household grid import can still occur after the battery reaches its minimum.
 
-## SOC-drop re-evaluation
+## Re-evaluation inside the window
 
-If the SOC drops 30 % or more from the last evaluation point during the slot (e.g. due to high consumption), the system automatically re-evaluates the energy balance. No additional notification is sent for these mid-slot re-evaluations.
+The decision taken on slot entry is not final. While the window is open, the energy balance is evaluated again when:
+
+- **The SOC drops 30 % or more** from the last evaluation point (e.g. due to high consumption).
+- **The guaranteed minimum SOC floor is crossed or recovered**, when that option is enabled.
+- **The provider revises the solar forecast** by 1.5 kWh or more in either direction. A remaining forecast falls all day by itself, so the stored reading is projected forward by the solar actually produced since it was taken and only the gap against that projection counts as a revision. Bounded by a 30-minute cooldown and four re-evaluations per day.
+- **A setting the balance depends on changes**: a battery's minimum or maximum SOC, the solar forecast safety margin, the predictive grid charge margin, or the guaranteed minimum SOC floor.
+- **You press the Re-evaluate Predictive Charging button** (`button.*_reevaluate_dynamic_pricing`) on the system device.
+
+Only a re-evaluation that reverses the slot's decision replaces the notification; the others are silent.
+
+These triggers act **inside a charging window only** - outside one there is nothing to re-plan, because this mode never charges from the grid outside its configured windows. If your windows are overnight and the forecast collapses at midday, the correction happens at the next window, not immediately. Dynamic Pricing, which schedules its own slots, does not have this limitation.
 
 Time Slot and Dynamic Pricing use one shared dated solar timeline and one
 remaining-energy budget. The learned profile changes intraday deadlines
