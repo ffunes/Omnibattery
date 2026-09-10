@@ -3,7 +3,7 @@
 A Venus A/D couples several battery packs and fills them **in sequence**, so its
 aggregate SOC is not the number either end of the charge should be decided on:
 it can read the ceiling while the last pack is still half empty. Per-pack SOC
-(``battery_soc_pack_1..6``) makes the real state visible, and the verdicts
+(``battery_soc_pack_1..7``) makes the real state visible, and the verdicts
 become asymmetric:
 
 * **full** when the *least* full pack reaches the ceiling — ``min(pack_soc)``;
@@ -94,6 +94,19 @@ def control_vmax(coordinator):
     the latch on permanently. What the reading needs is a qualifier, and it is
     the one the BMS-cutoff detector already applies (#350) — the top cell counts
     once the least full pack has caught up to it.
+
+    What the qualifier does not buy is a fleet maximum, and it is worth saying
+    why no one should add one later. #415 measured register 32111, the active
+    pack index: a Venus A/D charges exactly one pack at a time and rotates every
+    7–50 minutes, so 37007 reports the pack under load only while slot 1 happens
+    to be the active one, and otherwise under-reads it by ~60 mV. Even qualified,
+    a cell diverging in another pack stays invisible — 3.363 V on pack 1 against
+    3.517 V on pack 2 with every pack at 99.8–100 %. Reading each pack's own
+    34005 would close that, and it is deliberately not done: the same charge
+    showed the hardware tapering itself 2467 → 1349 → 541 → 0 W with the
+    integration allowing 2500 W throughout, peaking at 3.574 V without a cutoff.
+    The BMS protects the cell; this feature only has to stop *us* from throttling
+    a battery that is still filling.
 
     Returns None while the packs still disagree, and the plain reading for every
     battery that publishes no per-pack SOC, which is every model except Venus
