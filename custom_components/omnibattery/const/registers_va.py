@@ -511,10 +511,17 @@ SENSOR_DEFINITIONS_VA.extend(
 # stride-100 block the SOC at +2 already uses — is what makes the number
 # attributable, and it is cheap: 14 registers, not the 112 of individual cells.
 #
-# Off by default, exactly like the pack SOCs, and *not* in
-# control_dependency_keys: nothing in the control layer reads them, so a user
-# who does not enable them pays no extra Modbus frame. Enabling them switches
-# the balance monitor's delta to the worst pack (see control/pack_soc.py).
+# The entities are off by default, because fourteen extra diagnostic rows per
+# battery is clutter for the many owners who will never plot them. The *reads*
+# are not: the balance monitor needs these values to attribute a delta at all, so
+# the driver declares them as balance dependencies and they keep polling with
+# their entities disabled — the same split the pack SOCs and 37007/37008 already
+# use. A user who wants the per-pack numbers on a chart enables the entities; the
+# delta is right either way.
+#
+# One frame per pack, not two: each pair is adjacent, so it is block-read
+# (REGISTER_BLOCKS_VA_PACK_CELLS below) at "low". On a four-pack Venus D that is
+# four extra frames per 30 s cycle, ~600 ms of a bus with one TCP slot.
 #
 # The stride is confirmed for the SOC at +2 (34602/pack 7 read on hardware,
 # #415). Offsets +5/+6 come from the same third-party map, so readings are
@@ -542,3 +549,21 @@ SENSOR_DEFINITIONS_VA.extend(
     )
     for n, key in enumerate(keys, start=1)
 )
+
+# One request per pack: max/min sit next to each other, so the pair costs a
+# single frame instead of two. Venus A/D only — a v3 shares the entity map but
+# has no 34000-block, and an unconditional block group would burn a failing read
+# on it every cycle. An absent slot's group is pruned by the SOC probe along with
+# its keys.
+REGISTER_BLOCKS_VA_PACK_CELLS = [
+    {
+        "start": 34000 + 100 * (n - 1) + 5,
+        "count": 2,
+        "scan_interval": "low",
+        "members": [
+            {"key": f"max_cell_voltage_pack_{n}", "offset": 0, "count": 1, "data_type": "int16"},
+            {"key": f"min_cell_voltage_pack_{n}", "offset": 1, "count": 1, "data_type": "int16"},
+        ],
+    }
+    for n in range(1, 8)
+]

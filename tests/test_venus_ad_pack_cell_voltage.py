@@ -8,7 +8,9 @@ reading wearing a whole-battery label.
 Pinned here:
 
 * the per-pack registers sit on the same stride-100 block as the SOC, at
-  offsets +5/+6, and cost nothing until the owner enables them;
+  offsets +5/+6, and are block-read one frame per pack;
+* they poll with their entities disabled, so the delta is right for everyone
+  and nobody has to opt in to a correct health number;
 * an absent slot loses its cell entities along with its SOC, on the SOC probe's
   verdict rather than a second probe;
 * the recorded delta becomes the *worst pack's* spread, never a max-minus-min
@@ -61,8 +63,8 @@ def test_cell_registers_ride_the_soc_stride_and_ship_disabled():
         vmax = defs[f"max_cell_voltage_pack_{n}"]
         vmin = defs[f"min_cell_voltage_pack_{n}"]
         assert (vmax["register"], vmin["register"]) == (base + 5, base + 6)
-        # Off by default and on the slow schedule: a Venus A/D has one TCP slot,
-        # so these must not cost a frame to anyone who has not asked for them.
+        # Off by default as entities — fourteen diagnostic rows per battery is
+        # clutter — and on the slow schedule, because a Venus A/D has one TCP slot.
         assert vmax["enabled_by_default"] is False
         assert vmin["enabled_by_default"] is False
         assert vmax["scan_interval"] == "low"
@@ -71,12 +73,44 @@ def test_cell_registers_ride_the_soc_stride_and_ship_disabled():
     assert defs["max_cell_voltage_pack_1"]["register"] == 34005
 
 
-def test_cell_keys_stay_out_of_the_control_dependency_set():
-    # Nothing in the control layer reads them, so unlike the pack SOCs they must
-    # not be forced to keep polling while their entities are disabled.
+def test_cell_keys_poll_while_their_entities_are_disabled():
+    # The whole point of the fix is a delta nobody has to opt into. The entities
+    # ship off; the reads must not, or the balance monitor is back to pack 1.
     driver = _driver()
+    assert driver.balance_dependency_keys.issuperset(PACK_MAX_CELL_KEYS)
+    assert driver.balance_dependency_keys.issuperset(PACK_MIN_CELL_KEYS)
+    # They are balance dependencies, not control ones: nothing in the control
+    # layer reads them, and #415 is explicit that it must stay that way.
     assert driver.control_dependency_keys.isdisjoint(PACK_MAX_CELL_KEYS)
     assert driver.control_dependency_keys.isdisjoint(PACK_MIN_CELL_KEYS)
+
+
+def test_each_pack_pair_costs_one_frame_not_two():
+    # The objection to reading these at all is the single TCP slot, so the
+    # adjacency has to be used: 34005/34006 are one block read per pack.
+    driver = _driver()
+    blocks = {b["start"]: b for b in driver._register_blocks}
+    for n in range(1, 8):
+        block = blocks[34005 + 100 * (n - 1)]
+        assert block["count"] == 2
+        assert block["scan_interval"] == "low"
+        assert [m["key"] for m in block["members"]] == [
+            f"max_cell_voltage_pack_{n}", f"min_cell_voltage_pack_{n}",
+        ]
+    groups = {g.keys for g in driver.read_groups}
+    assert ("max_cell_voltage_pack_1", "min_cell_voltage_pack_1") in groups
+
+
+def test_a_v3_never_gets_the_pack_cell_blocks():
+    # v3 shares the entity map but has no 34000-block, and a block group is built
+    # unconditionally — so this would be a failing read every cycle on the model
+    # with the least headroom to spare.
+    client = AsyncMock()
+    client.async_read_register = AsyncMock(return_value=None)
+    client.async_read_block = AsyncMock(return_value=None)
+    v3 = MarstekModbusDriver("1.2.3.4", 502, "v3", client=client, ems_version=149)
+    assert all(b["start"] != 34005 for b in v3._register_blocks)
+    assert v3.balance_dependency_keys == frozenset()
 
 
 # --- slot probe -------------------------------------------------------------
@@ -101,6 +135,12 @@ async def test_absent_slot_loses_its_cell_entities_with_its_soc():
         assert f"max_cell_voltage_pack_{n}" not in present
         assert f"min_cell_voltage_pack_{n}" not in present
         assert f"max_cell_voltage_pack_{n}" not in polled
+    # An absent slot must also stop being forced to poll, or the dependency set
+    # would drag its pruned keys back onto the bus.
+    assert driver.balance_dependency_keys == {
+        "max_cell_voltage_pack_1", "min_cell_voltage_pack_1",
+        "max_cell_voltage_pack_2", "min_cell_voltage_pack_2",
+    }
 
 
 # --- the delta --------------------------------------------------------------
@@ -129,7 +169,7 @@ def test_worst_pack_wins_and_is_not_a_cross_pack_spread():
 
 
 def test_no_per_pack_telemetry_leaves_the_reading_alone():
-    # Every model except Venus A/D, and every Venus A/D with the entities off.
+    # Every model except Venus A/D, and any Venus A/D slot that never answered.
     assert worst_pack_delta(_coord(max_cell_voltage=3.48, min_cell_voltage=3.31)) is None
     assert pack_cell_deltas(_coord()) == {}
     assert worst_pack_delta(SimpleNamespace(data=None)) is None

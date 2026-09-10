@@ -202,6 +202,13 @@ def _load_register_blocks(version: str) -> list[dict]:
     """
     if version in _V3_FAMILY:
         from ..const import REGISTER_BLOCKS_V3
+        if version in ("vA", "vD"):
+            # Only these have the per-pack 34000-block (#439). A v3 shares the
+            # entity map but not the registers, and a block group is built
+            # unconditionally, so giving it these would burn a failing read every
+            # cycle on the model that can least afford one.
+            from ..const import REGISTER_BLOCKS_VA_PACK_CELLS
+            return REGISTER_BLOCKS_V3 + REGISTER_BLOCKS_VA_PACK_CELLS
         return REGISTER_BLOCKS_V3
     if version == "v2":
         from ..const import REGISTER_BLOCKS_V2
@@ -530,6 +537,26 @@ class MarstekModbusDriver(BatteryDriver):
         return frozenset(
             key for soc in self._packs for key in _SLOT_KEYS_BY_SOC_KEY[soc]
         )
+
+    @property
+    def balance_dependency_keys(self) -> frozenset[str]:
+        """Per-pack cell voltages, which poll with their entities disabled (#439).
+
+        The balance monitor judges the battery on its worst pack, so it needs
+        these whether or not the owner wants fourteen more rows in Home Assistant
+        — the same split 37007/37008 and the pack SOCs already have. Every slot
+        while the probe is still running, the confirmed ones after; an absent slot
+        has left the read groups by then anyway.
+        """
+        if not self._pack_soc_capable:
+            return frozenset()
+        indexed = frozenset(
+            k for k in PACK_MAX_CELL_KEYS + PACK_MIN_CELL_KEYS
+            if k in self._telemetry_index
+        )
+        if self._pack_probes_left:
+            return indexed
+        return indexed & self._slot_keys_present
 
     @property
     def _active_pack_keys(self) -> frozenset[str]:

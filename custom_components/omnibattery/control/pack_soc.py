@@ -73,8 +73,10 @@ def pack_cell_voltages(coordinator) -> dict[int, tuple[float, float]]:
     """Return ``{pack number: (vmax, vmin)}`` for every pack reporting both.
 
     Empty for every battery that publishes no per-pack cell voltage, which is
-    every model except Venus A/D, and every Venus A/D whose owner has not enabled
-    the entities — they ship disabled, so the delta stays exactly what it was.
+    every model except Venus A/D, and any Venus A/D slot whose registers did not
+    answer. The entities ship disabled but the reads do not depend on that (see
+    ``balance_dependency_keys``), so a multi-pack owner gets the per-pack delta
+    without opting in.
     """
     data = getattr(coordinator, "data", None) or {}
 

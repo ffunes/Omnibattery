@@ -134,7 +134,8 @@ class CellDeltaSensor(_BalanceBaseSensor):
         attrs: dict[str, Any] = {"history": list(reversed(readings))}
         # The state is the worst pack's spread; this is the live breakdown behind
         # it, so a high delta can be attributed to a pack instead of to "the
-        # battery" (#439). Absent unless the per-pack cell entities are enabled.
+        # battery" (#439). Read from the coordinator, so it is here whether or
+        # not the owner enabled the per-pack entities themselves.
         packs = pack_cell_deltas(self._coordinator)
         if packs:
             attrs["packs_mV"] = packs

@@ -1276,6 +1276,13 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         )
         # Cell voltage keys are always needed by the balance monitor
         dependency_keys_set.update({"max_cell_voltage", "min_cell_voltage"})
+        # ...and so is any finer breakdown the driver has. A Venus A/D's
+        # 37007/37008 describe pack 1 alone, so the delta is attributed per pack
+        # (#439); those entities ship disabled, and the reading must not depend on
+        # the user enabling them.
+        dependency_keys_set.update(
+            getattr(self.driver, "balance_dependency_keys", frozenset())
+        )
         # Control registers must keep polling even when the user disables their
         # number entities, otherwise the control loop loses its commanded power,
         # power caps and SOC cutoffs from coordinator.data and stops driving the
