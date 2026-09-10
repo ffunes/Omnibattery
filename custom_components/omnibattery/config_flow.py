@@ -2216,17 +2216,20 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             _schema[vol.Required(CONF_DC_PV_CONNECTED, default=True)] = BooleanSelector()
         if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei"):
             _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)] = bool
-        if brand == "sessy":
+        if brand in ("sessy", "zendure"):
+            # Neither reports a nominal capacity, and leaving it at 0 silently
+            # breaks system SOC, cycles, predictive charging and pricing math.
             _schema[vol.Required("battery_capacity_kwh")] = NumberSelector(
                 NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
-        elif brand in ("zendure", "hoymiles"):
-            capacity_default = (
-                _hoymiles_capacity_default(self._current_battery_data)
-                if brand == "hoymiles" else 0.0
-            )
-            _schema[vol.Optional("battery_capacity_kwh", default=capacity_default)] = NumberSelector(
-                NumberSelectorConfig(min=0.01 if brand == "hoymiles" else 0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
+        elif brand == "hoymiles":
+            _schema[
+                vol.Optional(
+                    "battery_capacity_kwh",
+                    default=_hoymiles_capacity_default(self._current_battery_data),
+                )
+            ] = NumberSelector(
+                NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
         if self.config_data.get(CONF_THREE_PHASE_ENABLED):
             # Keep the established L1 suggestion for a brand-new setup while
@@ -4931,7 +4934,7 @@ class OptionsFlowHandler(OptionsFlow):
             ] = BooleanSelector()
         if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei"):
             _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=defaults[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED])] = bool
-        if brand == "sessy":
+        if brand in ("sessy", "zendure"):
             saved_capacity = float(defaults["battery_capacity_kwh"])
             capacity_field = (
                 vol.Required("battery_capacity_kwh", default=saved_capacity)
@@ -4941,9 +4944,9 @@ class OptionsFlowHandler(OptionsFlow):
             _schema[capacity_field] = NumberSelector(
                 NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
-        elif brand in ("zendure", "hoymiles"):
+        elif brand == "hoymiles":
             _schema[vol.Optional("battery_capacity_kwh", default=defaults["battery_capacity_kwh"])] = NumberSelector(
-                NumberSelectorConfig(min=0.01 if brand == "hoymiles" else 0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
+                NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
         if self.config_entry.data.get(
             CONF_THREE_PHASE_ENABLED,

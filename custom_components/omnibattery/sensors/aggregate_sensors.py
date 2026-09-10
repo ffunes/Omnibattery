@@ -437,19 +437,28 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
         """Calculate capacity-weighted SOC across all batteries."""
         total_capacity = 0
         total_stored = 0
+        socs = []
 
         for coordinator in self.coordinators:
             if coordinator.data:
                 soc = coordinator.data.get("battery_soc")
+                if soc is None:
+                    continue
+                socs.append(soc)
                 capacity = coordinator.data.get("battery_total_energy")
-                if soc is not None and capacity is not None and capacity > 0:
+                if capacity is not None and capacity > 0:
                     total_capacity += capacity
                     total_stored += (soc / 100.0) * capacity
 
         if total_capacity <= 0:
-            return None
-
-        weighted_soc = (total_stored / total_capacity) * 100
+            # Drivers without a hardware capacity (Zendure, Sessy) leave
+            # battery_total_energy absent until the user configures it, which
+            # used to make the whole system SOC unknown. Plain mean instead.
+            if not socs:
+                return None
+            weighted_soc = sum(socs) / len(socs)
+        else:
+            weighted_soc = (total_stored / total_capacity) * 100
         has_v3 = any(
             getattr(c, "battery_version", "v2") in ("v3", "vA", "vD")
             for c in self.coordinators
