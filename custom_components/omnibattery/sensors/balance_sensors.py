@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from ..control.pack_soc import pack_cell_deltas
 from ..tracking.balance_monitor import BalanceMonitor, BalanceSensorGroup
 from ..const import DOMAIN
 from ..infra.entity_naming import english_entity_id
@@ -130,7 +131,15 @@ class CellDeltaSensor(_BalanceBaseSensor):
             self._coordinator.device_key, self.HISTORY_LIMIT
         )
         # Reverse so attribute order is newest -> oldest, which is friendlier in the UI.
-        return {"history": list(reversed(readings))}
+        attrs: dict[str, Any] = {"history": list(reversed(readings))}
+        # The state is the worst pack's spread; this is the live breakdown behind
+        # it, so a high delta can be attributed to a pack instead of to "the
+        # battery" (#439). Absent unless the per-pack cell entities are enabled.
+        packs = pack_cell_deltas(self._coordinator)
+        if packs:
+            attrs["packs_mV"] = packs
+            attrs["worst_pack"] = max(packs, key=packs.__getitem__)
+        return attrs
 
 
 class BalanceStatusSensor(_BalanceBaseSensor):

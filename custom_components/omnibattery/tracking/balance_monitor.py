@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.storage import Store
 
+from ..control.pack_soc import pack_cell_deltas, worst_pack_delta
 from ..const import (
     BALANCE_BASELINE_OFFSET_MV,
     BALANCE_HISTORY_MAX,
@@ -170,6 +171,35 @@ class BalanceMonitor:
         except (TypeError, ValueError):
             soc_f = None
         delta_mv = (vmax_f - vmin_f) * 1000
+        extra = {
+            "phase": phase,
+            "source": source,
+            "measurement_id": measurement_id,
+        }
+
+        # The caller's vmax/vmin come from 37007/37008, which on a Venus A/D are
+        # pack 1's registers and nothing else (#415): on a battery that fills its
+        # packs in sequence that is one pack's spread wearing a whole-battery
+        # label, and the pack it describes is usually not even the one under
+        # load. When the per-pack registers are enabled, judge the battery on its
+        # *worst* pack instead and record which one that was, so a red status
+        # points at something the owner can go and look at. Every other battery,
+        # and every Venus A/D with the entities left disabled, keeps the caller's
+        # reading unchanged.
+        #
+        # ponytail: enabling the entities steps the series up once, since the
+        # worst pack is never tighter than pack 1, and that step can cost one
+        # spurious rising-trend notification before the four-reading window has
+        # turned over. Left unguarded: the imbalance it reports was always there,
+        # only invisible, and the alert is cooldown-limited to one.
+        worst = worst_pack_delta(coordinator)
+        if worst is not None:
+            delta_mv = worst["delta_mV"]
+            vmax_f = worst["vmax_V"]
+            vmin_f = worst["vmin_V"]
+            extra["pack"] = worst["pack"]
+            extra["packs"] = pack_cell_deltas(coordinator)
+
         await self._save_reading(
             coordinator.device_key,
             delta_mv,
@@ -178,11 +208,7 @@ class BalanceMonitor:
             soc_f,
             "top_balance_measurement",
             coordinator,
-            extra={
-                "phase": phase,
-                "source": source,
-                "measurement_id": measurement_id,
-            },
+            extra=extra,
         )
 
     async def async_record_blueprint_balance_measurement(

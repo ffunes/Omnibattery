@@ -43,6 +43,8 @@
 | max_cell_temperature              | Max cell temperature                       | int16   | 2    | 0.1/1  | °C   | 35010 | 35010 | 35010 | 35010 |
 | max_cell_voltage                  | Max cell voltage                           | uint16  | 2    | 0.001  | V    | 37007 | 37007 | 37007 | 37007 |
 | min_cell_voltage                  | Min cell voltage                           | uint16  | 2    | 0.001  | V    | 37008 | 37008 | 37008 | 37008 |
+| max_cell_voltage_pack_n           | Pack *n* max cell voltage — `34005 + 100·(n−1)`, n = 1..7 (issue #439) | int16   | 2    | 0.001  | V    | 34005 | 34005 |        |        |
+| min_cell_voltage_pack_n           | Pack *n* min cell voltage — `34006 + 100·(n−1)`, n = 1..7 (issue #439) | int16   | 2    | 0.001  | V    | 34006 | 34006 |        |        |
 | battery_1_cell_1_voltage            | Battery pack 1 cell 1 voltage               | int16   | 2    | 0.001  | V    | 34018 | 34018 |       | 34018 |
 | battery_1_cell_2_voltage            | Battery pack 1 cell 2 voltage               | int16   | 2    | 0.001  | V    | 34019 | 34019 |       | 34019 |
 | battery_1_cell_3_voltage            | Battery pack 1 cell 3 voltage               | int16   | 2    | 0.001  | V    | 34020 | 34020 |       | 34020 |
@@ -196,8 +198,14 @@ _Notes:_
 - Two Venus A/D entries deliberately **differ from that YAML**, which is wrong there (issue #350):
   `battery_soc` is the aggregate at **32104** (the YAML's 34002 is pack 1's own SOC, and
   `const/registers_va.py` has always read 32104); and the per-pack block is laid out with a
-  **stride of 100** — pack *n* starts at `34000 + 100·(n−1)`, SOC at offset `+2`, cells at `+18` —
+  **stride of 100** — pack *n* starts at `34000 + 100·(n−1)`, SOC at offset `+2`, that pack's
+  max/min cell voltage at `+5`/`+6`, its 16 individual cells at `+18` —
   not as one flat run, so the column `a` cell addresses above are renumbered accordingly.
+- **`max_cell_voltage`/`min_cell_voltage` on Venus A/D are pack 1's, not the battery's**
+  (issues #415, #439): firmware v150 reads 37007 and 34005 through the same source pointer
+  `0x20014FC4`, and 37008/34006 through `0x20014FC6`. No device-wide max/min register exists.
+  A Venus A/D charges one pack at a time (register **32111** is the active pack index), so
+  37007 describes the pack under load only while slot 1 happens to be the active one.
 - `Bytes` shows the typical byte size for the key (each Modbus register = 2 bytes).
 - Blank cells mean that YAML does not define that key (or the value is calculated and has no direct Modbus register).
 - The `rs485_control_mode` switch (register 42000) uses write commands (command_on=21930, command_off=21947) to trigger RS485 control operations; use with caution.

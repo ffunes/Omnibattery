@@ -1721,6 +1721,48 @@
       "battery_soc_pack_7": {
         "name": "Batterij SOC Pack 7"
       },
+      "max_cell_voltage_pack_1": {
+        "name": "Max. Celspanning Pack 1"
+      },
+      "min_cell_voltage_pack_1": {
+        "name": "Min. Celspanning Pack 1"
+      },
+      "max_cell_voltage_pack_2": {
+        "name": "Max. Celspanning Pack 2"
+      },
+      "min_cell_voltage_pack_2": {
+        "name": "Min. Celspanning Pack 2"
+      },
+      "max_cell_voltage_pack_3": {
+        "name": "Max. Celspanning Pack 3"
+      },
+      "min_cell_voltage_pack_3": {
+        "name": "Min. Celspanning Pack 3"
+      },
+      "max_cell_voltage_pack_4": {
+        "name": "Max. Celspanning Pack 4"
+      },
+      "min_cell_voltage_pack_4": {
+        "name": "Min. Celspanning Pack 4"
+      },
+      "max_cell_voltage_pack_5": {
+        "name": "Max. Celspanning Pack 5"
+      },
+      "min_cell_voltage_pack_5": {
+        "name": "Min. Celspanning Pack 5"
+      },
+      "max_cell_voltage_pack_6": {
+        "name": "Max. Celspanning Pack 6"
+      },
+      "min_cell_voltage_pack_6": {
+        "name": "Min. Celspanning Pack 6"
+      },
+      "max_cell_voltage_pack_7": {
+        "name": "Max. Celspanning Pack 7"
+      },
+      "min_cell_voltage_pack_7": {
+        "name": "Min. Celspanning Pack 7"
+      },
       "battery_total_energy": {
         "name": "Totale Batterijenergie"
       },

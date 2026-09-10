@@ -1721,6 +1721,48 @@
       "battery_soc_pack_7": {
         "name": "SOC Batería Paquete 7"
       },
+      "max_cell_voltage_pack_1": {
+        "name": "Voltaje Máx. Celda Paquete 1"
+      },
+      "min_cell_voltage_pack_1": {
+        "name": "Voltaje Mín. Celda Paquete 1"
+      },
+      "max_cell_voltage_pack_2": {
+        "name": "Voltaje Máx. Celda Paquete 2"
+      },
+      "min_cell_voltage_pack_2": {
+        "name": "Voltaje Mín. Celda Paquete 2"
+      },
+      "max_cell_voltage_pack_3": {
+        "name": "Voltaje Máx. Celda Paquete 3"
+      },
+      "min_cell_voltage_pack_3": {
+        "name": "Voltaje Mín. Celda Paquete 3"
+      },
+      "max_cell_voltage_pack_4": {
+        "name": "Voltaje Máx. Celda Paquete 4"
+      },
+      "min_cell_voltage_pack_4": {
+        "name": "Voltaje Mín. Celda Paquete 4"
+      },
+      "max_cell_voltage_pack_5": {
+        "name": "Voltaje Máx. Celda Paquete 5"
+      },
+      "min_cell_voltage_pack_5": {
+        "name": "Voltaje Mín. Celda Paquete 5"
+      },
+      "max_cell_voltage_pack_6": {
+        "name": "Voltaje Máx. Celda Paquete 6"
+      },
+      "min_cell_voltage_pack_6": {
+        "name": "Voltaje Mín. Celda Paquete 6"
+      },
+      "max_cell_voltage_pack_7": {
+        "name": "Voltaje Máx. Celda Paquete 7"
+      },
+      "min_cell_voltage_pack_7": {
+        "name": "Voltaje Mín. Celda Paquete 7"
+      },
       "battery_total_energy": {
         "name": "Energía Total de la Batería"
       },

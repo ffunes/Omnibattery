@@ -494,3 +494,51 @@ SENSOR_DEFINITIONS_VA.extend(
     }
     for n, key in enumerate(PACK_SOC_KEYS, start=1)
 )
+
+# --- per-pack cell voltage (issue #439) --------------------------------------
+# 37007/37008 are not a device-wide max/min: they are pack 1's, and only pack
+# 1's. Firmware v150 confirms it — 37007 and 34005 read through the same source
+# pointer 0x20014FC4, 37008 and 34006 through 0x20014FC6 — and #415 proved it
+# twice on hardware: adding a seventh pack renumbered the slots from the top and
+# the registers followed the *new* pack 1, while the taper latched the instant
+# pack 1 crossed 3.48 V rather than when the battery did.
+#
+# That makes the single "Cell Delta" a pack-1 reading wearing a whole-battery
+# label. A Venus A/D charges one pack at a time (register 32111 is the active
+# pack index) and rotates every 7-50 minutes, so pack 1 is the pack under load
+# in only about one interval in six; the rest of the time the delta describes a
+# resting pack. Reading each pack's own pair — offsets +5 and +6 on the same
+# stride-100 block the SOC at +2 already uses — is what makes the number
+# attributable, and it is cheap: 14 registers, not the 112 of individual cells.
+#
+# Off by default, exactly like the pack SOCs, and *not* in
+# control_dependency_keys: nothing in the control layer reads them, so a user
+# who does not enable them pays no extra Modbus frame. Enabling them switches
+# the balance monitor's delta to the worst pack (see control/pack_soc.py).
+#
+# The stride is confirmed for the SOC at +2 (34602/pack 7 read on hardware,
+# #415). Offsets +5/+6 come from the same third-party map, so readings are
+# bounded on use rather than trusted; see pack_cell_deltas().
+PACK_MAX_CELL_KEYS = tuple(f"max_cell_voltage_pack_{n}" for n in range(1, 8))
+PACK_MIN_CELL_KEYS = tuple(f"min_cell_voltage_pack_{n}" for n in range(1, 8))
+
+SENSOR_DEFINITIONS_VA.extend(
+    {
+        "name": f"{label} Cell Voltage Pack {n}",
+        "register": 34000 + 100 * (n - 1) + offset,
+        "scale": 0.001,
+        "unit": "V",
+        "device_class": "voltage",
+        "state_class": "measurement",
+        "key": key,
+        "enabled_by_default": False,
+        "data_type": "int16",
+        "precision": 3,
+        "scan_interval": "low",
+    }
+    for label, offset, keys in (
+        ("Max", 5, PACK_MAX_CELL_KEYS),
+        ("Min", 6, PACK_MIN_CELL_KEYS),
+    )
+    for n, key in enumerate(keys, start=1)
+)

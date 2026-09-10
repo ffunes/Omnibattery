@@ -55,6 +55,85 @@ def pack_socs(coordinator) -> list[float]:
     ]
 
 
+# Per-pack cell voltage keys are read by suffix for the same reason the SOC is
+# read by prefix: the key shape is the contract.
+_PACK_VMAX_PREFIX = "max_cell_voltage_pack_"
+_PACK_VMIN_PREFIX = "min_cell_voltage_pack_"
+
+# A LiFePO4 cell lives between roughly 2.5 V empty and 3.65 V full, and the
+# registers these come from are a third-party map whose +5/+6 offsets are not
+# confirmed on hardware the way the SOC's +2 is (#415, #439). A slot pointing at
+# something that is not a cell voltage answers outside this band, so a reading
+# outside it is dropped rather than shown as a health number.
+_CELL_V_MIN = 2.0
+_CELL_V_MAX = 4.0
+
+
+def pack_cell_voltages(coordinator) -> dict[int, tuple[float, float]]:
+    """Return ``{pack number: (vmax, vmin)}`` for every pack reporting both.
+
+    Empty for every battery that publishes no per-pack cell voltage, which is
+    every model except Venus A/D, and every Venus A/D whose owner has not enabled
+    the entities — they ship disabled, so the delta stays exactly what it was.
+    """
+    data = getattr(coordinator, "data", None) or {}
+
+    def _slot_values(prefix):
+        out = {}
+        for key, value in data.items():
+            if not key.startswith(prefix) or not isinstance(value, (int, float)):
+                continue
+            if not _CELL_V_MIN <= value <= _CELL_V_MAX:
+                continue
+            try:
+                out[int(key[len(prefix):])] = float(value)
+            except ValueError:
+                continue
+        return out
+
+    vmax = _slot_values(_PACK_VMAX_PREFIX)
+    vmin = _slot_values(_PACK_VMIN_PREFIX)
+    return {
+        n: (vmax[n], vmin[n])
+        for n in sorted(vmax.keys() & vmin.keys())
+        if vmax[n] >= vmin[n]
+    }
+
+
+def pack_cell_deltas(coordinator) -> dict[int, float]:
+    """Return ``{pack number: cell delta in mV}``, rounded for display."""
+    return {
+        n: round((high - low) * 1000, 1)
+        for n, (high, low) in pack_cell_voltages(coordinator).items()
+    }
+
+
+def worst_pack_delta(coordinator) -> dict | None:
+    """The pack with the widest internal cell spread, or ``None`` if none report.
+
+    Returned as the fields a balance reading stores, so a caller folds it in
+    whole and ``delta_mV`` never disagrees with ``vmax_V``/``vmin_V``.
+
+    This is deliberately not a fleet max-minus-min. Each pack balances on its own
+    BMS, so a spread taken *across* packs measures how far apart two independent
+    BMSs sit, which no cell imbalance follows from and nothing can act on — #415
+    measured a resting 155 mV between packs on a healthy battery. The widest
+    single pack is a real imbalance inside one BMS, and it names the pack to go
+    and look at.
+    """
+    voltages = pack_cell_voltages(coordinator)
+    if not voltages:
+        return None
+    pack = max(voltages, key=lambda n: voltages[n][0] - voltages[n][1])
+    high, low = voltages[pack]
+    return {
+        "pack": pack,
+        "delta_mV": round((high - low) * 1000, 1),
+        "vmax_V": round(high, 4),
+        "vmin_V": round(low, 4),
+    }
+
+
 def soc_vs_ceiling(coordinator, aggregate):
     """SOC that decides whether to keep *charging*: the least full pack."""
     packs = pack_socs(coordinator)

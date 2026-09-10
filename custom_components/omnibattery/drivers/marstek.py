@@ -27,6 +27,8 @@ from typing import Optional
 from ..const import (
     MESSAGE_WAIT_MS,
     MESSAGE_WAIT_MS_RS485_GATEWAY,
+    PACK_MAX_CELL_KEYS,
+    PACK_MIN_CELL_KEYS,
     PACK_SOC_KEYS,
     READ_TIMEOUT_S,
     REGISTER_MAP,
@@ -68,6 +70,17 @@ def _message_wait_ms(version: str, rs485_gateway: bool = False) -> int:
 # aggregate SOC says the battery holds real charge.
 _PACK_PROBE_CYCLES = 3
 _EMPTY_SLOT_AGGREGATE_SOC = 5
+
+# Every key that belongs to one physical pack slot, grouped by that slot's SOC
+# key. The SOC probe is the only thing that learns which slots this installation
+# has, so the per-pack cell voltages added in #439 ride on its verdict instead of
+# probing again: same pack, same stride-100 block, and an absent slot costs three
+# reads once rather than three per key.
+_SLOT_KEYS_BY_SOC_KEY = {
+    soc: (soc, vmax, vmin)
+    for soc, vmax, vmin in zip(PACK_SOC_KEYS, PACK_MAX_CELL_KEYS, PACK_MIN_CELL_KEYS)
+}
+_SLOT_KEYS = frozenset(k for group in _SLOT_KEYS_BY_SOC_KEY.values() for k in group)
 
 # Marstek force_mode register values.
 _FORCE_NONE = 0
@@ -411,7 +424,7 @@ class MarstekModbusDriver(BatteryDriver):
             return self._definitions["sensor"]
         return [
             d for d in self._definitions["sensor"]
-            if d["key"] not in PACK_SOC_KEYS or d["key"] in self._packs
+            if d["key"] not in _SLOT_KEYS or d["key"] in self._slot_keys_present
         ]
 
     @property
@@ -512,6 +525,13 @@ class MarstekModbusDriver(BatteryDriver):
         return groups
 
     @property
+    def _slot_keys_present(self) -> frozenset[str]:
+        """Every key of every slot the pack-SOC probe confirmed (issue #439)."""
+        return frozenset(
+            key for soc in self._packs for key in _SLOT_KEYS_BY_SOC_KEY[soc]
+        )
+
+    @property
     def _active_pack_keys(self) -> frozenset[str]:
         """Pack-SOC keys worth polling: every slot while probing, the found ones after."""
         if not self._pack_soc_capable:
@@ -557,7 +577,7 @@ class MarstekModbusDriver(BatteryDriver):
                 del self._pack_probes_left[key]
         if self._pack_probes_left:
             return
-        absent = set(PACK_SOC_KEYS) - self._packs
+        absent = _SLOT_KEYS - self._slot_keys_present
         self._read_groups = [
             g for g in self._read_groups if absent.isdisjoint(g.keys)
         ]
