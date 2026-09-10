@@ -2349,7 +2349,7 @@
         "name": "Reiniciar Dispositivo"
       },
       "reevaluate_dynamic_pricing": {
-        "name": "Reevaluar Precios Dinámicos"
+        "name": "Reevaluar Carga Predictiva"
       }
     }
   }

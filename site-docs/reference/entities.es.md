@@ -98,7 +98,7 @@ Solo presentes cuando el [monitor de equilibrio de celdas](../features/cell-bala
 | Entidad | Descripción |
 |---|---|
 | `button.*_reset` | Reset del dispositivo |
-| `button.omnibattery_reevaluate_dynamic_pricing` | Reconstruye ahora el plan de Precio Dinámico; solo se crea en modo Precio Dinámico |
+| `button.omnibattery_reevaluate_dynamic_pricing` | **Reevaluar Carga Predictiva**: reconstruye el plan ahora. Se crea en modo Precio Dinámico y Franja Horaria; el precio en tiempo real reevalúa cada ciclo y no lo necesita |
 
 ## Sensores del sistema
 

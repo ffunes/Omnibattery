@@ -12,6 +12,7 @@ from .const import (
     DOMAIN,
     CONF_ENABLE_PREDICTIVE_CHARGING,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
+    PREDICTIVE_MODE_TIME_SLOT,
 )
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
@@ -35,11 +36,16 @@ async def async_setup_entry(
         for definition in coordinator.button_definitions:
             entities.append(MarstekVenusButton(coordinator, definition))
 
-    # System-level button: re-run the dynamic-pricing predictive evaluation on demand.
+    # System-level button: re-run the predictive charge evaluation on demand.
+    # Real-time price is deliberately excluded: it re-decides every cycle while
+    # the price is below the threshold, so the button would do nothing.
     if (
         controller
         and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data
-        and controller.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING
+        and controller.predictive_charging_mode in (
+            PREDICTIVE_MODE_DYNAMIC_PRICING,
+            PREDICTIVE_MODE_TIME_SLOT,
+        )
     ):
         entities.append(ReevaluateDynamicPricingButton(controller))
 
@@ -91,7 +97,14 @@ class ReevaluateDynamicPricingButton(ButtonEntity):
         self._attr_should_poll = False
 
     async def async_press(self) -> None:
-        """Rebuild the remaining dynamic-pricing schedule on demand."""
+        """Rebuild whatever plan the configured predictive mode works from."""
+        if self.controller.predictive_charging_mode != PREDICTIVE_MODE_DYNAMIC_PRICING:
+            # Time slot has no calendar to rebuild. Clearing the SOC reference
+            # makes the next cycle inside a window run a full initial
+            # evaluation, notification included; outside one it does nothing,
+            # which is correct — that mode cannot charge there anyway.
+            self.controller.invalidate_predictive_plan("re-evaluate button")
+            return
         # The button is commonly pressed after a price/forecast adjustment.  It
         # must not reuse the full-day 00:05 balance after energy has elapsed.
         await self.controller._pricing_mgr._evaluate_dynamic_pricing(

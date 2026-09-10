@@ -3905,9 +3905,21 @@ class PricingManager:
         input — better to book the slots than run dry — but it is not evidence
         of anything for a trigger that compares readings over time. Treating it
         as a real value makes a transient dropout read as the day collapsing.
+
+        Only conversions that track the provider are comparable over time. A
+        legacy whole-day scalar without dated periods is mapped through the
+        solar curve (``temporal_fraction``), so it decays by the *clock* while
+        the caller's projection carries it forward by *measured production* —
+        an overcast morning would read as a revision nobody made. Worse,
+        ``pre_solar`` hands back the untouched full-day figure, so crossing
+        into the curve drops it by a step. Neither is evidence of a revision.
         """
         solar_input = self._read_remaining_solar_input(now=now, update_controller=False)
-        if solar_input is None or solar_input.conversion == "unsafe_zero":
+        if solar_input is None or solar_input.conversion not in (
+            "none",
+            "dated_periods",
+            "dated_periods_zero_scalar",
+        ):
             return None
         try:
             value = float(solar_input.remaining_kwh)
@@ -3989,10 +4001,7 @@ class PricingManager:
         projected = max(0.0, ref - harvested_since)
         if abs(current - projected) < SOLAR_FORECAST_REEVAL_KWH:
             return False
-        if (
-            getattr(controller, "_dp_solar_forecast_reeval_count", 0)
-            >= SOLAR_FORECAST_REEVAL_MAX_PER_DAY
-        ):
+        if self._roll_solar_forecast_reeval_day(now) >= SOLAR_FORECAST_REEVAL_MAX_PER_DAY:
             return False
         last_at = getattr(controller, "_dp_solar_forecast_reeval_at", None)
         if last_at is not None and (now - last_at) < timedelta(
@@ -4000,6 +4009,24 @@ class PricingManager:
         ):
             return False
         return True
+
+    def _roll_solar_forecast_reeval_day(self, now: datetime) -> int:
+        """Return today's forecast-driven re-evaluation count, rolled at midnight.
+
+        Dynamic pricing clears these counters in its new-day block; time slot
+        mode has no equivalent, so without the stamp its daily cap would be
+        spent once and never re-arm. An *unstamped* counter belongs to today —
+        zeroing it here would discard the count dynamic pricing is carrying.
+        """
+        controller = self._controller
+        today = now.date()
+        stamped = getattr(controller, "_dp_solar_forecast_reeval_date", None)
+        if stamped != today:
+            if stamped is not None:
+                controller._dp_solar_forecast_reeval_count = 0
+                controller._dp_solar_forecast_reeval_at = None
+            controller._dp_solar_forecast_reeval_date = today
+        return getattr(controller, "_dp_solar_forecast_reeval_count", 0)
 
     def _refresh_solar_forecast_reference(self, now: datetime) -> None:
         """Re-arm the forecast trigger against the values this plan was built on.
@@ -4930,6 +4957,20 @@ class PricingManager:
                 self._controller._dp_evening_reevaluated_date = now.date()
             await self._evaluate_evening_recharge()
 
+        # Phase 2.65: Re-plan when a knob the balance is built on moved — a max
+        # or min SOC limit, a predictive margin, the guaranteed floor. The flag
+        # is set once by the config-entry listener and consumed here, so no
+        # cooldown or daily cap is needed: a user cannot press faster than they
+        # can turn a dial. A cycle that already ran one of the triggers above
+        # leaves the flag for the next one rather than evaluating twice.
+        elif getattr(self._controller, "_dp_config_dirty", False):
+            self._controller._dp_config_dirty = False
+            _LOGGER.info("Dynamic pricing: configuration changed — re-evaluating")
+            await self._evaluate_dynamic_pricing(
+                horizon=DynamicPricingEvaluationHorizon.REMAINING,
+                extended_horizon=True,
+            )
+
         # Phase 2.7: Re-plan when an excluded device's claim on the remaining
         # solar forecast moved materially (#341) — an EV session that starts
         # after 00:05 takes solar the battery was planned to receive.
@@ -5386,16 +5427,36 @@ class PricingManager:
                 self._controller.last_evaluation_soc < floor
             )
 
+            # forecast_moved: the slot's evaluation decided against grid charging
+            # on a forecast the provider has since revised down (or booked one it
+            # revised up). Same production-carried predicate dynamic pricing uses,
+            # so an ordinary declining remaining forecast is not a revision. Only
+            # acts inside the window — this mode cannot charge outside one.
+            forecast_moved = (
+                not is_initial_eval and self._is_solar_forecast_reeval(now)
+            )
+
             should_reevaluate = (
                 is_initial_eval or
                 floor_crossed or
                 floor_recovered or
+                forecast_moved or
                 abs(current_avg_soc - self._controller.last_evaluation_soc) >= SOC_REEVALUATION_THRESHOLD
             )
 
             if should_reevaluate:
+                if forecast_moved:
+                    self._controller._dp_solar_forecast_reeval_at = now
+                    self._controller._dp_solar_forecast_reeval_count = (
+                        getattr(self._controller, "_dp_solar_forecast_reeval_count", 0) + 1
+                    )
                 if is_initial_eval:
                     _LOGGER.info("INITIAL evaluation of predictive grid charging (SOC: %.1f%%)", current_avg_soc)
+                elif forecast_moved:
+                    _LOGGER.info(
+                        "RE-EVALUATING predictive grid charging: solar forecast revised (SOC: %.1f%%)",
+                        current_avg_soc,
+                    )
                 elif floor_recovered:
                     _LOGGER.info("RE-EVALUATING predictive grid charging: SOC recovered to floor (%.1f%% -> %.1f%%)",
                                 self._controller.last_evaluation_soc, current_avg_soc)
@@ -5495,6 +5556,10 @@ class PricingManager:
                 self._controller.grid_charging_active = decision_data["should_charge"]
                 self._controller.last_evaluation_soc = current_avg_soc
                 self._controller._last_decision_data = decision_data
+                # Arms the forecast trigger on the slot's first evaluation and
+                # re-arms it after every later one, so a decision that already
+                # accounts for the current forecast does not fire another.
+                self._refresh_solar_forecast_reference(now)
 
                 # A re-evaluation that reverses the slot's decision replaces the
                 # notification: otherwise a "STARTED" notice stays on screen for

@@ -671,6 +671,183 @@ def test_refresh_solar_forecast_reference_disarms_the_trigger():
     assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
 
 
+def _balance_ctrl(**overrides):
+    """Controller stub carrying only the balance knobs the fingerprint reads."""
+    base = dict(
+        _predictive_safety_margin_kwh=0.0,
+        _predictive_grid_charge_margin_pct=0.0,
+        _predictive_min_soc_floor=20.0,
+        _predictive_min_soc_floor_enabled=True,
+        coordinators=[SimpleNamespace(device_key="b1", min_soc=12, max_soc=95)],
+        last_evaluation_soc=42.0,
+        _dp_config_dirty=False,
+    )
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def _fingerprint(ctrl):
+    return ChargeDischargeController.predictive_balance_fingerprint(ctrl)
+
+
+def test_balance_fingerprint_moves_with_a_per_battery_soc_limit():
+    ctrl = _balance_ctrl()
+    before = _fingerprint(ctrl)
+    ctrl.coordinators[0].max_soc = 80
+    assert _fingerprint(ctrl) != before
+
+
+def test_balance_fingerprint_moves_with_the_predictive_knobs():
+    for field, value in (
+        ("_predictive_safety_margin_kwh", 1.5),
+        ("_predictive_grid_charge_margin_pct", 25.0),
+        ("_predictive_min_soc_floor", 35.0),
+        ("_predictive_min_soc_floor_enabled", False),
+    ):
+        ctrl = _balance_ctrl()
+        before = _fingerprint(ctrl)
+        setattr(ctrl, field, value)
+        assert _fingerprint(ctrl) != before, field
+
+
+def test_balance_fingerprint_ignores_unrelated_battery_state():
+    # Shadow selects, manual force mode and capability detection all persist
+    # through the same config entry; none of them may re-plan the day.
+    ctrl = _balance_ctrl()
+    before = _fingerprint(ctrl)
+    ctrl.coordinators[0].manual_force_mode = "Charge"
+    ctrl.coordinators[0].data = {"battery_total_energy": 5.12}
+    assert _fingerprint(ctrl) == before
+
+
+def test_invalidate_predictive_plan_arms_both_modes():
+    ctrl = _balance_ctrl()
+    ChargeDischargeController.invalidate_predictive_plan(ctrl, "test")
+    # Time slot: the next cycle inside a window is an initial evaluation.
+    assert ctrl.last_evaluation_soc is None
+    # Dynamic pricing: consumed by the handler on its next cycle.
+    assert ctrl._dp_config_dirty is True
+
+
+def test_dynamic_pricing_rebuilds_once_on_a_dirty_configuration():
+    calls = []
+
+    async def _evaluate(**kwargs):
+        calls.append(kwargs)
+
+    ctrl = _controller(
+        _dynamic_pricing_evaluated_date=datetime.now().date(),
+        _dp_config_dirty=True,
+        predictive_charging_overridden=False,
+        _current_price_slot_active=False,
+        grid_charging_active=False,
+    )
+    manager = _mgr(ctrl)
+    manager._maybe_refresh_service_prices = _async_noop
+    manager._check_dp_pre_slot_reevaluation = _async_noop
+    manager._refresh_surplus_hold_plan = _async_noop
+    manager._refresh_discharge_reserve_plan = _async_noop
+    manager._is_evening_reevaluation_time = lambda: False
+    manager._is_dp_soc_drop_reeval = lambda: False
+    manager._evaluate_dynamic_pricing = _evaluate
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert calls == [
+        {
+            "horizon": DynamicPricingEvaluationHorizon.REMAINING,
+            "extended_horizon": True,
+        }
+    ]
+    assert ctrl._dp_config_dirty is False
+
+    # The flag is consumed, so the next cycle does not rebuild again.
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert len(calls) == 1
+
+
+async def _async_noop(*_args, **_kwargs):
+    return None
+
+
+def _reading_mgr(conversion, remaining=4.1):
+    """Manager whose normalized solar input carries ``conversion``."""
+    manager = _mgr(_controller())
+    manager._read_remaining_solar_input = lambda **_kw: SimpleNamespace(
+        remaining_kwh=remaining, conversion=conversion
+    )
+    return manager
+
+
+def test_read_remaining_solar_reading_accepts_provider_backed_conversions():
+    for conversion in ("none", "dated_periods", "dated_periods_zero_scalar"):
+        assert _reading_mgr(conversion)._read_remaining_solar_reading(_CLAIM_NOW) == 4.1
+
+
+def test_read_remaining_solar_reading_rejects_a_clock_mapped_legacy_forecast():
+    # ``temporal_fraction`` decays by the clock while the caller's projection
+    # carries the reference forward by measured production, so an overcast
+    # morning would read as a revision the provider never made. ``pre_solar``
+    # hands back the untouched full-day figure and steps down when the curve
+    # takes over.
+    for conversion in ("temporal_fraction", "pre_solar", "unsafe_zero"):
+        assert _reading_mgr(conversion)._read_remaining_solar_reading(_CLAIM_NOW) is None
+
+
+def test_solar_forecast_reeval_cap_re_arms_on_a_new_day():
+    # Time slot mode has no daily reset block, so a spent cap stamped with an
+    # earlier day must roll over on its own.
+    ctrl = _forecast_ctrl(
+        13.1,
+        _dp_solar_forecast_reeval_count=4,
+        _dp_solar_forecast_reeval_date=_CLAIM_NOW.date() - timedelta(days=1),
+    )
+    manager = _forecast_mgr(ctrl, 4.1, produced=1.8)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is True
+    assert ctrl._dp_solar_forecast_reeval_count == 0
+
+
+def test_solar_forecast_reeval_cap_holds_within_the_stamped_day():
+    ctrl = _forecast_ctrl(
+        13.1,
+        _dp_solar_forecast_reeval_count=4,
+        _dp_solar_forecast_reeval_date=_CLAIM_NOW.date(),
+    )
+    manager = _forecast_mgr(ctrl, 4.1, produced=1.8)
+    assert manager._is_solar_forecast_reeval(_CLAIM_NOW) is False
+
+
+# ----------------------------------------------------------------------
+# Time slot mode re-evaluates on a revised forecast
+# ----------------------------------------------------------------------
+
+def _time_slot_engine():
+    """Steady slot: SOC unchanged, floor off — only the forecast can trigger."""
+    from tests.test_min_soc_floor import _make_engine
+
+    return _make_engine(
+        soc=50.0, floor=0.0, grid_charging_active=False, last_evaluation_soc=50.0
+    )
+
+
+def test_time_slot_does_not_re_evaluate_without_a_forecast_move():
+    engine, _ctrl, calls = _time_slot_engine()
+    engine._is_solar_forecast_reeval = lambda _now: False
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+    assert calls["activate"] == 0
+
+
+def test_time_slot_re_evaluates_when_the_forecast_moves():
+    # The slot decided against grid charging on an optimistic forecast; the
+    # provider revised it down, so the balance must be recomputed inside the
+    # window rather than waiting for a 30% SOC swing that will never come.
+    engine, ctrl, calls = _time_slot_engine()
+    engine._is_solar_forecast_reeval = lambda _now: True
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+    assert calls["activate"] == 1
+    assert ctrl.grid_charging_active is True
+    assert ctrl._dp_solar_forecast_reeval_count == 1
+
+
 def test_refresh_excluded_demand_reference_stores_the_raw_reading():
     ctrl = _claim_ctrl(None, 7.0)
     _claim_mgr(ctrl)._refresh_excluded_demand_reference()
@@ -1148,11 +1325,35 @@ def test_manual_button_uses_remaining_horizon_at_midday():
             calls.append((horizon, extended_horizon))
 
     button = ReevaluateDynamicPricingButton(
-        SimpleNamespace(_pricing_mgr=PricingStub())
+        SimpleNamespace(
+            _pricing_mgr=PricingStub(),
+            predictive_charging_mode=PREDICTIVE_MODE_DYNAMIC_PRICING,
+        )
     )
     asyncio.run(button.async_press())
 
     assert calls == [(DynamicPricingEvaluationHorizon.REMAINING, True)]
+
+
+def test_manual_button_invalidates_the_plan_in_time_slot_mode():
+    # Time slot has no calendar to rebuild; the button must clear the SOC
+    # reference so the next cycle inside a window is an initial evaluation.
+    class PricingStub:
+        async def _evaluate_dynamic_pricing(self, **_kwargs):
+            raise AssertionError("time slot mode has no dynamic-pricing calendar")
+
+    controller = _balance_ctrl(
+        _pricing_mgr=PricingStub(),
+        predictive_charging_mode=PREDICTIVE_MODE_TIME_SLOT,
+    )
+    controller.invalidate_predictive_plan = (
+        lambda reason: ChargeDischargeController.invalidate_predictive_plan(
+            controller, reason
+        )
+    )
+    asyncio.run(ReevaluateDynamicPricingButton(controller).async_press())
+
+    assert controller.last_evaluation_soc is None
 
 
 def test_startup_rebuild_uses_remaining_horizon(monkeypatch):

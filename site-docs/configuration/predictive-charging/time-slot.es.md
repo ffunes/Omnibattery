@@ -28,9 +28,19 @@ Carga desde la red durante una **ventana horaria fija** (típicamente tarifa noc
 
 El planificador nunca abre una ventana no configurada. Un *shortfall* de plazo significa que las ventanas elegidas o la potencia física no pueden entregar suficiente energía a tiempo; la vivienda todavía puede importar de red cuando la batería alcance su mínimo.
 
-## Reevaluación por caída de SOC
+## Reevaluación dentro de la ventana
 
-Si el SOC cae un 30 % o más respecto al último punto de evaluación durante el slot (p. ej. por un consumo elevado), el sistema reevalúa el balance energético automáticamente. No se envía notificación adicional en estas reevaluaciones intermedias.
+La decisión tomada al entrar en el slot no es definitiva. Mientras la ventana está abierta, el balance energético se vuelve a evaluar cuando:
+
+- **El SOC cae un 30 % o más** respecto al último punto de evaluación (p. ej. por un consumo elevado).
+- **Se cruza o se recupera el suelo de SOC mínimo garantizado**, si esa opción está activada.
+- **El proveedor revisa la previsión solar** en 1,5 kWh o más en cualquier dirección. Una previsión restante baja sola a lo largo del día, así que la lectura guardada se proyecta hacia adelante con la solar realmente producida desde entonces y solo cuenta como revisión la diferencia contra esa proyección. Limitado a un *cooldown* de 30 minutos y cuatro reevaluaciones al día.
+- **Cambia un ajuste del que depende el balance**: el SOC mínimo o máximo de una batería, el margen de seguridad de la previsión solar, el margen de carga de red predictiva o el suelo de SOC mínimo garantizado.
+- **Pulsas el botón Reevaluar Carga Predictiva** (`button.*_reevaluate_dynamic_pricing`) en el dispositivo del sistema.
+
+Solo una reevaluación que invierte la decisión del slot reemplaza la notificación; las demás son silenciosas.
+
+Estos disparadores actúan **solo dentro de una ventana de carga**: fuera de ella no hay nada que replanificar, porque este modo nunca carga de red fuera de sus ventanas configuradas. Si tus ventanas son nocturnas y la previsión se desploma a mediodía, la corrección ocurre en la siguiente ventana, no al instante. Precio Dinámico, que programa sus propias franjas, no tiene esta limitación.
 
 Franja Horaria y Precio Dinámico usan un único timeline solar fechado y un
 único presupuesto de energía restante. El perfil aprendido cambia
