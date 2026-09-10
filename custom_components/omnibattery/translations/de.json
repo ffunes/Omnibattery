@@ -166,7 +166,9 @@
           "full_charge_voltage_taper_enabled": "100%-Ladung per Zellspannung reduzieren",
           "battery_capacity_kwh": "Nominale Batteriekapazität (kWh)",
           "battery_phase": "Physische Batteriephase",
-          "dc_pv_connected": "Solarmodule sind direkt an diese Batterie angeschlossen"
+          "dc_pv_connected": "Solarmodule sind direkt an diese Batterie angeschlossen",
+          "track_mac": "Diese Batterie über ihre MAC-Adresse wiederfinden, wenn sich ihre IP-Adresse ändert",
+          "mac": "MAC-Adresse"
         },
         "data_description": {
           "max_charge_power": "Maximal zulässige Leistung zum Laden der Batterie",
@@ -178,7 +180,9 @@
           "full_charge_voltage_taper_enabled": "Wenn das Ziel 100% ist, wird die Ladung ab 3.48 V maximaler Zellspannung auf 200 W begrenzt. Venus-E-Modelle stoppen bei 3.60 V zur Messung des Zellversatzes nach 60 Sekunden; Venus A/D mit gekoppelten Packs laden mit 200 W weiter, bis das BMS abschaltet.",
           "battery_capacity_kwh": "Nominale nutzbare Kapazität des Batteriepacks. Sie dient zur Berechnung der gespeicherten Energie und Effizienz aus dem SOC. Für Sessy ist die tatsächliche Kapazität erforderlich; bei anderen Batterien kann 0 verwendet werden, wenn sie unbekannt ist.",
           "battery_phase": "Physische AC-Phase (L1/L2/L3), an die diese Batterie angeschlossen ist, oder Nicht zugewiesen außerhalb des geschützten Phasenschemas. Eine Batterie ohne Phase liegt außerhalb der Dreiphasen-Schutzhülle und arbeitet im Automatikbetrieb normal weiter.",
-          "dc_pv_connected": "Nur Venus A/D. Aktivieren, wenn Solarmodule an den MPPT-Eingängen der Batterie angeschlossen sind. Deaktivieren, wenn diese Eingänge unbenutzt sind, damit die Batterieleistung auf der AC-Leistung basiert, ohne MPPT-Erzeugung hinzuzurechnen."
+          "dc_pv_connected": "Nur Venus A/D. Aktivieren, wenn Solarmodule an den MPPT-Eingängen der Batterie angeschlossen sind. Deaktivieren, wenn diese Eingänge unbenutzt sind, damit die Batterieleistung auf der AC-Leistung basiert, ohne MPPT-Erzeugung hinzuzurechnen.",
+          "track_mac": "Die MAC-Adresse ist die dauerhafte Hardware-Adresse der Batterie: Anders als die IP-Adresse oben ändert sie sich nie. Home Assistant nutzt sie, um die Batterie wiederzufinden und die IP-Adresse selbst zu aktualisieren. Hinter einer WLAN-zu-LAN-Bridge oder einem Powerline-Adapter ist die sichtbare Adresse die des Adapters selbst und wird von allem dahinter geteilt, die Nachverfolgung funktioniert also nur, solange genau eine Batterie hinter diesem Adapter hängt.",
+          "mac": "Dauerhafte Hardware-Adresse der Schnittstelle, die die Batterie im Netzwerk verwendet. Aus der Geräteliste des Routers entnehmen: Eine Batterie kann eine andere MAC melden als die, die ihre kabelgebundene Schnittstelle tatsächlich nutzt. Wird automatisch ausgefüllt, wenn der DHCP-Cache von Home Assistant verfügbar ist."
         }
       },
       "time_slots": {
@@ -912,7 +916,9 @@
           "full_charge_voltage_taper_enabled": "100%-Ladung per Zellspannung reduzieren",
           "battery_capacity_kwh": "Nominale Batteriekapazität (kWh)",
           "battery_phase": "Physische Batteriephase",
-          "dc_pv_connected": "Solarmodule sind direkt an diese Batterie angeschlossen"
+          "dc_pv_connected": "Solarmodule sind direkt an diese Batterie angeschlossen",
+          "track_mac": "Diese Batterie über ihre MAC-Adresse wiederfinden, wenn sich ihre IP-Adresse ändert",
+          "mac": "MAC-Adresse"
         },
         "data_description": {
           "max_charge_power": "Maximal zulässige Leistung zum Laden der Batterie",
@@ -924,7 +930,9 @@
           "full_charge_voltage_taper_enabled": "Wenn das Ziel 100% ist, wird die Ladung ab 3.48 V maximaler Zellspannung auf 200 W begrenzt. Venus-E-Modelle stoppen bei 3.60 V zur Messung des Zellversatzes nach 60 Sekunden; Venus A/D mit gekoppelten Packs laden mit 200 W weiter, bis das BMS abschaltet.",
           "battery_capacity_kwh": "Nominale nutzbare Kapazität des Batteriepacks. Sie dient zur Berechnung der gespeicherten Energie und Effizienz aus dem SOC. Für Sessy ist die tatsächliche Kapazität erforderlich; bei anderen Batterien kann 0 verwendet werden, wenn sie unbekannt ist.",
           "battery_phase": "Physische AC-Phase (L1/L2/L3), an die diese Batterie angeschlossen ist, oder Nicht zugewiesen außerhalb des geschützten Phasenschemas. Eine Batterie ohne Phase liegt außerhalb der Dreiphasen-Schutzhülle und arbeitet im Automatikbetrieb normal weiter.",
-          "dc_pv_connected": "Nur Venus A/D. Aktivieren, wenn Solarmodule an den MPPT-Eingängen der Batterie angeschlossen sind. Deaktivieren, wenn diese Eingänge unbenutzt sind, damit die Batterieleistung auf der AC-Leistung basiert, ohne MPPT-Erzeugung hinzuzurechnen."
+          "dc_pv_connected": "Nur Venus A/D. Aktivieren, wenn Solarmodule an den MPPT-Eingängen der Batterie angeschlossen sind. Deaktivieren, wenn diese Eingänge unbenutzt sind, damit die Batterieleistung auf der AC-Leistung basiert, ohne MPPT-Erzeugung hinzuzurechnen.",
+          "track_mac": "Die MAC-Adresse ist die dauerhafte Hardware-Adresse der Batterie: Anders als die IP-Adresse oben ändert sie sich nie. Home Assistant nutzt sie, um die Batterie wiederzufinden und die IP-Adresse selbst zu aktualisieren. Hinter einer WLAN-zu-LAN-Bridge oder einem Powerline-Adapter ist die sichtbare Adresse die des Adapters selbst und wird von allem dahinter geteilt, die Nachverfolgung funktioniert also nur, solange genau eine Batterie hinter diesem Adapter hängt.",
+          "mac": "Dauerhafte Hardware-Adresse der Schnittstelle, die die Batterie im Netzwerk verwendet. Aus der Geräteliste des Routers entnehmen: Eine Batterie kann eine andere MAC melden als die, die ihre kabelgebundene Schnittstelle tatsächlich nutzt. Wird automatisch ausgefüllt, wenn der DHCP-Cache von Home Assistant verfügbar ist."
         }
       },
       "time_slots": {
