@@ -71,16 +71,13 @@ def _message_wait_ms(version: str, rs485_gateway: bool = False) -> int:
 _PACK_PROBE_CYCLES = 3
 _EMPTY_SLOT_AGGREGATE_SOC = 5
 
-# Every key that belongs to one physical pack slot, grouped by that slot's SOC
-# key. The SOC probe is the only thing that learns which slots this installation
-# has, so the per-pack cell voltages added in #439 ride on its verdict instead of
-# probing again: same pack, same stride-100 block, and an absent slot costs three
-# reads once rather than three per key.
-_SLOT_KEYS_BY_SOC_KEY = {
-    soc: (soc, vmax, vmin)
-    for soc, vmax, vmin in zip(PACK_SOC_KEYS, PACK_MAX_CELL_KEYS, PACK_MIN_CELL_KEYS)
-}
-_SLOT_KEYS = frozenset(k for group in _SLOT_KEYS_BY_SOC_KEY.values() for k in group)
+# Everything read per physical pack slot: its SOC and, since #439, its own max
+# and min cell voltage. All of it goes through the same start-up probe — three
+# tries, then off the schedule for good — so a register that is not there stops
+# being asked for instead of costing a frame per cycle forever on a battery with
+# one TCP slot.
+_PACK_CELL_KEYS = frozenset(PACK_MAX_CELL_KEYS + PACK_MIN_CELL_KEYS)
+_SLOT_KEYS = frozenset(PACK_SOC_KEYS) | _PACK_CELL_KEYS
 
 # Marstek force_mode register values.
 _FORCE_NONE = 0
@@ -312,7 +309,7 @@ class MarstekModbusDriver(BatteryDriver):
         self._pack_soc_capable = any(k in self._telemetry_index for k in PACK_SOC_KEYS)
         self._packs: set[str] = set()
         self._pack_probes_left: dict[str, int] = {
-            key: _PACK_PROBE_CYCLES for key in PACK_SOC_KEYS if key in self._telemetry_index
+            key: _PACK_PROBE_CYCLES for key in _SLOT_KEYS if key in self._telemetry_index
         }
         # Last aggregate SOC seen, so the probe can tell an empty slot reading 0
         # from a real pack that is genuinely flat. It arrives in a different read
@@ -425,13 +422,22 @@ class MarstekModbusDriver(BatteryDriver):
 
     @property
     def sensor_definitions(self) -> list[dict]:
-        if not self._pack_soc_capable or self._pack_probes_left:
-            # Still probing: nothing is hidden, since "has not answered yet" is
-            # not "is not there".
+        if not self._pack_soc_capable:
             return self._definitions["sensor"]
+        # A family still being probed hides nothing, since "has not answered yet"
+        # is not "is not there". Each settles on its own, so the SOC entities are
+        # not held back by a cell register that may never answer.
+        settled = set().union(
+            *(
+                family
+                for family in (frozenset(PACK_SOC_KEYS), _PACK_CELL_KEYS)
+                if family.isdisjoint(self._pack_probes_left)
+            ),
+            set(),
+        )
         return [
             d for d in self._definitions["sensor"]
-            if d["key"] not in _SLOT_KEYS or d["key"] in self._slot_keys_present
+            if d["key"] not in settled or d["key"] in self._packs
         ]
 
     @property
@@ -532,13 +538,6 @@ class MarstekModbusDriver(BatteryDriver):
         return groups
 
     @property
-    def _slot_keys_present(self) -> frozenset[str]:
-        """Every key of every slot the pack-SOC probe confirmed (issue #439)."""
-        return frozenset(
-            key for soc in self._packs for key in _SLOT_KEYS_BY_SOC_KEY[soc]
-        )
-
-    @property
     def balance_dependency_keys(self) -> frozenset[str]:
         """Per-pack cell voltages, which poll with their entities disabled (#439).
 
@@ -554,18 +553,19 @@ class MarstekModbusDriver(BatteryDriver):
             k for k in PACK_MAX_CELL_KEYS + PACK_MIN_CELL_KEYS
             if k in self._telemetry_index
         )
-        if self._pack_probes_left:
+        if not _PACK_CELL_KEYS.isdisjoint(self._pack_probes_left):
             return indexed
-        return indexed & self._slot_keys_present
+        return indexed & frozenset(self._packs)
 
     @property
     def _active_pack_keys(self) -> frozenset[str]:
         """Pack-SOC keys worth polling: every slot while probing, the found ones after."""
         if not self._pack_soc_capable:
             return frozenset()
-        if self._pack_probes_left:
+        soc_keys = frozenset(PACK_SOC_KEYS)
+        if not soc_keys.isdisjoint(self._pack_probes_left):
             return frozenset(k for k in PACK_SOC_KEYS if k in self._telemetry_index)
-        return frozenset(self._packs)
+        return frozenset(self._packs) & soc_keys
 
     def _learn_pack(self, key: str, raw: object, snapshot: dict) -> None:
         """Fold one pack-SOC read into the populated-slot set (issue #350).
@@ -591,7 +591,8 @@ class MarstekModbusDriver(BatteryDriver):
         confirmed = raw is not None and (
             raw != 0
             or (
-                self._last_aggregate_soc is not None
+                key in PACK_SOC_KEYS
+                and self._last_aggregate_soc is not None
                 and self._last_aggregate_soc <= _EMPTY_SLOT_AGGREGATE_SOC
             )
         )
@@ -602,18 +603,26 @@ class MarstekModbusDriver(BatteryDriver):
             self._pack_probes_left[key] -= 1
             if self._pack_probes_left[key] <= 0:
                 del self._pack_probes_left[key]
-        if self._pack_probes_left:
+        # SOC and cell voltage are written off separately. The SOC verdict is what
+        # the charge ceiling and the discharge floor stand on (#350, #415); the
+        # cell registers are a diagnostic (#439), and making the first wait on the
+        # second would strand the control layer on a battery that never answers a
+        # cell read at all.
+        family = frozenset(PACK_SOC_KEYS) if key in PACK_SOC_KEYS else _PACK_CELL_KEYS
+        if not family.isdisjoint(self._pack_probes_left):
             return
-        absent = _SLOT_KEYS - self._slot_keys_present
+        absent = family - self._packs
         self._read_groups = [
             g for g in self._read_groups if absent.isdisjoint(g.keys)
         ]
         for gone in absent:
             snapshot[gone] = None
+        found = sorted(self._packs & family)
         _LOGGER.info(
-            "[%s] Pack SOC probe finished: %d pack(s) present (%s)",
+            "[%s] Pack %s probe finished: %d present (%s)",
             getattr(self._client, "host", "?"),
-            len(self._packs), ", ".join(sorted(self._packs)) or "none",
+            "SOC" if family is not _PACK_CELL_KEYS else "cell voltage",
+            len(found), ", ".join(found) or "none",
         )
 
     @property
