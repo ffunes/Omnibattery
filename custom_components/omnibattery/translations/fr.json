@@ -1726,6 +1726,48 @@
       "battery_soc_pack_7": {
         "name": "SOC Batterie Pack 7"
       },
+      "max_cell_voltage_pack_1": {
+        "name": "Tension Max. Cellule Pack 1"
+      },
+      "min_cell_voltage_pack_1": {
+        "name": "Tension Min. Cellule Pack 1"
+      },
+      "max_cell_voltage_pack_2": {
+        "name": "Tension Max. Cellule Pack 2"
+      },
+      "min_cell_voltage_pack_2": {
+        "name": "Tension Min. Cellule Pack 2"
+      },
+      "max_cell_voltage_pack_3": {
+        "name": "Tension Max. Cellule Pack 3"
+      },
+      "min_cell_voltage_pack_3": {
+        "name": "Tension Min. Cellule Pack 3"
+      },
+      "max_cell_voltage_pack_4": {
+        "name": "Tension Max. Cellule Pack 4"
+      },
+      "min_cell_voltage_pack_4": {
+        "name": "Tension Min. Cellule Pack 4"
+      },
+      "max_cell_voltage_pack_5": {
+        "name": "Tension Max. Cellule Pack 5"
+      },
+      "min_cell_voltage_pack_5": {
+        "name": "Tension Min. Cellule Pack 5"
+      },
+      "max_cell_voltage_pack_6": {
+        "name": "Tension Max. Cellule Pack 6"
+      },
+      "min_cell_voltage_pack_6": {
+        "name": "Tension Min. Cellule Pack 6"
+      },
+      "max_cell_voltage_pack_7": {
+        "name": "Tension Max. Cellule Pack 7"
+      },
+      "min_cell_voltage_pack_7": {
+        "name": "Tension Min. Cellule Pack 7"
+      },
       "battery_total_energy": {
         "name": "Énergie Totale Batterie"
       },
