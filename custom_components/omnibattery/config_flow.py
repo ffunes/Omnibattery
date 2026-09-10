@@ -136,6 +136,7 @@ from .const import (
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_ENTSOE,
     PRICE_INTEGRATION_TIBBER,
+    PRICE_INTEGRATION_ZONNEPLAN,
     CONF_METER_INVERTED,
     CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
     DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
@@ -176,6 +177,7 @@ from .drivers.hoymiles import (
     hoymiles_model_profile,
 )
 from .pricing.nordpool import is_official_nordpool_sensor
+from .pricing.calculations import parse_zonneplan_prices
 
 _ANKER_MAX_POWER_W = 3500
 _SESSY_MAX_CHARGE_POWER_W = 2200
@@ -2491,6 +2493,9 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                             prices = attrs.get("prices_today")
                             if not prices or not isinstance(prices, (list, tuple)) or len(prices) == 0:
                                 errors[CONF_PRICE_SENSOR] = "no_price_data"
+                        elif integration_type == PRICE_INTEGRATION_ZONNEPLAN:
+                            if not parse_zonneplan_prices(attrs):
+                                errors[CONF_PRICE_SENSOR] = "no_price_data"
                         else:  # Nordpool
                             if (
                                 "raw_today" not in attrs
@@ -2575,6 +2580,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                             PRICE_INTEGRATION_EPEX,
                             PRICE_INTEGRATION_ENTSOE,
                             PRICE_INTEGRATION_TIBBER,
+                            PRICE_INTEGRATION_ZONNEPLAN,
                         ],
                         translation_key="price_integration_type",
                         mode=SelectSelectorMode.DROPDOWN,
@@ -5249,6 +5255,9 @@ class OptionsFlowHandler(OptionsFlow):
                             prices = attrs.get("prices_today")
                             if not prices or not isinstance(prices, (list, tuple)) or len(prices) == 0:
                                 errors[CONF_PRICE_SENSOR] = "no_price_data"
+                        elif integration_type == PRICE_INTEGRATION_ZONNEPLAN:
+                            if not parse_zonneplan_prices(attrs):
+                                errors[CONF_PRICE_SENSOR] = "no_price_data"
                         else:  # Nordpool
                             if (
                                 "raw_today" not in attrs
@@ -5365,6 +5374,7 @@ class OptionsFlowHandler(OptionsFlow):
                             PRICE_INTEGRATION_EPEX,
                             PRICE_INTEGRATION_ENTSOE,
                             PRICE_INTEGRATION_TIBBER,
+                            PRICE_INTEGRATION_ZONNEPLAN,
                         ],
                         translation_key="price_integration_type",
                         mode=SelectSelectorMode.DROPDOWN,
