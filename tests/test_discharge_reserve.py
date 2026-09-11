@@ -502,6 +502,113 @@ def test_pv_is_only_credited_up_to_the_room_left_in_the_battery():
     assert plan.reserve_kwh == pytest.approx(2.0)
 
 
+def test_a_morning_peak_no_longer_cancels_the_whole_day_s_pv_credit():
+    """The night of 2026-09-11: held 2 kWh overnight against 13.9 kWh of sun.
+
+    One 07:00 slot above ``price + min_saving`` used to end the credit window
+    for every later claim, so the evening peak was reserved at 00:30 as if the
+    day held no sun at all. Only the morning claim, which no sun precedes, can
+    survive the sweep now.
+    """
+    from custom_components.omnibattery.pricing.discharge_reserve import (
+        REASON_RESERVED,
+        plan_discharge_reserve,
+    )
+
+    morning = _slot(7, 0.42)
+    midday = _slot(12, 0.10)
+    evening = _slot(19, 0.52)
+    plan = plan_discharge_reserve(
+        [morning, midday, evening],
+        {morning: 0.5, midday: 0.0, evening: 2.0},
+        surplus_by_slot={morning: 0.0, midday: 8.0, evening: 0.0},
+        free_space_kwh=1.5,
+        usable_energy_kwh=3.0,
+        total_capacity_kwh=5.12,
+        current_price=0.345,
+        min_saving=0.05,
+        now=DAY + timedelta(minutes=30),
+    )
+    assert plan.reason == REASON_RESERVED
+    assert plan.reserve_kwh == pytest.approx(0.5)
+
+
+def test_the_room_for_pv_is_the_room_at_pv_time_not_the_room_now():
+    """Demand served before the sun arrives is space the sun can land in."""
+    from custom_components.omnibattery.pricing.discharge_reserve import (
+        plan_discharge_reserve,
+    )
+
+    morning = _slot(10, 0.10)
+    midday = _slot(12, 0.10)
+    evening = _slot(19, 0.45)
+    plan = plan_discharge_reserve(
+        [morning, midday, evening],
+        {morning: 1.0, midday: 0.0, evening: 3.0},
+        surplus_by_slot={morning: 0.0, midday: 4.0, evening: 0.0},
+        free_space_kwh=1.0,
+        usable_energy_kwh=6.0,
+        total_capacity_kwh=10.0,
+        current_price=0.15,
+        min_saving=0.05,
+        now=DAY + timedelta(hours=9),
+    )
+    # 1.0 kWh of room now plus the 1.0 kWh the morning takes out of the battery.
+    assert plan.reserve_kwh == pytest.approx(1.0)
+
+
+def test_demand_that_follows_the_sun_makes_no_room_for_it():
+    """A battery with no room exports the surplus; the peak still needs the grid.
+
+    The evening demand is real, but it happens after the sun has already been
+    exported, so it cannot be counted as space the sun could have landed in.
+    """
+    from custom_components.omnibattery.pricing.discharge_reserve import (
+        REASON_RESERVED,
+        plan_discharge_reserve,
+    )
+
+    midday = _slot(12, 0.10)
+    evening = _slot(18, 0.12)
+    peak = _slot(19, 0.50)
+    plan = plan_discharge_reserve(
+        [midday, evening, peak],
+        {midday: 0.0, evening: 2.0, peak: 2.0},
+        surplus_by_slot={midday: 3.0, evening: 0.0, peak: 0.0},
+        free_space_kwh=0.0,
+        usable_energy_kwh=2.0,
+        total_capacity_kwh=5.0,
+        current_price=0.15,
+        min_saving=0.05,
+        now=DAY + timedelta(hours=9),
+    )
+    assert plan.reason == REASON_RESERVED
+    assert plan.reserve_kwh == pytest.approx(2.0)
+
+
+def test_the_same_sun_cannot_pay_for_two_peaks():
+    """3 kWh of PV covers the first claim; the second keeps what is left over."""
+    from custom_components.omnibattery.pricing.discharge_reserve import (
+        plan_discharge_reserve,
+    )
+
+    midday = _slot(12, 0.10)
+    first_peak = _slot(17, 0.45)
+    second_peak = _slot(19, 0.50)
+    plan = plan_discharge_reserve(
+        [midday, first_peak, second_peak],
+        {midday: 0.0, first_peak: 2.0, second_peak: 2.5},
+        surplus_by_slot={midday: 3.0, first_peak: 0.0, second_peak: 0.0},
+        free_space_kwh=10.0,
+        usable_energy_kwh=6.0,
+        total_capacity_kwh=10.0,
+        current_price=0.15,
+        min_saving=0.05,
+        now=DAY + timedelta(hours=9),
+    )
+    assert plan.reserve_kwh == pytest.approx(1.5)
+
+
 def test_a_battery_serving_the_backup_port_does_not_size_the_reserve():
     """Its energy never reaches the house, so it must not raise the reserve."""
     healthy = _coordinator(name="battery-1")
