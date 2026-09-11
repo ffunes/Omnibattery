@@ -104,8 +104,11 @@ async def test_successful_fresh_reconnect_clears_the_counter():
         host="192.0.2.10",
         port=502,
         lock=asyncio.Lock(),
-        driver=SimpleNamespace(connect=AsyncMock(return_value=True)),
-        capabilities=SimpleNamespace(has_rs485_control=False),
+        driver=SimpleNamespace(
+            connect=AsyncMock(return_value=True),
+            read_telemetry=AsyncMock(return_value={"battery_soc": 50}),
+        ),
+        capabilities=SimpleNamespace(has_rs485_control=False, push_telemetry=False),
         rs485_user_disabled=False,
         _consecutive_failures=7,
         _is_connected=False,
@@ -120,3 +123,63 @@ async def test_successful_fresh_reconnect_clears_the_counter():
     assert coordinator._consecutive_failures == 0
     assert coordinator._is_connected is True
     assert coordinator._suspension_reset_time is None
+
+
+async def test_reconnect_that_answers_nothing_is_not_a_success():
+    """#445: V150 accepts the socket and then ignores every Modbus frame.
+
+    Counting that as a recovery cleared the failure counter on every attempt, so
+    the suspend threshold was never reached and the coordinator re-opened the
+    socket every few polls forever instead of backing off for two minutes.
+    """
+    coordinator = SimpleNamespace(
+        name="Battery",
+        host="192.0.2.10",
+        port=502,
+        lock=asyncio.Lock(),
+        driver=SimpleNamespace(
+            connect=AsyncMock(return_value=True),
+            read_telemetry=AsyncMock(return_value={}),
+        ),
+        capabilities=SimpleNamespace(has_rs485_control=True, push_telemetry=False),
+        rs485_user_disabled=False,
+        _consecutive_failures=7,
+        _is_connected=False,
+        _suspension_reset_time=None,
+        _last_rs485_reenable_success=None,
+        _last_update_times={"battery_soc": 1.0},
+        _critical_group_failures={("battery_soc",): 2},
+    )
+
+    assert not await MarstekVenusDataUpdateCoordinator.async_reconnect_fresh(coordinator)
+
+    assert coordinator._consecutive_failures == 7
+    assert coordinator._is_connected is False
+
+
+async def test_push_driver_reconnect_skips_the_probe():
+    """A cached read proves nothing, so push drivers keep the old contract."""
+    driver = SimpleNamespace(
+        connect=AsyncMock(return_value=True),
+        read_telemetry=AsyncMock(return_value={}),
+    )
+    coordinator = SimpleNamespace(
+        name="Zendure",
+        host="192.0.2.11",
+        port=80,
+        lock=asyncio.Lock(),
+        driver=driver,
+        capabilities=SimpleNamespace(has_rs485_control=False, push_telemetry=True),
+        rs485_user_disabled=False,
+        _consecutive_failures=7,
+        _is_connected=False,
+        _suspension_reset_time=None,
+        _last_rs485_reenable_success=None,
+        _last_update_times={},
+        _critical_group_failures={},
+    )
+
+    assert await MarstekVenusDataUpdateCoordinator.async_reconnect_fresh(coordinator)
+
+    assert coordinator._consecutive_failures == 0
+    driver.read_telemetry.assert_not_awaited()

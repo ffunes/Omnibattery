@@ -1022,6 +1022,27 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             # driver.connect() internally closes the old client and creates a new one
             connected = await self.driver.connect()
 
+            # A TCP accept is not proof the battery answers. Marstek V150 firmware
+            # accepts the socket and then ignores every Modbus frame (#445), and
+            # taking connect() at its word cleared _consecutive_failures on every
+            # attempt: the counter never reached _max_failures_before_suspend, so
+            # the two-minute back-off never engaged and we re-opened the socket
+            # every few polls indefinitely against an already choked stack. One
+            # probe read separates a live link from a zombie one. Push drivers
+            # serve read_telemetry from cache, where a probe proves nothing.
+            if connected and not self.capabilities.push_telemetry:
+                try:
+                    connected = bool(await self.driver.read_telemetry(["battery_soc"]))
+                except Exception as err:
+                    _LOGGER.debug("[%s] Reconnection probe raised: %s", self.name, err)
+                    connected = False
+                if not connected:
+                    _LOGGER.warning(
+                        "[%s] Fresh connection opened but the battery answered no "
+                        "telemetry - still unreachable, backing off",
+                        self.name,
+                    )
+
             if connected:
                 sync_definitions = getattr(self, "_sync_driver_definitions", None)
                 if sync_definitions is not None:
