@@ -424,3 +424,46 @@ def test_snapshot_serialization_replaces_non_finite_values_and_is_json_safe():
     assert payload["intervals"][0]["flow"]["consumption_kwh"] is None
     assert json.loads(encoded)["interval_count"] == 96
     assert json_safe({"bad": float("-inf")}) == {"bad": None}
+
+
+def _latched_battery(*, hysteresis: float = 5.0, locked: bool = True):
+    return BatteryProjectionInput(
+        key="battery-a",
+        stored_kwh=9.43,
+        capacity_kwh=10.0,
+        min_soc_pct=0.0,
+        max_soc_pct=95.0,
+        charge_power_w=4000.0,
+        discharge_power_w=4000.0,
+        charge_locked=locked,
+        charge_hysteresis_pct=hysteresis,
+    )
+
+
+def test_charge_hysteresis_latch_travels_with_the_projected_soc():
+    # Ceiling 9.5 kWh, resume threshold 9.0 kWh.
+    intervals = [
+        _interval(0, solar=3.0),                    # latched: no charge
+        _interval(1, consumption=0.6),              # drains to 8.83, unlatches
+        _interval(2, solar=3.0),                    # charges to the ceiling
+        _interval(3, consumption=0.2),              # 9.3, still above resume
+        _interval(4, solar=3.0),                    # re-latched: no charge
+    ]
+    flows = simulate_battery_projection(
+        intervals, [_latched_battery()], charge_efficiency=1.0, discharge_efficiency=1.0
+    ).intervals
+
+    assert flows[0].solar_to_battery_kwh == 0.0
+    assert flows[0].stored_energy_end_kwh == pytest.approx(9.43)
+    assert flows[2].solar_to_battery_kwh == pytest.approx(0.67)
+    assert flows[2].stored_energy_end_kwh == pytest.approx(9.5)
+    assert flows[4].solar_to_battery_kwh == 0.0
+    assert flows[4].stored_energy_end_kwh == pytest.approx(9.3)
+
+
+def test_charge_hysteresis_latch_is_inert_without_a_band():
+    for battery in (_latched_battery(hysteresis=0.0), _latched_battery(locked=False)):
+        flow = simulate_battery_projection(
+            [_interval(0, solar=3.0)], [battery], charge_efficiency=1.0
+        ).intervals[0]
+        assert flow.solar_to_battery_kwh == pytest.approx(0.07)
