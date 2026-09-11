@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0b2] - 2026-09-10
+
+### Fixed
+
+- **The daily operation projection respects the charge hysteresis**: it only knew each battery's max SOC, so a battery latched at the top charged again on the next projected surplus — a solar-charge band and an SOC step to the ceiling that the hardware would never perform, and, over the 12-hour extension, a whole morning of phantom charging while the latch holds. The latch now travels with the projected SOC: it clears when the projection drains past the resume threshold and re-arms when it tops off again.
+
 ## [1.5.0b1] - 2026-09-10
 
 ### Added

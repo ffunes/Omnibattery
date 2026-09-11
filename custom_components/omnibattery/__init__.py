@@ -1840,6 +1840,13 @@ class ChargeDischargeController:
                     discharge_power_w=max(0.0, discharge_limit),
                     can_charge=not manual_owned,
                     can_discharge=not manual_owned,
+                    charge_locked=bool(
+                        getattr(coordinator, "enable_charge_hysteresis", False)
+                        and getattr(coordinator, "_hysteresis_active", False)
+                    ),
+                    charge_hysteresis_pct=self._daily_operation_float(
+                        getattr(coordinator, "charge_hysteresis_percent", 0.0), 0.0
+                    ),
                 )
             )
         return result

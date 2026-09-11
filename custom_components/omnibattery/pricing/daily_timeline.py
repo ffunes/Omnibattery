@@ -603,6 +603,11 @@ class BatteryProjectionInput:
     eligible: bool = True
     can_charge: bool = True
     can_discharge: bool = True
+    # Charge hysteresis: once the battery tops off it refuses charge until the
+    # SOC has fallen ``charge_hysteresis_pct`` below the ceiling.  Projecting
+    # without it tops every battery off again on the next sunny quarter-hour.
+    charge_locked: bool = False
+    charge_hysteresis_pct: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -1081,6 +1086,19 @@ def simulate_battery_projection(
         )
 
     states = {str(battery.key): stored for battery, stored, *_rest in valid}
+    # A charge-hysteresis latch is a battery state, so it has to travel with
+    # the walking SOC: it clears once the projection drains past the resume
+    # threshold and re-arms when the projection tops the battery off again.
+    charge_locked = {
+        str(battery.key): bool(battery.charge_locked)
+        and _finite(battery.charge_hysteresis_pct, 0.0) > 0.0
+        for battery, *_rest in valid
+    }
+    charge_resume = {
+        str(battery.key): maximum
+        - capacity * _non_negative(_finite(battery.charge_hysteresis_pct, 0.0)) / 100.0
+        for battery, _stored, _minimum, maximum, _cp, _dp, capacity in valid
+    }
     battery_results: dict[str, list[ProjectedBatteryFlow]] = {
         str(battery.key): [] for battery, *_rest in valid
     }
@@ -1150,6 +1168,9 @@ def simulate_battery_projection(
         ) in valid:
             key = str(battery.key)
             start_stored = states[key]
+            if charge_locked[key] and states[key] <= charge_resume[key] + _EPSILON:
+                charge_locked[key] = False
+            can_charge = battery.can_charge and not charge_locked[key]
             charge_eff = _effective_efficiency(
                 battery.charge_efficiency, charge_efficiency
             )
@@ -1157,7 +1178,7 @@ def simulate_battery_projection(
                 battery.discharge_efficiency, discharge_efficiency
             )
             if (
-                not battery.can_charge
+                not can_charge
                 or charge_eff <= _EPSILON
                 or duration_hours <= _EPSILON
             ):
@@ -1193,7 +1214,7 @@ def simulate_battery_projection(
             else:
                 quota_input = quota_value / charge_eff if charge_eff > _EPSILON else 0.0
             if (
-                not battery.can_charge
+                not can_charge
                 or charge_eff <= _EPSILON
                 or duration_hours <= _EPSILON
             ):
@@ -1225,6 +1246,11 @@ def simulate_battery_projection(
             system_charge_remaining = max(0.0, system_charge_remaining - grid_input)
             grid_to_battery += grid_input
             stored_energy_charged += grid_input * charge_eff
+            if (
+                charge_resume[key] < maximum
+                and states[key] >= maximum - _EPSILON
+            ):
+                charge_locked[key] = True
 
             per_battery[key] = {
                 "start_stored": start_stored,
