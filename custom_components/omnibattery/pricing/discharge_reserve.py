@@ -127,43 +127,77 @@ class ReservePlan:
         # Most expensive first: stored energy is worth what the hour it replaces
         # costs, so the dearest hour has first claim on it.
         candidates.sort(key=lambda slot: (-slot.price, slot.start))
-        reserve = 0.0
-        claiming: list[ReserveSlot] = []
+        claimed = 0.0
+        claims: list[tuple[ReserveSlot, float]] = []
         for slot in candidates:
-            if reserve >= available - EPSILON:
+            if claimed >= available - EPSILON:
                 break
-            take = min(slot.net_demand_kwh, available - reserve)
+            take = min(slot.net_demand_kwh, available - claimed)
             if take <= EPSILON:
                 continue
-            reserve += take
-            claiming.append(slot)
-        claiming.sort(key=lambda slot: slot.start)
+            claimed += take
+            claims.append((slot, take))
+        claims.sort(key=lambda entry: entry[0].start)
 
-        # Sun that lands in the battery before the first claiming slot pays for
-        # part of that claim, so holding the same energy back now would import
-        # at today's price and export the PV that was going to replace it.
-        recharge = self._expected_recharge_kwh(now, claiming[0].start, free_space_kwh)
-        reserve = max(0.0, reserve - recharge)
+        # Sun that lands in the battery before a claim pays for part of it, so
+        # holding the same energy back now would import at today's price and
+        # export the PV that was going to replace it.
+        space = self.free_space_kwh if free_space_kwh is None else _positive(free_space_kwh)
+        reserve = self._reserve_after_pv(now, claims, space, available)
         if reserve <= EPSILON:
             return 0.0, [], REASON_PV_COVERS_IT
-        return reserve, claiming, REASON_RESERVED
+        return reserve, [slot for slot, _take in claims], REASON_RESERVED
 
-    def _expected_recharge_kwh(
+    def _reserve_after_pv(
         self,
         now: datetime,
-        deadline: datetime,
-        free_space_kwh: float | None,
+        claims: list[tuple[ReserveSlot, float]],
+        free_space_kwh: float,
+        available_kwh: float,
     ) -> float:
-        """PV surplus expected to reach the battery before ``deadline``."""
-        space = self.free_space_kwh if free_space_kwh is None else _positive(free_space_kwh)
-        if space <= EPSILON:
-            return 0.0
-        surplus = 0.0
+        """Spend each expected PV kWh once, walking the claims in time order.
+
+        A single pre-dawn claim used to close the credit window for the whole
+        day, because the window ended at the *earliest* claiming slot. Sweeping
+        chronologically instead lets every claim draw from the sun that lands
+        before it, while keeping the physical truth that the same kWh cannot
+        pay for two hours.
+
+        The room for that sun is the room at PV time, not the room right now:
+        the demand served before the sun arrives leaves the battery and makes
+        space. Capping it at ``now`` is self-reinforcing, because reserving
+        keeps the SOC high, which keeps the room small, which keeps the credit
+        small.
+
+        Both halves need the slots walked one at a time rather than summed per
+        interval: demand that falls *after* a sunny slot cannot make room for
+        that slot's surplus, and rolling an interval into a single pair would
+        credit it as if it had.
+        """
+        room = _positive(free_space_kwh)
+        ceiling = room + _positive(available_kwh)
+        stored = 0.0
+        reserve = 0.0
+        pending = 0
         for slot in self.slots:
-            if slot.start < now or slot.start >= deadline:
+            if slot.start < now:
                 continue
-            surplus += _positive(slot.expected_surplus_kwh)
-        return min(space, surplus)
+            while pending < len(claims) and claims[pending][0].start <= slot.start:
+                take = claims[pending][1]
+                credit = min(take, stored)
+                stored -= credit
+                reserve += take - credit
+                pending += 1
+            # The battery serves this slot's demand, which is room the sun can
+            # land in; what it cannot hold is exported and never pays a claim.
+            room = min(ceiling, room + _positive(slot.net_demand_kwh))
+            absorbed = min(_positive(slot.expected_surplus_kwh), room)
+            room -= absorbed
+            stored += absorbed
+        for _slot, take in claims[pending:]:
+            reserve += take - min(take, stored)
+            stored -= min(take, stored)
+        return max(0.0, reserve)
 
 
 def build_reserve_slots(
