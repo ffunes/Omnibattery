@@ -8498,6 +8498,7 @@ class ChargeDischargeController:
         if any(c._is_shutting_down for c in self.coordinators):
             return
         self._phase_power_limiter.begin_cycle()
+        self._phase_power_limiter.update_degraded_warning()
 
         # === HOUSEHOLD CONSUMPTION ACCUMULATION ===
         # Run before manual mode check so samples are never lost

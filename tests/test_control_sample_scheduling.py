@@ -73,6 +73,7 @@ def _main_controller(state_holder, pd_calls):
         _phase_power_limiter=SimpleNamespace(
             enabled=False,
             begin_cycle=lambda: None,
+            update_degraded_warning=lambda: None,
         ),
         _consumption_tracker=None,
         _balance_monitor=None,

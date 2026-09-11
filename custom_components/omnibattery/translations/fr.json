@@ -4,6 +4,10 @@
       "title": "Un capteur configuré n'existe plus",
       "description": "Omnibattery est configuré avec {sensors}, qui n'existe pas dans Home Assistant. Toutes les fonctions qui le lisent sont inactives. La référence enregistrée est conservée volontairement, car le sélecteur d'entités ne peut pas afficher une entité disparue et effacerait votre réglage en silence : ouvrez Options → Capteurs et choisissez un remplaçant, ou videz le champ une fois l'entité revenue."
     },
+    "three_phase_sensor_degraded": {
+      "title": "La protection triphasée fonctionne à l'aveugle sur {phase}",
+      "description": "Le capteur de courant {sensor} de {phase} est illisible depuis plusieurs minutes ({reason}). La charge sur cette phase est bloquée et sa décharge est maintenue à la dernière valeur mesurée, car la couper ferait monter le courant de cette phase au lieu de le baisser. Vérifiez que le capteur publie toujours, et qu'il le fait périodiquement et pas seulement lors d'un changement de valeur."
+    },
     "three_phase_manual_mode": {
       "title": "La protection triphasée peut être contournée par des commandes manuelles",
       "description": "La protection triphasée est activée, mais les commandes manuelles de registres ou de créneaux peuvent écrire directement sur une batterie. Gardez ces commandes dans les limites configurées."

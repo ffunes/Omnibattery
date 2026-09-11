@@ -4,6 +4,10 @@
       "title": "Un sensor configurado ya no existe",
       "description": "Omnibattery está configurado con {sensors}, que no existe en Home Assistant. Todas las funciones que lo leen están inactivas. La referencia guardada se conserva a propósito, porque el selector de entidades no puede mostrar una entidad que ya no está y borraría tu ajuste en silencio: abre Opciones → Sensores y elige un sustituto, o vacía el campo cuando la entidad vuelva."
     },
+    "three_phase_sensor_degraded": {
+      "title": "La protección trifásica está ciega en {phase}",
+      "description": "El sensor de corriente {sensor} de {phase} lleva varios minutos sin poder leerse ({reason}). La carga en esa fase está bloqueada y su descarga se mantiene en el último valor medido, porque cortarla subiría la corriente de esa fase en lugar de bajarla. Comprueba que el sensor sigue publicando y que lo hace periódicamente, no solo cuando su valor cambia."
+    },
     "three_phase_manual_mode": {
       "title": "La protección trifásica puede saltarse con órdenes manuales",
       "description": "La protección trifásica está activa, pero las órdenes manuales de registros o de franjas pueden escribir directamente en una batería sin la envolvente automática. Mantén esas órdenes dentro de los límites configurados."

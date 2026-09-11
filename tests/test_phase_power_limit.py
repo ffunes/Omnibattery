@@ -640,3 +640,93 @@ def test_phase_form_allows_clearing_a_saved_phase_pair():
         CONF_PHASE_2_CURRENT_SENSOR: "sensor.l2",
         CONF_PHASE_2_FUSE_SIZE: 25.0,
     }
+
+
+def _degraded_discharge_limiter(measured_w, *, requested_w):
+    """Run one healthy cycle with a measured discharge, then lose the sensor."""
+    now = datetime.now(timezone.utc)
+    battery = FakeCoordinator("L1 battery", PHASE_L1)
+    battery.data["battery_power"] = -float(measured_w)
+    limiter = _limiter(
+        {
+            "sensor.l1": _state(2.0, now=now),
+            "sensor.l2": _state(0, now=now),
+            "sensor.l3": _state(0, now=now),
+        },
+        [battery],
+    )
+    limiter.begin_cycle()
+    limiter.limit_allocation({battery: measured_w}, False)
+
+    limiter.hass.states._states["sensor.l1"] = _state(2.0, now=now, age_s=66)
+    limiter.begin_cycle()
+    return limiter, battery, limiter.limit_allocation({battery: requested_w}, False)
+
+
+def test_degraded_phase_holds_the_discharge_instead_of_zeroing_it():
+    """Cutting a discharge hands its load back to the grid and raises the
+    current on the very phase the envelope protects."""
+    limiter, battery, allocation = _degraded_discharge_limiter(600, requested_w=600)
+
+    assert limiter.phase_snapshot(PHASE_L1)["reason"] == "sensor_stale"
+    assert allocation == {battery: 600}
+
+
+def test_degraded_phase_never_raises_the_discharge_it_holds():
+    _limiter_, battery, allocation = _degraded_discharge_limiter(200, requested_w=1500)
+
+    assert allocation == {battery: 200}
+
+
+def test_degraded_phase_still_blocks_charging_completely():
+    limiter, battery, _ = _degraded_discharge_limiter(600, requested_w=600)
+    limiter.begin_cycle()
+
+    assert limiter.limit_allocation({battery: 600}, True) == {battery: 0}
+
+
+def test_degraded_phase_holds_the_discharge_for_a_single_command():
+    limiter, battery, _ = _degraded_discharge_limiter(600, requested_w=600)
+    limiter.begin_cycle()
+
+    assert limiter.limit_single_command(battery, 0, 1500) == (0, 600)
+    assert limiter.limit_single_command(battery, 1500, 0) == (0, 0)
+
+
+def test_an_idle_phase_holds_nothing_when_its_sensor_dies():
+    _limiter_, battery, allocation = _degraded_discharge_limiter(0, requested_w=1500)
+
+    assert allocation == {battery: 0}
+
+
+def test_a_lasting_degradation_is_reported_in_repairs(monkeypatch):
+    now = datetime.now(timezone.utc)
+    created, deleted = _capture_warning_repairs(monkeypatch)
+    battery = FakeCoordinator("L1 battery", PHASE_L1)
+    limiter = _limiter(
+        {
+            "sensor.l1": _state(2.0, now=now, age_s=66),
+            "sensor.l2": _state(0, now=now),
+            "sensor.l3": _state(0, now=now),
+        },
+        [battery],
+    )
+    clock = {"now": now}
+    monkeypatch.setattr(
+        phase_power_limit_module.dt_util, "utcnow", lambda: clock["now"]
+    )
+
+    limiter.phase_snapshot(PHASE_L1)
+    limiter.update_degraded_warning()
+    assert created == []
+
+    clock["now"] = now + timedelta(seconds=301)
+    limiter.update_degraded_warning()
+    assert len(created) == 1
+    assert created[0][1]["translation_key"] == "three_phase_sensor_degraded"
+
+    limiter.hass.states._states["sensor.l1"] = _state(2.0, now=clock["now"])
+    limiter.phase_snapshot(PHASE_L1)
+    limiter.update_degraded_warning()
+    assert len(deleted) == 1
+

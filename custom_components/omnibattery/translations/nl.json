@@ -4,6 +4,10 @@
       "title": "Geconfigureerde sensor bestaat niet meer",
       "description": "Omnibattery is geconfigureerd met {sensors}, die niet in Home Assistant bestaat. Alle functies die hem uitlezen zijn inactief. De opgeslagen verwijzing blijft bewust bewaard, omdat de entiteitskiezer een verdwenen entiteit niet kan tonen en je instelling stilzwijgend zou wissen: open Opties → Sensoren en kies een vervanger, of maak het veld leeg zodra de entiteit terug is."
     },
+    "three_phase_sensor_degraded": {
+      "title": "Driefasebeveiliging werkt blind op {phase}",
+      "description": "De stroomsensor {sensor} voor {phase} is al enkele minuten onleesbaar ({reason}). Laden op die fase is geblokkeerd en de ontlading wordt op de laatst gemeten waarde gehouden, want die afkappen zou de stroom van die fase juist verhogen. Controleer of de sensor nog meldt, en of hij periodiek meldt in plaats van alleen bij een waardewijziging."
+    },
     "three_phase_manual_mode": {
       "title": "Driefasenbeveiliging kan door handmatige opdrachten worden omzeild",
       "description": "Driefasenbeveiliging is ingeschakeld, maar handmatige register- of tijdslotopdrachten kunnen rechtstreeks naar een batterij schrijven. Houd deze opdrachten binnen de geconfigureerde fasegrenzen."
