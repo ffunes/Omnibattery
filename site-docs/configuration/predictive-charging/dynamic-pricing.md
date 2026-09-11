@@ -215,7 +215,7 @@ The optional **Price-aware discharge reserve** answers the second question. It i
 1. It takes the price slots between now and local midnight.
 2. It projects the learned 15-minute consumption profile onto them and subtracts the expected PV, leaving the net grid demand each slot is expected to carry.
 3. It gives the **dearest** of those slots first claim on the energy currently above the SOC floors, up to what each slot actually needs, and only for slots at least the **Discharge reserve minimum saving** above the current price.
-4. It subtracts the PV surplus expected to reach the battery *before* the first claiming slot, capped by the room left in it. Holding energy back that the sun is about to replace would import now and export that production instead.
+4. It walks those claims in chronological order against a running pool of the PV surplus expected before each of them, capped by the room the battery is expected to have when that sun arrives rather than the room it has now. Holding energy back that the sun is about to replace would import now and export that production instead. The same kWh of PV pays off one claim only.
 5. What is left is converted into one percentage of fleet capacity, and each battery sitting at or below its effective discharge floor plus that percentage gets a `price_reserve` discharge blocker.
 
 Everything above the reserve stays available for self-consumption right now, which is what makes this compose with the thresholds instead of competing with them. The floor is recomputed every control cycle against the live price and the live SOC, so it falls away the moment the current hour becomes the dear one, and it can never rise above the energy the battery still holds.
