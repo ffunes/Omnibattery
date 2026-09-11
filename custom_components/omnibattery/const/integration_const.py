@@ -402,6 +402,12 @@ SLOW_SENSOR_WARNING_INTERVAL_S = 10.0
 # shorten the promised tolerance.
 MAX_SENSOR_STALE_S = 65.0
 
+# How long a phase sensor must stay unreadable before the degradation becomes a
+# Repairs entry. Long enough that the short gaps absorbed by the discharge hold
+# stay silent, short enough that a genuinely dead sensor is reported the same
+# day.
+PHASE_SENSOR_DEGRADED_REPAIR_S = 300.0
+
 # Consecutive slow main-sensor intervals before the slow-sensor repair is raised.
 # Debouncing prevents a single outage/restart gap from flagging an otherwise fast
 # sensor. Clearing uses SLOW_SENSOR_RECOVERY_INTERVALS instead.

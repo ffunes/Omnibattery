@@ -20,6 +20,10 @@
       "title": "Use a remaining solar forecast",
       "description": "{sensor} is a legacy whole-day solar forecast. Omnibattery still supports it, but past forecast errors can make intraday decisions inaccurate. Configure the provider's \"remaining today\" forecast sensor in Omnibattery options for a more accurate remaining-solar calculation."
     },
+    "three_phase_sensor_degraded": {
+      "title": "Three-phase protection is running blind on {phase}",
+      "description": "The current sensor {sensor} for {phase} has been unreadable for several minutes ({reason}). Charging on that phase is blocked and its discharge is held at the last measured value, because cutting it would push that phase's current up instead of down. Check that the sensor still reports, and that it reports periodically rather than only when its value changes."
+    },
     "three_phase_manual_mode": {
       "title": "Three-phase protection can be bypassed by manual commands",
       "description": "Three-phase protection is enabled, but manual register or manual time-slot commands can write directly to a battery without the automatic phase envelope. Keep those commands within the configured phase limits."
