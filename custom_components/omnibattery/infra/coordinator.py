@@ -1063,8 +1063,16 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             # the two-minute back-off never engaged and we re-opened the socket
             # every few polls indefinitely against an already choked stack. One
             # probe read separates a live link from a zombie one. Push drivers
-            # serve read_telemetry from cache, where a probe proves nothing.
-            if connected and not self.capabilities.push_telemetry:
+            # serve read_telemetry from cache, where a probe proves nothing —
+            # unless the driver dates that cache and drops it once the upstream
+            # feed goes quiet (telemetry_liveness_checked). The ESPHome bridge
+            # needs exactly this: connect() only re-resolves registry entries, so
+            # it succeeds against a wedged bus and would clear the counter every
+            # third poll, so the suspend back-off never engages (issue #452).
+            if connected and (
+                not self.capabilities.push_telemetry
+                or getattr(self.capabilities, "telemetry_liveness_checked", False)
+            ):
                 try:
                     connected = bool(await self.driver.read_telemetry(["battery_soc"]))
                 except Exception as err:

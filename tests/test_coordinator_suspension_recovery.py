@@ -169,7 +169,11 @@ async def test_push_driver_reconnect_skips_the_probe():
         port=80,
         lock=asyncio.Lock(),
         driver=driver,
-        capabilities=SimpleNamespace(has_rs485_control=False, push_telemetry=True),
+        capabilities=SimpleNamespace(
+            has_rs485_control=False,
+            push_telemetry=True,
+            telemetry_liveness_checked=False,
+        ),
         rs485_user_disabled=False,
         _consecutive_failures=7,
         _is_connected=False,
@@ -183,3 +187,43 @@ async def test_push_driver_reconnect_skips_the_probe():
 
     assert coordinator._consecutive_failures == 0
     driver.read_telemetry.assert_not_awaited()
+
+
+async def test_liveness_checked_push_driver_still_probes():
+    """A push driver that dates its cache must not skip the probe (#452).
+
+    The ESPHome bridge's connect() only re-resolves registry entries, so it
+    succeeds against a wedged Modbus bus. Taking that at its word cleared the
+    failure counter every third poll, so the suspend back-off never engaged and
+    each reconnect re-asserted RS485 — adding writes to the jammed bus it was
+    supposed to be recovering.
+    """
+    driver = SimpleNamespace(
+        connect=AsyncMock(return_value=True),
+        read_telemetry=AsyncMock(return_value={}),
+    )
+    coordinator = SimpleNamespace(
+        name="Marstek Venus 3",
+        host="devid123",
+        port=0,
+        lock=asyncio.Lock(),
+        driver=driver,
+        capabilities=SimpleNamespace(
+            has_rs485_control=True,
+            push_telemetry=True,
+            telemetry_liveness_checked=True,
+        ),
+        rs485_user_disabled=False,
+        _consecutive_failures=7,
+        _is_connected=False,
+        _suspension_reset_time=None,
+        _last_rs485_reenable_success=None,
+        _last_update_times={},
+        _critical_group_failures={},
+    )
+
+    assert not await MarstekVenusDataUpdateCoordinator.async_reconnect_fresh(coordinator)
+
+    driver.read_telemetry.assert_awaited()
+    assert coordinator._consecutive_failures == 7
+    assert coordinator._is_connected is False
