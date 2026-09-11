@@ -983,10 +983,13 @@ def test_pruning_a_future_dated_day_rebuilds_the_aggregate():
     ahead = today + timedelta(days=1)
     days[ahead] = _day(ahead, 50.0)
     profile = _profile(days)
-    before = profile.forecast_for_date(today)
+    # Measured on the forecast for that same date: the global pool is only a
+    # fallback for a day type with no samples, so a day the aggregate blends
+    # in shows up on its own weekday and day type, not on whatever today is.
+    before = profile.forecast_for_date(ahead)
 
     profile._prune()
-    after = profile.forecast_for_date(today)
+    after = profile.forecast_for_date(ahead)
 
     assert ahead not in profile._days
     assert after.total_days == before.total_days - 1
