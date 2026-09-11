@@ -84,11 +84,14 @@ def _reconnecting_coordinator(*, deferred: bool):
         _last_update_times={},
         _critical_group_failures={},
         rs485_user_disabled=True,
-        capabilities=SimpleNamespace(has_rs485_control=False),
+        capabilities=SimpleNamespace(has_rs485_control=False, push_telemetry=False),
         reload_entry_when_reachable=deferred,
         _config_entry=SimpleNamespace(entry_id="abc"),
         hass=_hass(),
-        driver=SimpleNamespace(connect=AsyncMock(return_value=True)),
+        driver=SimpleNamespace(
+            connect=AsyncMock(return_value=True),
+            read_telemetry=AsyncMock(return_value={"battery_soc": 50}),
+        ),
     )
 
 
