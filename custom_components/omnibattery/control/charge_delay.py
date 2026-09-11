@@ -735,7 +735,38 @@ class ChargeDelayManager:
 
         # Time backup check
         safety_margin_h = ctrl._delay_safety_margin_h
-        time_limit_reached = (now_h + charge_time_h + safety_margin_h) >= t_end
+        deadline_h = t_end - safety_margin_h
+        # Two independent estimates of the latest safe unlock time:
+        #   nominal_time_backup_unlock_h  — assumes charging happens at the
+        #     full hardware rate once unlocked (optimistic; only realistic if
+        #     grid charging kicks in, since solar-following PD rarely reaches
+        #     max_charge_power_kw).
+        #   solar_feasible_unlock_h       — the latest unlock such that the
+        #     solar forecast ALONE (sinusoidal curve, no grid) can still
+        #     deliver the BARE target (no cushion — that's already handled by
+        #     energy_insufficient/the cushion-hold branch above) by the
+        #     safety-margin deadline. Reuses the same well-tested
+        #     energy-balance projection as the normal unlock estimate, just
+        #     bounded to the deadline instead of t_end.
+        # Taking the EARLIER of the two means the delay unlocks in time for
+        # realistic solar-only charging to finish, instead of only unlocking
+        # late enough for a best-case full-power (often grid-assisted) finish
+        # — this closes the gap where grid charging would otherwise show up
+        # near the deadline because solar-only charging started too late.
+        nominal_time_backup_unlock_h = t_end - charge_time_h - safety_margin_h
+        solar_feasible_unlock_h = self._estimate_energy_balance_unlock_h(
+            forecast_today, energy_needed_kwh, ctrl._solar_t_start, t_end, now_h,
+            safety_factor=1.0,
+            forecast_is_remaining=forecast_is_remaining,
+            consumption_profile=profile_forecast,
+            horizon_h=deadline_h,
+        )
+        time_backup_unlock_h = (
+            min(nominal_time_backup_unlock_h, solar_feasible_unlock_h)
+            if solar_feasible_unlock_h is not None
+            else nominal_time_backup_unlock_h
+        )
+        time_limit_reached = now_h >= time_backup_unlock_h
         energy_insufficient = net_solar_for_battery < (energy_needed_kwh * DELAY_SAFETY_FACTOR)
 
         # Update status with calculation details
@@ -746,7 +777,6 @@ class ChargeDelayManager:
         status["charge_time_h"] = round(charge_time_h, 2)
 
         # Estimate unlock time: earliest of time-backup and energy-balance triggers
-        time_backup_unlock_h = t_end - charge_time_h - safety_margin_h
         energy_balance_unlock_h = self._estimate_energy_balance_unlock_h(
             forecast_today, energy_needed_kwh, ctrl._solar_t_start, t_end, now_h,
             forecast_is_remaining=forecast_is_remaining,
@@ -822,9 +852,11 @@ class ChargeDelayManager:
 
         if time_limit_reached:
             _LOGGER.info(
-                "Charge Delay: Time limit (%.2f + %.2f + %.2f = %.2f >= T_end %.2f) - unlocking (reason: time_backup)",
-                now_h, charge_time_h, safety_margin_h,
-                now_h + charge_time_h + safety_margin_h, t_end
+                "Charge Delay: Time limit (now=%.2f >= unlock=%.2f; nominal=%.2f, "
+                "solar_feasible=%s, deadline=%.2f) - unlocking (reason: time_backup)",
+                now_h, time_backup_unlock_h, nominal_time_backup_unlock_h,
+                f"{solar_feasible_unlock_h:.2f}" if solar_feasible_unlock_h is not None else "n/a",
+                deadline_h,
             )
             return _unlock("time_backup")
 
@@ -1025,6 +1057,7 @@ class ChargeDelayManager:
         safety_factor: float = DELAY_SAFETY_FACTOR,
         forecast_is_remaining: bool = False,
         consumption_profile=None,
+        horizon_h: float | None = None,
     ) -> float | None:
         """Estimate when the energy balance condition will trigger the delay unlock.
 
@@ -1036,12 +1069,21 @@ class ChargeDelayManager:
         last moment the forecast still covers the target with no cushion left,
         which bounds how long the cushion-only price hold may wait.
 
+        ``horizon_h`` optionally shrinks the window solar/consumption are summed
+        over to ``[t, horizon_h]`` instead of ``[t, t_end]`` — e.g. the safety-
+        margin deadline rather than sunset — while keeping the sinusoidal
+        production CURVE shaped by the real ``(t_start, t_end)`` daylight window
+        (the sun doesn't stop shining at the deadline; only energy arriving
+        after it no longer helps meet it in time). Passing ``t_end`` itself (the
+        default) reproduces the original whole-daylight-window behavior exactly.
+
         Returns the estimated hour as float, or None if it cannot be estimated.
         """
         ctrl = self._controller
         daylight_hours = t_end - t_start
         if daylight_hours <= 0:
             return None
+        horizon = t_end if horizon_h is None else max(t_start, min(horizon_h, t_end))
 
         # Keep this aligned with _should_delay_charge(): avg_consumption is
         # measured over the full local day, not daylight hours.
@@ -1075,7 +1117,7 @@ class ChargeDelayManager:
                     microsecond=0,
                 )
                 start = midnight + timedelta(hours=max(0.0, t))
-                end = midnight + timedelta(hours=max(0.0, t_end))
+                end = midnight + timedelta(hours=max(0.0, horizon))
                 result = ctrl._consumption_tracker.forecast_consumption_between(
                     start, end, fallback="legacy_daily"
                 )
@@ -1086,23 +1128,29 @@ class ChargeDelayManager:
             return None
 
         def net_solar_at(t: float) -> float:
-            """Net solar available for battery at time t."""
+            """Net solar available for battery between t and the horizon."""
             progress = max(0.0, min(1.0, (t - t_start) / daylight_hours))
             fraction_done = (1.0 - math.cos(math.pi * progress)) / 2.0
+            horizon_progress = max(0.0, min(1.0, (horizon - t_start) / daylight_hours))
+            fraction_done_horizon = (1.0 - math.cos(math.pi * horizon_progress)) / 2.0
             if forecast_is_remaining:
                 # Renormalize the provider's post-now energy over the remaining
                 # daylight curve, never treating it as a full-day forecast.
                 now_progress = max(0.0, min(1.0, (now_h - t_start) / daylight_hours))
                 remaining_at_now = max(1e-9, 1.0 - (1.0 - math.cos(math.pi * now_progress)) / 2.0)
-                remaining_solar = forecast_kwh * (1.0 - fraction_done) / remaining_at_now
+                remaining_solar = (
+                    forecast_kwh
+                    * max(0.0, fraction_done_horizon - fraction_done)
+                    / remaining_at_now
+                )
             else:
-                remaining_solar = forecast_kwh * (1.0 - fraction_done)
+                remaining_solar = forecast_kwh * max(0.0, fraction_done_horizon - fraction_done)
             profile_consumption = profile_consumption_at(t)
             if profile_consumption is not None:
                 remaining_consumption = profile_consumption
             else:
                 remaining_window_hours = ctrl._consumption_tracker.consumption_window_hours_in_range(
-                    t, t_end
+                    t, horizon
                 )
                 remaining_consumption = (
                     avg_consumption * (remaining_window_hours / window_hours_per_day)
@@ -1115,12 +1163,12 @@ class ChargeDelayManager:
         if net_solar_at(now_h) < threshold:
             return now_h
 
-        # If still above threshold at t_end, no energy-balance unlock expected
-        if net_solar_at(t_end) >= threshold:
+        # If still above threshold at the horizon, no energy-balance unlock expected
+        if net_solar_at(horizon) >= threshold:
             return None
 
         # Binary search for crossing point
-        lo, hi = now_h, t_end
+        lo, hi = now_h, horizon
         for _ in range(40):  # 40 iterations → precision < 1 second
             mid = (lo + hi) / 2.0
             if net_solar_at(mid) >= threshold:
