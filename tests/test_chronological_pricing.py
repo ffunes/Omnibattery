@@ -270,6 +270,40 @@ def test_time_slot_windows_are_materialized_and_split_at_midnight():
     assert slots[-1].end.date() == BASE.date() + timedelta(days=1)
 
 
+def test_time_slot_windows_parse_the_stored_hh_mm_ss_format():
+    """HA's TimeSelector stores "HH:MM:SS" (#447).
+
+    "%H:%M" raised on every configured window, so Time Slot mode produced no
+    candidate slots and never got a chronological plan — including the
+    guaranteed-minimum-SOC floor deadlines.
+    """
+    now = BASE + timedelta(minutes=30)
+    controller = SimpleNamespace(
+        charging_time_slots=[
+            {
+                "start_time": "01:00:00",
+                "end_time": "05:00:00",
+                "days": ["tue"],
+            }
+        ]
+    )
+
+    slots = PricingManager(SimpleNamespace(), controller)._time_slot_price_slots(now)
+
+    assert [(slot.start.hour, slot.end.hour) for slot in slots] == [(1, 5)]
+
+
+def test_no_discharge_window_parses_the_stored_hh_mm_ss_format():
+    """Same "%H:%M" parse bug on the no-discharge windows (#447)."""
+    manager = PricingManager(SimpleNamespace(), SimpleNamespace())
+    blocked = _slot(60, 120, 0.0)
+    allowed = _slot(600, 660, 0.0)
+    window = {"start_time": "01:00:00", "end_time": "02:00:00", "days": ["tue"]}
+
+    assert manager._future_slot_matches_operation_block(blocked, window) is True
+    assert manager._future_slot_matches_operation_block(allowed, window) is False
+
+
 def test_time_slot_dashboard_preview_extends_known_windows_but_control_does_not():
     now = BASE + timedelta(minutes=30)
     controller = SimpleNamespace(
