@@ -1123,13 +1123,23 @@ class MarstekSoftMaxChargeNumber(CoordinatorEntity, NumberEntity):
         self._attr_icon = "mdi:battery-arrow-up-outline"
         self._attr_native_unit_of_measurement = "W"
         self._attr_native_min_value = 0
-        self._attr_native_max_value = getattr(
-            coordinator,
-            "device_max_charge_power",
-            coordinator.capabilities.max_charge_power_w,
-        )
         self._attr_native_step = 10
         self._attr_should_poll = False
+
+    @property
+    def native_max_value(self) -> float:
+        """Follow the ceiling the device currently reports.
+
+        A property, not a frozen attribute: the device cap moves when the user
+        raises the limit in the vendor app, and the poll adopts it
+        (``_sync_device_reported_limits``). Freezing it in __init__ meant the
+        slider only caught up on a reload (issue #449).
+        """
+        return float(getattr(
+            self.coordinator,
+            "device_max_charge_power",
+            self.coordinator.capabilities.max_charge_power_w,
+        ))
 
     @property
     def native_value(self) -> float:
@@ -1176,13 +1186,23 @@ class MarstekSoftMaxDischargeNumber(CoordinatorEntity, NumberEntity):
         self._attr_icon = "mdi:battery-arrow-down-outline"
         self._attr_native_unit_of_measurement = "W"
         self._attr_native_min_value = 0
-        self._attr_native_max_value = getattr(
-            coordinator,
-            "device_max_discharge_power",
-            coordinator.capabilities.max_discharge_power_w,
-        )
         self._attr_native_step = 10
         self._attr_should_poll = False
+
+    @property
+    def native_max_value(self) -> float:
+        """Follow the ceiling the device currently reports.
+
+        A property, not a frozen attribute: the device cap moves when the user
+        raises the limit in the vendor app, and the poll adopts it
+        (``_sync_device_reported_limits``). Freezing it in __init__ meant the
+        slider only caught up on a reload (issue #449).
+        """
+        return float(getattr(
+            self.coordinator,
+            "device_max_discharge_power",
+            self.coordinator.capabilities.max_discharge_power_w,
+        ))
 
     @property
     def native_value(self) -> float:

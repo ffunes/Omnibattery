@@ -193,3 +193,98 @@ def test_a_same_day_climb_is_never_held_back():
     assert poll(1.0, "2026-08-28") == "2026-08-28"
     assert poll(4.5, "2026-08-28") == "2026-08-28"
     assert poll(6.17, "2026-08-28") == "2026-08-28"
+
+
+# --- The device cap has to reach config_entry.data --------------------
+#
+# Issue #449: an Anker Solarbank Max AC had its discharge limit raised from
+# 2500 W to 3000 W in the vendor app. The poll adopted the new ceiling, so the
+# per-battery slider allowed 3000 W, but the *system* slider stayed pinned at
+# 2500 W through reloads. The system sliders derive their bounds from
+# config_entry.data, and nothing ever wrote the adopted ceiling back there —
+# the only figure on disk was the one the config flow probed at setup.
+
+from custom_components.omnibattery.const.integration_const import (
+    CONF_SYSTEM_MAX_DISCHARGE_POWER,
+    CONFIG_NUMBER_DEFINITIONS,
+    total_battery_power,
+)
+from custom_components.omnibattery.number import config_number_bounds
+
+
+class _SoftMaxCoordinator(_Coordinator):
+    """A soft-max driver (Anker, Zendure) with a config entry behind it."""
+
+    def __init__(self, data, entry_data):
+        super().__init__(data)
+        self.needs_software_max_charge = True
+        self.needs_software_max_discharge = True
+        self.entry_data = entry_data
+
+    def persist_battery_config(self, key, value):
+        self.entry_data["batteries"][0][key] = value
+
+
+def _entry_data(**overrides):
+    battery = {
+        "host": "10.0.0.5",
+        "port": 502,
+        "device_max_charge_power": 2500,
+        "device_max_discharge_power": 2500,
+        "user_max_charge_power": 2500,
+        "user_max_discharge_power": 2500,
+    }
+    battery.update(overrides)
+    return {"batteries": [battery]}
+
+
+def _system_discharge_max(entry_data):
+    definition = next(
+        d for d in CONFIG_NUMBER_DEFINITIONS
+        if d["key"] == CONF_SYSTEM_MAX_DISCHARGE_POWER
+    )
+    return config_number_bounds(definition, entry_data)[1]
+
+
+def test_a_raised_device_ceiling_reaches_the_config_entry():
+    entry_data = _entry_data()
+    coordinator = _SoftMaxCoordinator(
+        {"max_charge_power": 2500, "max_discharge_power": 3000}, entry_data
+    )
+    _sync_device_reported_limits(coordinator)
+    assert entry_data["batteries"][0]["device_max_discharge_power"] == 3000
+
+
+def test_the_system_slider_follows_once_the_user_raises_their_own_ceiling():
+    """The per-battery ceiling is the user's knob; the device cap is the roof."""
+    entry_data = _entry_data(user_max_discharge_power=3000)
+    coordinator = _SoftMaxCoordinator(
+        {"max_charge_power": 2500, "max_discharge_power": 3000}, entry_data
+    )
+    assert _system_discharge_max(entry_data) == 2500  # the bug
+    _sync_device_reported_limits(coordinator)
+    assert _system_discharge_max(entry_data) == 3000
+
+
+def test_an_unchanged_ceiling_does_not_rewrite_the_entry():
+    """async_update_entry on every poll would be a write storm."""
+    entry_data = _entry_data()
+    coordinator = _SoftMaxCoordinator(
+        {"max_charge_power": 2500, "max_discharge_power": 2500}, entry_data
+    )
+    writes = []
+    coordinator.persist_battery_config = lambda key, value: writes.append(key)
+    _sync_device_reported_limits(coordinator)
+    assert writes == []
+
+
+def test_a_writable_register_driver_keeps_its_configured_ceiling_on_disk():
+    """Those report the user's own limit; persisting it would clobber the knob."""
+    entry_data = _entry_data()
+    coordinator = _Coordinator({"max_discharge_power": 1200})
+    coordinator.persist_battery_config = lambda key, value: entry_data.setdefault(
+        "written", []
+    ).append(key)
+    _sync_device_reported_limits(coordinator)
+    assert "written" not in entry_data
+    assert total_battery_power(entry_data) == (2500, 2500)

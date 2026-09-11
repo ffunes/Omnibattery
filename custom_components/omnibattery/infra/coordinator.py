@@ -129,6 +129,26 @@ def _stamp_native_daily_reset_dates(coordinator) -> None:
         coordinator.data[f"{key}_reset_date"] = stamp
 
 
+def _persist_device_cap(coordinator, key: str, value: int) -> None:
+    """Write a device-reported ceiling back to config_entry.data.
+
+    The in-memory ceiling alone is not enough: the system-level power sliders
+    derive their bounds from ``config_entry.data`` (see
+    ``integration_const.total_battery_power``), which until now only ever held
+    the figure the config flow probed at setup. Raising a soft-max battery's
+    limit in the vendor app therefore moved the per-battery slider but left the
+    system slider pinned to the old value, reload or not (issue #449).
+
+    Only the soft-max branch calls this. Writable-register drivers report the
+    user's *configured* ceiling, and persisting that would overwrite what the
+    user wrote.
+    """
+    persist = getattr(coordinator, "persist_battery_config", None)
+    if persist is None:
+        return
+    persist(key, int(value))
+
+
 def _sync_device_reported_limits(coordinator) -> None:
     """Adopt the power ceilings the device reports, ignoring a zero.
 
@@ -154,7 +174,14 @@ def _sync_device_reported_limits(coordinator) -> None:
         # Venus E v2/v3 report the physical/device ceiling. Writable
         # register drivers report the user's configured ceiling instead.
         if coordinator.needs_software_max_charge or coordinator.needs_software_power_cap:
+            # getattr: a lightweight coordinator double may not carry the
+            # attribute until the setter below creates it.
+            changed = getattr(coordinator, "device_max_charge_power", None) != device_cap
             coordinator.device_max_charge_power = device_cap
+            if changed:
+                _persist_device_cap(
+                    coordinator, "device_max_charge_power", coordinator.device_max_charge_power
+                )
         else:
             coordinator.configured_max_charge_power = device_cap
         # Keep the legacy alias synchronized for lightweight coordinator
@@ -168,7 +195,14 @@ def _sync_device_reported_limits(coordinator) -> None:
     if coordinator.data.get("max_discharge_power"):
         device_cap = int(coordinator.data["max_discharge_power"])
         if coordinator.needs_software_max_discharge or coordinator.needs_software_power_cap:
+            # getattr: a lightweight coordinator double may not carry the
+            # attribute until the setter below creates it.
+            changed = getattr(coordinator, "device_max_discharge_power", None) != device_cap
             coordinator.device_max_discharge_power = device_cap
+            if changed:
+                _persist_device_cap(
+                    coordinator, "device_max_discharge_power", coordinator.device_max_discharge_power
+                )
         else:
             coordinator.configured_max_discharge_power = device_cap
         if not hasattr(coordinator, "_configured_max_discharge_power"):
