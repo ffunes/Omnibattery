@@ -809,7 +809,8 @@ def _at_hour(monkeypatch, hour):
 def _cushion_mgr(forecast):
     """Gate sitting in the cushion band at 09:00.
 
-    needed = (80-50)% x 10 kWh = 3.0 kWh, factored (x1.3) = 3.9 kWh.
+    needed = (80-50)% x 10 kWh = 3.0 kWh (battery-side), AC-equivalent
+    (÷ CHARGE_EFFICIENCY=0.85) = 3.53 kWh, factored (x1.3) = 4.59 kWh.
     remaining_consumption = 5.0 x 7/24 = 1.46 kWh.
     """
     ctrl = _controller(
@@ -821,10 +822,11 @@ def _cushion_mgr(forecast):
 
 
 def test_cushion_shortfall_holds_for_cheaper_hour(monkeypatch):
-    # net = 3.39: below the factored 3.9 edge but still above the bare 3.0 need
-    # -> hold for the cheaper hour instead of unlocking into the morning peak.
+    # net = 4.04: below the factored 4.59 edge but still above the bare
+    # (AC-equivalent) 3.53 need -> hold for the cheaper hour instead of
+    # unlocking into the morning peak.
     _at_hour(monkeypatch, 9)
-    mgr = _cushion_mgr(4.85)
+    mgr = _cushion_mgr(5.5)
     mgr._price_optimal_release_h = lambda now_h, edge_h, charge_h=None: 12.0
     assert mgr._should_delay_charge(80) is True
     assert mgr._controller._charge_delay_status["estimated_unlock_time"] == "12:00"
@@ -833,7 +835,7 @@ def test_cushion_shortfall_holds_for_cheaper_hour(monkeypatch):
 
 def test_cushion_shortfall_unlocks_when_now_is_cheapest(monkeypatch):
     _at_hour(monkeypatch, 9)
-    mgr = _cushion_mgr(4.85)
+    mgr = _cushion_mgr(5.5)
     mgr._price_optimal_release_h = lambda now_h, edge_h, charge_h=None: now_h
     assert mgr._should_delay_charge(80) is False
     assert mgr._controller._charge_delay_status["unlock_reason"] == "energy_balance"
@@ -842,15 +844,15 @@ def test_cushion_shortfall_unlocks_when_now_is_cheapest(monkeypatch):
 def test_cushion_shortfall_unlocks_without_price_data(monkeypatch):
     # No price data -> legacy instant unlock preserved.
     _at_hour(monkeypatch, 9)
-    mgr = _cushion_mgr(4.85)
+    mgr = _cushion_mgr(5.5)
     mgr._price_optimal_release_h = lambda now_h, edge_h, charge_h=None: None
     assert mgr._should_delay_charge(80) is False
     assert mgr._controller._charge_delay_status["unlock_reason"] == "energy_balance"
 
 
 def test_genuine_deficit_unlocks_without_consulting_prices(monkeypatch):
-    # net = 1.09 < needed 3.0: a real deficit, grid charging may be
-    # required -> unlock immediately, prices must not be able to hold it.
+    # net = 1.54 < AC-equivalent needed 3.53: a real deficit, grid charging
+    # may be required -> unlock immediately, prices must not be able to hold it.
     _at_hour(monkeypatch, 9)
     mgr = _cushion_mgr(3.0)
     called = []
@@ -861,10 +863,14 @@ def test_genuine_deficit_unlocks_without_consulting_prices(monkeypatch):
 
 
 def test_cushion_hold_window_never_passes_bare_balance_edge(monkeypatch):
-    # The edge handed to the price scorer is the BARE (x1.0) balance crossing,
-    # never the factored one, so the hold cannot eat into the target itself.
+    # The edge handed to the price scorer is bounded by every bare (x1.0)
+    # balance crossing in play — both the whole-day one (cushion_edge_h) and
+    # the deadline-bounded one (solar_feasible_unlock_h, added so the delay
+    # unlocks early enough for solar-only charging to still make the safety
+    # margin) — never the factored one, so the hold cannot eat into the
+    # target itself.
     _at_hour(monkeypatch, 9)
-    mgr = _cushion_mgr(4.85)
+    mgr = _cushion_mgr(5.5)
     edges = []
     mgr._price_optimal_release_h = lambda now_h, edge_h, charge_h=None: edges.append(edge_h) or now_h
     # Record what the gate actually asked the projection for, so the expected edge
@@ -879,10 +885,22 @@ def test_cushion_hold_window_never_passes_bare_balance_edge(monkeypatch):
     mgr._should_delay_charge(80)
 
     bare = [p for p in projections if p[1].get("safety_factor") == 1.0]
-    assert len(bare) == 1, "the bare-balance projection must be requested exactly once"
-    bare_edge = bare[0][2]
-    time_backup_h = 16.0 - mgr._controller._charge_delay_status["charge_time_h"] - 0.5
-    assert edges == [pytest.approx(min(bare_edge, time_backup_h))]
+    assert len(bare) == 2, "expected the deadline-bounded and whole-day bare projections"
+    deadline_bounded = [p for p in bare if "horizon_h" in p[1]]
+    whole_day = [p for p in bare if "horizon_h" not in p[1]]
+    assert len(deadline_bounded) == 1 and len(whole_day) == 1
+    solar_feasible_edge = deadline_bounded[0][2]
+    cushion_edge = whole_day[0][2]
+    nominal_time_backup_h = 16.0 - mgr._controller._charge_delay_status["charge_time_h"] - 0.5
+    time_backup_h = (
+        min(nominal_time_backup_h, solar_feasible_edge)
+        if solar_feasible_edge is not None
+        else nominal_time_backup_h
+    )
+    expected_edge = (
+        min(time_backup_h, cushion_edge) if cushion_edge is not None else time_backup_h
+    )
+    assert edges == [pytest.approx(expected_edge)]
     assert edges[0] > 9.0  # there was room to wait at all
 
 
@@ -894,3 +912,99 @@ def test_estimate_bare_edge_is_later_than_factored_edge():
     factored = mgr._estimate_energy_balance_unlock_h(10.0, 1.0, 8.0, 16.0, 8.0)
     bare = mgr._estimate_energy_balance_unlock_h(10.0, 1.0, 8.0, 16.0, 8.0, safety_factor=1.0)
     assert bare > factored
+
+
+# ----------------------------------------------------------------------
+# Deadline-bounded solar feasibility (time_backup should reflect realistic
+# solar-only pacing, not just a full-hardware-power assumption)
+# ----------------------------------------------------------------------
+
+def test_horizon_h_shrinks_the_window_without_reshaping_the_curve():
+    """A tighter horizon must only cut off late-day production, not distort
+    the sinusoidal shape (which stays keyed to the true t_start/t_end).
+    """
+    mgr = _make_mgr(_controller())
+    full = mgr._estimate_energy_balance_unlock_h(
+        10.0, 5.0, 8.0, 16.0, 8.0, safety_factor=1.0,
+    )
+    bounded = mgr._estimate_energy_balance_unlock_h(
+        10.0, 5.0, 8.0, 16.0, 8.0, safety_factor=1.0, horizon_h=12.0,
+    )
+    # Less production is countable within the shorter window, so the
+    # bounded edge (if any) must be no later than the full-window edge, and
+    # a bounded run can turn a previously-safe (None) day into a real edge.
+    assert bounded is not None
+    assert full is None or bounded <= full + 1e-9
+
+
+def test_horizon_h_matching_t_end_reproduces_original_behavior():
+    mgr = _make_mgr(_controller())
+    args = (10.0, 5.0, 8.0, 16.0, 8.0)
+    kwargs = dict(safety_factor=1.0, forecast_is_remaining=True)
+    baseline = mgr._estimate_energy_balance_unlock_h(*args, **kwargs)
+    explicit = mgr._estimate_energy_balance_unlock_h(*args, horizon_h=16.0, **kwargs)
+    assert explicit == baseline
+
+
+def test_solar_feasible_unlock_pulls_time_backup_earlier_than_full_power_assumption(monkeypatch):
+    """Plenty of total solar kWh by t_end, but not enough arrives before the
+    safety-margin deadline specifically -> the delay must unlock earlier
+    than the naive full-hardware-power formula would, instead of only
+    discovering the shortfall at the deadline itself and needing a grid
+    top-up.
+    """
+    now = dt_util.now().replace(hour=9, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
+    ctrl = _controller(
+        # 30% -> 80% of 10 kWh = 5 kWh needed; tiny system power so the
+        # nominal (full-power) time-backup estimate is very late in the day.
+        coordinators=[_coord(soc=30, total_energy=10.0, min_soc=20)],
+        _consumption_tracker=_tracker(
+            estimate_t_end=lambda: 18.0,
+            get_avg_daily_consumption=lambda: 0.5,
+        ),
+        _solar_t_start=8.0,
+        _delay_safety_margin_h=1.0,
+        _effective_system_capacity=lambda coords, is_charging: 6000.0,
+    )
+    # Big whole-day forecast (so energy_insufficient is False over t_end) but
+    # most of it is modelled as arriving in a bell curve peaking mid-day —
+    # by the deadline (17:00) less may have arrived than the bare 5 kWh need.
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(5.5)})
+
+    mgr._should_delay_charge(80)
+    status = ctrl._charge_delay_status
+
+    nominal = 18.0 - status["charge_time_h"] - 1.0
+    # The gate must have tightened the estimate below the naive full-power
+    # figure once a deadline-bounded solar shortfall is projected.
+    unlock_h = _hhmm_to_h(status["estimated_unlock_time"])
+    assert unlock_h <= nominal + 1e-6
+
+
+def _hhmm_to_h(value):
+    h, m = value.split(":")
+    return int(h) + int(m) / 60.0
+
+
+
+def test_energy_balance_gate_accounts_for_charge_efficiency(monkeypatch):
+    """A forecast that exactly matches the raw battery-side deficit must NOT
+    be treated as sufficient — converting it into stored energy always loses
+    (1 - CHARGE_EFFICIENCY) along the way, so the AC-side solar requirement
+    must be larger than the plain kWh gap by 1/CHARGE_EFFICIENCY.
+    """
+    _at_hour(monkeypatch, 9)
+    # needed = (80-50)% * 10 kWh = 3.0 kWh (battery-side).
+    ctrl = _controller(
+        coordinators=[_coord(soc=50, total_energy=10.0, min_soc=20)],
+        _consumption_tracker=_tracker(get_avg_daily_consumption=lambda: 0.0),
+        _solar_t_start=8.0,
+    )
+    # Forecast exactly equal to the bare battery-side need (no consumption
+    # subtracted) -> without the efficiency fix this reads as "just enough";
+    # with it, it must read as a genuine deficit (3.0 < 3.0 / 0.85).
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(3.0)})
+
+    assert mgr._should_delay_charge(80) is False
+    assert mgr._controller._charge_delay_status["unlock_reason"] == "energy_balance"
