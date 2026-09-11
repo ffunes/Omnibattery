@@ -609,6 +609,102 @@ def test_the_same_sun_cannot_pay_for_two_peaks():
     assert plan.reserve_kwh == pytest.approx(1.5)
 
 
+# ----------------------------------------------------------------------
+# What the entity can explain on its own
+# ----------------------------------------------------------------------
+
+
+def test_the_plan_records_what_the_claims_and_the_sun_each_did():
+    """reserve_kwh is claimed_kwh minus pv_credit_kwh, and all three are kept."""
+    from custom_components.omnibattery.pricing.discharge_reserve import (
+        plan_discharge_reserve,
+    )
+
+    morning = _slot(7, 0.42)
+    midday = _slot(12, 0.10)
+    evening = _slot(19, 0.52)
+    plan = plan_discharge_reserve(
+        [morning, midday, evening],
+        {morning: 0.5, midday: 0.0, evening: 2.0},
+        surplus_by_slot={morning: 0.0, midday: 8.0, evening: 0.0},
+        free_space_kwh=1.5,
+        usable_energy_kwh=3.0,
+        total_capacity_kwh=5.12,
+        current_price=0.345,
+        min_saving=0.05,
+        now=DAY + timedelta(minutes=30),
+    )
+    assert plan.threshold_price == pytest.approx(0.395)
+    assert plan.claimed_kwh == pytest.approx(2.5)
+    assert plan.pv_credit_kwh == pytest.approx(2.0)
+    assert plan.reserve_kwh == pytest.approx(plan.claimed_kwh - plan.pv_credit_kwh)
+    assert plan.horizon_demand_kwh == pytest.approx(2.5)
+    assert plan.horizon_surplus_kwh == pytest.approx(8.0)
+    assert [
+        (slot.start.hour, round(claimed, 3), round(credit, 3))
+        for slot, claimed, credit in plan.claim_breakdown
+    ] == [(7, 0.5, 0.0), (19, 2.0, 2.0)]
+
+
+def test_a_released_cycle_still_shows_the_claim_the_sun_paid_off():
+    """pv_refills_in_time reserves nothing, so the claim must be kept elsewhere."""
+    from custom_components.omnibattery.pricing.discharge_reserve import (
+        REASON_PV_COVERS_IT,
+        plan_discharge_reserve,
+    )
+
+    midday = _slot(12, 0.15)
+    evening = _slot(19, 0.45)
+    plan = plan_discharge_reserve(
+        [midday, evening],
+        {midday: 0.0, evening: 3.0},
+        surplus_by_slot={midday: 4.0, evening: 0.0},
+        free_space_kwh=5.0,
+        usable_energy_kwh=6.0,
+        total_capacity_kwh=10.0,
+        current_price=0.15,
+        min_saving=0.05,
+        now=DAY + timedelta(hours=10),
+    )
+    assert plan.reason == REASON_PV_COVERS_IT
+    assert plan.selected_slots == []
+    assert plan.claimed_kwh == pytest.approx(3.0)
+    assert plan.pv_credit_kwh == pytest.approx(3.0)
+    assert len(plan.claim_breakdown) == 1
+
+
+def test_a_cycle_that_reserves_nothing_clears_the_previous_figures():
+    """Stale attributes would explain the wrong cycle."""
+    plan = _built().plan
+    assert plan is not None
+
+    plan.reserve_kwh_at(NOW, 0.20)
+    assert plan.claimed_kwh > 0
+
+    # 17:00 at 0.42: nothing ahead clears the 0.05 margin any more.
+    plan.reserve_kwh_at(DAY + timedelta(hours=17), 0.42)
+    assert plan.claimed_kwh == 0.0
+    assert plan.pv_credit_kwh == 0.0
+    assert plan.threshold_price == pytest.approx(0.47)
+    assert plan.claim_breakdown == []
+
+
+def test_the_status_attributes_carry_the_audit_trail():
+    manager = _built()
+    manager.reserve_soc_pct()
+    status = manager.get_status()
+    assert status["threshold_price"] == pytest.approx(0.25)
+    assert status["claimed_kwh"] == pytest.approx(4.0)
+    assert status["pv_credit_kwh"] == 0.0
+    assert status["first_claim_start"] == (DAY + timedelta(hours=18)).isoformat()
+    assert status["horizon_demand_kwh"] == pytest.approx(4.0)
+    assert status["horizon_surplus_kwh"] == 0.0
+    assert [claim["start"] for claim in status["claims"]] == [
+        (DAY + timedelta(hours=18)).isoformat(),
+        (DAY + timedelta(hours=19)).isoformat(),
+    ]
+
+
 def test_a_battery_serving_the_backup_port_does_not_size_the_reserve():
     """Its energy never reaches the house, so it must not raise the reserve."""
     healthy = _coordinator(name="battery-1")

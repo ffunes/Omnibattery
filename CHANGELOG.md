@@ -2,6 +2,10 @@
 
 ## [1.5.0b2] - 2026-09-10
 
+### Added
+
+- **The discharge reserve explains itself** (#446): the decision is rebuilt from the live price every control cycle, so two cycles ten minutes apart can disagree on identical-looking attributes and nobody could tell which input moved. `discharge_reserve_status` now carries the threshold the later hours had to beat, what the claims asked for, what the expected sun paid off, the first claiming slot, and the projected net demand and PV surplus over the remaining horizon. A new `claims` attribute lists every claim with its price, its claimed kWh, the PV credited against it and that slot's expected surplus, including the claims the sun covers in full, which `reserved_slots` drops. No behaviour change.
+
 ### Fixed
 
 - **A solar forecast that arrives late no longer disables the charge delay for the day** (#457): Forecast.Solar can publish the new day's remaining production as late as ~00:30, and the zero it reports until then was only held for five minutes — so at 00:05 the delay read "no sun today", unlocked permanently and the battery charged at the first opportunity while the real forecast, minutes later, promised a full day of production. A zero before 01:00 now simply waits (there is nothing to produce yet), and an unlock decided on a zero forecast stays re-evaluable, so the delay re-arms by itself as soon as the provider publishes. Thanks to @schraller.
