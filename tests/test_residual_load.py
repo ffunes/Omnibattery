@@ -25,13 +25,30 @@ from custom_components.omnibattery.control.residual_load import (
 )
 
 
-def _battery(name, *, ac_power=None, battery_power=None, soc=50, available=True):
+def _battery(
+    name,
+    *,
+    ac_power=None,
+    battery_power=None,
+    ac_delivered=None,
+    mppt_pv=False,
+    soc=50,
+    available=True,
+):
     data = {"battery_soc": soc}
     if ac_power is not None:
         data["ac_power"] = ac_power
     if battery_power is not None:
         data["battery_power"] = battery_power
-    return SimpleNamespace(name=name, data=data, is_available=available)
+    if ac_delivered is not None:
+        data["ac_delivered_power"] = ac_delivered
+    return SimpleNamespace(
+        name=name,
+        data=data,
+        is_available=available,
+        capabilities=SimpleNamespace(has_mppt_pv=mppt_pv),
+        dc_pv_connected=True,
+    )
 
 
 def _controller(
@@ -127,6 +144,30 @@ def test_nothing_is_trimmed_while_the_fleet_cannot_be_reconstructed():
 
 def test_a_missing_meter_reading_is_not_a_zero_load():
     assert uncovered_load_w(_controller([_battery("Marstek", ac_power=0)]), None) is None
+
+
+# --- defect: cell power stood in for the AC port on a DC-coupled battery ---
+def test_a_battery_charging_from_its_own_pv_is_read_at_its_ac_port():
+    """Hoymiles 4020 X, issue #399: 543 W of panels on the battery's own DC bus,
+    the house importing 637 W. The cells read +728 W "charging" whatever the AC
+    port does, so the fleet term came out 728 W too low, the uncovered load went
+    negative and the surplus guard refused every discharge while the sun was up.
+    The driver's own AC port reading settles it."""
+    controller = _controller([
+        _battery("Hibattery", battery_power=728, ac_delivered=-1.3),
+    ])
+    assert uncovered_load_w(controller, 637.0) == pytest.approx(638.3)
+    # No veto: the discharge stands, capped at the load the house has left
+    # uncovered rather than dropped to standby.
+    assert apply_guards(controller, -780.0, 637.0) == pytest.approx(-638.3)
+
+
+def test_a_dc_coupled_battery_with_no_ac_reading_is_unreadable():
+    """Negating cell power is not a weaker AC figure, it is a wrong one, and a
+    wrong one vetoes. Same verdict as a silent battery: no reconstruction."""
+    controller = _controller([_battery("Zendure", battery_power=900, mppt_pv=True)])
+    assert uncovered_load_w(controller, 100.0) is None
+    assert apply_guards(controller, -800.0, 100.0) == -800.0
 
 
 # ----------------------------------------------------------------------
