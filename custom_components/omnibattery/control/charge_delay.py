@@ -666,7 +666,7 @@ class ChargeDelayManager:
                 return _unlock("past_t_end")
 
         # --- Calculate energy balance ---
-        # Energy needed to reach target_soc
+        # Energy needed to reach target_soc (battery-side / stored kWh)
         energy_needed_kwh = sum(
             (target_soc - c.data.get("battery_soc", 100)) / 100.0 * c.data.get("battery_total_energy", 0)
             for c in automatic_batteries if c.data
@@ -674,6 +674,16 @@ class ChargeDelayManager:
 
         if energy_needed_kwh <= 0:
             return _unlock("batteries_full")
+
+        # AC-side equivalent of the same deficit: every comparison against a
+        # solar/production-side figure (remaining_solar_kwh, net_solar_for_battery)
+        # must use this, not the raw battery-side energy_needed_kwh, or charge
+        # losses get silently ignored and the forecast looks more sufficient
+        # than it really is (by roughly 1/CHARGE_EFFICIENCY, i.e. ~5-15%
+        # optimistic at typical efficiencies).
+        energy_needed_ac_kwh = (
+            energy_needed_kwh / CHARGE_EFFICIENCY if CHARGE_EFFICIENCY > 0 else energy_needed_kwh
+        )
 
         # Charge time estimate
         max_charge_power_kw = ctrl._effective_system_capacity(
@@ -755,7 +765,7 @@ class ChargeDelayManager:
         # near the deadline because solar-only charging started too late.
         nominal_time_backup_unlock_h = t_end - charge_time_h - safety_margin_h
         solar_feasible_unlock_h = self._estimate_energy_balance_unlock_h(
-            forecast_today, energy_needed_kwh, ctrl._solar_t_start, t_end, now_h,
+            forecast_today, energy_needed_ac_kwh, ctrl._solar_t_start, t_end, now_h,
             safety_factor=1.0,
             forecast_is_remaining=forecast_is_remaining,
             consumption_profile=profile_forecast,
@@ -767,7 +777,7 @@ class ChargeDelayManager:
             else nominal_time_backup_unlock_h
         )
         time_limit_reached = now_h >= time_backup_unlock_h
-        energy_insufficient = net_solar_for_battery < (energy_needed_kwh * DELAY_SAFETY_FACTOR)
+        energy_insufficient = net_solar_for_battery < (energy_needed_ac_kwh * DELAY_SAFETY_FACTOR)
 
         # Update status with calculation details
         status["energy_needed_kwh"] = round(energy_needed_kwh, 2)
@@ -778,7 +788,7 @@ class ChargeDelayManager:
 
         # Estimate unlock time: earliest of time-backup and energy-balance triggers
         energy_balance_unlock_h = self._estimate_energy_balance_unlock_h(
-            forecast_today, energy_needed_kwh, ctrl._solar_t_start, t_end, now_h,
+            forecast_today, energy_needed_ac_kwh, ctrl._solar_t_start, t_end, now_h,
             forecast_is_remaining=forecast_is_remaining,
             consumption_profile=profile_forecast,
         )
@@ -800,11 +810,11 @@ class ChargeDelayManager:
             ctrl._delay_last_log_time = current_time
             _LOGGER.info(
                 "Charge Delay (target=%d%%): Solar remaining=%.1f kWh, Consumption remaining=%.1f kWh, "
-                "Net for battery=%.1f kWh, Needed=%.1f kWh (×%.1f=%.1f), "
+                "Net for battery=%.1f kWh, Needed=%.1f kWh AC-equiv (÷%.2f) ×%.1f=%.1f, "
                 "Charge time=%.1fh, Hours to T_end=%.1fh → %s",
                 target_soc, remaining_solar_kwh, remaining_consumption_kwh,
-                net_solar_for_battery, energy_needed_kwh,
-                DELAY_SAFETY_FACTOR, energy_needed_kwh * DELAY_SAFETY_FACTOR,
+                net_solar_for_battery, energy_needed_kwh, CHARGE_EFFICIENCY,
+                DELAY_SAFETY_FACTOR, energy_needed_ac_kwh * DELAY_SAFETY_FACTOR,
                 charge_time_h, hours_to_t_end,
                 "KEEP DELAY" if not energy_insufficient and not time_limit_reached else "UNLOCK"
             )
@@ -819,10 +829,10 @@ class ChargeDelayManager:
             # bounded by the moment the BARE balance (no safety factor) is projected
             # to break, so the SOC target stays reachable and the cushion is the only
             # thing spent. Genuine deficits (net < needed) still unlock immediately.
-            if net_solar_for_battery >= energy_needed_kwh:
+            if net_solar_for_battery >= energy_needed_ac_kwh:
                 cushion_edge_h = self._estimate_energy_balance_unlock_h(
                     forecast_today,
-                    energy_needed_kwh,
+                    energy_needed_ac_kwh,
                     ctrl._solar_t_start,
                     t_end,
                     now_h,
@@ -840,13 +850,13 @@ class ChargeDelayManager:
                     _LOGGER.info(
                         "Charge Delay: Cushion-only shortfall (net=%.1f >= needed=%.1f, "
                         "factored=%.1f) - holding for cheaper hour %.2fh (edge %.2fh)",
-                        net_solar_for_battery, energy_needed_kwh,
-                        energy_needed_kwh * DELAY_SAFETY_FACTOR, release_h, edge_h,
+                        net_solar_for_battery, energy_needed_ac_kwh,
+                        energy_needed_ac_kwh * DELAY_SAFETY_FACTOR, release_h, edge_h,
                     )
                     return True
             _LOGGER.info(
                 "Charge Delay: Insufficient solar (net=%.1f < needed=%.1f) - unlocking (reason: energy_balance)",
-                net_solar_for_battery, energy_needed_kwh * DELAY_SAFETY_FACTOR
+                net_solar_for_battery, energy_needed_ac_kwh * DELAY_SAFETY_FACTOR
             )
             return _unlock("energy_balance")
 
