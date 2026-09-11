@@ -2,6 +2,10 @@
 
 ## [1.5.0b2] - 2026-09-10
 
+### Added
+
+- **The discharge reserve explains itself** (#446): the decision is rebuilt from the live price every control cycle, so two cycles ten minutes apart can disagree on identical-looking attributes and nobody could tell which input moved. `discharge_reserve_status` now carries the threshold the later hours had to beat, what the claims asked for, what the expected sun paid off, the first claiming slot, and the projected net demand and PV surplus over the remaining horizon. A new `claims` attribute lists every claim with its price, its claimed kWh, the PV credited against it and that slot's expected surplus, including the claims the sun covers in full, which `reserved_slots` drops. No behaviour change.
+
 ### Fixed
 
 - **A battery charging from its own panels no longer refuses to discharge** (#399, #366): the surplus guard reconstructs what each battery contributes at the meter, and for a driver without an AC reading it negated cell power — which on a DC-coupled unit reads "charging" from the sun whatever the AC port does. The uncovered load therefore came out low by the whole array, the guard latched under sun and the battery sat in standby all day while the house imported. The device's own AC port is now used where a driver reports it, and a DC-coupled battery that reports none is treated as unreadable, which leaves the guards out of it rather than acting on a wrong figure. Thanks to @TheOops and @foretbruno-design.

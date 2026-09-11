@@ -464,6 +464,20 @@ class DischargeReserveManager:
                     "total_capacity_kwh": round(plan.total_capacity_kwh, 3),
                     "min_saving": plan.min_saving,
                     "reference_price": plan.reference_price,
+                    # The price a slot has to beat this cycle, and what the
+                    # claims and the sun did with it. reserve_kwh is
+                    # claimed_kwh minus pv_credit_kwh, so the two cycles that
+                    # disagree now say which of the three moved.
+                    "threshold_price": plan.threshold_price,
+                    "claimed_kwh": round(plan.claimed_kwh, 3),
+                    "pv_credit_kwh": round(plan.pv_credit_kwh, 3),
+                    "first_claim_start": (
+                        plan.claim_breakdown[0][0].start.isoformat()
+                        if plan.claim_breakdown
+                        else None
+                    ),
+                    "horizon_demand_kwh": round(plan.horizon_demand_kwh, 3),
+                    "horizon_surplus_kwh": round(plan.horizon_surplus_kwh, 3),
                     "horizon_end": (
                         plan.horizon_end.isoformat() if plan.horizon_end else None
                     ),
@@ -475,6 +489,20 @@ class DischargeReserveManager:
                             "net_demand_kwh": round(slot.net_demand_kwh, 3),
                         }
                         for slot in plan.selected_slots
+                    ],
+                    # Every claim, including the ones the sun paid off in full,
+                    # which never reach reserved_slots.
+                    "claims": [
+                        {
+                            "start": slot.start.isoformat(),
+                            "price": round(slot.price, 5),
+                            "claimed_kwh": round(claimed, 3),
+                            "pv_credit_kwh": round(credit, 3),
+                            "expected_surplus_kwh": round(
+                                slot.expected_surplus_kwh, 3
+                            ),
+                        }
+                        for slot, claimed, credit in plan.claim_breakdown
                     ],
                 }
             )

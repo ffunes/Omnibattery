@@ -87,6 +87,29 @@ class ReservePlan:
     reserve_kwh: float = 0.0
     selected_slots: list[ReserveSlot] = field(default_factory=list)
 
+    # Audit trail for the sensor attributes. Every one of these is an input or
+    # an intermediate of the decision below, recorded so the entity can explain
+    # why two cycles minutes apart disagreed. Nothing reads them back.
+    threshold_price: float | None = None
+    claimed_kwh: float = 0.0
+    pv_credit_kwh: float = 0.0
+    horizon_demand_kwh: float = 0.0
+    horizon_surplus_kwh: float = 0.0
+    # (slot, claimed_kwh, pv_credit_kwh) per claim, kept even when the credit
+    # covers everything and no slot is returned as reserved. That is exactly
+    # the cycle whose reasoning is hardest to follow from the outside.
+    claim_breakdown: list[tuple[ReserveSlot, float, float]] = field(
+        default_factory=list
+    )
+
+    def _reset_audit(self) -> None:
+        self.threshold_price = None
+        self.claimed_kwh = 0.0
+        self.pv_credit_kwh = 0.0
+        self.horizon_demand_kwh = 0.0
+        self.horizon_surplus_kwh = 0.0
+        self.claim_breakdown = []
+
     def reserve_kwh_at(
         self,
         now: datetime,
@@ -101,8 +124,11 @@ class ReservePlan:
         the current hour becomes the expensive one, without waiting for the next
         rebuild.
 
-        Returns ``(reserve_kwh, claiming_slots, reason)``.
+        Returns ``(reserve_kwh, claiming_slots, reason)``. The audit fields on
+        the plan are refreshed on the way through, including on the early
+        returns, so the attributes never show a figure from an earlier cycle.
         """
+        self._reset_audit()
         available = (
             self.usable_energy_kwh
             if usable_energy_kwh is None
@@ -114,6 +140,17 @@ class ReservePlan:
             return 0.0, [], REASON_NO_PRICE
 
         threshold = float(current_price) + max(0.0, self.min_saving)
+        self.threshold_price = threshold
+        self.horizon_demand_kwh = sum(
+            [_positive(slot.net_demand_kwh) for slot in self.slots if slot.start >= now]
+        )
+        self.horizon_surplus_kwh = sum(
+            [
+                _positive(slot.expected_surplus_kwh)
+                for slot in self.slots
+                if slot.start >= now
+            ]
+        )
         candidates = [
             slot
             for slot in self.slots
@@ -143,7 +180,13 @@ class ReservePlan:
         # holding the same energy back now would import at today's price and
         # export the PV that was going to replace it.
         space = self.free_space_kwh if free_space_kwh is None else _positive(free_space_kwh)
-        reserve = self._reserve_after_pv(now, claims, space, available)
+        reserve, credits = self._reserve_after_pv(now, claims, space, available)
+        self.claimed_kwh = claimed
+        self.pv_credit_kwh = sum(credits)
+        self.claim_breakdown = [
+            (claims[index][0], claims[index][1], credits[index])
+            for index in range(len(claims))
+        ]
         if reserve <= EPSILON:
             return 0.0, [], REASON_PV_COVERS_IT
         return reserve, [slot for slot, _take in claims], REASON_RESERVED
@@ -154,7 +197,7 @@ class ReservePlan:
         claims: list[tuple[ReserveSlot, float]],
         free_space_kwh: float,
         available_kwh: float,
-    ) -> float:
+    ) -> tuple[float, list[float]]:
         """Spend each expected PV kWh once, walking the claims in time order.
 
         A single pre-dawn claim used to close the credit window for the whole
@@ -173,11 +216,16 @@ class ReservePlan:
         interval: demand that falls *after* a sunny slot cannot make room for
         that slot's surplus, and rolling an interval into a single pair would
         credit it as if it had.
+
+        Returns ``(reserve_kwh, credit_per_claim)``, the second in the same
+        order as ``claims`` so the attributes can show which claim the sun paid
+        for.
         """
         room = _positive(free_space_kwh)
         ceiling = room + _positive(available_kwh)
         stored = 0.0
         reserve = 0.0
+        credits = [0.0] * len(claims)
         pending = 0
         for slot in self.slots:
             if slot.start < now:
@@ -187,6 +235,7 @@ class ReservePlan:
                 credit = min(take, stored)
                 stored -= credit
                 reserve += take - credit
+                credits[pending] = credit
                 pending += 1
             # The battery serves this slot's demand, which is room the sun can
             # land in; what it cannot hold is exported and never pays a claim.
@@ -194,10 +243,14 @@ class ReservePlan:
             absorbed = min(_positive(slot.expected_surplus_kwh), room)
             room -= absorbed
             stored += absorbed
-        for _slot, take in claims[pending:]:
-            reserve += take - min(take, stored)
-            stored -= min(take, stored)
-        return max(0.0, reserve)
+        while pending < len(claims):
+            take = claims[pending][1]
+            credit = min(take, stored)
+            stored -= credit
+            reserve += take - credit
+            credits[pending] = credit
+            pending += 1
+        return max(0.0, reserve), credits
 
 
 def build_reserve_slots(
