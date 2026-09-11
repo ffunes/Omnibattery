@@ -43,6 +43,7 @@ from ..const import (
     GUARD_PENDING_TOLERANCE_W,
     SURPLUS_GUARD_HYSTERESIS_W,
 )
+from ..drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
 from ..energy import effective_total_discharging_energy
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,16 +55,35 @@ _LOGGER = logging.getLogger(__name__)
 def _battery_ac_power_w(coordinator):
     """A battery's contribution at the AC bus, or None if it cannot be read.
 
-    Positive while discharging. ``battery_power`` carries the opposite sign and
-    stands in for drivers that report no AC figure of their own.
+    Positive while discharging. Three sources, in order of how directly they
+    measure the AC bus, because the reconstruction is only as good as this term:
+
+    1. ``DELIVERED_AC_POWER_KEY`` -- the device's own AC port, published by the
+       drivers that can measure it, in ``battery_power`` sign convention.
+    2. ``ac_power`` -- the register Marstek and the AC-only families expose.
+    3. ``battery_power`` negated, for drivers that synthesise nothing else.
+
+    The last of those is *cell* power, and on a battery whose PV feeds the same
+    DC bus it is not the AC contribution at all: the cells read "charging" from
+    the sun while the AC port exports the commanded discharge (issue #399). Used
+    here it makes the uncovered load come out low by the whole array, so the
+    surplus guard latches under sun and refuses to discharge all day. A
+    DC-coupled battery with no AC signal is therefore unreadable, exactly like a
+    silent one -- see the module docstring on why a partial reconstruction is not
+    a weaker version of this quantity.
     """
     if not getattr(coordinator, "is_available", False) or not coordinator.data:
         return None
+    delivered = coordinator.data.get(DELIVERED_AC_POWER_KEY)
+    if delivered is not None:
+        return -float(delivered)
     ac = coordinator.data.get("ac_power")
-    if ac is None:
-        battery_power = coordinator.data.get("battery_power")
-        ac = -battery_power if battery_power is not None else None
-    return None if ac is None else float(ac)
+    if ac is not None:
+        return float(ac)
+    battery_power = coordinator.data.get("battery_power")
+    if battery_power is None or has_connected_mppt_pv(coordinator):
+        return None
+    return -float(battery_power)
 
 
 def uncovered_load_w(controller, grid_w):
