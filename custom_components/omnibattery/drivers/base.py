@@ -149,6 +149,14 @@ class DriverCapabilities:
     min_charge_power_w: int = 0
     min_discharge_power_w: int = 0
 
+    # True when a push driver's read_telemetry still proves the source is live
+    # (it drops values whose age says the upstream feed has stalled) rather than
+    # replaying a cache. Only meaningful alongside push_telemetry: it tells the
+    # coordinator the post-reconnect probe read is worth running, so a reconnect
+    # that did not actually restore telemetry cannot clear the failure counter
+    # and starve the back-off. Defaults False (a plain cache read proves nothing).
+    telemetry_liveness_checked: bool = False
+
 
 def has_connected_mppt_pv(coordinator) -> bool:
     """Return whether an MPPT-capable battery has panels connected.

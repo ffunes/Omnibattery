@@ -37,6 +37,7 @@ from ..const import (
     PHASE_L2,
     PHASE_L3,
     PHASE_NOMINAL_VOLTAGE_V,
+    PHASE_SENSOR_DEGRADED_REPAIR_S,
     PHASE_UNASSIGNED,
     PHASE_VALUES,
     SLOT_MODE_MANUAL,
@@ -204,6 +205,12 @@ class PhasePowerLimiter:
         self.meter_inverted = False
         self._phase_settings: dict[str, tuple[str | None, float]] = {}
         self._snapshots: dict[str, dict[str, Any]] = {}
+        # Survives begin_cycle(): the discharge a phase was last measured
+        # delivering while its sensor was healthy, used as the fallback when
+        # telemetry is lost.  See _degraded_budget.
+        self._hold_discharge_w: dict[str, int] = {}
+        self._degraded_since: dict[str, datetime] = {}
+        self._degraded_warning_phases: set[str] = set()
         self._planned: dict[Any, tuple[bool, int]] = {}
         self._limited_batteries: dict[Any, dict[str, Any]] = {}
         self._last_log_signature: dict[str, tuple[Any, ...]] = {}
@@ -325,6 +332,8 @@ class PhasePowerLimiter:
             "requested_power_w": 0.0,
             "degraded": False,
             "reason": None,
+            "age_s": None,
+            "hold_discharge_w": 0,
         }
         if not self.enabled:
             snapshot["reason"] = "disabled"
@@ -342,7 +351,15 @@ class PhasePowerLimiter:
 
         reading, battery_power = self._read_phase(phase)
         if reading.value_a is None:
-            snapshot.update({"degraded": True, "reason": reading.reason})
+            snapshot.update(
+                {
+                    "degraded": True,
+                    "reason": reading.reason,
+                    "age_s": reading.age_s,
+                    "hold_discharge_w": self._hold_discharge_w.get(phase, 0),
+                }
+            )
+            self._degraded_since.setdefault(phase, dt_util.utcnow())
             self._log_state_change(snapshot)
             self._snapshots[phase] = snapshot
             return snapshot
@@ -367,8 +384,17 @@ class PhasePowerLimiter:
                     _current_budget_to_power(budgets["discharge_budget_a"]),
                     self.rounding_w,
                 ),
+                "age_s": reading.age_s,
             }
         )
+        # Remember what this phase is actually delivering, not what it is
+        # allowed to: a later telemetry loss may hold that discharge but must
+        # never raise it.  The budget cap keeps the hold inside the fuse.
+        self._hold_discharge_w[phase] = _round_down(
+            min(max(0.0, -battery_power), float(snapshot["discharge_budget_w"])),
+            self.rounding_w,
+        )
+        self._degraded_since.pop(phase, None)
         self._snapshots[phase] = snapshot
         return snapshot
 
@@ -388,6 +414,23 @@ class PhasePowerLimiter:
             )
             for phase, snapshot in self.all_snapshots().items()
         )
+
+    def _degraded_budget(self, snapshot: dict[str, Any], is_charging: bool) -> int:
+        """Return what a phase may still do once its telemetry is untrusted.
+
+        The two directions are not symmetric against the fuse.  Charging adds
+        import current to the phase, so it stops at once.  Discharging is
+        serving the house: zeroing it hands that load back to the grid and
+        pushes the phase current *up*, the opposite of what this envelope is
+        for.  So the discharge holds at whatever the phase was last measured
+        delivering, which was recorded under a valid reading and is therefore
+        already inside the fuse rating.
+        """
+        if is_charging:
+            return 0
+        # ponytail: the hold does not expire.  A timeout would only re-create
+        # the inversion above, and the held value is bounded by the phase cap.
+        return max(0, int(snapshot.get("hold_discharge_w") or 0))
 
     def _individual_limit(self, coordinator: Any, is_charging: bool) -> float:
         if self.controller is not None:
@@ -534,7 +577,7 @@ class PhasePowerLimiter:
             snapshot = self.phase_snapshot(phase)
             requested_total = sum(phase_request.values())
             if snapshot["degraded"]:
-                budget = 0
+                budget = self._degraded_budget(snapshot, is_charging)
             elif snapshot.get("reason") == "not_configured":
                 budget = requested_total
             else:
@@ -686,19 +729,6 @@ class PhasePowerLimiter:
             self._limited_batteries.pop(coordinator, None)
             return (allowed, 0) if is_charging else (0, allowed)
         snapshot = self.phase_snapshot(phase)
-        if snapshot["degraded"]:
-            snapshot["requested_power_w"] = requested
-            snapshot["assigned_power_w"] = 0
-            self._record_limited_battery(
-                coordinator,
-                phase,
-                requested,
-                0,
-                is_charging,
-                snapshot.get("reason") or "phase_degraded",
-            )
-            return 0, 0
-
         own_limit = _round_down(
             self._individual_limit(coordinator, is_charging), self.rounding_w
         )
@@ -710,11 +740,14 @@ class PhasePowerLimiter:
             self._limited_batteries.pop(coordinator, None)
             return (allowed, 0) if is_charging else (0, allowed)
 
-        budget = (
-            snapshot["charge_budget_w"]
-            if is_charging
-            else snapshot["discharge_budget_w"]
-        )
+        if snapshot["degraded"]:
+            budget = self._degraded_budget(snapshot, is_charging)
+        else:
+            budget = (
+                snapshot["charge_budget_w"]
+                if is_charging
+                else snapshot["discharge_budget_w"]
+            )
         other_power = sum(
             self._commanded_direction_power(other, is_charging)
             for other in getattr(self.controller, "coordinators", []) or []
@@ -736,10 +769,16 @@ class PhasePowerLimiter:
                 requested,
                 allowed,
                 is_charging,
+                (snapshot.get("reason") or "phase_degraded")
+                if snapshot["degraded"]
+                else "phase_limit",
             )
             snapshot["requested_power_w"] = requested
             snapshot["assigned_power_w"] = allowed if is_charging else -allowed
-            self._log_limit(snapshot, requested, allowed)
+            if not snapshot["degraded"]:
+                # A degraded phase has no reading to quote; _log_state_change
+                # already reported it.
+                self._log_limit(snapshot, requested, allowed)
         else:
             self._limited_batteries.pop(coordinator, None)
         return (allowed, 0) if is_charging else (0, allowed)
@@ -757,12 +796,16 @@ class PhasePowerLimiter:
             return
         self._last_log_signature[phase] = signature
         if snapshot.get("degraded"):
+            age_s = snapshot.get("age_s")
             _LOGGER.warning(
-                "Three-phase current protection %s degraded: sensor=%s reason=%s; "
-                "automatic assignments on this phase are limited to 0 W",
+                "Three-phase current protection %s degraded: sensor=%s reason=%s "
+                "age=%s; charging on this phase is blocked and its discharge is "
+                "held at %d W",
                 PHASE_LABELS.get(phase, phase),
                 snapshot.get("sensor"),
                 snapshot.get("reason"),
+                f"{age_s:.0f}s" if age_s is not None else "unknown",
+                snapshot.get("hold_discharge_w") or 0,
             )
         elif previous and previous[0]:
             _LOGGER.info(
@@ -864,6 +907,47 @@ class PhasePowerLimiter:
             "phases": phases,
             "manual_mode_warning": self._manual_warning_created,
         }
+
+    def update_degraded_warning(self) -> None:
+        """Surface a phase whose sensor has been unusable for a long while.
+
+        A short gap is already handled by holding the discharge, but a sensor
+        that stays unreadable leaves the phase running blind, and the warning
+        log is not something a user ever sees.
+        """
+        entry_id = getattr(self.config_entry, "entry_id", "") or ""
+        now = dt_util.utcnow()
+        for phase in PHASE_VALUES:
+            since = self._degraded_since.get(phase)
+            stuck = (
+                self.enabled
+                and since is not None
+                and (now - since).total_seconds() >= PHASE_SENSOR_DEGRADED_REPAIR_S
+            )
+            if stuck == (phase in self._degraded_warning_phases):
+                continue
+            issue_id = f"three_phase_sensor_degraded_{entry_id}_{phase}"
+            if stuck:
+                snapshot = self._snapshots.get(phase) or {}
+                ir.async_create_issue(
+                    self.hass,
+                    "omnibattery",
+                    issue_id,
+                    is_fixable=False,
+                    is_persistent=True,
+                    issue_domain="omnibattery",
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key="three_phase_sensor_degraded",
+                    translation_placeholders={
+                        "phase": PHASE_LABELS.get(phase, phase),
+                        "sensor": str(snapshot.get("sensor") or "?"),
+                        "reason": str(snapshot.get("reason") or "?"),
+                    },
+                )
+                self._degraded_warning_phases.add(phase)
+            else:
+                ir.async_delete_issue(self.hass, "omnibattery", issue_id)
+                self._degraded_warning_phases.discard(phase)
 
     def _has_manual_time_slot(self) -> bool:
         """Return whether an enabled manual operation slot is configured."""

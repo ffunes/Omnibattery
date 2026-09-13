@@ -1176,7 +1176,6 @@ class ChargeDischargeController:
         self._charge_delay_profile_source_cache = None
         self._charge_delay_balance_needs_charge = True  # Cached balance result (conservative default)
         self._forecast_unavailable_since = None   # monotonic ts when a configured forecast sensor first read unavailable
-        self._forecast_zero_since = None          # bounded grace for a provisional midnight zero
         self._forecast_grace_s = 300              # hold the delay through forecast blips / HA-startup sensor loading before unlocking
         self._solar_t_start = None
         self._delay_last_log_time = 0           # Throttle logging to every 5 minutes
@@ -6567,14 +6566,14 @@ class ChargeDischargeController:
             and self._last_commanded_net_sign.get(coordinator) != 1
         ):
             self._charge_engage_started[coordinator] = dt_util.utcnow()
-            self._non_responsive.clear(coordinator)
+            self._non_responsive.clear(coordinator, delivering=False)
         if (
             not preserve_non_responsive_episode
             and net_sign == -1
             and self._last_commanded_net_sign.get(coordinator) != -1
         ):
             self._discharge_engage_started[coordinator] = dt_util.utcnow()
-            self._non_responsive.clear(coordinator)
+            self._non_responsive.clear(coordinator, delivering=False)
         # Mirror stamp for the opposite transition: a flip from a move into idle
         # starts the ramp-down grace for the idle-runaway judgment below. A
         # battery idle from the start (no prior commanded move) gets no grace —
@@ -8498,6 +8497,10 @@ class ChargeDischargeController:
         if any(c._is_shutting_down for c in self.coordinators):
             return
         self._phase_power_limiter.begin_cycle()
+        self._phase_power_limiter.update_degraded_warning()
+        self._non_responsive.update_repairs(
+            self.hass, getattr(self.config_entry, "entry_id", "") or ""
+        )
 
         # === HOUSEHOLD CONSUMPTION ACCUMULATION ===
         # Run before manual mode check so samples are never lost
@@ -10509,6 +10512,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # alter sensor_actual / active_target / Grid 0. Subscribe even when the
     # protection switch is currently off so enabling it from the dashboard does
     # not require an integration reload; the limiter ignores them while off.
+    #
+    # They schedule the cycle exactly like the grid-meter event does (no `now`),
+    # so CONF_PD_MIN_CYCLE_INTERVAL paces them too. Passing a timestamp marked
+    # them as the periodic safety timer, which is never gated - three phase
+    # sensors on a 1 Hz P1 meter then drove several ungated control cycles per
+    # second, each one a set-point write burst, and on a slow bridge (ESPHome
+    # modbus_controller, Elfin EW11) the queue overflowed and the writes never
+    # reached the battery (issue #452). Nothing is lost by pacing them:
+    # _phase_safety_pending stays set until a cycle services it, and the 2 s
+    # safety timer runs ungated regardless.
     phase_sensors = list(
         dict.fromkeys(
             entry.data.get(key)
@@ -10526,7 +10539,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         @callback
         def _on_phase_sensor_changed(_event):
             controller._phase_safety_pending = True
-            controller.schedule_control_cycle(dt_util.utcnow())
+            controller.schedule_control_cycle()
 
         unsub_phase = _call_once(
             async_track_state_change_event(
@@ -10541,7 +10554,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             @callback
             def _on_phase_sensor_reported(event):
                 controller._phase_safety_pending = True
-                controller.schedule_control_cycle(dt_util.utcnow())
+                controller.schedule_control_cycle()
 
             unsub_phase_reported = _call_once(
                 track_state_report_event(

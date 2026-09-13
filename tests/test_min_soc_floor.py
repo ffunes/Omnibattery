@@ -11,11 +11,12 @@ a stub controller (no Home Assistant runtime needed).
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.pricing.engine import PricingManager
+from custom_components.omnibattery.tracking.consumption_profile import ConsumptionForecast
 
 
 class _Coord:
@@ -546,6 +547,106 @@ def test_slot_exit_noop_when_nothing_to_clean():
     assert dismissed["n"] == 0
 
 
+# --- chronological guaranteed-floor deadlines (Time Slot mode) ----------------
+# The reactive trigger above only fires once SOC is already below
+# (floor - hysteresis).  The predictive half lives in the chronological plan:
+# it must start the charge at the window's start, sized so the battery still
+# holds the floor when the sun arrives.  #447: the window parse rejected every
+# configured slot, so this half never ran and the reactive trigger fired at the
+# very end of the cheap window.
+
+_FLOOR_TZ = timezone(timedelta(hours=2))
+_FLOOR_CAP = 5.12
+_FLOOR_BASE_KW = 0.3618
+
+
+def _floor_manager(soc):
+    coord = _Coord(soc, _FLOOR_CAP, min_soc=12, max_soc=100)
+    coord.name = "Venus"
+    coord.is_available = True
+
+    def forecast_between(start, end, *, fallback="legacy_daily"):
+        hours = (end - start).total_seconds() / 3600.0
+        return ConsumptionForecast(
+            _FLOOR_BASE_KW * hours, [_FLOOR_BASE_KW * 0.25] * 96, "profile", True
+        )
+
+    tracker = SimpleNamespace(
+        consumption_profile=SimpleNamespace(),
+        forecast_consumption_between=forecast_between,
+        solar_profile=SimpleNamespace(_days={}, get_snapshot=lambda **_k: None),
+        calculate_sunrise=lambda: 6.3,
+        calculate_solar_noon=lambda: 13.0,
+    )
+    windows = [{
+        "start_time": "01:00:00",
+        "end_time": "05:00:00",
+        "days": ["mon", "tue", "wed", "thu", "fri", "sat"],
+    }]
+    controller = SimpleNamespace(
+        coordinators=[coord],
+        charging_time_slots=windows,
+        config_entry=SimpleNamespace(data={}, options={}),
+        _consumption_tracker=tracker,
+        solar_profile_mode="off",
+        _predictive_safety_margin_kwh=0.0,
+        _predictive_grid_charge_margin_pct=0.0,
+        _predictive_min_soc_floor=20.0,
+        _predictive_min_soc_floor_enabled=True,
+        _active_time_slot_quota_kwh=None,
+        max_contracted_power=14000.0,
+        max_charge_capacity=1500.0,
+        max_price_threshold=None,
+        charge_delay_enabled=False,
+        _solar_t_start=None,
+        _is_battery_manual_owned=lambda _c: False,
+        _charge_ceiling_soc=lambda _c: 100.0,
+    )
+    manager = PricingManager(SimpleNamespace(states=SimpleNamespace(get=lambda _e: None)), controller)
+    manager._store_chronological_diagnostics = lambda _d: None
+    # Plenty of sun today, all of it after sunrise.
+    manager._solar_timeline_input = lambda now, data, *, horizon_end: SimpleNamespace(
+        remaining_kwh=20.0,
+        periods=None,
+        temporal_shape=None,
+        original_source="remaining_sensor",
+        conversion="none",
+        source="remaining",
+    )
+    return manager
+
+
+def _floor_decision(soc):
+    return _floor_manager(soc)._apply_time_slot_chronological_plan(
+        {
+            "should_charge": False,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 0.0,
+            "planned_grid_charge_kwh": 0.0,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        now=datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ),
+    )
+
+
+def test_floor_charges_at_window_start_not_when_soc_already_crossed():
+    # 45% at 01:00 is far above the reactive band (floor 20% - 5% = 15%), but
+    # the projection says 0.36 kW until 06:18 drains it past the floor, so the
+    # window must already be charging.
+    decision = _floor_decision(45.0)
+
+    assert decision["floor_active"] is True
+    assert decision["should_charge"] is True
+    assert decision["active_slot_energy_target_kwh"] > 0.5
+
+
+def test_lower_soc_at_window_start_asks_for_more_energy():
+    assert (
+        _floor_decision(25.0)["active_slot_energy_target_kwh"]
+        > _floor_decision(45.0)["active_slot_energy_target_kwh"]
+    )
+
+
 if __name__ == "__main__":
     test_floor_forces_charge_on_solar_positive_day()
     test_floor_deficit_covers_every_battery_under_the_floor()
@@ -563,4 +664,6 @@ if __name__ == "__main__":
     test_floor_recovered_does_not_fire_twice()
     test_slot_exit_resets_eval_soc_after_no_charge_day()
     test_slot_exit_noop_when_nothing_to_clean()
+    test_floor_charges_at_window_start_not_when_soc_already_crossed()
+    test_lower_soc_at_window_start_asks_for_more_energy()
     print("ok")
