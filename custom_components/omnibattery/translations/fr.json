@@ -16,6 +16,10 @@
       "title": "La protection triphasée peut être contournée par des commandes manuelles",
       "description": "La protection triphasée est activée, mais les commandes manuelles de registres ou de créneaux peuvent écrire directement sur une batterie. Gardez ces commandes dans les limites configurées."
     },
+    "dead_main_sensor": {
+      "title": "Le capteur de puissance réseau ne publie plus",
+      "description": "Le capteur réseau configuré {sensor} n'a publié aucune mesure depuis {minutes} minutes. Omnibattery ne peut pas réguler sans lui et maintient donc sa dernière commande de {power} W : passée la tolérance d'ancienneté, le régulateur cesse d'intégrer de nouvelles corrections plutôt que d'agir sur une mesure qu'il sait périmée. Les limites de charge et de décharge, les blocages SOC et la protection triphasée s'appliquent toujours, il n'y a donc pas d'emballement, mais les batteries continueront de charger ou de décharger à cette puissance fixe face à une consommation que plus personne ne lit, jusqu'à ce qu'une limite de SOC les arrête. À noter qu'un capteur figé sur une valeur valide paraît parfaitement sain dans Home Assistant : vérifiez que {sensor} se met encore à jour et que l'intégration ou le pont situé derrière n'est pas bloqué."
+    },
     "slow_main_sensor": {
       "title": "Le capteur de puissance réseau se met à jour trop lentement",
       "description": "Le capteur réseau configuré {sensor} se met à jour environ toutes les {observed_interval} secondes. Des intervalles de {warning_interval} secondes ou plus sont plus lents que recommandé et peuvent réduire la qualité de régulation. Omnibattery suit la dernière mesure jusqu'à ce qu'elle date de plus de {stale_limit} secondes. Utilisez un capteur plus rapide si vous avez besoin d'un contrôle temps réel plus précis."

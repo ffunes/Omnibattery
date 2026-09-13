@@ -16,6 +16,10 @@
       "title": "Driefasenbeveiliging kan door handmatige opdrachten worden omzeild",
       "description": "Driefasenbeveiliging is ingeschakeld, maar handmatige register- of tijdslotopdrachten kunnen rechtstreeks naar een batterij schrijven. Houd deze opdrachten binnen de geconfigureerde fasegrenzen."
     },
+    "dead_main_sensor": {
+      "title": "Netvermogenssensor publiceert niet meer",
+      "description": "De ingestelde netsensor {sensor} heeft al {minutes} minuten geen meting gepubliceerd. Omnibattery kan zonder die meting niet regelen en houdt daarom het laatste commando van {power} W vast: voorbij de verouderingstolerantie verwerkt de regelaar geen nieuwe correcties meer in plaats van te handelen op een meting waarvan hij weet dat die oud is. Laad- en ontlaadlimieten, SOC-blokkades en de driefasenbeveiliging gelden nog steeds, dus er loopt niets uit de hand, maar de batterijen blijven op dat vaste vermogen laden of ontladen tegen een huisverbruik dat niemand meer uitleest, totdat een SOC-limiet ze stopt. Let op: een sensor die op een geldige waarde is vastgelopen ziet er in Home Assistant volkomen gezond uit. Controleer of {sensor} nog bijwerkt en of de integratie of bridge erachter niet is vastgelopen."
+    },
     "slow_main_sensor": {
       "title": "De netvermogenssensor werkt te langzaam bij",
       "description": "De geconfigureerde netsensor {sensor} werkt ongeveer elke {observed_interval} seconden bij. Intervallen van {warning_interval} seconden of meer zijn trager dan aanbevolen en kunnen de regelkwaliteit verminderen. Omnibattery volgt de laatste meting totdat deze ouder is dan {stale_limit} seconden. Gebruik een snellere sensor als u een nauwkeurigere realtime regeling nodig hebt."

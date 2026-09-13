@@ -16,6 +16,10 @@
       "title": "Dreiphasenschutz kann durch manuelle Befehle umgangen werden",
       "description": "Der Dreiphasenschutz ist aktiviert, aber manuelle Register- oder Zeitplanbefehle können direkt an eine Batterie schreiben. Halten Sie diese Befehle innerhalb der konfigurierten Phasengrenzen."
     },
+    "dead_main_sensor": {
+      "title": "Netzleistungssensor sendet keine Werte mehr",
+      "description": "Der konfigurierte Netzsensor {sensor} hat seit {minutes} Minuten keinen Messwert mehr veröffentlicht. Ohne ihn kann Omnibattery nicht regeln und hält daher den letzten Befehl von {power} W: nach Ablauf der Alterungstoleranz integriert der Regler keine neuen Korrekturen mehr, statt auf einen erkennbar veralteten Messwert zu reagieren. Lade- und Entladegrenzen, SOC-Sperren und der Dreiphasenschutz gelten weiterhin, es läuft also nichts außer Kontrolle. Die Batterien laden oder entladen aber weiter mit dieser festen Leistung gegen einen Hausverbrauch, den niemand mehr liest, bis eine SOC-Grenze sie stoppt. Beachte: ein auf einem gültigen Wert eingefrorener Sensor sieht in Home Assistant völlig gesund aus. Prüfe, ob {sensor} noch aktualisiert wird und ob sich die dahinterliegende Integration oder Bridge aufgehängt hat."
+    },
     "slow_main_sensor": {
       "title": "Der Netzleistungssensor aktualisiert zu langsam",
       "description": "Der konfigurierte Netzsensor {sensor} aktualisiert ungefähr alle {observed_interval} Sekunden. Intervalle von {warning_interval} Sekunden oder mehr sind langsamer als empfohlen und können die Regelqualität verringern. Omnibattery folgt dem letzten Messwert, bis er älter als {stale_limit} Sekunden ist. Verwenden Sie einen schnelleren Sensor, wenn Sie eine präzisere Echtzeitregelung benötigen."
