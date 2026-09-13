@@ -319,6 +319,7 @@ def test_opportunity_target_stays_authoritative_during_weekly_full_charge():
         grid_charging_active=True,
         _active_dynamic_slot_purpose=SLOT_PURPOSE_NEGATIVE_PRICE,
         _predictive_charge_target_soc={battery: 90.0},
+        _get_active_slot=lambda *a, **k: None,
     )
 
     ceiling, source = ChargeDischargeController._effective_charge_max_soc(
@@ -335,6 +336,7 @@ def test_normal_predictive_target_stays_authoritative_during_weekly_full_charge(
         grid_charging_active=True,
         _active_dynamic_slot_purpose=SLOT_PURPOSE_DEFICIT,
         _predictive_charge_target_soc={battery: 30.0},
+        _get_active_slot=lambda *a, **k: None,
     )
 
     ceiling, source = ChargeDischargeController._effective_charge_max_soc(

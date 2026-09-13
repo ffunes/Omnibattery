@@ -3523,12 +3523,34 @@ class ChargeDischargeController:
             return 100.0
         return float(coordinator.max_soc)
 
+    def _slot_charge_soc_max(self, coordinator) -> Optional[int]:
+        """Return the active charge slot's SOC ceiling override, or None."""
+        slot = self._get_active_slot(coordinator, "charge")
+        if not slot or not slot.get("soc_override_enabled"):
+            return None
+        slot_max = self._slot_battery_limits(slot, coordinator).get("soc_max")
+        if slot_max is None:
+            return None
+        try:
+            return max(12, min(100, int(slot_max)))
+        except (TypeError, ValueError):
+            return None
+
     def _effective_charge_max_soc(self, coordinator, weekly_100_unlocked: bool) -> tuple[float, str]:
         """Return the current per-battery charge ceiling and the source of that ceiling."""
         # A predictive grid-charge target must stop at its explicit target even
         # when a weekly-full-charge window happens to overlap. On the weekly day
         # that target is itself sized to 100%, so the two no longer disagree.
         ceiling = ChargeDischargeController._charge_ceiling_soc(self, coordinator)
+        # The slot ceiling has to fold into `ceiling` here rather than sit in a
+        # branch below: a predictive grid charge returns on its own target and
+        # never reached the slot branch, so a Time Slot that explicitly capped
+        # charging was silently ignored for the whole window. Weekly full charge
+        # still wins, as it did when the slot branch was ordered after it.
+        slot_cap = ChargeDischargeController._slot_charge_soc_max(self, coordinator)
+        if slot_cap is not None and not ChargeDischargeController._weekly_full_charge_pending(self):
+            ceiling = min(ceiling, slot_cap)
+
         if (
             self.grid_charging_active
             and self._predictive_charge_target_soc is not None
@@ -3540,15 +3562,8 @@ class ChargeDischargeController:
         if weekly_100_unlocked:
             return 100, "weekly_full_charge"
 
-        slot = self._get_active_slot(coordinator, "charge")
-        if slot and slot.get("soc_override_enabled"):
-            limits = self._slot_battery_limits(slot, coordinator)
-            slot_max = limits.get("soc_max")
-            if slot_max is not None:
-                try:
-                    return max(12, min(100, int(slot_max))), "slot_soc_override"
-                except (TypeError, ValueError):
-                    pass
+        if slot_cap is not None:
+            return slot_cap, "slot_soc_override"
 
         return coordinator.max_soc, "max_soc"
 
