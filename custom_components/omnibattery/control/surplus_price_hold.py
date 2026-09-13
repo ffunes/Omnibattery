@@ -100,6 +100,15 @@ class SurplusPriceHoldManager:
     def plan(self) -> AbsorptionPlan | None:
         return self._plan
 
+    @property
+    def live_target_unreliable(self) -> bool:
+        """True while the live-SOC target could not be recomputed.
+
+        The hold releases on it, and the discharge reserve reads it to know the
+        hold is not going to block anything it could plan around.
+        """
+        return self._live_target_failed
+
     def get_status(self) -> dict[str, Any]:
         """Return the diagnostic snapshot published by the entities."""
         return dict(self._status)

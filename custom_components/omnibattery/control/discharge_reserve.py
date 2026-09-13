@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
-from ..const import PREDICTIVE_MODE_DYNAMIC_PRICING
+from ..const import CHARGE_EFFICIENCY, PREDICTIVE_MODE_DYNAMIC_PRICING
 from ..pricing.curtailment import BatterySnapshot, distribute_solar_forecast
 from ..pricing.discharge_reserve import (
     ReservePlan,
@@ -66,6 +66,11 @@ GUARD_FLEET_UNKNOWN = "battery_state_unknown"
 # 00:30 buys the evening peak at peak price if the morning turns out cloudy.
 # Crediting three quarters of the expected surplus leaves the release to firm up
 # through the day, as the 5-minute rebuild walks the real production in.
+#
+# Applied last, over a figure the charge power and the charge losses have
+# already trimmed: this is forecast uncertainty, not physics. Haircutting the
+# raw AC surplus first would discount sun that was never going to fit in the
+# battery anyway, and read as if the uncertainty had been accounted for.
 SURPLUS_CREDIT_FACTOR = 0.75
 
 # Pre-discharge deliberately empties the battery before a curtailment window,
@@ -406,16 +411,65 @@ class DischargeReserveManager:
                 fraction_fn,
                 normalize_future=self._forecast_is_remaining(pricing),
             )
-        surplus = {
-            slot: SURPLUS_CREDIT_FACTOR
-            * max(
+        # Only the sun that can physically land in the battery pays a claim.
+        # The forecast is AC-side and unbounded; the battery takes it at a
+        # finite charge power and loses part of it on the way in, and the room
+        # it is measured against downstream is battery-side energy.
+        charge_power_w = max(
+            0.0, float(getattr(self._controller, "max_charge_capacity", 0.0) or 0.0)
+        )
+        hold_state = self._hold_plan_state(now)
+        surplus: dict = {}
+        for slot in consumption:
+            raw_kwh = max(
                 0.0,
                 float(solar.get(slot, 0.0) or 0.0)
                 - float(consumption.get(slot, 0.0) or 0.0),
             )
-            for slot in consumption
-        }
+            duration_h = max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
+            absorbed_kwh = min(raw_kwh, charge_power_w * duration_h / 1000.0)
+            if hold_state is not None:
+                known_starts, selected_starts = hold_state
+                if slot.start in known_starts and slot.start not in selected_starts:
+                    # The surplus hold has decided this hour's sun is worth more
+                    # exported than stored. Crediting it would release the
+                    # reserve against kWh that are never going to arrive.
+                    absorbed_kwh = 0.0
+            surplus[slot] = SURPLUS_CREDIT_FACTOR * absorbed_kwh * CHARGE_EFFICIENCY
         return net_demand_by_slot(consumption, solar), surplus
+
+    def _hold_plan_state(self, now: datetime) -> tuple[set, set] | None:
+        """Return ``(slots the hold planned, slots it selected)``, or None.
+
+        None means the surplus hold has no opinion this cycle and the reserve
+        must credit the sun as if it were free to land: no manager, no plan, a
+        plan that cannot hold (disabled, infeasible, nothing left to absorb,
+        fail-safe -- all of them the same ``status`` field), a live target it
+        could not recompute, or a plan built on another day.
+
+        Slots are matched on ``start`` alone. Both planners distribute over the
+        same price calendar, so the boundaries line up; only the price side
+        differs (export for the hold, import for the reserve).
+        """
+        manager = getattr(self._controller, "_surplus_hold_mgr", None)
+        if manager is None:
+            return None
+        try:
+            plan = manager.plan
+            if plan is None or not plan.can_hold:
+                return None
+            if manager.live_target_unreliable:
+                return None
+            evaluated_at = plan.evaluation_time
+            if evaluated_at is None or evaluated_at.date() != now.date():
+                return None
+            return (
+                {slot.start for slot in plan.slots},
+                {slot.start for slot in plan.selected_slots},
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Discharge reserve: surplus hold plan unreadable: %s", err)
+            return None
 
     def _forecast_is_remaining(self, pricing) -> bool:
         """True when the configured solar sensor reports production still to come."""
