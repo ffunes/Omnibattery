@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from custom_components.omnibattery.const import (
+    CHARGE_EFFICIENCY,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PREDICTIVE_MODE_REALTIME_PRICE,
 )
@@ -104,6 +105,9 @@ def _controller(**overrides):
         _is_manual_slot_owned=lambda coordinator: False,
         _curtailment_runtime_status=None,
         _capacity_protection_active=False,
+        # Well above anything these slots can offer, so only the tests that
+        # lower it deliberately see the charge-power cap on the PV credit.
+        max_charge_capacity=10_000.0,
         _pricing_mgr=_pricing(),
     )
     for key, value in overrides.items():
@@ -780,9 +784,54 @@ def test_only_part_of_the_expected_surplus_is_credited():
     )
 
     # 8 kWh spread evenly over two slots; the learned profile puts 2 kWh in
-    # the 19:00 slot and nothing at midday.
-    assert surplus[midday] == pytest.approx(SURPLUS_CREDIT_FACTOR * 4.0)
-    assert surplus[evening] == pytest.approx(SURPLUS_CREDIT_FACTOR * 2.0)
+    # the 19:00 slot and nothing at midday. The charge power is high enough
+    # here that only the forecast haircut and the charge losses apply.
+    assert surplus[midday] == pytest.approx(SURPLUS_CREDIT_FACTOR * CHARGE_EFFICIENCY * 4.0)
+    assert surplus[evening] == pytest.approx(SURPLUS_CREDIT_FACTOR * CHARGE_EFFICIENCY * 2.0)
     assert SURPLUS_CREDIT_FACTOR < 1.0
     # Net demand is untouched: the haircut is on the credit, not the load.
     assert demand[evening] == pytest.approx(0.0)
+
+
+def test_the_surplus_credit_is_capped_by_the_charge_power():
+    """Sun the battery cannot take in the hour never pays an evening claim.
+
+    A 5 kWh surplus hour behind a 2.5 kW charger puts 2.5 kWh in the battery,
+    not 5. Crediting the forecast unbounded released a reserve against kWh
+    that were always going to be exported.
+    """
+    from custom_components.omnibattery.control.discharge_reserve import (
+        SURPLUS_CREDIT_FACTOR,
+    )
+
+    midday = _slot(12, 0.15)
+    evening = _slot(19, 0.45)
+    pricing = _pricing(
+        get_future_price_slots=lambda horizon_end=None: [midday, evening],
+        _curtailment_forecast_model=lambda now: (10.0, None, None),
+    )
+    manager = _manager(_controller(max_charge_capacity=2500.0))
+    _demand, surplus = manager._demand_and_surplus_by_slot(
+        pricing, [midday, evening], NOW, NOW + timedelta(hours=12)
+    )
+
+    # 10 kWh over two slots: 5 kWh of raw midday surplus, capped to the
+    # 2.5 kWh the charger can take in an hour.
+    assert surplus[midday] == pytest.approx(SURPLUS_CREDIT_FACTOR * CHARGE_EFFICIENCY * 2.5)
+
+
+def test_no_charge_capacity_credits_no_surplus():
+    """With nothing able to charge, no sun lands in the battery."""
+    midday = _slot(12, 0.15)
+    evening = _slot(19, 0.45)
+    pricing = _pricing(
+        get_future_price_slots=lambda horizon_end=None: [midday, evening],
+        _curtailment_forecast_model=lambda now: (8.0, None, None),
+    )
+    manager = _manager(_controller(max_charge_capacity=0.0))
+    _demand, surplus = manager._demand_and_surplus_by_slot(
+        pricing, [midday, evening], NOW, NOW + timedelta(hours=12)
+    )
+
+    assert surplus[midday] == pytest.approx(0.0)
+    assert surplus[evening] == pytest.approx(0.0)
