@@ -301,7 +301,7 @@ class DischargeReserveSensor(BinarySensorEntity):
     ``reserve_soc_pct``: everything above it stays available right now.
     """
 
-    _unrecorded_attributes = frozenset({"reserved_slots"})
+    _unrecorded_attributes = frozenset({"reserved_slots", "claims"})
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
         self.hass = hass

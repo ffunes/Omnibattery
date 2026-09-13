@@ -193,7 +193,7 @@ class DischargeReserveManager:
         plan.usable_energy_kwh = live_usable
         plan.free_space_kwh = live_space
         pct = _reserve_soc_pct(reserve_kwh, live_capacity)
-        self._set_status(pct, "reserving" if pct > 0 else "released", reason)
+        self._set_status(pct, "reserving" if pct > 0 else "released", reason, plan)
         return pct
 
     async def async_rebuild_plan(
@@ -455,8 +455,16 @@ class DischargeReserveManager:
                 return True
         return False
 
-    def _set_status(self, pct: float, state: str, reason: str) -> None:
-        plan = self._plan
+    def _set_status(
+        self, pct: float, state: str, reason: str, plan: ReservePlan | None = None
+    ) -> None:
+        """Publish the snapshot. ``plan`` only when it was recomputed this cycle.
+
+        A guard release never reaches ``reserve_kwh_at``, so the plan it still
+        holds describes the last cycle that did. Publishing those figures under
+        ``state: released`` is exactly the disagreement these attributes exist
+        to explain away.
+        """
         status: dict[str, Any] = {
             "state": state,
             "reason": reason,
@@ -476,14 +484,13 @@ class DischargeReserveManager:
                     # claims and the sun did with it. reserve_kwh is
                     # claimed_kwh minus pv_credit_kwh, so the two cycles that
                     # disagree now say which of the three moved.
-                    "threshold_price": plan.threshold_price,
+                    "threshold_price": (
+                        None
+                        if plan.threshold_price is None
+                        else round(plan.threshold_price, 5)
+                    ),
                     "claimed_kwh": round(plan.claimed_kwh, 3),
                     "pv_credit_kwh": round(plan.pv_credit_kwh, 3),
-                    "first_claim_start": (
-                        plan.claim_breakdown[0][0].start.isoformat()
-                        if plan.claim_breakdown
-                        else None
-                    ),
                     "horizon_demand_kwh": round(plan.horizon_demand_kwh, 3),
                     "horizon_surplus_kwh": round(plan.horizon_surplus_kwh, 3),
                     "horizon_end": (

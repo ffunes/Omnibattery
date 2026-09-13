@@ -142,14 +142,12 @@ class ReservePlan:
         threshold = float(current_price) + max(0.0, self.min_saving)
         self.threshold_price = threshold
         self.horizon_demand_kwh = sum(
-            [_positive(slot.net_demand_kwh) for slot in self.slots if slot.start >= now]
+            _positive(slot.net_demand_kwh) for slot in self.slots if slot.start >= now
         )
         self.horizon_surplus_kwh = sum(
-            [
-                _positive(slot.expected_surplus_kwh)
-                for slot in self.slots
-                if slot.start >= now
-            ]
+            _positive(slot.expected_surplus_kwh)
+            for slot in self.slots
+            if slot.start >= now
         )
         candidates = [
             slot
@@ -184,8 +182,7 @@ class ReservePlan:
         self.claimed_kwh = claimed
         self.pv_credit_kwh = sum(credits)
         self.claim_breakdown = [
-            (claims[index][0], claims[index][1], credits[index])
-            for index in range(len(claims))
+            (slot, take, credit) for (slot, take), credit in zip(claims, credits)
         ]
         if reserve <= EPSILON:
             return 0.0, [], REASON_PV_COVERS_IT

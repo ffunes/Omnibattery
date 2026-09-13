@@ -238,9 +238,10 @@ Because the decision is rebuilt every control cycle from the live price, two cyc
 - `threshold_price`: the price a later slot has to beat this cycle, `reference_price + min_saving`.
 - `claimed_kwh`: what the dearer hours asked for, before any sun is taken off.
 - `pv_credit_kwh`: what the expected surplus paid off. `reserve_kwh` is `claimed_kwh - pv_credit_kwh`.
-- `first_claim_start`: the earliest slot with a claim.
 - `horizon_demand_kwh` and `horizon_surplus_kwh`: the projected net demand and PV surplus over the remaining horizon, the two figures the whole projection rests on.
 - `claims`: every claim with its price, its claimed kWh, the PV credited against it and the surplus expected in that slot. `reserved_slots` drops a claim the sun pays off in full; this list keeps it, which is the cycle that is hardest to explain otherwise.
+
+A cycle released by a guard — manual control, anti-curtailment, peak shaving, or an unreadable fleet — never runs the calculation, so it publishes the state and the reason alone. No plan figures means nothing was decided this cycle, not a reserve of zero.
 
 ### Minimum arbitrage margin
 

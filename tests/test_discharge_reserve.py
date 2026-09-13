@@ -268,6 +268,22 @@ def test_guards_release_the_floor(overrides, expected):
     assert manager.get_status()["reason"] == expected
 
 
+def test_a_guard_release_publishes_no_figures_from_the_last_cycle():
+    """It never ran the calculation, so it has nothing to report but the guard."""
+    controller = _controller()
+    manager = _built(controller)
+    assert manager.reserve_soc_pct() > 0
+    assert manager.get_status()["claimed_kwh"] > 0
+
+    controller.manual_mode_enabled = True
+    assert manager.reserve_soc_pct() == 0.0
+    status = manager.get_status()
+    assert status["reason"] == GUARD_MANUAL
+    assert "claims" not in status
+    assert "claimed_kwh" not in status
+    assert "reserve_kwh" not in status
+
+
 def test_a_battery_in_manual_mode_releases_the_floor():
     controller = _controller(coordinators=[_coordinator(manual=True)])
     manager = _built(controller)
@@ -696,7 +712,6 @@ def test_the_status_attributes_carry_the_audit_trail():
     assert status["threshold_price"] == pytest.approx(0.25)
     assert status["claimed_kwh"] == pytest.approx(4.0)
     assert status["pv_credit_kwh"] == 0.0
-    assert status["first_claim_start"] == (DAY + timedelta(hours=18)).isoformat()
     assert status["horizon_demand_kwh"] == pytest.approx(4.0)
     assert status["horizon_surplus_kwh"] == 0.0
     assert [claim["start"] for claim in status["claims"]] == [
