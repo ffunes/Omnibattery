@@ -402,6 +402,16 @@ SLOW_SENSOR_WARNING_INTERVAL_S = 10.0
 # shorten the promised tolerance.
 MAX_SENSOR_STALE_S = 65.0
 
+# How long the main grid sensor may go without publishing anything before a
+# Repairs issue is raised. Past MAX_SENSOR_STALE_S the loop already stops
+# integrating P/D, so it simply holds the last command for as long as the
+# silence lasts - bounded by the SOC blockers, not by time. That is silent
+# today: a sensor frozen on a valid value logs nothing at all, and an
+# unavailable one only logs at debug. Long enough to ride out a restart or a
+# brief integration reload, short enough to catch a wedged P1 bridge or a
+# template sensor whose inputs stopped moving.
+MAIN_SENSOR_DEAD_S = 300.0
+
 # How long a phase sensor must stay unreadable before the degradation becomes a
 # Repairs entry. Long enough that the short gaps absorbed by the discharge hold
 # stay silent, short enough that a genuinely dead sensor is reported the same

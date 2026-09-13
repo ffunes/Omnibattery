@@ -215,6 +215,7 @@ from .const import (
     PD_ZERO_CROSS_MIN_HOLD_S,
     SLOW_SENSOR_WARNING_INTERVAL_S,
     MAX_SENSOR_STALE_S,
+    MAIN_SENSOR_DEAD_S,
     SLOW_SENSOR_WARN_INTERVALS,
     SLOW_SENSOR_RECOVERY_INTERVALS,
     FORECAST_DATA_ISSUE_DELAY_S,
@@ -782,6 +783,7 @@ class ChargeDischargeController:
         self._control_lock = asyncio.Lock()     # serialize control cycle across timer + sensor-event triggers
         self._grid_at_min_soc_last_ts = None     # last accumulation timestamp for grid-at-min-soc kWh integration
         self._slow_sensor_issue_created = False  # slow-sensor repair currently raised
+        self._dead_sensor_issue_created = False  # dead-sensor repair currently raised
         self._slow_sensor_intervals = 0         # consecutive slow sensor intervals
         self._fast_sensor_intervals = 0         # consecutive fast intervals used to clear the repair
 
@@ -8473,6 +8475,78 @@ class ChargeDischargeController:
             },
         )
 
+    def _check_main_sensor_liveness(self, now=None):
+        """Raise a repair while the main grid sensor has stopped publishing.
+
+        The slow-sensor repair next door is publication-driven, so it can only
+        describe a meter that still speaks. A meter that stops entirely produces
+        no further publications and therefore never reaches it - the one failure
+        that matters most is the one that says nothing (issue #452).
+
+        Both flavours land here, which is why this is judged on the age of the
+        last real publication rather than on the sensor's current state:
+
+        * unavailable/unknown/missing - ``_apply_meter_transform`` returns None
+          and the cycle returns early, logging once at debug.
+        * frozen on a valid value - a wedged P1 bridge, or a template sensor
+          whose inputs stopped moving. Nothing is logged at all, because from
+          the state machine's point of view the entity is perfectly healthy.
+
+        In both cases ``_last_sensor_report_time`` stops advancing and the loop
+        holds the last command indefinitely: past MAX_SENSOR_STALE_S the stale
+        safety recalculation zeroes the P scale and the derivative, so the
+        adjustment is exactly 0. The structural guards above still run, so this
+        is not a runaway - the exposure is bounded by the SOC blockers, not by
+        time, which on a multi-battery fleet is hours of exporting or importing
+        against a house whose load is no longer being read.
+
+        Called before every early return in the cycle, for the same reason the
+        other health checks are: manual mode, a block or a predictive handler
+        taking ownership must not starve it, or an issue raised earlier could
+        never be cleared.
+        """
+        if not self.consumption_sensor:
+            return
+        issue_id = f"dead_main_sensor_{self.config_entry.entry_id}"
+
+        report_time = self._last_sensor_report_time
+        # None means no successful read yet in this run: a restart, not a fault.
+        age_s = (
+            self._sensor_age_seconds(report_time, now)
+            if report_time is not None
+            else 0.0
+        )
+
+        if age_s < MAIN_SENSOR_DEAD_S:
+            if self._dead_sensor_issue_created:
+                self._dead_sensor_issue_created = False
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+
+        if self._dead_sensor_issue_created:
+            return
+        self._dead_sensor_issue_created = True
+        _LOGGER.warning(
+            "Grid sensor %s has not published for %.0f minutes - holding the last "
+            "command of %.0fW until the SOC limits stop it",
+            self.consumption_sensor, age_s / 60, self.previous_power,
+        )
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            is_persistent=True,
+            issue_domain=DOMAIN,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="dead_main_sensor",
+            translation_placeholders={
+                "sensor": self.consumption_sensor,
+                "minutes": f"{age_s / 60:.0f}",
+                "power": f"{abs(self.previous_power):.0f}",
+            },
+        )
+
     def _sensor_age_seconds(self, sensor_report_time, now=None):
         """Return the real age of the current grid sample."""
         reference_time = now if isinstance(now, datetime) else dt_util.utcnow()
@@ -8501,6 +8575,10 @@ class ChargeDischargeController:
         self._non_responsive.update_repairs(
             self.hass, getattr(self.config_entry, "entry_id", "") or ""
         )
+        # A meter that stopped publishing freezes the command, and neither the
+        # slow-sensor repair nor the invalid-state log can see that. Must sit
+        # ahead of the manual-mode / block / predictive early returns below.
+        self._check_main_sensor_liveness(now)
 
         # === HOUSEHOLD CONSUMPTION ACCUMULATION ===
         # Run before manual mode check so samples are never lost

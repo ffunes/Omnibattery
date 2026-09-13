@@ -110,6 +110,7 @@ def _main_controller(state_holder, pd_calls):
         hass=SimpleNamespace(states=_States()),
         _apply_meter_transform=lambda state: float(state.state),
         _check_solar_forecast_health=lambda: None,
+        _check_main_sensor_liveness=lambda _now=None: None,
         _check_missing_configured_sensors=lambda: None,
         _is_capacity_protection_soc_limited=lambda: False,
         _filter_grid_sample=lambda raw, _elapsed: raw,

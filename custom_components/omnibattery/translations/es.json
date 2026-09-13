@@ -16,6 +16,10 @@
       "title": "La protección trifásica puede saltarse con órdenes manuales",
       "description": "La protección trifásica está activa, pero las órdenes manuales de registros o de franjas pueden escribir directamente en una batería sin la envolvente automática. Mantén esas órdenes dentro de los límites configurados."
     },
+    "dead_main_sensor": {
+      "title": "El sensor de potencia de red ha dejado de publicar",
+      "description": "El sensor de red configurado {sensor} lleva {minutes} minutos sin publicar ninguna lectura. Omnibattery no puede regular sin él, así que mantiene su última orden de {power} W: pasada la tolerancia de antigüedad, el controlador deja de integrar correcciones nuevas en lugar de actuar sobre una lectura que sabe vieja. Los límites de carga y descarga, los bloqueos por SOC y la protección trifásica siguen aplicándose, así que no es una fuga de control, pero las baterías seguirán cargando o descargando a esa potencia fija contra un consumo que nadie está leyendo, hasta que un límite de SOC las detenga. Ten en cuenta que un sensor congelado en un valor válido parece perfectamente sano en Home Assistant: comprueba que {sensor} sigue actualizándose y que la integración o el puente que hay detrás no se ha atascado."
+    },
     "slow_main_sensor": {
       "title": "El sensor de potencia de red actualiza demasiado despacio",
       "description": "El sensor de red configurado {sensor} actualiza aproximadamente cada {observed_interval} segundos. Los intervalos de {warning_interval} segundos o más son más lentos de lo recomendado y pueden reducir la calidad de la regulación. Omnibattery sigue la última lectura hasta que supera los {stale_limit} segundos de antigüedad. Usa un sensor más rápido si necesitas un control más preciso en tiempo real."
