@@ -473,13 +473,15 @@ async def test_read_telemetry_ac_delivered_power_negative_on_discharge():
 async def test_read_telemetry_ac_delivered_power_covers_pv_bypass():
     # Full SOC: the array passes straight through to the house. Idle cells, real
     # AC supply — it counts as supply, not as a battery discharge of the pack.
+    # Figures from a reported 800 Plus at SOC 100 (issue #453): 491 W in on the
+    # MPPTs, 464 W out of the AC port, pack at a standstill.
     data = {"sn": "ZB1", "properties": {
-        "outputPackPower": 0, "packInputPower": 0, "solarInputPower": 700,
-        "outputHomePower": 680, "gridInputPower": 0,
+        "outputPackPower": 0, "packInputPower": 0, "solarInputPower": 491,
+        "outputHomePower": 464, "gridInputPower": 0,
     }}
     snap = await _driver(session=_session(get_data=data)).read_telemetry()
     assert snap["battery_power"] == 0
-    assert snap["ac_delivered_power"] == -680
+    assert snap["ac_delivered_power"] == -464
 
 
 async def test_read_telemetry_ac_delivered_power_none_on_incomplete_report():
