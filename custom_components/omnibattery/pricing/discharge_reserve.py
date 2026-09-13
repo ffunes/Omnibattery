@@ -194,9 +194,8 @@ class ReservePlan:
             absorbed = min(_positive(slot.expected_surplus_kwh), room)
             room -= absorbed
             stored += absorbed
-        for _slot, take in claims[pending:]:
-            reserve += take - min(take, stored)
-            stored -= min(take, stored)
+        # No claim can be left pending: every claim is one of these slots, so
+        # the last pass of the inner walk settles whatever is still open.
         return max(0.0, reserve)
 
 
