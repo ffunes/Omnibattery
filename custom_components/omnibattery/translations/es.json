@@ -1462,6 +1462,7 @@
         "ckw": "CKW (Suiza)",
         "epex": "EPEX Spot (p. ej. aWATTar)",
         "entsoe": "ENTSO-e (Plataforma de Transparencia)",
+        "zonneplan": "Zonneplan",
         "tibber": "Tibber (basado en servicio)"
       }
     },
