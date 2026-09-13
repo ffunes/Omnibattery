@@ -61,6 +61,13 @@ GUARD_CAPACITY_PROTECTION = "capacity_protection"
 GUARD_NEW_DAY = "new_day"
 GUARD_FLEET_UNKNOWN = "battery_state_unknown"
 
+# The credit is only as good as the forecast behind it, and overnight there is
+# nothing to correct it: a day-ahead figure that releases the whole reserve at
+# 00:30 buys the evening peak at peak price if the morning turns out cloudy.
+# Crediting three quarters of the expected surplus leaves the release to firm up
+# through the day, as the 5-minute rebuild walks the real production in.
+SURPLUS_CREDIT_FACTOR = 0.75
+
 # Pre-discharge deliberately empties the battery before a curtailment window,
 # and peak shaving deliberately spends it on a spike. Holding energy back
 # against either would import at exactly the moment they exist to avoid.
@@ -400,7 +407,8 @@ class DischargeReserveManager:
                 normalize_future=self._forecast_is_remaining(pricing),
             )
         surplus = {
-            slot: max(
+            slot: SURPLUS_CREDIT_FACTOR
+            * max(
                 0.0,
                 float(solar.get(slot, 0.0) or 0.0)
                 - float(consumption.get(slot, 0.0) or 0.0),
