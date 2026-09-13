@@ -1,5 +1,9 @@
 {
   "issues": {
+    "battery_not_delivering": {
+      "title": "Battery {battery} is not delivering power",
+      "description": "{battery} has been accepting charge/discharge commands without delivering power for {minutes} minutes ({reason}). Omnibattery keeps it out of the pool and retries it every {cooldown} minutes, so the rest of the fleet covers the house meanwhile. The battery itself, its Modbus link or the bridge in front of it needs attention: check that it is not sitting in standby under its own app's control, and that the connection is not saturated. Switching Manual Battery Control on and off again for that battery often restores it."
+    },
     "configured_sensor_missing": {
       "title": "Configured sensor no longer exists",
       "description": "Omnibattery is configured with {sensors}, which does not exist in Home Assistant. Every feature that reads it is inactive. The stored reference is kept on purpose, because the entity picker cannot show an entity that is gone and would otherwise clear your setting silently: open Options → Sensors and pick a replacement, or clear the field once the entity is back."

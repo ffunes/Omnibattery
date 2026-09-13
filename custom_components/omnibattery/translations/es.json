@@ -1,5 +1,9 @@
 {
   "issues": {
+    "battery_not_delivering": {
+      "title": "La batería {battery} no entrega potencia",
+      "description": "{battery} lleva {minutes} minutos aceptando órdenes de carga/descarga sin entregar potencia ({reason}). Omnibattery la mantiene fuera del reparto y la reintenta cada {cooldown} minutos, así que el resto de la flota cubre la casa mientras tanto. Hay que revisar la batería, su enlace Modbus o el puente que tenga delante: comprueba que no esté en espera bajo el control de su propia app y que la conexión no esté saturada. Activar y desactivar el Control Manual de esa batería suele recuperarla."
+    },
     "configured_sensor_missing": {
       "title": "Un sensor configurado ya no existe",
       "description": "Omnibattery está configurado con {sensors}, que no existe en Home Assistant. Todas las funciones que lo leen están inactivas. La referencia guardada se conserva a propósito, porque el selector de entidades no puede mostrar una entidad que ya no está y borraría tu ajuste en silencio: abre Opciones → Sensores y elige un sustituto, o vacía el campo cuando la entidad vuelva."
