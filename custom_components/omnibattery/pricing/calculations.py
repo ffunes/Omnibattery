@@ -18,6 +18,7 @@ from ..const import (
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_NORDPOOL,
     PRICE_INTEGRATION_PVPC,
+    PRICE_INTEGRATION_ZONNEPLAN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 # sensor can render one of these to a plain string, which must be detected
 # before parsing rather than silently iterating single characters.
 PRICE_LIST_ATTRS = {
+    PRICE_INTEGRATION_ZONNEPLAN: ("forecast",),
     PRICE_INTEGRATION_NORDPOOL: ("raw_today", "raw_tomorrow"),
     PRICE_INTEGRATION_CKW: ("prices",),
     PRICE_INTEGRATION_EPEX: ("data",),
@@ -56,6 +58,8 @@ def parse_prices_for_integration(integration_type: str, attrs: dict) -> list:
         return parse_epex_prices(attrs)
     if integration_type == PRICE_INTEGRATION_ENTSOE:
         return parse_entsoe_prices(attrs)
+    if integration_type == PRICE_INTEGRATION_ZONNEPLAN:
+        return parse_zonneplan_prices(attrs)
     return parse_nordpool_prices(attrs)
 
 
@@ -272,6 +276,62 @@ def parse_epex_prices(attrs: dict) -> list:
         except Exception as exc:
             _LOGGER.debug("Dynamic pricing: failed to parse EPEX entry %s: %s", entry, exc)
     return slots
+
+
+def parse_zonneplan_prices(attrs: dict) -> list:
+    """Parse zonneplan_one hourly, quarter-hourly and legacy forecasts.
+
+    Forecast amounts are tax-inclusive EUR/kWh multiplied by 10,000,000;
+    the sensor state is already EUR/kWh and must not be scaled again.
+    Modern entries have explicit start_date/end_date. Legacy electricity_price
+    entries are hourly, with only datetime/start_date. Never bridge missing
+    intervals by inferring an end from the next available price.
+    """
+    from homeassistant.util import dt as dt_util
+
+    if attrs.get("unit_of_measurement", "€/kWh") not in ("€/kWh", "EUR/kWh"):
+        return []
+    entries = attrs.get("forecast")
+    if not isinstance(entries, (list, tuple)):
+        return []
+
+    slots = {}
+    for entry in entries:
+        try:
+            start = entry.get("start_date") or entry.get("datetime")
+            if isinstance(start, str):
+                start = datetime.fromisoformat(start)
+            if not isinstance(start, datetime):
+                continue
+            if "price_tax_included" in entry:
+                amount = entry["price_tax_included"]["amount"]
+                end = entry.get("end_date")
+                if isinstance(end, str):
+                    end = datetime.fromisoformat(end)
+                if not isinstance(end, datetime):
+                    continue
+            else:
+                amount = entry["electricity_price"]
+                # Add elapsed time in UTC across daylight-saving changes.
+                end = dt_util.as_utc(start) + timedelta(hours=1) if start.tzinfo else start + timedelta(hours=1)
+            if isinstance(amount, bool):
+                continue
+            price = float(amount) / 10_000_000
+            if not math.isfinite(price) or end <= start:
+                continue
+            if start.tzinfo is not None:
+                start = dt_util.as_local(start).replace(tzinfo=None)
+            if end.tzinfo is not None:
+                end = dt_util.as_local(end).replace(tzinfo=None)
+            # The shared planner uses naive local times. Omit intervals it
+            # cannot represent during a clock rollback rather than inventing
+            # a negative duration.
+            if end <= start:
+                continue
+            slots[(start, end)] = PriceSlot(start, end, price)
+        except (AttributeError, KeyError, TypeError, ValueError, OverflowError) as exc:
+            _LOGGER.debug("Dynamic pricing: invalid Zonneplan forecast entry %s: %s", entry, exc)
+    return sorted(slots.values(), key=lambda slot: slot.start)
 
 
 def parse_entsoe_prices(attrs: dict) -> list:
