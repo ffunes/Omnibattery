@@ -644,3 +644,34 @@ def test_an_unreadable_fleet_defers_the_rebuild_instead_of_caching_an_empty_plan
     asyncio.get_event_loop().run_until_complete(manager.async_rebuild_plan("recovered"))
     assert manager.plan is not None
     assert manager.reserve_soc_pct() == pytest.approx(40.0)
+
+
+def test_only_part_of_the_expected_surplus_is_credited():
+    """A day-ahead forecast must not release the whole reserve overnight.
+
+    Nothing corrects the credit before dawn, so a cloudy morning would leave
+    the evening peak bought at peak price. Crediting a fraction lets the
+    5-minute rebuild firm the release up as the real production arrives.
+    """
+    from custom_components.omnibattery.control.discharge_reserve import (
+        SURPLUS_CREDIT_FACTOR,
+    )
+
+    midday = _slot(12, 0.15)
+    evening = _slot(19, 0.45)
+    pricing = _pricing(
+        get_future_price_slots=lambda horizon_end=None: [midday, evening],
+        _curtailment_forecast_model=lambda now: (8.0, None, None),
+    )
+    manager = _manager()
+    demand, surplus = manager._demand_and_surplus_by_slot(
+        pricing, [midday, evening], NOW, NOW + timedelta(hours=12)
+    )
+
+    # 8 kWh spread evenly over two slots; the learned profile puts 2 kWh in
+    # the 19:00 slot and nothing at midday.
+    assert surplus[midday] == pytest.approx(SURPLUS_CREDIT_FACTOR * 4.0)
+    assert surplus[evening] == pytest.approx(SURPLUS_CREDIT_FACTOR * 2.0)
+    assert SURPLUS_CREDIT_FACTOR < 1.0
+    # Net demand is untouched: the haircut is on the credit, not the load.
+    assert demand[evening] == pytest.approx(0.0)
