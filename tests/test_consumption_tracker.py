@@ -693,6 +693,21 @@ def test_derive_home_counts_connected_discharge():
     assert tracker._derive_home_power_kw() == pytest.approx(2.8)
 
 
+def test_derive_home_excludes_direct_pv_charging():
+    # Issue #453: the integrated daily total shares the aggregate sensor's source
+    # order. A DC-coupled unit charging 385 W from its own array exchanges nothing
+    # at the AC port, so the house keeps its full 1.311 kW (grid 8 W + 1303 W PV).
+    zendure = FakeCoordinator(
+        data={"battery_power": 385, "ac_delivered_power": 0}
+    )
+    tracker = _make_home_tracker(
+        {"sensor.grid": _w(8), "sensor.solar": _w(1303)},
+        [zendure],
+        solar_sensor="sensor.solar",
+    )
+    assert tracker._derive_home_power_kw() == pytest.approx(1.311)
+
+
 def test_derive_home_cancels_grid_energy_used_to_charge_battery():
     # Grid imports 2800 W while the battery charges at 2500 W (negative AC).
     # Only the remaining 300 W belongs to household consumption.

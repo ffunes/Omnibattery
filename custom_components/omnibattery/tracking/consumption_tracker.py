@@ -28,7 +28,7 @@ from homeassistant.util import dt as dt_util
 
 from ..const import DEFAULT_BASE_CONSUMPTION_KWH, DOMAIN
 from ..infra.entity_naming import is_omnibattery_solar_entity
-from ..drivers.base import has_connected_mppt_pv
+from ..drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
 from .backfill import BackfillToken, RecorderBackfillCoordinator, local_day_bounds
 from .consumption_profile import (
     ConsumptionForecast,
@@ -66,14 +66,21 @@ HOME_CONSUMPTION_MIN_BALANCE_W = 20.0
 def coordinator_ac_power_w(coordinator: Any) -> float | None:
     """Return a coordinator's signed AC power in watts.
 
-    Marstek coordinators expose ``ac_power`` directly.  Registerless drivers
-    expose ``battery_power`` with the opposite sign, so use the same fallback
-    convention as the aggregate Home Consumption sensor.
+    Same source order as the aggregate Home Consumption sensor: the device's own
+    AC port (``ac_delivered_power``, published in ``battery_power`` convention)
+    before Marstek's ``ac_power`` register, and cell-side ``battery_power`` only
+    as a last resort — on a battery with PV on its own DC bus the cells read
+    "charging" from the sun with nothing crossing the AC port, which would bill
+    the array to the house and to the integrated daily total (issue #453).
     """
     data = getattr(coordinator, "data", None)
     if not data:
         return None
-    value = data.get("ac_power")
+    value = data.get(DELIVERED_AC_POWER_KEY)
+    if value is not None:
+        value = -value
+    else:
+        value = data.get("ac_power")
     if value is None:
         battery_power = data.get("battery_power")
         if battery_power is None:

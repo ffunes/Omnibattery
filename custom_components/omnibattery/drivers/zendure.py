@@ -28,6 +28,10 @@ must send smartMode=0 explicitly to commit to flash and survive reboots.
 
 battery_power is synthesised: outputPackPower − packInputPower
   (+charge: outputPackPower > 0; −discharge: packInputPower > 0)
+
+ac_delivered_power is synthesised: gridInputPower − outputHomePower
+  (same sign convention; the exchange at the device's own AC port, which on a
+  DC-coupled unit is not battery_power — see _snapshot_from_report)
 """
 
 from __future__ import annotations
@@ -43,6 +47,7 @@ import aiohttp
 from .base import (
     BatteryDriver,
     DriverCapabilities,
+    DELIVERED_AC_POWER_KEY,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -496,7 +501,9 @@ class ZendureLocalDriver(BatteryDriver):
             # regardless so the coordinator syncs the device's real charge cap.
             snapshot = {
                 k: v for k, v in snapshot.items()
-                if k in keys or k == "max_charge_power" or _PACK_KEY_RE.match(k)
+                if k in keys
+                or k in ("max_charge_power", DELIVERED_AC_POWER_KEY)
+                or _PACK_KEY_RE.match(k)
             }
 
         return snapshot
@@ -568,6 +575,23 @@ class ZendureLocalDriver(BatteryDriver):
         pack_in = props.get("packInputPower", 0)
         out_pack = props.get("outputPackPower", 0)
         snapshot["battery_power"] = out_pack - pack_in
+
+        # battery_power is cell-side: on a unit with PV on its own DC bus it reads
+        # "charging" from the sun with nothing crossing the AC port, so consumers
+        # that fall back to it bill the array to the house (issue #453). The AC
+        # port is measured separately, so publish it under the contract key.
+        # Both terms are required: a limit is a command, not a measurement. None
+        # on an incomplete report, because coordinator.data is merged and never
+        # expires — omitting would leave the previous reading standing as fresh.
+        ac_out = props.get("outputHomePower")
+        ac_in = props.get("gridInputPower")
+        if all(
+            isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0
+            for v in (ac_out, ac_in)
+        ):
+            snapshot[DELIVERED_AC_POWER_KEY] = ac_in - ac_out
+        else:
+            snapshot[DELIVERED_AC_POWER_KEY] = None
         return snapshot
 
     def _update_model_from_product(self, product: str | None) -> None:
