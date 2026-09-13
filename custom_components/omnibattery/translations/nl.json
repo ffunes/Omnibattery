@@ -1,5 +1,9 @@
 {
   "issues": {
+    "battery_not_delivering": {
+      "title": "Batterij {battery} levert geen vermogen",
+      "description": "{battery} neemt al {minutes} minuten laad-/ontlaadopdrachten aan zonder vermogen te leveren ({reason}). Omnibattery houdt hem buiten de verdeling en probeert het elke {cooldown} minuten opnieuw, zodat de rest van de vloot het huis ondertussen dekt. De batterij zelf, zijn Modbus-verbinding of de bridge ervoor heeft aandacht nodig: controleer of hij niet in stand-by staat onder besturing van zijn eigen app en of de verbinding niet verzadigd is. Handmatige batterijbesturing voor die batterij aan- en weer uitzetten herstelt hem vaak."
+    },
     "configured_sensor_missing": {
       "title": "Geconfigureerde sensor bestaat niet meer",
       "description": "Omnibattery is geconfigureerd met {sensors}, die niet in Home Assistant bestaat. Alle functies die hem uitlezen zijn inactief. De opgeslagen verwijzing blijft bewust bewaard, omdat de entiteitskiezer een verdwenen entiteit niet kan tonen en je instelling stilzwijgend zou wissen: open Opties → Sensoren en kies een vervanger, of maak het veld leeg zodra de entiteit terug is."

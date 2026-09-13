@@ -75,6 +75,7 @@ def _main_controller(state_holder, pd_calls):
             begin_cycle=lambda: None,
             update_degraded_warning=lambda: None,
         ),
+        _non_responsive=SimpleNamespace(update_repairs=lambda *a: None),
         _consumption_tracker=None,
         _balance_monitor=None,
         _pricing_mgr=SimpleNamespace(maybe_check_price_data_health=lambda: None),

@@ -110,7 +110,7 @@ def _controller():
         _idle_commanded_started={},
         _non_responsive=SimpleNamespace(
             record_non_delivery=lambda *a, **k: False,
-            clear=lambda c: None,
+            clear=lambda c, **k: None,
             set_wake_attempted=lambda *a, **k: None,
         ),
         _idle_runaway_handled={},
