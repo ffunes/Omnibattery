@@ -4,7 +4,7 @@
 
 ### Added
 
-- **The discharge reserve explains itself** (#446): the decision is rebuilt from the live price every control cycle, so two cycles ten minutes apart can disagree on identical-looking attributes and nobody could tell which input moved. `discharge_reserve_status` now carries the threshold the later hours had to beat, what the claims asked for, what the expected sun paid off, the first claiming slot, and the projected net demand and PV surplus over the remaining horizon. A new `claims` attribute lists every claim with its price, its claimed kWh, the PV credited against it and that slot's expected surplus, including the claims the sun covers in full, which `reserved_slots` drops. No behaviour change.
+- **The discharge reserve explains itself** (#446): `discharge_reserve_status` now carries the threshold price, the claimed and PV-credited kWh, the horizon's net demand and surplus, and a `claims` list with the figures behind each claim — enough to tell which input moved when two cycles disagree. A cycle released by a guard publishes no plan figures rather than the last cycle's. No behaviour change. Thanks to @syphernl.
 
 ### Fixed
 
