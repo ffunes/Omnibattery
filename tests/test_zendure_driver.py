@@ -437,6 +437,70 @@ async def test_read_telemetry_synthesises_battery_power_discharging():
     assert snap["battery_power"] == -450  # −discharge
 
 
+async def test_read_telemetry_ac_delivered_power_excludes_direct_pv():
+    # Issue #453: pack charging fed by the unit's own DC array crosses no AC port.
+    # battery_power reads +385 (cells), but the AC exchange is 0 — a consumer that
+    # falls back to cell power would bill the array to the house.
+    data = {"sn": "ZB1", "properties": {
+        "outputPackPower": 385, "packInputPower": 0, "solarInputPower": 385,
+        "outputHomePower": 0, "gridInputPower": 0,
+    }}
+    snap = await _driver(session=_session(get_data=data)).read_telemetry(["battery_power"])
+    assert snap["battery_power"] == 385
+    assert snap["ac_delivered_power"] == 0
+
+
+async def test_read_telemetry_ac_delivered_power_counts_only_the_ac_input():
+    # Mixed: 594 W from the array, 300 W drawn from the house wiring. Only the
+    # AC term is the house's business.
+    data = {"sn": "ZB1", "properties": {
+        "outputPackPower": 894, "packInputPower": 0, "solarInputPower": 594,
+        "outputHomePower": 0, "gridInputPower": 300,
+    }}
+    snap = await _driver(session=_session(get_data=data)).read_telemetry()
+    assert snap["ac_delivered_power"] == 300   # +charge, battery_power convention
+
+
+async def test_read_telemetry_ac_delivered_power_negative_on_discharge():
+    data = {"sn": "ZB1", "properties": {
+        "outputPackPower": 0, "packInputPower": 450,
+        "outputHomePower": 430, "gridInputPower": 0,
+    }}
+    snap = await _driver(session=_session(get_data=data)).read_telemetry()
+    assert snap["ac_delivered_power"] == -430  # −discharge
+
+
+async def test_read_telemetry_ac_delivered_power_covers_pv_bypass():
+    # Full SOC: the array passes straight through to the house. Idle cells, real
+    # AC supply — it counts as supply, not as a battery discharge of the pack.
+    data = {"sn": "ZB1", "properties": {
+        "outputPackPower": 0, "packInputPower": 0, "solarInputPower": 700,
+        "outputHomePower": 680, "gridInputPower": 0,
+    }}
+    snap = await _driver(session=_session(get_data=data)).read_telemetry()
+    assert snap["battery_power"] == 0
+    assert snap["ac_delivered_power"] == -680
+
+
+async def test_read_telemetry_ac_delivered_power_none_on_incomplete_report():
+    # coordinator.data is merged and never expires, so a partial report must clear
+    # the reading explicitly instead of leaving the last one standing as fresh.
+    data = {"sn": "ZB1", "properties": {"outputPackPower": 100, "packInputPower": 0}}
+    snap = await _driver(session=_session(get_data=data)).read_telemetry()
+    assert snap["ac_delivered_power"] is None
+    data = {"sn": "ZB1", "properties": {"outputHomePower": "n/a", "gridInputPower": 0}}
+    snap = await _driver(session=_session(get_data=data)).read_telemetry()
+    assert snap["ac_delivered_power"] is None
+
+
+async def test_read_telemetry_keeps_ac_delivered_power_through_the_key_filter():
+    # It has no entity definition, so it is never in a requested key list — like
+    # max_charge_power it must survive the filter or the control layer and the
+    # home-consumption aggregate never see it.
+    snap = await _driver(session=_session(get_data=_REPORT)).read_telemetry(["battery_soc"])
+    assert snap["ac_delivered_power"] == -50  # gridInputPower 150 − outputHomePower 200
+
+
 async def test_read_telemetry_converts_soc_set_min_soc_from_deci_percent():
     # _REPORT has socSet=100, minSoc=10 (deci-percent) → 10 %, 1 %.
     snap = await _driver(session=_session(get_data=_REPORT)).read_telemetry()
@@ -446,10 +510,13 @@ async def test_read_telemetry_converts_soc_set_min_soc_from_deci_percent():
 
 async def test_read_telemetry_key_filter():
     snap = await _driver(session=_session(get_data=_REPORT)).read_telemetry(["battery_soc", "battery_power"])
-    # Requested keys are returned. Per-pack keys (like max_charge_power) ride
-    # through the filter regardless so the platform can size pack sensors.
+    # Requested keys are returned. Per-pack keys ride through the filter
+    # regardless so the platform can size pack sensors, as do the entity-less
+    # control values (max_charge_power, ac_delivered_power).
     assert {"battery_soc", "battery_power"} <= set(snap)
-    extras = set(snap) - {"battery_soc", "battery_power"}
+    extras = set(snap) - {
+        "battery_soc", "battery_power", "max_charge_power", "ac_delivered_power",
+    }
     assert all(re.match(r"pack\d+_", k) for k in extras)
 
 

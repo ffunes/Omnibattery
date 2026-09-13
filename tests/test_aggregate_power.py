@@ -48,6 +48,22 @@ def test_ac_convention_power_ac_power_wins_over_battery_power():
     assert MarstekVenusAggregateSensor._ac_convention_power(data) == -300
 
 
+def test_ac_convention_power_prefers_the_measured_ac_port():
+    # Issue #453: a DC-coupled unit charging 385 W straight from its own array
+    # exchanges nothing at the AC port. ac_delivered_power (battery_power
+    # convention) wins over both other signals and is negated to ac convention.
+    data = {"ac_delivered_power": 0, "battery_power": 385}
+    assert MarstekVenusAggregateSensor._ac_convention_power(data) == 0
+    data = {"ac_delivered_power": 300, "ac_power": -999, "battery_power": 894}
+    assert MarstekVenusAggregateSensor._ac_convention_power(data) == -300
+
+
+def test_ac_convention_power_ignores_a_cleared_ac_port():
+    # An incomplete report clears the key to None; fall through to the next signal.
+    data = {"ac_delivered_power": None, "battery_power": 300}
+    assert MarstekVenusAggregateSensor._ac_convention_power(data) == -300
+
+
 def test_ac_convention_power_none_when_no_power_keys():
     assert MarstekVenusAggregateSensor._ac_convention_power({"battery_soc": 50}) is None
 
@@ -121,6 +137,23 @@ def test_home_consumption_charging_zendure_reduces_home():
     zendure = FakeCoordinator(data={"battery_power": 400})
     sensor = _home_sensor([zendure], grid=1000, solar=0)
     assert sensor._calculate_home_consumption() == 600
+
+
+def test_home_consumption_excludes_direct_pv_charging():
+    # Issue #453 as reported: rooftop 1303 W, grid import 8 W, Zendure charging
+    # 385 W from its own DC array with zero AC exchange. Home is 1311 W; billing
+    # the array to the house gave 926 W.
+    zendure = FakeCoordinator(data={"battery_power": 385, "ac_delivered_power": 0})
+    sensor = _home_sensor([zendure], grid=8, solar=1303)
+    assert sensor._calculate_home_consumption() == 1311
+
+
+def test_home_consumption_still_subtracts_real_ac_charging():
+    # Mixed: 594 W from the array plus 300 W pulled from the house wiring. Only
+    # the AC term comes off the household load.
+    zendure = FakeCoordinator(data={"battery_power": 894, "ac_delivered_power": 300})
+    sensor = _home_sensor([zendure], grid=1000, solar=0)
+    assert sensor._calculate_home_consumption() == 700
 
 
 def test_home_consumption_holds_last_valid_value_for_negative_transient():
