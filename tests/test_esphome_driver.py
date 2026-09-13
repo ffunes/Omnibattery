@@ -5,9 +5,11 @@ Entity resolution is tested through the pure ``_match_entities`` helper.
 """
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from homeassistant.util import dt as dt_util
 
 from custom_components.omnibattery.drivers.esphome import (
     BINARY_SENSOR_DEFINITIONS,
@@ -379,3 +381,93 @@ def test_capabilities_force_mode_keeps_hardware_manual_path():
     assert any(d["key"] == "set_charge_power" for d in driver.number_definitions)
     assert driver.capabilities.has_energy_counters
     assert not driver.capabilities.has_alarm_registers
+
+
+# ---------------------------------------------------------------------------
+# Bus liveness guard (issue #452)
+# ---------------------------------------------------------------------------
+
+class _TimedState:
+    def __init__(self, state: str, last_reported):
+        self.state = state
+        self.last_reported = last_reported
+
+
+class _TimedStates:
+    def __init__(self, table: dict[str, tuple[str, float]]):
+        # entity_id -> (state, age in seconds)
+        now = dt_util.utcnow()
+        self._table = {
+            entity_id: _TimedState(value, now - timedelta(seconds=age))
+            for entity_id, (value, age) in table.items()
+        }
+
+    def get(self, entity_id):
+        return self._table.get(entity_id)
+
+
+def _timed_driver(table: dict[str, tuple[str, float]]) -> EsphomeEntityDriver:
+    hass = MagicMock()
+    hass.states = _TimedStates(table)
+    hass.services.async_call = AsyncMock()
+    driver = EsphomeEntityDriver(hass, "devid123")
+    driver._entities = dict(_ENTITIES)
+    return driver
+
+
+@pytest.mark.asyncio
+async def test_read_telemetry_passes_a_live_bus():
+    # A single key may legitimately be silent for minutes (the firmware filters
+    # Battery Power with `delta: 5.0`); only the newest report gates the read.
+    driver = _timed_driver({
+        _ENTITIES["battery_soc"]: ("57", 3),
+        _ENTITIES["battery_power"]: ("-612.0", 900),
+    })
+    snapshot = await driver.read_telemetry(["battery_soc", "battery_power"])
+    assert snapshot == {"battery_soc": 57, "battery_power": -612}
+
+
+@pytest.mark.asyncio
+async def test_read_telemetry_drops_a_stalled_bus():
+    # Every state object still holds a readable value — this is exactly the
+    # frozen-telemetry case the coordinator used to control on.
+    driver = _timed_driver({
+        _ENTITIES["battery_soc"]: ("54", 4000),
+        _ENTITIES["battery_power"]: ("-16", 4000),
+        _ENTITIES["inverter_state"]: ("Charge", 4000),
+    })
+    assert await driver.read_telemetry(["battery_soc", "battery_power"]) == {}
+    # Recovers on its own once the ESP speaks again, no reconnect needed.
+    driver.hass.states = _TimedStates({
+        _ENTITIES["battery_soc"]: ("54", 2),
+        _ENTITIES["battery_power"]: ("-16", 2),
+    })
+    assert await driver.read_telemetry(["battery_soc"]) == {"battery_soc": 54}
+
+
+@pytest.mark.asyncio
+async def test_esp_local_entities_do_not_mask_a_stalled_bus():
+    # wifi_signal / wifi_info / version publish from the ESP itself and keep
+    # updating while the Modbus bus is dead. They must not count as a heartbeat.
+    driver = _timed_driver({
+        _ENTITIES["battery_soc"]: ("54", 4000),
+        _ENTITIES["battery_power"]: ("-16", 4000),
+        _ENTITIES["esp_wifi_signal_strength"]: ("-64", 1),
+        _ENTITIES["esp_ip"]: ("192.168.1.42", 1),
+    })
+    assert await driver.read_telemetry(["battery_soc"]) == {}
+
+
+@pytest.mark.asyncio
+async def test_guard_fails_open_without_timestamps():
+    # A state object the heartbeat cannot date must never block the read.
+    driver = _driver({_ENTITIES["battery_soc"]: "57"})
+    assert await driver.read_telemetry(["battery_soc"]) == {"battery_soc": 57}
+
+
+def test_liveness_capability_enables_the_reconnect_probe():
+    # Without this the coordinator skips the post-reconnect probe for push
+    # drivers, clears the failure counter on a wedged bus and never backs off.
+    driver = _driver({})
+    assert driver.capabilities.push_telemetry
+    assert driver.capabilities.telemetry_liveness_checked

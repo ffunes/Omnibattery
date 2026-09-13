@@ -28,7 +28,7 @@ from typing import Optional
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-from homeassistant.util import slugify
+from homeassistant.util import dt as dt_util, slugify
 
 from .base import (
     BatteryDriver,
@@ -177,6 +177,35 @@ _BINARY_STATE_KEYS = frozenset(
     {"esp_wifi_status"}
     | {key for key, _name, _icon in _ESPHOME_WARNING_DEFINITIONS}
 )
+
+# --- bus liveness ----------------------------------------------------------
+# The ESP's Modbus poll loop can jam (write queue full, bridge wedged) while its
+# API connection stays up. HA then keeps the last state of every entity forever —
+# nothing turns "unavailable" — so a poll "succeeds" on hours-old values and the
+# control layer judges non-delivery, idle-runaway and PD error on frozen data
+# (issue #452). Every other driver reads a wire that can fail; this one cannot,
+# so the coordinator's failure ladder never engages. The guard below gives it
+# something to fail on.
+#
+# It is a liveness heartbeat, NOT a per-key freshness check. The upstream
+# firmware deliberately suppresses publications — `filters: - delta: 5.0` on
+# Battery Power and AC Power, `skip_updates: 4` on the set-point numbers — so a
+# single key can legitimately stay silent for minutes on a perfectly healthy
+# bus. What cannot happen while the bus is alive is *every* battery-sourced
+# entity going quiet at once: the unfiltered ones publish on the ESP's 3 s poll.
+#
+# ESP-local entities are excluded: wifi_signal / wifi_info / version keep
+# publishing from the ESP itself while the Modbus bus is dead, which would mask
+# exactly the fault being looked for.
+_HEARTBEAT_EXCLUDED_KEYS: frozenset[str] = frozenset({
+    "esp_ip", "esp_ssid", "esp_version",
+    "esp_wifi_signal_strength", "esp_wifi_status",
+})
+# 120 s against a 3 s poll floor is a ~40x margin over the fastest publisher,
+# and well inside the multi-hour freezes reported. ponytail: a module constant,
+# overridable per driver instance; promote to a config-flow knob only if a
+# firmware variant actually needs a different value.
+DEFAULT_STALE_AFTER_S = 120.0
 
 # Without these the driver cannot run the control loop; connect() refuses the
 # device so the config flow can tell the user which entities are missing.
@@ -368,6 +397,7 @@ class EsphomeEntityDriver(BatteryDriver):
         *,
         max_charge_power_w: int = 2500,
         max_discharge_power_w: int = 2500,
+        stale_after_s: float = DEFAULT_STALE_AFTER_S,
     ) -> None:
         self.hass = hass
         self._device_id = device_id
@@ -375,11 +405,16 @@ class EsphomeEntityDriver(BatteryDriver):
         self._shutting_down = False
         # logical key → HA entity_id, resolved from the registry on connect().
         self._entities: dict[str, str] = {}
+        self._stale_after_s = stale_after_s
+        self._bus_stalled = False
 
         self._capabilities = DriverCapabilities(
             hardware_soc_cutoff=True,     # cutoff registers exposed as numbers
             has_force_mode=True,
             push_telemetry=True,          # ESPHome pushes state into HA
+            # read_telemetry drops the whole snapshot once the bus heartbeat
+            # goes quiet, so the coordinator's reconnect probe is meaningful.
+            telemetry_liveness_checked=True,
             max_charge_power_w=max_charge_power_w,
             max_discharge_power_w=max_discharge_power_w,
             has_mppt_pv=False,            # Venus E is AC-coupled
@@ -565,6 +600,27 @@ class EsphomeEntityDriver(BatteryDriver):
     def read_groups(self) -> list[ReadGroup]:
         return self._read_groups
 
+    def _bus_stall_age_s(self) -> Optional[float]:
+        """Seconds since the most recently reported battery-sourced entity.
+
+        ``last_reported`` advances on every state write, including one that
+        repeats the previous value, so this measures when the ESP last spoke —
+        not when a value last moved. Returns None when no mapped entity carries
+        a usable timestamp, so the guard fails open on a firmware or a test
+        double the heartbeat cannot date.
+        """
+        newest = None
+        for key, entity_id in self._entities.items():
+            if key in _HEARTBEAT_EXCLUDED_KEYS:
+                continue
+            state = self.hass.states.get(entity_id)
+            reported = getattr(state, "last_reported", None) if state else None
+            if reported is not None and (newest is None or reported > newest):
+                newest = reported
+        if newest is None:
+            return None
+        return (dt_util.utcnow() - newest).total_seconds()
+
     async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:
         """Return the mapped entities' current HA states as a snapshot.
 
@@ -572,7 +628,32 @@ class EsphomeEntityDriver(BatteryDriver):
         scaling), so the entity definitions all carry scale 1. Unavailable /
         unknown / unparseable states are omitted; an all-offline device yields
         an empty snapshot, which drives the coordinator's failure ladder.
+
+        A stalled bus yields that same empty snapshot even though every state
+        object still holds a readable value — see the bus-liveness note above.
+        The ladder then marks the battery unavailable, which stops the control
+        loop writing to it, so the guard also removes the write pressure on an
+        already-congested bridge.
         """
+        age = self._bus_stall_age_s()
+        if age is not None and age > self._stale_after_s:
+            if not self._bus_stalled:
+                self._bus_stalled = True
+                _LOGGER.warning(
+                    "ESPHome device %s has not reported any battery telemetry "
+                    "for %.0fs (limit %.0fs) — its Modbus poll loop looks "
+                    "stalled. Treating the cached states as unusable rather "
+                    "than controlling on them.",
+                    self._device_id, age, self._stale_after_s,
+                )
+            return {}
+        if self._bus_stalled:
+            self._bus_stalled = False
+            _LOGGER.info(
+                "ESPHome device %s is reporting battery telemetry again",
+                self._device_id,
+            )
+
         wanted = keys if keys is not None else list(self._entities)
         snapshot: TelemetrySnapshot = {}
         for key in wanted:

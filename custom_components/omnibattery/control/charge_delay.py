@@ -60,7 +60,13 @@ _REAL_DATETIME = datetime
 # sensor going unavailable at the midnight rollover) silently disables the
 # charge delay for the rest of the day. Keeping them re-evaluable lets the delay
 # re-arm as soon as the data comes back.
-_TRANSIENT_UNLOCK_REASONS = frozenset({"no_forecast"})
+_TRANSIENT_UNLOCK_REASONS = frozenset({"no_forecast", "zero_forecast"})
+
+# Hour until which a zero scalar forecast is treated as "the provider has not
+# published the new day yet" rather than "there is no sun today" (#457). There
+# is no production to lose before it, and a provider that is later still than
+# this unlocks with a re-evaluable reason instead of latching.
+_PROVISIONAL_ZERO_HOLD_HOUR = 1.0
 
 # Fields that describe a completed forecast decision.  The setpoint phase exits
 # before calculating a new decision, so retaining these values there makes the
@@ -234,7 +240,6 @@ class ChargeDelayManager:
                 ctrl._delay_setpoint_reached = False
                 ctrl._solar_t_start = None
                 ctrl._forecast_unavailable_since = None
-                ctrl._forecast_zero_since = None
             # On first cycle after HA restart (_charge_delay_last_date is None),
             # _charge_delay_unlocked may have been restored from storage by
             # _weekly_charge_mgr.load_state() — preserve it rather than wiping it.
@@ -493,7 +498,6 @@ class ChargeDelayManager:
         )
 
         if raw_forecast is None:
-            ctrl._forecast_zero_since = None
             mono = monotonic()
             if ctrl._forecast_unavailable_since is None:
                 ctrl._forecast_unavailable_since = mono
@@ -519,30 +523,19 @@ class ChargeDelayManager:
             "today" if forecast.original_source == "today_legacy"
             else forecast.original_source
         )
-        # The scalar may briefly roll to zero at local midnight before the
-        # provider publishes the new day's budget.  Dated periods are already
-        # reconciled by read_remaining_solar_kwh; for a scalar-only zero, hold
-        # through the same bounded grace used for unavailable values.  This is
-        # deliberately not a permanent unlock, so a later valid update re-arms
-        # the delay instead of leaving it open for the day.
-        if raw_forecast <= 1e-9:
-            zero_since = getattr(ctrl, "_forecast_zero_since", None)
-            if zero_since is None and now_h < 1.0:
-                zero_since = monotonic()
-                ctrl._forecast_zero_since = zero_since
-            if (
-                zero_since is not None
-                and monotonic() - zero_since < ctrl._forecast_grace_s
-            ):
-                status["forecast_kwh"] = raw_forecast
-                status["solar_forecast_source"] = forecast_origin
-                status["solar_forecast_diagnostic_source"] = forecast.source
-                status["solar_forecast_conversion"] = forecast.conversion
-                status["unlock_reason"] = None
-                status["state"] = "Waiting for forecast"
-                return True
-        else:
-            ctrl._forecast_zero_since = None
+        # The scalar rolls to zero at local midnight until the provider
+        # publishes the new day's budget, which can take until ~00:30 (#457).
+        # Dated periods are already reconciled by read_remaining_solar_kwh; a
+        # scalar-only zero is held until there could plausibly be sun. A five
+        # minute wall-clock grace was far too short for real providers.
+        if raw_forecast <= 1e-9 and now_h < _PROVISIONAL_ZERO_HOLD_HOUR:
+            status["forecast_kwh"] = raw_forecast
+            status["solar_forecast_source"] = forecast_origin
+            status["solar_forecast_diagnostic_source"] = forecast.source
+            status["solar_forecast_conversion"] = forecast.conversion
+            status["unlock_reason"] = None
+            status["state"] = "Waiting for forecast"
+            return True
 
         # read_remaining_solar_kwh normalizes both configured sources to the
         # same future horizon, so downstream consumers must never subtract
@@ -637,7 +630,13 @@ class ChargeDelayManager:
             # is due, so the unavoidable grid charge lands in the cheap window (#4).
             if self._low_forecast_price_release(now_h):
                 return True
-            return _unlock("low_forecast")
+            # A zero forecast is as likely to be a provider that has not
+            # published yet as a genuinely sunless day, so unlock with a
+            # re-evaluable reason: the cheap night hours stay usable, and the
+            # delay re-arms by itself once the real budget lands (#457).
+            return _unlock(
+                "zero_forecast" if raw_forecast <= 1e-9 else "low_forecast"
+            )
 
         # --- Exception 3: No T_start detected ---
         if ctrl._solar_t_start is None:

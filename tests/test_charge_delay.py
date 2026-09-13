@@ -894,3 +894,26 @@ def test_estimate_bare_edge_is_later_than_factored_edge():
     factored = mgr._estimate_energy_balance_unlock_h(10.0, 1.0, 8.0, 16.0, 8.0)
     bare = mgr._estimate_energy_balance_unlock_h(10.0, 1.0, 8.0, 16.0, 8.0, safety_factor=1.0)
     assert bare > factored
+
+
+def test_late_provider_zero_unlocks_without_latching_then_rearms(monkeypatch):
+    """#457: Forecast.Solar publishing at ~00:30 must not disable the delay.
+
+    Past the provisional-zero hold hour the gate unlocks (cheap night hours
+    stay usable) but must keep the unlock re-evaluable, so the real budget
+    re-arms the delay instead of arriving at a latched-open gate.
+    """
+    clock = [dt_util.now().replace(hour=1, minute=15, second=0, microsecond=0)]
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: clock[0])
+    states = {"sensor.forecast": _state(0)}
+    ctrl = _controller()
+    mgr = _make_mgr(ctrl, states=states)
+
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_status["unlock_reason"] == "zero_forecast"
+    assert ctrl._charge_delay_unlocked is False  # not latched for the day
+
+    clock[0] = clock[0].replace(minute=20)
+    states["sensor.forecast"] = _state(43.54)
+    assert mgr.is_charge_delayed() is True
+    assert ctrl._charge_delay_unlocked is False

@@ -289,7 +289,10 @@ def test_zendure_reported_inverse_max_power_ignores_invalid_cap():
 
 
 async def test_reconnect_skips_rs485_for_driver_without_capability():
-    driver = SimpleNamespace(connect=AsyncMock(return_value=True))
+    driver = SimpleNamespace(
+        connect=AsyncMock(return_value=True),
+        read_telemetry=AsyncMock(return_value={"battery_soc": 50}),
+    )
     coordinator = SimpleNamespace(
         name="Anker",
         host="192.0.2.1",
@@ -299,7 +302,7 @@ async def test_reconnect_skips_rs485_for_driver_without_capability():
         _suspension_reset_time=object(),
         lock=asyncio.Lock(),
         driver=driver,
-        capabilities=SimpleNamespace(has_rs485_control=False),
+        capabilities=SimpleNamespace(has_rs485_control=False, push_telemetry=False),
         rs485_user_disabled=False,
         _last_update_times={("battery_soc",): object()},
         _critical_group_failures={("battery_soc",): 2},
@@ -319,6 +322,7 @@ async def test_reconnect_skips_rs485_for_driver_without_capability():
 async def test_reconnect_records_failed_rs485_reenable():
     driver = SimpleNamespace(
         connect=AsyncMock(return_value=True),
+        read_telemetry=AsyncMock(return_value={"battery_soc": 50}),
         set_rs485_control=AsyncMock(return_value=False),
     )
     coordinator = SimpleNamespace(
@@ -330,7 +334,7 @@ async def test_reconnect_records_failed_rs485_reenable():
         _suspension_reset_time=object(),
         lock=asyncio.Lock(),
         driver=driver,
-        capabilities=SimpleNamespace(has_rs485_control=True),
+        capabilities=SimpleNamespace(has_rs485_control=True, push_telemetry=False),
         rs485_user_disabled=False,
         _last_update_times={},
         _critical_group_failures={},

@@ -1,5 +1,9 @@
 {
   "issues": {
+    "battery_not_delivering": {
+      "title": "Battery {battery} is not delivering power",
+      "description": "{battery} has been accepting charge/discharge commands without delivering power for {minutes} minutes ({reason}). Omnibattery keeps it out of the pool and retries it every {cooldown} minutes, so the rest of the fleet covers the house meanwhile. The battery itself, its Modbus link or the bridge in front of it needs attention: check that it is not sitting in standby under its own app's control, and that the connection is not saturated. Switching Manual Battery Control on and off again for that battery often restores it."
+    },
     "configured_sensor_missing": {
       "title": "Configured sensor no longer exists",
       "description": "Omnibattery is configured with {sensors}, which does not exist in Home Assistant. Every feature that reads it is inactive. The stored reference is kept on purpose, because the entity picker cannot show an entity that is gone and would otherwise clear your setting silently: open Options → Sensors and pick a replacement, or clear the field once the entity is back."
@@ -19,6 +23,10 @@
     "solar_forecast_remaining_recommended": {
       "title": "Use a remaining solar forecast",
       "description": "{sensor} is a legacy whole-day solar forecast. Omnibattery still supports it, but past forecast errors can make intraday decisions inaccurate. Configure the provider's \"remaining today\" forecast sensor in Omnibattery options for a more accurate remaining-solar calculation."
+    },
+    "three_phase_sensor_degraded": {
+      "title": "Three-phase protection is running blind on {phase}",
+      "description": "The current sensor {sensor} for {phase} has been unreadable for several minutes ({reason}). Charging on that phase is blocked and its discharge is held at the last measured value, because cutting it would push that phase's current up instead of down. Check that the sensor still reports, and that it reports periodically rather than only when its value changes."
     },
     "three_phase_manual_mode": {
       "title": "Three-phase protection can be bypassed by manual commands",

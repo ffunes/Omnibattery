@@ -20,7 +20,7 @@ import logging
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, time as dt_time, timedelta
 from enum import Enum
 from time import monotonic
 from types import MappingProxyType
@@ -1476,8 +1476,9 @@ class PricingManager:
         if not start_text or not end_text:
             return False
         try:
-            start = datetime.strptime(str(start_text), "%H:%M").time()
-            end = datetime.strptime(str(end_text), "%H:%M").time()
+            # HA's TimeSelector stores "HH:MM:SS"; fromisoformat takes both.
+            start = dt_time.fromisoformat(str(start_text))
+            end = dt_time.fromisoformat(str(end_text))
         except (TypeError, ValueError):
             return False
 
@@ -2985,12 +2986,11 @@ class PricingManager:
                 if days and day_name not in days:
                     continue
                 try:
-                    start_time = datetime.strptime(
-                        str(configured["start_time"]), "%H:%M"
-                    ).time()
-                    end_time = datetime.strptime(
-                        str(configured["end_time"]), "%H:%M"
-                    ).time()
+                    # HA's TimeSelector stores "HH:MM:SS"; fromisoformat takes
+                    # both. "%H:%M" rejected every configured window, so this
+                    # mode never got a chronological plan at all (#447).
+                    start_time = dt_time.fromisoformat(str(configured["start_time"]))
+                    end_time = dt_time.fromisoformat(str(configured["end_time"]))
                 except (KeyError, TypeError, ValueError):
                     continue
                 start = datetime.combine(

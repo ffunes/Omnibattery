@@ -10,7 +10,11 @@ Exercised unbound with light stubs (same pattern as test_no_pd_tracking).
 """
 from __future__ import annotations
 
+import asyncio
+import time
 from types import SimpleNamespace
+
+from homeassistant.util import dt as dt_util
 
 from custom_components.omnibattery import ChargeDischargeController
 
@@ -49,3 +53,47 @@ def test_no_pd_debounce_fire_launches_background_task():
     assert ctl._no_pd_debounce_unsub is None
     assert len(calls) == 1
     assert calls[0][2] == "omnibattery_no_pd_cycle"
+
+
+def _paced_controller(runs):
+    """Stub with just the state the pacing gate reads."""
+
+    async def _run(now=None):
+        runs.append(now)
+
+    return SimpleNamespace(
+        _unloading=False,
+        no_pd_mode_enabled=False,
+        _no_pd_command_delay=0.0,
+        _min_cycle_interval_s=1.0,
+        _last_cycle_monotonic=time.monotonic(),
+        _control_lock=asyncio.Lock(),
+        _phase_safety_pending=True,
+        _run_control_cycle=_run,
+    )
+
+
+async def test_event_trigger_inside_the_min_interval_is_dropped():
+    """Phase sensors schedule cycles with no `now`, so this gate paces them (#452).
+
+    Three phase meters on a 1 Hz P1 used to bypass it and drive several ungated
+    write bursts per second, which a slow bridge answers with a full queue. The
+    drop is safe because _phase_safety_pending survives it.
+    """
+    runs = []
+    ctl = _paced_controller(runs)
+
+    await ChargeDischargeController.async_update_charge_discharge(ctl, None)
+
+    assert runs == []
+    assert ctl._phase_safety_pending is True
+
+
+async def test_the_safety_timer_is_never_paced():
+    runs = []
+    ctl = _paced_controller(runs)
+    stamp = dt_util.utcnow()
+
+    await ChargeDischargeController.async_update_charge_discharge(ctl, stamp)
+
+    assert runs == [stamp]
