@@ -233,6 +233,15 @@ A missing price, a missing consumption profile, no usable energy and no future d
 
 The binary sensor `discharge_reserve_status` reports whether a reserve is active, the reason, the reserved energy and percentage, the reference price and the slots that claim it. The **Integration Status** sensor reports `price_reserve_hold` while a battery is held.
 
+Because the decision is rebuilt every control cycle from the live price, two cycles minutes apart can legitimately disagree. These attributes are there to say which input moved:
+
+- `threshold_price`: the price a later slot has to beat this cycle, `reference_price + min_saving`.
+- `claimed_kwh`: what the dearer hours asked for, before any sun is taken off.
+- `pv_credit_kwh`: what the expected surplus paid off. `reserve_kwh` is `claimed_kwh - pv_credit_kwh`.
+- `first_claim_start`: the earliest slot with a claim.
+- `horizon_demand_kwh` and `horizon_surplus_kwh`: the projected net demand and PV surplus over the remaining horizon, the two figures the whole projection rests on.
+- `claims`: every claim with its price, its claimed kWh, the PV credited against it and the surplus expected in that slot. `reserved_slots` drops a claim the sun pays off in full; this list keeps it, which is the cycle that is hardest to explain otherwise.
+
 ### Minimum arbitrage margin
 
 A fixed charge ceiling answers "is this price low?" but not "is it low *enough*". Those come apart in winter, when a flat price curve can sit entirely below the ceiling while offering no spread to trade against. Charging then runs the battery through a cycle that the round-trip losses eat.
