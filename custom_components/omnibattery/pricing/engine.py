@@ -2731,10 +2731,64 @@ class PricingManager:
                 daily_horizon_end,
             )
             solar_source = timeline.source
+            # Peak shaving that is conserving now holds the battery to the
+            # excess above its limit; the grid carries the rest of the load.
+            # Projecting a full overnight drain instead booked a phantom
+            # guaranteed-floor charge for a battery that never moved.
+            # ponytail: assumes the hold lasts until sunrise; a release inside
+            # a slot re-evaluates (see handle_time_slot_predictive_charging).
+            held_check = getattr(
+                self._controller, "_is_capacity_protection_soc_limited", None
+            )
+            held_until = (
+                solar_start_dt
+                if solar_start_dt is not None
+                and callable(held_check)
+                and held_check() is True
+                else None
+            )
+            limit_kw = max(
+                0.0,
+                float(getattr(self._controller, "capacity_protection_limit", 0.0) or 0.0),
+            ) / 1000.0
             intervals = [
-                EnergyInterval(start, end, consumption[index], solar[index])
+                EnergyInterval(
+                    start,
+                    end,
+                    max(
+                        0.0,
+                        consumption[index]
+                        - limit_kw * (end - start).total_seconds() / 3600.0,
+                    )
+                    if held_until is not None and start < held_until
+                    else consumption[index],
+                    solar[index],
+                )
                 for index, (start, end) in enumerate(boundaries)
             ]
+            # A no-discharge window blocks the battery outright, peaks
+            # included, so the grid carries all of that interval's load.
+            # ponytail: fleet-wide ("all") windows only; a per-battery window
+            # leaves the rest of the fleet discharging, so it is not projected.
+            configured = getattr(
+                getattr(self._controller, "config_entry", None), "data", {}
+            ).get("no_discharge_time_slots", []) or []
+            if isinstance(configured, dict):
+                configured = [configured]
+            fleet_blocks = [
+                item for item in configured
+                if item.get("battery_scope", "all") == "all"
+            ]
+            if fleet_blocks:
+                intervals = [
+                    EnergyInterval(item.start, item.end, 0.0, item.solar_kwh)
+                    if any(
+                        self._future_slot_matches_operation_block(item, block)
+                        for block in fleet_blocks
+                    )
+                    else item
+                    for item in intervals
+                ]
 
             eligible = [
                 c for c in self._controller.coordinators
@@ -5406,11 +5460,25 @@ class PricingManager:
                 not is_initial_eval and self._is_solar_forecast_reeval(now)
             )
 
+            # peak_shaving_moved: the planner projects a peak-shaving hold as
+            # no overnight drain, so releasing it (or engaging it) inside the
+            # window changes what the battery must still cover before sunrise.
+            held_check = getattr(
+                self._controller, "_is_capacity_protection_soc_limited", None
+            )
+            peak_shaving_held = callable(held_check) and held_check() is True
+            peak_shaving_moved = (
+                not is_initial_eval
+                and peak_shaving_held
+                != getattr(self._controller, "_last_eval_peak_shaving_held", False)
+            )
+
             should_reevaluate = (
                 is_initial_eval or
                 floor_crossed or
                 floor_recovered or
                 forecast_moved or
+                peak_shaving_moved or
                 abs(current_avg_soc - self._controller.last_evaluation_soc) >= SOC_REEVALUATION_THRESHOLD
             )
 
@@ -5425,6 +5493,12 @@ class PricingManager:
                 elif forecast_moved:
                     _LOGGER.info(
                         "RE-EVALUATING predictive grid charging: solar forecast revised (SOC: %.1f%%)",
+                        current_avg_soc,
+                    )
+                elif peak_shaving_moved:
+                    _LOGGER.info(
+                        "RE-EVALUATING predictive grid charging: peak shaving %s (SOC: %.1f%%)",
+                        "engaged" if peak_shaving_held else "released",
                         current_avg_soc,
                     )
                 elif floor_recovered:
@@ -5525,6 +5599,7 @@ class PricingManager:
                 was_active = self._controller.grid_charging_active
                 self._controller.grid_charging_active = decision_data["should_charge"]
                 self._controller.last_evaluation_soc = current_avg_soc
+                self._controller._last_eval_peak_shaving_held = peak_shaving_held
                 self._controller._last_decision_data = decision_data
                 # Arms the forecast trigger on the slot's first evaluation and
                 # re-arms it after every later one, so a decision that already
