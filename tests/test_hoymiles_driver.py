@@ -631,3 +631,54 @@ async def test_ac_port_key_absent_when_firmware_omits_the_fields(mqtt_mock):
     )
 
     assert await driver.read_telemetry(["ac_delivered_power"]) == {}
+
+
+@pytest.mark.asyncio
+async def test_pv_and_offgrid_generation_published_as_solar_power(mqtt_mock):
+    """Issue #467: the 4020 X publishes its DC generation, the driver dropped it.
+
+    Same payload as the #399 test: cell charge 784.2 W = 567.9 W of MPPT plus
+    217.7 W entering through the off-grid port (the reporter's microinverter),
+    which reads as a negative port power.
+    """
+    hass = _hass()
+    driver = HoymilesMqttDriver(hass, "HB-3", model="HB-4020-X")
+    assert await driver.connect()
+
+    mqtt_mock.callbacks[driver._quick_topic](SimpleNamespace(payload=(
+        '{"grid_on_p":1.4,"grid_off_p":-217.7,"pv_p":567.9,"bat_sts":"charge",'
+        '"bat_p":-784.2,"soc":22.7,"sys_pv_p":567.9,"sys_plug_p":1.4,'
+        '"sys_bat_p":-784.2,"sys_soc":22.7,"sys_eps_p":-217.7}'
+    )))
+
+    snapshot = await driver.read_telemetry(["solar_power"])
+    assert snapshot["solar_power"] == pytest.approx(785.6)
+    assert driver.capabilities.has_solar_telemetry is True
+    assert "solar_power" in {d["key"] for d in driver.sensor_definitions}
+    assert "solar_power" in driver.read_groups[0].keys
+
+
+@pytest.mark.asyncio
+async def test_offgrid_load_is_not_counted_as_generation(mqtt_mock):
+    """A load on the off-grid port reads positive; only imports are generation."""
+    hass = _hass()
+    driver = HoymilesMqttDriver(hass, "HB-4", model="HB-4020-X")
+    assert await driver.connect()
+
+    mqtt_mock.callbacks[driver._quick_topic](SimpleNamespace(payload=(
+        '{"sys_soc":50,"sys_bat_p":300,"sys_pv_p":0,"sys_eps_p":180.0}'
+    )))
+
+    assert await driver.read_telemetry(["solar_power"]) == {"solar_power": 0.0}
+
+
+@pytest.mark.asyncio
+async def test_ac_coupled_model_advertises_no_solar(mqtt_mock):
+    """MS-A2 and the AC HiBattery variants have no PV inputs: no solar entity."""
+    hass = _hass()
+    driver = HoymilesMqttDriver(hass, "MSA-9", model="MS-A2")
+    assert await driver.connect()
+
+    assert driver.capabilities.has_solar_telemetry is False
+    assert "solar_power" not in {d["key"] for d in driver.sensor_definitions}
+    assert "solar_power" not in {d["key"] for d in driver.all_definitions}

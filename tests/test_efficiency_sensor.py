@@ -78,3 +78,31 @@ def test_backup_discharge_is_included_in_lifetime_efficiency():
     )
 
     assert sensor.native_value == pytest.approx(92.0)
+
+
+def test_dual_plane_sampling_falls_back_to_the_measured_ac_port():
+    """Issue #467: a PV driver without an ``ac_power`` register still measures
+    its own AC port, so the dual-plane legs must sample from that instead of
+    leaving efficiency unknown forever."""
+    sensor = object.__new__(MarstekVenusEfficiencySensor)
+    sensor._integrate_mode = True
+    sensor._mppt_keys = ["mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"]
+    sensor._charge_ac_kwh = sensor._charge_dc_kwh = 0.0
+    sensor._discharge_ac_kwh = sensor._discharge_dc_kwh = 0.0
+    sensor.coordinator = SimpleNamespace(
+        data={
+            "battery_power": -500.0,      # discharging the cells
+            "ac_delivered_power": -450.0,  # battery_power convention: delivering
+            "solar_power": 0.0,
+        },
+        capabilities=SimpleNamespace(has_mppt_pv=False),
+    )
+
+    sensor._last_mono = None
+    sensor._accumulate()          # seeds the timer
+    sensor._last_mono -= 360.0    # pretend six minutes passed
+    sensor._accumulate()
+
+    assert sensor._discharge_dc_kwh == pytest.approx(0.05, abs=1e-3)
+    assert sensor._discharge_ac_kwh == pytest.approx(0.045, abs=1e-3)
+    assert sensor.native_value == pytest.approx(81.0, abs=0.5)

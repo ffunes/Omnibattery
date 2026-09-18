@@ -19,6 +19,7 @@ from ..energy import (
     BACKUP_DAILY_DISCHARGING_ENERGY_KEY,
     effective_total_discharging_energy,
 )
+from ..drivers.base import DELIVERED_AC_POWER_KEY
 from ..infra.coordinator import MarstekVenusDataUpdateCoordinator
 from ..infra.entity_naming import english_entity_id
 from ..tracking.backfill import local_day_bounds
@@ -201,6 +202,12 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
             return
         battery = data.get("battery_power")  # DC terminal, + charge / - discharge
         ac = data.get("ac_power")            # AC port, opposite sign to battery
+        if ac is None:
+            # Registerless drivers with PV (Hoymiles 4020 X) have no ac_power
+            # register but do measure their own AC port. Without this the whole
+            # dual-plane leg never samples and efficiency stays unknown forever.
+            delivered = data.get(DELIVERED_AC_POWER_KEY)
+            ac = None if delivered is None else -delivered
         if battery is None or ac is None:
             return
         if getattr(
