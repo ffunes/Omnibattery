@@ -56,7 +56,8 @@ def _controller(coord, *, bms_full=False):
         _normal_balance_bms_cutoff_retry_pending={},
         _normal_balance_recal_override={},
         _weekly_charge_mgr=SimpleNamespace(is_battery_full=lambda c: bms_full),
-        _effective_charge_max_soc=lambda c, weekly: (c.max_soc, "config"),
+        _effective_charge_max_soc=lambda c, weekly, **_kw: (c.max_soc, "config"),
+        _predictive_solar_only_batteries={},
         set_charge_block=_set_block,
         remove_charge_block=_remove_block,
     )
@@ -186,3 +187,34 @@ def test_venus_ad_first_cutoff_waiting_blocks_only_until_relaxation_retry():
 
     assert "bms_cutoff_retry" in ctrl._blocks[c]
     assert not _hyst_blocked(ctrl, c)
+
+
+def _predictive_ctrl(coord, target):
+    ctrl = _controller(coord)
+    ctrl._effective_charge_max_soc = lambda c, weekly, ignore_predictive_target=False: (
+        (c.max_soc, "max_soc") if ignore_predictive_target else (target, "predictive_target")
+    )
+    return ctrl
+
+
+def test_predictive_target_reports_solar_only_instead_of_a_charge_block():
+    # Issue #470: past the grid-charge target the battery still takes solar.
+    c = _Coord(soc=38, max_soc=100)
+    ctrl = _predictive_ctrl(c, 37.3)
+
+    ChargeDischargeController._refresh_battery_charge_limit_blocks(ctrl)
+
+    assert "max_soc" not in ctrl._blocks.get(c, set())
+    assert ctrl._predictive_solar_only_batteries == {
+        "bat": {"soc": 38, "predictive_target": 37.3}
+    }
+
+
+def test_predictive_target_at_normal_ceiling_is_still_a_charge_block():
+    c = _Coord(soc=100, max_soc=100)
+    ctrl = _predictive_ctrl(c, 90)
+
+    ChargeDischargeController._refresh_battery_charge_limit_blocks(ctrl)
+
+    assert "max_soc" in ctrl._blocks.get(c, set())
+    assert ctrl._predictive_solar_only_batteries == {}

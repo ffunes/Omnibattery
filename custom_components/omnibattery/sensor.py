@@ -1055,6 +1055,9 @@ class IntegrationStatusSensor(SensorEntity):
         battery_discharge_blockers = c.get_battery_discharge_blockers()
         if battery_discharge_blockers:
             attrs["battery_discharge_blockers"] = battery_discharge_blockers
+        solar_only = getattr(c, "_predictive_solar_only_batteries", None)
+        if solar_only:
+            attrs["battery_solar_only_charge"] = dict(solar_only)
         offsets = dict(c._setpoint_offsets)
         if offsets:
             attrs["setpoint_offsets"] = offsets

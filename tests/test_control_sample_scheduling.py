@@ -805,3 +805,33 @@ def test_predictive_peak_stops_discharge_when_meter_is_too_stale():
     assert [(charge, discharge) for _, charge, discharge in writes][-1] == (0, 0)
     assert controller._predictive_demand_state == "settling_after_discharge"
     assert controller._capacity_protection_status["active"] is False
+
+
+def test_predictive_target_battery_absorbs_measured_export_only():
+    """Issue #470: the predictive target caps grid energy, not solar surplus."""
+    first_report = datetime.now(timezone.utc)
+    state_holder = {"state": _state(-3000, first_report)}
+    writes = []
+    controller = _predictive_controller(state_holder, writes)
+    predictive = controller.coordinators[0]
+    # Past its predictive target, still below its normal max SOC.
+    surplus = type(predictive)(name="surplus", data={"battery_soc": 38}, max_soc=100)
+    controller.coordinators = [predictive, surplus]
+    controller._get_available_batteries = (
+        lambda is_charging, ignore_predictive_target=False, **_kwargs: (
+            [predictive, surplus] if ignore_predictive_target else [predictive]
+        )
+    )
+    controller._effective_system_capacity = lambda batteries, is_charging: 800.0 * len(batteries)
+
+    asyncio.run(controller._handle_predictive_grid_charging())
+    surplus_writes = [w for w in writes if w[0] is surplus]
+    assert surplus_writes[-1][1] > 0
+
+    # Import appears (solar gone): the surplus-only command walks down to
+    # zero instead of drawing grid energy past the predictive target.
+    for seconds in (4, 8, 12):
+        state_holder["state"] = _state(2000, first_report + timedelta(seconds=seconds))
+        asyncio.run(controller._handle_predictive_grid_charging())
+    assert [w for w in writes if w[0] is surplus][-1][1] == 0
+    assert controller._predictive_surplus_power == 0.0

@@ -288,7 +288,7 @@ def _available_pool_controller(manual, automatic):
     controller._weekly_charge_mgr = SimpleNamespace(
         is_battery_full=lambda _coordinator: False,
     )
-    controller._effective_charge_max_soc = lambda _c, _weekly: (100, "min_soc")
+    controller._effective_charge_max_soc = lambda _c, _weekly, **_kw: (100, "min_soc")
     controller._normal_balance_recal_override = {}
     return controller
 
