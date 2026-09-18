@@ -50,6 +50,10 @@ class HoymilesModelProfile:
     capacity_scales_with_units: bool = False
     infer_units_from_power: bool = True
     correct_asymmetric_discovery: bool = False
+    # Model has DC PV inputs of its own (MPPT and/or a microinverter on the
+    # off-grid port). The AC-coupled models have none, so they must not
+    # advertise solar telemetry — issue #467.
+    has_pv: bool = False
 
 
 HOYMILES_MODEL_PROFILES: tuple[HoymilesModelProfile, ...] = (
@@ -94,6 +98,7 @@ HOYMILES_MODEL_PROFILES: tuple[HoymilesModelProfile, ...] = (
         max_units=4,
         capacity_scales_with_units=True,
         infer_units_from_power=False,
+        has_pv=True,
     ),
     HoymilesModelProfile(
         "hibattery_4020_ac",
@@ -174,6 +179,9 @@ SENSOR_DEFINITIONS: list[dict] = [
     {"key": "max_discharge_power", "name": "Maximum Discharge Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "low", "enabled_by_default": False},
     {"key": "total_daily_charging_energy", "name": "Total Daily Charging Energy", "unit": "kWh", "device_class": "energy", "state_class": "total_increasing", "scale": 0.001, "precision": 3, "scan_interval": "low", "enabled_by_default": True},
     {"key": "total_daily_discharging_energy", "name": "Total Daily Discharging Energy", "unit": "kWh", "device_class": "energy", "state_class": "total_increasing", "scale": 0.001, "precision": 3, "scan_interval": "low", "enabled_by_default": True},
+    # Aggregate DC PV, not per-MPPT channels: the firmware publishes one total.
+    # Only created for models whose profile declares PV inputs (see has_pv).
+    {"key": "solar_power", "name": "Solar Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "high", "enabled_by_default": True},
 ]
 
 
@@ -229,7 +237,14 @@ class HoymilesMqttDriver(BatteryDriver):
     @property
     def read_groups(self): return self._read_groups
     @property
-    def sensor_definitions(self): return SENSOR_DEFINITIONS
+    def _has_pv(self) -> bool:
+        return bool(self._profile and self._profile.has_pv)
+    @property
+    def sensor_definitions(self):
+        # Keep the key polled either way (harmless when the firmware omits it);
+        # only the entity is model-gated.
+        if self._has_pv: return SENSOR_DEFINITIONS
+        return [d for d in SENSOR_DEFINITIONS if d["key"] != "solar_power"]
     @property
     def number_definitions(self): return []
     @property
@@ -241,7 +256,7 @@ class HoymilesMqttDriver(BatteryDriver):
     @property
     def button_definitions(self): return []
     @property
-    def all_definitions(self): return SENSOR_DEFINITIONS
+    def all_definitions(self): return self.sensor_definitions
     @property
     def control_dependency_keys(self):
         return frozenset({
@@ -492,7 +507,8 @@ class HoymilesMqttDriver(BatteryDriver):
         # for which Omnibattery's MPPT correction capability was designed.
         return DriverCapabilities(
             False, False, True, self._max_charge_w, self._max_discharge_w,
-            False, False, False, has_energy_counters=True,
+            False, False, False, has_solar_telemetry=self._has_pv,
+            has_energy_counters=True,
             has_daily_energy_counters=True, has_nominal_capacity=False,
             setpoint_confirm_reliable=False, actuator_latency_s=1.8,
             readback_latency_s=4.0,
@@ -513,6 +529,20 @@ class HoymilesMqttDriver(BatteryDriver):
         plug_power = self._number(data, "sys_plug_p")
         if plug_power is None: plug_power = self._number(data, "grid_on_p")
         if plug_power is not None: self._cache[DELIVERED_AC_POWER_KEY] = -plug_power
+        # DC generation feeding the cells (issue #467). Two independent sources
+        # on the 4020 X: the MPPT inputs (pv_p) and whatever is wired to the
+        # off-grid port (eps_p), where a microinverter reads as a *negative*
+        # port power, i.e. power entering. A load on that port reads positive
+        # and is not generation. Published as the aggregate `solar_power` key.
+        pv_power = self._number(data, "sys_pv_p")
+        if pv_power is None: pv_power = self._number(data, "pv_p")
+        offgrid_power = self._number(data, "sys_eps_p")
+        if offgrid_power is None: offgrid_power = self._number(data, "grid_off_p")
+        if pv_power is not None or offgrid_power is not None:
+            self._cache["solar_power"] = (
+                max(0.0, float(pv_power or 0.0))
+                + max(0.0, -float(offgrid_power or 0.0))
+            )
 
     async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:
         data = dict(self._cache)

@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **A Hoymiles HiBattery 4020 X now reports its own solar production** (#467): the driver dropped the PV power the battery publishes, so with no external solar sensor the dashboard showed no Solar node and every PV charge was logged as a grid charge. Both DC sources are now published as Solar Power — the MPPT inputs and a microinverter on the off-grid port. AC-coupled models (MS-A2, 1920/4020 AC) are unaffected. Thanks to @TheOops.
 - **A manual forced charge/discharge survives a Modbus stall** (#477): Marstek V150 firmware can drop forced mode to None / 0 W while its Modbus stack is stuck, and in manual mode nothing wrote it back. The manual loop now re-asserts the user's Charge/Discharge once the battery answers again. Thanks to @Remueb.
 - **Dynamic Pricing no longer books dearer slots after a morning SOC drop** (#472): the overnight-drop re-plan reused the evening top-up, which skipped the cheap midday slots already listed by the 00:05 plan, booked the next-cheapest ones and then armed all of them. A SOC drop now runs a full remaining-day re-evaluation, and the evening top-up picks from every slot and arms only the ones it chose. Thanks to @benediktarnold.
 
