@@ -187,7 +187,7 @@ def _chargeable(data, *, max_soc=100):
         is_charge_blocked=lambda c: False,
         get_charge_blockers=lambda c: {},
         _weekly_full_charge_unlocked=lambda: False,
-        _effective_charge_max_soc=lambda c, w: (max_soc, "max_soc"),
+        _effective_charge_max_soc=lambda c, w, **_kw: (max_soc, "max_soc"),
         _should_charge_to_bms_cutoff=lambda c, m: False,
         _normal_balance_recal_override={},
         _weekly_charge_mgr=SimpleNamespace(is_battery_full=lambda c: False),

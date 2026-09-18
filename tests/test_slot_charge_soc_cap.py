@@ -89,3 +89,12 @@ def test_unparsable_slot_cap_is_ignored():
     c = _coord()
     ctrl = _ctrl(c, slot_max="not-a-number", grid_charging=True, target=92)
     assert _ceiling(ctrl, c) == (92, "predictive_target")
+
+
+def test_solar_surplus_ceiling_ignores_only_the_predictive_target():
+    # Issue #470: surplus charging past the grid-charge target still honours the slot cap.
+    c = _coord()
+    ctrl = _ctrl(c, slot_max=80, grid_charging=True, target=37)
+    assert ChargeDischargeController._effective_charge_max_soc(
+        ctrl, c, False, ignore_predictive_target=True
+    ) == (80, "slot_soc_override")

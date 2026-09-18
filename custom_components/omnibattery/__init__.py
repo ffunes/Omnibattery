@@ -937,6 +937,9 @@ class ChargeDischargeController:
         self._predictive_protection_reason = None
         self._predictive_hard_limit_samples = 0
         self._predictive_resume_charge_power = None
+        # Batteries past their predictive target that may still take solar
+        # surplus (issue #470): status info, not a charge blocker.
+        self._predictive_solar_only_batteries: dict[str, dict] = {}
         self._last_decision_data = None  # Store last decision for diagnostics
         # Chronological forecast diagnostics survive later balance-only
         # re-evaluations, which replace _last_decision_data wholesale.
@@ -3536,8 +3539,14 @@ class ChargeDischargeController:
         except (TypeError, ValueError):
             return None
 
-    def _effective_charge_max_soc(self, coordinator, weekly_100_unlocked: bool) -> tuple[float, str]:
-        """Return the current per-battery charge ceiling and the source of that ceiling."""
+    def _effective_charge_max_soc(
+        self, coordinator, weekly_100_unlocked: bool, *, ignore_predictive_target: bool = False
+    ) -> tuple[float, str]:
+        """Return the current per-battery charge ceiling and the source of that ceiling.
+
+        ``ignore_predictive_target`` returns the ceiling that applies to solar
+        surplus: the predictive target only limits grid energy (issue #470).
+        """
         # A predictive grid-charge target must stop at its explicit target even
         # when a weekly-full-charge window happens to overlap. On the weekly day
         # that target is itself sized to 100%, so the two no longer disagree.
@@ -3554,6 +3563,7 @@ class ChargeDischargeController:
         if (
             self.grid_charging_active
             and self._predictive_charge_target_soc is not None
+            and not ignore_predictive_target
         ):
             per_battery_target = self._predictive_charge_target_soc.get(coordinator)
             if per_battery_target is not None:
@@ -3585,6 +3595,7 @@ class ChargeDischargeController:
         weekly_100_unlocked = self._weekly_full_charge_unlocked()
 
         for coordinator in self.coordinators:
+            self._predictive_solar_only_batteries.pop(coordinator.name, None)
             if ChargeDischargeController._is_battery_manual_owned(coordinator):
                 self.remove_charge_block("max_soc", coordinator=coordinator)
                 self.remove_charge_block("charge_hysteresis", coordinator=coordinator)
@@ -3667,6 +3678,24 @@ class ChargeDischargeController:
 
             bms_cutoff = self._weekly_charge_mgr.is_battery_full(coordinator)
 
+            # Issue #470: reaching the predictive target only ends the grid
+            # charge; below its normal ceiling the battery still takes solar
+            # surplus, so report that instead of a charge blocker.
+            solar_only = (
+                max_soc_source == "predictive_target"
+                and not bms_cutoff
+                and ceiling_soc >= effective_max_soc
+                and ceiling_soc < self._effective_charge_max_soc(
+                    coordinator, weekly_100_unlocked, ignore_predictive_target=True
+                )[0]
+            )
+            if solar_only:
+                self._predictive_solar_only_batteries[coordinator.name] = {
+                    "soc": current_soc,
+                    "predictive_target": effective_max_soc,
+                }
+            at_ceiling = (ceiling_soc >= effective_max_soc and not solar_only) or bms_cutoff
+
             if coordinator.enable_charge_hysteresis:
                 # Activate hysteresis when cell voltage hits the BMS cutoff threshold,
                 # regardless of whether the charge tapper feature is enabled.
@@ -3707,7 +3736,7 @@ class ChargeDischargeController:
                     coordinator._hysteresis_base_soc = None
 
                 if coordinator._hysteresis_active:
-                    if ceiling_soc >= effective_max_soc or bms_cutoff:
+                    if at_ceiling:
                         self.set_charge_block(
                             "max_soc",
                             "max_soc",
@@ -3741,7 +3770,7 @@ class ChargeDischargeController:
 
             self.remove_charge_block("charge_hysteresis", coordinator=coordinator)
 
-            if ceiling_soc >= effective_max_soc or bms_cutoff:
+            if at_ceiling:
                 self.set_charge_block(
                     "max_soc",
                     "max_soc",
@@ -4069,6 +4098,7 @@ class ChargeDischargeController:
         include_operation_blocks: bool = True,
         *,
         protection_discharge: bool = False,
+        ignore_predictive_target: bool = False,
     ) -> list:
         """Get list of available batteries for the current operation.
         
@@ -4155,6 +4185,7 @@ class ChargeDischargeController:
                 effective_max_soc, max_soc_source = self._effective_charge_max_soc(
                     coordinator,
                     weekly_100_unlocked,
+                    ignore_predictive_target=ignore_predictive_target,
                 )
 
                 should_charge_to_bms = getattr(self, "_should_charge_to_bms_cutoff", None)
@@ -6112,6 +6143,7 @@ class ChargeDischargeController:
                 initial_charge = min(max_battery_charge, target_power)
                 initialization_reason = "new slot"
             self.previous_power = -initial_charge
+            self._predictive_surplus_power = 0.0
             self._grid_charging_initialized = True
             self.first_execution = False  # Mark as initialized to avoid conflicts
             _LOGGER.info(
@@ -6251,6 +6283,45 @@ class ChargeDischargeController:
             if power <= 0:
                 continue
             await self._set_battery_power(coordinator, power, 0)
+
+        # Issue #470: a battery past its predictive target may still absorb
+        # measured export up to its normal ceiling. Only the predictive target
+        # is relaxed (every other blocker and ceiling still applies) and the
+        # command walks down on import, so it never draws grid energy.
+        surplus_batteries = [
+            coordinator
+            for coordinator in self._get_available_batteries(
+                is_charging=True, ignore_predictive_target=True
+            )
+            if coordinator not in available_batteries
+        ]
+        surplus_power = 0.0
+        if surplus_batteries:
+            surplus_power = getattr(self, "_predictive_surplus_power", 0.0)
+            if has_new_control_sample:
+                surplus_power += min(-self.kp * sensor_filtered * p_scale, max_change)
+            surplus_power = max(0.0, min(
+                surplus_power,
+                self._effective_system_capacity(surplus_batteries, is_charging=True),
+            ))
+            if surplus_power < self.deadband:
+                surplus_power = 0.0
+            surplus_allocation = self._power_distribution._distribute_power_by_limits(
+                surplus_power, surplus_batteries, is_charging=True
+            )
+            for coordinator, power in surplus_allocation.items():
+                if power <= 0:
+                    continue
+                allocated_batteries.add(coordinator)
+                await self._set_battery_power(coordinator, power, 0)
+            if surplus_power > 0:
+                _LOGGER.info(
+                    "Predictive: absorbing %.0fW solar surplus on batteries past "
+                    "their predictive target: %s",
+                    surplus_power,
+                    {c.name: p for c, p in surplus_allocation.items()},
+                )
+        self._predictive_surplus_power = surplus_power
 
         # Set all other batteries to 0 (non-available + available-but-not-selected)
         for coordinator in self.coordinators:
