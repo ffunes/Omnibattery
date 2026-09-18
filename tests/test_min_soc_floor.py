@@ -647,6 +647,89 @@ def test_lower_soc_at_window_start_asks_for_more_energy():
     )
 
 
+# --- peak shaving holding the battery overnight --------------------------------
+# A user raises the peak-shaving threshold to 100% at night so the battery only
+# covers load above the contracted limit. The floor projection assumed a full
+# overnight drain and booked a grid charge for a battery that never moved.
+
+
+def _held_floor_decision(soc, limit_w):
+    manager = _floor_manager(soc)
+    manager._controller._is_capacity_protection_soc_limited = lambda: True
+    manager._controller.capacity_protection_limit = limit_w
+    return manager._apply_time_slot_chronological_plan(
+        {
+            "should_charge": False,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 0.0,
+            "planned_grid_charge_kwh": 0.0,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        now=datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ),
+    )
+
+
+def test_peak_shaving_hold_does_not_project_an_overnight_floor_charge():
+    decision = _held_floor_decision(45.0, limit_w=3600)
+
+    assert not decision.get("floor_active")
+    assert decision["should_charge"] is False
+
+
+def test_peak_shaving_hold_still_counts_load_above_the_limit():
+    # 362 W load against a 50 W limit: the battery still shaves 312 W all
+    # night, which drains 45% past the 20% floor before sunrise.
+    decision = _held_floor_decision(45.0, limit_w=50)
+
+    assert decision["floor_active"] is True
+    assert decision["should_charge"] is True
+
+
+def _no_discharge_floor_decision(scope):
+    manager = _floor_manager(45.0)
+    manager._controller.config_entry.data["no_discharge_time_slots"] = [{
+        "start_time": "00:00:00",
+        "end_time": "07:00:00",
+        "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+        "enabled": True,
+        "battery_scope": scope,
+    }]
+    return manager._apply_time_slot_chronological_plan(
+        {
+            "should_charge": False,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 0.0,
+            "planned_grid_charge_kwh": 0.0,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        now=datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ),
+    )
+
+
+def test_no_discharge_window_does_not_project_an_overnight_floor_charge():
+    decision = _no_discharge_floor_decision("all")
+
+    assert not decision.get("floor_active")
+    assert decision["should_charge"] is False
+
+
+def test_per_battery_no_discharge_window_is_not_projected_fleet_wide():
+    assert _no_discharge_floor_decision("other_battery")["floor_active"] is True
+
+
+def test_peak_shaving_release_inside_the_window_re_evaluates():
+    engine, ctrl, calls = _make_engine(
+        soc=49.0, floor=20.0, grid_charging_active=False, last_evaluation_soc=50.0
+    )
+    ctrl._last_eval_peak_shaving_held = True
+    ctrl._is_capacity_protection_soc_limited = lambda: False
+
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+
+    assert calls["activate"] == 1
+    assert ctrl._last_eval_peak_shaving_held is False
+
+
 if __name__ == "__main__":
     test_floor_forces_charge_on_solar_positive_day()
     test_floor_deficit_covers_every_battery_under_the_floor()
