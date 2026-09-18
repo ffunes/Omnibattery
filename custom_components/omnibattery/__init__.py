@@ -6347,9 +6347,11 @@ class ChargeDischargeController:
         registers (Zendure/Anker) while global or individual manual mode is active.
 
         Register-based batteries (Marstek) are driven by the user's own register
-        writes, so they are skipped here. Charge/Discharge setpoints are
-        re-asserted every cycle; _set_battery_power's skip-if-unchanged guard
-        avoids redundant writes.
+        writes; they are only re-asserted when the polled direction no longer
+        matches the stored intent (a V150 v3 drops forced mode to None/0 W during
+        a Modbus stall, issue #477). Charge/Discharge setpoints of software
+        drivers are re-asserted every cycle; _set_battery_power's
+        skip-if-unchanged guard avoids redundant writes.
 
         Idle (None) does not reassert 0 W: Manual Mode turn-on already idles
         once, and reasserting would force Anker Third-Party Control every cycle
@@ -6360,6 +6362,7 @@ class ChargeDischargeController:
             if not global_mode and not individual_mode:
                 continue
             if not coordinator.needs_software_manual_control:
+                await self._reassert_register_manual_intent(coordinator)
                 continue
             mode = coordinator.manual_force_mode
             owner = "battery_manual" if individual_mode else "automatic"
@@ -6378,6 +6381,42 @@ class ChargeDischargeController:
                     coordinator, 0, coordinator.manual_set_discharge_power, **kwargs
                 )
             # Idle: leave device alone (no 0 W reassert / no mode force).
+
+    @staticmethod
+    async def _reassert_register_manual_intent(coordinator) -> None:
+        """Rewrite a register battery's manual Charge/Discharge if it slipped.
+
+        Only the direction is compared, not the watts: apply_power clamps to the
+        live ceiling, so a watt comparison could rewrite forever. Idle intent is
+        never asserted, and a battery the user handed back to its app (RS485 off)
+        or that is unreachable is left alone.
+        """
+        mode = coordinator.manual_force_mode
+        if mode == "Charge":
+            intended = int(coordinator.manual_set_charge_power)
+        elif mode == "Discharge":
+            intended = -int(coordinator.manual_set_discharge_power)
+        else:
+            return
+        if (
+            intended == 0
+            or not coordinator.is_available
+            or coordinator.rs485_user_disabled
+        ):
+            return
+        current = coordinator.driver.net_power_from_data(coordinator.data or {})
+        if current is None or (current != 0 and (current > 0) == (intended > 0)):
+            return
+        # A battery that keeps refusing must not hog the v3 single TCP slot.
+        now = time.monotonic()
+        if now - getattr(coordinator, "_manual_reassert_ts", 0.0) < 30:
+            return
+        coordinator._manual_reassert_ts = now
+        _LOGGER.warning(
+            "[%s] Manual %s %dW lost on the battery (reads %dW) - re-asserting",
+            coordinator.name, mode, abs(intended), current,
+        )
+        await coordinator.apply_power(intended)
 
     async def _set_battery_power(
         self,

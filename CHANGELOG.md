@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **A manual forced charge/discharge survives a Modbus stall** (#477): Marstek V150 firmware can drop forced mode to None / 0 W while its Modbus stack is stuck, and in manual mode nothing wrote it back. The manual loop now re-asserts the user's Charge/Discharge once the battery answers again. Thanks to @Remueb.
+
 ## [1.5.0b2] - 2026-09-13
 
 ### Added

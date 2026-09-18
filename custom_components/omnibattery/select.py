@@ -190,6 +190,11 @@ class MarstekVenusSelect(CoordinatorEntity, SelectEntity):
         assert_manual_control(self.hass, self.coordinator, self.definition["key"])
         value = self._options_map[option]
         await self.coordinator.write_control(self.definition["key"], value, do_refresh=True)
+        if self.definition["key"] == "force_mode":
+            # Remember the intent: some v3 firmwares drop forced mode during a
+            # Modbus stall and the manual loop re-asserts it (issue #477).
+            self.coordinator.manual_force_mode = option
+            self.coordinator.persist_battery_config("manual_force_mode", option)
         if self.definition.get("use_shadow_state"):
             self.coordinator.set_shadow_select(self.definition["key"], value)
 

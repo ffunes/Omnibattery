@@ -286,7 +286,11 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
 
         # Write the converted value via the logical control key
         await self.coordinator.write_control(key, register_value, do_refresh=True)
-        
+        if key in ("set_charge_power", "set_discharge_power"):
+            # Manual intent for the #477 re-assert (see select force_mode).
+            setattr(self.coordinator, f"manual_{key}", int(value))
+            self.coordinator.persist_battery_config(f"manual_{key}", int(value))
+
         # Update coordinator attributes immediately for control loop
         # This ensures changes take effect immediately without waiting for scan_interval
         if self.definition['key'] == 'charging_cutoff_capacity':

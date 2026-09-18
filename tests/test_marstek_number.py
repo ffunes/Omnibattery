@@ -75,11 +75,17 @@ async def test_manual_register_write_is_capped_to_configured_power_limit(key, li
     setattr(entity.coordinator, limit, 1500)
     entity._scale = 1.0
     entity.coordinator.write_control = AsyncMock()
+    entity.coordinator.persist_battery_config = Mock()
 
     await entity.async_set_native_value(2500)
 
     entity.coordinator.write_control.assert_awaited_once_with(
         key, 1500, do_refresh=True
+    )
+    # The capped value is also the manual intent re-asserted for #477.
+    assert getattr(entity.coordinator, f"manual_{key}") == 1500
+    entity.coordinator.persist_battery_config.assert_called_once_with(
+        f"manual_{key}", 1500
     )
 
 
