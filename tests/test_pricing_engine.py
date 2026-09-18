@@ -975,6 +975,83 @@ def test_evening_recharge_rearms_the_claim_reference():
     assert ctrl._dp_last_eval_excluded_claim_kwh == pytest.approx(4.0)
 
 
+def test_evening_recharge_picks_informational_slots_on_price_and_arms_only_those(monkeypatch):
+    # #472: the 00:05 plan found no deficit and listed the cheap midday slots
+    # for information. The re-evaluation used to exclude them, book the dearer
+    # morning slot instead, then arm every informational slot on top.
+    import datetime as datetime_module
+
+    now = datetime(2026, 9, 16, 8, 30)
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    monkeypatch.setattr(datetime_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine.calculations, "datetime", FixedDateTime)
+
+    def _slot(hour, price):
+        start = now.replace(hour=hour, minute=0)
+        return PriceSlot(start, start + timedelta(hours=1), price)
+
+    morning, noon, afternoon = _slot(9, 0.40), _slot(12, 0.27), _slot(13, 0.30)
+    evening = _slot(18, 0.45)
+    schedule = SimpleNamespace(
+        selected_slots=[noon, afternoon, evening],
+        slot_purposes={noon: "deficit", afternoon: "deficit", evening: "deficit"},
+        charging_needed=False,
+        deficit_charging_needed=False,
+    )
+    # 3 kWh deficit (4 kWh load, 1 kWh usable, no solar): two slots' worth.
+    ctrl = _evening_ctrl(
+        claim=0.0,
+        remaining_solar=0.0,
+        _dynamic_pricing_schedule=schedule,
+        max_contracted_power=3000,
+        max_charge_capacity=3000,
+    )
+    manager = _evening_mgr(ctrl, 0.0)
+    manager._parse_price_data = lambda horizon_end=None: [morning, noon, afternoon, evening]
+    manager._send_evening_recharge_notification = _async_noop
+
+    asyncio.run(manager._evaluate_evening_recharge())
+
+    assert schedule.selected_slots == [noon, afternoon]
+    assert schedule.slot_purposes == {noon: "deficit", afternoon: "deficit"}
+    assert schedule.deficit_charging_needed is True
+
+
+def test_dynamic_pricing_soc_drop_rebuilds_the_remaining_horizon():
+    # #472: a SOC drop is a full re-plan, not the deadline-blind evening top-up.
+    calls = []
+
+    async def _evaluate(**kwargs):
+        calls.append(kwargs)
+
+    async def _evening():
+        calls.append("evening")
+
+    ctrl = _controller(
+        _dynamic_pricing_evaluated_date=datetime.now().date(),
+        predictive_charging_overridden=False,
+        _current_price_slot_active=False,
+        grid_charging_active=False,
+    )
+    manager = _mgr(ctrl)
+    manager._maybe_refresh_service_prices = _async_noop
+    manager._check_dp_pre_slot_reevaluation = _async_noop
+    manager._refresh_surplus_hold_plan = _async_noop
+    manager._refresh_discharge_reserve_plan = _async_noop
+    manager._is_evening_reevaluation_time = lambda: False
+    manager._is_dp_soc_drop_reeval = lambda: True
+    manager._evaluate_dynamic_pricing = _evaluate
+    manager._evaluate_evening_recharge = _evening
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert calls == [{"horizon": DynamicPricingEvaluationHorizon.REMAINING}]
+
+
 # ----------------------------------------------------------------------
 # _project_remaining_consumption (evening recharge deficit, #409)
 # ----------------------------------------------------------------------

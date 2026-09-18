@@ -4413,10 +4413,6 @@ class PricingManager:
         from datetime import datetime
 
         now = datetime.now()
-        # The evening-time once-per-day guard (_dp_evening_reevaluated_date) is set
-        # by the handler only on the evening-time trigger, so a SOC-drop-triggered
-        # run here does not consume the late-day pass. #411
-
         _LOGGER.info("Dynamic pricing: running evening re-evaluation at %s", now.strftime("%H:%M"))
         self._mark_surplus_hold_stale("evening_reevaluation")
         self._mark_discharge_reserve_stale("evening_reevaluation")
@@ -4597,53 +4593,25 @@ class PricingManager:
             _LOGGER.warning("Evening recharge: no price data available")
             return
 
-        # Exclude slots already in the morning schedule
-        if self._controller._dynamic_pricing_schedule:
-            scheduled_starts = {s.start for s in self._controller._dynamic_pricing_schedule.selected_slots}
-            slots = [s for s in slots if s.start not in scheduled_starts]
+        # Slots the current schedule will actually charge. A 00:05 schedule that
+        # found no deficit still lists the cheapest slots for information only;
+        # those are neither taken (so this selection may pick them on price) nor
+        # carried into the merge, which would arm them all on top of the new
+        # ones (#472). Their non-deficit purposes (negative price) stay.
+        schedule = self._controller._dynamic_pricing_schedule
+        kept_slots = []
+        if schedule:
+            purposes = getattr(schedule, "slot_purposes", {})
+            armed = bool(getattr(schedule, "deficit_charging_needed", schedule.charging_needed))
+            kept_slots = [
+                s for s in schedule.selected_slots
+                if armed or purposes.get(s, SLOT_PURPOSE_DEFICIT) != SLOT_PURPOSE_DEFICIT
+            ]
+            kept_starts = {s.start for s in kept_slots}
+            slots = [s for s in slots if s.start not in kept_starts]
 
         if not slots:
-            # The cheap slots are already in the schedule — but it may be the
-            # informational 00:05 schedule (charging_needed=False) whose slots were
-            # never armed. With a real deficit, promote it to actually charge those
-            # upcoming slots and publish the deficit for the enforcer. #411
-            sched = self._controller._dynamic_pricing_schedule
-            upcoming = [s for s in sched.selected_slots if s.start > now] if sched else []
-            if upcoming and not bool(
-                getattr(sched, "deficit_charging_needed", sched.charging_needed)
-            ):
-                if not hasattr(sched, "slot_purposes"):
-                    sched.slot_purposes = {
-                        slot: SLOT_PURPOSE_DEFICIT for slot in sched.selected_slots
-                    }
-                for slot in upcoming:
-                    sched.slot_purposes[slot] = self._merge_slot_purpose(
-                        sched.slot_purposes.get(slot), SLOT_PURPOSE_DEFICIT
-                    )
-                sched.charging_needed = True
-                sched.deficit_charging_needed = True
-                sched.deficit_hours_needed = calculations.calculate_charging_hours_needed(
-                    planned_evening_charge_kwh,
-                    self._controller.max_contracted_power,
-                    self._controller.max_charge_capacity,
-                )
-                sched.schedule_type = self._schedule_type_from_purposes(
-                    sched.slot_purposes.values()
-                )
-                decision = self._controller._last_decision_data
-                if not isinstance(decision, dict):
-                    decision = {}
-                decision["energy_deficit_kwh"] = evening_deficit_kwh
-                decision["planned_grid_charge_kwh"] = planned_evening_charge_kwh
-                self._controller._last_decision_data = decision
-                _LOGGER.info(
-                    "Evening recharge: promoted informational schedule to charging "
-                    "(%.2f kWh deficit, %d upcoming slot(s))",
-                    evening_deficit_kwh, len(upcoming),
-                )
-                await self._send_evening_recharge_notification(evening_deficit_kwh, upcoming)
-            else:
-                _LOGGER.info("Evening recharge: no additional slots available (all already scheduled)")
+            _LOGGER.info("Evening recharge: no additional slots available (all already scheduled)")
             return
 
         hours_needed = calculations.calculate_charging_hours_needed(
@@ -4665,15 +4633,12 @@ class PricingManager:
             return
 
         # --- Merge into schedule ---
-        if self._controller._dynamic_pricing_schedule:
-            schedule = self._controller._dynamic_pricing_schedule
-            merged = sorted(
-                schedule.selected_slots + selected,
-                key=lambda s: s.start,
-            )
-            purposes = dict(getattr(schedule, "slot_purposes", {}))
-            for slot in schedule.selected_slots:
-                purposes.setdefault(slot, SLOT_PURPOSE_DEFICIT)
+        if schedule:
+            merged = sorted(kept_slots + selected, key=lambda s: s.start)
+            old_purposes = getattr(schedule, "slot_purposes", {})
+            purposes = {
+                slot: old_purposes.get(slot, SLOT_PURPOSE_DEFICIT) for slot in kept_slots
+            }
             for slot in selected:
                 purposes[slot] = self._merge_slot_purpose(
                     purposes.get(slot), SLOT_PURPOSE_DEFICIT
@@ -4946,16 +4911,21 @@ class PricingManager:
         # Phase 2.5: Pre-slot re-evaluation (1h before each upcoming slot)
         await self._check_dp_pre_slot_reevaluation()
 
-        # Phase 2.6: Re-evaluate upward when solar winds down (evening) OR when live
-        # SOC has fallen far below the level the 00:05 balance assumed (#411). The
-        # evening-time guard is set only on the evening-time trigger, so a SOC-drop
-        # run does not consume the late-day pass.
-        trigger_evening = self._is_evening_reevaluation_time()
-        trigger_soc_drop = self._is_dp_soc_drop_reeval()
-        if trigger_evening or trigger_soc_drop:
-            if trigger_evening:
-                self._controller._dp_evening_reevaluated_date = now.date()
+        # Phase 2.6: Re-evaluate upward when solar winds down (evening).
+        if self._is_evening_reevaluation_time():
+            self._controller._dp_evening_reevaluated_date = now.date()
             await self._evaluate_evening_recharge()
+
+        # Phase 2.61: Re-plan when live SOC has fallen far below the level the
+        # last balance assumed (#411). A full remaining-horizon rebuild, not the
+        # evening top-up: that one only knows "cheapest before midnight" with no
+        # deadline, so in the morning it booked pre-solar slots dearer than the
+        # midday ones (#472). The rebuild refreshes _dp_last_eval_soc itself.
+        elif self._is_dp_soc_drop_reeval():
+            _LOGGER.info("Dynamic pricing: SOC fell below the evaluated level — re-evaluating")
+            await self._evaluate_dynamic_pricing(
+                horizon=DynamicPricingEvaluationHorizon.REMAINING,
+            )
 
         # Phase 2.65: Re-plan when a knob the balance is built on moved — a max
         # or min SOC limit, a predictive margin, the guaranteed floor. The flag
