@@ -592,6 +592,7 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
             attrs["solar_forecast_source"] = self.controller.solar_forecast_source
 
         attrs["max_contracted_power"] = self.controller.max_contracted_power
+        attrs["icp_excluded_protection_w"] = round(getattr(self.controller, "_icp_excluded_protection_w", 0.0))
 
         # Home consumption diagnostics: home power is always derived
         # (grid + battery AC + solar); the household sensor was removed.

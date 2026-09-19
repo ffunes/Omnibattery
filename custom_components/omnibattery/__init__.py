@@ -1122,6 +1122,7 @@ class ChargeDischargeController:
         self.capacity_protection_limit = config_entry.data.get(CONF_CAPACITY_PROTECTION_LIMIT, DEFAULT_CAPACITY_PROTECTION_LIMIT)
         self._capacity_protection_active = False  # True while either peak-shaving mode intervenes
         self._excluded_included_adjustment = 0.0  # Tracks excluded device adjustment for included_in_consumption devices
+        self._icp_excluded_protection_w = 0.0
         self._capacity_protection_status = {
             "active": False,
             "avg_soc": None,
@@ -4751,6 +4752,43 @@ class ChargeDischargeController:
             self.capacity_protection_excluded_devices
         )
         return active_target, sensor_actual
+
+    def _apply_icp_excluded_protection(
+        self, sensor_filtered: float, sensor_actual: float, active_target: float
+    ) -> float:
+        """Cover excluded-device load that would exceed contracted power.
+
+        This is a safety measure, not an economic one: the breaker sees the
+        physical meter while excluded devices are hidden from the PD controller
+        by design. Scope is excluded devices only (v1 of
+        docs/plans/proteccion-potencia-contratada-descarga.md).
+        """
+        self._icp_excluded_protection_w = 0.0
+        if self.max_contracted_power <= 0 or self._excluded_included_adjustment <= 0:
+            return sensor_actual
+
+        hidden = sensor_filtered - sensor_actual
+        if hidden <= 0:
+            return sensor_actual
+
+        # Clamp to the still-hidden excluded share so prior add-backs are not counted twice.
+        excess = min(
+            max(0.0, active_target + hidden - self.max_contracted_power),
+            hidden,
+            self._excluded_included_adjustment,
+        )
+        self._icp_excluded_protection_w = excess
+        if excess > 0:
+            sensor_actual += excess
+            _LOGGER.info(
+                "ICP protection for excluded devices ACTIVE: excluded=%.0fW, "
+                "excess=%.0fW, contracted=%.0fW",
+                self._excluded_included_adjustment,
+                excess,
+                self.max_contracted_power,
+            )
+
+        return sensor_actual
 
     def _is_capacity_protection_soc_limited(self) -> bool:
         """Return True when peak shaving should be active based on current SOC."""
@@ -9024,6 +9062,7 @@ class ChargeDischargeController:
         # before deadband and first-execution handling, otherwise a previous
         # hourly-balance discharge can be kept alive by an early return.
         active_target, sensor_actual = self._apply_capacity_protection(sensor_actual, active_target)
+        sensor_actual = self._apply_icp_excluded_protection(sensor_filtered, sensor_actual, active_target)
 
         if self._capacity_protection_force_idle:
             self._capacity_protection_force_idle = False
