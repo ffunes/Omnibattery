@@ -774,6 +774,7 @@ class ChargeDischargeController:
 
         # Stale sensor detection
         self._last_sensor_report_time = None    # datetime of last real sensor publication (HA last_reported)
+        self._last_valid_meter_publication = None  # same clock, but read every cycle for health
         self._last_sensor_cadence_time = None   # latest publication consumed by the cadence detector
         self._last_control_sample_value = None  # last transformed value consumed by P/D
         self._control_sample_is_new = True      # result of the current control-loop sample
@@ -1290,6 +1291,7 @@ class ChargeDischargeController:
         """Start a clean sample series after selecting a different meter."""
         self._grid_filter_ema = None
         self._last_sensor_report_time = None
+        self._last_valid_meter_publication = None
         self._last_sensor_cadence_time = None
         self._last_control_sample_value = None
         self._control_sample_is_new = True
@@ -8617,8 +8619,8 @@ class ChargeDischargeController:
           whose inputs stopped moving. Nothing is logged at all, because from
           the state machine's point of view the entity is perfectly healthy.
 
-        In both cases ``_last_sensor_report_time`` stops advancing and the loop
-        holds the last command indefinitely: past MAX_SENSOR_STALE_S the stale
+        In both cases the meter's own last publication stops advancing and the
+        loop holds the last command indefinitely: past MAX_SENSOR_STALE_S the stale
         safety recalculation zeroes the P scale and the derivative, so the
         adjustment is exactly 0. The structural guards above still run, so this
         is not a runaway - the exposure is bounded by the SOC blockers, not by
@@ -8634,7 +8636,7 @@ class ChargeDischargeController:
             return
         issue_id = f"dead_main_sensor_{self.config_entry.entry_id}"
 
-        report_time = self._last_sensor_report_time
+        report_time = self._live_sensor_report_time()
         # None means no successful read yet in this run: a restart, not a fault.
         age_s = (
             self._sensor_age_seconds(report_time, now)
@@ -8671,6 +8673,44 @@ class ChargeDischargeController:
                 "power": f"{abs(self.previous_power):.0f}",
             },
         )
+
+    def _live_sensor_report_time(self):
+        """Return when the meter itself last published, not when we last read it.
+
+        ``_last_sensor_report_time`` is written by the two control paths that
+        reach the grid read. Every cycle that returns earlier - manual mode, an
+        operation block, a predictive handler that owns the cycle without
+        reaching its own read - leaves it untouched, so it ages while a
+        perfectly healthy meter keeps publishing every second. Judging liveness
+        on it therefore reports the controller's own early returns as a dead
+        meter: a P1 reading once a second raised this repair after five minutes
+        of price-blocked discharge.
+
+        The entity's ``last_reported`` is the meter's own clock, so it answers
+        the question this repair asks. It counts only while the state still
+        transforms to a reading: ``unavailable``/``unknown`` keeps being
+        republished, and treating that as a publication would hide exactly the
+        silence this check exists to name.
+
+        A valid reading therefore stamps its own high-water mark, which is what
+        the ``unavailable`` branch falls back to. Reaching for the tracked read
+        time there would re-open this same bug from the other side: a two-second
+        meter reload during a half-hour block would inherit that frozen
+        timestamp and report half an hour of silence. This check runs on every
+        cycle ahead of the early returns, so the high-water mark keeps up with
+        the meter whatever the control path does.
+        """
+        state = self.hass.states.get(self.consumption_sensor)
+        if ChargeDischargeController._apply_meter_transform(self, state) is None:
+            # Nothing usable right now: report when it was last usable.
+            return self._last_valid_meter_publication or self._last_sensor_report_time
+        published = ChargeDischargeController._sensor_report_time(state)
+        if published is None:
+            return self._last_valid_meter_publication or self._last_sensor_report_time
+        previous = self._last_valid_meter_publication
+        if previous is None or published > previous:
+            self._last_valid_meter_publication = published
+        return self._last_valid_meter_publication
 
     def _sensor_age_seconds(self, sensor_report_time, now=None):
         """Return the real age of the current grid sample."""
