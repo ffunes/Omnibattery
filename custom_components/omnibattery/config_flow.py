@@ -147,6 +147,7 @@ from .const import (
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_ENTSOE,
     PRICE_INTEGRATION_TIBBER,
+    PRICE_INTEGRATION_ZONNEPLAN,
     CONF_METER_INVERTED,
     CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
     DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
@@ -187,6 +188,7 @@ from .drivers.hoymiles import (
     hoymiles_model_profile,
 )
 from .pricing.nordpool import is_official_nordpool_sensor
+from .pricing.calculations import parse_zonneplan_prices
 
 _ANKER_MAX_POWER_W = 3500
 _SESSY_MAX_CHARGE_POWER_W = 2200
@@ -229,6 +231,7 @@ def _price_integration_options() -> list[str]:
         PRICE_INTEGRATION_EPEX,
         PRICE_INTEGRATION_ENTSOE,
         PRICE_INTEGRATION_TIBBER,
+        PRICE_INTEGRATION_ZONNEPLAN,
     ]
 
 
@@ -294,6 +297,8 @@ def _validate_price_sensor(
         if not prices or not isinstance(prices, (list, tuple)):
             return "no_price_data"
         return None
+    if integration_type == PRICE_INTEGRATION_ZONNEPLAN:
+        return None if parse_zonneplan_prices(attrs) else "no_price_data"
     # Nordpool
     if "raw_today" in attrs:
         return None
