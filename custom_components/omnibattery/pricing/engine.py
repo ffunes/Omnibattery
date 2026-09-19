@@ -2839,7 +2839,9 @@ class PricingManager:
                 ) / 100.0 * float(c.data.get("battery_total_energy", 0) or 0))
                 for c in eligible
             )
-            deadlines = build_energy_deadlines(intervals, usable)
+            deadlines = build_energy_deadlines(
+                intervals, usable, usable_capacity_kwh=usable + headroom
+            )
             required = max(0.0, float(decision_data.get("planned_grid_charge_kwh", 0.0) or 0.0))
             if (
                 not diagnostic_only

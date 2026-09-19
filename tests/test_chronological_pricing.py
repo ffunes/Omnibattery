@@ -124,6 +124,100 @@ def test_later_solar_does_not_erase_early_deadline():
     assert deadlines[-1].deadline <= intervals[1].end
 
 
+def test_small_battery_exposes_deficit_after_solar_fills_it():
+    intervals = [
+        _interval(0, 0.5),
+        _interval(1, 0.0, 2.0),
+        _interval(2, 1.5),
+    ]
+
+    unbounded = build_energy_deadlines(intervals, usable_initial_kwh=0.0)
+    bounded = build_energy_deadlines(
+        intervals,
+        usable_initial_kwh=0.0,
+        usable_capacity_kwh=1.0,
+    )
+    simulation = simulate_allocations(
+        intervals,
+        usable_initial_kwh=0.0,
+        usable_capacity_kwh=1.0,
+    )
+
+    assert unbounded[-1].deadline == intervals[0].end
+    assert bounded[-1].deadline == intervals[-1].end
+    assert bounded[-1].required_cumulative_kwh == pytest.approx(0.5)
+    assert simulation.trajectory[1][1] == pytest.approx(1.0)
+    assert simulation.final_projected_energy_kwh == pytest.approx(-0.5)
+
+
+def test_slot_before_projected_full_is_not_allocated_to_later_deadline():
+    intervals = [
+        _interval(0, 0.0, 2.0),
+        _interval(1, 1.5),
+    ]
+    deadlines = build_energy_deadlines(
+        intervals,
+        usable_initial_kwh=0.0,
+        usable_capacity_kwh=1.0,
+    )
+    before_full = _slot(0, 15, 0.01)
+    after_full = _slot(15, 30, 0.20)
+
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        [before_full, after_full],
+        total_required_kwh=0.5,
+        effective_power_kw=2.0,
+        charge_efficiency=1.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=1),
+        headroom_kwh=1.0,
+    )
+
+    assert [allocation.slot for allocation in plan.allocations] == [after_full]
+    assert plan.allocated_kwh == pytest.approx(0.5)
+
+
+def test_capacity_bound_does_not_change_plan_when_battery_never_fills():
+    intervals = [
+        _interval(0, 0.4, 0.1),
+        _interval(1, 1.0),
+    ]
+    unbounded_deadlines = build_energy_deadlines(intervals, usable_initial_kwh=1.0)
+    bounded_deadlines = build_energy_deadlines(
+        intervals,
+        usable_initial_kwh=1.0,
+        usable_capacity_kwh=3.0,
+    )
+    slots = [_slot(0, 15, 0.1), _slot(15, 30, 0.2)]
+    arguments = {
+        "total_required_kwh": 0.3,
+        "effective_power_kw": 2.0,
+        "charge_efficiency": 1.0,
+        "usable_initial_kwh": 1.0,
+        "now": BASE,
+        "horizon_end": BASE + timedelta(hours=1),
+    }
+
+    current_plan = allocate_price_slots(
+        intervals,
+        unbounded_deadlines,
+        slots,
+        **arguments,
+    )
+    bounded_plan = allocate_price_slots(
+        intervals,
+        bounded_deadlines,
+        slots,
+        headroom_kwh=2.0,
+        **arguments,
+    )
+
+    assert bounded_deadlines == unbounded_deadlines
+    assert bounded_plan == current_plan
+
+
 def test_reference_pattern_reserves_early_energy_and_keeps_rest_flexible():
     intervals = [_interval(i, 0.1) for i in range(96)]
     # 1.30 kWh has been consumed beyond usable storage by 03:30.
