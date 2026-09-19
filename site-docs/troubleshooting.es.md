@@ -2,7 +2,7 @@
 
 ## Precio Dinámico muestra un *shortfall* de plazo
 
-Consulta `deadline_shortfall_kwh`, `earliest_projected_depletion`, `slot_deadlines` y `chronological_plan_reason` en `binary_sensor.omnibattery_predictive_charging_active`. El *shortfall* indica que el mejor plan físicamente realizable no puede entregar toda la energía antes del cruce previsto del SOC mínimo. Las causas habituales son un techo máximo de precio explícito, ausencia de slots elegibles antes del plazo, potencia de carga insuficiente, falta de hueco o ownership manual/por franja. Un slot barato posterior no se presenta deliberadamente como cobertura de una necesidad anterior. La integración continúa el control normal y nunca ignora límites explícitos de seguridad.
+Consulta `energy_horizon_end`, `overnight_consumption_kwh`, `deadline_shortfall_kwh`, `earliest_projected_depletion`, `slot_deadlines` y `chronological_plan_reason` en `binary_sensor.omnibattery_predictive_charging_active`. El *shortfall* indica que el mejor plan físicamente realizable no puede entregar toda la energía antes del cruce previsto del SOC mínimo, incluida la demanda desde medianoche hasta el próximo amanecer. Las causas habituales son un techo máximo de precio explícito, ausencia de slots elegibles antes del plazo, potencia de carga insuficiente, falta de hueco o ownership manual/por franja. Un slot barato posterior no se presenta deliberadamente como cobertura de una necesidad anterior. La integración continúa el control normal y nunca ignora límites explícitos de seguridad.
 
 ## Compatibilidad con la app de Marstek
 

@@ -1,6 +1,6 @@
 # Predictive charging — Dynamic Pricing mode
 
-Automatically selects the **cheapest hours of the day** to cover the calculated energy deficit.
+Automatically selects the **cheapest price slots through the next sunrise** to cover the calculated energy deficit.
 
 ## Compatible price integrations
 
@@ -45,13 +45,15 @@ The existing planner uses local wall-clock times. During the autumn clock change
 
 At 00:05 the controller:
 
-1. Calculates the energy deficit and projects consumption, solar and usable battery energy in 15-minute intervals until midnight.
-2. Fetches today's hourly prices from the configured integration.
+1. Calculates the energy deficit and projects consumption, solar and usable battery energy in 15-minute intervals through the next local sunrise. The estimated sunrise is bounded to 00:00–12:00; if it cannot be calculated, the horizon ends at midnight.
+2. Fetches all available price slots through that horizon from the configured integration.
 3. Detects when cumulative energy would reach the minimum SOC and reserves the cheapest eligible slots that can deliver each requirement before its deadline.
-4. Calculates and stores the **daily average price** from the hourly price profile.
-5. Assigns an energy quota to each slot; only energy without an early deadline remains freely optimized across the day.
+4. Calculates and stores the **daily average price** from the available price profile.
+5. Assigns an energy quota to each slot; only energy without an early deadline remains freely optimized by price.
 
-“Cheapest” therefore means cheapest among slots able to meet a requirement in time. A later slot never counts as coverage for energy already needed earlier. A partial or impossible plan remains executable, but reports the kWh shortfall and whether price filtering or physical slot capacity caused it. Quotas are targets rather than guarantees: contracted power, battery headroom, phase limits, temperature, ownership and other runtime protections remain authoritative.
+“Cheapest” therefore means cheapest among slots able to meet a requirement in time. A later slot never counts as coverage for energy already needed earlier. The projection caps stored energy at the fleet's usable capacity, so solar that cannot fit is not carried forward as phantom energy; demand after a projected full point creates a new requirement. A partial or impossible plan remains executable, but reports the kWh shortfall and whether price filtering or physical slot capacity caused it. Quotas are targets rather than guarantees: contracted power, battery headroom, phase limits, temperature, ownership and other runtime protections remain authoritative.
+
+Only today's remaining solar forecast enters this control horizon: the post-midnight leg adds forecast household consumption through sunrise, when tomorrow's production can begin.
 
 ### Retry logic
 
@@ -59,27 +61,28 @@ If price data is unavailable at 00:05, the system retries every 15 minutes for t
 
 ### HA restart mid-day
 
-If HA restarts after the 00:05 window without a prior evaluation, the controller runs an automatic evaluation at startup (after 15 seconds). It considers the remaining slots of the current day and, when the provider has already published them, the next **12 hours** so a restart does not leave the next overnight window without a plan.
+If HA restarts after the 00:05 window without a prior evaluation, the controller runs an automatic evaluation at startup (after 15 seconds). It rebuilds the remaining energy plan through the next sunrise and uses tomorrow's price slots when the provider has already published them.
 
 ## Automatic re-evaluation during the day
 
 The 00:05 plan is not immutable. Dynamic Pricing adapts it as the real day develops:
 
 - **One hour before each selected future slot**, the energy balance is checked again. A slot is silently skipped when the battery and expected solar now cover the need. If a deficit remains, a persistent notification confirms that the slot will be used. Back-to-back slots are not re-evaluated while the previous slot is still charging.
-- **Late afternoon / evening**, the controller performs one additional recharge assessment. When solar start was detected, it runs approximately **1.5 hours before the estimated end of production**; if no start was detected, it uses a safe fallback at **16:00**. It projects the remaining household consumption until midnight, subtracts usable battery energy and remaining solar, and adds only the cheap future slots needed to cover a material deficit (at least **0.3 kWh**). This is a safety top-up, so it is not blocked by the optional arbitrage-margin gate.
+- **Late afternoon / evening**, the controller performs one additional recharge assessment. When solar start was detected, it runs approximately **1.5 hours before the estimated end of production**; if no start was detected, it uses a safe fallback at **16:00**. It projects the remaining household consumption through the next sunrise, subtracts usable battery energy and today's remaining solar, and adds only the cheap future slots needed to cover a material deficit (at least **0.3 kWh**). This is a safety top-up, so it is not blocked by the optional arbitrage-margin gate.
 - **After a 30-point SOC drop**, it performs the same late-day deficit assessment immediately instead of waiting for the evening trigger. The comparison is against the average battery SOC recorded at the last Dynamic Pricing evaluation; only drops of at least 30 percentage points trigger it, the reference is reset after reevaluation, and an SOC rise never triggers it.
 - **When the provider revises the solar forecast** by **1.5 kWh or more** in either direction, the plan is rebuilt. The pre-slot check above can only drop slots, so a day revised downward would otherwise leave the battery short with the cheap hours already gone. A remaining forecast falls all day by itself, so the stored reading is carried forward by the solar actually produced since it was taken; only the gap against that projection counts as a revision. Bounded by a **30-minute** cooldown and **four** re-evaluations per day. An unavailable sensor is never read as the day collapsing, and an installation that measures no solar production has nothing to project with, so the trigger never arms.
+- **When tomorrow's prices are published**, the remaining horizon is rebuilt once that day so overnight energy can move to cheaper post-midnight slots. If a selected charge slot is active, the re-plan waits until it ends. Providers that already exposed tomorrow's slots during the 00:05 evaluation do not trigger a second rebuild.
 - **When a setting the energy balance depends on changes** - a battery's minimum or maximum SOC, the solar forecast safety margin, the predictive grid charge margin, or the guaranteed minimum SOC floor - the plan is rebuilt on the next control cycle. Without this, a plan that had decided no grid charge was needed kept that decision after you had made one necessary. Unrelated settings that share the same storage (manual force mode, power limits, per-battery detection) do not trigger it.
 
 These reevaluations keep existing charge limits, SOC floors, time-slot ownership, manual mode, backup and availability protections authoritative. The daily reference and once-per-day evening guard reset at midnight.
 
 ### Re-evaluate Predictive Charging button
 
-When Dynamic Pricing is enabled, the system device exposes **Re-evaluate Predictive Charging** (`button.*_reevaluate_dynamic_pricing`) in the dashboard and in Home Assistant. Pressing it immediately rebuilds the schedule with the latest price and solar data, using the same extended horizon as the startup catch-up path (end of today or **now + 12 hours**, whichever is later).
+When Dynamic Pricing is enabled, the system device exposes **Re-evaluate Predictive Charging** (`button.*_reevaluate_dynamic_pricing`) in the dashboard and in Home Assistant. Pressing it immediately rebuilds the schedule with the latest price and solar data through the next sunrise.
 
 The same button is created in [Time Slot](time-slot.md) mode, where it re-runs that mode's own evaluation instead. It is not created in real-time price mode, which re-decides on every control cycle anyway.
 
-This button is useful after changing a price threshold, forecast or runtime option. It is deliberately not a full multi-day planner: pressing it in the afternoon does not reserve tomorrow afternoon's energy against today's deficit. Tomorrow's normal plan is built at 00:05 once that day's balance is known.
+This button is useful after changing a price threshold, forecast or runtime option. It is deliberately not a full multi-day planner: pressing it in the afternoon covers tonight through sunrise, but does not reserve tomorrow afternoon's energy. Tomorrow's normal plan is built at 00:05 once that day's balance is known.
 
 ---
 
@@ -199,7 +202,7 @@ The threshold is resolved as follows:
 1. If **Max price threshold** is configured, that value is used.
 2. If **Max price threshold** is empty, the daily average price is used.
 
-The daily average price is calculated automatically during the 00:05 evaluation from the hourly price profile. The goal is to preserve battery energy for the most expensive hours of the day. If no fixed threshold is configured and the daily average is not available yet, discharge control does not act.
+The average price is calculated automatically during the 00:05 evaluation from the available slots through the next sunrise, and is recalculated when tomorrow's prices trigger a rebuild. The goal is to preserve battery energy for the most expensive hours in that horizon. If no fixed threshold is configured and the average is not available yet, discharge control does not act.
 
 ### Separate discharge price floor
 
@@ -221,7 +224,7 @@ The thresholds above ask one question: *is the current hour cheap?* They never a
 
 The optional **Price-aware discharge reserve** answers the second question. It is an **opt-in subfunction of Dynamic Pricing** and works on energy, not on a price line:
 
-1. It takes the price slots between now and local midnight.
+1. It takes the price slots between now and the next local sunrise.
 2. It projects the learned 15-minute consumption profile onto them and subtracts the expected PV, leaving the net grid demand each slot is expected to carry.
 3. It gives the **dearest** of those slots first claim on the energy currently above the SOC floors, up to what each slot actually needs, and only for slots at least the **Discharge reserve minimum saving** above the current price.
 4. It walks those claims in chronological order against a running pool of the PV surplus expected before each of them, capped by the room the battery is expected to have when that sun arrives rather than the room it has now. Holding energy back that the sun is about to replace would import now and export that production instead. The same kWh of PV pays off one claim only. Only the sun that can physically land in the battery counts: each slot's surplus is capped at what the fleet's charge power can take in that slot and converted to battery-side energy, and a slot the **surplus price hold** has decided to export rather than absorb is credited nothing at all — crediting it would release the reserve against kWh that are never going to arrive. Three quarters of what is left is credited, not all of it: the plan is rebuilt every five minutes and firms up as the day's real production arrives, but overnight there is nothing to correct a day-ahead figure, and a cloudy morning after a full release buys the evening peak at peak price.
@@ -231,7 +234,7 @@ Everything above the reserve stays available for self-consumption right now, whi
 
 `price_reserve` is an **economic** blocker, like `price_discharge`: peak shaving and emergency protection may spend the reserve, and the smart pre-discharge planner still sees the battery as dischargeable. The configured `min_soc` is never rewritten, so no other planner's view of the battery moves.
 
-The reserve stops at midnight by design: reserving overnight for tomorrow's evening would be wrong on every day the sun refills the battery in between, and the planner has no model of tomorrow's PV.
+The reserve stops at the next sunrise: it can hold energy for a pre-dawn price peak, but never for tomorrow's evening peak because solar can refill the battery in between.
 
 | Control | Meaning |
 |---|---|
@@ -256,17 +259,17 @@ A cycle released by a guard — manual control, anti-curtailment, peak shaving, 
 
 A fixed charge ceiling answers "is this price low?" but not "is it low *enough*". Those come apart in winter, when a flat price curve can sit entirely below the ceiling while offering no spread to trade against. Charging then runs the battery through a cycle that the round-trip losses eat.
 
-The optional **Minimum Arbitrage Margin** makes the ceiling move with the day instead. At each evaluation the engine takes the most expensive hours still ahead, as many as it plans to charge for, and requires:
+The optional **Minimum Arbitrage Margin** makes the ceiling move with the planning horizon instead. At each evaluation the engine takes the most expensive hours still ahead, as many as it plans to charge for, and requires:
 
 ```
 expected_discharge_price × round_trip_efficiency − slot_price ≥ margin
 ```
 
-Slots that fail are dropped. If none survive, the day is skipped entirely.
+Slots that fail are dropped. If none survive, that evaluation schedules no arbitrage charge.
 
 The margin is **empty by default**, which leaves slot selection exactly as it was. Setting it back to `0` disables it again. When set, it applies *on top of* the max price threshold, and whichever ceiling is stricter wins.
 
-The gate runs on the 00:05 evaluation only. The evening recharge after a poor solar day is a deficit-driven safety top-up rather than an arbitrage trade, and by then the remaining horizon holds no expensive hours to price against, so applying the gate there would block every recharge it exists to perform.
+The gate runs on the 00:05 evaluation only. Later rebuilds and the evening recharge are deficit-driven safety corrections rather than new arbitrage trades, so the margin does not block energy that the updated horizon says is required.
 
 **Round-Trip Efficiency** (default `0.85`) is the AC-to-AC ratio used to value a stored kWh. Lower values tighten the gate. Note this is the *marginal* ratio (extra kWh out per extra kWh in), not the gross figure you get by dividing lifetime discharge by lifetime charge, which also carries standby drain. Standby is paid whether or not you cycle, so folding it in here would refuse profitable charges.
 
@@ -307,6 +310,10 @@ The `predictive_charging_active` binary sensor exposes:
 | `deadline_shortfall_kwh` / `total_shortfall_kwh` | Urgent and total energy that eligible slots cannot deliver |
 | `energy_deadlines` | Cumulative energy requirements and local ISO deadlines |
 | `slot_energy_targets_kwh` / `slot_deadlines` | Per-slot quotas and their deadlines, serialized with local timestamps |
+| `energy_horizon_end` | Local ISO timestamp of the next sunrise used as the planning boundary; midnight when sunrise cannot be calculated |
+| `overnight_consumption_kwh` | Forecast household demand from midnight to `energy_horizon_end` |
+
+Notifications use the same boundary: they label demand as remaining until sunrise and show the overnight kWh separately when the horizon extends past midnight.
 
 ![Diagnostic attributes of predictive_charging_active](../../assets/screenshots/configuration/predictive-charging/diagnostic-attributes.png){ width="650"  style="display: block; margin: 0 auto;"}
 

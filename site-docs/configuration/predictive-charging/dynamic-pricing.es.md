@@ -1,6 +1,6 @@
 # Carga predictiva — Modo Precio Dinámico
 
-Selecciona automáticamente las **horas más baratas del día** para cubrir el déficit energético calculado.
+Selecciona automáticamente las **franjas más baratas hasta el próximo amanecer** para cubrir el déficit energético calculado.
 
 ## Integraciones de precio compatibles
 
@@ -45,13 +45,15 @@ El planificador existente usa horas locales sin zona horaria. Durante el cambio 
 
 A las 00:05 el controlador:
 
-1. Calcula el déficit y proyecta consumo, solar y energía utilizable de batería en intervalos de 15 minutos hasta medianoche.
-2. Recupera los precios horarios del día de la integración configurada.
+1. Calcula el déficit y proyecta consumo, solar y energía utilizable de batería en intervalos de 15 minutos hasta el próximo amanecer local. La hora estimada se limita al tramo 00:00–12:00; si no puede calcularse, el horizonte termina a medianoche.
+2. Recupera de la integración configurada todas las franjas de precio disponibles hasta ese horizonte.
 3. Detecta cuándo la energía acumulada alcanzaría el SOC mínimo y reserva los slots elegibles más baratos capaces de entregar cada requisito antes de su plazo.
-4. Calcula y almacena el **precio medio del día** a partir del perfil horario de precios.
-5. Asigna una cuota energética a cada slot; solo la energía sin plazo temprano sigue compitiendo libremente por precio durante el día.
+4. Calcula y almacena el **precio medio del día** a partir del perfil de precios disponible.
+5. Asigna una cuota energética a cada slot; solo la energía sin plazo temprano sigue compitiendo libremente por precio.
 
-«Más barato» significa, por tanto, más barato entre los slots capaces de cumplir el requisito a tiempo. Una franja posterior nunca cuenta como cobertura de energía que ya se necesitaba antes. Un plan parcial sigue siendo ejecutable, pero publica los kWh de *shortfall* y si se deben al filtro de precio o a la capacidad física. Las cuotas son objetivos, no garantías: potencia contratada, hueco de batería, límites de fase, temperatura, ownership y las demás protecciones runtime siguen siendo autoritativos.
+«Más barato» significa, por tanto, más barato entre los slots capaces de cumplir el requisito a tiempo. Una franja posterior nunca cuenta como cobertura de energía que ya se necesitaba antes. La proyección limita la energía almacenada a la capacidad utilizable de la flota, por lo que la solar que no cabe no se arrastra como energía ficticia; la demanda posterior a un punto de llenado previsto crea un requisito nuevo. Un plan parcial sigue siendo ejecutable, pero publica los kWh de *shortfall* y si se deben al filtro de precio o a la capacidad física. Las cuotas son objetivos, no garantías: potencia contratada, hueco de batería, límites de fase, temperatura, ownership y las demás protecciones runtime siguen siendo autoritativos.
+
+En este horizonte de control solo entra la previsión solar restante de hoy: el tramo posterior a medianoche añade el consumo previsto hasta el amanecer, cuando puede comenzar la producción de mañana.
 
 ### Lógica de reintentos
 
@@ -59,27 +61,28 @@ Si los datos de precios no están disponibles a las 00:05, el sistema reintenta 
 
 ### Reinicio de HA a mitad del día
 
-Si HA se reinicia después de la ventana de las 00:05 sin evaluación previa, el controlador lanza una evaluación automática en el arranque (tras 15 segundos). Considera los slots restantes del día actual y, cuando el proveedor ya los ha publicado, las próximas **12 horas**, para que un reinicio no deje sin plan la siguiente ventana nocturna.
+Si HA se reinicia después de la ventana de las 00:05 sin evaluación previa, el controlador lanza una evaluación automática en el arranque (tras 15 segundos). Reconstruye el plan energético restante hasta el próximo amanecer y usa las franjas de mañana cuando el proveedor ya las ha publicado.
 
 ## Reevaluación automática durante el día
 
 El plan de las 00:05 no es inmutable. Precio Dinámico lo adapta a medida que avanza el día:
 
 - **Una hora antes de cada franja futura seleccionada**, se vuelve a comprobar el balance energético. La franja se omite silenciosamente si la batería y la solar prevista ya cubren la necesidad. Si sigue existiendo déficit, se envía una notificación persistente confirmando que se utilizará. Las franjas consecutivas no se reevalúan mientras la anterior siga cargando.
-- **A última hora de la tarde / por la noche**, el controlador hace una evaluación adicional de recarga. Si se detectó el inicio de la solar, se ejecuta aproximadamente **1,5 horas antes del final estimado de producción**; si no se detectó, usa un fallback seguro a las **16:00**. Proyecta el consumo restante del hogar hasta medianoche, resta la energía utilizable de la batería y la solar restante, y añade solo las franjas baratas necesarias para cubrir un déficit material (al menos **0,3 kWh**). Es una recarga de seguridad, por lo que no la bloquea el margen de arbitraje opcional.
+- **A última hora de la tarde / por la noche**, el controlador hace una evaluación adicional de recarga. Si se detectó el inicio de la solar, se ejecuta aproximadamente **1,5 horas antes del final estimado de producción**; si no se detectó, usa un fallback seguro a las **16:00**. Proyecta el consumo restante del hogar hasta el próximo amanecer, resta la energía utilizable de la batería y la solar restante de hoy, y añade solo las franjas baratas necesarias para cubrir un déficit material (al menos **0,3 kWh**). Es una recarga de seguridad, por lo que no la bloquea el margen de arbitraje opcional.
 - **Después de una caída de 30 puntos de SOC**, ejecuta inmediatamente esa misma evaluación de déficit de final del día, sin esperar al disparador vespertino. La comparación se hace contra el SOC medio de las baterías registrado en la última evaluación de Precio Dinámico; solo dispara una caída de al menos 30 puntos porcentuales, la referencia se reinicia después de reevaluar y una subida de SOC nunca lo dispara.
 - **Cuando el proveedor revisa la previsión solar** en **1,5 kWh o más** en cualquier dirección, el plan se reconstruye. La comprobación previa a la franja solo puede quitar franjas, así que un día revisado a la baja dejaría la batería corta con las horas baratas ya pasadas. Una previsión restante baja sola a lo largo del día, así que la lectura guardada se proyecta hacia adelante con la solar realmente producida desde entonces; solo cuenta como revisión la diferencia contra esa proyección. Limitado a un *cooldown* de **30 minutos** y **cuatro** reevaluaciones al día. Un sensor no disponible nunca se lee como un desplome del día, y una instalación que no mide producción solar no tiene con qué proyectar, así que el disparador nunca se arma.
+- **Cuando se publican los precios de mañana**, el horizonte restante se reconstruye una vez ese día para poder mover la energía nocturna a franjas posteriores a medianoche que sean más baratas. Si hay una franja de carga activa, espera a que termine. Los proveedores que ya mostraban los precios de mañana durante la evaluación de las 00:05 no provocan una segunda reconstrucción.
 - **Cuando cambia un ajuste del que depende el balance energético** - el SOC mínimo o máximo de una batería, el margen de seguridad de la previsión solar, el margen de carga de red predictiva o el suelo de SOC mínimo garantizado - el plan se reconstruye en el siguiente ciclo de control. Sin esto, un plan que había decidido que no hacía falta carga de red mantenía esa decisión después de que el usuario la hiciera necesaria. Los ajustes no relacionados que comparten el mismo almacenamiento (modo manual forzado, límites de potencia, detección por batería) no lo disparan.
 
 Estas reevaluaciones mantienen vigentes los límites de carga, suelos de SOC, propiedad de franjas, modo manual, reserva y disponibilidad. La referencia diaria y la protección de una sola reevaluación vespertina se reinician a medianoche.
 
 ### Botón Reevaluar Carga Predictiva
 
-Cuando Precio Dinámico está activado, el dispositivo del sistema expone **Reevaluar Carga Predictiva** (`button.*_reevaluate_dynamic_pricing`) en el panel y en Home Assistant. Al pulsarlo reconstruye inmediatamente el plan con los precios y la previsión solar más recientes, usando el mismo horizonte ampliado que la recuperación al arrancar (fin de hoy o **ahora + 12 horas**, lo que quede más lejos).
+Cuando Precio Dinámico está activado, el dispositivo del sistema expone **Reevaluar Carga Predictiva** (`button.*_reevaluate_dynamic_pricing`) en el panel y en Home Assistant. Al pulsarlo reconstruye inmediatamente el plan con los precios y la previsión solar más recientes hasta el próximo amanecer.
 
 El mismo botón se crea en modo [Franja Horaria](time-slot.md), donde ejecuta la evaluación propia de ese modo. No se crea en modo precio en tiempo real, que ya reevalúa en cada ciclo de control.
 
-El botón es útil después de cambiar un umbral de precio, la previsión o una opción en tiempo de ejecución. Deliberadamente no es un planificador de varios días: pulsarlo por la tarde no reserva la energía de mañana por la tarde contra el déficit de hoy. El plan normal de mañana se construye a las 00:05, cuando ya se conoce el balance de ese día.
+El botón es útil después de cambiar un umbral de precio, la previsión o una opción en tiempo de ejecución. Deliberadamente no es un planificador de varios días: al pulsarlo por la tarde cubre la noche hasta el amanecer, pero no reserva energía para la tarde de mañana. El plan normal de mañana se construye a las 00:05, cuando ya se conoce el balance de ese día.
 
 ---
 
@@ -159,7 +162,7 @@ El umbral se resuelve así:
 1. Si **Umbral máximo de precio** está configurado, se usa ese valor.
 2. Si **Umbral máximo de precio** está vacío, se usa el precio medio diario.
 
-El precio medio del día se calcula automáticamente durante la evaluación de las 00:05 a partir del perfil horario de precios. El objetivo es preservar la batería para las horas más caras del día. Si no hay umbral fijo configurado y la media diaria aún no está disponible, el control de descarga no actúa.
+El precio medio se calcula automáticamente durante la evaluación de las 00:05 a partir de las franjas disponibles hasta el próximo amanecer, y se vuelve a calcular cuando la publicación de los precios de mañana provoca una reconstrucción. El objetivo es preservar la batería para las horas más caras de ese horizonte. Si no hay umbral fijo configurado y la media aún no está disponible, el control de descarga no actúa.
 
 ### Suelo de precio de descarga separado
 
@@ -174,6 +177,14 @@ precio ≤ suelo de precio de descarga    → descarga BLOQUEADA
 En la banda de reposo la batería no carga desde red ni descarga — pero la **carga con excedente solar sigue funcionando**. Así se evita ciclar la batería por la diferencia marginal de precio en torno a la media. El suelo debe estar **igual o por encima** del techo de carga (se valida al guardar); déjalo vacío para reutilizar el umbral máximo para ambos (el comportamiento de umbral único de arriba).
 
 Ambos umbrales se exponen además como entidades `number` en vivo (**Umbral Máximo de Precio** y **Suelo de Precio de Descarga**) para que las automatizaciones puedan reescribirlos sin entrar al flujo de opciones.
+
+### Reserva de descarga según el precio
+
+La **Reserva de descarga según el precio** es una subfunción optativa de Precio Dinámico. Proyecta el perfil de consumo de 15 minutos y la solar prevista sobre las franjas que quedan hasta el próximo amanecer, y da prioridad a las horas más caras que superen el precio actual al menos en el **Ahorro mínimo de reserva de descarga**. La energía que esas horas todavía necesitan se convierte en un suelo económico `price_reserve`; todo lo que queda por encima sigue disponible para autoconsumo.
+
+La reserva puede conservar energía para un pico anterior al amanecer, pero termina al salir el sol: nunca guarda energía para la tarde de mañana, porque la solar puede recargar la batería entre ambos momentos. Se recalcula con el precio y el SOC actuales, no modifica `min_soc`, y las protecciones de emergencia, peak shaving, control manual y overrides explícitos de SOC siguen teniendo prioridad.
+
+El sensor binario `discharge_reserve_status` publica la energía y el porcentaje reservados, el precio de referencia, las franjas que la reclaman y los atributos `horizon_demand_kwh`, `horizon_surplus_kwh` y `claims`. El sensor **Integration Status** muestra `price_reserve_hold` mientras una batería está retenida.
 
 ### Interacción con franjas horarias
 
@@ -210,6 +221,10 @@ El sensor binario `predictive_charging_active` expone:
 | `deadline_shortfall_kwh` / `total_shortfall_kwh` | Energía urgente y total que los slots elegibles no pueden entregar |
 | `energy_deadlines` | Requisitos acumulados y plazos ISO locales |
 | `slot_energy_targets_kwh` / `slot_deadlines` | Cuotas y plazos por slot, serializados con timestamps locales |
+| `energy_horizon_end` | Marca ISO local del próximo amanecer que limita el plan; medianoche si no puede calcularse |
+| `overnight_consumption_kwh` | Demanda doméstica prevista desde medianoche hasta `energy_horizon_end` |
+
+Las notificaciones usan el mismo límite: describen la demanda restante hasta el amanecer y muestran aparte los kWh nocturnos cuando el horizonte cruza medianoche.
 
 ![Atributos del sensor predictive_charging_active](../../assets/screenshots/configuration/predictive-charging/diagnostic-attributes.png){ width="650"  style="display: block; margin: 0 auto;"}
 
