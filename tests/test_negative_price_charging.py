@@ -122,7 +122,7 @@ async def _noop(*_args, **_kwargs):
 def _evaluate(ctrl: SimpleNamespace, slots: list[PriceSlot]) -> PricingManager:
     manager = PricingManager(SimpleNamespace(), ctrl)
     manager._maybe_refresh_service_prices = _noop
-    manager._parse_price_data = lambda horizon_end=None: slots
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: slots
     manager._send_dynamic_pricing_notification = _noop
     manager._build_curtailment_plan = lambda *_args, **_kwargs: CurtailmentPlan(
         status="no_risk", reason="none"
@@ -571,7 +571,7 @@ def test_evaluation_moves_opportunity_out_of_solar_risk_window():
     risky, safe = _future_slots([-0.50, -0.20])
     manager = PricingManager(SimpleNamespace(), ctrl)
     manager._maybe_refresh_service_prices = _noop
-    manager._parse_price_data = lambda horizon_end=None: [risky, safe]
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [risky, safe]
     manager._send_dynamic_pricing_notification = _noop
     manager._build_curtailment_plan = lambda *_args, **_kwargs: CurtailmentPlan(
         status="planned", reason="solar_risk", risk_slots=[risky]
@@ -596,7 +596,7 @@ def test_guaranteed_minimum_floor_keeps_only_deficit_in_solar_risk_window():
     risky = _future_slots([-0.50])[0]
     manager = PricingManager(SimpleNamespace(), ctrl)
     manager._maybe_refresh_service_prices = _noop
-    manager._parse_price_data = lambda horizon_end=None: [risky]
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [risky]
     manager._send_dynamic_pricing_notification = _noop
     manager._build_curtailment_plan = lambda *_args, **_kwargs: CurtailmentPlan(
         status="planned", reason="solar_risk", risk_slots=[risky]
@@ -639,6 +639,7 @@ def _prepare_runtime_manager(
     manager._check_dp_pre_slot_reevaluation = _noop
     manager._is_evening_reevaluation_time = lambda: False
     manager._is_dp_soc_drop_reeval = lambda: False
+    manager._is_price_publication_reeval = lambda _now: False
     manager._get_current_price = lambda: slot.price
     return manager
 
@@ -789,6 +790,7 @@ def test_charge_blocker_prevents_entering_an_opportunity_slot():
     manager._check_dp_pre_slot_reevaluation = _noop
     manager._is_evening_reevaluation_time = lambda: False
     manager._is_dp_soc_drop_reeval = lambda: False
+    manager._is_price_publication_reeval = lambda _now: False
     manager._get_current_price = lambda: -0.20
 
     asyncio.run(manager.handle_dynamic_pricing_predictive_charging())

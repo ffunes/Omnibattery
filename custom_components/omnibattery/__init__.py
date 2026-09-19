@@ -1062,6 +1062,7 @@ class ChargeDischargeController:
         self._dp_excluded_demand_reeval_count = 0  # claim-driven re-evaluations today (daily cap)
         self._dp_last_eval_solar_remaining_kwh = None  # remaining solar forecast at last DP (re)eval
         self._dp_last_eval_solar_produced_kwh = None  # solar produced when that forecast was read
+        self._dp_price_publication_reeval_date = None  # day tomorrow's prices already triggered a replan
         self._dp_solar_forecast_reeval_at = None  # last forecast-driven re-evaluation (cooldown)
         self._dp_solar_forecast_reeval_count = 0  # forecast-driven re-evaluations today (daily cap)
         self._dp_solar_forecast_reeval_date = None  # day that cap belongs to (time slot has no daily reset)
@@ -5030,6 +5031,7 @@ class ChargeDischargeController:
         # remaining consumption for the current day instead.
         consumption_scope = "daily"
         profile_forecast = None
+        profile_energy_horizon_end = None
         if consumption_override_kwh is None:
             profile = getattr(
                 getattr(self, "_consumption_tracker", None),
@@ -5054,14 +5056,18 @@ class ChargeDischargeController:
                         second=0,
                         microsecond=0,
                     )
+                    profile_energy_horizon_end = self._pricing_mgr.energy_horizon_end(
+                        profile_start
+                    )
                     profile_forecast = self._consumption_tracker.forecast_consumption_between(
                         profile_start,
-                        profile_start + timedelta(days=1),
+                        profile_energy_horizon_end,
                         fallback="legacy_daily",
                     )
                 except Exception as exc:  # noqa: BLE001
                     _LOGGER.debug("Predictive evaluation: daily profile failed: %s", exc)
                     profile_forecast = None
+                    profile_energy_horizon_end = None
             if profile_forecast is not None and (
                 profile_forecast.mature or profile_forecast.source == "vacation_baseline"
             ):
@@ -5313,6 +5319,13 @@ class ChargeDischargeController:
         )
 
         return {
+            # Only the profile path actually planned to the sunrise horizon; a
+            # daily average covers a calendar day and says nothing about it.
+            "energy_horizon_end": (
+                profile_energy_horizon_end
+                if consumption_scope in ("daily_profile", "daily_vacation_baseline")
+                else None
+            ),
             "should_charge": should_charge,
             "solar_forecast_kwh": solar_forecast_kwh,
             "solar_remaining_raw_kwh": solar_forecast_kwh,

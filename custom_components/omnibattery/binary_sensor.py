@@ -521,6 +521,7 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
         "consumption_rate_kwh_h", "consumption_accumulator_source",
         "energy_deadlines", "slot_energy_targets_kwh", "slot_deadlines",
         "decision_reason", "solar_forecast_periods",
+        "energy_horizon_end", "overnight_consumption_kwh",
     })
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
@@ -692,6 +693,12 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
                     "solar_available_to_battery_kwh"
                 ),
                 "decision_reason": decision.get("reason"),
+                "energy_horizon_end": (
+                    decision["energy_horizon_end"].isoformat()
+                    if isinstance(decision.get("energy_horizon_end"), datetime)
+                    else None
+                ),
+                "overnight_consumption_kwh": decision.get("overnight_consumption_kwh"),
                 "chronological_planning_active": chronological_active,
                 "chronological_source": _chronological_value("chronological_source"),
                 "solar_timeline_source": _chronological_value(

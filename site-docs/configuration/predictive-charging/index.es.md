@@ -1,6 +1,6 @@
 # Carga predictiva
 
-La carga predictiva es una función **opcional** que carga las baterías desde la red cuando el balance energético previsto para lo que queda del día es negativo.
+La carga predictiva es una función **opcional** que carga las baterías desde la red cuando el balance energético previsto para su horizonte de planificación es negativo. En modo Precio Dinámico, ese horizonte llega hasta el próximo amanecer.
 
 ## Lógica de decisión
 
@@ -12,14 +12,14 @@ Si no:
 ```
 
 - **Batería utilizable**: energía actual por encima del SOC mínimo configurado.
-- **Previsión solar**: preferiblemente la producción restante de hoy (sensor Solcast/Forecast.Solar). El sensor del día completo se mantiene como fallback legado durante la transición.
-- **Consumo esperado**: media móvil de 7 días. Ver [Estimación del consumo diario](../../features/consumption-estimate.md).
+- **Previsión solar**: preferiblemente la producción restante de hoy (sensor Solcast/Forecast.Solar). El sensor del día completo se mantiene como fallback legado durante la transición. Precio Dinámico no presupone solar de mañana antes de su límite al amanecer.
+- **Consumo esperado**: demanda aprendida durante el horizonte del modo. Precio Dinámico incluye el consumo posterior a medianoche hasta el próximo amanecer. Ver [Estimación del consumo diario](../../features/consumption-estimate.md).
 
 ---
 
 ## Objetivo de carga
 
-Cuando se activa la carga predictiva, la batería no se carga hasta `max_soc` desde la red. En su lugar, la integración calcula un **SOC objetivo de red** — el mínimo necesario para cubrir únicamente lo que la solar no podrá aportar durante el día:
+Cuando se activa la carga predictiva, la batería no se carga hasta `max_soc` desde la red. En su lugar, la integración calcula un **SOC objetivo de red** — el mínimo necesario para cubrir únicamente lo que la solar no podrá aportar durante el horizonte de planificación:
 
 ```
 excedente_solar = max(0, previsión_solar − consumo_estimado)
@@ -128,9 +128,9 @@ Consulta también [Protección de capacidad](../../features/peak-shaving.es.md) 
 
 ## SOC mínimo garantizado
 
-La carga predictiva solo carga desde la red cuando el día arroja un déficit. En un día soleado el balance del día completo puede ser positivo aunque la batería esté casi vacía al amanecer — dejando el hueco de la mañana (antes de que arranque la solar) cubierto desde la red a precio completo, o la batería agotada.
+La carga predictiva solo carga desde la red cuando su horizonte arroja un déficit. El balance total puede ser positivo aunque la batería esté casi vacía antes de que arranque la solar, dejando ese hueco de la mañana cubierto desde la red a precio completo o agotando la batería.
 
-El slider **SOC Mínimo Garantizado** opcional (pestaña Control, se desactiva con el switch **SOC Mínimo Garantizado** contiguo) reserva energía suficiente para mantener cada batería en ese suelo hasta que comience la producción solar efectiva, sin importar el balance neto del día. Precio Dinámico elige los slots elegibles más baratos que pueden entregar la reserva antes de ese plazo. El techo máximo de precio explícito y los bloqueos físicos siguen siendo autoritativos: una garantía imposible se muestra como *shortfall* en vez de asignarse a una franja posterior.
+El slider **SOC Mínimo Garantizado** opcional (pestaña Control, se desactiva con el switch **SOC Mínimo Garantizado** contiguo) reserva energía suficiente para mantener cada batería en ese suelo hasta que comience la producción solar efectiva, sin importar el balance neto del horizonte. Precio Dinámico elige los slots elegibles más baratos que pueden entregar la reserva antes de ese plazo. El techo máximo de precio explícito y los bloqueos físicos siguen siendo autoritativos: una garantía imposible se muestra como *shortfall* en vez de asignarse a una franja posterior.
 
 Se reactiva con histéresis: una vez que el SOC recupera el suelo configurado, la carga se detiene si el suelo era la única razón para cargar; se rearma cuando el SOC baja a `suelo − 5 %`. Configúralo con el slider `number.*_predictive_min_soc_floor`, junto al switch **SOC Mínimo Garantizado**.
 
@@ -141,8 +141,8 @@ Se reactiva con histéresis: una vez que el SOC recupera el suelo configurado, l
 La estimación diaria se conserva como fallback de compatibilidad, pero las
 instalaciones maduras usan el perfil local de 15 minutos descrito en
 [Estimación diaria y horaria del consumo](../../features/consumption-estimate.es.md).
-Precio Dinámico y sus reevaluaciones intradía solicitan únicamente el horizonte
-local restante. Las franjas de carga predictiva no se restan de la demanda del hogar. Los atributos de la
+Precio Dinámico y sus reevaluaciones intradía solicitan el horizonte local
+restante hasta el próximo amanecer. Las franjas de carga predictiva no se restan de la demanda del hogar. Los atributos de la
 decisión identifican el origen como `profile` o `legacy_daily`, junto con la
 cobertura y el número de días aprendidos.
 
@@ -151,7 +151,7 @@ cobertura y el número de días aprendidos.
 | Modo | Descripción |
 |---|---|
 | [Franja Horaria](time-slot.md) | Carga durante una ventana fija (p. ej. tarifa nocturna) |
-| [Precio Dinámico](dynamic-pricing.md) | Selecciona automáticamente las horas más baratas del día |
+| [Precio Dinámico](dynamic-pricing.md) | Selecciona automáticamente las franjas más baratas hasta el próximo amanecer |
 | [Precio en Tiempo Real](real-time-price.md) | Activa/desactiva la carga en función del precio actual |
 
 ![Selector de modo de carga predictiva](../../assets/screenshots/configuration/predictive-charging/mode-selector.png){ width="600"  style="display: block; margin: 0 auto;"}
@@ -164,7 +164,7 @@ La integración envía notificaciones de Home Assistant:
 
 - **1 hora antes** del inicio del slot: análisis del balance energético y decisión de carga.
 - **Al inicio del slot**: confirmación de que la carga ha comenzado.
-- En modo Precio Dinámico, el plan también se comprueba **1 hora antes de cada franja futura**, una vez a **última hora de la tarde/noche** y después de una **caída de 30 puntos porcentuales de SOC**.
+- En modo Precio Dinámico, el plan también se comprueba **1 hora antes de cada franja futura**, una vez a **última hora de la tarde/noche**, después de una **caída de 30 puntos porcentuales de SOC** y una vez cuando se publican los precios de mañana.
 
 Usa el switch **Override Predictive Charging** para cancelar la carga predictiva en cualquier momento.
 

@@ -26,7 +26,7 @@ battery keeps behaving exactly as it does today.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
@@ -276,13 +276,17 @@ class DischargeReserveManager:
         return monotonic() - self._last_rebuild_mono >= REBUILD_INTERVAL_S
 
     def _horizon_end(self, now: datetime) -> datetime:
-        """Reserve for tonight, never for tomorrow.
+        """Reserve for tonight, through to the next sunrise.
 
-        Holding energy overnight for tomorrow's evening peak would be wrong on
-        every day the sun refills the battery in between, and the planner has no
-        model of tomorrow's PV. Local midnight is the honest boundary.
+        Holding energy for tomorrow's evening peak would still be wrong on every
+        day the sun refills the battery in between, and the planner has no model
+        of tomorrow's PV. But the small hours carry no sun either, so that
+        argument never covered them: a price peak at 06:00 is tonight's problem,
+        and cutting at midnight left it to the grid. The shared horizon helper
+        stops at sunrise for exactly this reason, which is the first moment
+        tomorrow's PV can start refilling.
         """
-        return now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        return self._controller._pricing_mgr.energy_horizon_end(now)
 
     def _current_price(self) -> float | None:
         pricing = getattr(self._controller, "_pricing_mgr", None)
