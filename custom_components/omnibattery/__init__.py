@@ -1062,6 +1062,7 @@ class ChargeDischargeController:
         self._dp_excluded_demand_reeval_count = 0  # claim-driven re-evaluations today (daily cap)
         self._dp_last_eval_solar_remaining_kwh = None  # remaining solar forecast at last DP (re)eval
         self._dp_last_eval_solar_produced_kwh = None  # solar produced when that forecast was read
+        self._dp_price_publication_reeval_date = None  # day tomorrow's prices already triggered a replan
         self._dp_solar_forecast_reeval_at = None  # last forecast-driven re-evaluation (cooldown)
         self._dp_solar_forecast_reeval_count = 0  # forecast-driven re-evaluations today (daily cap)
         self._dp_solar_forecast_reeval_date = None  # day that cap belongs to (time slot has no daily reset)
