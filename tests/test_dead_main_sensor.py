@@ -10,6 +10,11 @@ that logs nothing at all today.
 ``_check_main_sensor_liveness`` only touches ``self.hass``, ``self.config_entry``,
 ``self.consumption_sensor``, ``self.previous_power`` and its own flag, so it is
 exercised as an unbound method against a lightweight stand-in.
+
+The age it judges is the meter's own ``last_reported``, not the timestamp the
+control loop records when it reads the meter: every cycle that returns before
+that read (manual mode, an operation block, a predictive handler) leaves the
+tracked timestamp aging while the meter keeps publishing.
 """
 from __future__ import annotations
 
@@ -45,26 +50,67 @@ def issues(monkeypatch):
     return fake
 
 
-def _ctrl(silent_for_s, sensor="sensor.grid_power", previous_power=-1500.0):
-    """Controller stand-in exposing only what the liveness check reads."""
+_NO_STATE = object()  # the entity itself is absent, as at a cold start
+
+
+class _FakeStates:
+    def __init__(self, state):
+        self._state = state
+
+    def get(self, entity_id):
+        return self._state
+
+
+def _state(value="1234.0", reported_s_ago=0.0):
+    """Meter state as Home Assistant exposes it, with its own publication clock."""
     return SimpleNamespace(
-        hass=object(),
+        state=value,
+        attributes={"unit_of_measurement": "W"},
+        last_reported=NOW - timedelta(seconds=reported_s_ago),
+    )
+
+
+def _ctrl(
+    silent_for_s,
+    sensor="sensor.grid_power",
+    previous_power=-1500.0,
+    state=None,
+):
+    """Controller stand-in exposing only what the liveness check reads.
+
+    ``silent_for_s`` is the tracked read time; ``state`` is what the meter is
+    publishing. They are separate on purpose - the bug was reading the first
+    and calling it the second.
+    """
+    if state is _NO_STATE:
+        state = None
+    elif state is None:
+        state = _state(reported_s_ago=silent_for_s or 0.0)
+    return SimpleNamespace(
+        hass=SimpleNamespace(states=_FakeStates(state)),
         config_entry=SimpleNamespace(entry_id="abc123"),
         consumption_sensor=sensor,
         previous_power=previous_power,
+        meter_inverted=False,
+        offgrid_mode_enabled=False,
+        offgrid_power_sensor=None,
         _last_sensor_report_time=(
             None if silent_for_s is None else NOW - timedelta(seconds=silent_for_s)
         ),
+        _last_valid_meter_publication=None,
         _dead_sensor_issue_created=False,
     )
 
 
-def _check(ctrl):
-    # Bind the helper the check calls on itself, then run the check unbound.
+def _check(ctrl, now=NOW):
+    # Bind the helpers the check calls on itself, then run the check unbound.
     ctrl._sensor_age_seconds = lambda t, now=None: (
         ChargeDischargeController._sensor_age_seconds(ctrl, t, now)
     )
-    ChargeDischargeController._check_main_sensor_liveness(ctrl, NOW)
+    ctrl._live_sensor_report_time = lambda: (
+        ChargeDischargeController._live_sensor_report_time(ctrl)
+    )
+    ChargeDischargeController._check_main_sensor_liveness(ctrl, now)
 
 
 def test_silent_meter_raises_the_issue(issues):
@@ -87,8 +133,8 @@ def test_a_meter_within_tolerance_raises_nothing(issues):
 
 
 def test_no_reading_yet_is_a_restart_not_a_fault(issues):
-    """_last_sensor_report_time is None until the first successful read."""
-    _check(_ctrl(None))
+    """Nothing published yet: no timestamp to age, so no fault."""
+    _check(_ctrl(None, state=_NO_STATE))
     assert issues.created == []
 
 
@@ -103,18 +149,57 @@ def test_a_recovered_meter_clears_the_issue(issues):
     ctrl = _ctrl(MAIN_SENSOR_DEAD_S + 60)
     _check(ctrl)
     # The meter publishes again: age collapses back under the threshold.
-    ctrl._last_sensor_report_time = NOW
+    ctrl.hass.states._state = _state(reported_s_ago=0.0)
     _check(ctrl)
 
     assert issues.deleted == ["dead_main_sensor_abc123"]
     assert ctrl._dead_sensor_issue_created is False
 
-    # ...and a second episode can raise it again.
-    ctrl._last_sensor_report_time = NOW - timedelta(seconds=MAIN_SENSOR_DEAD_S + 60)
-    _check(ctrl)
+    # ...and a second episode can raise it again: the meter falls silent after
+    # the recovery, so its last publication ages as the clock moves on.
+    _check(ctrl, now=NOW + timedelta(seconds=MAIN_SENSOR_DEAD_S + 60))
     assert len(issues.created) == 2
 
 
 def test_no_configured_meter_is_not_a_fault(issues):
     _check(_ctrl(MAIN_SENSOR_DEAD_S + 60, sensor=None))
     assert issues.created == []
+
+
+def test_a_publishing_meter_the_loop_never_read_is_not_dead(issues):
+    """The cycle returned early for minutes; the meter never stopped talking.
+
+    Manual mode, an operation block and the predictive handlers all return
+    before the grid read, so the tracked read time ages on a healthy meter.
+    """
+    ctrl = _ctrl(MAIN_SENSOR_DEAD_S + 60, state=_state(reported_s_ago=1.0))
+    _check(ctrl)
+
+    assert issues.created == []
+    assert ctrl._dead_sensor_issue_created is False
+
+
+def test_a_brief_unavailable_blip_is_not_minutes_of_silence(issues):
+    """A meter reload during a long block must not inherit the frozen read time.
+
+    The tracked read time is minutes old because the cycle kept returning
+    early. The meter was publishing a second ago and is briefly reloading, so
+    the fallback has to be its own last valid publication, not that timestamp.
+    """
+    ctrl = _ctrl(MAIN_SENSOR_DEAD_S + 60, state=_state(reported_s_ago=1.0))
+    _check(ctrl)
+    ctrl.hass.states._state = _state(value="unavailable", reported_s_ago=0.0)
+    _check(ctrl)
+
+    assert issues.created == []
+
+
+def test_an_unavailable_meter_is_still_dead(issues):
+    """``unavailable`` keeps being republished; it is silence, not a reading."""
+    ctrl = _ctrl(
+        MAIN_SENSOR_DEAD_S + 60,
+        state=_state(value="unavailable", reported_s_ago=1.0),
+    )
+    _check(ctrl)
+
+    assert len(issues.created) == 1
