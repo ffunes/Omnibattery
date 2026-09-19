@@ -242,6 +242,22 @@ class PricingManager:
         """Return local wall-clock time, isolated for deterministic slot tests."""
         return datetime.now()
 
+    def energy_horizon_end(self, now: datetime) -> datetime:
+        """Return the next local day's sunrise, bounded to its first 12 hours."""
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo(self._hass.config.time_zone)
+        local_now = (
+            now.astimezone(tz) if now.tzinfo is not None else now.replace(tzinfo=tz)
+        )
+        horizon_date = local_now.date() + timedelta(days=1)
+        midnight = datetime.combine(horizon_date, dt_time.min, tzinfo=tz)
+        tracker = getattr(self._controller, "_consumption_tracker", None)
+        sunrise = tracker.calculate_sunrise(horizon_date) if tracker is not None else None
+        if sunrise is None:
+            return midnight
+        return midnight + timedelta(hours=max(0.0, min(12.0, float(sunrise))))
+
     @staticmethod
     def evaluate_chronological_projection(
         request: ChronologicalEvaluationRequest,
