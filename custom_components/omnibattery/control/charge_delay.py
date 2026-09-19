@@ -101,6 +101,18 @@ def _decision_now() -> datetime:
     return now
 
 
+# Status fields the solar balance produces.  A hold that returns before the
+# balance runs clears them, so a fresh deficit never sits beside stale figures.
+_BALANCE_STATUS_FIELDS = (
+    "solar_t_end",
+    "remaining_solar_kwh",
+    "remaining_consumption_kwh",
+    "net_solar_kwh",
+    "charge_time_h",
+    "estimated_unlock_time",
+)
+
+
 def _energy_needed_kwh(batteries: list, target_soc: float) -> float:
     """Return the kWh still missing to reach ``target_soc`` across ``batteries``."""
     return sum(
@@ -647,6 +659,11 @@ class ChargeDelayManager:
         # rather than a negative one; the raw value still drives the unlock below.
         energy_needed_kwh = _energy_needed_kwh(automatic_batteries, target_soc)
         status["energy_needed_kwh"] = round(max(0.0, energy_needed_kwh), 2)
+        # The solar balance below may not be reached this cycle.  Drop what it
+        # would have produced rather than leaving a previous cycle's figures
+        # beside the fresh deficit; each is rewritten as soon as it is computed.
+        for key in _BALANCE_STATUS_FIELDS:
+            status[key] = None
 
         if ctrl._charge_delay_balance_needs_charge:
             # Genuine grid-deficit day: rather than unlocking immediately (often a
