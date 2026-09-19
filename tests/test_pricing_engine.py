@@ -2593,6 +2593,96 @@ def test_daily_profile_consumes_energy_horizon_end():
     assert result["avg_consumption_kwh"] == pytest.approx(7.05)
 
 
+def test_daily_profile_scope_publishes_energy_horizon_end():
+    """Phase 4: the daily-profile decision exposes the horizon it planned to."""
+    coordinator = SimpleNamespace(
+        data={"battery_soc": 50.0, "battery_total_energy": 10.0},
+        min_soc=10.0,
+        max_soc=95.0,
+    )
+
+    def horizon_end(start):
+        return start + timedelta(days=1, hours=6)
+
+    forecast = ConsumptionForecast(
+        7.05,
+        [7.05 / INTERVAL_COUNT] * INTERVAL_COUNT,
+        "profile",
+        True,
+    )
+    ctrl = SimpleNamespace(
+        predictive_charging_enabled=True,
+        predictive_charging_overridden=False,
+        coordinators=[coordinator],
+        _predictive_safety_margin_kwh=0.0,
+        _predictive_grid_charge_margin_pct=0.0,
+        _predictive_min_soc_floor=0.0,
+        _predictive_min_soc_floor_enabled=False,
+        _daily_consumption_history=[],
+        solar_forecast_sensor=None,
+        hass=SimpleNamespace(states=SimpleNamespace(get=lambda _entity_id: None)),
+        _consumption_tracker=SimpleNamespace(
+            consumption_profile=SimpleNamespace(_timezone=lambda: ZoneInfo("UTC")),
+            forecast_consumption_between=lambda start, end, **_kwargs: forecast,
+            get_dynamic_base_consumption=lambda: None,
+        ),
+        _pricing_mgr=SimpleNamespace(energy_horizon_end=horizon_end),
+    )
+
+    result = asyncio.run(
+        ChargeDischargeController._should_activate_grid_charging(
+            ctrl,
+            solar_forecast_override_kwh=0.0,
+        )
+    )
+
+    assert result["consumption_scope"] == "daily_profile"
+    assert "energy_horizon_end" in result
+    assert result["energy_horizon_end"].hour == 6
+
+
+def test_remaining_scope_does_not_publish_daily_profile_horizon():
+    """Phase 4: the override (``remaining``) path publishes no profile horizon.
+
+    The caller that supplies the override owns the horizon and overwrites this
+    key with its own; a daily average on its own covers a calendar day and can
+    say nothing about the sunrise horizon.
+    """
+    ctrl = _controller(
+        _daily_consumption_history=[],
+        solar_forecast_sensor=None,
+        _consumption_tracker=SimpleNamespace(
+            get_dynamic_base_consumption=lambda: None,
+        ),
+        _should_activate_grid_charging=None,
+    )
+    ctrl.predictive_charging_enabled = True
+    ctrl.predictive_charging_overridden = False
+    ctrl.coordinators = [
+        SimpleNamespace(
+            data={"battery_soc": 50.0, "battery_total_energy": 10.0},
+            min_soc=10.0,
+            max_soc=95.0,
+        )
+    ]
+    ctrl._predictive_safety_margin_kwh = 0.0
+    ctrl._predictive_grid_charge_margin_pct = 0.0
+    ctrl._predictive_min_soc_floor = 0.0
+    ctrl._predictive_min_soc_floor_enabled = False
+    ctrl.hass = SimpleNamespace(states=SimpleNamespace(get=lambda _entity_id: None))
+
+    result = asyncio.run(
+        ChargeDischargeController._should_activate_grid_charging(
+            ctrl,
+            consumption_override_kwh=5.0,
+            solar_forecast_override_kwh=0.0,
+        )
+    )
+
+    assert result["consumption_scope"] == "remaining"
+    assert result["energy_horizon_end"] is None
+
+
 def test_remaining_rebuilds_keep_the_same_overnight_budget():
     """A later rebuild cannot erase the overnight leg planned in the morning."""
     daily_average = 5.64
@@ -2674,8 +2764,165 @@ def test_remaining_and_chronological_layers_receive_one_horizon():
         price_ceiling=None,
     )
 
-    assert forecast_ends == [horizon]
+    # The overnight-consumption diagnostic (added for the sunrise horizon)
+    # makes a second profile-forecast call scoped to the overnight leg; both
+    # calls still resolve to the same horizon end.
+    assert forecast_ends == [horizon, horizon]
     assert plan_ends == [horizon]
+
+
+def test_evaluate_remaining_publishes_horizon_and_overnight_kwh_profile_branch():
+    """Phase 4: the profile branch reports the overnight-only leg separately."""
+    now = datetime(2026, 9, 19, 20, 0)
+    horizon = datetime(2026, 9, 20, 6, 30)
+
+    async def get_average_consumption():
+        return 6.0
+
+    async def should_activate(**overrides):
+        return {"should_charge": False}
+
+    def forecast_between(start, end, **_kwargs):
+        if start.hour == 0 and start.minute == 0:
+            # Overnight-only leg (midnight -> horizon).
+            return ConsumptionForecast(
+                1.5, [1.5 / INTERVAL_COUNT] * INTERVAL_COUNT, "profile", True
+            )
+        # Full remaining window (now -> horizon).
+        return ConsumptionForecast(
+            4.0, [4.0 / INTERVAL_COUNT] * INTERVAL_COUNT, "profile", True
+        )
+
+    ctrl = _controller(
+        _consumption_tracker=SimpleNamespace(
+            consumption_profile=SimpleNamespace(_timezone=lambda: None),
+            get_dynamic_base_consumption=get_average_consumption,
+            calculate_sunrise=lambda for_date=None: 6.5,
+            forecast_consumption_between=forecast_between,
+        ),
+        _should_activate_grid_charging=should_activate,
+    )
+    manager = _mgr(ctrl)
+    manager._remaining_solar_today_kwh = lambda _now: 0.0
+    manager.energy_horizon_end = lambda _now: horizon
+
+    decision = asyncio.run(manager._evaluate_remaining_grid_charging(now=now))
+
+    assert decision["consumption_scope"] == "remaining_profile"
+    assert decision["energy_horizon_end"] == horizon
+    assert decision["overnight_consumption_kwh"] == pytest.approx(1.5)
+
+
+def test_evaluate_remaining_overnight_leg_covers_every_forecast_source():
+    """A source other than the learned profile still reports its overnight leg.
+
+    ``vacation_baseline`` (and a ``legacy_daily`` forecast without a warm
+    accumulator) takes its total straight from the forecast over the whole
+    horizon, so the overnight leg is the same forecast sliced — not zero.
+    """
+    now = datetime(2026, 9, 19, 20, 0)
+    horizon = datetime(2026, 9, 20, 6, 30)
+
+    async def get_average_consumption():
+        return 6.0
+
+    async def should_activate(**overrides):
+        return {"should_charge": False}
+
+    def forecast_between(start, end, **_kwargs):
+        energy = 1.2 if (start.hour == 0 and start.minute == 0) else 3.4
+        return ConsumptionForecast(
+            energy,
+            [energy / INTERVAL_COUNT] * INTERVAL_COUNT,
+            "vacation_baseline",
+            True,
+        )
+
+    ctrl = _controller(
+        _consumption_tracker=SimpleNamespace(
+            consumption_profile=SimpleNamespace(_timezone=lambda: None),
+            get_dynamic_base_consumption=get_average_consumption,
+            calculate_sunrise=lambda for_date=None: 6.5,
+            forecast_consumption_between=forecast_between,
+        ),
+        _should_activate_grid_charging=should_activate,
+    )
+    manager = _mgr(ctrl)
+    manager._remaining_solar_today_kwh = lambda _now: 0.0
+    manager.energy_horizon_end = lambda _now: horizon
+
+    decision = asyncio.run(manager._evaluate_remaining_grid_charging(now=now))
+
+    assert decision["remaining_consumption_kwh"] == pytest.approx(3.4)
+    assert decision["overnight_consumption_kwh"] == pytest.approx(1.2)
+
+
+def test_evaluate_remaining_publishes_horizon_and_overnight_kwh_legacy_daily_branch():
+    """Phase 4: the legacy-daily fallback reuses its inline overnight figure."""
+    async def get_average_consumption():
+        return 20.0
+
+    async def should_activate(**overrides):
+        return {"should_charge": False}
+
+    forecast = SimpleNamespace(
+        energy_kwh=15.0,
+        source="legacy_daily",
+        coverage_ratio=0.0,
+        total_days=2,
+        fallback_reason="insufficient_days",
+    )
+    now = datetime(2026, 8, 11, 12, 0)
+    ctrl = _controller(
+        _daily_home_energy_date=now.date(),
+        _daily_home_energy_kwh=15.0,
+        _consumption_tracker=SimpleNamespace(
+            consumption_profile=SimpleNamespace(_timezone=lambda: None),
+            get_dynamic_base_consumption=get_average_consumption,
+            calculate_sunrise=lambda for_date=None: 6.0,
+            forecast_consumption_between=lambda *_args, **_kwargs: forecast,
+        ),
+        _should_activate_grid_charging=should_activate,
+    )
+    manager = _mgr(ctrl)
+    manager._remaining_solar_today_kwh = lambda _now_h: 0.0
+
+    decision = asyncio.run(manager._evaluate_remaining_grid_charging(now=now))
+
+    assert decision["consumption_scope"] == "remaining_fallback"
+    assert decision["energy_horizon_end"] == datetime(2026, 8, 12, 6, 0)
+    # historical_rate (20.0 / 24h) * overnight_window_hours (6.0h)
+    assert decision["overnight_consumption_kwh"] == pytest.approx(5.0)
+
+
+def test_evaluate_remaining_publishes_horizon_and_overnight_kwh_projection_branch():
+    """Phase 4: the no-profile projection branch derives the same overnight leg."""
+    async def get_average_consumption():
+        return 6.0
+
+    async def should_activate(**overrides):
+        return {"should_charge": False}
+
+    now = datetime(2026, 8, 11, 0, 0)
+    ctrl = _controller(
+        solar_forecast_remaining_sensor=None,
+        solar_forecast_sensor=None,
+        _consumption_tracker=SimpleNamespace(
+            consumption_profile=None,
+            get_dynamic_base_consumption=get_average_consumption,
+            calculate_sunrise=lambda for_date=None: 6.0,
+        ),
+        _should_activate_grid_charging=should_activate,
+    )
+    manager = _mgr(ctrl)
+    manager._remaining_solar_today_kwh = lambda _now: 0.0
+
+    decision = asyncio.run(manager._evaluate_remaining_grid_charging(now=now))
+
+    assert decision["consumption_scope"] == "remaining"
+    assert decision["energy_horizon_end"] == datetime(2026, 8, 12, 6, 0)
+    # historical_rate (6.0 / 24h) * overnight_window_hours (6.0h)
+    assert decision["overnight_consumption_kwh"] == pytest.approx(1.5)
 
 
 def test_price_horizon_uses_control_end_and_twelve_hour_extension(monkeypatch):

@@ -5030,6 +5030,7 @@ class ChargeDischargeController:
         # remaining consumption for the current day instead.
         consumption_scope = "daily"
         profile_forecast = None
+        profile_energy_horizon_end = None
         if consumption_override_kwh is None:
             profile = getattr(
                 getattr(self, "_consumption_tracker", None),
@@ -5054,14 +5055,18 @@ class ChargeDischargeController:
                         second=0,
                         microsecond=0,
                     )
+                    profile_energy_horizon_end = self._pricing_mgr.energy_horizon_end(
+                        profile_start
+                    )
                     profile_forecast = self._consumption_tracker.forecast_consumption_between(
                         profile_start,
-                        self._pricing_mgr.energy_horizon_end(profile_start),
+                        profile_energy_horizon_end,
                         fallback="legacy_daily",
                     )
                 except Exception as exc:  # noqa: BLE001
                     _LOGGER.debug("Predictive evaluation: daily profile failed: %s", exc)
                     profile_forecast = None
+                    profile_energy_horizon_end = None
             if profile_forecast is not None and (
                 profile_forecast.mature or profile_forecast.source == "vacation_baseline"
             ):
@@ -5313,6 +5318,13 @@ class ChargeDischargeController:
         )
 
         return {
+            # Only the profile path actually planned to the sunrise horizon; a
+            # daily average covers a calendar day and says nothing about it.
+            "energy_horizon_end": (
+                profile_energy_horizon_end
+                if consumption_scope in ("daily_profile", "daily_vacation_baseline")
+                else None
+            ),
             "should_charge": should_charge,
             "solar_forecast_kwh": solar_forecast_kwh,
             "solar_remaining_raw_kwh": solar_forecast_kwh,
