@@ -9,7 +9,16 @@ Automatically selects the **cheapest hours of the day** to cover the calculated 
 - **CKW** (Switzerland)
 - **EPEX Spot** (e.g. aWATTar)
 - **ENTSO-e** (Transparency Platform)
+- **Zonneplan** — hourly and 15-minute forecasts from the [Zonneplan One integration](https://github.com/fsaris/home-assistant-zonneplan-one)
 - **Tibber** — no price sensor needed; the engine polls the `tibber.get_prices` service directly (see below)
+
+### Zonneplan setup
+
+Select **Zonneplan** and choose **Current quarter hourly electricity tariff** for a 15-minute contract, or **Current hourly electricity tariff** for an hourly contract. The older **Current electricity tariff** sensor is also supported. Select the sensor matching your contract; do not select a cheapest-hour or tariff-group sensor.
+
+Omnibattery reads the sensor’s `forecast` attribute directly, including tomorrow when published. No template sensor, extra account login or API credentials are needed. Forecast amounts are divided by 10,000,000 into tax-inclusive €/kWh; the current sensor state is already €/kWh. Enter thresholds in €/kWh and do not add tax a second time. Negative and zero prices are preserved. Modern forecasts retain their explicit interval boundaries; legacy forecasts use one-hour intervals.
+
+The existing planner uses local wall-clock times. During the autumn clock change, repeated local intervals cannot be represented separately and an interval whose local end precedes its start is skipped. This is a shared planner limitation; review the schedule on clock-change days.
 
 !!! note "Tibber needs no sensor"
     Selecting **Tibber** as the price integration leaves the *Electricity price sensor* field unused — the engine calls the `tibber.get_prices` service (today's prices, plus tomorrow's after ~13:00), caches the slots and refreshes hourly. The official Tibber integration must be configured in HA.
@@ -21,7 +30,7 @@ Automatically selects the **cheapest hours of the day** to cover the calculated 
 
 | Field | Description |
 |---|---|
-| **Price integration type** | Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e / Tibber |
+| **Price integration type** | Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e / Tibber / Zonneplan |
 | **Electricity price sensor** | HA price entity. For Nord Pool, select either an official-integration entity or the existing HACS sensor; unused for Tibber |
 | **Max price threshold (€)** | (Optional) Price ceiling; does not charge even during "cheap" hours if the price exceeds this value. Also used as the discharge threshold when price-based discharge control is enabled |
 | **Only discharge when price is above threshold** | (Optional) Price-gated discharge — see below |

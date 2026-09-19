@@ -14,6 +14,7 @@
 
 ### Added
 
+- **Zonneplan dynamic pricing**: use hourly, quarter-hourly or legacy electricity tariff forecasts from Zonneplan One through the shared import/export price parser, with tax-inclusive EUR/kWh normalization. Thanks to [@hprax](https://github.com/hprax)
 - **The discharge reserve explains itself** (#446): `discharge_reserve_status` now carries the threshold price, the claimed and PV-credited kWh, the horizon's net demand and surplus, and a `claims` list with the figures behind each claim — enough to tell which input moved when two cycles disagree. A cycle released by a guard publishes no plan figures rather than the last cycle's. No behaviour change. Thanks to @syphernl.
 
 ### Fixed
