@@ -19,7 +19,7 @@ night profile is used, then the daily history divided by 24, and finally the
 default estimate. Toggling the switch breaks learning-integrator continuity,
 so a sample interval is never attributed across a mode change.
 
-Dynamic Pricing uses this as a chronological curve, not only as a daily total. It can therefore reserve grid energy before an early projected depletion while leaving the rest of the daily deficit flexible by price. The mature profile and temporary curve are normalized to the same aggregate kWh used by the predictive decision.
+Dynamic Pricing uses this as a chronological curve, not only as a daily total. It can therefore reserve grid energy before an early projected depletion while leaving the rest of the deficit through the next sunrise flexible by price. The mature profile and temporary curve are normalized to the same aggregate kWh used by the predictive decision.
 
 While the learned profile is immature, that daily total is not distributed
 completely flat: a temporary household-shaped curve is used. Overnight
@@ -29,11 +29,13 @@ is normalized so the total remains exactly the estimated daily consumption,
 including on daylight-saving transition days, and disappears as soon as a
 learned profile with real data is available.
 
-For Dynamic Pricing intraday re-evaluations that forecast from now until
-midnight, the curve is also adjusted gradually using today's accumulated real
-consumption. The adjustment starts after the first three hours, reaches full
-strength at noon and is capped at 30% of the forecast remainder so a one-off
-spike cannot distort the rest of the day.
+For Dynamic Pricing intraday re-evaluations, the curve forecasts from now
+through the next sunrise. Today's remaining leg is adjusted gradually using the
+accumulated real consumption; the post-midnight leg comes from the next day's
+profile, or from the historical hourly rate when the profile is unavailable.
+The adjustment starts after the first three hours, reaches full strength at noon
+and is capped at 30% of today's forecast remainder so a one-off spike cannot
+distort the rest of the day.
 
 ---
 
@@ -161,7 +163,7 @@ Expected consumption = (5.0 + 5.1 + 5.3 + 4.8 + 4.9 + 6.3 + 6.0) / 7 = 5.34 kWh
 
 This **Grid at Min SOC** sensor is informational: it shows demand the battery missed because it was empty. It is no longer summed into the consumption estimate (the derived home consumption already captures total house load, including the part served from the grid).
 
-The `binary_sensor.marstek_venus_system_predictive_charging_active` sensor exposes the 7-day consumption history and the count of real vs. fallback entries in its attributes, useful to verify the learning status.
+The `binary_sensor.marstek_venus_system_predictive_charging_active` sensor exposes the 7-day consumption history and the count of real vs. fallback entries in its attributes, useful to verify the learning status. In Dynamic Pricing mode, `energy_horizon_end` reports the local sunrise boundary and `overnight_consumption_kwh` reports the forecast demand between midnight and that boundary.
 
 ![Consumption history attributes in HA](../assets/screenshots/features/consumption-estimate-attributes.png){ width="700"  style="display: block; margin: 0 auto;"}
 

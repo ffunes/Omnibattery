@@ -20,7 +20,7 @@ por último el valor predeterminado. Al cambiar el interruptor se rompe la
 continuidad de los integradores de aprendizaje para no atribuir intervalos al
 modo equivocado.
 
-Precio Dinámico lo usa como curva cronológica, no solo como total diario. Así puede reservar energía de red antes de un agotamiento temprano previsto y mantener flexible por precio el resto del déficit diario. Tanto el perfil maduro como la curva provisional se normalizan a los mismos kWh agregados usados por la decisión predictiva.
+Precio Dinámico lo usa como curva cronológica, no solo como total diario. Así puede reservar energía de red antes de un agotamiento temprano previsto y mantener flexible por precio el resto del déficit hasta el próximo amanecer. Tanto el perfil maduro como la curva provisional se normalizan a los mismos kWh agregados usados por la decisión predictiva.
 
 Mientras el perfil aprendido no está maduro, ese total diario no se reparte de
 forma completamente plana: se usa una curva temporal provisional de hogar. La
@@ -30,11 +30,13 @@ curva se normaliza para que el total siga siendo exactamente el consumo diario
 estimado, incluidos los días de cambio horario, y desaparece en cuanto hay un
 perfil aprendido con datos reales.
 
-En las reevaluaciones intradía de Precio Dinámico que calculan lo que queda
-hasta medianoche, la curva también se corrige de forma gradual con el consumo
-real acumulado del día. La corrección empieza tras las tres primeras horas,
-alcanza toda su fuerza al mediodía y se limita al 30 % del consumo restante
-previsto para que un pico puntual no distorsione el resto del día.
+En las reevaluaciones intradía de Precio Dinámico, la curva abarca desde el
+momento actual hasta el próximo amanecer. El tramo restante de hoy se corrige
+de forma gradual con el consumo real acumulado; el tramo posterior a medianoche
+procede del perfil del día siguiente o, si no está disponible, de la tasa
+horaria histórica. La corrección empieza tras las tres primeras horas, alcanza
+toda su fuerza al mediodía y se limita al 30 % del consumo restante de hoy para
+que un pico puntual no distorsione el resto del día.
 
 ---
 
@@ -164,7 +166,7 @@ Consumo esperado = (5,0 + 5,1 + 5,3 + 4,8 + 4,9 + 6,3 + 6,0) / 7 = 5,34 kWh
 
 Este sensor **Grid at Min SOC** es informativo: muestra la demanda que la batería no atendió por estar vacía. Ya **no** se suma al consumo estimado (el consumo del hogar derivado ya captura la carga total de la casa, incluida la parte servida desde la red).
 
-El sensor `binary_sensor.marstek_venus_system_predictive_charging_active` expone en sus atributos el historial de consumo de los últimos 7 días y el número de entradas reales vs. valores de reserva, útil para verificar el estado del aprendizaje.
+El sensor `binary_sensor.marstek_venus_system_predictive_charging_active` expone en sus atributos el historial de consumo de los últimos 7 días y el número de entradas reales vs. valores de reserva, útil para verificar el estado del aprendizaje. En modo Precio Dinámico, `energy_horizon_end` indica el límite local al amanecer y `overnight_consumption_kwh` la demanda prevista entre medianoche y ese límite.
 
 ![Atributos del historial de consumo en HA](../assets/screenshots/features/consumption-estimate-attributes.png){ width="700"  style="display: block; margin: 0 auto;"}
 

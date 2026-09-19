@@ -1,6 +1,6 @@
 # Predictive charging
 
-Predictive charging is an **optional** feature that charges batteries from the grid when the expected energy balance for today is negative.
+Predictive charging is an **optional** feature that charges batteries from the grid when the expected energy balance for its planning horizon is negative. In Dynamic Pricing mode that horizon runs through the next sunrise.
 
 ## Decision logic
 
@@ -12,14 +12,14 @@ Else:
 ```
 
 - **Usable battery**: energy currently stored above the configured min SOC.
-- **Solar forecast**: preferably the production remaining today (Solcast/Forecast.Solar sensor). Whole-day sensors remain a legacy fallback during the transition.
-- **Expected consumption**: 7-day rolling average. See [Daily consumption estimate](../../features/consumption-estimate.md).
+- **Solar forecast**: preferably the production remaining today (Solcast/Forecast.Solar sensor). Whole-day sensors remain a legacy fallback during the transition. Dynamic Pricing does not assume tomorrow's solar before its sunrise boundary.
+- **Expected consumption**: learned demand over the mode's planning horizon. Dynamic Pricing includes the post-midnight demand through the next sunrise. See [Daily consumption estimate](../../features/consumption-estimate.md).
 
 ---
 
 ## Charge target
 
-When charging is triggered, the integration does not charge all the way to `max_soc` from the grid. Instead it calculates a **grid-only target SOC** — enough to cover only what solar will not be able to provide during the day:
+When charging is triggered, the integration does not charge all the way to `max_soc` from the grid. Instead it calculates a **grid-only target SOC** — enough to cover only what solar will not be able to provide over the planning horizon:
 
 ```
 solar_surplus = max(0, solar_forecast − estimated_consumption)
@@ -124,9 +124,9 @@ See also [Capacity protection](../../features/peak-shaving.md) and
 
 ## Guaranteed minimum SOC floor
 
-Predictive charging only grid-charges when the day nets to a deficit. On a sunny day the whole-day balance can be positive even though the battery is near empty at dawn — leaving the morning gap (before solar ramps up) covered from the grid at full price, or the battery drained.
+Predictive charging only grid-charges when its planning horizon nets to a deficit. The total balance can be positive even though the battery is near empty before solar ramps up — leaving the morning gap covered from the grid at full price, or the battery drained.
 
-The optional **Guaranteed Minimum SOC** slider (Control tab, turned off with the **Guaranteed Minimum SOC** switch next to it) reserves enough energy to keep each battery at that floor until effective solar production starts, regardless of the day's net balance. Dynamic Pricing chooses the cheapest eligible slots that can deliver the reserve before that deadline. The explicit maximum-price threshold and physical blockers remain authoritative, so an impossible guarantee is reported as a shortfall instead of being assigned to a later slot.
+The optional **Guaranteed Minimum SOC** slider (Control tab, turned off with the **Guaranteed Minimum SOC** switch next to it) reserves enough energy to keep each battery at that floor until effective solar production starts, regardless of the horizon's net balance. Dynamic Pricing chooses the cheapest eligible slots that can deliver the reserve before that deadline. The explicit maximum-price threshold and physical blockers remain authoritative, so an impossible guarantee is reported as a shortfall instead of being assigned to a later slot.
 
 It re-triggers with hysteresis: once SOC recovers to the configured floor, charging stops if the floor was the only reason to charge; it re-arms when SOC drops to `floor − 5 %`. Set it via the `number.*_predictive_min_soc_floor` slider, paired with the **Guaranteed Minimum SOC** switch.
 
@@ -137,7 +137,8 @@ It re-triggers with hysteresis: once SOC recovers to the configured floor, charg
 The daily estimate is retained as a compatibility fallback, but mature
 installations use the local 15-minute profile described in [Daily and hourly
 consumption estimate](../../features/consumption-estimate.md). Dynamic Pricing
-and its intraday re-evaluations request only the remaining local-time horizon.
+and its intraday re-evaluations request the remaining local-time horizon through
+the next sunrise.
 Predictive charging windows are not subtracted from household demand. The decision attributes identify the
 source as `profile` or `legacy_daily`, together with profile coverage and the
 number of learned days.
@@ -147,7 +148,7 @@ number of learned days.
 | Mode | Description |
 |---|---|
 | [Time Slot](time-slot.md) | Charges during a fixed window (e.g. overnight off-peak tariff) |
-| [Dynamic Pricing](dynamic-pricing.md) | Automatically selects the cheapest hours of the day |
+| [Dynamic Pricing](dynamic-pricing.md) | Automatically selects the cheapest slots through the next sunrise |
 | [Real-Time Price](real-time-price.md) | Activates/deactivates charging based on the current price |
 
 ![Predictive charging mode selector](../../assets/screenshots/configuration/predictive-charging/mode-selector.png){ width="600"  style="display: block; margin: 0 auto;"}
@@ -160,7 +161,7 @@ The integration sends Home Assistant notifications:
 
 - **1 hour before** the slot starts: energy balance analysis and charging decision.
 - **When the slot starts**: confirmation that charging has begun.
-- In Dynamic Pricing mode, the plan is also checked **1 hour before each future slot**, once in the **late afternoon/evening**, and after a **30 percentage-point SOC drop**.
+- In Dynamic Pricing mode, the plan is also checked **1 hour before each future slot**, once in the **late afternoon/evening**, after a **30 percentage-point SOC drop**, and once when tomorrow's prices become available.
 
 Use the **Override Predictive Charging** switch to cancel predictive charging at any time.
 
