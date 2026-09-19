@@ -110,6 +110,17 @@ def test_energy_horizon_is_aware_in_ha_timezone():
     assert result.utcoffset() == timedelta(hours=2)
 
 
+def test_energy_horizon_stays_naive_for_a_naive_caller():
+    tracker = _tracker()
+
+    result = _manager(tracker).energy_horizon_end(datetime(2026, 4, 10, 12, 0))
+
+    assert result.tzinfo is None
+    assert result == datetime(2026, 4, 11) + timedelta(
+        hours=tracker.calculate_sunrise(date(2026, 4, 11))
+    )
+
+
 @pytest.mark.parametrize("sunrise, expected_hour", [(-1.0, 0), (15.0, 12)])
 def test_energy_horizon_is_clamped_to_first_twelve_hours(sunrise, expected_hour):
     tracker = SimpleNamespace(calculate_sunrise=lambda for_date: sunrise)
