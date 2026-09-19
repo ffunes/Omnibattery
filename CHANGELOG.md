@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Excluded devices no longer push grid import above the contracted power**: an excluded device is hidden from the controller by design, but the breaker still sees it. When the excluded load alone would exceed "Maximum contracted power", the battery now covers just the excess. Always on, no setting. Peak shaving remains the opt-in economic layer below it.
+
 ### Fixed
 
 - **A Hoymiles HiBattery 4020 X now reports its own solar production** (#467): the driver dropped the PV power the battery publishes, so with no external solar sensor the dashboard showed no Solar node and every PV charge was logged as a grid charge. Both DC sources are now published as Solar Power — the MPPT inputs and a microinverter on the off-grid port. AC-coupled models (MS-A2, 1920/4020 AC) are unaffected. Thanks to @TheOops.
