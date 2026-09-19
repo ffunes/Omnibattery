@@ -124,7 +124,7 @@ def _slots():
 def _run(ctrl, reading, horizon=DynamicPricingEvaluationHorizon.DAILY):
     manager = PricingManager(SimpleNamespace(), ctrl)
     manager._maybe_refresh_service_prices = _noop
-    manager._parse_price_data = lambda horizon_end=None: _slots()
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: _slots()
     manager._send_dynamic_pricing_notification = _noop
     manager._read_remaining_solar_reading = lambda _now: reading
     manager._remaining_solar_today_kwh = lambda _now: reading or 0.0

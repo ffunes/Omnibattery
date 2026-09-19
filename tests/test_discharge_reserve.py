@@ -86,6 +86,7 @@ def _pricing(**overrides):
         _profile_remaining_consumption=lambda start, end: _forecast(4.0),
         _curtailment_forecast_model=lambda now: (0.0, None, None),
         _get_current_price=lambda: 0.20,
+        energy_horizon_end=lambda _now: DAY + timedelta(days=1, hours=7),
     )
     for key, value in overrides.items():
         setattr(base, key, value)
@@ -359,10 +360,38 @@ def test_a_failing_planner_releases_instead_of_raising():
     assert manager.plan is None
 
 
-def test_horizon_stops_at_midnight():
-    """Reserving past midnight would ignore tomorrow's sun."""
+def test_horizon_stops_at_sunrise():
+    """The small hours carry no sun, so midnight was never the right cut."""
     manager = _manager()
-    assert manager._horizon_end(NOW) == DAY + timedelta(days=1)
+    assert manager._horizon_end(NOW) == DAY + timedelta(days=1, hours=7)
+
+
+def test_a_pre_dawn_peak_claims_stored_energy():
+    """A 06:00 peak is tonight's problem; at midnight it belonged to no plan."""
+    pre_dawn = _slot(30, 0.45)  # 06:00 the next morning, before the 07:00 sunrise
+    intervals = [0.0] * 96
+    for index in range(24, 28):  # 06:00 - 07:00
+        intervals[index] = 3.0 / 4.0
+    pricing = _pricing(
+        # Unlike the shared stub, this one honours the horizon the way
+        # _filter_future_slots does: that bound is the thing under test.
+        get_future_price_slots=lambda horizon_end=None: [
+            slot
+            for slot in (_slot(14, 0.20), pre_dawn)
+            if horizon_end is None or slot.end <= horizon_end
+        ],
+        _profile_remaining_consumption=lambda start, end: SimpleNamespace(
+            intervals_kwh=intervals,
+            intervals_by_date={(DAY + timedelta(days=1)).date(): intervals},
+            energy_kwh=3.0,
+            source="profile",
+        ),
+    )
+    manager = _built(_controller(_pricing_mgr=pricing))
+
+    assert manager.reserve_soc_pct() == pytest.approx(30.0)  # 3 kWh of 10 kWh
+    reserved = manager.get_status()["reserved_slots"]
+    assert [slot["start"] for slot in reserved] == [pre_dawn.start.isoformat()]
 
 
 # ----------------------------------------------------------------------

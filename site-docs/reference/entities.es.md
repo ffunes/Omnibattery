@@ -2,7 +2,7 @@
 
 La integración crea automáticamente entidades para cada batería configurada y sensores agregados del sistema completo.
 
-El sensor binario de estado de carga predictiva incluye diagnósticos de Precio Dinámico con plazos: `chronological_planning_active`, fuentes de curvas, `earliest_projected_depletion`, kWh con plazo/flexibles, *shortfalls*, `energy_deadlines` acumulados y mapas JSON-safe de cuota/plazo por slot. Estos atributos describen la intención del plan; los límites reales de baterías y red siguen siendo autoritativos.
+El sensor binario de estado de carga predictiva incluye diagnósticos de Precio Dinámico con plazos: `chronological_planning_active`, fuentes de curvas, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, kWh con plazo/flexibles, *shortfalls*, `energy_deadlines` acumulados y mapas JSON-safe de cuota/plazo por slot. `energy_horizon_end` es la marca ISO local del próximo amanecer que usa el plan; `overnight_consumption_kwh` es la demanda prevista entre medianoche y ese límite. Estos atributos describen la intención del plan; los límites reales de baterías y red siguen siendo autoritativos.
 
 ## Sensores (por batería)
 
