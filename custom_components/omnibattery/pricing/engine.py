@@ -4282,6 +4282,7 @@ class PricingManager:
         remaining_window_hours = (
             today_remaining_window_hours + overnight_window_hours
         )
+        overnight_consumption_kwh = 0.0
         profile_forecast = self._profile_remaining_consumption(now, horizon_end)
         if profile_forecast is not None:
             remaining_consumption_kwh = profile_forecast.energy_kwh
@@ -4310,6 +4311,18 @@ class PricingManager:
                 remaining_consumption_kwh = (
                     today_remaining_kwh + overnight_consumption_kwh
                 )
+            else:
+                # Every other source takes its total straight from the forecast
+                # over the whole horizon, so slice the same call for the
+                # overnight leg rather than re-deriving it from the average.
+                overnight_forecast = self._profile_remaining_consumption(
+                    end_of_day, horizon_end
+                )
+                overnight_consumption_kwh = (
+                    overnight_forecast.energy_kwh
+                    if overnight_forecast is not None
+                    else 0.0
+                )
             consumption_rate_kwh_h = (
                 remaining_consumption_kwh / remaining_window_hours
                 if remaining_window_hours > 0
@@ -4333,6 +4346,11 @@ class PricingManager:
                     remaining_window_hours=remaining_window_hours,
                     today_remaining_window_hours=today_remaining_window_hours,
                 )
+            )
+            # The rate the helper returns is its own historical rate, already
+            # sanitised, and the overnight leg is priced at exactly that.
+            overnight_consumption_kwh = (
+                consumption_rate_kwh_h * overnight_window_hours
             )
             consumption_scope = "remaining"
         # Keep the scalar helper as the compatibility seam used by existing
@@ -4377,6 +4395,8 @@ class PricingManager:
             "solar_forecast_diagnostic_source",
             getattr(controller, "solar_forecast_source", None),
         )
+        decision["energy_horizon_end"] = horizon_end
+        decision["overnight_consumption_kwh"] = overnight_consumption_kwh
         return decision
 
     async def _current_horizon_grid_charging_decision(
