@@ -537,6 +537,22 @@ def test_waiting_for_solar_energy_needed_never_negative(monkeypatch):
     assert ctrl._charge_delay_status["energy_needed_kwh"] == 0.0
 
 
+def test_cheap_import_hold_publishes_energy_needed(monkeypatch):
+    # The grid-deficit hold also returns before the solar balance is calculated.
+    now = dt_util.now().replace(hour=4, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
+    ctrl = _controller(
+        _solar_t_start=None,
+        coordinators=[_coord(soc=50, total_energy=5.0)],
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(1.0)})
+    mgr._low_forecast_price_release = lambda now_h: True
+
+    assert mgr._should_delay_charge(80) is True
+    assert ctrl._charge_delay_balance_needs_charge is True
+    assert ctrl._charge_delay_status["energy_needed_kwh"] == pytest.approx(1.5)
+
+
 # ----------------------------------------------------------------------
 # _estimate_energy_balance_unlock_h: projection math
 # ----------------------------------------------------------------------
