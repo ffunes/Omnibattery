@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Charge Delay Status dropped `energy_needed_kwh` during the pre-sunrise holds** (PR#488): the "Waiting for solar" and "Delayed (cheap import)" branches return before the solar balance is calculated, so the attribute was omitted and consumers that default it to 0 reported "0.0 kWh needed" while the battery was far below target. The deficit is SOC arithmetic and is now published for both holds, clamped at 0 so a battery above target reports no deficit. Thanks to @syphernl.
+
 ## [1.4.0] - 2026-09-04
 
 ### Added

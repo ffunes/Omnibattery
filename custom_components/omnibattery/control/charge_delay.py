@@ -639,6 +639,15 @@ class ChargeDelayManager:
                 "grid needed (unlock delay)" if ctrl._charge_delay_balance_needs_charge else "solar sufficient (keep delay)",
             )
 
+        # Energy needed to reach target_soc.  Plain SOC arithmetic, independent of
+        # T_start, so publish it before the pre-sunrise holds below: they return
+        # without calculating the solar balance, and a consumer that defaults the
+        # missing attribute to 0 would read the hold as "nothing to charge".
+        # Clamped for the sensor so a battery above target reports no deficit
+        # rather than a negative one; the raw value still drives the unlock below.
+        energy_needed_kwh = _energy_needed_kwh(automatic_batteries, target_soc)
+        status["energy_needed_kwh"] = round(max(0.0, energy_needed_kwh), 2)
+
         if ctrl._charge_delay_balance_needs_charge:
             # Genuine grid-deficit day: rather than unlocking immediately (often a
             # pre-dawn price peak), hold until the cheapest import hour before solar
@@ -655,14 +664,8 @@ class ChargeDelayManager:
                     T_START_FALLBACK_HOUR
                 )
                 return _unlock("no_t_start")
-            # Still waiting for solar production.  The battery deficit does not
-            # depend on T_start, so publish it here too: without it the status
-            # sensor drops the attribute and a dashboard cannot tell "nothing
-            # to charge" from "not calculated yet".
+            # Still waiting for solar production
             status["state"] = "Waiting for solar"
-            status["energy_needed_kwh"] = round(
-                max(0.0, _energy_needed_kwh(automatic_batteries, target_soc)), 2
-            )
             return True
 
         # --- Get T_end ---
@@ -680,9 +683,6 @@ class ChargeDelayManager:
                 return _unlock("past_t_end")
 
         # --- Calculate energy balance ---
-        # Energy needed to reach target_soc
-        energy_needed_kwh = _energy_needed_kwh(automatic_batteries, target_soc)
-
         if energy_needed_kwh <= 0:
             return _unlock("batteries_full")
 
