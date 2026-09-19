@@ -5056,7 +5056,7 @@ class ChargeDischargeController:
                     )
                     profile_forecast = self._consumption_tracker.forecast_consumption_between(
                         profile_start,
-                        profile_start + timedelta(days=1),
+                        self._pricing_mgr.energy_horizon_end(profile_start),
                         fallback="legacy_daily",
                     )
                 except Exception as exc:  # noqa: BLE001

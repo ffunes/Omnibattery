@@ -102,7 +102,7 @@ def _controller(**overrides):
         _solar_t_start=6.0,
         _consumption_tracker=SimpleNamespace(
             estimate_t_end=lambda: 19.0,
-            calculate_sunrise=lambda: 6.0,
+            calculate_sunrise=lambda for_date=None: 6.0,
             calculate_solar_noon=lambda: 13.0,
         ),
     )
