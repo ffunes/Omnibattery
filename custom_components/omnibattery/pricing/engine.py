@@ -3194,6 +3194,12 @@ class PricingManager:
         now = datetime.now()
         today = now.date()
 
+        # Any evaluation that already sees tomorrow's prices (a rolling-window
+        # provider at the 00:05 DAILY, or a later rebuild) has nothing left for
+        # the publication trigger to add, so disarm it for today.
+        if self._prices_reach_beyond_today(now):
+            self._controller._dp_price_publication_reeval_date = today
+
         # A new full-day evaluation starts a fresh diagnostic snapshot.  Later
         # balance-only re-evaluations intentionally leave it intact.
         if horizon is DynamicPricingEvaluationHorizon.DAILY:
@@ -4087,6 +4093,41 @@ class PricingManager:
         ):
             return False
         return True
+
+    def _prices_reach_beyond_today(self, now: datetime) -> bool:
+        """True once the known price slots extend past today into tomorrow.
+
+        ``get_future_price_slots`` defaults to today-only semantics
+        (``_filter_future_slots``), so an explicit horizon spanning tomorrow
+        must be passed here or a provider's next-day publication would never
+        be seen.
+        """
+        end_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        slots = self.get_future_price_slots(horizon_end=end_of_day + timedelta(days=1))
+        if not slots:
+            return False
+        return max(slot.end for slot in slots) > end_of_day
+
+    def _is_price_publication_reeval(self, now: datetime) -> bool:
+        """Return True when tomorrow's prices just became known.
+
+        The 00:05 balance can only see today's prices, so overnight energy
+        gets assigned to today's slots even when tomorrow's small hours turn
+        out cheaper. Once the provider publishes the next day (around 13:00
+        CET), replanning lets that overnight energy move to the cheaper
+        slots. Once per day, tracked by date like its siblings.
+
+        Unlike its siblings, this one *is* guarded by
+        ``_current_price_slot_active``: the new data does not invalidate a
+        charge already running, so there is no reason to disturb it — wait
+        for the slot to end before replanning.
+        """
+        controller = self._controller
+        if getattr(controller, "_dp_price_publication_reeval_date", None) == now.date():
+            return False
+        if getattr(controller, "_current_price_slot_active", False):
+            return False
+        return self._prices_reach_beyond_today(now)
 
     def _roll_solar_forecast_reeval_day(self, now: datetime) -> int:
         """Return today's forecast-driven re-evaluation count, rolled at midnight.
@@ -5101,6 +5142,17 @@ class PricingManager:
             _LOGGER.info(
                 "Dynamic pricing: remaining solar forecast changed — re-evaluating"
             )
+            await self._evaluate_dynamic_pricing(
+                horizon=DynamicPricingEvaluationHorizon.REMAINING,
+            )
+
+        # Phase 2.9: Re-plan once tomorrow's prices are published (~13:00 CET).
+        # Guarded by _current_price_slot_active (unlike the triggers above): a
+        # charge already running was not invalidated by this data, so it is
+        # left alone until it ends.
+        elif self._is_price_publication_reeval(now):
+            self._controller._dp_price_publication_reeval_date = now.date()
+            _LOGGER.info("Dynamic pricing: tomorrow's prices published — re-evaluating")
             await self._evaluate_dynamic_pricing(
                 horizon=DynamicPricingEvaluationHorizon.REMAINING,
             )

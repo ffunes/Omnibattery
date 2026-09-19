@@ -255,7 +255,7 @@ def test_daily_dynamic_pricing_uses_persisted_remaining_sensor_when_cache_is_emp
     manager = _mgr(ctrl)
     manager._evaluate_remaining_grid_charging = remaining_decision
     manager._maybe_refresh_service_prices = no_op
-    manager._parse_price_data = lambda horizon_end=None: []
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: []
     manager._build_curtailment_plan = lambda *_args, **_kwargs: CurtailmentPlan(
         status="no_risk", reason="none"
     )
@@ -305,7 +305,7 @@ def test_dynamic_pricing_builds_diagnostics_when_balance_needs_no_charge():
     )
     manager = _mgr(ctrl)
     manager._maybe_refresh_service_prices = no_op
-    manager._parse_price_data = lambda horizon_end=None: slots
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: slots
     manager._build_curtailment_plan = lambda *_args, **_kwargs: CurtailmentPlan(
         status="no_risk", reason="none"
     )
@@ -771,6 +771,170 @@ async def _async_noop(*_args, **_kwargs):
     return None
 
 
+# ----------------------------------------------------------------------
+# _is_price_publication_reeval / Phase 2.9 trigger (tomorrow's prices publish)
+# ----------------------------------------------------------------------
+
+def _publication_ctrl(**overrides):
+    base = dict(
+        _dynamic_pricing_evaluated_date=datetime.now().date(),
+        _dp_price_publication_reeval_date=None,
+        _current_price_slot_active=False,
+        predictive_charging_overridden=False,
+        grid_charging_active=False,
+    )
+    base.update(overrides)
+    return _controller(**base)
+
+
+def _publication_mgr(ctrl, evaluate=None):
+    manager = _mgr(ctrl)
+    manager._maybe_refresh_service_prices = _async_noop
+    manager._check_dp_pre_slot_reevaluation = _async_noop
+    manager._refresh_surplus_hold_plan = _async_noop
+    manager._refresh_discharge_reserve_plan = _async_noop
+    manager._is_evening_reevaluation_time = lambda: False
+    manager._is_dp_soc_drop_reeval = lambda: False
+    if evaluate is not None:
+        manager._evaluate_dynamic_pricing = evaluate
+    return manager
+
+
+def test_price_publication_reeval_fires_once_per_day():
+    calls = []
+
+    async def _evaluate(**kwargs):
+        calls.append(kwargs)
+
+    ctrl = _publication_ctrl()
+    manager = _publication_mgr(ctrl, _evaluate)
+    manager._prices_reach_beyond_today = lambda _now: True
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert calls == [{"horizon": DynamicPricingEvaluationHorizon.REMAINING}]
+    assert ctrl._dp_price_publication_reeval_date == datetime.now().date()
+
+    # Same day, second cycle: the stored date disarms it even though tomorrow's
+    # prices are still visible.
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert len(calls) == 1
+
+
+def test_price_publication_reeval_waits_for_the_active_slot_to_end():
+    calls = []
+
+    async def _evaluate(**kwargs):
+        calls.append(kwargs)
+
+    ctrl = _publication_ctrl(_current_price_slot_active=True)
+    manager = _publication_mgr(ctrl, _evaluate)
+    manager._prices_reach_beyond_today = lambda _now: True
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert calls == []
+
+    # The slot ends: the same new-price fact now re-evaluates.
+    ctrl._current_price_slot_active = False
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert calls == [{"horizon": DynamicPricingEvaluationHorizon.REMAINING}]
+
+
+def test_price_publication_reeval_disarmed_when_the_daily_eval_already_saw_tomorrow():
+    async def no_charge_decision():
+        return {
+            "should_charge": False,
+            "avg_soc": 80.0,
+            "energy_deficit_kwh": 0.0,
+            "avg_consumption_kwh": 0.0,
+        }
+
+    start = datetime.now() + timedelta(hours=1)
+    slots = [PriceSlot(start=start, end=start + timedelta(hours=1), price=0.1)]
+    ctrl = _controller(
+        config_entry=SimpleNamespace(data={}, options={}),
+        predictive_charging_enabled=True,
+        predictive_charging_mode=PREDICTIVE_MODE_DYNAMIC_PRICING,
+        max_contracted_power=7000,
+        max_charge_capacity=1200,
+        _should_activate_grid_charging=no_charge_decision,
+        _dp_eval_retry_count=0,
+        _dp_price_publication_reeval_date=None,
+    )
+    manager = _mgr(ctrl)
+    manager._maybe_refresh_service_prices = _async_noop
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: slots
+    manager._build_curtailment_plan = lambda *_args, **_kwargs: CurtailmentPlan(
+        status="no_risk", reason="none"
+    )
+    manager._send_dynamic_pricing_notification = _async_noop
+    manager._build_chronological_plan = lambda **_kwargs: None
+    # The rolling-window provider already exposes tomorrow's prices at the
+    # 00:05 DAILY evaluation.
+    manager._prices_reach_beyond_today = lambda _now: True
+
+    asyncio.run(
+        manager._evaluate_dynamic_pricing(
+            horizon=DynamicPricingEvaluationHorizon.DAILY,
+        )
+    )
+
+    today = datetime.now().date()
+    assert ctrl._dp_price_publication_reeval_date == today
+    # So the trigger stays silent for the rest of the day even though tomorrow
+    # is still visible.
+    assert manager._is_price_publication_reeval(datetime.now()) is False
+
+
+def test_price_publication_reeval_never_runs_outside_dynamic_pricing_mode():
+    """Gated by the caller: _run_control_cycle only dispatches to the dynamic
+    pricing handler (which contains this trigger) when the mode is Dynamic
+    Pricing (see __init__.py's mode dispatch)."""
+    calls = []
+
+    async def _dp_spy():
+        calls.append("dp")
+
+    async def _async_false(*_args, **_kwargs):
+        return False
+
+    ctrl = SimpleNamespace(
+        coordinators=[],
+        _phase_power_limiter=SimpleNamespace(
+            begin_cycle=lambda: None,
+            update_degraded_warning=lambda: None,
+            enabled=False,
+        ),
+        _non_responsive=SimpleNamespace(update_repairs=lambda hass, entry_id: None),
+        hass=object(),
+        config_entry=SimpleNamespace(entry_id="x"),
+        _check_main_sensor_liveness=lambda now: None,
+        _consumption_tracker=None,
+        _balance_monitor=None,
+        _pricing_mgr=SimpleNamespace(maybe_check_price_data_health=lambda: None),
+        manual_mode_enabled=False,
+        _weekly_charge_mgr=SimpleNamespace(handle_registers=_async_noop),
+        _charge_delay_mgr=SimpleNamespace(handle_daily_reset_and_eval=lambda: None),
+        _refresh_operation_blockers=lambda: None,
+        _try_apply_manual_slot=_async_noop,
+        _max_soc_mgr=SimpleNamespace(handle_measurement=_async_false),
+        predictive_charging_enabled=True,
+        predictive_charging_mode=PREDICTIVE_MODE_TIME_SLOT,
+        # grid_charging_active True makes whichever branch runs return right
+        # after the handler call, without needing the rest of the PD control
+        # loop stubbed out.
+        grid_charging_active=True,
+        _handle_dynamic_pricing_predictive_charging=_dp_spy,
+        _handle_time_slot_predictive_charging=_async_noop,
+    )
+
+    asyncio.run(ChargeDischargeController._run_control_cycle(ctrl))
+    assert calls == []
+
+    ctrl.predictive_charging_mode = PREDICTIVE_MODE_DYNAMIC_PRICING
+    asyncio.run(ChargeDischargeController._run_control_cycle(ctrl))
+    assert calls == ["dp"]
+
+
 def _reading_mgr(conversion, remaining=4.1):
     """Manager whose normalized solar input carries ``conversion``."""
     manager = _mgr(_controller())
@@ -1026,7 +1190,7 @@ def test_evening_recharge_picks_informational_slots_on_price_and_arms_only_those
         max_charge_capacity=3000,
     )
     manager = _evening_mgr(ctrl, 0.0)
-    manager._parse_price_data = lambda horizon_end=None: [morning, noon, afternoon, evening]
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [morning, noon, afternoon, evening]
     manager._send_evening_recharge_notification = _async_noop
 
     asyncio.run(manager._evaluate_evening_recharge())
@@ -1198,7 +1362,7 @@ def test_evening_recharge_uses_dynamic_base_consumption():
     manager = _mgr(ctrl)
     manager._maybe_refresh_service_prices = no_op
     manager._remaining_solar_today_kwh = lambda _now: 0.0
-    manager._parse_price_data = lambda horizon_end=None: []
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: []
 
     asyncio.run(manager._evaluate_evening_recharge())
 
@@ -1308,7 +1472,7 @@ def test_midday_calendar_rebuild_uses_remaining_consumption_and_solar(monkeypatc
     )
     manager = _mgr(ctrl)
     manager._maybe_refresh_service_prices = no_op
-    manager._parse_price_data = lambda horizon_end=None: []
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: []
     manager._send_dynamic_pricing_notification = no_op
     manager._remaining_solar_today_kwh = lambda _now_h: 2.4
 
@@ -2013,7 +2177,7 @@ def test_dynamic_pricing_sizes_slots_from_planned_charge_not_full_deficit():
     )
     mgr = _mgr(ctrl)
     mgr._maybe_refresh_tibber_prices = no_op
-    mgr._parse_price_data = lambda horizon_end=None: slots
+    mgr._parse_price_data = lambda horizon_end=None, **_kwargs: slots
     mgr._send_dynamic_pricing_notification = no_op
 
     asyncio.run(
@@ -2954,7 +3118,7 @@ def test_price_horizon_uses_control_end_and_twelve_hour_extension(monkeypatch):
     manager = _mgr(ctrl)
     manager.energy_horizon_end = lambda _now: control_end
     manager._maybe_refresh_service_prices = _async_noop
-    manager._parse_price_data = lambda horizon_end=None: (
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: (
         captured.append(horizon_end) or []
     )
     manager._build_chronological_plan = lambda **_kwargs: None
@@ -2973,7 +3137,12 @@ def test_price_horizon_uses_control_end_and_twelve_hour_extension(monkeypatch):
         )
     )
 
-    assert captured == [control_end, now + timedelta(hours=12)]
+    # _evaluate_dynamic_pricing also checks _prices_reach_beyond_today (Phase
+    # 5), which parses with its own beyond-today horizon. Only once: that
+    # check's cache key is unchanged on the second call (same fixed `now`),
+    # so the cache absorbs it and only the two horizon-under-test calls repeat.
+    beyond_today_horizon = datetime(2026, 9, 21, 0, 0)
+    assert captured == [beyond_today_horizon, control_end, now + timedelta(hours=12)]
 
 
 def test_control_horizon_persists_but_dashboard_projection_does_not():
@@ -3049,7 +3218,7 @@ def test_evening_topup_uses_chronological_overnight_allocation(monkeypatch):
     manager.energy_horizon_end = lambda _now: now.replace(
         hour=0, minute=0
     ) + timedelta(days=1, hours=6)
-    manager._parse_price_data = lambda horizon_end=None: [evening, one_am, four_am]
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [evening, one_am, four_am]
     manager._build_chronological_plan = lambda **_kwargs: pricing_engine.ChronologicalPlan(
         allocations=[SimpleNamespace(slot=one_am)]
     )
