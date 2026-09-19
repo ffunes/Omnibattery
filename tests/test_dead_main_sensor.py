@@ -110,6 +110,10 @@ def _check(ctrl, now=NOW):
     ctrl._live_sensor_report_time = lambda: (
         ChargeDischargeController._live_sensor_report_time(ctrl)
     )
+    ctrl._apply_meter_transform = lambda state: (
+        ChargeDischargeController._apply_meter_transform(ctrl, state)
+    )
+    ctrl._sensor_report_time = ChargeDischargeController._sensor_report_time
     ChargeDischargeController._check_main_sensor_liveness(ctrl, now)
 
 
@@ -189,6 +193,19 @@ def test_a_brief_unavailable_blip_is_not_minutes_of_silence(issues):
     ctrl = _ctrl(MAIN_SENSOR_DEAD_S + 60, state=_state(reported_s_ago=1.0))
     _check(ctrl)
     ctrl.hass.states._state = _state(value="unavailable", reported_s_ago=0.0)
+    _check(ctrl)
+
+    assert issues.created == []
+
+
+def test_a_meter_unavailable_since_boot_is_a_restart_not_a_fault(issues):
+    """Never a usable reading in this run: nothing to age, so nothing to report.
+
+    The entity exists but has published only ``unavailable`` since the restart,
+    so both the high-water mark and the tracked read time are still None. The
+    missing-sensor repair next door is what names a meter that never arrives.
+    """
+    ctrl = _ctrl(None, state=_state(value="unavailable"))
     _check(ctrl)
 
     assert issues.created == []
