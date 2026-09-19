@@ -506,6 +506,37 @@ def test_low_forecast_price_release_uses_fallback_when_no_t_start():
     assert edges == [11]  # T_START_FALLBACK_HOUR
 
 
+def test_waiting_for_solar_publishes_energy_needed(monkeypatch):
+    # Pre-dawn hold: the deficit is SOC arithmetic, so it must be published
+    # even though the solar balance cannot be calculated yet.
+    now = dt_util.now().replace(hour=6, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
+    ctrl = _controller(
+        _solar_t_start=None,
+        coordinators=[_coord(soc=50, total_energy=5.0)],
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(15.0)})
+
+    assert mgr._should_delay_charge(80) is True
+    assert ctrl._charge_delay_status["state"] == "Waiting for solar"
+    # 30% of a 5 kWh battery.
+    assert ctrl._charge_delay_status["energy_needed_kwh"] == pytest.approx(1.5)
+
+
+def test_waiting_for_solar_energy_needed_never_negative(monkeypatch):
+    # Above target before sunrise: report no deficit rather than a negative one.
+    now = dt_util.now().replace(hour=6, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
+    ctrl = _controller(
+        _solar_t_start=None,
+        coordinators=[_coord(soc=90, total_energy=5.0)],
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(15.0)})
+
+    assert mgr._should_delay_charge(80) is True
+    assert ctrl._charge_delay_status["energy_needed_kwh"] == 0.0
+
+
 # ----------------------------------------------------------------------
 # _estimate_energy_balance_unlock_h: projection math
 # ----------------------------------------------------------------------
