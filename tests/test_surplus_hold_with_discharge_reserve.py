@@ -97,6 +97,7 @@ def _pricing():
         _profile_remaining_consumption=lambda start, end: _evening_profile(),
         _curtailment_forecast_model=lambda now: (0.0, None, None),
         _get_current_price=lambda: 0.28,
+        energy_horizon_end=lambda _now: DAY + timedelta(days=1, hours=7),
         # Read by the surplus hold.
         is_in_dynamic_pricing_slot=lambda: False,
         _negative_price_feature_enabled=lambda: False,
@@ -136,7 +137,7 @@ def _controller(coordinator=None):
         _solar_t_start=6.0,
         _consumption_tracker=SimpleNamespace(
             estimate_t_end=lambda: 19.0,
-            calculate_sunrise=lambda: 6.0,
+            calculate_sunrise=lambda for_date=None: 6.0,
             calculate_solar_noon=lambda: 13.0,
         ),
         # Discharge reserve.

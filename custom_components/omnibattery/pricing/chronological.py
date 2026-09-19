@@ -180,10 +180,13 @@ def simulate_allocations(
     intervals: Iterable[EnergyInterval],
     usable_initial_kwh: float,
     allocations: Iterable[SlotAllocation] = (),
+    *,
+    usable_capacity_kwh: float = math.inf,
 ) -> EnergySimulationResult:
     """Simulate the stored usable energy at each interval boundary."""
     ordered = sorted(intervals, key=lambda item: item.start)
-    energy = _finite_non_negative(usable_initial_kwh)
+    capacity = max(0.0, float(usable_capacity_kwh))
+    energy = min(_finite_non_negative(usable_initial_kwh), capacity)
     minimum = energy
     earliest: datetime | None = None
     trajectory: list[tuple[datetime, float]] = []
@@ -197,7 +200,10 @@ def simulate_allocations(
             if index not in applied_allocations and allocation.slot.end <= interval.end:
                 energy += allocation.planned_battery_kwh
                 applied_allocations.add(index)
-        energy += interval.solar_kwh - interval.consumption_kwh
+        energy = min(
+            capacity,
+            energy + interval.solar_kwh - interval.consumption_kwh,
+        )
         trajectory.append((interval.end, energy))
         if energy < minimum:
             minimum = energy
@@ -214,19 +220,39 @@ def build_energy_deadlines(
     kind: str = "depletion",
     total_capacity_kwh: float | None = None,
     minimum_soc_pct: float | None = None,
+    usable_capacity_kwh: float = math.inf,
 ) -> list[EnergyDeadline]:
-    """Derive monotonic cumulative requirements from the no-grid trajectory."""
+    """Derive cumulative requirements from the capacity-bounded trajectory."""
     intervals = sorted(intervals, key=lambda item: item.start)
-    usable = _finite_non_negative(usable_initial_kwh)
+    capacity = max(0.0, float(usable_capacity_kwh))
+    segment_initial = min(_finite_non_negative(usable_initial_kwh), capacity)
     tolerance = max(0.0, float(tolerance_kwh))
     prefix_net = 0.0
     maximum_required = 0.0
     emitted_required = 0.0
+    segment_deadline_index: int | None = None
     deadlines: list[EnergyDeadline] = []
     for interval in intervals:
         prefix_net += interval.consumption_kwh - interval.solar_kwh
-        required = max(0.0, prefix_net - usable)
+        required = max(0.0, prefix_net - segment_initial)
         maximum_required = max(maximum_required, required)
+        projected = segment_initial - prefix_net + maximum_required
+        if capacity > _EPSILON and projected >= capacity:
+            if segment_deadline_index is not None:
+                last = deadlines[segment_deadline_index]
+                if maximum_required > last.required_cumulative_kwh + _EPSILON:
+                    deadlines[segment_deadline_index] = EnergyDeadline(
+                        last.deadline,
+                        maximum_required,
+                        last.kind,
+                        last.projected_soc_pct,
+                    )
+            segment_initial = capacity
+            prefix_net = 0.0
+            maximum_required = 0.0
+            emitted_required = 0.0
+            segment_deadline_index = None
+            continue
         if maximum_required <= emitted_required + tolerance:
             continue
         projected_soc = None
@@ -236,14 +262,16 @@ def build_energy_deadlines(
             EnergyDeadline(interval.end, maximum_required, kind, projected_soc)
         )
         emitted_required = maximum_required
+        segment_deadline_index = len(deadlines) - 1
 
     # Never hide a final sub-tolerance increase: update the last cumulative
     # requirement while retaining its grouped deadline.
-    if deadlines and maximum_required > deadlines[-1].required_cumulative_kwh + _EPSILON:
-        last = deadlines[-1]
-        deadlines[-1] = EnergyDeadline(
-            last.deadline, maximum_required, last.kind, last.projected_soc_pct
-        )
+    if segment_deadline_index is not None:
+        last = deadlines[segment_deadline_index]
+        if maximum_required > last.required_cumulative_kwh + _EPSILON:
+            deadlines[segment_deadline_index] = EnergyDeadline(
+                last.deadline, maximum_required, last.kind, last.projected_soc_pct
+            )
     return deadlines
 
 
@@ -265,12 +293,14 @@ def allocate_price_slots(
     max_price_threshold: float | None = None,
     charge_efficiency: float = CHARGE_EFFICIENCY,
 ) -> ChronologicalPlan:
-    """Allocate the cheapest feasible slot capacity to nested deadlines."""
+    """Allocate the cheapest feasible slot capacity to energy deadlines."""
     intervals = sorted(intervals, key=lambda item: item.start)
     deadlines = sorted(deadlines, key=lambda item: item.deadline)
+    headroom = max(0.0, float(headroom_kwh))
+    usable_capacity = _finite_non_negative(usable_initial_kwh) + headroom
     required = min(
         _finite_non_negative(total_required_kwh),
-        max(0.0, float(headroom_kwh)),
+        headroom,
     )
     power = _finite_non_negative(effective_power_kw)
     efficiency = max(0.0, min(1.0, float(charge_efficiency)))
@@ -284,36 +314,87 @@ def allocate_price_slots(
 
     allocations: dict[PriceSlot, float] = {}
     allocation_deadlines: dict[PriceSlot, datetime | None] = {}
-    deadline_required = min(
-        required,
-        max((d.required_cumulative_kwh for d in deadlines), default=0.0),
-    )
     deadline_shortfall = 0.0
 
-    def capacity(slot: PriceSlot, deadline: datetime | None = None) -> float:
-        start = max(now, slot.start)
+    def capacity(
+        slot: PriceSlot,
+        deadline: datetime | None = None,
+        not_before: datetime | None = None,
+    ) -> float:
+        start = max(now, slot.start, not_before or now)
         end = min(slot.end, horizon_end, deadline or horizon_end)
         return power * _duration_hours(start, end) * efficiency
 
+    no_grid = simulate_allocations(
+        intervals,
+        usable_initial_kwh,
+        usable_capacity_kwh=usable_capacity,
+    )
+    full_at: list[datetime] = []
+    projected_energy = min(_finite_non_negative(usable_initial_kwh), usable_capacity)
+    for interval in intervals:
+        projected_energy += interval.solar_kwh - interval.consumption_kwh
+        if projected_energy >= usable_capacity:
+            projected_energy = usable_capacity
+            full_at.append(interval.end)
+        elif projected_energy < 0.0:
+            projected_energy = 0.0
+
+    def allocation_start(deadline: datetime) -> datetime:
+        return max(
+            (instant for instant in full_at if instant < deadline),
+            default=now,
+        )
+
+    def in_segment(slot: PriceSlot, start: datetime, deadline: datetime) -> bool:
+        # Solar only displaces the part of a slot that lands before the
+        # projected fill, so a straddling slot still serves the later deadline.
+        return slot.end > start and slot.start < deadline
+
+    segment_required: dict[datetime, float] = {}
     for deadline in deadlines:
-        cumulative_target = min(required, deadline.required_cumulative_kwh)
+        start = allocation_start(deadline.deadline)
+        segment_required[start] = max(
+            segment_required.get(start, 0.0),
+            deadline.required_cumulative_kwh,
+        )
+    deadline_required = min(required, sum(segment_required.values()))
+
+    for deadline in deadlines:
+        start = allocation_start(deadline.deadline)
+        allocated_before_segment = sum(
+            amount
+            for slot, amount in allocations.items()
+            if slot.end <= start
+        )
+        cumulative_target = min(
+            deadline.required_cumulative_kwh,
+            max(0.0, required - allocated_before_segment),
+        )
         already = sum(
             amount
             for slot, amount in allocations.items()
-            if slot.start < deadline.deadline
+            if in_segment(slot, start, deadline.deadline)
         )
         missing = max(0.0, cumulative_target - already)
         eligible = sorted(
-            (slot for slot in candidates if slot.start < deadline.deadline),
+            (
+                slot
+                for slot in candidates
+                if in_segment(slot, start, deadline.deadline)
+            ),
             key=lambda slot: (
                 slot.price,
                 0 if slot in allocations else 1,
-                -capacity(slot, deadline.deadline),
+                -capacity(slot, deadline.deadline, start),
                 slot.start,
             ),
         )
         for slot in eligible:
-            free = max(0.0, capacity(slot, deadline.deadline) - allocations.get(slot, 0.0))
+            free = max(
+                0.0,
+                capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
+            )
             take = min(missing, free)
             if take <= _EPSILON:
                 continue
@@ -352,7 +433,7 @@ def allocate_price_slots(
         )
         for slot, amount in sorted(allocations.items(), key=lambda item: item[0].start)
     ]
-    simulation = simulate_allocations(intervals, usable_initial_kwh)
+    simulation = no_grid
     allocated = sum(allocations.values())
     total_shortfall = max(0.0, required - allocated)
     if power <= 0:
@@ -365,7 +446,7 @@ def allocate_price_slots(
         reason = "insufficient_slot_capacity"
     else:
         reason = "ok"
-    earliest = simulate_allocations(intervals, usable_initial_kwh).earliest_depletion_at
+    earliest = simulation.earliest_depletion_at
     return ChronologicalPlan(
         intervals=intervals,
         deadlines=deadlines,
@@ -393,11 +474,15 @@ def evaluate_chronological_request(
     access or diagnostics persistence happens in this function.
     """
     intervals = tuple(request.intervals)
-    deadlines = (
-        tuple(request.deadlines)
-        if request.deadlines
-        else tuple(build_energy_deadlines(intervals, request.usable_initial_kwh))
+    usable_capacity = request.usable_initial_kwh + request.headroom_kwh
+    depletion_deadlines = tuple(
+        build_energy_deadlines(
+            intervals,
+            request.usable_initial_kwh,
+            usable_capacity_kwh=usable_capacity,
+        )
     )
+    deadlines = tuple(request.deadlines) or depletion_deadlines
     plan = allocate_price_slots(
         intervals,
         deadlines,

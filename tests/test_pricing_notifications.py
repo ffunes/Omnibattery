@@ -146,11 +146,55 @@ def test_predictive_remaining_fallback_labels_horizon_and_basis():
         **_CFG,
     )
 
-    assert "Solar remaining until midnight: 3.00 kWh" in message
+    assert "Solar remaining today: 3.00 kWh" in message
     assert "Home consumption remaining until midnight: 12.15 kWh" in message
     assert "Basis: temporary daily curve, adjusted with today's consumption" in message
     assert "7-day avg" not in message
     assert "Sufficient energy for the rest of today" in message
+
+
+def test_predictive_extended_horizon_labels_sunrise_and_overnight_leg():
+    """Phase 4: an extended (sunrise) horizon relabels the consumption line
+    and adds a separate overnight kWh line."""
+    _, message = notifications.format_predictive_notification_message(
+        _decision(
+            avg_consumption_kwh=12.15,
+            remaining_consumption_kwh=12.15,
+            consumption_scope="remaining_fallback",
+            consumption_forecast_source="legacy_daily",
+            consumption_accumulator_ready=True,
+            solar_forecast_source="remaining_sensor",
+            energy_horizon_end=datetime(2999, 1, 2, 6, 30),
+            overnight_consumption_kwh=1.75,
+        ),
+        **_CFG,
+    )
+
+    assert "Home consumption remaining until sunrise (06:30): 12.15 kWh" in message
+    assert "🌙 Overnight until sunrise: 1.75 kWh" in message
+    assert "Sufficient energy for the rest of today and tonight until sunrise (06:30)" in message
+
+
+def test_predictive_midnight_horizon_omits_overnight_leg():
+    """No extended horizon (or zero overnight leg): keep the current wording."""
+    _, message = notifications.format_predictive_notification_message(
+        _decision(
+            avg_consumption_kwh=12.15,
+            remaining_consumption_kwh=12.15,
+            consumption_scope="remaining_fallback",
+            consumption_forecast_source="legacy_daily",
+            consumption_accumulator_ready=True,
+            solar_forecast_source="remaining_sensor",
+            energy_horizon_end=datetime(2999, 1, 2, 0, 0),
+            overnight_consumption_kwh=0.0,
+        ),
+        **_CFG,
+    )
+
+    assert "Home consumption remaining until midnight: 12.15 kWh" in message
+    assert "Overnight until sunrise" not in message
+    assert "Sufficient energy for the rest of today" in message
+    assert "and tonight" not in message
 
 
 def test_predictive_daily_profile_reports_profile_as_basis():
@@ -270,7 +314,28 @@ def test_dynamic_remaining_horizon_does_not_label_remainder_as_daily_average():
     assert "Home consumption remaining until midnight: 12.15 kWh" in message
     assert "Basis: remaining-day estimate from 7-day daily average" in message
     assert "17.98 kWh" not in message
-    assert "Solar remaining until midnight: 3.00 kWh" in message
+    assert "Solar remaining today: 3.00 kWh" in message
+
+
+def test_dynamic_extended_horizon_labels_sunrise_and_overnight_leg():
+    """Phase 4: same horizon relabeling in the price-optimization formatter."""
+    schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(
+            should_charge=True,
+            avg_consumption_kwh=35.52,
+            daily_avg_consumption_kwh=17.98,
+            remaining_consumption_kwh=12.15,
+            consumption_scope="remaining",
+            energy_deficit_kwh=2.0,
+            energy_horizon_end=datetime(2999, 1, 2, 6, 30),
+            overnight_consumption_kwh=1.75,
+        ),
+        schedule,
+        **_DP_CFG,
+    )
+    assert "Home consumption remaining until sunrise (06:30): 12.15 kWh" in message
+    assert "🌙 Overnight until sunrise: 1.75 kWh" in message
 
 
 def test_dynamic_remaining_profile_scope_is_recognized():
@@ -290,7 +355,7 @@ def test_dynamic_remaining_profile_scope_is_recognized():
         **_DP_CFG,
     )
 
-    assert "Solar remaining until midnight: 3.00 kWh" in message
+    assert "Solar remaining today: 3.00 kWh" in message
     assert "Home consumption remaining until midnight: 11.40 kWh" in message
     assert "Basis: learned 15-minute profile" in message
     assert "adjusted with today's consumption" not in message
@@ -345,7 +410,7 @@ def test_dp_pre_slot_reevaluation_recognizes_remaining_fallback():
         unit="€/kWh",
     )
 
-    assert "Solar remaining until midnight: 3.00 kWh" in message
+    assert "Solar remaining today: 3.00 kWh" in message
     assert "Home consumption remaining until midnight: 6.25 kWh" in message
     assert "Basis: temporary daily curve, adjusted with today's consumption" in message
     assert "7-day avg" not in message

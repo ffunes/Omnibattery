@@ -575,7 +575,7 @@ def _floor_manager(soc):
         consumption_profile=SimpleNamespace(),
         forecast_consumption_between=forecast_between,
         solar_profile=SimpleNamespace(_days={}, get_snapshot=lambda **_k: None),
-        calculate_sunrise=lambda: 6.3,
+        calculate_sunrise=lambda for_date=None: 6.3,
         calculate_solar_noon=lambda: 13.0,
     )
     windows = [{

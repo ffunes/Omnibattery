@@ -122,6 +122,7 @@ def _main_controller(state_holder, pd_calls):
         ),
         _hourly_balance_mgr=None,
         _apply_capacity_protection=lambda sensor, target: (target, sensor),
+        _apply_icp_excluded_protection=lambda _filtered, sensor, _target: sensor,
         _capacity_protection_force_idle=False,
         deadband=40.0,
         _is_charge_blocked=lambda *_args, **_kwargs: False,
