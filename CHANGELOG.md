@@ -2,20 +2,25 @@
 
 ## [Unreleased]
 
+### Added
+- **Excluded devices no longer push grid import above the contracted power**: an excluded device is hidden from the controller by design, but the breaker still sees it. When the excluded load alone would exceed "Maximum contracted power", the battery now covers just the excess. Always on, no setting. Peak shaving remains the opt-in economic layer below it.
+- **Zonneplan dynamic pricing**: use hourly, quarter-hourly or legacy electricity tariff forecasts from Zonneplan One through the shared import/export price parser, with tax-inclusive EUR/kWh normalization. Thanks to [@hprax](https://github.com/hprax)
+
 ### Fixed
 
+- **Predictive charging now covers the night through to sunrise** (#410, #344): every layer that decided to buy grid energy stopped at midnight, so the hours between midnight and sunrise belonged to no plan and the battery reached the morning peak empty. If you raised the solar safety margin or the grid charge margin to cover the night by hand, lower them again. The "Guaranteed Minimum SOC" help text now describes what that setting actually does — a floor on the current SOC, not a morning target.
+- **The discharge reserve now holds energy for pre-dawn price peaks** (#410): it stopped reserving at midnight, on the grounds that tomorrow's sun would refill the battery anyway. There is no sun before dawn, so a peak at 06:00 was left to the grid. The reserve now reaches the next sunrise, and still never holds energy for tomorrow's evening peak. Only affects the opt-in "Discharge reserve" (#400).
+- **Dynamic Pricing re-plans when tomorrow's prices are published**: the 00:05 plan can only see today, so energy for the small hours was booked into today's slots even when the next day's were cheaper. Once the provider publishes (~13:00 CET), the remaining day is re-planned. Once a day, and never while a charge slot is running.
 - **A Hoymiles HiBattery 4020 X now reports its own solar production** (#467): the driver dropped the PV power the battery publishes, so with no external solar sensor the dashboard showed no Solar node and every PV charge was logged as a grid charge. Both DC sources are now published as Solar Power — the MPPT inputs and a microinverter on the off-grid port. AC-coupled models (MS-A2, 1920/4020 AC) are unaffected. Thanks to @TheOops.
 - **A manual forced charge/discharge survives a Modbus stall** (#477): Marstek V150 firmware can drop forced mode to None / 0 W while its Modbus stack is stuck, and in manual mode nothing wrote it back. The manual loop now re-asserts the user's Charge/Discharge once the battery answers again. Thanks to @Remueb.
 - **Dynamic Pricing no longer books dearer slots after a morning SOC drop** (#472): the overnight-drop re-plan reused the evening top-up, which skipped the cheap midday slots already listed by the 00:05 plan, booked the next-cheapest ones and then armed all of them. A SOC drop now runs a full remaining-day re-evaluation, and the evening top-up picks from every slot and arms only the ones it chose. Thanks to @benediktarnold.
 - **A battery past its predictive target keeps absorbing solar surplus** (#470): during a grid-charge slot the per-battery target also blocked solar charging, so the house exported while that battery sat idle. The target now limits grid energy only: the battery takes measured export up to its normal ceiling, and shows as `battery_solar_only_charge` instead of charge-blocked. Thanks to @RobtoCopter.
 - **Peak shaving that holds the battery overnight no longer triggers a guaranteed-minimum-SOC grid charge**: in Time Slot mode the planner assumed the battery would cover all the load before sunrise. While peak shaving holds it, the planner now counts only the load above the peak limit. Releasing or engaging peak shaving inside a charging window triggers a re-evaluation. No-discharge time slots that apply to every battery are now projected the same way, with no battery drain at all.
-- **A live grid meter no longer raises `dead_main_sensor`** (PR#480): liveness was judged on a field that only the two control paths reaching the grid read ever advance, so manual mode, an operation block or a predictive handler owning the cycle let it age while the meter kept publishing. A P1 meter publishing every second raised the repair after five minutes of price-blocked discharge. Liveness now follows the entity's own `last_reported`, counted only while the state still transforms to a reading, so a republished `unavailable` stays silence. Thanks to @syphernl.
 
 ## [1.5.0b2] - 2026-09-13
 
 ### Added
 
-- **Zonneplan dynamic pricing**: use hourly, quarter-hourly or legacy electricity tariff forecasts from Zonneplan One through the shared import/export price parser, with tax-inclusive EUR/kWh normalization. Thanks to [@hprax](https://github.com/hprax)
 - **The discharge reserve explains itself** (#446): `discharge_reserve_status` now carries the threshold price, the claimed and PV-credited kWh, the horizon's net demand and surplus, and a `claims` list with the figures behind each claim — enough to tell which input moved when two cycles disagree. A cycle released by a guard publishes no plan figures rather than the last cycle's. No behaviour change. Thanks to @syphernl.
 
 ### Fixed

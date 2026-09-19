@@ -2,7 +2,7 @@
 
 ## Dynamic Pricing reports a deadline shortfall
 
-Check `deadline_shortfall_kwh`, `earliest_projected_depletion`, `slot_deadlines` and `chronological_plan_reason` on `binary_sensor.omnibattery_predictive_charging_active`. A shortfall means the best physically feasible plan cannot deliver all required energy before the projected minimum-SOC crossing. Common causes are an explicit maximum-price threshold, no eligible slot before the deadline, insufficient charging power, battery headroom or manual/time-slot ownership. A later cheap slot is deliberately not shown as covering an earlier need. The integration continues normal control and never bypasses explicit safety limits.
+Check `energy_horizon_end`, `overnight_consumption_kwh`, `deadline_shortfall_kwh`, `earliest_projected_depletion`, `slot_deadlines` and `chronological_plan_reason` on `binary_sensor.omnibattery_predictive_charging_active`. A shortfall means the best physically feasible plan cannot deliver all required energy before the projected minimum-SOC crossing, including demand after midnight through the next sunrise. Common causes are an explicit maximum-price threshold, no eligible slot before the deadline, insufficient charging power, battery headroom or manual/time-slot ownership. A later cheap slot is deliberately not shown as covering an earlier need. The integration continues normal control and never bypasses explicit safety limits.
 
 ## Marstek app compatibility
 

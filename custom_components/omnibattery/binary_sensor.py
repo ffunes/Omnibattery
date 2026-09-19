@@ -521,6 +521,7 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
         "consumption_rate_kwh_h", "consumption_accumulator_source",
         "energy_deadlines", "slot_energy_targets_kwh", "slot_deadlines",
         "decision_reason", "solar_forecast_periods",
+        "energy_horizon_end", "overnight_consumption_kwh",
     })
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
@@ -592,6 +593,7 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
             attrs["solar_forecast_source"] = self.controller.solar_forecast_source
 
         attrs["max_contracted_power"] = self.controller.max_contracted_power
+        attrs["icp_excluded_protection_w"] = round(getattr(self.controller, "_icp_excluded_protection_w", 0.0))
 
         # Home consumption diagnostics: home power is always derived
         # (grid + battery AC + solar); the household sensor was removed.
@@ -691,6 +693,12 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
                     "solar_available_to_battery_kwh"
                 ),
                 "decision_reason": decision.get("reason"),
+                "energy_horizon_end": (
+                    decision["energy_horizon_end"].isoformat()
+                    if isinstance(decision.get("energy_horizon_end"), datetime)
+                    else None
+                ),
+                "overnight_consumption_kwh": decision.get("overnight_consumption_kwh"),
                 "chronological_planning_active": chronological_active,
                 "chronological_source": _chronological_value("chronological_source"),
                 "solar_timeline_source": _chronological_value(

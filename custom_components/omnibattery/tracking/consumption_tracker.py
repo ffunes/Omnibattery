@@ -204,7 +204,7 @@ class ConsumptionTracker:
         self._last_valid_raw_home_power_monotonic: Optional[float] = None
         self._grid_at_min_soc_last_save_mono: float = 0.0
         self._accumulator_last_save_monotonic: float = 0.0
-        self._solar_noon_cache: Optional[tuple[date, float]] = None
+        self._solar_noon_cache: dict[date, float] = {}
         self._legacy_backfill_task: asyncio.Task | None = None
         self._legacy_accumulator_rebuild_pending = False
         self._legacy_derived_days = 0
@@ -1747,41 +1747,44 @@ class ConsumptionTracker:
     # Solar timing
     # ------------------------------------------------------------------
 
-    def calculate_solar_noon(self) -> float:
+    def calculate_solar_noon(self, for_date: date | None = None) -> float:
         """Calculate local solar noon from HA longitude and timezone.
 
         Returns solar noon as a float hour (e.g. 13.25 = 13:15).
-        Cached per day (recalculated when date changes to handle DST transitions).
+        Cached per date to handle DST transitions.
         """
         from zoneinfo import ZoneInfo
 
-        today = datetime.now().date()
-        if self._solar_noon_cache is not None and self._solar_noon_cache[0] == today:
-            return self._solar_noon_cache[1]
+        target_date = for_date or datetime.now().date()
+        if target_date in self._solar_noon_cache:
+            return self._solar_noon_cache[target_date]
 
         tz = ZoneInfo(self._hass.config.time_zone)
-        utc_offset = datetime.now(tz).utcoffset().total_seconds() / 3600
+        local_noon = datetime.combine(target_date, time(12), tzinfo=tz)
+        utc_offset = local_noon.utcoffset().total_seconds() / 3600
         solar_noon = 12.0 - (self._hass.config.longitude / 15.0) + utc_offset
-        self._solar_noon_cache = (today, solar_noon)
+        self._solar_noon_cache[target_date] = solar_noon
         _LOGGER.info(
             "Weekly Full Charge Delay: Solar noon calculated at %.2fh (longitude=%.2f, UTC offset=%.1f)",
             solar_noon, self._hass.config.longitude, utc_offset,
         )
         return solar_noon
 
-    def calculate_sunrise(self) -> Optional[float]:
+    def calculate_sunrise(self, for_date: date | None = None) -> Optional[float]:
         """Estimate local sunrise time from HA latitude/longitude and day of year.
 
         Uses the standard solar declination + hour-angle formula.
         Returns sunrise as a float hour (e.g. 7.5 = 07:30), or None if the
-        sun never rises today (polar night) or if HA location is not configured.
+        sun never rises on the requested date (polar night/day) or if HA location
+        is not configured.
         """
         try:
             latitude = self._hass.config.latitude
             if latitude is None:
                 return None
 
-            day_of_year = datetime.now().timetuple().tm_yday
+            target_date = for_date or datetime.now().date()
+            day_of_year = target_date.timetuple().tm_yday
             lat_rad = math.radians(latitude)
 
             # Solar declination (degrees → radians)
@@ -1795,7 +1798,7 @@ class ConsumptionTracker:
                 return None  # Polar day / polar night
 
             hour_angle_deg = math.degrees(math.acos(cos_h))
-            solar_noon = self.calculate_solar_noon()
+            solar_noon = self.calculate_solar_noon(target_date)
             return solar_noon - hour_angle_deg / 15.0
         except Exception:  # noqa: BLE001
             return None
