@@ -101,6 +101,14 @@ def _decision_now() -> datetime:
     return now
 
 
+def _energy_needed_kwh(batteries: list, target_soc: float) -> float:
+    """Return the kWh still missing to reach ``target_soc`` across ``batteries``."""
+    return sum(
+        (target_soc - c.data.get("battery_soc", 100)) / 100.0 * c.data.get("battery_total_energy", 0)
+        for c in batteries if c.data
+    )
+
+
 class ChargeDelayManager:
     """Manages the unified charge-delay gate, persistence and projection."""
 
@@ -647,8 +655,14 @@ class ChargeDelayManager:
                     T_START_FALLBACK_HOUR
                 )
                 return _unlock("no_t_start")
-            # Still waiting for solar production
+            # Still waiting for solar production.  The battery deficit does not
+            # depend on T_start, so publish it here too: without it the status
+            # sensor drops the attribute and a dashboard cannot tell "nothing
+            # to charge" from "not calculated yet".
             status["state"] = "Waiting for solar"
+            status["energy_needed_kwh"] = round(
+                max(0.0, _energy_needed_kwh(automatic_batteries, target_soc)), 2
+            )
             return True
 
         # --- Get T_end ---
@@ -667,10 +681,7 @@ class ChargeDelayManager:
 
         # --- Calculate energy balance ---
         # Energy needed to reach target_soc
-        energy_needed_kwh = sum(
-            (target_soc - c.data.get("battery_soc", 100)) / 100.0 * c.data.get("battery_total_energy", 0)
-            for c in automatic_batteries if c.data
-        )
+        energy_needed_kwh = _energy_needed_kwh(automatic_batteries, target_soc)
 
         if energy_needed_kwh <= 0:
             return _unlock("batteries_full")
