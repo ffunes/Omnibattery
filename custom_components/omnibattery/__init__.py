@@ -8637,7 +8637,8 @@ class ChargeDischargeController:
         issue_id = f"dead_main_sensor_{self.config_entry.entry_id}"
 
         report_time = self._live_sensor_report_time()
-        # None means no successful read yet in this run: a restart, not a fault.
+        # None means the meter has never published a usable reading in this run:
+        # a restart or an entity not set up yet, not a fault.
         age_s = (
             self._sensor_age_seconds(report_time, now)
             if report_time is not None
@@ -8701,10 +8702,10 @@ class ChargeDischargeController:
         the meter whatever the control path does.
         """
         state = self.hass.states.get(self.consumption_sensor)
-        if ChargeDischargeController._apply_meter_transform(self, state) is None:
+        if self._apply_meter_transform(state) is None:
             # Nothing usable right now: report when it was last usable.
             return self._last_valid_meter_publication or self._last_sensor_report_time
-        published = ChargeDischargeController._sensor_report_time(state)
+        published = self._sensor_report_time(state)
         if published is None:
             return self._last_valid_meter_publication or self._last_sensor_report_time
         previous = self._last_valid_meter_publication
