@@ -100,6 +100,7 @@ const I18N = {
     invBackup: "Backup", invUpdating: "Updating", invStandby: "Standby", invBypass: "Bypass",
     active: "Active", inactive: "Inactive",
     ctlEmpty: "No controls enabled. Enable them on the device (Settings → disabled entities).",
+    ctlAdvanced: "Advanced settings",
     ctlArrange: "Arrange", ctlArrangeHint: "Drag cards to reorder · controls are locked",
     ctlCols: "Columns", ctlRows: "Rows", ctlAuto: "Auto",
     ctlHide: "Hide card", ctlShow: "Show card", ctlHidden: "Hidden cards",
@@ -186,6 +187,7 @@ const I18N = {
     invBackup: "Respaldo", invUpdating: "Actualizando", invStandby: "En espera", invBypass: "Bypass",
     active: "Activa", inactive: "Inactiva",
     ctlEmpty: "No hay controles habilitados. Actívalos en el dispositivo (Ajustes → entidades deshabilitadas).",
+    ctlAdvanced: "Ajustes avanzados",
     ctlArrange: "Reordenar", ctlArrangeHint: "Arrastra las tarjetas para reordenar · controles bloqueados",
     ctlCols: "Columnas", ctlRows: "Filas", ctlAuto: "Auto",
     ctlHide: "Ocultar tarjeta", ctlShow: "Mostrar tarjeta", ctlHidden: "Tarjetas ocultas",
@@ -272,6 +274,7 @@ const I18N = {
     invBackup: "Reserva", invUpdating: "Actualitzant", invStandby: "En espera", invBypass: "Bypass",
     active: "Activa", inactive: "Inactiva",
     ctlEmpty: "No hi ha controls habilitats. Activa'ls al dispositiu (Configuració → entitats deshabilitades).",
+    ctlAdvanced: "Ajustos avançats",
     sysEmptyTitle: "Sense controls disponibles",
     sysEmptyMsg: "Aquesta integració no exposa controls de sistema, o estan deshabilitats. Activa'ls a Configuració → entitats.",
     bcAllowCharge: "Permet la càrrega", bcAllowDischarge: "Permet la descàrrega", bcBatteryManual: "Control manual de la bateria",
@@ -354,6 +357,7 @@ const I18N = {
     invBackup: "Backup", invUpdating: "Aktualisierung", invStandby: "Standby", invBypass: "Bypass",
     active: "Aktiv", inactive: "Inaktiv",
     ctlEmpty: "Keine Steuerungen aktiviert. Aktiviere sie am Gerät (Einstellungen → deaktivierte Entitäten).",
+    ctlAdvanced: "Erweiterte Einstellungen",
     sysEmptyTitle: "Keine Steuerungen verfügbar",
     sysEmptyMsg: "Diese Integration stellt keine Systemsteuerungen bereit oder sie sind deaktiviert. Aktiviere sie in Einstellungen → Entitäten.",
     bcAllowCharge: "Laden erlauben", bcAllowDischarge: "Entladen erlauben", bcBatteryManual: "Manuelle Batteriesteuerung",
@@ -436,6 +440,7 @@ const I18N = {
     invBackup: "Secours", invUpdating: "Mise à jour", invStandby: "En attente", invBypass: "Bypass",
     active: "Active", inactive: "Inactive",
     ctlEmpty: "Aucun contrôle activé. Activez-les sur l'appareil (Paramètres → entités désactivées).",
+    ctlAdvanced: "Paramètres avancés",
     sysEmptyTitle: "Aucun contrôle disponible",
     sysEmptyMsg: "Cette intégration n'expose aucun contrôle système, ou ils sont désactivés. Activez-les dans Paramètres → entités.",
     bcAllowCharge: "Autoriser la charge", bcAllowDischarge: "Autoriser la décharge", bcBatteryManual: "Contrôle manuel de la batterie",
@@ -518,6 +523,7 @@ const I18N = {
     invBackup: "Back-up", invUpdating: "Bijwerken", invStandby: "Stand-by", invBypass: "Bypass",
     active: "Actief", inactive: "Inactief",
     ctlEmpty: "Geen bedieningen ingeschakeld. Schakel ze in op het apparaat (Instellingen → uitgeschakelde entiteiten).",
+    ctlAdvanced: "Geavanceerde instellingen",
     sysEmptyTitle: "Geen bedieningen beschikbaar",
     sysEmptyMsg: "Deze integratie biedt geen systeembedieningen, of ze zijn uitgeschakeld. Schakel ze in via Instellingen → entiteiten.",
     bcAllowCharge: "Laden toestaan", bcAllowDischarge: "Ontladen toestaan", bcBatteryManual: "Handmatige batterijregeling",
@@ -1120,30 +1126,30 @@ const SYS_SECTIONS = [
     icon: "mdi:brain",
     items: [
       { key: "predictive_charging", domain: "switch", lk: "itemEnable", icon: "mdi:brain", gate: true },
-      { key: "predictive_safety_margin_kwh", lk: "itemSolarSafety", icon: "mdi:solar-power-variant" },
-      { key: "predictive_grid_charge_margin_pct", lk: "itemGridChargeMargin", icon: "mdi:transmission-tower-import" },
-      { key: "min_soc_floor_enabled", domain: "switch", lk: "itemMinSocFloorEnable", icon: "mdi:battery-arrow-up" },
-      { key: "predictive_min_soc_floor", lk: "itemMinSocFloor", icon: "mdi:battery-arrow-up" },
+      { key: "predictive_safety_margin_kwh", lk: "itemSolarSafety", icon: "mdi:solar-power-variant", adv: true },
+      { key: "predictive_grid_charge_margin_pct", lk: "itemGridChargeMargin", icon: "mdi:transmission-tower-import", adv: true },
+      { key: "min_soc_floor_enabled", domain: "switch", lk: "itemMinSocFloorEnable", icon: "mdi:battery-arrow-up", adv: true },
+      { key: "predictive_min_soc_floor", lk: "itemMinSocFloor", icon: "mdi:battery-arrow-up", adv: true },
       // Pricing controls: their entities only exist when the predictive mode is
       // price-based (dp/rt switch; thresholds are dynamic-pricing only), so on
       // time-slot installs these rows simply don't render.
       { key: "dp_price_discharge_control", domain: "switch", lk: "itemPriceDischarge", icon: "mdi:cash-clock" },
       { key: "rt_price_discharge_control", domain: "switch", lk: "itemPriceDischarge", icon: "mdi:cash-clock" },
-      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus" },
-      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus" },
-      { key: "min_arbitrage_margin", lk: "itemArbitrageMargin", icon: "mdi:scale-balance" },
-      { key: "round_trip_efficiency", lk: "itemRoundTripEfficiency", icon: "mdi:battery-sync" },
+      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus", adv: true },
+      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus", adv: true },
+      { key: "min_arbitrage_margin", lk: "itemArbitrageMargin", icon: "mdi:scale-balance", adv: true },
+      { key: "round_trip_efficiency", lk: "itemRoundTripEfficiency", icon: "mdi:battery-sync", adv: true },
       { key: "negative_price_charging", domain: "switch", lk: "itemNegativePriceCharging", icon: "mdi:battery-charging-100" },
       { key: "smart_predischarge", domain: "switch", lk: "itemSmartPredischarge", icon: "mdi:battery-arrow-down-outline" },
-      { key: "negative_injection_threshold", lk: "itemNegativeThreshold", icon: "mdi:cash-minus" },
-      { key: "predischarge_reserve_soc", lk: "itemPredischargeReserve", icon: "mdi:battery-lock" },
-      { key: "predischarge_max_export_power_w", lk: "itemPredischargeExport", icon: "mdi:transmission-tower-export" },
+      { key: "negative_injection_threshold", lk: "itemNegativeThreshold", icon: "mdi:cash-minus", adv: true },
+      { key: "predischarge_reserve_soc", lk: "itemPredischargeReserve", icon: "mdi:battery-lock", adv: true },
+      { key: "predischarge_max_export_power_w", lk: "itemPredischargeExport", icon: "mdi:transmission-tower-export", adv: true },
       { key: "surplus_price_hold", domain: "switch", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export" },
-      { key: "surplus_hold_min_saving", lk: "itemSurplusHoldSaving", icon: "mdi:cash-minus" },
+      { key: "surplus_hold_min_saving", lk: "itemSurplusHoldSaving", icon: "mdi:cash-minus", adv: true },
       { key: "high_price_discharge", domain: "switch", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export" },
-      { key: "high_price_discharge_max_power_w", lk: "itemHighPriceExport", icon: "mdi:transmission-tower-export" },
+      { key: "high_price_discharge_max_power_w", lk: "itemHighPriceExport", icon: "mdi:transmission-tower-export", adv: true },
       { key: "discharge_reserve", domain: "switch", lk: "diagDischargeReserve", icon: "mdi:battery-lock" },
-      { key: "discharge_reserve_min_saving", lk: "itemDischargeReserveSaving", icon: "mdi:cash-minus" },
+      { key: "discharge_reserve_min_saving", lk: "itemDischargeReserveSaving", icon: "mdi:cash-minus", adv: true },
       { key: "curtailment_status", domain: "binary_sensor", lk: "diagCurtailment", icon: "mdi:solar-power-variant" },
       { key: "surplus_price_hold_status", domain: "binary_sensor", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export" },
       { key: "high_price_discharge_status", domain: "sensor", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export" },
@@ -6210,6 +6216,15 @@ class MarstekVenusPanel extends HTMLElement {
       this._buildStepper(this._t("ctlRows"), () => this._loadCtlRows(), (n) => this._saveCtlRows(n), 8, 4),
     );
     bar.appendChild(tools);
+    const advBtn = document.createElement("button");
+    advBtn.className = "ctl-arrange-btn";
+    advBtn.classList.toggle("active", this._loadCtlAdv());
+    advBtn.innerHTML = `<ha-icon icon="mdi:tune-variant"></ha-icon><span>${this._t("ctlAdvanced")}</span>`;
+    advBtn.addEventListener("click", () => {
+      this._saveCtlAdv(!this._loadCtlAdv());
+      this._rebuildControl();
+    });
+    bar.appendChild(advBtn);
     const btn = document.createElement("button");
     btn.className = "ctl-arrange-btn";
     btn.innerHTML = `<ha-icon icon="mdi:drag-variant"></ha-icon><span>${this._t("ctlArrange")}</span>`;
@@ -6322,6 +6337,7 @@ class MarstekVenusPanel extends HTMLElement {
   _renderSysSections(defs, store, empty) {
     for (const k in store) delete store[k];
     const { sections, sig } = this._sysScan(defs);
+    const advOn = this._loadCtlAdv();
     const wrap = document.createElement("div");
     wrap.className = "sys-stack";
     if (!sections.length) {
@@ -6345,14 +6361,26 @@ class MarstekVenusPanel extends HTMLElement {
       // when OFF: the feature's sliders disappear, the switch stays so it can be
       // turned back on. `gateInvert` flips this (PD section: show when no_pd_mode
       // is OFF). _patchSysControl keeps this in sync on state changes.
+      // An `adv` item is hidden outright while the Advanced toggle is off — same
+      // display:none mechanism, but keyed to the localStorage toggle instead of
+      // an entity's live state, so it's excluded from `gatedNodes` (no need to
+      // patch it again on every gate change; a full rebuild handles the switch).
       let gateKey = null;
       const gatedNodes = [];
+      let visibleRows = 0;
       for (const r of rows) {
         const frag = this._buildSysControl(r.item, r.id, store, r.multi);
         const nodes = [...frag.childNodes];
         grid.appendChild(frag);
-        if (r.item.gate) gateKey = this._sysStoreKey(r.item, r.id);
-        else gatedNodes.push(...nodes);
+        if (r.item.gate) {
+          gateKey = this._sysStoreKey(r.item, r.id);
+          visibleRows++;
+        } else if (r.item.adv && !advOn) {
+          for (const n of nodes) n.style.display = "none";
+        } else {
+          gatedNodes.push(...nodes);
+          visibleRows++;
+        }
       }
       if (gateKey && gatedNodes.length && store[gateKey]) {
         const w = store[gateKey];
@@ -6361,6 +6389,10 @@ class MarstekVenusPanel extends HTMLElement {
         const shown = w.invert ? !on : on;
         for (const n of gatedNodes) n.style.display = shown ? "" : "none";
       }
+      // A section left with no visible rows (every item marked `adv`, hidden by
+      // the Advanced toggle) doesn't render its card at all — same rule already
+      // applied above when a section has no live registry entities.
+      if (!visibleRows) continue;
       if (sec.tk === "secHourly") {
         const warn = this._hourlyWarnEl();
         if (warn) card.appendChild(warn);
@@ -6537,6 +6569,15 @@ class MarstekVenusPanel extends HTMLElement {
   }
   _saveCtlHidden(tks) {
     try { localStorage.setItem(this._ctlHiddenKey(), JSON.stringify(tks)); } catch { /* private mode */ }
+  }
+  // --- Control-tab advanced settings toggle (per-item `adv` flag, persisted) --
+  _ctlAdvKey() { return "omnibattery:control-advanced"; }
+  _loadCtlAdv() { return localStorage.getItem(this._ctlAdvKey()) === "1"; }
+  _saveCtlAdv(on) {
+    try {
+      if (on) localStorage.setItem(this._ctlAdvKey(), "1");
+      else localStorage.removeItem(this._ctlAdvKey());
+    } catch { /* private mode */ }
   }
   /** Wire HTML5 drag events on a card. Active only while arrange mode is ON
    *  (card.draggable is toggled by _applyArrangeMode). In flow mode it reorders

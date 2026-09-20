@@ -6,6 +6,7 @@
 - **Excluded devices no longer push grid import above the contracted power**: an excluded device is hidden from the controller by design, but the breaker still sees it. When the excluded load alone would exceed "Maximum contracted power", the battery now covers just the excess. Always on, no setting. Peak shaving remains the opt-in economic layer below it.
 - **Zonneplan dynamic pricing**: use hourly, quarter-hourly or legacy electricity tariff forecasts from Zonneplan One through the shared import/export price parser, with tax-inclusive EUR/kWh normalization. Thanks to [@hprax](https://github.com/hprax)
 - **High price discharge** (#270): opt-in deliberate export into a price peak, capped by a configurable power limit and only when the spread clears the existing **Minimum arbitrage margin**, which now governs both buying and selling.
+- **"Advanced settings" toggle on the Control tab**: the predictive-charging card now shows only its switches and status rows by default; its fine-tuning sliders (price thresholds, arbitrage margin, forecast margins, SOC floor, pre-discharge/reserve limits) are one click away behind a per-browser toggle in the arrange bar.
 
 ### Fixed
 
