@@ -277,6 +277,31 @@ The same margin governs the sell side. With **high-price discharge** enabled, an
 
 Both are exposed as live `number` entities, and the evaluation notification reports the resulting ceiling so a skipped night is traceable.
 
+### High-price discharge
+
+The reserve above holds energy *for* a dear hour. **High-price discharge** does the opposite: it sells into one. It is **opt-in and off by default**, and it only exists in Dynamic Pricing mode.
+
+The rule it enforces is that every kWh sold must be provably repurchasable. At each rebuild it takes the horizon from now to the next sunrise, projects the learned consumption profile and the PV forecast onto it, and works out which slots run a household deficit. A slot qualifies for export only when:
+
+```
+export_price > max(import price of every later slot in the horizon) + minimum arbitrage margin
+```
+
+Each sold kWh is then linked 1:1 to a specific later deficit, cheapest-first, so the house never sells energy it will have to buy back dearer. Energy with no later deficit to link to is never sold, and the sale never dips below a battery's SOC floor. The dearest export slot is served first; the rest take what is left.
+
+| Control | Meaning |
+|---|---|
+| **High-price discharge** | Opt-in; default off |
+| **High-price export cap** | Ceiling for the deliberate export, measured net at the grid connection point, so simultaneous solar counts towards it. `0 W` leaves the feature inactive — a positive limit is part of a valid configuration |
+
+The per-kWh spread it must clear is the **Minimum arbitrage margin** above, the same knob the charge side uses.
+
+The plan is rebuilt every five minutes, but withdrawal is checked every control cycle: a missing price, a coverage gap in the horizon, an expired slot, or any of the guards below stops the export on the next cycle rather than waiting for a rebuild. Anti-curtailment, capacity protection, the weekly full charge, a running cheap-price charge slot, manual mode, manual slot ownership, an unreadable grid meter and any active discharge blocker (price floor, time slots, reserves, temperature, export prohibitions) all take precedence.
+
+Turning the switch off stops an export in progress on the next control cycle.
+
+The sensor `high_price_discharge_status` reports the state, the reason, the target power, the protected demand, the usable energy, the total allocated energy and the per-slot allocations with their thresholds.
+
 ### Interaction with time slots
 
 If time slots are configured to restrict discharge, **both conditions must be met** for the battery to discharge:
