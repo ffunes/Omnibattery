@@ -330,6 +330,47 @@ _BLOCKS = (
 
 _DECODERS = {"u16": decode_u16, "i16": decode_i16, "u32": decode_u32, "i32": decode_i32}
 
+# What the inverter answers with when it cannot supply a register right now —
+# a battery asleep at its cutoff, a module still starting, an unpopulated slot.
+# The read succeeds, so the block-level guard above does not see it; only the
+# value itself gives it away. Measured in the wild: SOC 0xFFFF scaled by 0.1
+# reached the control layer as 6553.5 %, which put the battery above every
+# floor and cutoff and left the rest of the fleet idle for two hours (#494).
+#
+# Keyed by decoder, and compared against the *decoded* value: decode_i16 and
+# decode_i32 leave these below their sign boundary, so they arrive positive.
+_INVALID_RAW = {
+    "u16": 0xFFFF,
+    "i16": 0x7FFF,
+    "u32": 0xFFFFFFFF,
+    "i32": 0x7FFFFFFF,
+}
+
+# A marker is not the only way a nonsense value can arrive — a misaligned block
+# or a half-written register produces plausible-looking rubbish. These are the
+# bounds that hold for any SUN2000, checked after scaling.
+_PERCENT_KEYS = frozenset({
+    "battery_soc", "charging_cutoff_capacity", "discharging_cutoff_capacity",
+})
+# Deliberately far above any SUN2000: this catches a decode fault, it does not
+# second-guess the inverter. The largest three-phase model is two orders below.
+_POWER_SANITY_W = 1_000_000
+_POWER_KEYS = frozenset({
+    "battery_power", "solar_power", "inverter_ac_power", "grid_power",
+    "max_charge_power", "max_discharge_power",
+    "set_charge_power", "set_discharge_power",
+    "inverter_rated_power", "inverter_max_power",
+})
+
+
+def _is_out_of_range(key: str, value: float) -> bool:
+    """Whether a decoded, scaled value is outside what the hardware can mean."""
+    if key in _PERCENT_KEYS:
+        return not 0 <= value <= 100
+    if key in _POWER_KEYS:
+        return abs(value) > _POWER_SANITY_W
+    return False
+
 
 def _u32(value: int) -> list[int]:
     """Split an unsigned 32-bit value into two registers, high word first."""
@@ -445,6 +486,10 @@ class HuaweiSolarDriver(BatteryDriver):
         # pack count, so a configured limit may sit above it — and a command
         # above it is refused outright rather than clamped by the far end.
         self._register_limits: dict[str, int] = {}
+        # Keys currently being rejected as unreadable, so a battery that sleeps
+        # for hours warns once instead of every poll. Cleared per key as soon as
+        # a usable value arrives, so the next episode warns again.
+        self._rejected_keys: set[str] = set()
         # Refined from register 30071 on the first poll; two is the common case
         # and keeps the entity list sane until the inverter has answered.
         self._pv_strings = 2
@@ -641,6 +686,25 @@ class HuaweiSolarDriver(BatteryDriver):
 
     # --- telemetry (read) ---------------------------------------------------
 
+    def _reject(self, key: str, value: float, reason: str) -> None:
+        """Drop an unusable reading, warning once per episode.
+
+        The key is left out of the snapshot rather than published as None, so
+        the coordinator treats it the way it treats a failed block — stale, and
+        retried next cycle. Publishing the value instead moves charge and
+        discharge limits; publishing None makes the entity unavailable and
+        throws away a last known value that is still the best estimate there is.
+        """
+        if key not in self._rejected_keys:
+            self._rejected_keys.add(key)
+            _LOGGER.warning(
+                "Huawei driver: dropping '%s' = %s — %s. Keeping the last known "
+                "value; further occurrences are logged at debug level.",
+                key, value, reason,
+            )
+        else:
+            _LOGGER.debug("Huawei driver: still dropping '%s' = %s — %s", key, value, reason)
+
     async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:
         requested = set(keys) if keys is not None else None
         if requested is not None:
@@ -667,14 +731,21 @@ class HuaweiSolarDriver(BatteryDriver):
                         value = decode_string(regs, offset, int(scale))
                     else:
                         raw = _DECODERS[kind](regs, offset)
+                        if raw == _INVALID_RAW.get(kind):
+                            self._reject(key, raw, "the inverter reports it as unavailable")
+                            continue
                         # Rounding here keeps binary-fraction artefacts such as
                         # 354 * 0.1 -> 35.300000000000004 out of the telemetry
                         # cache, which is compared and logged verbatim.
                         value = raw if scale == 1 else round(raw * scale, 4)
+                        if _is_out_of_range(key, value):
+                            self._reject(key, value, "outside the range the hardware can mean")
+                            continue
                 except (IndexError, ValueError, KeyError):
                     continue
                 if value is None:
                     continue
+                self._rejected_keys.discard(key)
                 snapshot[key] = value
 
         # Huawei reports each string as voltage and current; the panel and the
@@ -694,7 +765,14 @@ class HuaweiSolarDriver(BatteryDriver):
             if regs is not None:
                 # Sign matches the Omnibattery convention already: positive is
                 # import, negative export, verified against a separate meter.
-                snapshot["grid_power"] = decode_i32(regs, 0)
+                grid_power = decode_i32(regs, 0)
+                if grid_power == _INVALID_RAW["i32"]:
+                    self._reject("grid_power", grid_power, "the meter reports it as unavailable")
+                elif _is_out_of_range("grid_power", grid_power):
+                    self._reject("grid_power", grid_power, "outside the range the hardware can mean")
+                else:
+                    self._rejected_keys.discard("grid_power")
+                    snapshot["grid_power"] = grid_power
 
         # Telemetry-only: the enum says which storage is attached, and the
         # label it resolves to is what the device entry calls itself.
