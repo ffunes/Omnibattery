@@ -1490,6 +1490,9 @@
   },
   "entity": {
     "switch": {
+      "high_price_discharge": {
+        "name": "High-Price Discharge"
+      },
       "primary_feedforward": {
         "name": "Feed the real demand forward"
       },

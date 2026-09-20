@@ -1488,6 +1488,9 @@
   },
   "entity": {
     "switch": {
+      "high_price_discharge": {
+        "name": "Hochpreis-Entladung"
+      },
       "primary_feedforward": {
         "name": "Tatsächlichen Bedarf vorsteuern"
       },

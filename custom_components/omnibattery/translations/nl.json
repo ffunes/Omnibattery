@@ -1488,6 +1488,9 @@
   },
   "entity": {
     "switch": {
+      "high_price_discharge": {
+        "name": "Hoogprijs-ontlading"
+      },
       "primary_feedforward": {
         "name": "Werkelijke vraag vooruitsturen"
       },

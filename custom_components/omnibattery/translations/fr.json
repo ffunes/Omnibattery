@@ -1493,6 +1493,9 @@
   },
   "entity": {
     "switch": {
+      "high_price_discharge": {
+        "name": "Décharge à Prix Élevé"
+      },
       "primary_feedforward": {
         "name": "Anticiper la demande réelle"
       },

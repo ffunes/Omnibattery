@@ -1488,6 +1488,9 @@
   },
   "entity": {
     "switch": {
+      "high_price_discharge": {
+        "name": "Descàrrega per Preu Alt"
+      },
       "primary_feedforward": {
         "name": "Anticipar la demanda real"
       },

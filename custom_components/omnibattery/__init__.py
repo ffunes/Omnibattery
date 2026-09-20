@@ -10441,6 +10441,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             CONF_CAPACITY_PROTECTION_ENABLED,
             CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES,
             CONF_ENABLE_HOURLY_BALANCE,
+            CONF_HIGH_PRICE_DISCHARGE_ENABLED,
         )
         if _key not in entry.data
     }
