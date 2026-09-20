@@ -8,7 +8,7 @@
 
 ### Changed
 
-- **Marstek block reads now cover every adjacent register, not the handful in a hand-written table** (#361): reading a contiguous span in one request was introduced with a table somebody wrote out by hand, so the spans nobody had looked at kept costing one request each — on a Venus D the four MPPT powers were four separate requests every two seconds. The table is now derived from the registers the integration polls anyway, by the same rule: only registers that are already adjacent and on the same schedule are grouped, so a span still never reaches across an address the battery does not implement. Measured on a Venus D, the fast poll drops from 15 requests to 11 and a full pass from 47 to 40, which is breathing room for the weak v3 Modbus stack and for anything else sharing the battery's single connection.
+- **Marstek block reads now cover every adjacent register, not the handful in a hand-written table** (#361): reading a contiguous span in one request was introduced with a table somebody wrote out by hand, so the spans nobody had looked at kept costing one request each — on a Venus D the four MPPT powers were four separate requests every two seconds. The table is now derived from the registers the integration polls anyway, by the same rule: only registers that are already adjacent and on the same schedule are grouped, so a span still never reaches across an address the battery does not implement. Measured on a Venus D, the fast poll drops from 15 requests to 11 and a full pass from 47 to 41, which is breathing room for the weak v3 Modbus stack and for anything else sharing the battery's single connection.
 
 ### Fixed
 
