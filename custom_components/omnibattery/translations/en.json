@@ -385,7 +385,6 @@
           "discharge_reserve_min_saving": "Discharge reserve minimum saving (currency/kWh)",
           "high_price_discharge_enabled": "Enable high-price discharge",
           "high_price_discharge_max_power_w": "High-price discharge maximum power (W)",
-          "high_price_discharge_additional_cost": "High-price discharge additional cost (currency/kWh)",
           "export_price_sensor": "Export/feed-in price sensor (optional)",
           "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Negative injection threshold (currency/kWh)",
@@ -409,7 +408,6 @@
           "discharge_reserve_min_saving": "How much dearer a later hour must be than the current one before its demand may claim stored energy. Prevents the floor from moving on negligible price differences. Use major currency/kWh.",
           "high_price_discharge_enabled": "Opt-in dynamic-pricing feature. Sells stored energy to the grid during the highest export-price slots, but only the energy that is tied 1:1 to a later household deficit within the horizon, and only when the sell price strictly exceeds that energy's worst later buy-back price plus the configured additional cost. Never sells below SOC floors, against a scheduled charge order, or during the weekly full charge, anti-curtailment pre-discharge, capacity protection or manual control. If any input is missing (forecast, price, grid meter), it does not export.",
           "high_price_discharge_max_power_w": "Ceiling for deliberate export, measured net at the grid connection point (including simultaneous solar contribution). Zero means invalid configuration: the feature stays inactive until a positive limit is set.",
-          "high_price_discharge_additional_cost": "Cost per kWh (wear, taxes, tolls) added to the later buy-back price before the sale is considered profitable. At zero, it sells on the raw price spread.",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Protect slots whose normalized price is at or below this inclusive threshold when forecast PV exceeds estimated household consumption.",
@@ -1141,7 +1139,6 @@
           "discharge_reserve_min_saving": "Discharge reserve minimum saving (currency/kWh)",
           "high_price_discharge_enabled": "Enable high-price discharge",
           "high_price_discharge_max_power_w": "High-price discharge maximum power (W)",
-          "high_price_discharge_additional_cost": "High-price discharge additional cost (currency/kWh)",
           "export_price_sensor": "Export/feed-in price sensor (optional)",
           "export_price_integration_type": "Export price integration (optional)",
           "negative_injection_threshold": "Negative injection threshold (currency/kWh)",
@@ -1165,7 +1162,6 @@
           "discharge_reserve_min_saving": "How much dearer a later hour must be than the current one before its demand may claim stored energy. Prevents the floor from moving on negligible price differences. Use major currency/kWh.",
           "high_price_discharge_enabled": "Opt-in dynamic-pricing feature. Sells stored energy to the grid during the highest export-price slots, but only the energy that is tied 1:1 to a later household deficit within the horizon, and only when the sell price strictly exceeds that energy's worst later buy-back price plus the configured additional cost. Never sells below SOC floors, against a scheduled charge order, or during the weekly full charge, anti-curtailment pre-discharge, capacity protection or manual control. If any input is missing (forecast, price, grid meter), it does not export.",
           "high_price_discharge_max_power_w": "Ceiling for deliberate export, measured net at the grid connection point (including simultaneous solar contribution). Zero means invalid configuration: the feature stays inactive until a positive limit is set.",
-          "high_price_discharge_additional_cost": "Cost per kWh (wear, taxes, tolls) added to the later buy-back price before the sale is considered profitable. At zero, it sells on the raw price spread.",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
           "negative_injection_threshold": "Protect slots whose normalized price is at or below this inclusive threshold when forecast PV exceeds estimated household consumption.",
@@ -2286,9 +2282,6 @@
       },
       "high_price_discharge_max_power_w": {
         "name": "High-Price Discharge Maximum Power"
-      },
-      "high_price_discharge_additional_cost": {
-        "name": "High-Price Discharge Additional Cost"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – Exclusion %"

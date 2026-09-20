@@ -869,6 +869,9 @@ CONF_DISCHARGE_PRICE_THRESHOLD = "discharge_price_threshold"
 #   expected_discharge_price * round_trip_efficiency - slot_price >= margin
 # so that charging is skipped on days where the intraday spread cannot repay the
 # conversion losses. Applied on top of (not instead of) CONF_MAX_PRICE_THRESHOLD.
+# The discharge side reads the same knob: high-price discharge (#270) adds it to
+# the later buy-back price before a sale qualifies, so a single margin states the
+# same risk appetite in both directions.
 CONF_MIN_ARBITRAGE_MARGIN = "min_arbitrage_margin"
 CONF_ROUND_TRIP_EFFICIENCY = "round_trip_efficiency"
 
@@ -923,10 +926,8 @@ DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED = False
 # Zero is an invalid activation, not a silent no-op: exporting needs a limit.
 CONF_HIGH_PRICE_DISCHARGE_MAX_POWER = "high_price_discharge_max_power_w"
 DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER = 0.0
-# Cost per kWh (wear, taxes, fees) added to the later import price before a
-# sale is judged worthwhile.  Sitting at zero sells on the raw spread.
-CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST = "high_price_discharge_additional_cost"
-DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST = 0.0
+# The per-kWh margin a sale must clear is CONF_MIN_ARBITRAGE_MARGIN, shared with
+# the charge side: the same spread requirement read in the other direction.
 
 # Optional export/feed-in price curve.  Unset falls back to the import curve,
 # which is both the historical behaviour and correct under net metering.  A
@@ -1226,17 +1227,6 @@ CONFIG_NUMBER_DEFINITIONS = [
         "unit": "W",
         "default": DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER,
         "icon": "mdi:transmission-tower-export",
-        "condition": CONF_HIGH_PRICE_DISCHARGE_ENABLED,
-    },
-    {
-        "key": CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
-        "name": "High Price Discharge Additional Cost",
-        "min": 0.0,
-        "max": 1.0,
-        "step": 0.001,
-        "unit": "/kWh",
-        "default": DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
-        "icon": "mdi:cash-plus",
         "condition": CONF_HIGH_PRICE_DISCHARGE_ENABLED,
     },
     {

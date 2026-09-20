@@ -271,6 +271,8 @@ The margin is **empty by default**, which leaves slot selection exactly as it wa
 
 The gate runs on the 00:05 evaluation only. Later rebuilds and the evening recharge are deficit-driven safety corrections rather than new arbitrage trades, so the margin does not block energy that the updated horizon says is required.
 
+The same margin governs the sell side. With **high-price discharge** enabled, an export slot qualifies only when its price beats the highest buy-back price still ahead by at least this margin, so one figure states the same risk appetite in both directions. Leaving it empty sells on the raw spread, exactly as it charges on the raw ceiling.
+
 **Round-Trip Efficiency** (default `0.85`) is the AC-to-AC ratio used to value a stored kWh. Lower values tighten the gate. Note this is the *marginal* ratio (extra kWh out per extra kWh in), not the gross figure you get by dividing lifetime discharge by lifetime charge, which also carries standby drain. Standby is paid whether or not you cycle, so folding it in here would refuse profitable charges.
 
 Both are exposed as live `number` entities, and the evaluation notification reports the resulting ceiling so a skipped night is traceable.

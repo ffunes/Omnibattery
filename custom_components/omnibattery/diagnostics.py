@@ -484,9 +484,9 @@ def _high_price_discharge_info(controller) -> dict[str, Any]:
     info: dict[str, Any] = {
         "enabled": bool(getattr(controller, "high_price_discharge_enabled", False)),
         "max_power_w": getattr(controller, "high_price_discharge_max_power_w", None),
-        "additional_cost": getattr(
-            controller, "high_price_discharge_additional_cost", None
-        ),
+        # Shared with the charge side, so a diagnostic that named it
+        # "additional_cost" would hide which knob was actually read.
+        "min_arbitrage_margin": getattr(controller, "min_arbitrage_margin", None),
     }
     if manager is None:
         info["status"] = "unavailable"

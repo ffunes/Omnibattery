@@ -94,7 +94,7 @@ def _manager(now: datetime = NOW, *, pricing=None, **overrides):
     controller = SimpleNamespace(
         high_price_discharge_enabled=True,
         high_price_discharge_max_power_w=2000.0,
-        high_price_discharge_additional_cost=0.0,
+        min_arbitrage_margin=None,
         round_trip_efficiency=1.0,
         predictive_charging_enabled=True,
         predictive_charging_overridden=False,
@@ -198,10 +198,9 @@ def test_export_without_a_limit_is_an_invalid_configuration(power):
     assert OVERRIDE_SOURCE not in setpoints
 
 
-def test_additional_cost_above_the_spread_stops_the_sale():
-    manager, _controller, setpoints = _manager(
-        high_price_discharge_additional_cost=PEAK_PRICE
-    )
+def test_arbitrage_margin_above_the_spread_stops_the_sale():
+    """The charge-side margin is the sell-side margin (no separate knob)."""
+    manager, _controller, setpoints = _manager(min_arbitrage_margin=PEAK_PRICE)
 
     manager.refresh_override()
 
@@ -348,7 +347,7 @@ def test_the_plan_is_rebuilt_when_the_configuration_changes():
     manager.refresh_override()
     assert len(rebuilds) == 1
 
-    controller.high_price_discharge_additional_cost = 0.01
+    controller.min_arbitrage_margin = 0.01
     manager.refresh_override()
 
     assert len(rebuilds) == 2
