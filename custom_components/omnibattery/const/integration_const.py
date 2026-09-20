@@ -924,10 +924,29 @@ CONF_HIGH_PRICE_DISCHARGE_ENABLED = "high_price_discharge_enabled"
 DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED = False
 # Ceiling for the deliberate export, measured net at the connection point.
 # Zero is an invalid activation, not a silent no-op: exporting needs a limit.
+# This constant is only the last-resort sentinel for a fleet whose discharge
+# power cannot be determined yet (no battery configured). Everywhere the key
+# is missing from config_entry.data, the effective default is the fleet's own
+# discharge power -- see default_high_price_discharge_max_power() below --
+# so enabling the switch without touching the slider does not leave the
+# feature silently dead.
 CONF_HIGH_PRICE_DISCHARGE_MAX_POWER = "high_price_discharge_max_power_w"
 DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER = 0.0
 # The per-kWh margin a sale must clear is CONF_MIN_ARBITRAGE_MARGIN, shared with
 # the charge side: the same spread requirement read in the other direction.
+
+
+def default_high_price_discharge_max_power(data) -> float:
+    """Return the fleet's discharge power, or the invalid-configuration sentinel.
+
+    The only export ceiling that ever made sense as a default is the one the
+    fleet can already deliver. Falls back to
+    ``DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER`` (0.0, invalid per ``_config()``
+    in ``control/high_price_discharge.py``) when no battery is configured yet,
+    which preserves that fail-safe.
+    """
+    _, discharge_w = effective_system_power(data)
+    return float(discharge_w) if discharge_w > 0 else DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER
 
 # Optional export/feed-in price curve.  Unset falls back to the import curve,
 # which is both the historical behaviour and correct under net metering.  A

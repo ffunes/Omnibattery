@@ -176,7 +176,7 @@ from .const import (
     CONF_HIGH_PRICE_DISCHARGE_ENABLED,
     DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED,
     CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
-    DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER,
+    default_high_price_discharge_max_power,
     CONF_SURPLUS_HOLD_MIN_SAVING,
     DEFAULT_SURPLUS_HOLD_MIN_SAVING,
     CONF_EXPORT_PRICE_SENSOR,
@@ -1012,7 +1012,8 @@ class ChargeDischargeController:
             CONF_HIGH_PRICE_DISCHARGE_ENABLED, DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED
         )
         self.high_price_discharge_max_power_w = config_entry.data.get(
-            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER, DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER
+            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
+            default_high_price_discharge_max_power(config_entry.data),
         )
         self.discharge_reserve_enabled = config_entry.data.get(
             CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
@@ -2962,7 +2963,8 @@ class ChargeDischargeController:
             CONF_HIGH_PRICE_DISCHARGE_ENABLED, DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED
         )
         self.high_price_discharge_max_power_w = self.config_entry.data.get(
-            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER, DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER
+            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
+            default_high_price_discharge_max_power(self.config_entry.data),
         )
         old_discharge_reserve_enabled = self.discharge_reserve_enabled
         self.discharge_reserve_enabled = self.config_entry.data.get(

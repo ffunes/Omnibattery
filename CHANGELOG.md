@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- **High price discharge no longer dies silently at 0 W** (#270): the slider's default was 0, an invalid configuration, so turning the switch on without also raising the slider left the feature dark. Its default is now the fleet's own discharge power.
 - **Price-aware surplus absorption is reachable from the dashboard**: its toggle and minimum-saving slider existed only in the options flow, so the feature was invisible. Its status sensor is renamed "… Status" so the two entities no longer share a name.
 - **Predictive charging now covers the night through to sunrise** (#410, #344): every layer that decided to buy grid energy stopped at midnight, so the hours between midnight and sunrise belonged to no plan and the battery reached the morning peak empty. If you raised the solar safety margin or the grid charge margin to cover the night by hand, lower them again. The "Guaranteed Minimum SOC" help text now describes what that setting actually does — a floor on the current SOC, not a morning target.
 - **The discharge reserve now holds energy for pre-dawn price peaks** (#410): it stopped reserving at midnight, on the grounds that tomorrow's sun would refill the battery anyway. There is no sun before dawn, so a peak at 06:00 was left to the grid. The reserve now reaches the next sunrise, and still never holds energy for tomorrow's evening peak. Only affects the opt-in "Discharge reserve" (#400).
