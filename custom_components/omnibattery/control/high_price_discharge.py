@@ -195,19 +195,22 @@ class HighPriceDischargeManager:
         self._set_status(state, reason)
 
     def _config(self) -> tuple[float, float] | None:
-        """Return ``(max_export_power_w, additional_cost)``, or None if invalid.
+        """Return ``(max_export_power_w, margin)``, or None if invalid.
 
         RF-040: a positive export power is part of a valid activation, so zero
         is an invalid configuration rather than a silent no-op.
+
+        The margin is ``min_arbitrage_margin``, the knob the charge side already
+        uses. Both ask the same question — does the spread repay the round trip
+        — so a second per-kWh field would only let the two answers disagree.
+        Unset (``None``) means no margin, exactly as when charging.
         """
         controller = self._controller
         try:
             power = float(
                 getattr(controller, "high_price_discharge_max_power_w", 0.0) or 0.0
             )
-            cost = float(
-                getattr(controller, "high_price_discharge_additional_cost", 0.0) or 0.0
-            )
+            cost = float(getattr(controller, "min_arbitrage_margin", 0.0) or 0.0)
         except (TypeError, ValueError):
             return None
         if not math.isfinite(power) or not math.isfinite(cost):
@@ -238,14 +241,14 @@ class HighPriceDischargeManager:
         try:
             horizon_end = pricing.energy_horizon_end(now)
             slots = self._build_horizon(pricing, now, horizon_end)
-            max_power_w, additional_cost = config
+            max_power_w, margin = config
             plan = plan_high_price_discharge(
                 slots,
                 pricing._curtailment_battery_snapshots(),
                 now=self._aware(now),
                 horizon_end=self._aware(horizon_end),
                 enabled=True,
-                additional_cost_per_kwh=additional_cost,
+                additional_cost_per_kwh=margin,
                 max_export_power_w=max_power_w,
                 # Reuses the arbitrage knob rather than adding a second one.
                 # It is the round trip, so it understates the AC energy a full
