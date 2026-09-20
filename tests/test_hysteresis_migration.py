@@ -13,9 +13,11 @@ branch heals the entity registry, which the light no-``hass``-fixture fakes can'
 provide, so we patch the two entity_registry helpers it calls to no-op here (the
 v9 heal has its own dedicated registry test). v10 renames the title, handled by
 accepting the kwarg in the fake; v11 adds the disabled-by-default phase schema.
-v13 also touches the entity registry (merges the price-discharge switches),
-hence ``_no_registry()`` on every test that walks past v12; it has its own
-dedicated registry test in ``test_price_discharge_control_migration.py``.
+v13 and v14 also touch the entity registry (v13 merges the price-discharge
+switches, v14 deletes the removed grid-charge margin number), hence
+``_no_registry()`` on every test that walks past v12; each has its own dedicated
+registry test in ``test_price_discharge_control_migration.py`` and
+``test_grid_charge_margin_removal.py``.
 """
 from __future__ import annotations
 
@@ -30,10 +32,13 @@ from custom_components.omnibattery.const import (
 
 
 def _no_registry():
-    """Patch the entity_registry helpers the v9 heal touches into a no-op."""
+    """Patch the entity_registry helpers the v9+ heals touch into no-ops."""
     return patch.multiple(
         "homeassistant.helpers.entity_registry",
-        async_get=lambda hass: object(),
+        async_get=lambda hass: SimpleNamespace(
+            async_get_entity_id=lambda *args: None,
+            async_remove=lambda *args: None,
+        ),
         async_entries_for_config_entry=lambda reg, entry_id: [],
     )
 
@@ -56,7 +61,7 @@ def _migrate(batteries):
     with _no_registry():
         result = asyncio.run(async_migrate_entry(hass, entry))
     assert result is True
-    assert hass.config_entries.updated["version"] == 13
+    assert hass.config_entries.updated["version"] == 14
     return hass.config_entries.updated["data"]["batteries"]
 
 
@@ -104,8 +109,8 @@ def test_v11_records_connected_panels_without_changing_existing_venus_behaviour(
     assert [battery["dc_pv_connected"] for battery in batteries] == [True, False, False]
 
 
-def test_already_v13_is_noop():
+def test_already_v14_is_noop():
     hass = SimpleNamespace(config_entries=_FakeConfigEntries())
-    entry = SimpleNamespace(version=13, data={"batteries": [{}]})
+    entry = SimpleNamespace(version=14, data={"batteries": [{}]})
     assert asyncio.run(async_migrate_entry(hass, entry)) is True
     assert hass.config_entries.updated is None  # nothing rewritten

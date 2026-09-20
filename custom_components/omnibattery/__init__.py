@@ -195,9 +195,8 @@ from .const import (
     PRICE_INTEGRATION_ENTSOE,
     CONF_METER_INVERTED,
     CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
-    DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
+    default_predictive_safety_margin_kwh,
     CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
-    DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
     CONF_PREDICTIVE_MIN_SOC_FLOOR,
     DEFAULT_PREDICTIVE_MIN_SOC_FLOOR,
     CONF_ENABLE_MIN_SOC_FLOOR,
@@ -1175,8 +1174,10 @@ class ChargeDischargeController:
         self._weekly_full_charge_skip_delay = config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
         )
-        self._predictive_safety_margin_kwh: float = config_entry.data.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
-        self._predictive_grid_charge_margin_pct: float = config_entry.data.get(CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT, DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT)
+        self._predictive_safety_margin_kwh: float = config_entry.data.get(
+            CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
+            default_predictive_safety_margin_kwh(config_entry.data),
+        )
         self._predictive_min_soc_floor: float = config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
         # Backward-compat default: if the key is absent but floor > 0 was stored, keep it active.
         self._predictive_min_soc_floor_enabled: bool = config_entry.data.get(
@@ -2769,7 +2770,6 @@ class ChargeDischargeController:
         """
         return (
             round(float(self._predictive_safety_margin_kwh or 0.0), 3),
-            round(float(self._predictive_grid_charge_margin_pct or 0.0), 3),
             round(float(self._predictive_min_soc_floor or 0.0), 3),
             bool(self._predictive_min_soc_floor_enabled),
             tuple(
@@ -2903,8 +2903,10 @@ class ChargeDischargeController:
         self._weekly_full_charge_skip_delay = self.config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
         )
-        self._predictive_safety_margin_kwh = self.config_entry.data.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
-        self._predictive_grid_charge_margin_pct = self.config_entry.data.get(CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT, DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT)
+        self._predictive_safety_margin_kwh = self.config_entry.data.get(
+            CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
+            default_predictive_safety_margin_kwh(self.config_entry.data),
+        )
         self._predictive_min_soc_floor = self.config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
         self._predictive_min_soc_floor_enabled = self.config_entry.data.get(CONF_ENABLE_MIN_SOC_FLOOR, self._predictive_min_soc_floor_enabled)
         self._charge_delay_status["soc_setpoint"] = self._delay_soc_setpoint if self._delay_soc_setpoint_enabled else None
@@ -5204,7 +5206,6 @@ class ChargeDischargeController:
             planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
                 energy_deficit_kwh,
                 battery_headroom_kwh,
-                self._predictive_grid_charge_margin_pct,
             )
 
             _LOGGER.warning(
@@ -5352,7 +5353,6 @@ class ChargeDischargeController:
         planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
             energy_deficit_kwh,
             _gap_to_max_kwh,
-            self._predictive_grid_charge_margin_pct,
         )
 
         return {
@@ -5558,8 +5558,7 @@ class ChargeDischargeController:
         # there was no solar surplus (consumption ≥ solar: winter/cloudy/
         # overnight), so charging filled the battery for the whole slot instead
         # of stopping at the deficit. The deficit already nets out solar and the
-        # additive safety margin; the optional grid-charge percentage margin is
-        # applied by the shared planning calculation before the headroom cap. #409
+        # additive safety margin. #409
         energy_deficit_kwh = max(0.0, decision_data.get("energy_deficit_kwh", 0.0))
         planned_grid_charge_kwh = planned_kwh
         if planned_grid_charge_kwh is None:
@@ -5568,7 +5567,6 @@ class ChargeDischargeController:
             planned_grid_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
                 energy_deficit_kwh,
                 total_gap_kwh,
-                self._predictive_grid_charge_margin_pct,
             )
         grid_charge_kwh = min(total_gap_kwh, max(0.0, planned_grid_charge_kwh))
 
@@ -9832,8 +9830,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 config's active mode onto the new unique_id (entity_id and
                 history untouched); if both exist (a past mode switch left one
                 stale), the other is deleted rather than left orphaned.
+    v13 -> v14: drop predictive_grid_charge_margin_pct. It inflated the deficit
+                *after* it was computed, so it scaled inversely to the solar
+                risk it claimed to hedge; the kWh safety margin haircuts the
+                solar forecast itself, which is where that risk lives. The key
+                is removed and its number entity deleted rather than left
+                orphaned. A hand-set safety margin is never rewritten.
     """
-    if entry.version >= 13:
+    if entry.version >= 14:
         return True
 
     new_data = dict(entry.data)
@@ -10144,11 +10148,29 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "; removed stale duplicate from a past mode switch" if removed_duplicate else "",
         )
 
+    if entry.version < 14:
+        from homeassistant.helpers import entity_registry as er
+        from .infra.entity_naming import SYSTEM_UNIQUE_ID_PREFIX
+
+        new_data.pop(CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT, None)
+
+        removed_uid = f"{SYSTEM_UNIQUE_ID_PREFIX}{CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT}"
+        ent_reg = er.async_get(hass)
+        entity_id = ent_reg.async_get_entity_id("number", DOMAIN, removed_uid)
+        if entity_id:
+            ent_reg.async_remove(entity_id)
+
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 14 "
+            "(removed predictive_grid_charge_margin_pct; superseded by the "
+            "solar-forecast safety margin)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
-        version=13,
+        version=14,
     )
     return True
 

@@ -350,16 +350,14 @@
           "end_time_3": "Venster 3 — eindtijd (optioneel)",
           "days_3": "Venster 3 — dagen van de week",
           "solar_forecast_sensor": "Zonnevoorspellingssensor (kWh)",
-          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)",
-          "predictive_grid_charge_margin_pct": "Voorspellende netladingsmarge (%)"
+          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)"
         },
         "data_description": {
           "start_time": "Starttijd van het laadvenster (bijv. 01:00, daltarief)",
           "end_time": "Eindtijd van het laadvenster (bijv. 06:00)",
           "days": "Dagen waarop netladen is toegestaan",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt.",
-          "predictive_safety_margin_kwh": "Extra energiebuffer bij de verbruiksprognose. Dezelfde buffer in kWh wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen (standaard). Begrensd door de totale batterijcapaciteit.",
-          "predictive_grid_charge_margin_pct": "Extra percentage dat boven het zonne-tekort uit het net wordt geladen om optimistische zonneprognoses op te vangen. Bijv.: een netbehoefte van 2 kWh laadt bij 50% 3 kWh. 0 om uit te schakelen (standaard). Begrensd tot het gat tot max SOC."
+          "predictive_safety_margin_kwh": "Hoeveel de zonneprognose wordt gewantrouwd: deze kWh worden ervan afgetrokken voordat over laden wordt beslist, dus een hogere waarde laadt eerder. Dezelfde marge wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen. Standaard 5% van de totale batterijcapaciteit, en daartoe begrensd."
         }
       },
       "predictive_charging_mode": {
@@ -395,8 +393,7 @@
           "predischarge_reserve_soc": "SOC-reserve voor voorontladen (%)",
           "predischarge_export_mode": "Modus voor doelbewuste teruglevering aan het net",
           "solar_forecast_sensor": "Zonnevoorspellingssensor (kWh)",
-          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)",
-          "predictive_grid_charge_margin_pct": "Voorspellende netladingsmarge (%)"
+          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)"
         },
         "data_description": {
           "price_integration_type": "Selecteer de domoticaintegratie die stroomprijs gegevens levert",
@@ -418,8 +415,7 @@
           "predischarge_reserve_soc": "SOC die naast de bestaande minimumgrenzen moet worden gereserveerd.",
           "predischarge_export_mode": "Kies hoe anti-afregelruimte wordt gemaakt: Alleen eigen verbruik (0 W), Automatisch (alleen het benodigde vermogen) of Aangepaste limiet (in de volgende stap). Dit is een limiet voor doelbewuste teruglevering, niet het totale ontlaadvermogen.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt.",
-          "predictive_safety_margin_kwh": "Extra energiebuffer bij de verbruiksprognose. Dezelfde buffer in kWh wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen (standaard). Begrensd door de totale batterijcapaciteit.",
-          "predictive_grid_charge_margin_pct": "Extra percentage dat boven het zonne-tekort uit het net wordt geladen om optimistische zonneprognoses op te vangen. Bijv.: een netbehoefte van 2 kWh laadt bij 50% 3 kWh. 0 om uit te schakelen (standaard). Begrensd tot het gat tot max SOC."
+          "predictive_safety_margin_kwh": "Hoeveel de zonneprognose wordt gewantrouwd: deze kWh worden ervan afgetrokken voordat over laden wordt beslist, dus een hogere waarde laadt eerder. Dezelfde marge wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen. Standaard 5% van de totale batterijcapaciteit, en daartoe begrensd."
         }
       },
       "predischarge_export_limit": {
@@ -441,8 +437,7 @@
           "average_price_sensor": "Daggemiddelde prijssensor (optioneel)",
           "price_discharge_control": "Alleen ontladen als prijs boven drempelwaarde",
           "solar_forecast_sensor": "Zonnevoorspellingssensor (kWh)",
-          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)",
-          "predictive_grid_charge_margin_pct": "Voorspellende netladingsmarge (%)"
+          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor waarvan de toestand de huidige elektriciteits prijs is. Elke sensor die de huidige periodenprijs als toestand weergeeft, werkt.",
@@ -450,8 +445,7 @@
           "average_price_sensor": "Indien opgegeven, wordt deze waarde gebruikt als drempel in plaats van de vaste waarde — handig als uw prijsintegratie al een daggemiddelde blootstelt. Leeg laten voor de vaste drempel.",
           "price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteits prijs de drempelwaarde overschrijdt. Als tijdslots het ontladen beperken, moet aan beide voorwaarden worden voldaan.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt.",
-          "predictive_safety_margin_kwh": "Extra energiebuffer bij de verbruiksprognose. Dezelfde buffer in kWh wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen (standaard). Begrensd door de totale batterijcapaciteit.",
-          "predictive_grid_charge_margin_pct": "Extra percentage dat boven het zonne-tekort uit het net wordt geladen om optimistische zonneprognoses op te vangen. Bijv.: een netbehoefte van 2 kWh laadt bij 50% 3 kWh. 0 om uit te schakelen (standaard). Begrensd tot het gat tot max SOC."
+          "predictive_safety_margin_kwh": "Hoeveel de zonneprognose wordt gewantrouwd: deze kWh worden ervan afgetrokken voordat over laden wordt beslist, dus een hogere waarde laadt eerder. Dezelfde marge wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen. Standaard 5% van de totale batterijcapaciteit, en daartoe begrensd."
         }
       },
       "weekly_full_charge": {
@@ -1104,16 +1098,14 @@
           "end_time_3": "Venster 3 — eindtijd (optioneel)",
           "days_3": "Venster 3 — dagen van de week",
           "solar_forecast_sensor": "Zonnevoorspellingssensor (kWh)",
-          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)",
-          "predictive_grid_charge_margin_pct": "Voorspellende netladingsmarge (%)"
+          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)"
         },
         "data_description": {
           "start_time": "Starttijd van het laadvenster (bijv. 01:00, daltarief)",
           "end_time": "Eindtijd van het laadvenster (bijv. 06:00)",
           "days": "Dagen waarop netladen is toegestaan",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt.",
-          "predictive_safety_margin_kwh": "Extra energiebuffer bij de verbruiksprognose. Dezelfde buffer in kWh wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen (standaard). Begrensd door de totale batterijcapaciteit.",
-          "predictive_grid_charge_margin_pct": "Extra percentage dat boven het zonne-tekort uit het net wordt geladen om optimistische zonneprognoses op te vangen. Bijv.: een netbehoefte van 2 kWh laadt bij 50% 3 kWh. 0 om uit te schakelen (standaard). Begrensd tot het gat tot max SOC."
+          "predictive_safety_margin_kwh": "Hoeveel de zonneprognose wordt gewantrouwd: deze kWh worden ervan afgetrokken voordat over laden wordt beslist, dus een hogere waarde laadt eerder. Dezelfde marge wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen. Standaard 5% van de totale batterijcapaciteit, en daartoe begrensd."
         }
       },
       "predictive_charging_mode": {
@@ -1149,8 +1141,7 @@
           "predischarge_reserve_soc": "SOC-reserve voor voorontladen (%)",
           "predischarge_export_mode": "Modus voor doelbewuste teruglevering aan het net",
           "solar_forecast_sensor": "Zonnevoorspellingssensor (kWh)",
-          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)",
-          "predictive_grid_charge_margin_pct": "Voorspellende netladingsmarge (%)"
+          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)"
         },
         "data_description": {
           "price_integration_type": "Selecteer de domoticaintegratie die stroomprijs gegevens levert",
@@ -1172,8 +1163,7 @@
           "predischarge_reserve_soc": "SOC die naast de bestaande minimumgrenzen moet worden gereserveerd.",
           "predischarge_export_mode": "Kies hoe anti-afregelruimte wordt gemaakt: Alleen eigen verbruik (0 W), Automatisch (alleen het benodigde vermogen) of Aangepaste limiet (in de volgende stap). Dit is een limiet voor doelbewuste teruglevering, niet het totale ontlaadvermogen.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt.",
-          "predictive_safety_margin_kwh": "Extra energiebuffer bij de verbruiksprognose. Dezelfde buffer in kWh wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen (standaard). Begrensd door de totale batterijcapaciteit.",
-          "predictive_grid_charge_margin_pct": "Extra percentage dat boven het zonne-tekort uit het net wordt geladen om optimistische zonneprognoses op te vangen. Bijv.: een netbehoefte van 2 kWh laadt bij 50% 3 kWh. 0 om uit te schakelen (standaard). Begrensd tot het gat tot max SOC."
+          "predictive_safety_margin_kwh": "Hoeveel de zonneprognose wordt gewantrouwd: deze kWh worden ervan afgetrokken voordat over laden wordt beslist, dus een hogere waarde laadt eerder. Dezelfde marge wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen. Standaard 5% van de totale batterijcapaciteit, en daartoe begrensd."
         }
       },
       "predischarge_export_limit": {
@@ -1195,8 +1185,7 @@
           "average_price_sensor": "Daggemiddelde prijssensor (optioneel)",
           "price_discharge_control": "Alleen ontladen als prijs boven drempelwaarde",
           "solar_forecast_sensor": "Zonnevoorspellingssensor (kWh)",
-          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)",
-          "predictive_grid_charge_margin_pct": "Voorspellende netladingsmarge (%)"
+          "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor waarvan de toestand de huidige elektriciteits prijs is. Elke sensor die de huidige periodenprijs als toestand weergeeft, werkt.",
@@ -1204,8 +1193,7 @@
           "average_price_sensor": "Indien opgegeven, wordt deze waarde gebruikt als drempel in plaats van de vaste waarde — handig als uw prijsintegratie al een daggemiddelde blootstelt. Leeg laten voor de vaste drempel.",
           "price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteits prijs de drempelwaarde overschrijdt. Als tijdslots het ontladen beperken, moet aan beide voorwaarden worden voldaan.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt.",
-          "predictive_safety_margin_kwh": "Extra energiebuffer bij de verbruiksprognose. Dezelfde buffer in kWh wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen (standaard). Begrensd door de totale batterijcapaciteit.",
-          "predictive_grid_charge_margin_pct": "Extra percentage dat boven het zonne-tekort uit het net wordt geladen om optimistische zonneprognoses op te vangen. Bijv.: een netbehoefte van 2 kWh laadt bij 50% 3 kWh. 0 om uit te schakelen (standaard). Begrensd tot het gat tot max SOC."
+          "predictive_safety_margin_kwh": "Hoeveel de zonneprognose wordt gewantrouwd: deze kWh worden ervan afgetrokken voordat over laden wordt beslist, dus een hogere waarde laadt eerder. Dezelfde marge wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen. Standaard 5% van de totale batterijcapaciteit, en daartoe begrensd."
         }
       },
       "weekly_full_charge": {
@@ -2385,9 +2373,6 @@
       },
       "predictive_safety_margin_kwh": {
         "name": "Veiligheidsmarge Zonneprognose"
-      },
-      "predictive_grid_charge_margin_pct": {
-        "name": "Voorspellende Netladingsmarge"
       },
       "negative_injection_threshold": {
         "name": "Drempelwaarde negatieve teruglevering"

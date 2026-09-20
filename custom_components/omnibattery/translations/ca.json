@@ -360,16 +360,14 @@
           "end_time_3": "Franja 3 — hora de fi (opcional)",
           "days_3": "Franja 3 — dies de la setmana",
           "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de càrrega de xarxa predictiva (%)"
+          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
         },
         "data_description": {
           "start_time": "Hora d'inici de la franja de càrrega (ex: 01:00, tarifa vall)",
           "end_time": "Hora de fi de la franja de càrrega (ex: 06:00)",
           "days": "Dies en els quals es permet carregar des de la xarxa",
           "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Energia addicional afegida a la previsió de consum abans de decidir si carregar. El mateix marge en kWh també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar (per defecte). Limitat a la capacitat total de la bateria.",
-          "predictive_grid_charge_margin_pct": "Percentatge extra carregat des de la xarxa sobre el dèficit solar, per cobrir previsions solars optimistes. Ex.: una necessitat de 2 kWh de xarxa al 50% carrega 3 kWh. 0 per desactivar (per defecte). Limitat al marge fins al SOC màxim."
+          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
         }
       },
       "dynamic_pricing_config": {
@@ -395,8 +393,7 @@
           "predischarge_reserve_soc": "Reserva de SOC de predescàrrega (%)",
           "predischarge_export_mode": "Mode d'exportació deliberada a la xarxa",
           "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de càrrega de xarxa predictiva (%)"
+          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
         },
         "data_description": {
           "price_integration_type": "Selecciona la teva integració de preus d'electricitat",
@@ -418,8 +415,7 @@
           "predischarge_reserve_soc": "SOC que la predescàrrega ha de reservar, a més dels límits mínims existents.",
           "predischarge_export_mode": "Tria com crear espai anti-abocament: Solo autoconsum (0 W), Automàtic (només la potència necessària) o Límit personalitzat (es configura al pas següent). És un límit d'exportació deliberada, no la potència total de descàrrega.",
           "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Energia addicional afegida a la previsió de consum abans de decidir si carregar. El mateix marge en kWh també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar (per defecte). Limitat a la capacitat total de la bateria.",
-          "predictive_grid_charge_margin_pct": "Percentatge extra carregat des de la xarxa sobre el dèficit solar, per cobrir previsions solars optimistes. Ex.: una necessitat de 2 kWh de xarxa al 50% carrega 3 kWh. 0 per desactivar (per defecte). Limitat al marge fins al SOC màxim."
+          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
         }
       },
       "predischarge_export_limit": {
@@ -441,8 +437,7 @@
           "average_price_sensor": "Sensor de preu mitjà diari (opcional)",
           "price_discharge_control": "Descarregar només quan el preu superi el llindar",
           "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de càrrega de xarxa predictiva (%)"
+          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor l'estat del qual és el preu elèctric actual (ex: sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Funciona amb qualsevol sensor que exposi el preu del període actual com el seu estat.",
@@ -450,8 +445,7 @@
           "average_price_sensor": "Si es configura, el seu valor s'usa com a llindar en lloc del valor fix anterior — útil quan la teva integració de preus ja exposa un preu mitjà diari. Deixa'l buit per usar el llindar fix.",
           "price_discharge_control": "Si està activat, la bateria només descarrega quan el preu elèctric actual supera el llindar (fix o preu mitjà diari). Si les franges horàries restringeixen la descàrrega, s'han de complir totes dues condicions.",
           "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Energia addicional afegida a la previsió de consum abans de decidir si carregar. El mateix marge en kWh també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar (per defecte). Limitat a la capacitat total de la bateria.",
-          "predictive_grid_charge_margin_pct": "Percentatge extra carregat des de la xarxa sobre el dèficit solar, per cobrir previsions solars optimistes. Ex.: una necessitat de 2 kWh de xarxa al 50% carrega 3 kWh. 0 per desactivar (per defecte). Limitat al marge fins al SOC màxim."
+          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
         }
       },
       "weekly_full_charge": {
@@ -1114,16 +1108,14 @@
           "end_time_3": "Franja 3 — hora de fi (opcional)",
           "days_3": "Franja 3 — dies de la setmana",
           "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de càrrega de xarxa predictiva (%)"
+          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
         },
         "data_description": {
           "start_time": "Hora d'inici de la franja de càrrega (ex: 01:00, tarifa vall)",
           "end_time": "Hora de fi de la franja de càrrega (ex: 06:00)",
           "days": "Dies en els quals es permet carregar des de la xarxa",
           "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Energia addicional afegida a la previsió de consum abans de decidir si carregar. El mateix marge en kWh també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar (per defecte). Limitat a la capacitat total de la bateria.",
-          "predictive_grid_charge_margin_pct": "Percentatge extra carregat des de la xarxa sobre el dèficit solar, per cobrir previsions solars optimistes. Ex.: una necessitat de 2 kWh de xarxa al 50% carrega 3 kWh. 0 per desactivar (per defecte). Limitat al marge fins al SOC màxim."
+          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
         }
       },
       "dynamic_pricing_config": {
@@ -1149,8 +1141,7 @@
           "predischarge_reserve_soc": "Reserva de SOC de predescàrrega (%)",
           "predischarge_export_mode": "Mode d'exportació deliberada a la xarxa",
           "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de càrrega de xarxa predictiva (%)"
+          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
         },
         "data_description": {
           "price_integration_type": "Selecciona la teva integració de preus d'electricitat",
@@ -1172,8 +1163,7 @@
           "predischarge_reserve_soc": "SOC que la predescàrrega ha de reservar, a més dels límits mínims existents.",
           "predischarge_export_mode": "Tria com crear espai anti-abocament: Solo autoconsum (0 W), Automàtic (només la potència necessària) o Límit personalitzat (es configura al pas següent). És un límit d'exportació deliberada, no la potència total de descàrrega.",
           "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Energia addicional afegida a la previsió de consum abans de decidir si carregar. El mateix marge en kWh també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar (per defecte). Limitat a la capacitat total de la bateria.",
-          "predictive_grid_charge_margin_pct": "Percentatge extra carregat des de la xarxa sobre el dèficit solar, per cobrir previsions solars optimistes. Ex.: una necessitat de 2 kWh de xarxa al 50% carrega 3 kWh. 0 per desactivar (per defecte). Limitat al marge fins al SOC màxim."
+          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
         }
       },
       "predischarge_export_limit": {
@@ -1195,8 +1185,7 @@
           "average_price_sensor": "Sensor de preu mitjà diari (opcional)",
           "price_discharge_control": "Descarrega només quan el preu superi el llindar",
           "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de càrrega de xarxa predictiva (%)"
+          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor l'estat del qual és el preu elèctric actual (ex: sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Funciona amb qualsevol sensor que exposi el preu del període actual com el seu estat.",
@@ -1204,8 +1193,7 @@
           "average_price_sensor": "Si es configura, el seu valor s'usa com a llindar en lloc del valor fix anterior — útil quan la teva integració de preus ja exposa un preu mitjà diari. Deixa'l buit per usar el llindar fix.",
           "price_discharge_control": "Si està activat, la bateria només descarrega quan el preu elèctric actual supera el llindar (fix o preu mitjà diari). Si les franges horàries restringeixen la descàrrega, s'han de complir totes dues condicions.",
           "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Energia addicional afegida a la previsió de consum abans de decidir si carregar. El mateix marge en kWh també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar (per defecte). Limitat a la capacitat total de la bateria.",
-          "predictive_grid_charge_margin_pct": "Percentatge extra carregat des de la xarxa sobre el dèficit solar, per cobrir previsions solars optimistes. Ex.: una necessitat de 2 kWh de xarxa al 50% carrega 3 kWh. 0 per desactivar (per defecte). Limitat al marge fins al SOC màxim."
+          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
         }
       },
       "weekly_full_charge": {
@@ -2385,9 +2373,6 @@
       },
       "predictive_safety_margin_kwh": {
         "name": "Marge de Seguretat Previsió Solar"
-      },
-      "predictive_grid_charge_margin_pct": {
-        "name": "Marge de Càrrega de Xarxa Predictiva"
       },
       "negative_injection_threshold": {
         "name": "Llindar d'injecció negativa"
