@@ -37,6 +37,8 @@ from .const import (
     CONF_NEGATIVE_INJECTION_THRESHOLD,
     CONF_PREDISCHARGE_RESERVE_SOC,
     CONF_PREDISCHARGE_MAX_EXPORT_POWER_W,
+    CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
+    default_high_price_discharge_max_power,
     CONF_PREDISCHARGE_EXPORT_MODE,
     PREDISCHARGE_EXPORT_MODE_SELF_CONSUMPTION,
     PREDISCHARGE_EXPORT_MODE_CUSTOM,
@@ -473,8 +475,16 @@ class MarstekConfigNumberEntity(NumberEntity):
 
     @property
     def native_value(self):
-        """Return the current value from config_entry.data, converted to display units."""
-        raw = self.entry.data.get(self._key, self._definition["default"])
+        """Return the current value from config_entry.data, converted to display units.
+
+        ``high_price_discharge_max_power_w`` is the one entry whose authored
+        default is not a static number: an unset slider must show the fleet's
+        own discharge power, or the switch turns on a dead feature (#270).
+        """
+        default = self._definition["default"]
+        if self._key == CONF_HIGH_PRICE_DISCHARGE_MAX_POWER:
+            default = default_high_price_discharge_max_power(self.entry.data)
+        raw = self.entry.data.get(self._key, default)
         return raw / self._scale
 
     async def async_set_native_value(self, value: float) -> None:
