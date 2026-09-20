@@ -1487,6 +1487,9 @@
       "high_price_discharge": {
         "name": "Descarga por Precio Alto"
       },
+      "surplus_price_hold": {
+        "name": "Retención de excedente por precio"
+      },
       "primary_feedforward": {
         "name": "Anticipar la demanda real"
       },
@@ -2116,7 +2119,7 @@
         "name": "Estado de predescarga inteligente"
       },
       "surplus_price_hold_status": {
-        "name": "Retención de excedente por precio"
+        "name": "Estado de retención de excedente por precio"
       },
       "discharge_reserve_status": {
         "name": "Reserva de descarga"

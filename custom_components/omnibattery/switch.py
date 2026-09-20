@@ -22,6 +22,7 @@ from .const import (
     CONF_TEMP_LIMIT_APPLY_DISCHARGE,
     CONF_ENABLE_HOURLY_BALANCE,
     CONF_HIGH_PRICE_DISCHARGE_ENABLED,
+    CONF_SURPLUS_PRICE_HOLD_ENABLED,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
     CONF_ENABLE_WEEKLY_FULL_CHARGE,
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
@@ -161,6 +162,11 @@ async def async_setup_entry(
     # the options flow.
     if controller and CONF_HIGH_PRICE_DISCHARGE_ENABLED in entry.data:
         entities.append(HighPriceDischargeSwitch(hass, entry, controller))
+
+    # Same deal for price-aware surplus hold: it shipped with a slider and a
+    # diagnostic but no way to reach either from the dashboard.
+    if controller and CONF_SURPLUS_PRICE_HOLD_ENABLED in entry.data:
+        entities.append(SurplusPriceHoldSwitch(hass, entry, controller))
 
     # Add system power limits switch when the feature is configured. Mirrors the
     # number-platform heuristic so the toggle appears exactly when its sliders do
@@ -1871,6 +1877,59 @@ class HighPriceDischargeSwitch(SwitchEntity):
         new_data[CONF_HIGH_PRICE_DISCHARGE_ENABLED] = False
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         _LOGGER.info("High Price Discharge DISABLED")
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class SurplusPriceHoldSwitch(SwitchEntity):
+    """Switch to enable/disable price-aware solar surplus absorption."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the surplus price hold switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "surplus_price_hold"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}surplus_price_hold"
+        self.entity_id = system_entity_id("switch", "surplus_price_hold")
+        self._attr_icon = "mdi:transmission-tower-export"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if price-aware surplus hold is enabled."""
+        return self.controller.surplus_price_hold_enabled
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable price-aware surplus hold."""
+        self.controller.surplus_price_hold_enabled = True
+        new_data = dict(self.entry.data)
+        new_data[CONF_SURPLUS_PRICE_HOLD_ENABLED] = True
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Surplus Price Hold ENABLED")
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable price-aware surplus hold."""
+        # ponytail: no explicit plan teardown here. Writing the entry runs the
+        # update listener, and that path already clears the hold manager when
+        # the flag goes false — the same route the options flow takes.
+        self.controller.surplus_price_hold_enabled = False
+        new_data = dict(self.entry.data)
+        new_data[CONF_SURPLUS_PRICE_HOLD_ENABLED] = False
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Surplus Price Hold DISABLED")
         self.async_write_ha_state()
 
     @property

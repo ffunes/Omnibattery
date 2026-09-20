@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- **Price-aware surplus absorption is reachable from the dashboard**: its toggle and minimum-saving slider existed only in the options flow, so the feature was invisible. Its status sensor is renamed "… Status" so the two entities no longer share a name.
 - **Predictive charging now covers the night through to sunrise** (#410, #344): every layer that decided to buy grid energy stopped at midnight, so the hours between midnight and sunrise belonged to no plan and the battery reached the morning peak empty. If you raised the solar safety margin or the grid charge margin to cover the night by hand, lower them again. The "Guaranteed Minimum SOC" help text now describes what that setting actually does — a floor on the current SOC, not a morning target.
 - **The discharge reserve now holds energy for pre-dawn price peaks** (#410): it stopped reserving at midnight, on the grounds that tomorrow's sun would refill the battery anyway. There is no sun before dawn, so a peak at 06:00 was left to the grid. The reserve now reaches the next sunrise, and still never holds energy for tomorrow's evening peak. Only affects the opt-in "Discharge reserve" (#400).
 - **Dynamic Pricing re-plans when tomorrow's prices are published**: the 00:05 plan can only see today, so energy for the small hours was booked into today's slots even when the next day's were cheaper. Once the provider publishes (~13:00 CET), the remaining day is re-planned. Once a day, and never while a charge slot is running.

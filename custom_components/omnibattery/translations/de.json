@@ -1487,6 +1487,9 @@
       "high_price_discharge": {
         "name": "Hochpreis-Entladung"
       },
+      "surplus_price_hold": {
+        "name": "Preisbremse Solarüberschuss"
+      },
       "primary_feedforward": {
         "name": "Tatsächlichen Bedarf vorsteuern"
       },
@@ -2116,7 +2119,7 @@
         "name": "Status der intelligenten Vorentladung"
       },
       "surplus_price_hold_status": {
-        "name": "Preisbremse Solarüberschuss"
+        "name": "Status Preisbremse Solarüberschuss"
       },
       "discharge_reserve_status": {
         "name": "Entladereserve"
