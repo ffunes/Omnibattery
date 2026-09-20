@@ -188,29 +188,88 @@ def _load_definitions(version: str) -> dict[str, list[dict]]:
     return definitions
 
 
-def _load_register_blocks(version: str) -> list[dict]:
-    """Return this Marstek version's contiguous register-block table (issue #361).
+_MAX_BLOCK_REGISTERS = 125  # Modbus caps one read at 125 holding registers.
 
-    Block reads collapse already-adjacent registers into a single Modbus request so
-    the weak v3 MCU sees fewer frames. v3/vA/vD share the v3 register map and reuse
-    the v3 blocks; v2 has its own table. Which registers are contiguous is brand/
-    register detail, so this table — like the entity definitions — belongs in the
-    driver, not the coordinator.
+
+def _register_width(defn: dict) -> int:
+    """Registers a definition occupies, matching MarstekModbusClient's default."""
+    count = defn.get("count")
+    if isinstance(count, int) and count > 0:
+        return count
+    return 2 if defn.get("data_type") in ("int32", "uint32") else 1
+
+
+def _derive_register_blocks(definitions: list[dict]) -> list[dict]:
+    """Build the contiguous-block table from the entity definitions.
+
+    Same output shape and the same rule as the hand-maintained tables this
+    replaces (issue #361): only registers that are already adjacent are grouped,
+    never padding across a gap, so an unmapped address can never be pulled into
+    a block. What changes is that the rule is applied to every polled register
+    instead of the handful somebody noticed, which is where most of the saving
+    was still sitting: on a Venus D the per-poll request count drops by about a
+    fifth, and it is the two-second group that shrinks most.
+
+    Members of a block must share a scan interval, because a block is scheduled
+    as one unit and is fetched whenever it comes due.
+
+    Deriving also settles by itself what the table had to state by hand: only
+    vA/vD get the per-pack 34000 block (#439). A v3 shares the entity map but
+    not those registers, and its definitions do not carry them, so nothing to
+    group is there — where the table had to be told, and giving a v3 the block
+    would have burnt a failing read every cycle on the model that can least
+    afford one.
+
+    A span of one register is left out: it would be a block with a single
+    member, which reads exactly like the per-register path it replaced while
+    costing an extra layer to follow when reading a log.
     """
-    if version in _V3_FAMILY:
-        from ..const import REGISTER_BLOCKS_V3
-        if version in ("vA", "vD"):
-            # Only these have the per-pack 34000-block (#439). A v3 shares the
-            # entity map but not the registers, and a block group is built
-            # unconditionally, so giving it these would burn a failing read every
-            # cycle on the model that can least afford one.
-            from ..const import REGISTER_BLOCKS_VA_PACK_CELLS
-            return REGISTER_BLOCKS_V3 + REGISTER_BLOCKS_VA_PACK_CELLS
-        return REGISTER_BLOCKS_V3
-    if version == "v2":
-        from ..const import REGISTER_BLOCKS_V2
-        return REGISTER_BLOCKS_V2
-    return []
+    by_interval: dict[object, list[dict]] = {}
+    for defn in definitions:
+        if defn.get("register") is None:
+            continue
+        by_interval.setdefault(defn.get("scan_interval"), []).append(defn)
+
+    blocks: list[dict] = []
+    for scan_interval, entries in by_interval.items():
+        entries.sort(key=lambda d: d["register"])
+        run: list[dict] = []
+
+        def flush(run: list[dict]) -> None:
+            if len(run) < 2:
+                return
+            start = run[0]["register"]
+            end = max(d["register"] + _register_width(d) - 1 for d in run)
+            blocks.append({
+                "start": start,
+                "count": end - start + 1,
+                "scan_interval": scan_interval,
+                "members": [
+                    {
+                        "key": d["key"],
+                        "offset": d["register"] - start,
+                        "count": _register_width(d),
+                        "data_type": d.get("data_type", "uint16"),
+                    }
+                    for d in run
+                ],
+            })
+
+        end = None
+        for defn in entries:
+            register = defn["register"]
+            last = register + _register_width(defn) - 1
+            if run and register <= end + 1 and last - run[0]["register"] + 1 <= _MAX_BLOCK_REGISTERS:
+                run.append(defn)
+                end = max(end, last)
+                continue
+            flush(run)
+            run = [defn]
+            end = last
+        flush(run)
+
+    blocks.sort(key=lambda b: b["start"])
+    return blocks
 
 
 class MarstekModbusDriver(BatteryDriver):
@@ -291,7 +350,12 @@ class MarstekModbusDriver(BatteryDriver):
         # Contiguous register-block table for the production path; the injected-
         # definition test path polls every key individually (no blocks). Block
         # batching is an internal read optimisation — see :meth:`read_telemetry`.
-        self._register_blocks = _load_register_blocks(version) if definitions is None else []
+        # Derived from the definitions rather than read from a hand-maintained
+        # table: same adjacency rule, applied to everything that is polled.
+        # The injected-definition test path keeps polling key by key.
+        self._register_blocks = (
+            _derive_register_blocks(self._definitions["all"]) if definitions is None else []
+        )
 
         # Telemetry grouped into schedulable poll units (see :class:`ReadGroup`):
         # one group per block (read in a single request) plus a singleton group per
