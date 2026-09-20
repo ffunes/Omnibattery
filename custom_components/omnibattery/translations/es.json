@@ -387,6 +387,9 @@
           "surplus_hold_min_saving": "Ahorro mínimo para retener el excedente (moneda/kWh)",
           "discharge_reserve_enabled": "Activar la reserva de descarga según el precio",
           "discharge_reserve_min_saving": "Ahorro mínimo para la reserva de descarga (moneda/kWh)",
+          "high_price_discharge_enabled": "Activar la descarga por precio alto",
+          "high_price_discharge_max_power_w": "Potencia máxima de la descarga por precio alto (W)",
+          "high_price_discharge_additional_cost": "Coste adicional de la descarga por precio alto (moneda/kWh)",
           "export_price_sensor": "Sensor de precio de inyección/exportación (opcional)",
           "export_price_integration_type": "Integración del precio de exportación (opcional)",
           "negative_injection_threshold": "Umbral de inyección negativa",
@@ -408,6 +411,9 @@
           "surplus_hold_min_saving": "Cuánto más barata debe ser la mejor franja restante antes de retener el excedente. Evita conmutar por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
           "discharge_reserve_enabled": "Función opcional de precios dinámicos. El bloqueo de descarga por precio solo pregunta si la hora actual es barata, nunca si las horas más caras que quedan por delante necesitan la energía que hay en la batería. Esta reserva proyecta el perfil de consumo aprendido menos la producción fotovoltaica prevista sobre las franjas de precio restantes, da a las más caras el primer derecho sobre la energía almacenada y eleva el límite de descarga de cada batería en lo que esas horas reclaman. Todo lo que supere la reserva sigue disponible ahora mismo para el autoconsumo. Nunca se reserva más allá de medianoche, y el control manual, la predescarga inteligente, el recorte de picos y los límites de SOC por franja siempre tienen prioridad.",
           "discharge_reserve_min_saving": "Cuánto más cara debe ser una hora posterior que la actual antes de que su demanda pueda reclamar energía almacenada. Evita que el límite se mueva por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
+          "high_price_discharge_enabled": "Función opcional de precios dinámicos. Vende energía almacenada a la red en las franjas de precio de exportación más alto, pero solo la energía que queda ligada 1:1 a un déficit doméstico posterior dentro del horizonte, y solo cuando el precio de venta supera estrictamente el peor precio de recompra posterior de esa energía más el coste adicional configurado. Nunca vende por debajo de los límites de SOC, contra una orden de carga programada, ni durante la carga completa semanal, la predescarga anti-vertido, la protección de capacidad o el control manual. Si falta algún dato (previsión, precio, medidor de red), no exporta.",
+          "high_price_discharge_max_power_w": "Techo de la exportación deliberada, medido en neto en el punto de conexión a red (incluida la aportación solar simultánea). Cero significa configuración inválida: la función permanece inactiva hasta que se fija un límite positivo.",
+          "high_price_discharge_additional_cost": "Coste por kWh (desgaste, impuestos, peajes) que se suma al precio de recompra posterior antes de considerar rentable la venta. A cero, vende con el diferencial de precio bruto.",
           "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
           "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
           "negative_injection_threshold": "Los precios iguales o inferiores a este umbral son franjas de riesgo cuando se espera excedente solar.",
@@ -1137,6 +1143,9 @@
           "surplus_hold_min_saving": "Ahorro mínimo para retener el excedente (moneda/kWh)",
           "discharge_reserve_enabled": "Activar la reserva de descarga según el precio",
           "discharge_reserve_min_saving": "Ahorro mínimo para la reserva de descarga (moneda/kWh)",
+          "high_price_discharge_enabled": "Activar la descarga por precio alto",
+          "high_price_discharge_max_power_w": "Potencia máxima de la descarga por precio alto (W)",
+          "high_price_discharge_additional_cost": "Coste adicional de la descarga por precio alto (moneda/kWh)",
           "export_price_sensor": "Sensor de precio de inyección/exportación (opcional)",
           "export_price_integration_type": "Integración del precio de exportación (opcional)",
           "negative_injection_threshold": "Umbral de inyección negativa",
@@ -1158,6 +1167,9 @@
           "surplus_hold_min_saving": "Cuánto más barata debe ser la mejor franja restante antes de retener el excedente. Evita conmutar por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
           "discharge_reserve_enabled": "Función opcional de precios dinámicos. El bloqueo de descarga por precio solo pregunta si la hora actual es barata, nunca si las horas más caras que quedan por delante necesitan la energía que hay en la batería. Esta reserva proyecta el perfil de consumo aprendido menos la producción fotovoltaica prevista sobre las franjas de precio restantes, da a las más caras el primer derecho sobre la energía almacenada y eleva el límite de descarga de cada batería en lo que esas horas reclaman. Todo lo que supere la reserva sigue disponible ahora mismo para el autoconsumo. Nunca se reserva más allá de medianoche, y el control manual, la predescarga inteligente, el recorte de picos y los límites de SOC por franja siempre tienen prioridad.",
           "discharge_reserve_min_saving": "Cuánto más cara debe ser una hora posterior que la actual antes de que su demanda pueda reclamar energía almacenada. Evita que el límite se mueva por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
+          "high_price_discharge_enabled": "Función opcional de precios dinámicos. Vende energía almacenada a la red en las franjas de precio de exportación más alto, pero solo la energía que queda ligada 1:1 a un déficit doméstico posterior dentro del horizonte, y solo cuando el precio de venta supera estrictamente el peor precio de recompra posterior de esa energía más el coste adicional configurado. Nunca vende por debajo de los límites de SOC, contra una orden de carga programada, ni durante la carga completa semanal, la predescarga anti-vertido, la protección de capacidad o el control manual. Si falta algún dato (previsión, precio, medidor de red), no exporta.",
+          "high_price_discharge_max_power_w": "Techo de la exportación deliberada, medido en neto en el punto de conexión a red (incluida la aportación solar simultánea). Cero significa configuración inválida: la función permanece inactiva hasta que se fija un límite positivo.",
+          "high_price_discharge_additional_cost": "Coste por kWh (desgaste, impuestos, peajes) que se suma al precio de recompra posterior antes de considerar rentable la venta. A cero, vende con el diferencial de precio bruto.",
           "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
           "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
           "negative_injection_threshold": "Los precios iguales o inferiores a este umbral son franjas de riesgo cuando se espera excedente solar.",
@@ -1705,6 +1717,17 @@
           "charging_allowed": "Carga permitida",
           "skipped_full_charge_day": "Omitido – Día de carga completa",
           "charging_to_setpoint": "Cargando hasta setpoint"
+        }
+      },
+      "high_price_discharge_status": {
+        "name": "Estado de la Descarga por Precio Alto",
+        "state": {
+          "disabled": "Desactivado",
+          "invalid_configuration": "Configuración inválida",
+          "no_data": "Sin datos",
+          "blocked": "Bloqueado",
+          "waiting": "Esperando",
+          "active": "Activo"
         }
       },
       "battery_soc": {
@@ -2255,6 +2278,12 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Ahorro mínimo de retención de excedente"
+      },
+      "high_price_discharge_max_power_w": {
+        "name": "Potencia máxima de la descarga por precio alto"
+      },
+      "high_price_discharge_additional_cost": {
+        "name": "Coste adicional de la descarga por precio alto"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % excluido"

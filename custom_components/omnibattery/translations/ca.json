@@ -387,6 +387,9 @@
           "surplus_hold_min_saving": "Estalvi mínim per retenir l'excedent (moneda/kWh)",
           "discharge_reserve_enabled": "Activar la reserva de descàrrega segons el preu",
           "discharge_reserve_min_saving": "Estalvi mínim per a la reserva de descàrrega (moneda/kWh)",
+          "high_price_discharge_enabled": "Activar la descàrrega per preu alt",
+          "high_price_discharge_max_power_w": "Potència màxima de la descàrrega per preu alt (W)",
+          "high_price_discharge_additional_cost": "Cost addicional de la descàrrega per preu alt (moneda/kWh)",
           "export_price_sensor": "Sensor de preu d'injecció/exportació (opcional)",
           "export_price_integration_type": "Integració del preu d'exportació (opcional)",
           "negative_injection_threshold": "Llindar d'injecció negativa",
@@ -408,6 +411,9 @@
           "surplus_hold_min_saving": "Quant més barata ha de ser la millor franja restant abans de retenir l'excedent. Evita commutar per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
           "discharge_reserve_enabled": "Funció opcional de preus dinàmics. El bloqueig de descàrrega per preu només pregunta si l'hora actual és barata, mai si les hores més cares que encara han de venir necessiten l'energia que hi ha a la bateria. Aquesta reserva projecta el perfil de consum après menys la producció fotovoltaica prevista sobre les franges de preu restants, dona a les més cares el primer dret sobre l'energia emmagatzemada i apuja el límit de descàrrega de cada bateria en allò que aquelles hores reclamen. Tot el que superi la reserva continua disponible ara mateix per a l'autoconsum. Mai es reserva més enllà de mitjanit, i el control manual, la predescàrrega intel·ligent, la reducció de puntes i els límits de SOC per franja sempre tenen prioritat.",
           "discharge_reserve_min_saving": "Quant més cara ha de ser una hora posterior que l'actual abans que la seva demanda pugui reclamar energia emmagatzemada. Evita que el límit es mogui per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
+          "high_price_discharge_enabled": "Funció opcional de preus dinàmics. Ven energia emmagatzemada a la xarxa en les franges de preu d'exportació més alt, però només l'energia que queda lligada 1:1 a un dèficit domèstic posterior dins de l'horitzó, i només quan el preu de venda supera estrictament el pitjor preu de recompra posterior d'aquesta energia més el cost addicional configurat. Mai ven per sota dels límits de SOC, contra una ordre de càrrega programada, ni durant la càrrega completa setmanal, la predescàrrega anti-abocament, la protecció de capacitat o el control manual. Si falta qualsevol dada (previsió, preu, comptador de xarxa), no exporta.",
+          "high_price_discharge_max_power_w": "Sostre de l'exportació deliberada, mesurat net al punt de connexió a la xarxa (incloent l'aportació solar simultània). Zero significa configuració invàlida: la funció roman inactiva fins que es fixa un límit positiu.",
+          "high_price_discharge_additional_cost": "Cost per kWh (desgast, impostos, peatges) que se suma al preu de recompra posterior abans de considerar rendible la venda. A zero, ven amb el diferencial de preu brut.",
           "export_price_sensor": "Sensor que proporciona els preus d'injecció. Deixa'l buit per fer servir la corba de preus d'importació, que és el correcte quan la injecció es retribueix al preu d'importació (balanç net).",
           "export_price_integration_type": "Disposició d'atributs del sensor de preu d'exportació. Deixa'l buit per reutilitzar la integració d'importació. Tibber no hi és disponible: està basat en servei i la seva memòria cau pertany a la corba d'importació.",
           "negative_injection_threshold": "Preus iguals o inferiors a aquest llindar es consideren franges de risc quan hi ha excedent solar previst.",
@@ -1137,6 +1143,9 @@
           "surplus_hold_min_saving": "Estalvi mínim per retenir l'excedent (moneda/kWh)",
           "discharge_reserve_enabled": "Activar la reserva de descàrrega segons el preu",
           "discharge_reserve_min_saving": "Estalvi mínim per a la reserva de descàrrega (moneda/kWh)",
+          "high_price_discharge_enabled": "Activar la descàrrega per preu alt",
+          "high_price_discharge_max_power_w": "Potència màxima de la descàrrega per preu alt (W)",
+          "high_price_discharge_additional_cost": "Cost addicional de la descàrrega per preu alt (moneda/kWh)",
           "export_price_sensor": "Sensor de preu d'injecció/exportació (opcional)",
           "export_price_integration_type": "Integració del preu d'exportació (opcional)",
           "negative_injection_threshold": "Llindar d'injecció negativa",
@@ -1158,6 +1167,9 @@
           "surplus_hold_min_saving": "Quant més barata ha de ser la millor franja restant abans de retenir l'excedent. Evita commutar per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
           "discharge_reserve_enabled": "Funció opcional de preus dinàmics. El bloqueig de descàrrega per preu només pregunta si l'hora actual és barata, mai si les hores més cares que encara han de venir necessiten l'energia que hi ha a la bateria. Aquesta reserva projecta el perfil de consum après menys la producció fotovoltaica prevista sobre les franges de preu restants, dona a les més cares el primer dret sobre l'energia emmagatzemada i apuja el límit de descàrrega de cada bateria en allò que aquelles hores reclamen. Tot el que superi la reserva continua disponible ara mateix per a l'autoconsum. Mai es reserva més enllà de mitjanit, i el control manual, la predescàrrega intel·ligent, la reducció de puntes i els límits de SOC per franja sempre tenen prioritat.",
           "discharge_reserve_min_saving": "Quant més cara ha de ser una hora posterior que l'actual abans que la seva demanda pugui reclamar energia emmagatzemada. Evita que el límit es mogui per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
+          "high_price_discharge_enabled": "Funció opcional de preus dinàmics. Ven energia emmagatzemada a la xarxa en les franges de preu d'exportació més alt, però només l'energia que queda lligada 1:1 a un dèficit domèstic posterior dins de l'horitzó, i només quan el preu de venda supera estrictament el pitjor preu de recompra posterior d'aquesta energia més el cost addicional configurat. Mai ven per sota dels límits de SOC, contra una ordre de càrrega programada, ni durant la càrrega completa setmanal, la predescàrrega anti-abocament, la protecció de capacitat o el control manual. Si falta qualsevol dada (previsió, preu, comptador de xarxa), no exporta.",
+          "high_price_discharge_max_power_w": "Sostre de l'exportació deliberada, mesurat net al punt de connexió a la xarxa (incloent l'aportació solar simultània). Zero significa configuració invàlida: la funció roman inactiva fins que es fixa un límit positiu.",
+          "high_price_discharge_additional_cost": "Cost per kWh (desgast, impostos, peatges) que se suma al preu de recompra posterior abans de considerar rendible la venda. A zero, ven amb el diferencial de preu brut.",
           "export_price_sensor": "Sensor que proporciona els preus d'injecció. Deixa'l buit per fer servir la corba de preus d'importació, que és el correcte quan la injecció es retribueix al preu d'importació (balanç net).",
           "export_price_integration_type": "Disposició d'atributs del sensor de preu d'exportació. Deixa'l buit per reutilitzar la integració d'importació. Tibber no hi és disponible: està basat en servei i la seva memòria cau pertany a la corba d'importació.",
           "negative_injection_threshold": "Preus iguals o inferiors a aquest llindar es consideren franges de risc quan hi ha excedent solar previst.",
@@ -1705,6 +1717,17 @@
           "charging_allowed": "Càrrega permesa",
           "skipped_full_charge_day": "Omès – Dia de càrrega completa",
           "charging_to_setpoint": "Carregant fins al setpoint"
+        }
+      },
+      "high_price_discharge_status": {
+        "name": "Estat de la Descàrrega per Preu Alt",
+        "state": {
+          "disabled": "Desactivat",
+          "invalid_configuration": "Configuració invàlida",
+          "no_data": "Sense dades",
+          "blocked": "Bloquejat",
+          "waiting": "Esperant",
+          "active": "Actiu"
         }
       },
       "battery_soc": {
@@ -2255,6 +2278,12 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Estalvi mínim de retenció d'excedent"
+      },
+      "high_price_discharge_max_power_w": {
+        "name": "Potència màxima de la descàrrega per preu alt"
+      },
+      "high_price_discharge_additional_cost": {
+        "name": "Cost addicional de la descàrrega per preu alt"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % exclòs"

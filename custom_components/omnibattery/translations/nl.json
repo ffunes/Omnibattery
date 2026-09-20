@@ -387,6 +387,9 @@
           "surplus_hold_min_saving": "Minimale besparing voor vasthouden overschot (valuta/kWh)",
           "discharge_reserve_enabled": "Prijsbewuste ontlaadreserve inschakelen",
           "discharge_reserve_min_saving": "Minimale besparing voor ontlaadreserve (valuta/kWh)",
+          "high_price_discharge_enabled": "Hoogprijs-ontlading inschakelen",
+          "high_price_discharge_max_power_w": "Maximaal vermogen van hoogprijs-ontlading (W)",
+          "high_price_discharge_additional_cost": "Extra kosten van hoogprijs-ontlading (valuta/kWh)",
           "export_price_sensor": "Sensor voor teruglever-/exportprijs (optioneel)",
           "export_price_integration_type": "Integratie voor de exportprijs (optioneel)",
           "negative_injection_threshold": "Drempelwaarde negatieve teruglevering",
@@ -408,6 +411,9 @@
           "surplus_hold_min_saving": "Hoeveel goedkoper het beste resterende slot moet zijn voordat overschot wordt vastgehouden. Voorkomt schakelen op verwaarloosbare prijsverschillen. Gebruik hoofdvaluta/kWh.",
           "discharge_reserve_enabled": "Optionele functie voor dynamische prijzen. De bestaande prijsrem op ontladen vraagt alleen of het huidige uur goedkoop is, nooit of de duurdere uren die nog komen de energie in de batterij nodig hebben. Deze reserve projecteert het geleerde verbruiksprofiel min de verwachte zonneopbrengst op de resterende prijssloten, geeft de duurste sloten als eerste recht op de opgeslagen energie en verhoogt de ontlaadondergrens van elke batterij met wat die uren opeisen. Alles boven de reserve blijft nu beschikbaar voor eigen verbruik. Er wordt nooit over middernacht heen gereserveerd, en handmatige bediening, slim voorontladen, piekscheren en SOC-overschrijvingen per tijdslot gaan altijd voor.",
           "discharge_reserve_min_saving": "Hoeveel duurder een later uur moet zijn dan het huidige voordat de vraag van dat uur opgeslagen energie mag opeisen. Voorkomt dat de ondergrens beweegt op verwaarloosbare prijsverschillen. Gebruik hoofdvaluta/kWh.",
+          "high_price_discharge_enabled": "Optionele functie voor dynamische prijzen. Verkoopt opgeslagen energie aan het net tijdens de sloten met de hoogste terugleverprijs, maar alleen de energie die 1:1 gekoppeld is aan een later huishoudelijk tekort binnen de horizon, en alleen wanneer de verkoopprijs strikt hoger is dan de slechtste latere terugkoopprijs van die energie plus de ingestelde extra kosten. Verkoopt nooit onder de SOC-ondergrenzen, tegen een geplande laadopdracht, of tijdens de wekelijkse volledige lading, de anti-afregeling-voorontlading, de capaciteitsbescherming of de handmatige bediening. Ontbreekt er invoer (prognose, prijs, netmeter), dan wordt niet teruggeleverd.",
+          "high_price_discharge_max_power_w": "Bovengrens voor de bewuste teruglevering, netto gemeten op het netaansluitpunt (inclusief gelijktijdige zonnebijdrage). Nul betekent ongeldige configuratie: de functie blijft inactief totdat een positieve limiet is ingesteld.",
+          "high_price_discharge_additional_cost": "Kosten per kWh (slijtage, belastingen, heffingen) die worden opgeteld bij de latere terugkoopprijs voordat de verkoop als rendabel wordt beschouwd. Bij nul verkoopt ze op het bruto prijsverschil.",
           "export_price_sensor": "Sensor met de terugleverprijzen. Laat leeg om de importprijscurve te gebruiken; dat klopt wanneer teruglevering tegen de importprijs wordt vergoed (salderen).",
           "export_price_integration_type": "Attribuutindeling van de exportprijssensor. Laat leeg om de importintegratie te hergebruiken. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve.",
           "negative_injection_threshold": "Prijzen gelijk aan of lager dan deze drempel zijn risicoslots wanneer een zonne-overschot wordt verwacht.",
@@ -1137,6 +1143,9 @@
           "surplus_hold_min_saving": "Minimale besparing voor vasthouden overschot (valuta/kWh)",
           "discharge_reserve_enabled": "Prijsbewuste ontlaadreserve inschakelen",
           "discharge_reserve_min_saving": "Minimale besparing voor ontlaadreserve (valuta/kWh)",
+          "high_price_discharge_enabled": "Hoogprijs-ontlading inschakelen",
+          "high_price_discharge_max_power_w": "Maximaal vermogen van hoogprijs-ontlading (W)",
+          "high_price_discharge_additional_cost": "Extra kosten van hoogprijs-ontlading (valuta/kWh)",
           "export_price_sensor": "Sensor voor teruglever-/exportprijs (optioneel)",
           "export_price_integration_type": "Integratie voor de exportprijs (optioneel)",
           "negative_injection_threshold": "Drempelwaarde negatieve teruglevering",
@@ -1158,6 +1167,9 @@
           "surplus_hold_min_saving": "Hoeveel goedkoper het beste resterende slot moet zijn voordat overschot wordt vastgehouden. Voorkomt schakelen op verwaarloosbare prijsverschillen. Gebruik hoofdvaluta/kWh.",
           "discharge_reserve_enabled": "Optionele functie voor dynamische prijzen. De bestaande prijsrem op ontladen vraagt alleen of het huidige uur goedkoop is, nooit of de duurdere uren die nog komen de energie in de batterij nodig hebben. Deze reserve projecteert het geleerde verbruiksprofiel min de verwachte zonneopbrengst op de resterende prijssloten, geeft de duurste sloten als eerste recht op de opgeslagen energie en verhoogt de ontlaadondergrens van elke batterij met wat die uren opeisen. Alles boven de reserve blijft nu beschikbaar voor eigen verbruik. Er wordt nooit over middernacht heen gereserveerd, en handmatige bediening, slim voorontladen, piekscheren en SOC-overschrijvingen per tijdslot gaan altijd voor.",
           "discharge_reserve_min_saving": "Hoeveel duurder een later uur moet zijn dan het huidige voordat de vraag van dat uur opgeslagen energie mag opeisen. Voorkomt dat de ondergrens beweegt op verwaarloosbare prijsverschillen. Gebruik hoofdvaluta/kWh.",
+          "high_price_discharge_enabled": "Optionele functie voor dynamische prijzen. Verkoopt opgeslagen energie aan het net tijdens de sloten met de hoogste terugleverprijs, maar alleen de energie die 1:1 gekoppeld is aan een later huishoudelijk tekort binnen de horizon, en alleen wanneer de verkoopprijs strikt hoger is dan de slechtste latere terugkoopprijs van die energie plus de ingestelde extra kosten. Verkoopt nooit onder de SOC-ondergrenzen, tegen een geplande laadopdracht, of tijdens de wekelijkse volledige lading, de anti-afregeling-voorontlading, de capaciteitsbescherming of de handmatige bediening. Ontbreekt er invoer (prognose, prijs, netmeter), dan wordt niet teruggeleverd.",
+          "high_price_discharge_max_power_w": "Bovengrens voor de bewuste teruglevering, netto gemeten op het netaansluitpunt (inclusief gelijktijdige zonnebijdrage). Nul betekent ongeldige configuratie: de functie blijft inactief totdat een positieve limiet is ingesteld.",
+          "high_price_discharge_additional_cost": "Kosten per kWh (slijtage, belastingen, heffingen) die worden opgeteld bij de latere terugkoopprijs voordat de verkoop als rendabel wordt beschouwd. Bij nul verkoopt ze op het bruto prijsverschil.",
           "export_price_sensor": "Sensor met de terugleverprijzen. Laat leeg om de importprijscurve te gebruiken; dat klopt wanneer teruglevering tegen de importprijs wordt vergoed (salderen).",
           "export_price_integration_type": "Attribuutindeling van de exportprijssensor. Laat leeg om de importintegratie te hergebruiken. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve.",
           "negative_injection_threshold": "Prijzen gelijk aan of lager dan deze drempel zijn risicoslots wanneer een zonne-overschot wordt verwacht.",
@@ -1705,6 +1717,17 @@
           "charging_allowed": "Laden toegestaan",
           "skipped_full_charge_day": "Overgeslagen – Vollaaddag",
           "charging_to_setpoint": "Laden tot setpoint"
+        }
+      },
+      "high_price_discharge_status": {
+        "name": "Status Hoogprijs-ontlading",
+        "state": {
+          "disabled": "Uitgeschakeld",
+          "invalid_configuration": "Ongeldige configuratie",
+          "no_data": "Geen gegevens",
+          "blocked": "Geblokkeerd",
+          "waiting": "Wachtend",
+          "active": "Actief"
         }
       },
       "battery_soc": {
@@ -2255,6 +2278,12 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Minimale besparing overschotrem"
+      },
+      "high_price_discharge_max_power_w": {
+        "name": "Maximaal vermogen van hoogprijs-ontlading"
+      },
+      "high_price_discharge_additional_cost": {
+        "name": "Extra kosten van hoogprijs-ontlading"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – Uitsluiting %"

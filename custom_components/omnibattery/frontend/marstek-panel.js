@@ -85,7 +85,7 @@ const I18N = {
     diagTitle: "Integration status",
     diagIntegration: "Integration", diagPhaseProtection: "Phase protection", diagPdState: "PD state", diagNetBalance: "Net balance", diagAlarm: "Alarm",
     diagActiveBatteries: "Active batteries", diagNonResponsive: "No response",
-    diagDischargeWindow: "Discharge window", diagPredictive: "Predictive charging", diagCurtailment: "Smart pre-discharge", diagSurplusHold: "Surplus price hold", diagDischargeReserve: "Discharge reserve",
+    diagDischargeWindow: "Discharge window", diagPredictive: "Predictive charging", diagCurtailment: "Smart pre-discharge", diagSurplusHold: "Surplus price hold", diagHighPriceDischarge: "High price discharge", diagDischargeReserve: "Discharge reserve",
     diagPeak: "Peak shaving", diagWeeklyCharge: "Weekly charge", diagChargeDelay: "Charge delay",
     nResponsive: "{n} no response", none: "None",
     noBatteriesTitle: "No batteries",
@@ -171,7 +171,7 @@ const I18N = {
     diagTitle: "Estado de la integración",
     diagIntegration: "Integración", diagPhaseProtection: "Protección trifásica", diagPdState: "Estado PD", diagNetBalance: "Balance neto", diagAlarm: "Alarma",
     diagActiveBatteries: "Baterías activas", diagNonResponsive: "Sin respuesta",
-    diagDischargeWindow: "Ventana de descarga", diagPredictive: "Carga predictiva", diagCurtailment: "Predescarga inteligente", diagSurplusHold: "Retención de excedente por precio", diagDischargeReserve: "Reserva de descarga",
+    diagDischargeWindow: "Ventana de descarga", diagPredictive: "Carga predictiva", diagCurtailment: "Predescarga inteligente", diagSurplusHold: "Retención de excedente por precio", diagHighPriceDischarge: "Descarga por precio alto", diagDischargeReserve: "Reserva de descarga",
     diagPeak: "Reducción de picos", diagWeeklyCharge: "Carga semanal", diagChargeDelay: "Retardo de carga",
     nResponsive: "{n} sin respuesta", none: "Ninguna",
     noBatteriesTitle: "Sin baterías",
@@ -257,7 +257,7 @@ const I18N = {
     diagTitle: "Estat de la integració",
     diagIntegration: "Integració", diagPhaseProtection: "Protecció trifàsica", diagPdState: "Estat PD", diagNetBalance: "Balanç net", diagAlarm: "Alarma",
     diagActiveBatteries: "Bateries actives", diagNonResponsive: "Sense resposta",
-    diagDischargeWindow: "Finestra de descàrrega", diagPredictive: "Càrrega predictiva", diagCurtailment: "Predescàrrega intel·ligent", diagSurplusHold: "Retenció d'excedent per preu", diagDischargeReserve: "Reserva de descàrrega",
+    diagDischargeWindow: "Finestra de descàrrega", diagPredictive: "Càrrega predictiva", diagCurtailment: "Predescàrrega intel·ligent", diagSurplusHold: "Retenció d'excedent per preu", diagHighPriceDischarge: "Descàrrega per preu alt", diagDischargeReserve: "Reserva de descàrrega",
     diagPeak: "Reducció de pics", diagWeeklyCharge: "Càrrega setmanal", diagChargeDelay: "Retard de càrrega",
     nResponsive: "{n} sense resposta", none: "Cap",
     noBatteriesTitle: "Sense bateries",
@@ -339,7 +339,7 @@ const I18N = {
     diagTitle: "Integrationsstatus",
     diagIntegration: "Integration", diagPhaseProtection: "Phasenschutz", diagPdState: "PD-Status", diagNetBalance: "Netto-Balance", diagAlarm: "Alarm",
     diagActiveBatteries: "Aktive Batterien", diagNonResponsive: "Keine Antwort",
-    diagDischargeWindow: "Entladefenster", diagPredictive: "Prädiktives Laden", diagCurtailment: "Intelligente Vorentladung", diagSurplusHold: "Preisbremse Solarüberschuss", diagDischargeReserve: "Entladereserve",
+    diagDischargeWindow: "Entladefenster", diagPredictive: "Prädiktives Laden", diagCurtailment: "Intelligente Vorentladung", diagSurplusHold: "Preisbremse Solarüberschuss", diagHighPriceDischarge: "Entladung bei Hochpreis", diagDischargeReserve: "Entladereserve",
     diagPeak: "Spitzenlastkappung", diagWeeklyCharge: "Wöchentliche Ladung", diagChargeDelay: "Ladeverzögerung",
     nResponsive: "{n} ohne Antwort", none: "Keine",
     noBatteriesTitle: "Keine Batterien",
@@ -421,7 +421,7 @@ const I18N = {
     diagTitle: "État de l'intégration",
     diagIntegration: "Intégration", diagPhaseProtection: "Protection de phase", diagPdState: "État PD", diagNetBalance: "Bilan net", diagAlarm: "Alarme",
     diagActiveBatteries: "Batteries actives", diagNonResponsive: "Sans réponse",
-    diagDischargeWindow: "Fenêtre de décharge", diagPredictive: "Charge prédictive", diagCurtailment: "Pré-décharge intelligente", diagSurplusHold: "Retenue de surplus selon le prix", diagDischargeReserve: "Réserve de décharge",
+    diagDischargeWindow: "Fenêtre de décharge", diagPredictive: "Charge prédictive", diagCurtailment: "Pré-décharge intelligente", diagSurplusHold: "Retenue de surplus selon le prix", diagHighPriceDischarge: "Décharge à prix élevé", diagDischargeReserve: "Réserve de décharge",
     diagPeak: "Écrêtement de pointe", diagWeeklyCharge: "Charge hebdomadaire", diagChargeDelay: "Délai de charge",
     nResponsive: "{n} sans réponse", none: "Aucune",
     noBatteriesTitle: "Aucune batterie",
@@ -503,7 +503,7 @@ const I18N = {
     diagTitle: "Integratiestatus",
     diagIntegration: "Integratie", diagPhaseProtection: "Fasebeveiliging", diagPdState: "PD-status", diagNetBalance: "Nettosaldo", diagAlarm: "Alarm",
     diagActiveBatteries: "Actieve batterijen", diagNonResponsive: "Geen reactie",
-    diagDischargeWindow: "Ontlaadvenster", diagPredictive: "Voorspellend laden", diagCurtailment: "Slim voorontladen", diagSurplusHold: "Prijsrem zonne-overschot", diagDischargeReserve: "Ontlaadreserve",
+    diagDischargeWindow: "Ontlaadvenster", diagPredictive: "Voorspellend laden", diagCurtailment: "Slim voorontladen", diagSurplusHold: "Prijsrem zonne-overschot", diagHighPriceDischarge: "Ontladen bij hoge prijs", diagDischargeReserve: "Ontlaadreserve",
     diagPeak: "Piekbegrenzing", diagWeeklyCharge: "Wekelijkse lading", diagChargeDelay: "Laadvertraging",
     nResponsive: "{n} geen reactie", none: "Geen",
     noBatteriesTitle: "Geen batterijen",
@@ -887,6 +887,7 @@ const K = {
   predictiveActive: "predictive_charging_active",
   curtailmentActive: "curtailment_status",
   surplusHold: "surplus_price_hold_status",
+  highPriceDischarge: "high_price_discharge_status",
   dischargeReserve: "discharge_reserve_status",
   capacityActive: "capacity_protection_active",
   weeklyFullCharge: "weekly_full_charge",
@@ -915,6 +916,7 @@ const DIAG_ROWS = [
   { key: K.predictiveActive, lk: "diagPredictive" },
   { key: K.curtailmentActive, lk: "diagCurtailment" },
   { key: K.surplusHold, lk: "diagSurplusHold" },
+  { key: K.highPriceDischarge, lk: "diagHighPriceDischarge" },
   { key: K.dischargeReserve, lk: "diagDischargeReserve" },
   { key: K.chargeDelay, lk: "diagChargeDelay" },
   { key: K.weeklyFullCharge, lk: "diagWeeklyCharge" },
@@ -1138,6 +1140,7 @@ const SYS_SECTIONS = [
       { key: "predischarge_max_export_power_w", lk: "itemPredischargeExport", icon: "mdi:transmission-tower-export" },
       { key: "curtailment_status", domain: "binary_sensor", lk: "diagCurtailment", icon: "mdi:solar-power-variant" },
       { key: "surplus_price_hold_status", domain: "binary_sensor", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export" },
+      { key: "high_price_discharge_status", domain: "sensor", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export" },
       { key: "discharge_reserve_status", domain: "binary_sensor", lk: "diagDischargeReserve", icon: "mdi:battery-lock" },
       // Dynamic pricing and time slot only; the system button does not exist on
       // real-time installs, so there this row simply doesn't render.
@@ -1261,6 +1264,7 @@ const SYS_HELP = {
     predischarge_max_export_power_w: "Maximum deliberate grid export during pre-discharge. 0 W means self-consumption only; the planner never controls the PV inverter.",
     curtailment_status: "Live plan diagnostics: risk windows, current/required headroom, selected expensive slots, targets and any shortfall or fail-safe reason.",
     surplus_price_hold_status: "On while PV surplus is deliberately exported instead of stored, because a cheaper feed-in window is still ahead. Attributes show the day's absorption target, the selected cheap slots and the release reason.",
+    high_price_discharge_status: "Active while stored energy is deliberately exported during a high export-price window, sized 1:1 to a later home deficit that can be repurchased cheaper. Attributes show the reason, the target power, the plan status, protected demand, usable energy, total allocated energy and the per-slot allocations.",
     discharge_reserve_status: "On while part of the stored energy is held back because a dearer hour is still ahead today. Attributes show the reserved SOC, the slots claiming it and the release reason.",
     diagChargeDelay: "Delays battery charging until the solar energy balance indicates it's needed, exporting excess solar to grid in the meantime.",
     secHourly: "Tracks grid import/export per hour and automatically adjusts the battery setpoint to achieve a target net energy balance.\n\n⚠️ Only useful in Spain, under the hourly surplus-compensation scheme (RD 244/2019), where grid surplus is settled hour by hour. In feed-in-tariff or annual-net-metering markets it provides no benefit and may cause lost export revenue and unnecessary battery cycling.",
@@ -4677,6 +4681,12 @@ class MarstekVenusPanel extends HTMLElement {
       case K.surplusHold:
       case K.capacityActive:
         return { text: disp, tone: raw === "on" ? "good" : "neutral" };
+      case K.highPriceDischarge: {
+        if (raw === "active") return { text: disp, tone: "good" };
+        if (raw === "blocked") return { text: disp, tone: "warn" };
+        if (raw === "invalid_configuration") return { text: disp, tone: "bad" };
+        return { text: disp, tone: "neutral" };
+      }
       case K.dischargeWindow: {
         const n = so.attributes && so.attributes.active_slot;
         const txt = raw === "active" && n ? `${disp} · ${this._t("itemSlot")} ${n}` : disp;

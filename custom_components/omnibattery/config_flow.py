@@ -117,6 +117,12 @@ from .const import (
     DEFAULT_DISCHARGE_RESERVE_ENABLED,
     CONF_DISCHARGE_RESERVE_MIN_SAVING,
     DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
+    CONF_HIGH_PRICE_DISCHARGE_ENABLED,
+    DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED,
+    CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
+    DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER,
+    CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
+    DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_EXPORT_PRICE_INTEGRATION_TYPE,
     CONF_NEGATIVE_INJECTION_THRESHOLD,
@@ -2718,6 +2724,15 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                         self.config_data[CONF_DISCHARGE_RESERVE_MIN_SAVING] = user_input.get(
                             CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
                         )
+                        self.config_data[CONF_HIGH_PRICE_DISCHARGE_ENABLED] = user_input.get(
+                            CONF_HIGH_PRICE_DISCHARGE_ENABLED, DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED
+                        )
+                        self.config_data[CONF_HIGH_PRICE_DISCHARGE_MAX_POWER] = user_input.get(
+                            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER, DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER
+                        )
+                        self.config_data[CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST] = user_input.get(
+                            CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST, DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST
+                        )
                         self.config_data[CONF_EXPORT_PRICE_SENSOR] = user_input.get(
                             CONF_EXPORT_PRICE_SENSOR
                         )
@@ -2777,6 +2792,13 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         )
         schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_ENABLED, default=DEFAULT_DISCHARGE_RESERVE_ENABLED)] = bool
         schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_MIN_SAVING, default=DEFAULT_DISCHARGE_RESERVE_MIN_SAVING)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
+        )
+        schema_dict[vol.Optional(CONF_HIGH_PRICE_DISCHARGE_ENABLED, default=DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED)] = bool
+        schema_dict[vol.Optional(CONF_HIGH_PRICE_DISCHARGE_MAX_POWER, default=DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=10000, step=50, unit_of_measurement="W", mode=NumberSelectorMode.BOX)
+        )
+        schema_dict[vol.Optional(CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST, default=DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST)] = NumberSelector(
             NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
         )
         schema_dict[vol.Optional(CONF_EXPORT_PRICE_SENSOR)] = EntitySelector(
@@ -5547,6 +5569,27 @@ class OptionsFlowHandler(OptionsFlow):
                                 DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
                             ),
                         )
+                        self.config_data[CONF_HIGH_PRICE_DISCHARGE_ENABLED] = user_input.get(
+                            CONF_HIGH_PRICE_DISCHARGE_ENABLED,
+                            existing_config.get(
+                                CONF_HIGH_PRICE_DISCHARGE_ENABLED,
+                                DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED,
+                            ),
+                        )
+                        self.config_data[CONF_HIGH_PRICE_DISCHARGE_MAX_POWER] = user_input.get(
+                            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
+                            existing_config.get(
+                                CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
+                                DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER,
+                            ),
+                        )
+                        self.config_data[CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST] = user_input.get(
+                            CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
+                            existing_config.get(
+                                CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
+                                DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
+                            ),
+                        )
                         # Cleared entity/select fields arrive absent, so read them
                         # straight from the submission rather than falling back to
                         # the stored value — that is what makes the × button work.
@@ -5612,6 +5655,15 @@ class OptionsFlowHandler(OptionsFlow):
         default_discharge_reserve_min_saving = existing_config.get(
             CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
         )
+        default_high_price_discharge = existing_config.get(
+            CONF_HIGH_PRICE_DISCHARGE_ENABLED, DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED
+        )
+        default_high_price_discharge_max_power = existing_config.get(
+            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER, DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER
+        )
+        default_high_price_discharge_additional_cost = existing_config.get(
+            CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST, DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST
+        )
         default_export_sensor = existing_config.get(CONF_EXPORT_PRICE_SENSOR)
         default_export_type = existing_config.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
         default_negative_threshold = existing_config.get(
@@ -5662,6 +5714,13 @@ class OptionsFlowHandler(OptionsFlow):
         )
         schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_ENABLED, default=default_discharge_reserve)] = bool
         schema_dict[vol.Optional(CONF_DISCHARGE_RESERVE_MIN_SAVING, default=default_discharge_reserve_min_saving)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
+        )
+        schema_dict[vol.Optional(CONF_HIGH_PRICE_DISCHARGE_ENABLED, default=default_high_price_discharge)] = bool
+        schema_dict[vol.Optional(CONF_HIGH_PRICE_DISCHARGE_MAX_POWER, default=default_high_price_discharge_max_power)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=10000, step=50, unit_of_measurement="W", mode=NumberSelectorMode.BOX)
+        )
+        schema_dict[vol.Optional(CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST, default=default_high_price_discharge_additional_cost)] = NumberSelector(
             NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=NumberSelectorMode.BOX)
         )
         # Clearable: suggested_value pre-fills without voluptuous restoring the
