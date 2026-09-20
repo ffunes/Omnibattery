@@ -1487,6 +1487,9 @@
       "high_price_discharge": {
         "name": "Descàrrega per Preu Alt"
       },
+      "surplus_price_hold": {
+        "name": "Retenció d'excedent per preu"
+      },
       "primary_feedforward": {
         "name": "Anticipar la demanda real"
       },
@@ -2116,7 +2119,7 @@
         "name": "Estat de predescàrrega intel·ligent"
       },
       "surplus_price_hold_status": {
-        "name": "Retenció d'excedent per preu"
+        "name": "Estat de retenció d'excedent per preu"
       },
       "discharge_reserve_status": {
         "name": "Reserva de descàrrega"

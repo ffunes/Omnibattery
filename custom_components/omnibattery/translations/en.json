@@ -1489,6 +1489,9 @@
       "high_price_discharge": {
         "name": "High-Price Discharge"
       },
+      "surplus_price_hold": {
+        "name": "Surplus Price Hold"
+      },
       "primary_feedforward": {
         "name": "Feed the real demand forward"
       },
@@ -2118,7 +2121,7 @@
         "name": "Smart Pre-discharge Status"
       },
       "surplus_price_hold_status": {
-        "name": "Surplus Price Hold"
+        "name": "Surplus Price Hold Status"
       },
       "discharge_reserve_status": {
         "name": "Discharge Reserve"

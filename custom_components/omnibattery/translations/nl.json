@@ -1487,6 +1487,9 @@
       "high_price_discharge": {
         "name": "Hoogprijs-ontlading"
       },
+      "surplus_price_hold": {
+        "name": "Prijsrem zonne-overschot"
+      },
       "primary_feedforward": {
         "name": "Werkelijke vraag vooruitsturen"
       },
@@ -2116,7 +2119,7 @@
         "name": "Status slim voorontladen"
       },
       "surplus_price_hold_status": {
-        "name": "Prijsrem zonne-overschot"
+        "name": "Status prijsrem zonne-overschot"
       },
       "discharge_reserve_status": {
         "name": "Ontlaadreserve"
