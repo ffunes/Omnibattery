@@ -1238,6 +1238,17 @@ CONFIG_NUMBER_DEFINITIONS = [
         "condition": CONF_SURPLUS_PRICE_HOLD_ENABLED,
     },
     {
+        "key": CONF_DISCHARGE_RESERVE_MIN_SAVING,
+        "name": "Discharge Reserve Minimum Saving",
+        "min": 0.0,
+        "max": 1.0,
+        "step": 0.001,
+        "unit": "/kWh",
+        "default": DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
+        "icon": "mdi:cash-minus",
+        "condition": CONF_DISCHARGE_RESERVE_ENABLED,
+    },
+    {
         "key": CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
         "name": "High Price Discharge Max Power",
         "min": 0.0,

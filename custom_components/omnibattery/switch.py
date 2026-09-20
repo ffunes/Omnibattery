@@ -23,6 +23,7 @@ from .const import (
     CONF_ENABLE_HOURLY_BALANCE,
     CONF_HIGH_PRICE_DISCHARGE_ENABLED,
     CONF_SURPLUS_PRICE_HOLD_ENABLED,
+    CONF_DISCHARGE_RESERVE_ENABLED,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
     CONF_ENABLE_WEEKLY_FULL_CHARGE,
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
@@ -167,6 +168,12 @@ async def async_setup_entry(
     # diagnostic but no way to reach either from the dashboard.
     if controller and CONF_SURPLUS_PRICE_HOLD_ENABLED in entry.data:
         entities.append(SurplusPriceHoldSwitch(hass, entry, controller))
+
+    # Same deal for the price-aware discharge reserve: it shipped with a
+    # diagnostic (discharge_reserve_status) but no way to reach it from the
+    # dashboard.
+    if controller and CONF_DISCHARGE_RESERVE_ENABLED in entry.data:
+        entities.append(DischargeReserveSwitch(hass, entry, controller))
 
     # Add system power limits switch when the feature is configured. Mirrors the
     # number-platform heuristic so the toggle appears exactly when its sliders do
@@ -1930,6 +1937,56 @@ class SurplusPriceHoldSwitch(SwitchEntity):
         new_data[CONF_SURPLUS_PRICE_HOLD_ENABLED] = False
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         _LOGGER.info("Surplus Price Hold DISABLED")
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class DischargeReserveSwitch(SwitchEntity):
+    """Switch to enable/disable the price-aware discharge reserve."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the discharge reserve switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "discharge_reserve"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}discharge_reserve"
+        self.entity_id = system_entity_id("switch", "discharge_reserve")
+        self._attr_icon = "mdi:battery-lock"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if the price-aware discharge reserve is enabled."""
+        return self.controller.discharge_reserve_enabled
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable the price-aware discharge reserve."""
+        self.controller.discharge_reserve_enabled = True
+        new_data = dict(self.entry.data)
+        new_data[CONF_DISCHARGE_RESERVE_ENABLED] = True
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Discharge Reserve ENABLED")
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable the price-aware discharge reserve."""
+        self.controller.discharge_reserve_enabled = False
+        new_data = dict(self.entry.data)
+        new_data[CONF_DISCHARGE_RESERVE_ENABLED] = False
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Discharge Reserve DISABLED")
         self.async_write_ha_state()
 
     @property
