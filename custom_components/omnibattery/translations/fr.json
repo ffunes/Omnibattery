@@ -387,6 +387,9 @@
           "surplus_hold_min_saving": "Économie minimale pour retenir le surplus (devise/kWh)",
           "discharge_reserve_enabled": "Activer la réserve de décharge selon le prix",
           "discharge_reserve_min_saving": "Économie minimale pour la réserve de décharge (devise/kWh)",
+          "high_price_discharge_enabled": "Activer la décharge à prix élevé",
+          "high_price_discharge_max_power_w": "Puissance maximale de la décharge à prix élevé (W)",
+          "high_price_discharge_additional_cost": "Coût supplémentaire de la décharge à prix élevé (devise/kWh)",
           "export_price_sensor": "Capteur de prix d'injection/revente (optionnel)",
           "export_price_integration_type": "Intégration du prix d'export (optionnel)",
           "negative_injection_threshold": "Seuil d'injection négative",
@@ -408,6 +411,9 @@
           "surplus_hold_min_saving": "De combien le meilleur créneau restant doit être moins cher avant de retenir le surplus. Évite les bascules sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
           "discharge_reserve_enabled": "Fonction optionnelle de tarification dynamique. Le blocage de décharge basé sur le prix demande seulement si l'heure actuelle est bon marché, jamais si les heures plus chères à venir ont besoin de l'énergie stockée dans la batterie. Cette réserve projette le profil de consommation appris moins la production PV attendue sur les créneaux de prix restants, donne aux plus chers d'entre eux la priorité sur l'énergie stockée et relève le seuil de décharge de chaque batterie de ce que ces heures réclament. Tout ce qui dépasse la réserve reste disponible immédiatement pour l'autoconsommation. Rien n'est jamais réservé au-delà de minuit, et le pilotage manuel, la pré-décharge intelligente, l'écrêtage de pointe et les seuils de SOC par créneau restent prioritaires.",
           "discharge_reserve_min_saving": "De combien une heure ultérieure doit être plus chère que l'heure actuelle avant que son besoin puisse réclamer de l'énergie stockée. Évite que le seuil bouge sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
+          "high_price_discharge_enabled": "Fonction optionnelle de tarification dynamique. Vend de l'énergie stockée au réseau pendant les créneaux de prix d'exportation les plus élevés, mais uniquement l'énergie liée 1:1 à un déficit domestique ultérieur dans l'horizon, et seulement lorsque le prix de vente dépasse strictement le pire prix de rachat ultérieur de cette énergie majoré du coût supplémentaire configuré. Ne vend jamais en dessous des seuils de SOC, contre un ordre de charge planifié, ni pendant la charge complète hebdomadaire, la pré-décharge anti-écrêtage, la protection de capacité ou le pilotage manuel. Si une donnée manque (prévision, prix, compteur réseau), elle n'exporte pas.",
+          "high_price_discharge_max_power_w": "Plafond de l'exportation délibérée, mesuré net au point de raccordement (y compris l'apport solaire simultané). Zéro signifie une configuration invalide : la fonction reste inactive tant qu'une limite positive n'est pas définie.",
+          "high_price_discharge_additional_cost": "Coût par kWh (usure, taxes, péages) ajouté au prix de rachat ultérieur avant de considérer la vente comme rentable. À zéro, elle vend sur l'écart de prix brut.",
           "export_price_sensor": "Capteur fournissant les prix d'injection. Laisser vide pour utiliser la courbe des prix d'import, ce qui est correct lorsque l'injection est rémunérée au prix d'import (net metering).",
           "export_price_integration_type": "Disposition des attributs du capteur de prix d'export. Laisser vide pour réutiliser l'intégration d'import. Tibber n'est pas disponible ici : il repose sur un service et son cache appartient à la courbe d'import.",
           "negative_injection_threshold": "Les prix inférieurs ou égaux à ce seuil sont considérés comme des créneaux à risque lorsqu'un surplus solaire est prévu.",
@@ -1141,6 +1147,9 @@
           "surplus_hold_min_saving": "Économie minimale pour retenir le surplus (devise/kWh)",
           "discharge_reserve_enabled": "Activer la réserve de décharge selon le prix",
           "discharge_reserve_min_saving": "Économie minimale pour la réserve de décharge (devise/kWh)",
+          "high_price_discharge_enabled": "Activer la décharge à prix élevé",
+          "high_price_discharge_max_power_w": "Puissance maximale de la décharge à prix élevé (W)",
+          "high_price_discharge_additional_cost": "Coût supplémentaire de la décharge à prix élevé (devise/kWh)",
           "export_price_sensor": "Capteur de prix d'injection/revente (optionnel)",
           "export_price_integration_type": "Intégration du prix d'export (optionnel)",
           "negative_injection_threshold": "Seuil d'injection négative",
@@ -1162,6 +1171,9 @@
           "surplus_hold_min_saving": "De combien le meilleur créneau restant doit être moins cher avant de retenir le surplus. Évite les bascules sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
           "discharge_reserve_enabled": "Fonction optionnelle de tarification dynamique. Le blocage de décharge basé sur le prix demande seulement si l'heure actuelle est bon marché, jamais si les heures plus chères à venir ont besoin de l'énergie stockée dans la batterie. Cette réserve projette le profil de consommation appris moins la production PV attendue sur les créneaux de prix restants, donne aux plus chers d'entre eux la priorité sur l'énergie stockée et relève le seuil de décharge de chaque batterie de ce que ces heures réclament. Tout ce qui dépasse la réserve reste disponible immédiatement pour l'autoconsommation. Rien n'est jamais réservé au-delà de minuit, et le pilotage manuel, la pré-décharge intelligente, l'écrêtage de pointe et les seuils de SOC par créneau restent prioritaires.",
           "discharge_reserve_min_saving": "De combien une heure ultérieure doit être plus chère que l'heure actuelle avant que son besoin puisse réclamer de l'énergie stockée. Évite que le seuil bouge sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
+          "high_price_discharge_enabled": "Fonction optionnelle de tarification dynamique. Vend de l'énergie stockée au réseau pendant les créneaux de prix d'exportation les plus élevés, mais uniquement l'énergie liée 1:1 à un déficit domestique ultérieur dans l'horizon, et seulement lorsque le prix de vente dépasse strictement le pire prix de rachat ultérieur de cette énergie majoré du coût supplémentaire configuré. Ne vend jamais en dessous des seuils de SOC, contre un ordre de charge planifié, ni pendant la charge complète hebdomadaire, la pré-décharge anti-écrêtage, la protection de capacité ou le pilotage manuel. Si une donnée manque (prévision, prix, compteur réseau), elle n'exporte pas.",
+          "high_price_discharge_max_power_w": "Plafond de l'exportation délibérée, mesuré net au point de raccordement (y compris l'apport solaire simultané). Zéro signifie une configuration invalide : la fonction reste inactive tant qu'une limite positive n'est pas définie.",
+          "high_price_discharge_additional_cost": "Coût par kWh (usure, taxes, péages) ajouté au prix de rachat ultérieur avant de considérer la vente comme rentable. À zéro, elle vend sur l'écart de prix brut.",
           "export_price_sensor": "Capteur fournissant les prix d'injection. Laisser vide pour utiliser la courbe des prix d'import, ce qui est correct lorsque l'injection est rémunérée au prix d'import (net metering).",
           "export_price_integration_type": "Disposition des attributs du capteur de prix d'export. Laisser vide pour réutiliser l'intégration d'import. Tibber n'est pas disponible ici : il repose sur un service et son cache appartient à la courbe d'import.",
           "negative_injection_threshold": "Les prix inférieurs ou égaux à ce seuil sont considérés comme des créneaux à risque lorsqu'un surplus solaire est prévu.",
@@ -1712,6 +1724,17 @@
           "charging_to_setpoint": "Charge jusqu'au seuil"
         }
       },
+      "high_price_discharge_status": {
+        "name": "État de la Décharge à Prix Élevé",
+        "state": {
+          "disabled": "Désactivé",
+          "invalid_configuration": "Configuration invalide",
+          "no_data": "Aucune donnée",
+          "blocked": "Bloqué",
+          "waiting": "En attente",
+          "active": "Actif"
+        }
+      },
       "battery_soc": {
         "name": "SOC Batterie"
       },
@@ -2260,6 +2283,12 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Économie minimale de retenue du surplus"
+      },
+      "high_price_discharge_max_power_w": {
+        "name": "Puissance maximale de la décharge à prix élevé"
+      },
+      "high_price_discharge_additional_cost": {
+        "name": "Coût supplémentaire de la décharge à prix élevé"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % exclu"
