@@ -199,6 +199,22 @@ def _register_width(defn: dict) -> int:
     return 2 if defn.get("data_type") in ("int32", "uint32") else 1
 
 
+def _probe_family(key: str) -> str:
+    """Which probe decides whether a key is polled at all.
+
+    A pack slot that never answers leaves the read groups, and a group goes as
+    a whole (see :meth:`MarstekModbusDriver._learn_pack`). Grouping a probed
+    key with an unprobed neighbour would therefore let an absent pack take an
+    unrelated register out of the poll with it, so they are kept apart - the
+    same way a differing scan interval keeps two neighbours apart.
+    """
+    if key in PACK_SOC_KEYS:
+        return "pack-soc"
+    if key in _PACK_CELL_KEYS:
+        return "pack-cell"
+    return ""
+
+
 def _derive_register_blocks(definitions: list[dict]) -> list[dict]:
     """Build the contiguous-block table from the entity definitions.
 
@@ -211,7 +227,9 @@ def _derive_register_blocks(definitions: list[dict]) -> list[dict]:
     fifth, and it is the two-second group that shrinks most.
 
     Members of a block must share a scan interval, because a block is scheduled
-    as one unit and is fetched whenever it comes due.
+    as one unit and is fetched whenever it comes due, and must belong to the
+    same probe family (see :func:`_probe_family`), because a group that is
+    dropped is dropped whole.
 
     Deriving also settles by itself what the table had to state by hand: only
     vA/vD get the per-pack 34000 block (#439). A v3 shares the entity map but
@@ -224,14 +242,16 @@ def _derive_register_blocks(definitions: list[dict]) -> list[dict]:
     member, which reads exactly like the per-register path it replaced while
     costing an extra layer to follow when reading a log.
     """
-    by_interval: dict[object, list[dict]] = {}
+    partitions: dict[tuple, list[dict]] = {}
     for defn in definitions:
         if defn.get("register") is None:
             continue
-        by_interval.setdefault(defn.get("scan_interval"), []).append(defn)
+        partitions.setdefault(
+            (defn.get("scan_interval"), _probe_family(defn["key"])), []
+        ).append(defn)
 
     blocks: list[dict] = []
-    for scan_interval, entries in by_interval.items():
+    for (scan_interval, _family), entries in partitions.items():
         entries.sort(key=lambda d: d["register"])
         run: list[dict] = []
 

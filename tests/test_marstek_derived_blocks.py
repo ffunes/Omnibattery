@@ -174,3 +174,21 @@ def test_only_va_and_vd_get_the_per_pack_block() -> None:
     """
     v3 = _derive_register_blocks(_definitions("v3"))
     assert [b for b in v3 if 34000 <= b["start"] < 35000] == []
+
+
+def test_a_probed_pack_key_is_never_grouped_with_an_ordinary_one() -> None:
+    """A pack slot that never answers must not take a neighbour with it.
+
+    34002 is pack 1's SOC and 34003 the cycle count - adjacent, same cadence,
+    and grouping them would look like a free saving. But an absent pack slot
+    leaves the read groups group by group, so the cycle count would leave with
+    it and never be read again on that battery.
+    """
+    from custom_components.omnibattery.drivers.marstek import _probe_family
+
+    for block in _derive_register_blocks(_definitions("vD")):
+        families = {_probe_family(m["key"]) for m in block["members"]}
+        assert len(families) == 1, f"block at {block['start']} mixes {families}"
+
+    starts = {b["start"] for b in _derive_register_blocks(_definitions("vD"))}
+    assert 34002 not in starts
