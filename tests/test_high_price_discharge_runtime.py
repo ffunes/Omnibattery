@@ -366,3 +366,17 @@ def test_status_carries_the_plan_for_diagnostics():
     assert status["allocations"][0]["power_w"] > 0
     assert status["target_w"] < 0
     assert isinstance(status["horizon_end"], str)
+
+
+def test_clear_runtime_drops_a_live_override():
+    """Unload has no next control cycle to withdraw the setpoint on."""
+    manager, _controller, setpoints = _manager()
+    manager.refresh_override()
+    assert OVERRIDE_SOURCE in setpoints
+
+    manager.clear_runtime("unload")
+
+    assert OVERRIDE_SOURCE not in setpoints
+    status = manager.get_status()
+    assert (status["state"], status["reason"]) == (STATE_DISABLED, "unload")
+    assert status["target_w"] is None

@@ -132,6 +132,16 @@ class HighPriceDischargeManager:
             == PREDICTIVE_MODE_DYNAMIC_PRICING
         )
 
+    def clear_runtime(self, reason: str = "cleanup") -> None:
+        """Drop the override outside the control cycle (RF-036, criterion 13).
+
+        Withdrawal normally rides on the next :meth:`refresh_override`, but on
+        unload there is no next cycle: the control timer and the entities are
+        already going away. Named and shaped like its siblings on the pricing
+        manager so the unload block reads as one list.
+        """
+        self._release(STATE_DISABLED, reason)
+
     def refresh_override(self) -> None:
         """Apply or withdraw the deliberate-export setpoint for this cycle."""
         if not self.feature_enabled():

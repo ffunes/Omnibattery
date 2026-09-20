@@ -11113,6 +11113,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # timer and entities disappear.  The plan itself is never persisted.
             controller._pricing_mgr.clear_curtailment_runtime("unload")
             controller._pricing_mgr.clear_negative_price_runtime("unload")
+            controller._high_price_discharge_mgr.clear_runtime("unload")
 
         # Set shutdown flag on all coordinators to suppress expected errors.
         for coordinator in coordinators:
