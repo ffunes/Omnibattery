@@ -53,6 +53,15 @@ def _marstek_v3_packet_correction(sending: bool, data: bytes) -> bytes:
     return data
 
 
+_TRACE_PACKET_SUPPORTED = "trace_packet" in inspect.signature(AsyncModbusTcpClient.__init__).parameters
+"""Whether this pymodbus takes the receive hook the v3 correction needs.
+
+Added in pymodbus 3.8, which the manifest already requires; the check keeps an
+older one from failing to build a client at all, at the price of a v3 that
+waits out its rejections.
+"""
+
+
 def _detect_slave_kwarg(client) -> str:
     """Return the keyword pymodbus uses to address the slave/unit id.
 
@@ -166,12 +175,10 @@ class MarstekModbusClient:
         # implemented), so we enforce the spacing ourselves after every request.
         self._message_wait_sec = max(0.0, message_wait_ms / 1000.0)
 
-        self.client = self._make_client()
-
         # v3 packet correction repairs the TCP MBAP length byte; RTU framing has
         # no MBAP header (CRC instead), so it only applies to the TCP transport.
-        if is_v3 and serial_port is None:
-            self.client.trace_packet = _marstek_v3_packet_correction
+        # _make_client installs it, because it can only be given at construction.
+        self.client = self._make_client()
 
         self.unit_id = slave_id  # Modbus slave/unit id for this battery
         self._slave_kwarg = _detect_slave_kwarg(self.client)  # "slave" or "device_id"
@@ -204,6 +211,15 @@ class MarstekModbusClient:
                 timeout=self._timeout,
                 retries=_PYMODBUS_RETRIES,
             )
+        trace: dict = {}
+        if self._is_v3 and _TRACE_PACKET_SUPPORTED:
+            # Constructor argument, not an attribute: pymodbus hands the hook to
+            # its TransactionManager while building it, and assigning
+            # client.trace_packet afterwards only decorates the client object
+            # while the manager keeps its own dummy_trace_packet. That is how
+            # the correction came to be installed on every v3 connection and
+            # called on none of them.
+            trace["trace_packet"] = _marstek_v3_packet_correction
         return AsyncModbusTcpClient(
             host=self._host,
             port=self._port,
@@ -211,6 +227,7 @@ class MarstekModbusClient:
             retries=_PYMODBUS_RETRIES,
             reconnect_delay=0,
             reconnect_delay_max=0,
+            **trace,
         )
 
     def set_shutting_down(self, value: bool) -> None:
@@ -257,12 +274,9 @@ class MarstekModbusClient:
                 if self._is_v3 and self._serial_port is None:
                     await asyncio.sleep(1.0)
 
-            # Create a fresh client instance (no corrupted state, no backoff)
+            # Create a fresh client instance (no corrupted state, no backoff).
+            # It carries the v3 packet correction again; see _make_client.
             self.client = self._make_client()
-
-            # Restore v3 packet correction (TCP transport only — see __init__)
-            if self._is_v3 and self._serial_port is None:
-                self.client.trace_packet = _marstek_v3_packet_correction
 
             connected = await self.client.connect()
 
