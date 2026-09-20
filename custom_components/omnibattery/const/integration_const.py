@@ -914,6 +914,20 @@ DEFAULT_DISCHARGE_RESERVE_ENABLED = False
 CONF_DISCHARGE_RESERVE_MIN_SAVING = "discharge_reserve_min_saving"
 DEFAULT_DISCHARGE_RESERVE_MIN_SAVING = 0.05
 
+# Deliberate export into a price peak (#270).  Sells only energy that a later,
+# dearer hour would otherwise buy from the grid, so the house never ends up
+# importing what it just sold.  Dynamic pricing only, off by default.
+CONF_HIGH_PRICE_DISCHARGE_ENABLED = "high_price_discharge_enabled"
+DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED = False
+# Ceiling for the deliberate export, measured net at the connection point.
+# Zero is an invalid activation, not a silent no-op: exporting needs a limit.
+CONF_HIGH_PRICE_DISCHARGE_MAX_POWER = "high_price_discharge_max_power_w"
+DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER = 0.0
+# Cost per kWh (wear, taxes, fees) added to the later import price before a
+# sale is judged worthwhile.  Sitting at zero sells on the raw spread.
+CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST = "high_price_discharge_additional_cost"
+DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST = 0.0
+
 # Optional export/feed-in price curve.  Unset falls back to the import curve,
 # which is both the historical behaviour and correct under net metering.  A
 # separate sensor matters where export is paid differently from import.

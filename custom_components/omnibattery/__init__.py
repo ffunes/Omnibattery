@@ -173,6 +173,12 @@ from .const import (
     DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
     CONF_SURPLUS_PRICE_HOLD_ENABLED,
     DEFAULT_SURPLUS_PRICE_HOLD_ENABLED,
+    CONF_HIGH_PRICE_DISCHARGE_ENABLED,
+    DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED,
+    CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
+    DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER,
+    CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
+    DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
     CONF_SURPLUS_HOLD_MIN_SAVING,
     DEFAULT_SURPLUS_HOLD_MIN_SAVING,
     CONF_EXPORT_PRICE_SENSOR,
@@ -236,6 +242,7 @@ from .control.charge_delay import ChargeDelayManager
 from .control.residual_load import apply_guards, guards_pending
 from .drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
 from .control.discharge_reserve import DischargeReserveManager
+from .control.high_price_discharge import HighPriceDischargeManager
 from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
@@ -1003,6 +1010,16 @@ class ChargeDischargeController:
         self.surplus_hold_min_saving = config_entry.data.get(
             CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
         )
+        self.high_price_discharge_enabled = config_entry.data.get(
+            CONF_HIGH_PRICE_DISCHARGE_ENABLED, DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED
+        )
+        self.high_price_discharge_max_power_w = config_entry.data.get(
+            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER, DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER
+        )
+        self.high_price_discharge_additional_cost = config_entry.data.get(
+            CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
+            DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
+        )
         self.discharge_reserve_enabled = config_entry.data.get(
             CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
         )
@@ -1086,6 +1103,7 @@ class ChargeDischargeController:
         self._curtailment_last_auto_replan = None
         self._pricing_mgr = PricingManager(hass, self)
         self._surplus_hold_mgr = SurplusPriceHoldManager(hass, self)
+        self._high_price_discharge_mgr = HighPriceDischargeManager(hass, self)
         self._discharge_reserve_mgr = DischargeReserveManager(hass, self)
         # Per-cycle cache of the reserve, refreshed by the discharge blocker pass.
         self._price_reserve_soc_pct = 0.0
@@ -2946,6 +2964,16 @@ class ChargeDischargeController:
         self.surplus_hold_min_saving = self.config_entry.data.get(
             CONF_SURPLUS_HOLD_MIN_SAVING, DEFAULT_SURPLUS_HOLD_MIN_SAVING
         )
+        self.high_price_discharge_enabled = self.config_entry.data.get(
+            CONF_HIGH_PRICE_DISCHARGE_ENABLED, DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED
+        )
+        self.high_price_discharge_max_power_w = self.config_entry.data.get(
+            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER, DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER
+        )
+        self.high_price_discharge_additional_cost = self.config_entry.data.get(
+            CONF_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
+            DEFAULT_HIGH_PRICE_DISCHARGE_ADDITIONAL_COST,
+        )
         old_discharge_reserve_enabled = self.discharge_reserve_enabled
         self.discharge_reserve_enabled = self.config_entry.data.get(
             CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
@@ -3982,6 +4010,9 @@ class ChargeDischargeController:
         self._refresh_battery_charge_limit_blocks()
         self._refresh_battery_discharge_limit_blocks()
         self._refresh_price_reserve_blocks()
+        # Last: the deliberate-export setpoint guards on the blocker registry
+        # every line above has just rebuilt, so it must read it complete.
+        self._high_price_discharge_mgr.refresh_override()
         self._price_based_discharge_blocked = "price_discharge" in self._global_discharge_blockers
 
     def _refresh_surplus_price_hold_block(self) -> None:
