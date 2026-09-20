@@ -10,6 +10,7 @@
 
 ### Changed
 
+- **"Predictive grid charge margin (%)" removed; the solar safety margin now defaults to 5% of your battery capacity**: the percentage inflated the energy deficit *after* it was computed, so it hedged hardest on cloudy days with little solar and barely at all on sunny days, when an optimistic forecast actually costs you. The kWh "Solar forecast safety margin" does the same job where the risk is — it discounts the forecast itself — and its help text now says so. An automatic migration drops the percentage and deletes its entity, so update any automation that used it. Your own safety margin is left untouched on upgrade: if it is still at 0, the new default only applies to new installs and you have to raise it by hand.
 - **`dp_price_discharge_control` and `rt_price_discharge_control` merged into one `price_discharge_control` switch** (#270): Dynamic Pricing and Real-Time Price modes are mutually exclusive, so the two entities always gated the same behaviour. Existing installs keep their current `entity_id` and ON/OFF state via an automatic migration; if you had switched predictive mode before and both entities still exist, the one for the inactive mode is removed — update any automation that referenced it.
 
 ### Fixed

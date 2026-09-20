@@ -21,7 +21,6 @@ ADV_KEYS = {
     "min_arbitrage_margin",
     "round_trip_efficiency",
     "predictive_safety_margin_kwh",
-    "predictive_grid_charge_margin_pct",
     "min_soc_floor_enabled",
     "predictive_min_soc_floor",
     "negative_injection_threshold",

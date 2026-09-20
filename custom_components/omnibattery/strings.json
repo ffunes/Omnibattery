@@ -389,16 +389,14 @@
           "end_time_3": "Window 3 — end time (optional)",
           "days_3": "Window 3 — days of the week",
           "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)",
-          "predictive_grid_charge_margin_pct": "Predictive grid charge margin (%)"
+          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
         },
         "data_description": {
           "start_time": "Start time of charging window (e.g., 01:00, off-peak tariff)",
           "end_time": "End time of charging window (e.g., 06:00)",
           "days": "Days when grid charging is allowed",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "Extra energy buffer added to the consumption forecast before deciding whether to charge. The same kWh buffer is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable (default). Capped at total battery capacity.",
-          "predictive_grid_charge_margin_pct": "Extra % charged from the grid on top of the solar-deficit, to hedge against optimistic solar forecasts. E.g. a 2 kWh grid need at 50% charges 3 kWh. 0 to disable (default). Capped at the gap to max SOC."
+          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
         }
       },
       "dynamic_pricing_config": {
@@ -423,8 +421,7 @@
           "predischarge_reserve_soc": "Pre-discharge reserve SOC (%)",
           "predischarge_export_mode": "Deliberate grid export mode",
           "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)",
-          "predictive_grid_charge_margin_pct": "Predictive grid charge margin (%)"
+          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
         },
         "data_description": {
           "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty.",
@@ -445,8 +442,7 @@
           "predischarge_reserve_soc": "Additional SOC floor for pre-discharge. 0 uses each battery's configured minimum and guaranteed minimum SOC floors.",
           "predischarge_export_mode": "Choose how deliberate grid export creates anti-curtailment headroom. Self-consumption never exports deliberately; Automatic calculates only the power needed; Custom applies the W limit configured in the next step.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "Extra energy buffer added to the consumption forecast before deciding whether to charge. The same kWh buffer is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable (default). Capped at total battery capacity.",
-          "predictive_grid_charge_margin_pct": "Extra % charged from the grid on top of the solar-deficit, to hedge against optimistic solar forecasts. E.g. a 2 kWh grid need at 50% charges 3 kWh. 0 to disable (default). Capped at the gap to max SOC."
+          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
         }
       },
       "predischarge_export_limit": {
@@ -468,8 +464,7 @@
           "average_price_sensor": "Daily average price sensor (optional)",
           "price_discharge_control": "Only discharge when price is above threshold",
           "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)",
-          "predictive_grid_charge_margin_pct": "Predictive grid charge margin (%)"
+          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor whose state is the current electricity price (e.g. sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Any sensor that exposes the current period price as its state works.",
@@ -477,8 +472,7 @@
           "average_price_sensor": "If provided, this sensor's state is used as the threshold instead of the fixed value above — useful when your price integration already exposes a daily average. Leave empty to use the fixed threshold.",
           "price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the threshold (fixed or daily average). If time slots restrict discharge, both conditions must be met.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "Extra energy buffer added to the consumption forecast before deciding whether to charge. The same kWh buffer is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable (default). Capped at total battery capacity.",
-          "predictive_grid_charge_margin_pct": "Extra % charged from the grid on top of the solar-deficit, to hedge against optimistic solar forecasts. E.g. a 2 kWh grid need at 50% charges 3 kWh. 0 to disable (default). Capped at the gap to max SOC."
+          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
         }
       },
       "weekly_full_charge": {
@@ -1107,16 +1101,14 @@
           "end_time_3": "Window 3 — end time (optional)",
           "days_3": "Window 3 — days of the week",
           "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)",
-          "predictive_grid_charge_margin_pct": "Predictive grid charge margin (%)"
+          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
         },
         "data_description": {
           "start_time": "Start time of charging window (e.g., 01:00, off-peak tariff)",
           "end_time": "End time of charging window (e.g., 06:00)",
           "days": "Days when grid charging is allowed",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "Extra energy buffer added to the consumption forecast before deciding whether to charge. The same kWh buffer is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable (default). Capped at total battery capacity.",
-          "predictive_grid_charge_margin_pct": "Extra % charged from the grid on top of the solar-deficit, to hedge against optimistic solar forecasts. E.g. a 2 kWh grid need at 50% charges 3 kWh. 0 to disable (default). Capped at the gap to max SOC."
+          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
         }
       },
       "dynamic_pricing_config": {
@@ -1141,8 +1133,7 @@
           "predischarge_reserve_soc": "Pre-discharge reserve SOC (%)",
           "predischarge_export_mode": "Deliberate grid export mode",
           "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)",
-          "predictive_grid_charge_margin_pct": "Predictive grid charge margin (%)"
+          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
         },
         "data_description": {
           "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty.",
@@ -1163,8 +1154,7 @@
           "predischarge_reserve_soc": "Additional SOC floor for pre-discharge. 0 uses each battery's configured minimum and guaranteed minimum SOC floors.",
           "predischarge_export_mode": "Choose how deliberate grid export creates anti-curtailment headroom. Self-consumption never exports deliberately; Automatic calculates only the power needed; Custom applies the W limit configured in the next step.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "Extra energy buffer added to the consumption forecast before deciding whether to charge. The same kWh buffer is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable (default). Capped at total battery capacity.",
-          "predictive_grid_charge_margin_pct": "Extra % charged from the grid on top of the solar-deficit, to hedge against optimistic solar forecasts. E.g. a 2 kWh grid need at 50% charges 3 kWh. 0 to disable (default). Capped at the gap to max SOC."
+          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
         }
       },
       "predischarge_export_limit": {
@@ -1186,8 +1176,7 @@
           "average_price_sensor": "Daily average price sensor (optional)",
           "price_discharge_control": "Only discharge when price is above threshold",
           "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)",
-          "predictive_grid_charge_margin_pct": "Predictive grid charge margin (%)"
+          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor whose state is the current electricity price (e.g. sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Any sensor that exposes the current period price as its state works.",
@@ -1195,8 +1184,7 @@
           "average_price_sensor": "If provided, this sensor's state is used as the threshold instead of the fixed value above — useful when your price integration already exposes a daily average. Leave empty to use the fixed threshold.",
           "price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the threshold (fixed or daily average). If time slots restrict discharge, both conditions must be met.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "Extra energy buffer added to the consumption forecast before deciding whether to charge. The same kWh buffer is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable (default). Capped at total battery capacity.",
-          "predictive_grid_charge_margin_pct": "Extra % charged from the grid on top of the solar-deficit, to hedge against optimistic solar forecasts. E.g. a 2 kWh grid need at 50% charges 3 kWh. 0 to disable (default). Capped at the gap to max SOC."
+          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
         }
       },
       "weekly_full_charge": {
@@ -2384,9 +2372,6 @@
       },
       "predictive_safety_margin_kwh": {
         "name": "Solar Forecast Safety Margin"
-      },
-      "predictive_grid_charge_margin_pct": {
-        "name": "Predictive Grid Charge Margin"
       },
       "predictive_min_soc_floor": {
         "name": "Guaranteed Minimum SOC"
