@@ -8,6 +8,10 @@
 - **High price discharge** (#270): opt-in deliberate export into a price peak, capped by a configurable power limit and only when the spread clears the existing **Minimum arbitrage margin**, which now governs both buying and selling.
 - **"Advanced settings" toggle on the Control tab**: the predictive-charging card now shows only its switches and status rows by default; its fine-tuning sliders (price thresholds, arbitrage margin, forecast margins, SOC floor, pre-discharge/reserve limits) are one click away behind a per-browser toggle in the arrange bar.
 
+### Changed
+
+- **`dp_price_discharge_control` and `rt_price_discharge_control` merged into one `price_discharge_control` switch** (#270): Dynamic Pricing and Real-Time Price modes are mutually exclusive, so the two entities always gated the same behaviour. Existing installs keep their current `entity_id` and ON/OFF state via an automatic migration; if you had switched predictive mode before and both entities still exist, the one for the inactive mode is removed — update any automation that referenced it.
+
 ### Fixed
 
 - **High price discharge no longer dies silently at 0 W** (#270): the slider's default was 0, an invalid configuration, so turning the switch on without also raising the slider left the feature dark. Its default is now the fleet's own discharge power.

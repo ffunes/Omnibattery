@@ -961,8 +961,11 @@ PREDICTIVE_MODE_REALTIME_PRICE = "realtime_price"
 CONF_AVERAGE_PRICE_SENSOR = "average_price_sensor"
 
 CONF_METER_INVERTED = "meter_inverted"
+# Legacy per-mode keys, kept only for the v12->v13 migration that folds them
+# into CONF_PRICE_DISCHARGE_CONTROL. Do not read/write these elsewhere.
 CONF_DP_PRICE_DISCHARGE_CONTROL = "dp_price_discharge_control"
 CONF_RT_PRICE_DISCHARGE_CONTROL = "rt_price_discharge_control"
+CONF_PRICE_DISCHARGE_CONTROL = "price_discharge_control"
 
 PRICE_INTEGRATION_NORDPOOL = "nordpool"
 PRICE_INTEGRATION_PVPC = "pvpc"
