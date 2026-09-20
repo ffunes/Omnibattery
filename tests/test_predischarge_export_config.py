@@ -101,7 +101,7 @@ async def test_custom_mode_shows_limit_step_and_persists_numeric_contract():
         {
             "price_integration_type": "nordpool",
             "price_sensor": "sensor.price",
-            "dp_price_discharge_control": False,
+            "price_discharge_control": False,
             CONF_PREDISCHARGE_EXPORT_MODE: PREDISCHARGE_EXPORT_MODE_CUSTOM,
         }
     )

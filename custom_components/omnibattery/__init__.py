@@ -184,6 +184,7 @@ from .const import (
     CONF_AVERAGE_PRICE_SENSOR,
     CONF_DP_PRICE_DISCHARGE_CONTROL,
     CONF_RT_PRICE_DISCHARGE_CONTROL,
+    CONF_PRICE_DISCHARGE_CONTROL,
     PREDICTIVE_MODE_TIME_SLOT,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PREDICTIVE_MODE_REALTIME_PRICE,
@@ -963,7 +964,6 @@ class ChargeDischargeController:
         # Real-time Price Mode state
         self.average_price_sensor = config_entry.data.get(CONF_AVERAGE_PRICE_SENSOR, None)
         self._realtime_price_charging: bool = False  # True while actively charging in this mode
-        self.rt_price_discharge_control: bool = config_entry.data.get(CONF_RT_PRICE_DISCHARGE_CONTROL, False)
 
         # Dynamic Pricing Mode state
         self.predictive_charging_mode = config_entry.data.get(CONF_PREDICTIVE_CHARGING_MODE, PREDICTIVE_MODE_TIME_SLOT)
@@ -1027,7 +1027,11 @@ class ChargeDischargeController:
         self.export_price_integration_type = config_entry.data.get(
             CONF_EXPORT_PRICE_INTEGRATION_TYPE, None
         )
-        self.dp_price_discharge_control: bool = config_entry.data.get(CONF_DP_PRICE_DISCHARGE_CONTROL, False)
+        # Single switch backing both DP and RT gating (they are mutually exclusive
+        # modes). dp_price_discharge_control / rt_price_discharge_control stay
+        # available as read-only properties below so pricing/engine.py, which reads
+        # whichever one matches the active mode, needed no changes.
+        self.price_discharge_control: bool = config_entry.data.get(CONF_PRICE_DISCHARGE_CONTROL, False)
         self._dp_daily_avg_price: Optional[float] = None  # Computed from price slots in _evaluate_dynamic_pricing
         self._dp_arbitrage_ceiling: Optional[float] = None  # Set per evaluation when the margin gate is on
         # Tibber is service-based (no price sensor): the engine polls tibber.get_prices
@@ -1280,6 +1284,16 @@ class ChargeDischargeController:
 
         _LOGGER.info("Hourly Net Balance: %s",
                      "ENABLED" if self.hourly_balance_enabled else "DISABLED")
+
+    @property
+    def dp_price_discharge_control(self) -> bool:
+        """Back-compat alias for the merged price_discharge_control switch."""
+        return self.price_discharge_control
+
+    @property
+    def rt_price_discharge_control(self) -> bool:
+        """Back-compat alias for the merged price_discharge_control switch."""
+        return self.price_discharge_control
 
     @property
     def consumption_sensor(self) -> str:
@@ -9811,8 +9825,15 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 normalize an empty battery phase on existing batteries.
     v11 -> v12: distinguish MPPT-capable Venus A/D hardware from installations
                 that actually have panels connected; preserve existing behaviour.
+    v12 -> v13: merge the dp_price_discharge_control / rt_price_discharge_control
+                switches (DP and RT predictive modes are mutually exclusive, so
+                two entities backed the same behaviour) into one
+                price_discharge_control. Re-keys whichever entity matches the
+                config's active mode onto the new unique_id (entity_id and
+                history untouched); if both exist (a past mode switch left one
+                stale), the other is deleted rather than left orphaned.
     """
-    if entry.version >= 12:
+    if entry.version >= 13:
         return True
 
     new_data = dict(entry.data)
@@ -10073,11 +10094,61 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(recorded whether Venus A/D MPPT panels are connected)",
         )
 
+    if entry.version < 13:
+        from homeassistant.helpers import entity_registry as er
+        from .infra.entity_naming import SYSTEM_UNIQUE_ID_PREFIX
+
+        mode = new_data.get(CONF_PREDICTIVE_CHARGING_MODE)
+        dp_value = new_data.pop(CONF_DP_PRICE_DISCHARGE_CONTROL, None)
+        rt_value = new_data.pop(CONF_RT_PRICE_DISCHARGE_CONTROL, None)
+        if mode == PREDICTIVE_MODE_DYNAMIC_PRICING and dp_value is not None:
+            merged_enabled = bool(dp_value)
+        elif mode == PREDICTIVE_MODE_REALTIME_PRICE and rt_value is not None:
+            merged_enabled = bool(rt_value)
+        else:
+            merged_enabled = bool(dp_value) or bool(rt_value)
+        new_data[CONF_PRICE_DISCHARGE_CONTROL] = merged_enabled
+
+        old_uids = (
+            f"{SYSTEM_UNIQUE_ID_PREFIX}dp_price_discharge_control",
+            f"{SYSTEM_UNIQUE_ID_PREFIX}rt_price_discharge_control",
+        )
+        new_uid = f"{SYSTEM_UNIQUE_ID_PREFIX}price_discharge_control"
+        ent_reg = er.async_get(hass)
+        candidates = [
+            ent for ent in er.async_entries_for_config_entry(ent_reg, entry.entry_id)
+            if ent.unique_id in old_uids
+        ]
+        removed_duplicate = False
+        if candidates:
+            # Prefer the entity matching the currently-active mode as the
+            # keeper, so its entity_id (and history) survive untouched; a
+            # past mode switch may have left the other one stale.
+            keeper = next(
+                (c for c in candidates if (
+                    (mode == PREDICTIVE_MODE_DYNAMIC_PRICING and c.unique_id.endswith("dp_price_discharge_control"))
+                    or (mode == PREDICTIVE_MODE_REALTIME_PRICE and c.unique_id.endswith("rt_price_discharge_control"))
+                )),
+                candidates[0],
+            )
+            for cand in candidates:
+                if cand is not keeper:
+                    ent_reg.async_remove(cand.entity_id)
+                    removed_duplicate = True
+            if not ent_reg.async_get_entity_id(keeper.domain, DOMAIN, new_uid):
+                ent_reg.async_update_entity(keeper.entity_id, new_unique_id=new_uid)
+
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 13 "
+            "(merged dp/rt price-discharge-control switches into price_discharge_control%s)",
+            "; removed stale duplicate from a past mode switch" if removed_duplicate else "",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
-        version=12,
+        version=13,
     )
     return True
 

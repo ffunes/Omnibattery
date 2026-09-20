@@ -140,8 +140,7 @@ from .const import (
     CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
     DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED,
     CONF_AVERAGE_PRICE_SENSOR,
-    CONF_DP_PRICE_DISCHARGE_CONTROL,
-    CONF_RT_PRICE_DISCHARGE_CONTROL,
+    CONF_PRICE_DISCHARGE_CONTROL,
     PREDICTIVE_MODE_TIME_SLOT,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PREDICTIVE_MODE_REALTIME_PRICE,
@@ -1327,7 +1326,7 @@ def _apply_mac_tracking(user_input: dict, merged: dict) -> None:
 class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Omnibattery."""
 
-    VERSION = 12
+    VERSION = 13
 
     def __init__(self):
         """Initialize the config flow."""
@@ -2698,7 +2697,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                         self.config_data[CONF_PRICE_SENSOR] = price_sensor
                         self.config_data[CONF_MAX_PRICE_THRESHOLD] = max_price
                         self.config_data[CONF_DISCHARGE_PRICE_THRESHOLD] = discharge_price
-                        self.config_data[CONF_DP_PRICE_DISCHARGE_CONTROL] = user_input.get(CONF_DP_PRICE_DISCHARGE_CONTROL, False)
+                        self.config_data[CONF_PRICE_DISCHARGE_CONTROL] = user_input.get(CONF_PRICE_DISCHARGE_CONTROL, False)
                         self.config_data[CONF_SOLAR_FORECAST_SENSOR] = forecast_sensor
                         self.config_data["charging_time_slot"] = None
                         self.config_data[CONF_PREDICTIVE_SAFETY_MARGIN_KWH] = user_input.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
@@ -2768,7 +2767,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
             vol.Optional(CONF_DISCHARGE_PRICE_THRESHOLD):
                 TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
-            vol.Required(CONF_DP_PRICE_DISCHARGE_CONTROL, default=False): bool,
+            vol.Required(CONF_PRICE_DISCHARGE_CONTROL, default=False): bool,
         }
         if not has_global_sensor:
             schema_dict[vol.Optional("solar_forecast_sensor")] = EntitySelector(
@@ -2879,7 +2878,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     self.config_data[CONF_PRICE_SENSOR] = price_sensor
                     self.config_data[CONF_MAX_PRICE_THRESHOLD] = max_price
                     self.config_data[CONF_AVERAGE_PRICE_SENSOR] = avg_sensor
-                    self.config_data[CONF_RT_PRICE_DISCHARGE_CONTROL] = user_input.get(CONF_RT_PRICE_DISCHARGE_CONTROL, False)
+                    self.config_data[CONF_PRICE_DISCHARGE_CONTROL] = user_input.get(CONF_PRICE_DISCHARGE_CONTROL, False)
                     self.config_data[CONF_SOLAR_FORECAST_SENSOR] = forecast_sensor
                     self.config_data["charging_time_slot"] = None
                     self.config_data[CONF_PREDICTIVE_SAFETY_MARGIN_KWH] = user_input.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
@@ -2897,7 +2896,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
             vol.Optional(CONF_AVERAGE_PRICE_SENSOR):
                 EntitySelector(EntitySelectorConfig(domain="sensor")),
-            vol.Required(CONF_RT_PRICE_DISCHARGE_CONTROL, default=False): bool,
+            vol.Required(CONF_PRICE_DISCHARGE_CONTROL, default=False): bool,
         }
         if not has_global_sensor:
             schema_dict[vol.Optional("solar_forecast_sensor")] = EntitySelector(
@@ -5521,7 +5520,7 @@ class OptionsFlowHandler(OptionsFlow):
                         self.config_data[CONF_PRICE_SENSOR] = price_sensor
                         self.config_data[CONF_MAX_PRICE_THRESHOLD] = max_price
                         self.config_data[CONF_DISCHARGE_PRICE_THRESHOLD] = discharge_price
-                        self.config_data[CONF_DP_PRICE_DISCHARGE_CONTROL] = user_input.get(CONF_DP_PRICE_DISCHARGE_CONTROL, False)
+                        self.config_data[CONF_PRICE_DISCHARGE_CONTROL] = user_input.get(CONF_PRICE_DISCHARGE_CONTROL, False)
                         self.config_data[CONF_SOLAR_FORECAST_SENSOR] = forecast_sensor
                         self.config_data["charging_time_slot"] = None
                         self.config_data[CONF_PREDICTIVE_SAFETY_MARGIN_KWH] = user_input.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
@@ -5619,7 +5618,7 @@ class OptionsFlowHandler(OptionsFlow):
         default_max_price = existing_config.get(CONF_MAX_PRICE_THRESHOLD)
         default_discharge_price = existing_config.get(CONF_DISCHARGE_PRICE_THRESHOLD)
         default_forecast = existing_config.get("solar_forecast_sensor", "")
-        default_dp_discharge_control = existing_config.get(CONF_DP_PRICE_DISCHARGE_CONTROL, False)
+        default_price_discharge_control = existing_config.get(CONF_PRICE_DISCHARGE_CONTROL, False)
         default_margin = existing_config.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
         default_grid_margin = existing_config.get(CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT, DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT)
         default_negative_price_enabled = existing_config.get(
@@ -5677,7 +5676,7 @@ class OptionsFlowHandler(OptionsFlow):
                 description={"suggested_value": str(default_discharge_price)} if default_discharge_price is not None else {}
             ):
                 TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
-            vol.Required(CONF_DP_PRICE_DISCHARGE_CONTROL, default=default_dp_discharge_control): bool,
+            vol.Required(CONF_PRICE_DISCHARGE_CONTROL, default=default_price_discharge_control): bool,
         }
         if not has_global_sensor:
             schema_dict[vol.Optional(
@@ -5794,7 +5793,7 @@ class OptionsFlowHandler(OptionsFlow):
                     self.config_data[CONF_PRICE_SENSOR] = price_sensor
                     self.config_data[CONF_MAX_PRICE_THRESHOLD] = max_price
                     self.config_data[CONF_AVERAGE_PRICE_SENSOR] = avg_sensor
-                    self.config_data[CONF_RT_PRICE_DISCHARGE_CONTROL] = user_input.get(CONF_RT_PRICE_DISCHARGE_CONTROL, False)
+                    self.config_data[CONF_PRICE_DISCHARGE_CONTROL] = user_input.get(CONF_PRICE_DISCHARGE_CONTROL, False)
                     self.config_data[CONF_SOLAR_FORECAST_SENSOR] = forecast_sensor
                     self.config_data["charging_time_slot"] = None
                     self.config_data[CONF_PREDICTIVE_SAFETY_MARGIN_KWH] = user_input.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
@@ -5807,7 +5806,7 @@ class OptionsFlowHandler(OptionsFlow):
         default_sensor = existing_config.get(CONF_PRICE_SENSOR, "")
         default_max_price = existing_config.get(CONF_MAX_PRICE_THRESHOLD)
         default_avg_sensor = existing_config.get(CONF_AVERAGE_PRICE_SENSOR, "")
-        default_rt_discharge_control = existing_config.get(CONF_RT_PRICE_DISCHARGE_CONTROL, False)
+        default_price_discharge_control = existing_config.get(CONF_PRICE_DISCHARGE_CONTROL, False)
         default_forecast = existing_config.get("solar_forecast_sensor", "")
         default_margin = existing_config.get(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH)
         default_grid_margin = existing_config.get(CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT, DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT)
@@ -5825,7 +5824,7 @@ class OptionsFlowHandler(OptionsFlow):
                 description={"suggested_value": default_avg_sensor} if default_avg_sensor else {}
             ):
                 EntitySelector(EntitySelectorConfig(domain="sensor")),
-            vol.Required(CONF_RT_PRICE_DISCHARGE_CONTROL, default=default_rt_discharge_control): bool,
+            vol.Required(CONF_PRICE_DISCHARGE_CONTROL, default=default_price_discharge_control): bool,
         }
         if not has_global_sensor:
             schema_dict[vol.Optional(

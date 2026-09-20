@@ -380,7 +380,7 @@
           "price_sensor": "Prijssensor",
           "max_price_threshold": "Maximale prijsdrempel (€/kWh, optioneel)",
           "discharge_price_threshold": "Ontlaad-prijsondergrens (optioneel)",
-          "dp_price_discharge_control": "Alleen ontladen als prijs boven drempelwaarde",
+          "price_discharge_control": "Alleen ontladen als prijs boven drempelwaarde",
           "negative_price_charging_enabled": "Opportunistisch laden bij negatieve prijzen inschakelen",
           "smart_predischarge_enabled": "Slim voorontladen / anti-afregeling",
           "surplus_price_hold_enabled": "Prijsbewuste opname van zonne-overschot inschakelen",
@@ -403,7 +403,7 @@
           "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
           "max_price_threshold": "Tijdsloten boven deze prijs worden niet geselecteerd. Wanneer prijsgestuurde ontlading is ingeschakeld, wordt deze waarde ook gebruikt als ontlaaddrempel. Gebruik hoofdvaluta/kWh: €/kWh voor Nordpool/PVPC, CHF/kWh voor CKW. HACS Nordpool-prijzen die in centen zijn ingesteld, worden automatisch omgerekend. Leeg laten om alle slots te gebruiken en het daggemiddelde als ontlaaddrempel te gebruiken. Tenzij hieronder een aparte ontlaadondergrens is ingesteld.",
           "discharge_price_threshold": "Optionele aparte ondergrens voor prijsgestuurde ontlading. Ontlading wordt geblokkeerd zolang de prijs lager dan of gelijk aan deze waarde is, waardoor een neutrale band ontstaat tussen de maximale laadprijs (hierboven) en deze ondergrens: in die band laadt de batterij niet vanaf het net en ontlaadt deze niet (laden met zonne-overschot blijft werken). Laat leeg om de maximale prijs voor beide te gebruiken (huidig gedrag met één drempel).",
-          "dp_price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteitsprijs de geconfigureerde maximale prijsdrempel overschrijdt. Als er geen drempel is geconfigureerd, wordt het automatisch uit de prijssensor berekende daggemiddelde gebruikt. Als tijdslots het ontladen beperken, moet aan beide voorwaarden worden voldaan.",
+          "price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteitsprijs de geconfigureerde maximale prijsdrempel overschrijdt. Als er geen drempel is geconfigureerd, wordt het automatisch uit de prijssensor berekende daggemiddelde gebruikt. Als tijdslots het ontladen beperken, moet aan beide voorwaarden worden voldaan.",
           "negative_price_charging_enabled": "Optionele functie voor dynamische prijzen die tijdens de meest negatieve importprijssloten laadt, ook als de normale voorspelling geen netlading vereist. Een zonnevoorspellingssensor is niet nodig.",
           "smart_predischarge_enabled": "Schakelt optioneel voorontladen alleen in de dynamische prijsmode in om ruimte te maken vóór slots met negatieve terugleveringsprijzen.",
           "surplus_price_hold_enabled": "Optionele functie voor dynamische prijzen. Zonne-overschot opslaan kost de terugleververgoeding van dat slot, dus laat de batterij het overschot terugleveren zolang er nog een duidelijk goedkoper terugleververvenster komt, en laadt ze in de goedkoopste uren. De rem gaat los aan het einde van de zonneproductie, zodra het dagdoel is gehaald en zodra de resterende goedkope vensters het doel niet meer kunnen dekken. Bestaande SOC-ondergrenzen, laadvertraging, geplande goedkope netsloten, laden bij negatieve prijzen, slim voorontladen, wekelijkse volledige lading en handmatige bediening gaan altijd voor.",
@@ -439,7 +439,7 @@
           "price_sensor": "Elektriciteitsprijssensor",
           "max_price_threshold": "Maximale prijsdrempel (optioneel)",
           "average_price_sensor": "Daggemiddelde prijssensor (optioneel)",
-          "rt_price_discharge_control": "Alleen ontladen als prijs boven drempelwaarde",
+          "price_discharge_control": "Alleen ontladen als prijs boven drempelwaarde",
           "solar_forecast_sensor": "Zonnevoorspellingssensor (kWh)",
           "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)",
           "predictive_grid_charge_margin_pct": "Voorspellende netladingsmarge (%)"
@@ -448,7 +448,7 @@
           "price_sensor": "Sensor waarvan de toestand de huidige elektriciteits prijs is. Elke sensor die de huidige periodenprijs als toestand weergeeft, werkt.",
           "max_price_threshold": "Laden wordt geactiveerd wanneer de huidige prijs gelijk is aan of lager is dan deze waarde. Gebruik hoofdvaluta/kWh; HACS Nordpool-prijzen die in centen zijn ingesteld, worden automatisch omgerekend. Leeg laten als u de daggemiddelde sensor gebruikt.",
           "average_price_sensor": "Indien opgegeven, wordt deze waarde gebruikt als drempel in plaats van de vaste waarde — handig als uw prijsintegratie al een daggemiddelde blootstelt. Leeg laten voor de vaste drempel.",
-          "rt_price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteits prijs de drempelwaarde overschrijdt. Als tijdslots het ontladen beperken, moet aan beide voorwaarden worden voldaan.",
+          "price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteits prijs de drempelwaarde overschrijdt. Als tijdslots het ontladen beperken, moet aan beide voorwaarden worden voldaan.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt.",
           "predictive_safety_margin_kwh": "Extra energiebuffer bij de verbruiksprognose. Dezelfde buffer in kWh wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen (standaard). Begrensd door de totale batterijcapaciteit.",
           "predictive_grid_charge_margin_pct": "Extra percentage dat boven het zonne-tekort uit het net wordt geladen om optimistische zonneprognoses op te vangen. Bijv.: een netbehoefte van 2 kWh laadt bij 50% 3 kWh. 0 om uit te schakelen (standaard). Begrensd tot het gat tot max SOC."
@@ -1134,7 +1134,7 @@
           "price_sensor": "Prijssensor",
           "max_price_threshold": "Maximale prijsdrempel (€/kWh, optioneel)",
           "discharge_price_threshold": "Ontlaad-prijsondergrens (optioneel)",
-          "dp_price_discharge_control": "Alleen ontladen als prijs boven drempelwaarde",
+          "price_discharge_control": "Alleen ontladen als prijs boven drempelwaarde",
           "negative_price_charging_enabled": "Opportunistisch laden bij negatieve prijzen inschakelen",
           "smart_predischarge_enabled": "Slim voorontladen / anti-afregeling",
           "surplus_price_hold_enabled": "Prijsbewuste opname van zonne-overschot inschakelen",
@@ -1157,7 +1157,7 @@
           "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
           "max_price_threshold": "Tijdsloten boven deze prijs worden niet geselecteerd. Wanneer prijsgestuurde ontlading is ingeschakeld, wordt deze waarde ook gebruikt als ontlaaddrempel. Gebruik hoofdvaluta/kWh: €/kWh voor Nordpool/PVPC, CHF/kWh voor CKW. HACS Nordpool-prijzen die in centen zijn ingesteld, worden automatisch omgerekend. Leeg laten om alle slots te gebruiken en het daggemiddelde als ontlaaddrempel te gebruiken. Tenzij hieronder een aparte ontlaadondergrens is ingesteld.",
           "discharge_price_threshold": "Optionele aparte ondergrens voor prijsgestuurde ontlading. Ontlading wordt geblokkeerd zolang de prijs lager dan of gelijk aan deze waarde is, waardoor een neutrale band ontstaat tussen de maximale laadprijs (hierboven) en deze ondergrens: in die band laadt de batterij niet vanaf het net en ontlaadt deze niet (laden met zonne-overschot blijft werken). Laat leeg om de maximale prijs voor beide te gebruiken (huidig gedrag met één drempel).",
-          "dp_price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteitsprijs de geconfigureerde maximale prijsdrempel overschrijdt. Als er geen drempel is geconfigureerd, wordt het automatisch uit de prijssensor berekende daggemiddelde gebruikt. Als tijdslots het ontladen beperken, moet aan beide voorwaarden worden voldaan.",
+          "price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteitsprijs de geconfigureerde maximale prijsdrempel overschrijdt. Als er geen drempel is geconfigureerd, wordt het automatisch uit de prijssensor berekende daggemiddelde gebruikt. Als tijdslots het ontladen beperken, moet aan beide voorwaarden worden voldaan.",
           "negative_price_charging_enabled": "Optionele functie voor dynamische prijzen die tijdens de meest negatieve importprijssloten laadt, ook als de normale voorspelling geen netlading vereist. Een zonnevoorspellingssensor is niet nodig.",
           "smart_predischarge_enabled": "Schakelt optioneel voorontladen alleen in de dynamische prijsmode in om ruimte te maken vóór slots met negatieve terugleveringsprijzen.",
           "surplus_price_hold_enabled": "Optionele functie voor dynamische prijzen. Zonne-overschot opslaan kost de terugleververgoeding van dat slot, dus laat de batterij het overschot terugleveren zolang er nog een duidelijk goedkoper terugleververvenster komt, en laadt ze in de goedkoopste uren. De rem gaat los aan het einde van de zonneproductie, zodra het dagdoel is gehaald en zodra de resterende goedkope vensters het doel niet meer kunnen dekken. Bestaande SOC-ondergrenzen, laadvertraging, geplande goedkope netsloten, laden bij negatieve prijzen, slim voorontladen, wekelijkse volledige lading en handmatige bediening gaan altijd voor.",
@@ -1193,7 +1193,7 @@
           "price_sensor": "Elektriciteitsprijssensor",
           "max_price_threshold": "Maximale prijsdrempel (optioneel)",
           "average_price_sensor": "Daggemiddelde prijssensor (optioneel)",
-          "rt_price_discharge_control": "Alleen ontladen als prijs boven drempelwaarde",
+          "price_discharge_control": "Alleen ontladen als prijs boven drempelwaarde",
           "solar_forecast_sensor": "Zonnevoorspellingssensor (kWh)",
           "predictive_safety_margin_kwh": "Veiligheidsmarge zonne-energieprognose (kWh)",
           "predictive_grid_charge_margin_pct": "Voorspellende netladingsmarge (%)"
@@ -1202,7 +1202,7 @@
           "price_sensor": "Sensor waarvan de toestand de huidige elektriciteits prijs is. Elke sensor die de huidige periodenprijs als toestand weergeeft, werkt.",
           "max_price_threshold": "Laden wordt geactiveerd wanneer de huidige prijs gelijk is aan of lager is dan deze waarde. Gebruik hoofdvaluta/kWh; HACS Nordpool-prijzen die in centen zijn ingesteld, worden automatisch omgerekend. Leeg laten als u de daggemiddelde sensor gebruikt.",
           "average_price_sensor": "Indien opgegeven, wordt deze waarde gebruikt als drempel in plaats van de vaste waarde — handig als uw prijsintegratie al een daggemiddelde blootstelt. Leeg laten voor de vaste drempel.",
-          "rt_price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteits prijs de drempelwaarde overschrijdt. Als tijdslots het ontladen beperken, moet aan beide voorwaarden worden voldaan.",
+          "price_discharge_control": "Indien ingeschakeld, ontlaadt de batterij alleen wanneer de huidige elektriciteits prijs de drempelwaarde overschrijdt. Als tijdslots het ontladen beperken, moet aan beide voorwaarden worden voldaan.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt.",
           "predictive_safety_margin_kwh": "Extra energiebuffer bij de verbruiksprognose. Dezelfde buffer in kWh wordt bij dynamische prijzen ook gereserveerd als extra ruimte tegen afregeling. Op 0 zetten om uit te schakelen (standaard). Begrensd door de totale batterijcapaciteit.",
           "predictive_grid_charge_margin_pct": "Extra percentage dat boven het zonne-tekort uit het net wordt geladen om optimistische zonneprognoses op te vangen. Bijv.: een netbehoefte van 2 kWh laadt bij 50% 3 kWh. 0 om uit te schakelen (standaard). Begrensd tot het gat tot max SOC."
@@ -1583,7 +1583,7 @@
       "weekly_full_charge_enabled": {
         "name": "Wekelijkse volledige lading"
       },
-      "dp_price_discharge_control": {
+      "price_discharge_control": {
         "name": "Prijsgebaseerd ontladen"
       },
       "smart_predischarge": {
@@ -1591,9 +1591,6 @@
       },
       "negative_price_charging": {
         "name": "Opportunistisch laden bij negatieve prijzen"
-      },
-      "rt_price_discharge_control": {
-        "name": "Prijsgebaseerd ontladen"
       },
       "lamp_switch": {
         "name": "Status-leds"

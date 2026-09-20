@@ -408,7 +408,7 @@
           "price_integration_type": "Price integration",
           "price_sensor": "Electricity price sensor",
           "max_price_threshold": "Maximum price threshold (optional)",
-          "dp_price_discharge_control": "Only discharge when price is above threshold",
+          "price_discharge_control": "Only discharge when price is above threshold",
           "negative_price_charging_enabled": "Enable negative-price opportunistic charging",
           "smart_predischarge_enabled": "Enable Smart Pre-discharge / Anti-curtailment",
           "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
@@ -430,7 +430,7 @@
           "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty.",
           "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
           "max_price_threshold": "Slots above this price will not be selected. When price-gated discharge is enabled, this value is also used as the discharge threshold. Use major currency/kWh: €/kWh for Nordpool/PVPC, CHF/kWh for CKW. HACS Nordpool prices configured in cents are converted automatically. Leave empty to use all slots and use the daily average as the discharge threshold.",
-          "dp_price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the configured maximum price threshold. If no threshold is configured, it uses today's average price computed automatically from the price sensor. If time slots restrict discharge, both conditions must be met.",
+          "price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the configured maximum price threshold. If no threshold is configured, it uses today's average price computed automatically from the price sensor. If time slots restrict discharge, both conditions must be met.",
           "negative_price_charging_enabled": "Opt-in dynamic-pricing feature that charges during the most negative import-price slots even when the normal energy forecast does not require grid charging. A solar forecast sensor is not required.",
           "smart_predischarge_enabled": "Opt-in dynamic-pricing feature. It creates battery headroom before forecast PV surplus reaches a price slot at or below the negative-injection threshold. Existing SOC floors, user limits, time slots, manual ownership, backup and capacity protection remain authoritative.",
           "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
@@ -466,7 +466,7 @@
           "price_sensor": "Electricity price sensor",
           "max_price_threshold": "Maximum price threshold (optional)",
           "average_price_sensor": "Daily average price sensor (optional)",
-          "rt_price_discharge_control": "Only discharge when price is above threshold",
+          "price_discharge_control": "Only discharge when price is above threshold",
           "solar_forecast_sensor": "Solar forecast sensor (kWh)",
           "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)",
           "predictive_grid_charge_margin_pct": "Predictive grid charge margin (%)"
@@ -475,7 +475,7 @@
           "price_sensor": "Sensor whose state is the current electricity price (e.g. sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Any sensor that exposes the current period price as its state works.",
           "max_price_threshold": "Charging activates when the current price is at or below this value. Use major currency/kWh (e.g. €/kWh for Nordpool/PVPC, CHF/kWh for CKW). HACS Nordpool prices configured in cents are converted automatically. Leave empty if using the daily average sensor below.",
           "average_price_sensor": "If provided, this sensor's state is used as the threshold instead of the fixed value above — useful when your price integration already exposes a daily average. Leave empty to use the fixed threshold.",
-          "rt_price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the threshold (fixed or daily average). If time slots restrict discharge, both conditions must be met.",
+          "price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the threshold (fixed or daily average). If time slots restrict discharge, both conditions must be met.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
           "predictive_safety_margin_kwh": "Extra energy buffer added to the consumption forecast before deciding whether to charge. The same kWh buffer is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable (default). Capped at total battery capacity.",
           "predictive_grid_charge_margin_pct": "Extra % charged from the grid on top of the solar-deficit, to hedge against optimistic solar forecasts. E.g. a 2 kWh grid need at 50% charges 3 kWh. 0 to disable (default). Capped at the gap to max SOC."
@@ -1126,7 +1126,7 @@
           "price_integration_type": "Price integration",
           "price_sensor": "Electricity price sensor",
           "max_price_threshold": "Maximum price threshold (optional)",
-          "dp_price_discharge_control": "Only discharge when price is above threshold",
+          "price_discharge_control": "Only discharge when price is above threshold",
           "negative_price_charging_enabled": "Enable negative-price opportunistic charging",
           "smart_predischarge_enabled": "Enable Smart Pre-discharge / Anti-curtailment",
           "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
@@ -1148,7 +1148,7 @@
           "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty.",
           "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
           "max_price_threshold": "Slots above this price will not be selected. When price-gated discharge is enabled, this value is also used as the discharge threshold. Use major currency/kWh: €/kWh for Nordpool/PVPC, CHF/kWh for CKW. HACS Nordpool prices configured in cents are converted automatically. Leave empty to use all slots and use the daily average as the discharge threshold.",
-          "dp_price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the configured maximum price threshold. If no threshold is configured, it uses today's average price computed automatically from the price sensor. If time slots restrict discharge, both conditions must be met.",
+          "price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the configured maximum price threshold. If no threshold is configured, it uses today's average price computed automatically from the price sensor. If time slots restrict discharge, both conditions must be met.",
           "negative_price_charging_enabled": "Opt-in dynamic-pricing feature that charges during the most negative import-price slots even when the normal energy forecast does not require grid charging. A solar forecast sensor is not required.",
           "smart_predischarge_enabled": "Opt-in dynamic-pricing feature. It creates battery headroom before forecast PV surplus reaches a price slot at or below the negative-injection threshold. Existing SOC floors, user limits, time slots, manual ownership, backup and capacity protection remain authoritative.",
           "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
@@ -1184,7 +1184,7 @@
           "price_sensor": "Electricity price sensor",
           "max_price_threshold": "Maximum price threshold (optional)",
           "average_price_sensor": "Daily average price sensor (optional)",
-          "rt_price_discharge_control": "Only discharge when price is above threshold",
+          "price_discharge_control": "Only discharge when price is above threshold",
           "solar_forecast_sensor": "Solar forecast sensor (kWh)",
           "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)",
           "predictive_grid_charge_margin_pct": "Predictive grid charge margin (%)"
@@ -1193,7 +1193,7 @@
           "price_sensor": "Sensor whose state is the current electricity price (e.g. sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Any sensor that exposes the current period price as its state works.",
           "max_price_threshold": "Charging activates when the current price is at or below this value. Use major currency/kWh (e.g. €/kWh for Nordpool/PVPC, CHF/kWh for CKW). HACS Nordpool prices configured in cents are converted automatically. Leave empty if using the daily average sensor below.",
           "average_price_sensor": "If provided, this sensor's state is used as the threshold instead of the fixed value above — useful when your price integration already exposes a daily average. Leave empty to use the fixed threshold.",
-          "rt_price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the threshold (fixed or daily average). If time slots restrict discharge, both conditions must be met.",
+          "price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the threshold (fixed or daily average). If time slots restrict discharge, both conditions must be met.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
           "predictive_safety_margin_kwh": "Extra energy buffer added to the consumption forecast before deciding whether to charge. The same kWh buffer is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable (default). Capped at total battery capacity.",
           "predictive_grid_charge_margin_pct": "Extra % charged from the grid on top of the solar-deficit, to hedge against optimistic solar forecasts. E.g. a 2 kWh grid need at 50% charges 3 kWh. 0 to disable (default). Capped at the gap to max SOC."
@@ -1579,7 +1579,7 @@
       "weekly_full_charge_enabled": {
         "name": "Weekly Full Charge"
       },
-      "dp_price_discharge_control": {
+      "price_discharge_control": {
         "name": "Price-Based Discharge"
       },
       "smart_predischarge": {
@@ -1587,9 +1587,6 @@
       },
       "negative_price_charging": {
         "name": "Negative-price opportunistic charging"
-      },
-      "rt_price_discharge_control": {
-        "name": "Price-Based Discharge"
       },
       "lamp_switch": {
         "name": "Status LEDs"

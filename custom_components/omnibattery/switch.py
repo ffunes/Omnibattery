@@ -37,8 +37,7 @@ from .const import (
     CONF_PRIMARY_FEEDFORWARD_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
     CONF_PREDICTIVE_CHARGING_MODE,
-    CONF_DP_PRICE_DISCHARGE_CONTROL,
-    CONF_RT_PRICE_DISCHARGE_CONTROL,
+    CONF_PRICE_DISCHARGE_CONTROL,
     CONF_SMART_PREDISCHARGE_ENABLED,
     CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
@@ -111,11 +110,11 @@ async def async_setup_entry(
     if controller and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data:
         mode = entry.data.get(CONF_PREDICTIVE_CHARGING_MODE)
         if mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
-            entities.append(PriceDischargeControlSwitch(hass, entry, controller, "dp"))
+            entities.append(PriceDischargeControlSwitch(hass, entry, controller))
             entities.append(SmartPredischargeSwitch(hass, entry, controller))
             entities.append(NegativePriceChargingSwitch(hass, entry, controller))
         elif mode == PREDICTIVE_MODE_REALTIME_PRICE:
-            entities.append(PriceDischargeControlSwitch(hass, entry, controller, "rt"))
+            entities.append(PriceDischargeControlSwitch(hass, entry, controller))
 
     # Add predictive charging switch (system-level, not per-battery). Shown
     # whenever predictive charging has been through config (the key is always
@@ -2204,27 +2203,21 @@ class WeeklyFullChargeEnableSwitch(SwitchEntity):
 class PriceDischargeControlSwitch(SwitchEntity):
     """Switch gating battery discharge on the electricity price being above threshold.
 
-    Two variants share this class: ``dp`` (dynamic pricing) and ``rt`` (real-time
-    price). The pricing engine reads the matching controller flag
-    (``dp_price_discharge_control`` / ``rt_price_discharge_control``) live each cycle.
+    Shared by the DP (dynamic pricing) and RT (real-time price) predictive modes,
+    which are mutually exclusive, so a single entity backs both. The pricing
+    engine reads ``controller.dp_price_discharge_control`` /
+    ``rt_price_discharge_control`` depending on the active mode; both are
+    read-only properties aliasing ``controller.price_discharge_control``.
     """
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller, kind: str) -> None:
-        """Initialize. kind must be 'dp' or 'rt'."""
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize."""
         self.hass = hass
         self.entry = entry
         self.controller = controller
-        self._kind = kind
-        if kind == "dp":
-            self._attr_translation_key = "dp_price_discharge_control"
-            self._conf_key = CONF_DP_PRICE_DISCHARGE_CONTROL
-            self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}dp_price_discharge_control"
-            self.entity_id = system_entity_id("switch", "dp_price_discharge_control")
-        else:
-            self._attr_translation_key = "rt_price_discharge_control"
-            self._conf_key = CONF_RT_PRICE_DISCHARGE_CONTROL
-            self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}rt_price_discharge_control"
-            self.entity_id = system_entity_id("switch", "rt_price_discharge_control")
+        self._attr_translation_key = "price_discharge_control"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}price_discharge_control"
+        self.entity_id = system_entity_id("switch", "price_discharge_control")
 
         self._attr_has_entity_name = True
         self._attr_icon = "mdi:cash-clock"
@@ -2233,21 +2226,16 @@ class PriceDischargeControlSwitch(SwitchEntity):
     @property
     def is_on(self) -> bool:
         """Return True if price-based discharge control is active."""
-        if self._kind == "dp":
-            return self.controller.dp_price_discharge_control
-        return self.controller.rt_price_discharge_control
+        return self.controller.price_discharge_control
 
     def _set_enabled(self, enabled: bool) -> None:
         """Set the controller flag and persist it."""
-        if self._kind == "dp":
-            self.controller.dp_price_discharge_control = enabled
-        else:
-            self.controller.rt_price_discharge_control = enabled
+        self.controller.price_discharge_control = enabled
         new_data = dict(self.entry.data)
-        new_data[self._conf_key] = enabled
+        new_data[CONF_PRICE_DISCHARGE_CONTROL] = enabled
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
-        _LOGGER.info("Price-based discharge control (%s) %s",
-                     self._kind, "ENABLED" if enabled else "DISABLED")
+        _LOGGER.info("Price-based discharge control %s",
+                     "ENABLED" if enabled else "DISABLED")
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs) -> None:
