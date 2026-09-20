@@ -54,3 +54,10 @@ def test_switch_is_named_in_every_language():
         entry = data["entity"]["switch"]["high_price_discharge"]
 
         assert entry["name"], name
+
+
+def test_unload_releases_the_override():
+    """Shutdown writes stop the batteries, but the convention is explicit."""
+    init = (COMPONENT / "__init__.py").read_text(encoding="utf-8")
+
+    assert 'controller._high_price_discharge_mgr.clear_runtime("unload")' in init
