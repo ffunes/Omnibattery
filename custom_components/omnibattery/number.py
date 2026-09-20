@@ -98,8 +98,8 @@ async def async_setup_entry(
         # already enforces these in software; previously they were only changeable
         # through the options flow.
         if not coordinator.capabilities.hardware_soc_cutoff:
-            entities.append(MarstekSoftSocLimitNumber(coordinator, "max"))
-            entities.append(MarstekSoftSocLimitNumber(coordinator, "min"))
+            entities.append(SoftSocLimitNumber(coordinator, "max"))
+            entities.append(SoftSocLimitNumber(coordinator, "min"))
 
         if coordinator.enable_charge_hysteresis:
             entities.append(MarstekChargeHysteresisNumber(coordinator))
@@ -906,12 +906,16 @@ class ExcludedDeviceExclusionPctNumber(NumberEntity):
         }
 
 
-class MarstekSoftSocLimitNumber(CoordinatorEntity, NumberEntity):
-    """Software-enforced SOC limit for batteries that don't expose hardware cutoff registers (v3/vA/vD).
+class SoftSocLimitNumber(CoordinatorEntity, NumberEntity):
+    """Software-enforced SOC limit for batteries that don't expose hardware cutoff registers.
 
     Mirrors the UX of the v2 charging/discharging_cutoff_capacity number entities,
     but writes only to coordinator state and config_entry.data — no Modbus write.
     The PD controller reads coordinator.max_soc / coordinator.min_soc each cycle.
+
+    The bounds come from the driver, not from constants here. They started as
+    the Venus D's hardware floors and every brand inherited them, which put a
+    12 % floor on a LUNA2000 whose own minimum is 5 % (#495).
     """
 
     def __init__(self, coordinator: MarstekVenusDataUpdateCoordinator, kind: str) -> None:
@@ -922,18 +926,19 @@ class MarstekSoftSocLimitNumber(CoordinatorEntity, NumberEntity):
         self._attr_native_unit_of_measurement = "%"
         self._attr_native_step = 1
         self._attr_should_poll = False
+        capabilities = coordinator.capabilities
         if kind == "max":
             self._attr_translation_key = "charging_cutoff_capacity"
             self._attr_unique_id = f"{coordinator.device_key}_charging_cutoff_capacity"
             self._attr_icon = "mdi:battery-arrow-up"
-            self._attr_native_min_value = 50
-            self._attr_native_max_value = 100
+            low, high = capabilities.charge_cutoff_range
         else:
             self._attr_translation_key = "discharging_cutoff_capacity"
             self._attr_unique_id = f"{coordinator.device_key}_discharging_cutoff_capacity"
             self._attr_icon = "mdi:battery-arrow-down"
-            self._attr_native_min_value = 12
-            self._attr_native_max_value = 50
+            low, high = capabilities.discharge_cutoff_range
+        self._attr_native_min_value = float(low)
+        self._attr_native_max_value = float(high)
         self.entity_id = english_entity_id("number", coordinator.name, self._attr_translation_key)
 
     @property

@@ -157,6 +157,15 @@ class DriverCapabilities:
     # and starve the back-off. Defaults False (a plain cache read proves nothing).
     telemetry_liveness_checked: bool = False
 
+    # Inclusive SOC window (percent) each cutoff control may offer. The defaults
+    # are the Venus D's hardware floors, which is what the software-limit entity
+    # hard-coded before these existed; a driver whose hardware means something
+    # else reports its own. A control that offers a value the driver's write path
+    # rejects is worse than no control: the entity shows the new number while the
+    # hardware backstop never moves (#495).
+    charge_cutoff_range: tuple[float, float] = (50.0, 100.0)
+    discharge_cutoff_range: tuple[float, float] = (12.0, 50.0)
+
 
 def has_connected_mppt_pv(coordinator) -> bool:
     """Return whether an MPPT-capable battery has panels connected.

@@ -9,6 +9,7 @@ import pytest
 from custom_components.omnibattery.number import (
     MarstekManualSetPowerNumber,
     MarstekVenusNumber,
+    SoftSocLimitNumber,
 )
 from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
@@ -150,3 +151,92 @@ def test_software_manual_slider_uses_configured_power_limit(kind, limit):
 
     assert entity.native_max_value == 1500
     assert entity.native_value == 1500.0
+
+
+# ----------------------------------------------------------------------
+# Cutoff bounds come from the driver, not from constants (#495)
+#
+# The software SOC-limit entity hard-coded the Venus D's hardware floors, and
+# every brand inherited them. On a LUNA2000 that put a 12 % floor on a battery
+# whose own minimum is 5 %, and offered a discharge cutoff up to 50 % that the
+# Huawei write path rejects outright (its register takes 0-20 %).
+# ----------------------------------------------------------------------
+
+
+def _soc_limit_entity(kind, *, charge_range=None, discharge_range=None):
+    from custom_components.omnibattery.drivers import DriverCapabilities
+
+    fields = {}
+    if charge_range is not None:
+        fields["charge_cutoff_range"] = charge_range
+    if discharge_range is not None:
+        fields["discharge_cutoff_range"] = discharge_range
+    capabilities = DriverCapabilities(
+        hardware_soc_cutoff=False,
+        has_force_mode=True,
+        push_telemetry=False,
+        max_charge_power_w=2500,
+        max_discharge_power_w=2500,
+        has_mppt_pv=False,
+        has_alarm_registers=False,
+        has_rs485_control=False,
+        **fields,
+    )
+    entity = object.__new__(SoftSocLimitNumber)
+    coordinator = SimpleNamespace(
+        capabilities=capabilities,
+        device_key="dev-key",
+        name="Battery",
+        max_soc=100,
+        min_soc=5,
+    )
+    SoftSocLimitNumber.__init__(entity, coordinator, kind)
+    return entity
+
+
+def test_a_driver_without_its_own_window_keeps_the_marstek_bounds():
+    """Every existing driver must be untouched by this change."""
+    assert (_soc_limit_entity("min").native_min_value,
+            _soc_limit_entity("min").native_max_value) == (12.0, 50.0)
+    assert (_soc_limit_entity("max").native_min_value,
+            _soc_limit_entity("max").native_max_value) == (50.0, 100.0)
+
+
+def test_a_driver_that_declares_a_window_gets_it():
+    entity = _soc_limit_entity("min", discharge_range=(0.0, 20.0))
+    assert entity.native_min_value == 0.0
+    assert entity.native_max_value == 20.0
+
+
+def test_the_charge_side_follows_the_driver_too():
+    entity = _soc_limit_entity("max", charge_range=(90.0, 100.0))
+    assert entity.native_min_value == 90.0
+    assert entity.native_max_value == 100.0
+
+
+def test_a_huawei_floor_of_five_percent_is_now_reachable():
+    """The reported symptom: 5 % could not be set because 12 % was the minimum."""
+    entity = _soc_limit_entity("min", discharge_range=(0.0, 20.0))
+    assert entity.native_min_value <= 5.0
+
+
+def test_the_huawei_driver_declares_the_windows_its_registers_accept():
+    """The declared window must be the one _write_cutoff will actually take."""
+    from unittest.mock import MagicMock
+
+    from custom_components.omnibattery.drivers.huawei import (
+        _CHARGE_CUTOFF_RANGE,
+        _DISCHARGE_CUTOFF_RANGE,
+        HuaweiSolarDriver,
+    )
+
+    driver = HuaweiSolarDriver(
+        MagicMock(),
+        "1.2.3.4",
+        port=502,
+        slave_id=4,
+        battery_device_id="dev",
+        client=MagicMock(),
+    )
+    assert driver.capabilities.charge_cutoff_range == _CHARGE_CUTOFF_RANGE
+    assert driver.capabilities.discharge_cutoff_range == _DISCHARGE_CUTOFF_RANGE
