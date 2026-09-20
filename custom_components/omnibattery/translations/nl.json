@@ -1490,6 +1490,9 @@
       "surplus_price_hold": {
         "name": "Prijsrem zonne-overschot"
       },
+      "discharge_reserve": {
+        "name": "Ontlaadreserve"
+      },
       "primary_feedforward": {
         "name": "Werkelijke vraag vooruitsturen"
       },
@@ -2122,7 +2125,7 @@
         "name": "Status prijsrem zonne-overschot"
       },
       "discharge_reserve_status": {
-        "name": "Ontlaadreserve"
+        "name": "Status ontlaadreserve"
       },
       "wifi_status": {
         "name": "WiFi-status"
@@ -2280,6 +2283,9 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Minimale besparing overschotrem"
+      },
+      "discharge_reserve_min_saving": {
+        "name": "Minimale besparing ontlaadreserve"
       },
       "high_price_discharge_max_power_w": {
         "name": "Maximaal vermogen van hoogprijs-ontlading"

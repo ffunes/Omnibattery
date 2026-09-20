@@ -1486,6 +1486,9 @@
       "surplus_price_hold": {
         "name": "Surplus Price Hold"
       },
+      "discharge_reserve": {
+        "name": "Discharge Reserve"
+      },
       "primary_feedforward": {
         "name": "Feed the real demand forward"
       },
@@ -2118,7 +2121,7 @@
         "name": "Surplus Price Hold Status"
       },
       "discharge_reserve_status": {
-        "name": "Discharge Reserve"
+        "name": "Discharge Reserve Status"
       },
       "wifi_status": {
         "name": "WiFi Status"
@@ -2276,6 +2279,9 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Surplus Hold Minimum Saving"
+      },
+      "discharge_reserve_min_saving": {
+        "name": "Discharge Reserve Minimum Saving"
       },
       "high_price_discharge_max_power_w": {
         "name": "High-Price Discharge Maximum Power"

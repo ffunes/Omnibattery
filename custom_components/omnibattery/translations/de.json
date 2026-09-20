@@ -1490,6 +1490,9 @@
       "surplus_price_hold": {
         "name": "Preisbremse Solarüberschuss"
       },
+      "discharge_reserve": {
+        "name": "Entladereserve"
+      },
       "primary_feedforward": {
         "name": "Tatsächlichen Bedarf vorsteuern"
       },
@@ -2122,7 +2125,7 @@
         "name": "Status Preisbremse Solarüberschuss"
       },
       "discharge_reserve_status": {
-        "name": "Entladereserve"
+        "name": "Status Entladereserve"
       },
       "wifi_status": {
         "name": "WLAN-Status"
@@ -2280,6 +2283,9 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Mindestersparnis Überschussbremse"
+      },
+      "discharge_reserve_min_saving": {
+        "name": "Mindestersparnis Entladereserve"
       },
       "high_price_discharge_max_power_w": {
         "name": "Maximale Leistung der Hochpreis-Entladung"

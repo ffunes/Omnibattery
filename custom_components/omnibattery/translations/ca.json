@@ -1490,6 +1490,9 @@
       "surplus_price_hold": {
         "name": "Retenció d'excedent per preu"
       },
+      "discharge_reserve": {
+        "name": "Reserva de descàrrega"
+      },
       "primary_feedforward": {
         "name": "Anticipar la demanda real"
       },
@@ -2122,7 +2125,7 @@
         "name": "Estat de retenció d'excedent per preu"
       },
       "discharge_reserve_status": {
-        "name": "Reserva de descàrrega"
+        "name": "Estat de la reserva de descàrrega"
       },
       "wifi_status": {
         "name": "Estat WiFi"
@@ -2280,6 +2283,9 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Estalvi mínim de retenció d'excedent"
+      },
+      "discharge_reserve_min_saving": {
+        "name": "Estalvi mínim de la reserva de descàrrega"
       },
       "high_price_discharge_max_power_w": {
         "name": "Potència màxima de la descàrrega per preu alt"
