@@ -9815,8 +9815,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 solar forecast itself, which is where that risk lives. The key
                 is removed and its number entity deleted rather than left
                 orphaned. A hand-set safety margin is never rewritten.
+    v14 -> v15: drop the pre-discharge / high-price export power knobs. Both
+                asked for what the system-wide discharge limit already caps, so
+                a per-feature slider could only contradict it. The keys are
+                removed with their number entities, and the 0% pre-discharge
+                reserve the old flow wrote to every entry is dropped so installs
+                that never enabled pre-discharge reach the new default.
     """
-    if entry.version >= 14:
+    if entry.version >= 15:
         return True
 
     new_data = dict(entry.data)
