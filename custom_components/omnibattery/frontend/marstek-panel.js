@@ -6413,9 +6413,11 @@ class MarstekVenusPanel extends HTMLElement {
     for (const { sec, rows } of sections) {
       const { card, head } = this._card(this._t(sec.tk), sec.icon || "mdi:cog-outline");
       card.dataset.tk = sec.tk;
-      this._attachHelp(head, this._help(sec.tk));
       card.classList.toggle("adv-off", !this._loadCtlAdv(sec.tk));
+      // Tune first, then ⓘ: the toggle that changes what the card shows leads
+      // the header cluster (CSS below keys the spacing off this order).
       if (rows.some((r) => r.item.adv)) this._addAdvBtn(card, head, sec.tk);
+      this._attachHelp(head, this._help(sec.tk));
       const grid = document.createElement("div");
       grid.className = "bat-ctl-grid sys-grid";
       // A `gate` switch (e.g. predictive_charging) hides its sibling param rows
@@ -7545,7 +7547,7 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-adv-btn:hover { color: var(--ink); }
       .ctl-adv-btn.active { color: var(--accent); }
       .card.adv-off .adv-row { display: none; }
-      .card-head .card-info + .ctl-adv-btn, .card-head .ctl-adv-btn + .ctl-hide-btn { margin-left: 8px; }
+      .card-head .ctl-adv-btn + .card-info, .card-head .ctl-adv-btn + .ctl-hide-btn { margin-left: 8px; }
       .ctl-root.arranging .ctl-hide-btn { display: grid; }
       .card-head .card-info + .ctl-hide-btn, .card-head .ctl-hide-btn + .card-info { margin-left: 8px; }
       /* hidden-cards section: only visible while arranging; cards are parked
