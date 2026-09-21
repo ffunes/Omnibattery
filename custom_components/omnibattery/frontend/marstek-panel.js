@@ -3143,11 +3143,12 @@ class MarstekVenusPanel extends HTMLElement {
     const dictionary = this._dailyOperationReasonDict();
     const labels = String(value || "").split(";").map((part) => part.trim()).filter(Boolean)
       // A day with no sun left legitimately has no budget and no future energy
-      // in the learned profile. Both are diagnostics only while PV could still
-      // be producing, otherwise every installation warns all night.
+      // in the learned profile, so neither is a user-facing problem. The
+      // sunset phase only settles an hour after the last production, so
+      // zero_budget is never shown at all; both stay in the sensor attributes.
       .filter((part) => {
         const reason = part.toLowerCase();
-        if (reason === "zero_budget") return phase === "during";
+        if (reason === "zero_budget") return false;
         if (reason === "learned_shape_no_future_energy") return phase !== "after";
         return true;
       })
