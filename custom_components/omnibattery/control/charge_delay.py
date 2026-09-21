@@ -107,6 +107,26 @@ def _decision_now() -> datetime:
     return now
 
 
+# Status fields the solar balance produces.  A hold that returns before the
+# balance runs clears them, so a fresh deficit never sits beside stale figures.
+_BALANCE_STATUS_FIELDS = (
+    "solar_t_end",
+    "remaining_solar_kwh",
+    "remaining_consumption_kwh",
+    "net_solar_kwh",
+    "charge_time_h",
+    "estimated_unlock_time",
+)
+
+
+def _energy_needed_kwh(batteries: list, target_soc: float) -> float:
+    """Return the kWh still missing to reach ``target_soc`` across ``batteries``."""
+    return sum(
+        (target_soc - c.data.get("battery_soc", 100)) / 100.0 * c.data.get("battery_total_energy", 0)
+        for c in batteries if c.data
+    )
+
+
 class ChargeDelayManager:
     """Manages the unified charge-delay gate, persistence and projection."""
 
@@ -624,6 +644,20 @@ class ChargeDelayManager:
                 "grid needed (unlock delay)" if ctrl._charge_delay_balance_needs_charge else "solar sufficient (keep delay)",
             )
 
+        # Energy needed to reach target_soc.  Plain SOC arithmetic, independent of
+        # T_start, so publish it before the pre-sunrise holds below: they return
+        # without calculating the solar balance, and a consumer that defaults the
+        # missing attribute to 0 would read the hold as "nothing to charge".
+        # Clamped for the sensor so a battery above target reports no deficit
+        # rather than a negative one; the raw value still drives the unlock below.
+        energy_needed_kwh = _energy_needed_kwh(automatic_batteries, target_soc)
+        status["energy_needed_kwh"] = round(max(0.0, energy_needed_kwh), 2)
+        # The solar balance below may not be reached this cycle.  Drop what it
+        # would have produced rather than leaving a previous cycle's figures
+        # beside the fresh deficit; each is rewritten as soon as it is computed.
+        for key in _BALANCE_STATUS_FIELDS:
+            status[key] = None
+
         if ctrl._charge_delay_balance_needs_charge:
             # Genuine grid-deficit day: rather than unlocking immediately (often a
             # pre-dawn price peak), hold until the cheapest import hour before solar
@@ -665,12 +699,6 @@ class ChargeDelayManager:
                 return _unlock("past_t_end")
 
         # --- Calculate energy balance ---
-        # Energy needed to reach target_soc
-        energy_needed_kwh = sum(
-            (target_soc - c.data.get("battery_soc", 100)) / 100.0 * c.data.get("battery_total_energy", 0)
-            for c in automatic_batteries if c.data
-        )
-
         if energy_needed_kwh <= 0:
             return _unlock("batteries_full")
 
