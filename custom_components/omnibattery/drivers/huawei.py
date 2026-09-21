@@ -537,6 +537,12 @@ class HuaweiSolarDriver(BatteryDriver):
             actuator_latency_s=_ACTUATOR_LATENCY_S,
             readback_latency_s=_ACTUATOR_LATENCY_S,
             engage_grace_s=_ACTUATOR_LATENCY_S,
+            # The windows 47081/47082 actually accept, so the cutoff controls
+            # offer what _write_cutoff will take. Offering more is not harmless:
+            # a value outside these is skipped rather than clamped, leaving the
+            # entity showing a limit the hardware never received.
+            charge_cutoff_range=_CHARGE_CUTOFF_RANGE,
+            discharge_cutoff_range=_DISCHARGE_CUTOFF_RANGE,
         )
         # One group per cadence, not per register block. The coordinator treats
         # a group that returns nothing as a failed read, and a cycle in which
