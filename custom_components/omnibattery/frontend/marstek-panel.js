@@ -1125,34 +1125,37 @@ const SYS_SECTIONS = [
     tk: "diagPredictive",
     icon: "mdi:brain",
     items: [
-      { key: "predictive_charging", domain: "switch", lk: "itemEnable", icon: "mdi:brain", gate: true },
-      { key: "predictive_safety_margin_kwh", lk: "itemSolarSafety", icon: "mdi:solar-power-variant", adv: true },
-      { key: "min_soc_floor_enabled", domain: "switch", lk: "itemMinSocFloorEnable", icon: "mdi:battery-arrow-up", adv: true },
-      { key: "predictive_min_soc_floor", lk: "itemMinSocFloor", icon: "mdi:battery-arrow-up", adv: true },
+      // `grp` draws a divider whenever it changes between two live rows, so this
+      // long card reads as: base -> charge pricing -> predischarge -> discharge
+      // by price -> status readouts -> action.
+      { key: "predictive_charging", domain: "switch", lk: "itemEnable", icon: "mdi:brain", gate: true, grp: "base" },
+      { key: "predictive_safety_margin_kwh", lk: "itemSolarSafety", icon: "mdi:solar-power-variant", adv: true, grp: "base" },
+      { key: "min_soc_floor_enabled", domain: "switch", lk: "itemMinSocFloorEnable", icon: "mdi:battery-arrow-up", adv: true, grp: "base" },
+      { key: "predictive_min_soc_floor", lk: "itemMinSocFloor", icon: "mdi:battery-arrow-up", adv: true, grp: "base" },
       // Pricing controls: their entities only exist when the predictive mode is
       // price-based (price_discharge_control switch; thresholds are dynamic-pricing
       // only), so on time-slot installs these rows simply don't render.
-      { key: "price_discharge_control", domain: "switch", lk: "itemPriceDischarge", icon: "mdi:cash-clock" },
-      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus", adv: true },
-      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus", adv: true },
-      { key: "min_arbitrage_margin", lk: "itemArbitrageMargin", icon: "mdi:scale-balance", adv: true },
-      { key: "round_trip_efficiency", lk: "itemRoundTripEfficiency", icon: "mdi:battery-sync", adv: true },
-      { key: "negative_price_charging", domain: "switch", lk: "itemNegativePriceCharging", icon: "mdi:battery-charging-100" },
-      { key: "smart_predischarge", domain: "switch", lk: "itemSmartPredischarge", icon: "mdi:battery-arrow-down-outline" },
-      { key: "negative_injection_threshold", lk: "itemNegativeThreshold", icon: "mdi:cash-minus", adv: true },
-      { key: "predischarge_reserve_soc", lk: "itemPredischargeReserve", icon: "mdi:battery-lock", adv: true },
-      { key: "surplus_price_hold", domain: "switch", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export" },
-      { key: "surplus_hold_min_saving", lk: "itemSurplusHoldSaving", icon: "mdi:cash-minus", adv: true },
-      { key: "high_price_discharge", domain: "switch", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export" },
-      { key: "discharge_reserve", domain: "switch", lk: "diagDischargeReserve", icon: "mdi:battery-lock" },
-      { key: "discharge_reserve_min_saving", lk: "itemDischargeReserveSaving", icon: "mdi:cash-minus", adv: true },
-      { key: "curtailment_status", domain: "binary_sensor", lk: "diagCurtailment", icon: "mdi:solar-power-variant" },
-      { key: "surplus_price_hold_status", domain: "binary_sensor", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export" },
-      { key: "high_price_discharge_status", domain: "sensor", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export" },
-      { key: "discharge_reserve_status", domain: "binary_sensor", lk: "diagDischargeReserve", icon: "mdi:battery-lock" },
+      { key: "price_discharge_control", domain: "switch", lk: "itemPriceDischarge", icon: "mdi:cash-clock", grp: "price" },
+      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus", adv: true, grp: "price" },
+      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus", adv: true, grp: "price" },
+      { key: "min_arbitrage_margin", lk: "itemArbitrageMargin", icon: "mdi:scale-balance", adv: true, grp: "price" },
+      { key: "round_trip_efficiency", lk: "itemRoundTripEfficiency", icon: "mdi:battery-sync", adv: true, grp: "price" },
+      { key: "negative_price_charging", domain: "switch", lk: "itemNegativePriceCharging", icon: "mdi:battery-charging-100", grp: "price" },
+      { key: "smart_predischarge", domain: "switch", lk: "itemSmartPredischarge", icon: "mdi:battery-arrow-down-outline", grp: "predischarge" },
+      { key: "negative_injection_threshold", lk: "itemNegativeThreshold", icon: "mdi:cash-minus", adv: true, grp: "predischarge" },
+      { key: "predischarge_reserve_soc", lk: "itemPredischargeReserve", icon: "mdi:battery-lock", adv: true, grp: "predischarge" },
+      { key: "surplus_price_hold", domain: "switch", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export", grp: "export" },
+      { key: "surplus_hold_min_saving", lk: "itemSurplusHoldSaving", icon: "mdi:cash-minus", adv: true, grp: "export" },
+      { key: "high_price_discharge", domain: "switch", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export", grp: "export" },
+      { key: "discharge_reserve", domain: "switch", lk: "diagDischargeReserve", icon: "mdi:battery-lock", grp: "export" },
+      { key: "discharge_reserve_min_saving", lk: "itemDischargeReserveSaving", icon: "mdi:cash-minus", adv: true, grp: "export" },
+      { key: "curtailment_status", domain: "binary_sensor", lk: "diagCurtailment", icon: "mdi:solar-power-variant", grp: "status" },
+      { key: "surplus_price_hold_status", domain: "binary_sensor", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export", grp: "status" },
+      { key: "high_price_discharge_status", domain: "sensor", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export", grp: "status" },
+      { key: "discharge_reserve_status", domain: "binary_sensor", lk: "diagDischargeReserve", icon: "mdi:battery-lock", grp: "status" },
       // Dynamic pricing and time slot only; the system button does not exist on
       // real-time installs, so there this row simply doesn't render.
-      { key: "reevaluate_dynamic_pricing", domain: "button", lk: "itemReevaluatePrices", icon: "mdi:calendar-refresh" },
+      { key: "reevaluate_dynamic_pricing", domain: "button", lk: "itemReevaluatePrices", icon: "mdi:calendar-refresh", grp: "action" },
     ],
   },
   {
@@ -6426,7 +6429,20 @@ class MarstekVenusPanel extends HTMLElement {
       // `display: ""` lets the class rule win.
       let gateKey = null;
       const gatedNodes = [];
+      // A divider goes between live rows whose `grp` differs (see SYS_SECTIONS).
+      // It's gated like a normal row, and marked `adv` when every live row of the
+      // group it opens is advanced, so it can't linger alone with Advanced off.
+      let lastGrp = null;
       for (const r of rows) {
+        const g = r.item.grp;
+        if (g && lastGrp && g !== lastGrp) {
+          const sep = document.createElement("div");
+          sep.className = "sys-sep";
+          if (rows.filter((x) => x.item.grp === g).every((x) => x.item.adv)) sep.classList.add("adv-row");
+          grid.appendChild(sep);
+          gatedNodes.push(sep);
+        }
+        if (g) lastGrp = g;
         const frag = this._buildSysControl(r.item, r.id, store, r.multi);
         const nodes = [...frag.childNodes];
         if (r.item.adv) for (const n of nodes) n.classList?.add("adv-row");
@@ -7547,6 +7563,7 @@ class MarstekVenusPanel extends HTMLElement {
       /* narrow paired-column cards: let the label track shrink (max-content can't)
          and wrap, so sliders/buttons never overflow the card box at ~1080p */
       .sys-grid { margin-top: 14px; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); }
+      .sys-sep { grid-column: 1 / -1; height: 1px; margin: 2px 0; background: var(--line); }
       .sys-grid .ctl-k { white-space: normal; overflow-wrap: anywhere; }
       /* Auto-fit can legitimately make a card ~300px wide. At that point a
          label/value pair leaves too little room for a usable range input. Stack

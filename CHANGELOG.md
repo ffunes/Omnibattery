@@ -10,6 +10,7 @@
 
 ### Changed
 
+- **The predictive-charging card is now split into groups**: divider lines separate base settings, charge pricing, pre-discharge, discharge by price, status rows and the re-evaluate button.
 - **The predictive-charging setup forms now only ask for sensors**: every threshold, toggle and limit they duplicated is already a live switch or slider on the dashboard, so Dynamic Pricing went from twenty-one fields to five. Nothing is lost: the same settings are one click away on the Control tab, and changing them there no longer reloads the integration.
 - **The two export-power sliders are gone; both features now use the fleet's discharge power**: "High price discharge export limit" and "Pre-discharge export limit" both asked for the same thing, and the system-wide discharge limit already caps it. To export less, lower that limit (or drive it from an automation). A migration drops both entities.
 - **The pre-discharge reserve SOC now defaults to 20%**: it defaulted to 0%, which let anti-curtailment empty the fleet down to each battery's own minimum for a solar forecast that may never arrive. Installs that never enabled pre-discharge get the new default; if you had set a value, it is kept.
