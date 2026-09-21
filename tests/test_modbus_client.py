@@ -14,6 +14,7 @@ import pytest
 from custom_components.omnibattery.infra.modbus_client import (
     decode_registers,
     MarstekModbusClient,
+    _marstek_v3_packet_correction,
 )
 from pymodbus.client import AsyncModbusTcpClient, AsyncModbusSerialClient
 from custom_components.omnibattery.const import (
@@ -208,5 +209,22 @@ def test_serial_skips_v3_packet_correction():
     """The v3 MBAP fix is TCP-framing only; serial must not install it."""
     serial = _make_client(host="/dev/ttyUSB0", port=502, is_v3=True, serial_port="/dev/ttyUSB0")
     tcp = _make_client(host="192.168.1.50", port=502, is_v3=True)
-    assert getattr(serial.client, "trace_packet", None) is None
-    assert tcp.client.trace_packet is not None
+    assert getattr(serial.client, "ctx", None) is None or (
+        serial.client.ctx.trace_packet is not _marstek_v3_packet_correction
+    )
+    assert tcp.client.ctx.trace_packet is _marstek_v3_packet_correction
+
+
+def test_v3_packet_correction_reaches_the_transaction_manager():
+    """Where pymodbus reads the hook, not where it is convenient to set it.
+
+    pymodbus takes trace_packet as a constructor argument and hands it to its
+    TransactionManager. Assigning client.trace_packet afterwards leaves the
+    manager on its own dummy hook, so the correction was installed on every v3
+    connection and called on none of them - and a test that only looked at the
+    client attribute saw nothing wrong.
+    """
+    tcp = _make_client(host="192.168.1.50", port=502, is_v3=True)
+    plain = _make_client(host="192.168.1.50", port=502, is_v3=False)
+    assert tcp.client.ctx.trace_packet is _marstek_v3_packet_correction
+    assert plain.client.ctx.trace_packet is not _marstek_v3_packet_correction
