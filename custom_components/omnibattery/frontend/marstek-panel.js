@@ -590,6 +590,7 @@ const DAILY_OPERATION_REASON_KEYS = {
   invalid_mode: "invalidMode",
   sinusoidal_invalid: "sinusoidalInvalid",
   forecast_invalid: "forecastInvalid",
+  zero_budget: "zeroBudget",
   unsafe_temporal_shape: "temporalInvalid",
 };
 
@@ -618,6 +619,7 @@ const DAILY_OPERATION_REASON_I18N = {
     invalidMode: "The solar profile mode is invalid",
     sinusoidalInvalid: "The sinusoidal solar curve could not be generated",
     forecastInvalid: "The solar forecast is invalid",
+    zeroBudget: "No solar energy is forecast for the rest of the day",
     temporalInvalid: "The solar time distribution could not be validated",
     normalizationFailed: "The solar forecast could not be distributed",
     loadFailed: "The profile data could not be loaded",
@@ -654,6 +656,7 @@ const DAILY_OPERATION_REASON_I18N = {
     invalidMode: "El modo del perfil solar no es válido",
     sinusoidalInvalid: "No se pudo generar la curva solar sinusoidal",
     forecastInvalid: "La previsión solar no es válida",
+    zeroBudget: "No queda previsión solar para el resto del día",
     temporalInvalid: "No se pudo validar la distribución temporal solar",
     normalizationFailed: "No se pudo distribuir la previsión solar",
     loadFailed: "No se pudieron cargar los datos del perfil",
@@ -690,6 +693,7 @@ const DAILY_OPERATION_REASON_I18N = {
     invalidMode: "El mode del perfil solar no és vàlid",
     sinusoidalInvalid: "No s'ha pogut generar la corba solar sinusoidal",
     forecastInvalid: "La previsió solar no és vàlida",
+    zeroBudget: "No queda previsió solar per a la resta del dia",
     temporalInvalid: "No s'ha pogut validar la distribució temporal solar",
     normalizationFailed: "No s'ha pogut distribuir la previsió solar",
     loadFailed: "No s'han pogut carregar les dades del perfil",
@@ -726,6 +730,7 @@ const DAILY_OPERATION_REASON_I18N = {
     invalidMode: "Der Solarprofilmodus ist ungültig",
     sinusoidalInvalid: "Die sinusförmige Solarkurve konnte nicht erstellt werden",
     forecastInvalid: "Die Solarprognose ist ungültig",
+    zeroBudget: "Für den Rest des Tages wird kein Solarertrag erwartet",
     temporalInvalid: "Die zeitliche Solarverteilung konnte nicht validiert werden",
     normalizationFailed: "Die Solarprognose konnte nicht verteilt werden",
     loadFailed: "Die Profildaten konnten nicht geladen werden",
@@ -762,6 +767,7 @@ const DAILY_OPERATION_REASON_I18N = {
     invalidMode: "Le mode du profil solaire n'est pas valide",
     sinusoidalInvalid: "La courbe solaire sinusoïdale n'a pas pu être générée",
     forecastInvalid: "La prévision solaire n'est pas valide",
+    zeroBudget: "Aucune production solaire n'est prévue pour le reste de la journée",
     temporalInvalid: "La répartition temporelle solaire n'a pas pu être validée",
     normalizationFailed: "La prévision solaire n'a pas pu être répartie",
     loadFailed: "Les données du profil n'ont pas pu être chargées",
@@ -798,6 +804,7 @@ const DAILY_OPERATION_REASON_I18N = {
     invalidMode: "De zonneprofielmodus is ongeldig",
     sinusoidalInvalid: "De sinusvormige zonnecurve kon niet worden gegenereerd",
     forecastInvalid: "De zonneprognose is ongeldig",
+    zeroBudget: "Er wordt vandaag geen zonne-opbrengst meer verwacht",
     temporalInvalid: "De verdeling van zonne-energie over de tijd kon niet worden gevalideerd",
     normalizationFailed: "De zonneprognose kon niet worden verdeeld",
     loadFailed: "De profielgegevens konden niet worden geladen",
@@ -3143,12 +3150,13 @@ class MarstekVenusPanel extends HTMLElement {
     const dictionary = this._dailyOperationReasonDict();
     const labels = String(value || "").split(";").map((part) => part.trim()).filter(Boolean)
       // A day with no sun left legitimately has no budget and no future energy
-      // in the learned profile, so neither is a user-facing problem. The
-      // sunset phase only settles an hour after the last production, so
-      // zero_budget is never shown at all; both stay in the sensor attributes.
+      // in the learned profile. Both are diagnostics only while PV could still
+      // be producing, otherwise every installation warns all night. The phase
+      // needs an hour of zero production to settle, so the sun position cuts
+      // the empty-budget notice off at sunset instead of an hour later.
       .filter((part) => {
         const reason = part.toLowerCase();
-        if (reason === "zero_budget") return false;
+        if (reason === "zero_budget") return phase === "during" && this._isDaytime();
         if (reason === "learned_shape_no_future_energy") return phase !== "after";
         return true;
       })
