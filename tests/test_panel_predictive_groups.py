@@ -11,7 +11,8 @@ from pathlib import Path
 
 PANEL = Path("custom_components/omnibattery/frontend/marstek-panel.js")
 
-# Expected group of each predictive item, in render order.
+# Expected group of each predictive item, in render order: each discharge
+# feature keeps its switch, its sliders and its status row in one group.
 EXPECTED = [
     ("predictive_charging", "base"),
     ("predictive_safety_margin_kwh", "base"),
@@ -26,15 +27,15 @@ EXPECTED = [
     ("smart_predischarge", "predischarge"),
     ("negative_injection_threshold", "predischarge"),
     ("predischarge_reserve_soc", "predischarge"),
-    ("surplus_price_hold", "export"),
-    ("surplus_hold_min_saving", "export"),
-    ("high_price_discharge", "export"),
-    ("discharge_reserve", "export"),
-    ("discharge_reserve_min_saving", "export"),
-    ("curtailment_status", "status"),
-    ("surplus_price_hold_status", "status"),
-    ("high_price_discharge_status", "status"),
-    ("discharge_reserve_status", "status"),
+    ("curtailment_status", "predischarge"),
+    ("surplus_price_hold", "surplus"),
+    ("surplus_hold_min_saving", "surplus"),
+    ("surplus_price_hold_status", "surplus"),
+    ("high_price_discharge", "highPrice"),
+    ("high_price_discharge_status", "highPrice"),
+    ("discharge_reserve", "reserve"),
+    ("discharge_reserve_min_saving", "reserve"),
+    ("discharge_reserve_status", "reserve"),
     ("reevaluate_dynamic_pricing", "action"),
 ]
 
