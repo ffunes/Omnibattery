@@ -359,15 +359,13 @@
           "start_time_3": "Franja 3 — hora d'inici (opcional)",
           "end_time_3": "Franja 3 — hora de fi (opcional)",
           "days_3": "Franja 3 — dies de la setmana",
-          "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicció solar (kWh)"
         },
         "data_description": {
           "start_time": "Hora d'inici de la franja de càrrega (ex: 01:00, tarifa vall)",
           "end_time": "Hora de fi de la franja de càrrega (ex: 06:00)",
           "days": "Dies en els quals es permet carregar des de la xarxa",
-          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
+          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament."
         }
       },
       "dynamic_pricing_config": {
@@ -376,56 +374,16 @@
         "data": {
           "price_integration_type": "Integració de preus",
           "price_sensor": "Sensor de preu elèctric",
-          "max_price_threshold": "Preu màxim (opcional)",
-          "discharge_price_threshold": "Preu mínim de descàrrega (opcional)",
-          "price_discharge_control": "Descarregar només quan el preu superi el llindar",
-          "negative_price_charging_enabled": "Activar la càrrega oportunista per preu negatiu",
-          "smart_predischarge_enabled": "Predescàrrega intel·ligent / anti-abocament",
-          "surplus_price_hold_enabled": "Activar l'absorció de l'excedent solar segons el preu",
-          "surplus_hold_min_saving": "Estalvi mínim per retenir l'excedent (moneda/kWh)",
-          "discharge_reserve_enabled": "Activar la reserva de descàrrega segons el preu",
-          "discharge_reserve_min_saving": "Estalvi mínim per a la reserva de descàrrega (moneda/kWh)",
-          "high_price_discharge_enabled": "Activar la descàrrega per preu alt",
-          "high_price_discharge_max_power_w": "Potència màxima de la descàrrega per preu alt (W)",
           "export_price_sensor": "Sensor de preu d'injecció/exportació (opcional)",
           "export_price_integration_type": "Integració del preu d'exportació (opcional)",
-          "negative_injection_threshold": "Llindar d'injecció negativa",
-          "predischarge_reserve_soc": "Reserva de SOC de predescàrrega (%)",
-          "predischarge_export_mode": "Mode d'exportació deliberada a la xarxa",
-          "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicció solar (kWh)"
         },
         "data_description": {
           "price_integration_type": "Selecciona la teva integració de preus d'electricitat",
           "price_sensor": "Sensor que proporciona preus horaris d'electricitat",
-          "max_price_threshold": "Les hores per sobre d'aquest preu no seran seleccionades. Quan el control de descàrrega per preu està activat, aquest valor també s'usa com a llindar de descàrrega. Usa moneda principal/kWh: €/kWh per a Nordpool/PVPC, CHF/kWh per a CKW. Els preus Nordpool HACS configurats en cèntims es converteixen automàticament. Deixa buit per usar totes les hores i usar la mitjana diària com a llindar de descàrrega. Tret que configuris a sota un preu mínim de descàrrega per separat.",
-          "discharge_price_threshold": "Llindar separat opcional per a la descàrrega per preu. La descàrrega es bloqueja mentre el preu sigui igual o inferior a aquest valor, obrint una banda neutra entre el preu màxim de càrrega (a dalt) i aquest mínim: en aquesta banda la bateria ni carrega de xarxa ni descarrega (la càrrega per excedent solar continua funcionant). Deixa-ho buit per reutilitzar el preu màxim per a tots dos (comportament actual d'un sol llindar).",
-          "price_discharge_control": "Si està activat, la bateria només descarrega quan el preu elèctric actual supera el preu màxim configurat. Si no hi ha llindar configurat, usa el preu mitjà del dia calculat automàticament a partir del sensor de preus. Si les franges horàries restringeixen la descàrrega, s'han de complir totes dues condicions.",
-          "negative_price_charging_enabled": "Funció opcional de preus dinàmics que carrega durant les franges d'importació més negatives encara que la previsió normal no requereixi càrrega de xarxa. No cal cap sensor de previsió solar.",
-          "smart_predischarge_enabled": "Activa la predescàrrega optativa només en el mode de preus dinàmics per crear espai abans de franges amb preu d'injecció negatiu.",
-          "surplus_price_hold_enabled": "Funció opcional de preus dinàmics. Emmagatzemar l'excedent fotovoltaic renuncia a la retribució per injecció d'aquella franja, així que la bateria deixa que l'excedent s'injecti mentre encara hi hagi al davant una franja d'injecció clarament més barata, i absorbeix en les hores més barates. S'allibera al final de la producció solar, quan s'assoleix l'objectiu del dia i quan les franges barates restants ja no el poden cobrir. Els límits de SOC existents, el retard de càrrega, les franges de xarxa barates programades, la càrrega amb preu negatiu, la predescàrrega intel·ligent, la càrrega completa setmanal i el control manual sempre tenen prioritat.",
-          "surplus_hold_min_saving": "Quant més barata ha de ser la millor franja restant abans de retenir l'excedent. Evita commutar per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
-          "discharge_reserve_enabled": "Funció opcional de preus dinàmics. El bloqueig de descàrrega per preu només pregunta si l'hora actual és barata, mai si les hores més cares que encara han de venir necessiten l'energia que hi ha a la bateria. Aquesta reserva projecta el perfil de consum après menys la producció fotovoltaica prevista sobre les franges de preu restants, dona a les més cares el primer dret sobre l'energia emmagatzemada i apuja el límit de descàrrega de cada bateria en allò que aquelles hores reclamen. Tot el que superi la reserva continua disponible ara mateix per a l'autoconsum. Mai es reserva més enllà de mitjanit, i el control manual, la predescàrrega intel·ligent, la reducció de puntes i els límits de SOC per franja sempre tenen prioritat.",
-          "discharge_reserve_min_saving": "Quant més cara ha de ser una hora posterior que l'actual abans que la seva demanda pugui reclamar energia emmagatzemada. Evita que el límit es mogui per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
-          "high_price_discharge_enabled": "Funció opcional de preus dinàmics. Ven energia emmagatzemada a la xarxa en les franges de preu d'exportació més alt, però només l'energia que queda lligada 1:1 a un dèficit domèstic posterior dins de l'horitzó, i només quan el preu de venda supera estrictament el pitjor preu de recompra posterior d'aquesta energia més el cost addicional configurat. Mai ven per sota dels límits de SOC, contra una ordre de càrrega programada, ni durant la càrrega completa setmanal, la predescàrrega anti-abocament, la protecció de capacitat o el control manual. Si falta qualsevol dada (previsió, preu, comptador de xarxa), no exporta.",
-          "high_price_discharge_max_power_w": "Sostre de l'exportació deliberada, mesurat net al punt de connexió a la xarxa (incloent l'aportació solar simultània). Per defecte fa servir la potència de descàrrega de la flota, així que n'hi ha prou d'activar l'interruptor; un valor de 0 continua sent una configuració invàlida i manté la funció inactiva.",
           "export_price_sensor": "Sensor que proporciona els preus d'injecció. Deixa'l buit per fer servir la corba de preus d'importació, que és el correcte quan la injecció es retribueix al preu d'importació (balanç net).",
           "export_price_integration_type": "Disposició d'atributs del sensor de preu d'exportació. Deixa'l buit per reutilitzar la integració d'importació. Tibber no hi és disponible: està basat en servei i la seva memòria cau pertany a la corba d'importació.",
-          "negative_injection_threshold": "Preus iguals o inferiors a aquest llindar es consideren franges de risc quan hi ha excedent solar previst.",
-          "predischarge_reserve_soc": "SOC que la predescàrrega ha de reservar, a més dels límits mínims existents.",
-          "predischarge_export_mode": "Tria com crear espai anti-abocament: Solo autoconsum (0 W), Automàtic (només la potència necessària) o Límit personalitzat (es configura al pas següent). És un límit d'exportació deliberada, no la potència total de descàrrega.",
-          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
-        }
-      },
-      "predischarge_export_limit": {
-        "title": "Anti-abocament — Límit d'exportació personalitzat",
-        "description": "Configura la màxima exportació deliberada a la xarxa mentre es crea espai. És un límit d'exportació, no la potència total de descàrrega de la bateria.",
-        "data": {
-          "predischarge_max_export_power_w": "Límit d'exportació deliberada a la xarxa (W)"
-        },
-        "data_description": {
-          "predischarge_max_export_power_w": "Potència màxima que es pot exportar deliberadament abans d'una finestra de risc solar. Els límits de SOC, reserva, potència i bloquejos existents continuen tenint prioritat."
+          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament."
         }
       },
       "realtime_price_config": {
@@ -433,19 +391,13 @@
         "description": "Configura el sensor de preu i el llindar. El sistema llegeix el preu actual cada pocs segons i inicia o atura la càrrega des de la xarxa de forma immediata — sense necessitat de planificació diària.",
         "data": {
           "price_sensor": "Sensor de preu elèctric",
-          "max_price_threshold": "Preu màxim (opcional)",
           "average_price_sensor": "Sensor de preu mitjà diari (opcional)",
-          "price_discharge_control": "Descarregar només quan el preu superi el llindar",
-          "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicció solar (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor l'estat del qual és el preu elèctric actual (ex: sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Funciona amb qualsevol sensor que exposi el preu del període actual com el seu estat.",
-          "max_price_threshold": "La càrrega s'activa quan el preu actual és igual o inferior a aquest valor. Usa moneda principal/kWh (p. ex., €/kWh per a Nordpool/PVPC, CHF/kWh per a CKW). Els preus Nordpool HACS configurats en cèntims es converteixen automàticament. Deixa'l buit si uses el sensor de preu mitjà diari.",
           "average_price_sensor": "Si es configura, el seu valor s'usa com a llindar en lloc del valor fix anterior — útil quan la teva integració de preus ja exposa un preu mitjà diari. Deixa'l buit per usar el llindar fix.",
-          "price_discharge_control": "Si està activat, la bateria només descarrega quan el preu elèctric actual supera el llindar (fix o preu mitjà diari). Si les franges horàries restringeixen la descàrrega, s'han de complir totes dues condicions.",
-          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
+          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament."
         }
       },
       "weekly_full_charge": {
@@ -1107,15 +1059,13 @@
           "start_time_3": "Franja 3 — hora d'inici (opcional)",
           "end_time_3": "Franja 3 — hora de fi (opcional)",
           "days_3": "Franja 3 — dies de la setmana",
-          "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicció solar (kWh)"
         },
         "data_description": {
           "start_time": "Hora d'inici de la franja de càrrega (ex: 01:00, tarifa vall)",
           "end_time": "Hora de fi de la franja de càrrega (ex: 06:00)",
           "days": "Dies en els quals es permet carregar des de la xarxa",
-          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
+          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament."
         }
       },
       "dynamic_pricing_config": {
@@ -1124,56 +1074,16 @@
         "data": {
           "price_integration_type": "Integració de preus",
           "price_sensor": "Sensor de preu elèctric",
-          "max_price_threshold": "Preu màxim (opcional)",
-          "discharge_price_threshold": "Preu mínim de descàrrega (opcional)",
-          "price_discharge_control": "Descarrega només quan el preu superi el llindar",
-          "negative_price_charging_enabled": "Activar la càrrega oportunista per preu negatiu",
-          "smart_predischarge_enabled": "Predescàrrega intel·ligent / anti-abocament",
-          "surplus_price_hold_enabled": "Activar l'absorció de l'excedent solar segons el preu",
-          "surplus_hold_min_saving": "Estalvi mínim per retenir l'excedent (moneda/kWh)",
-          "discharge_reserve_enabled": "Activar la reserva de descàrrega segons el preu",
-          "discharge_reserve_min_saving": "Estalvi mínim per a la reserva de descàrrega (moneda/kWh)",
-          "high_price_discharge_enabled": "Activar la descàrrega per preu alt",
-          "high_price_discharge_max_power_w": "Potència màxima de la descàrrega per preu alt (W)",
           "export_price_sensor": "Sensor de preu d'injecció/exportació (opcional)",
           "export_price_integration_type": "Integració del preu d'exportació (opcional)",
-          "negative_injection_threshold": "Llindar d'injecció negativa",
-          "predischarge_reserve_soc": "Reserva de SOC de predescàrrega (%)",
-          "predischarge_export_mode": "Mode d'exportació deliberada a la xarxa",
-          "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicció solar (kWh)"
         },
         "data_description": {
           "price_integration_type": "Selecciona la teva integració de preus d'electricitat",
           "price_sensor": "Sensor que proporciona preus horaris d'electricitat",
-          "max_price_threshold": "Les hores per sobre d'aquest preu no seran seleccionades. Quan el control de descàrrega per preu està activat, aquest valor també s'usa com a llindar de descàrrega. Usa moneda principal/kWh: €/kWh per a Nordpool/PVPC, CHF/kWh per a CKW. Els preus Nordpool HACS configurats en cèntims es converteixen automàticament. Deixa buit per usar totes les hores i usar la mitjana diària com a llindar de descàrrega. Tret que configuris a sota un preu mínim de descàrrega per separat.",
-          "discharge_price_threshold": "Llindar separat opcional per a la descàrrega per preu. La descàrrega es bloqueja mentre el preu sigui igual o inferior a aquest valor, obrint una banda neutra entre el preu màxim de càrrega (a dalt) i aquest mínim: en aquesta banda la bateria ni carrega de xarxa ni descarrega (la càrrega per excedent solar continua funcionant). Deixa-ho buit per reutilitzar el preu màxim per a tots dos (comportament actual d'un sol llindar).",
-          "price_discharge_control": "Si està activat, la bateria només descarrega quan el preu elèctric actual supera el preu màxim configurat. Si no hi ha llindar configurat, usa el preu mitjà del dia calculat automàticament a partir del sensor de preus. Si les franges horàries restringeixen la descàrrega, s'han de complir totes dues condicions.",
-          "negative_price_charging_enabled": "Funció opcional de preus dinàmics que carrega durant les franges d'importació més negatives encara que la previsió normal no requereixi càrrega de xarxa. No cal cap sensor de previsió solar.",
-          "smart_predischarge_enabled": "Activa la predescàrrega optativa només en el mode de preus dinàmics per crear espai abans de franges amb preu d'injecció negatiu.",
-          "surplus_price_hold_enabled": "Funció opcional de preus dinàmics. Emmagatzemar l'excedent fotovoltaic renuncia a la retribució per injecció d'aquella franja, així que la bateria deixa que l'excedent s'injecti mentre encara hi hagi al davant una franja d'injecció clarament més barata, i absorbeix en les hores més barates. S'allibera al final de la producció solar, quan s'assoleix l'objectiu del dia i quan les franges barates restants ja no el poden cobrir. Els límits de SOC existents, el retard de càrrega, les franges de xarxa barates programades, la càrrega amb preu negatiu, la predescàrrega intel·ligent, la càrrega completa setmanal i el control manual sempre tenen prioritat.",
-          "surplus_hold_min_saving": "Quant més barata ha de ser la millor franja restant abans de retenir l'excedent. Evita commutar per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
-          "discharge_reserve_enabled": "Funció opcional de preus dinàmics. El bloqueig de descàrrega per preu només pregunta si l'hora actual és barata, mai si les hores més cares que encara han de venir necessiten l'energia que hi ha a la bateria. Aquesta reserva projecta el perfil de consum après menys la producció fotovoltaica prevista sobre les franges de preu restants, dona a les més cares el primer dret sobre l'energia emmagatzemada i apuja el límit de descàrrega de cada bateria en allò que aquelles hores reclamen. Tot el que superi la reserva continua disponible ara mateix per a l'autoconsum. Mai es reserva més enllà de mitjanit, i el control manual, la predescàrrega intel·ligent, la reducció de puntes i els límits de SOC per franja sempre tenen prioritat.",
-          "discharge_reserve_min_saving": "Quant més cara ha de ser una hora posterior que l'actual abans que la seva demanda pugui reclamar energia emmagatzemada. Evita que el límit es mogui per diferències de preu insignificants. Expressa-ho en moneda principal/kWh.",
-          "high_price_discharge_enabled": "Funció opcional de preus dinàmics. Ven energia emmagatzemada a la xarxa en les franges de preu d'exportació més alt, però només l'energia que queda lligada 1:1 a un dèficit domèstic posterior dins de l'horitzó, i només quan el preu de venda supera estrictament el pitjor preu de recompra posterior d'aquesta energia més el cost addicional configurat. Mai ven per sota dels límits de SOC, contra una ordre de càrrega programada, ni durant la càrrega completa setmanal, la predescàrrega anti-abocament, la protecció de capacitat o el control manual. Si falta qualsevol dada (previsió, preu, comptador de xarxa), no exporta.",
-          "high_price_discharge_max_power_w": "Sostre de l'exportació deliberada, mesurat net al punt de connexió a la xarxa (incloent l'aportació solar simultània). Per defecte fa servir la potència de descàrrega de la flota, així que n'hi ha prou d'activar l'interruptor; un valor de 0 continua sent una configuració invàlida i manté la funció inactiva.",
           "export_price_sensor": "Sensor que proporciona els preus d'injecció. Deixa'l buit per fer servir la corba de preus d'importació, que és el correcte quan la injecció es retribueix al preu d'importació (balanç net).",
           "export_price_integration_type": "Disposició d'atributs del sensor de preu d'exportació. Deixa'l buit per reutilitzar la integració d'importació. Tibber no hi és disponible: està basat en servei i la seva memòria cau pertany a la corba d'importació.",
-          "negative_injection_threshold": "Preus iguals o inferiors a aquest llindar es consideren franges de risc quan hi ha excedent solar previst.",
-          "predischarge_reserve_soc": "SOC que la predescàrrega ha de reservar, a més dels límits mínims existents.",
-          "predischarge_export_mode": "Tria com crear espai anti-abocament: Solo autoconsum (0 W), Automàtic (només la potència necessària) o Límit personalitzat (es configura al pas següent). És un límit d'exportació deliberada, no la potència total de descàrrega.",
-          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
-        }
-      },
-      "predischarge_export_limit": {
-        "title": "Anti-abocament — Límit d'exportació personalitzat",
-        "description": "Configura la màxima exportació deliberada a la xarxa mentre es crea espai. És un límit d'exportació, no la potència total de descàrrega de la bateria.",
-        "data": {
-          "predischarge_max_export_power_w": "Límit d'exportació deliberada a la xarxa (W)"
-        },
-        "data_description": {
-          "predischarge_max_export_power_w": "Potència màxima que es pot exportar deliberadament abans d'una finestra de risc solar. Els límits de SOC, reserva, potència i bloquejos existents continuen tenint prioritat."
+          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament."
         }
       },
       "realtime_price_config": {
@@ -1181,19 +1091,13 @@
         "description": "Configura el sensor de preu i el llindar. El sistema llegeix el preu actual cada pocs segons i inicia o atura la càrrega des de la xarxa de forma immediata — sense necessitat de planificació diària.",
         "data": {
           "price_sensor": "Sensor de preu elèctric",
-          "max_price_threshold": "Preu màxim (opcional)",
           "average_price_sensor": "Sensor de preu mitjà diari (opcional)",
-          "price_discharge_control": "Descarrega només quan el preu superi el llindar",
-          "solar_forecast_sensor": "Sensor de predicció solar (kWh)",
-          "predictive_safety_margin_kwh": "Marge de seguretat de previsió solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicció solar (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor l'estat del qual és el preu elèctric actual (ex: sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Funciona amb qualsevol sensor que exposi el preu del període actual com el seu estat.",
-          "max_price_threshold": "La càrrega s'activa quan el preu actual és igual o inferior a aquest valor. Usa moneda principal/kWh (p. ex., €/kWh per a Nordpool/PVPC, CHF/kWh per a CKW). Els preus Nordpool HACS configurats en cèntims es converteixen automàticament. Deixa'l buit si uses el sensor de preu mitjà diari.",
           "average_price_sensor": "Si es configura, el seu valor s'usa com a llindar en lloc del valor fix anterior — útil quan la teva integració de preus ja exposa un preu mitjà diari. Deixa'l buit per usar el llindar fix.",
-          "price_discharge_control": "Si està activat, la bateria només descarrega quan el preu elèctric actual supera el llindar (fix o preu mitjà diari). Si les franges horàries restringeixen la descàrrega, s'han de complir totes dues condicions.",
-          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament.",
-          "predictive_safety_margin_kwh": "Quant desconfies de la previsió solar: aquests kWh se li resten abans de decidir si carregar, així que un valor més gran carrega abans. El mateix marge també es reserva com a espai addicional contra l'anti-abocament en Preu Dinàmic. Posa 0 per desactivar. Per defecte, el 5% de la capacitat total de la bateria, i hi està limitat."
+          "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament."
         }
       },
       "weekly_full_charge": {
@@ -1460,13 +1364,6 @@
         "entsoe": "ENTSO-e (Plataforma de Transparència)",
         "zonneplan": "Zonneplan",
         "tibber": "Tibber (basat en servei)"
-      }
-    },
-    "predischarge_export_mode": {
-      "options": {
-        "self_consumption": "Només autoconsum",
-        "automatic": "Automàtic",
-        "custom": "Límit personalitzat"
       }
     }
   },
@@ -2272,9 +2169,6 @@
       "discharge_reserve_min_saving": {
         "name": "Estalvi mínim de la reserva de descàrrega"
       },
-      "high_price_discharge_max_power_w": {
-        "name": "Potència màxima de la descàrrega per preu alt"
-      },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % exclòs"
       },
@@ -2379,9 +2273,6 @@
       },
       "predischarge_reserve_soc": {
         "name": "Reserva de SOC de predescàrrega"
-      },
-      "predischarge_max_export_power_w": {
-        "name": "Límit d'exportació deliberada a la xarxa"
       },
       "predictive_min_soc_floor": {
         "name": "SOC mínim garantit"
