@@ -2895,18 +2895,7 @@ class PricingManager:
                             combined.append(item)
                             maximum = item.required_cumulative_kwh
                     deadlines = combined
-                    margin_pct = max(
-                        0.0,
-                        float(
-                            getattr(
-                                self._controller,
-                                "_predictive_grid_charge_margin_pct",
-                                0.0,
-                            )
-                            or 0.0
-                        ),
-                    )
-                    required = max(required, floor_required * (1.0 + margin_pct / 100.0))
+                    required = max(required, floor_required)
                     decision_data["should_charge"] = True
                     decision_data["floor_active"] = True
                     decision_data["energy_deficit_kwh"] = max(
@@ -4721,7 +4710,6 @@ class PricingManager:
         planned_evening_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
             evening_deficit_kwh,
             energy_to_full_kwh,
-            self._controller._predictive_grid_charge_margin_pct,
         )
 
         if evening_deficit_kwh < EVENING_DEFICIT_THRESHOLD_KWH:

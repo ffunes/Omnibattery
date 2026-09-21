@@ -37,7 +37,6 @@ def _ctrl(coords, *, weekly, solar="5.0", consumption=2.0):
         coordinators=list(coords),
         _weekly_charge_mgr=SimpleNamespace(is_active=lambda: weekly),
         _predictive_safety_margin_kwh=0.0,
-        _predictive_grid_charge_margin_pct=0.0,
         _predictive_min_soc_floor=0.0,
         _predictive_min_soc_floor_enabled=False,
         _daily_consumption_history=[],
@@ -110,7 +109,6 @@ def _target_ctrl(coords, *, weekly, deficit_kwh):
         coordinators=list(coords),
         _weekly_charge_mgr=SimpleNamespace(is_active=lambda: weekly),
         _last_decision_data={"energy_deficit_kwh": deficit_kwh},
-        _predictive_grid_charge_margin_pct=0.0,
     )
 
 

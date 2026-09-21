@@ -349,17 +349,13 @@
           "start_time_3": "Fenêtre 3 — heure de début (optionnel)",
           "end_time_3": "Fenêtre 3 — heure de fin (optionnel)",
           "days_3": "Fenêtre 3 — jours de la semaine",
-          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)",
-          "predictive_safety_margin_kwh": "Marge de sécurité prévision solaire (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de charge réseau prédictive (%)"
+          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)"
         },
         "data_description": {
           "start_time": "Heure de début de la fenêtre de charge (ex : 01:00, tarif heures creuses)",
           "end_time": "Heure de fin de la fenêtre de charge (ex : 06:00)",
           "days": "Jours où la charge depuis le réseau est autorisée",
-          "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement.",
-          "predictive_safety_margin_kwh": "Tampon d'énergie supplémentaire ajouté à la prévision de consommation. Le même tampon en kWh est aussi réservé comme espace supplémentaire contre l'écrêtement en tarification dynamique. Mettre à 0 pour désactiver (défaut). Limité à la capacité totale de la batterie.",
-          "predictive_grid_charge_margin_pct": "Pourcentage supplémentaire chargé depuis le réseau au-dessus du déficit solaire, pour couvrir des prévisions solaires optimistes. Ex. : un besoin réseau de 2 kWh à 50% charge 3 kWh. 0 pour désactiver (défaut). Plafonné à l'écart jusqu'au SOC max."
+          "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement."
         }
       },
       "predictive_charging_mode": {
@@ -378,54 +374,16 @@
         "data": {
           "price_integration_type": "Type d'intégration de prix",
           "price_sensor": "Capteur de prix",
-          "max_price_threshold": "Seuil de prix maximum (€/kWh, optionnel)",
-          "discharge_price_threshold": "Prix plancher de décharge (optionnel)",
-          "dp_price_discharge_control": "Décharger uniquement si le prix dépasse le seuil",
-          "negative_price_charging_enabled": "Activer la charge opportuniste à prix négatif",
-          "smart_predischarge_enabled": "Pré-décharge intelligente / anti-écrêtement",
-          "surplus_price_hold_enabled": "Activer l'absorption du surplus solaire selon le prix",
-          "surplus_hold_min_saving": "Économie minimale pour retenir le surplus (devise/kWh)",
-          "discharge_reserve_enabled": "Activer la réserve de décharge selon le prix",
-          "discharge_reserve_min_saving": "Économie minimale pour la réserve de décharge (devise/kWh)",
           "export_price_sensor": "Capteur de prix d'injection/revente (optionnel)",
           "export_price_integration_type": "Intégration du prix d'export (optionnel)",
-          "negative_injection_threshold": "Seuil d'injection négative",
-          "predischarge_reserve_soc": "Réserve de SOC de pré-décharge (%)",
-          "predischarge_export_mode": "Mode d'exportation délibérée vers le réseau",
-          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)",
-          "predictive_safety_margin_kwh": "Marge de sécurité prévision solaire (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de charge réseau prédictive (%)"
+          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)"
         },
         "data_description": {
           "price_integration_type": "Sélectionnez l'intégration domotique qui fournit les données de prix de l'électricité",
           "price_sensor": "Capteur contenant les prix horaires de l'électricité (ex : sensor.nordpool_kwh_fr_eur_3_10_025)",
-          "max_price_threshold": "Les créneaux au-dessus de ce prix ne seront pas sélectionnés. Quand le contrôle de décharge par prix est activé, cette valeur sert aussi de seuil de décharge. Utiliser la devise principale/kWh : €/kWh pour Nordpool/PVPC, CHF/kWh pour CKW. Les prix Nordpool HACS configurés en centimes sont convertis automatiquement. Laisser vide pour utiliser tous les créneaux et utiliser la moyenne journalière comme seuil de décharge. Sauf si un prix plancher de décharge distinct est défini ci-dessous.",
-          "discharge_price_threshold": "Seuil distinct optionnel pour la décharge pilotée par le prix. La décharge est bloquée tant que le prix est inférieur ou égal à cette valeur, ouvrant une bande neutre entre le prix maximal de charge (au-dessus) et ce plancher : dans cette bande, la batterie ne se charge pas depuis le réseau et ne se décharge pas (la charge par surplus solaire fonctionne toujours). Laissez vide pour réutiliser le prix maximal pour les deux (comportement actuel à seuil unique).",
-          "dp_price_discharge_control": "Si activé, la batterie ne se décharge que lorsque le prix actuel dépasse le seuil de prix maximum configuré. Si aucun seuil n'est configuré, la moyenne journalière calculée automatiquement depuis le capteur de prix est utilisée. Si les plages horaires limitent la décharge, les deux conditions doivent être remplies.",
-          "negative_price_charging_enabled": "Fonction optionnelle de tarification dynamique qui charge pendant les créneaux d'importation les plus négatifs, même si la prévision normale ne demande pas de charge réseau. Aucun capteur de prévision solaire n'est requis.",
-          "smart_predischarge_enabled": "Active la pré-décharge optionnelle uniquement en mode de tarification dynamique pour créer de l'espace avant les créneaux d'injection négative.",
-          "surplus_price_hold_enabled": "Fonction optionnelle de tarification dynamique. Stocker le surplus PV fait perdre la rémunération d'injection de ce créneau : la batterie laisse donc le surplus être injecté tant qu'un créneau d'injection nettement moins cher reste à venir, et absorbe pendant les heures les moins chères. Elle relâche à la fin de la production solaire, dès que l'objectif du jour est atteint et dès que les créneaux bon marché restants ne peuvent plus le couvrir. Les seuils de SOC existants, le report de charge, les créneaux réseau bon marché planifiés, la charge à prix négatif, la pré-décharge intelligente, la charge complète hebdomadaire et le pilotage manuel restent prioritaires.",
-          "surplus_hold_min_saving": "De combien le meilleur créneau restant doit être moins cher avant de retenir le surplus. Évite les bascules sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
-          "discharge_reserve_enabled": "Fonction optionnelle de tarification dynamique. Le blocage de décharge basé sur le prix demande seulement si l'heure actuelle est bon marché, jamais si les heures plus chères à venir ont besoin de l'énergie stockée dans la batterie. Cette réserve projette le profil de consommation appris moins la production PV attendue sur les créneaux de prix restants, donne aux plus chers d'entre eux la priorité sur l'énergie stockée et relève le seuil de décharge de chaque batterie de ce que ces heures réclament. Tout ce qui dépasse la réserve reste disponible immédiatement pour l'autoconsommation. Rien n'est jamais réservé au-delà de minuit, et le pilotage manuel, la pré-décharge intelligente, l'écrêtage de pointe et les seuils de SOC par créneau restent prioritaires.",
-          "discharge_reserve_min_saving": "De combien une heure ultérieure doit être plus chère que l'heure actuelle avant que son besoin puisse réclamer de l'énergie stockée. Évite que le seuil bouge sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
           "export_price_sensor": "Capteur fournissant les prix d'injection. Laisser vide pour utiliser la courbe des prix d'import, ce qui est correct lorsque l'injection est rémunérée au prix d'import (net metering).",
           "export_price_integration_type": "Disposition des attributs du capteur de prix d'export. Laisser vide pour réutiliser l'intégration d'import. Tibber n'est pas disponible ici : il repose sur un service et son cache appartient à la courbe d'import.",
-          "negative_injection_threshold": "Les prix inférieurs ou égaux à ce seuil sont considérés comme des créneaux à risque lorsqu'un surplus solaire est prévu.",
-          "predischarge_reserve_soc": "SOC à réserver en plus des limites minimales existantes.",
-          "predischarge_export_mode": "Choisissez comment créer l'espace anti-écrêtement : Autoconsommation uniquement (0 W), Automatique (seulement la puissance nécessaire) ou Limite personnalisée (configurée à l'étape suivante). Il s'agit d'une limite d'exportation délibérée, pas de la puissance totale de décharge.",
-          "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement.",
-          "predictive_safety_margin_kwh": "Tampon d'énergie supplémentaire ajouté à la prévision de consommation. Le même tampon en kWh est aussi réservé comme espace supplémentaire contre l'écrêtement en tarification dynamique. Mettre à 0 pour désactiver (défaut). Limité à la capacité totale de la batterie.",
-          "predictive_grid_charge_margin_pct": "Pourcentage supplémentaire chargé depuis le réseau au-dessus du déficit solaire, pour couvrir des prévisions solaires optimistes. Ex. : un besoin réseau de 2 kWh à 50% charge 3 kWh. 0 pour désactiver (défaut). Plafonné à l'écart jusqu'au SOC max."
-        }
-      },
-      "predischarge_export_limit": {
-        "title": "Anti-écrêtement — Limite d'exportation personnalisée",
-        "description": "Définissez l'exportation délibérée maximale vers le réseau lors de la création de l'espace. Il s'agit d'une limite d'exportation, pas de la puissance totale de décharge de la batterie.",
-        "data": {
-          "predischarge_max_export_power_w": "Limite d'exportation délibérée vers le réseau (W)"
-        },
-        "data_description": {
-          "predischarge_max_export_power_w": "Puissance maximale exportée délibérément avant une fenêtre de risque solaire. Le SOC, la réserve, la puissance et les blocages existants restent prioritaires."
+          "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement."
         }
       },
       "realtime_price_config": {
@@ -433,21 +391,13 @@
         "description": "Configurez le capteur de prix et le seuil. Le système lit le prix actuel toutes les quelques secondes et démarre ou arrête la charge depuis le réseau immédiatement — aucune planification quotidienne nécessaire.",
         "data": {
           "price_sensor": "Capteur de prix de l'électricité",
-          "max_price_threshold": "Seuil de prix maximum (optionnel)",
           "average_price_sensor": "Capteur de prix moyen journalier (optionnel)",
-          "rt_price_discharge_control": "Décharger uniquement si le prix dépasse le seuil",
-          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)",
-          "predictive_safety_margin_kwh": "Marge de sécurité prévision solaire (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de charge réseau prédictive (%)"
+          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)"
         },
         "data_description": {
           "price_sensor": "Capteur dont l'état est le prix actuel de l'électricité. Tout capteur qui expose le prix de la période courante comme son état fonctionne.",
-          "max_price_threshold": "La charge s'active quand le prix actuel est inférieur ou égal à cette valeur. Utilisez la devise principale/kWh ; les prix Nordpool HACS configurés en centimes sont convertis automatiquement. Laissez vide si vous utilisez le capteur de prix moyen.",
           "average_price_sensor": "Si renseigné, sa valeur est utilisée comme seuil à la place de la valeur fixe — utile si votre intégration de prix expose déjà un prix moyen journalier. Laissez vide pour utiliser le seuil fixe.",
-          "rt_price_discharge_control": "Si activé, la batterie ne se décharge que lorsque le prix actuel dépasse le seuil. Si les plages horaires limitent la décharge, les deux conditions doivent être remplies.",
-          "solar_forecast_sensor": "Capteur fournissant les prévisions de production solaire en kWh. Non requis si vous avez déjà configuré ce capteur à l'étape initiale — il sera utilisé automatiquement.",
-          "predictive_safety_margin_kwh": "Tampon d'énergie supplémentaire ajouté à la prévision de consommation. Le même tampon en kWh est aussi réservé comme espace supplémentaire contre l'écrêtement en tarification dynamique. Mettre à 0 pour désactiver (défaut). Limité à la capacité totale de la batterie.",
-          "predictive_grid_charge_margin_pct": "Pourcentage supplémentaire chargé depuis le réseau au-dessus du déficit solaire, pour couvrir des prévisions solaires optimistes. Ex. : un besoin réseau de 2 kWh à 50% charge 3 kWh. 0 pour désactiver (défaut). Plafonné à l'écart jusqu'au SOC max."
+          "solar_forecast_sensor": "Capteur fournissant les prévisions de production solaire en kWh. Non requis si vous avez déjà configuré ce capteur à l'étape initiale — il sera utilisé automatiquement."
         }
       },
       "weekly_full_charge": {
@@ -1103,17 +1053,13 @@
           "start_time_3": "Fenêtre 3 — heure de début (optionnel)",
           "end_time_3": "Fenêtre 3 — heure de fin (optionnel)",
           "days_3": "Fenêtre 3 — jours de la semaine",
-          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)",
-          "predictive_safety_margin_kwh": "Marge de sécurité prévision solaire (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de charge réseau prédictive (%)"
+          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)"
         },
         "data_description": {
           "start_time": "Heure de début de la fenêtre de charge (ex : 01:00, tarif heures creuses)",
           "end_time": "Heure de fin de la fenêtre de charge (ex : 06:00)",
           "days": "Jours où la charge depuis le réseau est autorisée",
-          "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement.",
-          "predictive_safety_margin_kwh": "Tampon d'énergie supplémentaire ajouté à la prévision de consommation. Le même tampon en kWh est aussi réservé comme espace supplémentaire contre l'écrêtement en tarification dynamique. Mettre à 0 pour désactiver (défaut). Limité à la capacité totale de la batterie.",
-          "predictive_grid_charge_margin_pct": "Pourcentage supplémentaire chargé depuis le réseau au-dessus du déficit solaire, pour couvrir des prévisions solaires optimistes. Ex. : un besoin réseau de 2 kWh à 50% charge 3 kWh. 0 pour désactiver (défaut). Plafonné à l'écart jusqu'au SOC max."
+          "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement."
         }
       },
       "predictive_charging_mode": {
@@ -1132,54 +1078,16 @@
         "data": {
           "price_integration_type": "Type d'intégration de prix",
           "price_sensor": "Capteur de prix",
-          "max_price_threshold": "Seuil de prix maximum (€/kWh, optionnel)",
-          "discharge_price_threshold": "Prix plancher de décharge (optionnel)",
-          "dp_price_discharge_control": "Décharger uniquement si le prix dépasse le seuil",
-          "negative_price_charging_enabled": "Activer la charge opportuniste à prix négatif",
-          "smart_predischarge_enabled": "Pré-décharge intelligente / anti-écrêtement",
-          "surplus_price_hold_enabled": "Activer l'absorption du surplus solaire selon le prix",
-          "surplus_hold_min_saving": "Économie minimale pour retenir le surplus (devise/kWh)",
-          "discharge_reserve_enabled": "Activer la réserve de décharge selon le prix",
-          "discharge_reserve_min_saving": "Économie minimale pour la réserve de décharge (devise/kWh)",
           "export_price_sensor": "Capteur de prix d'injection/revente (optionnel)",
           "export_price_integration_type": "Intégration du prix d'export (optionnel)",
-          "negative_injection_threshold": "Seuil d'injection négative",
-          "predischarge_reserve_soc": "Réserve de SOC de pré-décharge (%)",
-          "predischarge_export_mode": "Mode d'exportation délibérée vers le réseau",
-          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)",
-          "predictive_safety_margin_kwh": "Marge de sécurité prévision solaire (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de charge réseau prédictive (%)"
+          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)"
         },
         "data_description": {
           "price_integration_type": "Sélectionnez l'intégration domotique qui fournit les données de prix de l'électricité",
           "price_sensor": "Capteur contenant les prix horaires de l'électricité (ex : sensor.nordpool_kwh_fr_eur_3_10_025)",
-          "max_price_threshold": "Les créneaux au-dessus de ce prix ne seront pas sélectionnés. Quand le contrôle de décharge par prix est activé, cette valeur sert aussi de seuil de décharge. Utiliser la devise principale/kWh : €/kWh pour Nordpool/PVPC, CHF/kWh pour CKW. Les prix Nordpool HACS configurés en centimes sont convertis automatiquement. Laisser vide pour utiliser tous les créneaux et utiliser la moyenne journalière comme seuil de décharge. Sauf si un prix plancher de décharge distinct est défini ci-dessous.",
-          "discharge_price_threshold": "Seuil distinct optionnel pour la décharge pilotée par le prix. La décharge est bloquée tant que le prix est inférieur ou égal à cette valeur, ouvrant une bande neutre entre le prix maximal de charge (au-dessus) et ce plancher : dans cette bande, la batterie ne se charge pas depuis le réseau et ne se décharge pas (la charge par surplus solaire fonctionne toujours). Laissez vide pour réutiliser le prix maximal pour les deux (comportement actuel à seuil unique).",
-          "dp_price_discharge_control": "Si activé, la batterie ne se décharge que lorsque le prix actuel dépasse le seuil de prix maximum configuré. Si aucun seuil n'est configuré, la moyenne journalière calculée automatiquement depuis le capteur de prix est utilisée. Si les plages horaires limitent la décharge, les deux conditions doivent être remplies.",
-          "negative_price_charging_enabled": "Fonction optionnelle de tarification dynamique qui charge pendant les créneaux d'importation les plus négatifs, même si la prévision normale ne demande pas de charge réseau. Aucun capteur de prévision solaire n'est requis.",
-          "smart_predischarge_enabled": "Active la pré-décharge optionnelle uniquement en mode de tarification dynamique pour créer de l'espace avant les créneaux d'injection négative.",
-          "surplus_price_hold_enabled": "Fonction optionnelle de tarification dynamique. Stocker le surplus PV fait perdre la rémunération d'injection de ce créneau : la batterie laisse donc le surplus être injecté tant qu'un créneau d'injection nettement moins cher reste à venir, et absorbe pendant les heures les moins chères. Elle relâche à la fin de la production solaire, dès que l'objectif du jour est atteint et dès que les créneaux bon marché restants ne peuvent plus le couvrir. Les seuils de SOC existants, le report de charge, les créneaux réseau bon marché planifiés, la charge à prix négatif, la pré-décharge intelligente, la charge complète hebdomadaire et le pilotage manuel restent prioritaires.",
-          "surplus_hold_min_saving": "De combien le meilleur créneau restant doit être moins cher avant de retenir le surplus. Évite les bascules sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
-          "discharge_reserve_enabled": "Fonction optionnelle de tarification dynamique. Le blocage de décharge basé sur le prix demande seulement si l'heure actuelle est bon marché, jamais si les heures plus chères à venir ont besoin de l'énergie stockée dans la batterie. Cette réserve projette le profil de consommation appris moins la production PV attendue sur les créneaux de prix restants, donne aux plus chers d'entre eux la priorité sur l'énergie stockée et relève le seuil de décharge de chaque batterie de ce que ces heures réclament. Tout ce qui dépasse la réserve reste disponible immédiatement pour l'autoconsommation. Rien n'est jamais réservé au-delà de minuit, et le pilotage manuel, la pré-décharge intelligente, l'écrêtage de pointe et les seuils de SOC par créneau restent prioritaires.",
-          "discharge_reserve_min_saving": "De combien une heure ultérieure doit être plus chère que l'heure actuelle avant que son besoin puisse réclamer de l'énergie stockée. Évite que le seuil bouge sur des écarts de prix négligeables. Exprimé en devise principale/kWh.",
           "export_price_sensor": "Capteur fournissant les prix d'injection. Laisser vide pour utiliser la courbe des prix d'import, ce qui est correct lorsque l'injection est rémunérée au prix d'import (net metering).",
           "export_price_integration_type": "Disposition des attributs du capteur de prix d'export. Laisser vide pour réutiliser l'intégration d'import. Tibber n'est pas disponible ici : il repose sur un service et son cache appartient à la courbe d'import.",
-          "negative_injection_threshold": "Les prix inférieurs ou égaux à ce seuil sont considérés comme des créneaux à risque lorsqu'un surplus solaire est prévu.",
-          "predischarge_reserve_soc": "SOC à réserver en plus des limites minimales existantes.",
-          "predischarge_export_mode": "Choisissez comment créer l'espace anti-écrêtement : Autoconsommation uniquement (0 W), Automatique (seulement la puissance nécessaire) ou Limite personnalisée (configurée à l'étape suivante). Il s'agit d'une limite d'exportation délibérée, pas de la puissance totale de décharge.",
-          "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement.",
-          "predictive_safety_margin_kwh": "Tampon d'énergie supplémentaire ajouté à la prévision de consommation. Le même tampon en kWh est aussi réservé comme espace supplémentaire contre l'écrêtement en tarification dynamique. Mettre à 0 pour désactiver (défaut). Limité à la capacité totale de la batterie.",
-          "predictive_grid_charge_margin_pct": "Pourcentage supplémentaire chargé depuis le réseau au-dessus du déficit solaire, pour couvrir des prévisions solaires optimistes. Ex. : un besoin réseau de 2 kWh à 50% charge 3 kWh. 0 pour désactiver (défaut). Plafonné à l'écart jusqu'au SOC max."
-        }
-      },
-      "predischarge_export_limit": {
-        "title": "Anti-écrêtement — Limite d'exportation personnalisée",
-        "description": "Définissez l'exportation délibérée maximale vers le réseau lors de la création de l'espace. Il s'agit d'une limite d'exportation, pas de la puissance totale de décharge de la batterie.",
-        "data": {
-          "predischarge_max_export_power_w": "Limite d'exportation délibérée vers le réseau (W)"
-        },
-        "data_description": {
-          "predischarge_max_export_power_w": "Puissance maximale exportée délibérément avant une fenêtre de risque solaire. Le SOC, la réserve, la puissance et les blocages existants restent prioritaires."
+          "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement."
         }
       },
       "realtime_price_config": {
@@ -1187,21 +1095,13 @@
         "description": "Configurez le capteur de prix et le seuil. Le système lit le prix actuel toutes les quelques secondes et démarre ou arrête la charge depuis le réseau immédiatement — aucune planification quotidienne nécessaire.",
         "data": {
           "price_sensor": "Capteur de prix de l'électricité",
-          "max_price_threshold": "Seuil de prix maximum (optionnel)",
           "average_price_sensor": "Capteur de prix moyen journalier (optionnel)",
-          "rt_price_discharge_control": "Décharger uniquement si le prix dépasse le seuil",
-          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)",
-          "predictive_safety_margin_kwh": "Marge de sécurité prévision solaire (kWh)",
-          "predictive_grid_charge_margin_pct": "Marge de charge réseau prédictive (%)"
+          "solar_forecast_sensor": "Capteur de prévision solaire (kWh)"
         },
         "data_description": {
           "price_sensor": "Capteur dont l'état est le prix actuel de l'électricité. Tout capteur qui expose le prix de la période courante comme son état fonctionne.",
-          "max_price_threshold": "La charge s'active quand le prix actuel est inférieur ou égal à cette valeur. Utilisez la devise principale/kWh ; les prix Nordpool HACS configurés en centimes sont convertis automatiquement. Laissez vide si vous utilisez le capteur de prix moyen.",
           "average_price_sensor": "Si renseigné, sa valeur est utilisée comme seuil à la place de la valeur fixe — utile si votre intégration de prix expose déjà un prix moyen journalier. Laissez vide pour utiliser le seuil fixe.",
-          "rt_price_discharge_control": "Si activé, la batterie ne se décharge que lorsque le prix actuel dépasse le seuil. Si les plages horaires limitent la décharge, les deux conditions doivent être remplies.",
-          "solar_forecast_sensor": "Capteur fournissant les prévisions de production solaire en kWh. Non requis si vous avez déjà configuré ce capteur à l'étape initiale — il sera utilisé automatiquement.",
-          "predictive_safety_margin_kwh": "Tampon d'énergie supplémentaire ajouté à la prévision de consommation. Le même tampon en kWh est aussi réservé comme espace supplémentaire contre l'écrêtement en tarification dynamique. Mettre à 0 pour désactiver (défaut). Limité à la capacité totale de la batterie.",
-          "predictive_grid_charge_margin_pct": "Pourcentage supplémentaire chargé depuis le réseau au-dessus du déficit solaire, pour couvrir des prévisions solaires optimistes. Ex. : un besoin réseau de 2 kWh à 50% charge 3 kWh. 0 pour désactiver (défaut). Plafonné à l'écart jusqu'au SOC max."
+          "solar_forecast_sensor": "Capteur fournissant les prévisions de production solaire en kWh. Non requis si vous avez déjà configuré ce capteur à l'étape initiale — il sera utilisé automatiquement."
         }
       },
       "weekly_full_charge": {
@@ -1470,17 +1370,19 @@
         "zonneplan": "Zonneplan",
         "tibber": "Tibber (basé sur un service)"
       }
-    },
-    "predischarge_export_mode": {
-      "options": {
-        "self_consumption": "Autoconsommation uniquement",
-        "automatic": "Automatique",
-        "custom": "Limite personnalisée"
-      }
     }
   },
   "entity": {
     "switch": {
+      "high_price_discharge": {
+        "name": "Décharge à Prix Élevé"
+      },
+      "surplus_price_hold": {
+        "name": "Retenue de surplus selon le prix"
+      },
+      "discharge_reserve": {
+        "name": "Réserve de décharge"
+      },
       "primary_feedforward": {
         "name": "Anticiper la demande réelle"
       },
@@ -1571,7 +1473,7 @@
       "weekly_full_charge_enabled": {
         "name": "Charge complète hebdomadaire"
       },
-      "dp_price_discharge_control": {
+      "price_discharge_control": {
         "name": "Décharge selon le prix"
       },
       "smart_predischarge": {
@@ -1579,9 +1481,6 @@
       },
       "negative_price_charging": {
         "name": "Charge opportuniste à prix négatif"
-      },
-      "rt_price_discharge_control": {
-        "name": "Décharge selon le prix"
       },
       "lamp_switch": {
         "name": "LED d'état"
@@ -1710,6 +1609,17 @@
           "charging_allowed": "Charge autorisée",
           "skipped_full_charge_day": "Ignoré – Jour de charge complète",
           "charging_to_setpoint": "Charge jusqu'au seuil"
+        }
+      },
+      "high_price_discharge_status": {
+        "name": "État de la Décharge à Prix Élevé",
+        "state": {
+          "disabled": "Désactivé",
+          "invalid_configuration": "Configuration invalide",
+          "no_data": "Aucune donnée",
+          "blocked": "Bloqué",
+          "waiting": "En attente",
+          "active": "Actif"
         }
       },
       "battery_soc": {
@@ -2099,10 +2009,10 @@
         "name": "État de la pré-décharge intelligente"
       },
       "surplus_price_hold_status": {
-        "name": "Retenue de surplus selon le prix"
+        "name": "État de la retenue de surplus selon le prix"
       },
       "discharge_reserve_status": {
-        "name": "Réserve de décharge"
+        "name": "État de la réserve de décharge"
       },
       "wifi_status": {
         "name": "État WiFi"
@@ -2261,6 +2171,9 @@
       "surplus_hold_min_saving": {
         "name": "Économie minimale de retenue du surplus"
       },
+      "discharge_reserve_min_saving": {
+        "name": "Économie minimale de la réserve de décharge"
+      },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % exclu"
       },
@@ -2360,17 +2273,11 @@
       "predictive_safety_margin_kwh": {
         "name": "Marge de Sécurité Prévision Solaire"
       },
-      "predictive_grid_charge_margin_pct": {
-        "name": "Marge de Charge Réseau Prédictive"
-      },
       "negative_injection_threshold": {
         "name": "Seuil d'injection négative"
       },
       "predischarge_reserve_soc": {
         "name": "Réserve de SOC de pré-décharge"
-      },
-      "predischarge_max_export_power_w": {
-        "name": "Limite d'exportation délibérée vers le réseau"
       },
       "predictive_min_soc_floor": {
         "name": "SOC minimum garanti"

@@ -26,6 +26,7 @@ from homeassistant.util import dt as dt_util
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
 from .const import (
     DOMAIN,
+    PREDICTIVE_MODE_DYNAMIC_PRICING,
     EFFICIENCY_SENSOR_DEFINITIONS,
     STORED_ENERGY_SENSOR_DEFINITIONS,
     CYCLE_SENSOR_DEFINITIONS,
@@ -215,6 +216,12 @@ async def async_setup_entry(
     # Add the three-phase protection status and per-phase diagnostic sensor.
     if controller:
         entities.append(ThreePhaseProtectionSensor(hass, entry, controller))
+
+    # Add high-price discharge status sensor. The feature only runs under
+    # dynamic pricing (control/high_price_discharge.py), so elsewhere this was
+    # a permanently-idle diagnostic.
+    if controller and controller.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
+        entities.append(HighPriceDischargeSensor(hass, entry, controller))
 
     # Add weekly full charge status sensor (when weekly charge is enabled)
     if controller and controller.weekly_full_charge_enabled:
@@ -644,6 +651,51 @@ class ThreePhaseProtectionSensor(SensorEntity):
     def extra_state_attributes(self) -> dict:
         """Return configuration, phase budgets and limited-battery details."""
         details = self._diagnostics()
+        details.pop("state", None)
+        return details
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class HighPriceDischargeSensor(SensorEntity):
+    """Diagnostic sensor for deliberate export into a price peak (#270)."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the high-price discharge status sensor."""
+        self.hass = hass
+        self.entry = entry
+        self._controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "high_price_discharge_status"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}high_price_discharge_status"
+        self.entity_id = system_entity_id("sensor", "high_price_discharge_status")
+        self._attr_icon = "mdi:transmission-tower-export"
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_should_poll = True
+
+    def _status(self) -> dict:
+        """Return a fresh snapshot so HA attributes reflect the latest plan."""
+        manager = getattr(self._controller, "_high_price_discharge_mgr", None)
+        return manager.get_status() if manager is not None else {"state": "disabled"}
+
+    @property
+    def native_value(self) -> str:
+        """Return the current high-price discharge state."""
+        return str(self._status().get("state", "disabled"))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return the reason, plan and allocation details."""
+        details = self._status()
         details.pop("state", None)
         return details
 
