@@ -1234,7 +1234,10 @@ CONFIG_NUMBER_DEFINITIONS = [
         "max": 20.0,
         "step": 0.1,
         "unit": "kWh",
-        "default": DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
+        # Callable default: the slider must show the same 5%-of-capacity value
+        # the controller falls back to, or a new entry reads 0.0 on the panel
+        # while the engine hedges with something else.
+        "default": default_predictive_safety_margin_kwh,
         "icon": "mdi:solar-power-variant",
         "condition": CONF_ENABLE_PREDICTIVE_CHARGING,
     },
