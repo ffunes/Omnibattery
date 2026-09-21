@@ -359,15 +359,13 @@
           "start_time_3": "Franja 3 — hora de inicio (opcional)",
           "end_time_3": "Franja 3 — hora de fin (opcional)",
           "days_3": "Franja 3 — días de la semana",
-          "solar_forecast_sensor": "Sensor de predicción solar (kWh)",
-          "predictive_safety_margin_kwh": "Margen de seguridad de previsión solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicción solar (kWh)"
         },
         "data_description": {
           "start_time": "Hora de inicio de la franja de carga (ej: 01:00, tarifa valle)",
           "end_time": "Hora de fin de la franja de carga (ej: 06:00)",
           "days": "Días en los que se permite cargar desde red",
-          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente.",
-          "predictive_safety_margin_kwh": "Cuánto desconfías de la previsión solar: estos kWh se le restan antes de decidir si cargar, así que un valor mayor carga antes. El mismo margen se reserva también como espacio adicional contra el anti-vertido en Precio Dinámico. Pon 0 para desactivar. Por defecto, el 5% de la capacidad total de la batería, y está limitado a ella."
+          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
       "dynamic_pricing_config": {
@@ -376,56 +374,16 @@
         "data": {
           "price_integration_type": "Integración de precios",
           "price_sensor": "Sensor de precio eléctrico",
-          "max_price_threshold": "Precio máximo (opcional)",
-          "discharge_price_threshold": "Precio mínimo de descarga (opcional)",
-          "price_discharge_control": "Descargar solo cuando el precio supere el umbral",
-          "negative_price_charging_enabled": "Activar carga oportunista por precio negativo",
-          "smart_predischarge_enabled": "Predescarga inteligente / anti-vertido",
-          "surplus_price_hold_enabled": "Activar la absorción del excedente solar según el precio",
-          "surplus_hold_min_saving": "Ahorro mínimo para retener el excedente (moneda/kWh)",
-          "discharge_reserve_enabled": "Activar la reserva de descarga según el precio",
-          "discharge_reserve_min_saving": "Ahorro mínimo para la reserva de descarga (moneda/kWh)",
-          "high_price_discharge_enabled": "Activar la descarga por precio alto",
-          "high_price_discharge_max_power_w": "Potencia máxima de la descarga por precio alto (W)",
           "export_price_sensor": "Sensor de precio de inyección/exportación (opcional)",
           "export_price_integration_type": "Integración del precio de exportación (opcional)",
-          "negative_injection_threshold": "Umbral de inyección negativa",
-          "predischarge_reserve_soc": "Reserva de SOC de predescarga (%)",
-          "predischarge_export_mode": "Modo de exportación deliberada a red",
-          "solar_forecast_sensor": "Sensor de predicción solar (kWh)",
-          "predictive_safety_margin_kwh": "Margen de seguridad de previsión solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicción solar (kWh)"
         },
         "data_description": {
           "price_integration_type": "Selecciona tu integración de precios de electricidad. Nord Pool admite tanto la integración oficial de Home Assistant como la de HACS. Tibber funciona por servicio, así que su sensor puede dejarse vacío.",
           "price_sensor": "Sensor de precios (por ejemplo, el sensor de precio actual de Nord Pool oficial, un sensor Nordpool de HACS, sensor.esios_pvpc o tu sensor de CKW)",
-          "max_price_threshold": "Las horas por encima de este precio no serán seleccionadas. Cuando el control de descarga por precio está activado, este valor también se usa como umbral de descarga salvo que configures abajo un precio mínimo de descarga aparte. Usa moneda principal/kWh: €/kWh para Nordpool/PVPC, CHF/kWh para CKW. Los precios Nordpool HACS configurados en céntimos se convierten automáticamente. Deja vacío para usar todas las horas y usar la media diaria como umbral de descarga.",
-          "discharge_price_threshold": "Umbral separado opcional para la descarga por precio. La descarga se bloquea mientras el precio sea igual o inferior a este valor, abriendo una banda neutra entre el precio máximo de carga (arriba) y este mínimo: en esa banda la batería ni carga de red ni descarga (la carga por excedente solar sigue funcionando). Déjalo vacío para reutilizar el precio máximo para ambos (comportamiento actual de umbral único).",
-          "price_discharge_control": "Si está activado, la batería solo descarga cuando el precio eléctrico actual supera el precio máximo configurado. Si no hay umbral configurado, usa el precio medio del día calculado automáticamente a partir del sensor de precios. Si las franjas horarias restringen la descarga, ambas condiciones deben cumplirse.",
-          "negative_price_charging_enabled": "Función opcional de precios dinámicos que carga durante las franjas de importación más negativas aunque la previsión normal no requiera cargar desde la red. No necesita un sensor de previsión solar.",
-          "smart_predischarge_enabled": "Activa la predescarga opcional solo en el modo de precios dinámicos para crear espacio antes de franjas con precio de inyección negativo.",
-          "surplus_price_hold_enabled": "Función opcional de precios dinámicos. Almacenar el excedente fotovoltaico renuncia a la retribución por inyección de esa franja, así que la batería deja que el excedente se inyecte mientras quede por delante una franja de inyección claramente más barata, y absorbe en las horas más baratas. Se libera al final de la producción solar, en cuanto se alcanza el objetivo del día y en cuanto las franjas baratas restantes ya no pueden cubrirlo. Los límites de SOC existentes, el retardo de carga, las franjas de red baratas programadas, la carga con precio negativo, la predescarga inteligente, la carga completa semanal y el control manual siempre tienen prioridad.",
-          "surplus_hold_min_saving": "Cuánto más barata debe ser la mejor franja restante antes de retener el excedente. Evita conmutar por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
-          "discharge_reserve_enabled": "Función opcional de precios dinámicos. El bloqueo de descarga por precio solo pregunta si la hora actual es barata, nunca si las horas más caras que quedan por delante necesitan la energía que hay en la batería. Esta reserva proyecta el perfil de consumo aprendido menos la producción fotovoltaica prevista sobre las franjas de precio restantes, da a las más caras el primer derecho sobre la energía almacenada y eleva el límite de descarga de cada batería en lo que esas horas reclaman. Todo lo que supere la reserva sigue disponible ahora mismo para el autoconsumo. Nunca se reserva más allá de medianoche, y el control manual, la predescarga inteligente, el recorte de picos y los límites de SOC por franja siempre tienen prioridad.",
-          "discharge_reserve_min_saving": "Cuánto más cara debe ser una hora posterior que la actual antes de que su demanda pueda reclamar energía almacenada. Evita que el límite se mueva por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
-          "high_price_discharge_enabled": "Función opcional de precios dinámicos. Vende energía almacenada a la red en las franjas de precio de exportación más alto, pero solo la energía que queda ligada 1:1 a un déficit doméstico posterior dentro del horizonte, y solo cuando el precio de venta supera estrictamente el peor precio de recompra posterior de esa energía más el coste adicional configurado. Nunca vende por debajo de los límites de SOC, contra una orden de carga programada, ni durante la carga completa semanal, la predescarga anti-vertido, la protección de capacidad o el control manual. Si falta algún dato (previsión, precio, medidor de red), no exporta.",
-          "high_price_discharge_max_power_w": "Techo de la exportación deliberada, medido en neto en el punto de conexión a red (incluida la aportación solar simultánea). Por defecto usa la potencia de descarga de la flota, así que basta con activar el interruptor; un valor de 0 sigue siendo una configuración inválida y mantiene la función inactiva.",
           "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
           "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
-          "negative_injection_threshold": "Los precios iguales o inferiores a este umbral son franjas de riesgo cuando se espera excedente solar.",
-          "predischarge_reserve_soc": "SOC que debe reservar la predescarga, además de los límites mínimos existentes.",
-          "predischarge_export_mode": "Elige cómo crear hueco exportando a red: Solo autoconsumo (0 W), Automático (solo la potencia necesaria) o Límite personalizado (se configura en el paso siguiente). Es un límite de exportación deliberada, no la potencia total de descarga.",
-          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente.",
-          "predictive_safety_margin_kwh": "Cuánto desconfías de la previsión solar: estos kWh se le restan antes de decidir si cargar, así que un valor mayor carga antes. El mismo margen se reserva también como espacio adicional contra el anti-vertido en Precio Dinámico. Pon 0 para desactivar. Por defecto, el 5% de la capacidad total de la batería, y está limitado a ella."
-        }
-      },
-      "predischarge_export_limit": {
-        "title": "Anti-vertido — Límite de exportación personalizado",
-        "description": "Configura la exportación deliberada máxima a red para crear hueco. Es un límite de exportación, no la potencia total de descarga de la batería.",
-        "data": {
-          "predischarge_max_export_power_w": "Límite de exportación deliberada (W)"
-        },
-        "data_description": {
-          "predischarge_max_export_power_w": "Potencia máxima que se puede exportar deliberadamente a red antes de una ventana de riesgo solar. SOC, reservas, potencia del equipo y bloqueos existentes siguen siendo autoritativos."
+          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
       "realtime_price_config": {
@@ -433,19 +391,13 @@
         "description": "Configura el sensor de precio y el umbral. El sistema lee el precio actual cada pocos segundos e inicia o detiene la carga desde la red de forma inmediata — sin necesidad de planificación diaria.",
         "data": {
           "price_sensor": "Sensor de precio eléctrico",
-          "max_price_threshold": "Precio máximo (opcional)",
           "average_price_sensor": "Sensor de precio medio diario (opcional)",
-          "price_discharge_control": "Descargar solo cuando el precio supere el umbral",
-          "solar_forecast_sensor": "Sensor de predicción solar (kWh)",
-          "predictive_safety_margin_kwh": "Margen de seguridad de previsión solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicción solar (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor cuyo estado es el precio eléctrico actual (ej: sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Funciona con cualquier sensor que exponga el precio del periodo actual como su estado.",
-          "max_price_threshold": "La carga se activa cuando el precio actual es igual o inferior a este valor. Usa moneda principal/kWh (p. ej., €/kWh para Nordpool/PVPC, CHF/kWh para CKW). Los precios Nordpool HACS configurados en céntimos se convierten automáticamente. Déjalo vacío si usas el sensor de precio medio diario.",
           "average_price_sensor": "Si se configura, su valor se usa como umbral en lugar del valor fijo anterior — útil cuando tu integración de precios ya expone un precio medio diario. Déjalo vacío para usar el umbral fijo.",
-          "price_discharge_control": "Si está activado, la batería solo descarga cuando el precio eléctrico actual supera el umbral (fijo o precio medio diario). Si las franjas horarias restringen la descarga, ambas condiciones deben cumplirse.",
-          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente.",
-          "predictive_safety_margin_kwh": "Cuánto desconfías de la previsión solar: estos kWh se le restan antes de decidir si cargar, así que un valor mayor carga antes. El mismo margen se reserva también como espacio adicional contra el anti-vertido en Precio Dinámico. Pon 0 para desactivar. Por defecto, el 5% de la capacidad total de la batería, y está limitado a ella."
+          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
       "weekly_full_charge": {
@@ -1107,15 +1059,13 @@
           "start_time_3": "Franja 3 — hora de inicio (opcional)",
           "end_time_3": "Franja 3 — hora de fin (opcional)",
           "days_3": "Franja 3 — días de la semana",
-          "solar_forecast_sensor": "Sensor de predicción solar (kWh)",
-          "predictive_safety_margin_kwh": "Margen de seguridad de previsión solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicción solar (kWh)"
         },
         "data_description": {
           "start_time": "Hora de inicio de la franja de carga (ej: 01:00, tarifa valle)",
           "end_time": "Hora de fin de la franja de carga (ej: 06:00)",
           "days": "Días en los que se permite cargar desde red",
-          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente.",
-          "predictive_safety_margin_kwh": "Cuánto desconfías de la previsión solar: estos kWh se le restan antes de decidir si cargar, así que un valor mayor carga antes. El mismo margen se reserva también como espacio adicional contra el anti-vertido en Precio Dinámico. Pon 0 para desactivar. Por defecto, el 5% de la capacidad total de la batería, y está limitado a ella."
+          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
       "dynamic_pricing_config": {
@@ -1124,56 +1074,16 @@
         "data": {
           "price_integration_type": "Integración de precios",
           "price_sensor": "Sensor de precio eléctrico",
-          "max_price_threshold": "Precio máximo (opcional)",
-          "discharge_price_threshold": "Precio mínimo de descarga (opcional)",
-          "price_discharge_control": "Descargar solo cuando el precio supere el umbral",
-          "negative_price_charging_enabled": "Activar carga oportunista por precio negativo",
-          "smart_predischarge_enabled": "Predescarga inteligente / anti-vertido",
-          "surplus_price_hold_enabled": "Activar la absorción del excedente solar según el precio",
-          "surplus_hold_min_saving": "Ahorro mínimo para retener el excedente (moneda/kWh)",
-          "discharge_reserve_enabled": "Activar la reserva de descarga según el precio",
-          "discharge_reserve_min_saving": "Ahorro mínimo para la reserva de descarga (moneda/kWh)",
-          "high_price_discharge_enabled": "Activar la descarga por precio alto",
-          "high_price_discharge_max_power_w": "Potencia máxima de la descarga por precio alto (W)",
           "export_price_sensor": "Sensor de precio de inyección/exportación (opcional)",
           "export_price_integration_type": "Integración del precio de exportación (opcional)",
-          "negative_injection_threshold": "Umbral de inyección negativa",
-          "predischarge_reserve_soc": "Reserva de SOC de predescarga (%)",
-          "predischarge_export_mode": "Modo de exportación deliberada a red",
-          "solar_forecast_sensor": "Sensor de predicción solar (kWh)",
-          "predictive_safety_margin_kwh": "Margen de seguridad de previsión solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicción solar (kWh)"
         },
         "data_description": {
           "price_integration_type": "Selecciona tu integración de precios de electricidad. Nord Pool admite tanto la integración oficial de Home Assistant como la de HACS. Tibber funciona por servicio, así que su sensor puede dejarse vacío.",
           "price_sensor": "Sensor de precios (por ejemplo, el sensor de precio actual de Nord Pool oficial, un sensor Nordpool de HACS, sensor.esios_pvpc o tu sensor de CKW)",
-          "max_price_threshold": "Las horas por encima de este precio no serán seleccionadas. Cuando el control de descarga por precio está activado, este valor también se usa como umbral de descarga salvo que configures abajo un precio mínimo de descarga aparte. Usa moneda principal/kWh: €/kWh para Nordpool/PVPC, CHF/kWh para CKW. Los precios Nordpool HACS configurados en céntimos se convierten automáticamente. Deja vacío para usar todas las horas y usar la media diaria como umbral de descarga.",
-          "discharge_price_threshold": "Umbral separado opcional para la descarga por precio. La descarga se bloquea mientras el precio sea igual o inferior a este valor, abriendo una banda neutra entre el precio máximo de carga (arriba) y este mínimo: en esa banda la batería ni carga de red ni descarga (la carga por excedente solar sigue funcionando). Déjalo vacío para reutilizar el precio máximo para ambos (comportamiento actual de umbral único).",
-          "price_discharge_control": "Si está activado, la batería solo descarga cuando el precio eléctrico actual supera el precio máximo configurado. Si no hay umbral configurado, usa el precio medio del día calculado automáticamente a partir del sensor de precios. Si las franjas horarias restringen la descarga, ambas condiciones deben cumplirse.",
-          "negative_price_charging_enabled": "Función opcional de precios dinámicos que carga durante las franjas de importación más negativas aunque la previsión normal no requiera cargar desde la red. No necesita un sensor de previsión solar.",
-          "smart_predischarge_enabled": "Activa la predescarga opcional solo en el modo de precios dinámicos para crear espacio antes de franjas con precio de inyección negativo.",
-          "surplus_price_hold_enabled": "Función opcional de precios dinámicos. Almacenar el excedente fotovoltaico renuncia a la retribución por inyección de esa franja, así que la batería deja que el excedente se inyecte mientras quede por delante una franja de inyección claramente más barata, y absorbe en las horas más baratas. Se libera al final de la producción solar, en cuanto se alcanza el objetivo del día y en cuanto las franjas baratas restantes ya no pueden cubrirlo. Los límites de SOC existentes, el retardo de carga, las franjas de red baratas programadas, la carga con precio negativo, la predescarga inteligente, la carga completa semanal y el control manual siempre tienen prioridad.",
-          "surplus_hold_min_saving": "Cuánto más barata debe ser la mejor franja restante antes de retener el excedente. Evita conmutar por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
-          "discharge_reserve_enabled": "Función opcional de precios dinámicos. El bloqueo de descarga por precio solo pregunta si la hora actual es barata, nunca si las horas más caras que quedan por delante necesitan la energía que hay en la batería. Esta reserva proyecta el perfil de consumo aprendido menos la producción fotovoltaica prevista sobre las franjas de precio restantes, da a las más caras el primer derecho sobre la energía almacenada y eleva el límite de descarga de cada batería en lo que esas horas reclaman. Todo lo que supere la reserva sigue disponible ahora mismo para el autoconsumo. Nunca se reserva más allá de medianoche, y el control manual, la predescarga inteligente, el recorte de picos y los límites de SOC por franja siempre tienen prioridad.",
-          "discharge_reserve_min_saving": "Cuánto más cara debe ser una hora posterior que la actual antes de que su demanda pueda reclamar energía almacenada. Evita que el límite se mueva por diferencias de precio insignificantes. Exprésalo en moneda principal/kWh.",
-          "high_price_discharge_enabled": "Función opcional de precios dinámicos. Vende energía almacenada a la red en las franjas de precio de exportación más alto, pero solo la energía que queda ligada 1:1 a un déficit doméstico posterior dentro del horizonte, y solo cuando el precio de venta supera estrictamente el peor precio de recompra posterior de esa energía más el coste adicional configurado. Nunca vende por debajo de los límites de SOC, contra una orden de carga programada, ni durante la carga completa semanal, la predescarga anti-vertido, la protección de capacidad o el control manual. Si falta algún dato (previsión, precio, medidor de red), no exporta.",
-          "high_price_discharge_max_power_w": "Techo de la exportación deliberada, medido en neto en el punto de conexión a red (incluida la aportación solar simultánea). Por defecto usa la potencia de descarga de la flota, así que basta con activar el interruptor; un valor de 0 sigue siendo una configuración inválida y mantiene la función inactiva.",
           "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
           "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
-          "negative_injection_threshold": "Los precios iguales o inferiores a este umbral son franjas de riesgo cuando se espera excedente solar.",
-          "predischarge_reserve_soc": "SOC que debe reservar la predescarga, además de los límites mínimos existentes.",
-          "predischarge_export_mode": "Elige cómo crear hueco exportando a red: Solo autoconsumo (0 W), Automático (solo la potencia necesaria) o Límite personalizado (se configura en el paso siguiente). Es un límite de exportación deliberada, no la potencia total de descarga.",
-          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente.",
-          "predictive_safety_margin_kwh": "Cuánto desconfías de la previsión solar: estos kWh se le restan antes de decidir si cargar, así que un valor mayor carga antes. El mismo margen se reserva también como espacio adicional contra el anti-vertido en Precio Dinámico. Pon 0 para desactivar. Por defecto, el 5% de la capacidad total de la batería, y está limitado a ella."
-        }
-      },
-      "predischarge_export_limit": {
-        "title": "Anti-vertido — Límite de exportación personalizado",
-        "description": "Configura la exportación deliberada máxima a red para crear hueco. Es un límite de exportación, no la potencia total de descarga de la batería.",
-        "data": {
-          "predischarge_max_export_power_w": "Límite de exportación deliberada (W)"
-        },
-        "data_description": {
-          "predischarge_max_export_power_w": "Potencia máxima que se puede exportar deliberadamente a red antes de una ventana de riesgo solar. SOC, reservas, potencia del equipo y bloqueos existentes siguen siendo autoritativos."
+          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
       "realtime_price_config": {
@@ -1181,19 +1091,13 @@
         "description": "Configura el sensor de precio y el umbral. El sistema lee el precio actual cada pocos segundos e inicia o detiene la carga desde la red de forma inmediata — sin necesidad de planificación diaria.",
         "data": {
           "price_sensor": "Sensor de precio eléctrico",
-          "max_price_threshold": "Precio máximo (opcional)",
           "average_price_sensor": "Sensor de precio medio diario (opcional)",
-          "price_discharge_control": "Descargar solo cuando el precio supere el umbral",
-          "solar_forecast_sensor": "Sensor de predicción solar (kWh)",
-          "predictive_safety_margin_kwh": "Margen de seguridad de previsión solar (kWh)"
+          "solar_forecast_sensor": "Sensor de predicción solar (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor cuyo estado es el precio eléctrico actual (ej: sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Funciona con cualquier sensor que exponga el precio del periodo actual como su estado.",
-          "max_price_threshold": "La carga se activa cuando el precio actual es igual o inferior a este valor. Usa moneda principal/kWh (p. ej., €/kWh para Nordpool/PVPC, CHF/kWh para CKW). Los precios Nordpool HACS configurados en céntimos se convierten automáticamente. Déjalo vacío si usas el sensor de precio medio diario.",
           "average_price_sensor": "Si se configura, su valor se usa como umbral en lugar del valor fijo anterior — útil cuando tu integración de precios ya expone un precio medio diario. Déjalo vacío para usar el umbral fijo.",
-          "price_discharge_control": "Si está activado, la batería solo descarga cuando el precio eléctrico actual supera el umbral (fijo o precio medio diario). Si las franjas horarias restringen la descarga, ambas condiciones deben cumplirse.",
-          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente.",
-          "predictive_safety_margin_kwh": "Cuánto desconfías de la previsión solar: estos kWh se le restan antes de decidir si cargar, así que un valor mayor carga antes. El mismo margen se reserva también como espacio adicional contra el anti-vertido en Precio Dinámico. Pon 0 para desactivar. Por defecto, el 5% de la capacidad total de la batería, y está limitado a ella."
+          "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
       "weekly_full_charge": {
@@ -1460,13 +1364,6 @@
         "entsoe": "ENTSO-e (Plataforma de Transparencia)",
         "zonneplan": "Zonneplan",
         "tibber": "Tibber (basado en servicio)"
-      }
-    },
-    "predischarge_export_mode": {
-      "options": {
-        "self_consumption": "Solo autoconsumo",
-        "automatic": "Automático",
-        "custom": "Límite personalizado"
       }
     }
   },
@@ -2272,9 +2169,6 @@
       "discharge_reserve_min_saving": {
         "name": "Ahorro mínimo de la reserva de descarga"
       },
-      "high_price_discharge_max_power_w": {
-        "name": "Potencia máxima de la descarga por precio alto"
-      },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % excluido"
       },
@@ -2382,9 +2276,6 @@
       },
       "predischarge_reserve_soc": {
         "name": "Reserva de SOC de predescarga"
-      },
-      "predischarge_max_export_power_w": {
-        "name": "Límite de exportación deliberada"
       },
       "predictive_min_soc_floor": {
         "name": "SOC mínimo garantizado"

@@ -349,15 +349,13 @@
           "start_time_3": "Fenster 3 — Startzeit (optional)",
           "end_time_3": "Fenster 3 — Endzeit (optional)",
           "days_3": "Fenster 3 — Wochentage",
-          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solarprognose-Sicherheitspuffer (kWh)"
+          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)"
         },
         "data_description": {
           "start_time": "Startzeit des Ladefensters (z.B. 01:00, Niedrigtarif)",
           "end_time": "Endzeit des Ladefensters (z.B. 06:00)",
           "days": "Tage, an denen Netzladung erlaubt ist",
-          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet.",
-          "predictive_safety_margin_kwh": "Wie stark der Solarprognose misstraut wird: Diese kWh werden ihr abgezogen, bevor über das Laden entschieden wird; ein höherer Wert lädt also früher. Derselbe Puffer wird bei dynamischen Preisen auch als zusätzlicher Speicherplatz gegen Abregelung reserviert. Auf 0 setzen zum Deaktivieren. Standard sind 5% der Gesamtbatteriekapazität, und darauf ist er begrenzt."
+          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
         }
       },
       "predictive_charging_mode": {
@@ -376,56 +374,16 @@
         "data": {
           "price_integration_type": "Preisintegration",
           "price_sensor": "Preissensor",
-          "max_price_threshold": "Maximaler Preisschwellenwert (€/kWh, optional)",
-          "discharge_price_threshold": "Entlade-Preisuntergrenze (optional)",
-          "price_discharge_control": "Nur entladen wenn Preis über Schwellenwert",
-          "negative_price_charging_enabled": "Opportunistisches Laden bei negativen Preisen aktivieren",
-          "smart_predischarge_enabled": "Intelligente Vorentladung / Anti-Abregelung",
-          "surplus_price_hold_enabled": "Preisbewusste Aufnahme von Solarüberschuss aktivieren",
-          "surplus_hold_min_saving": "Mindestersparnis für das Zurückhalten des Überschusses (Währung/kWh)",
-          "discharge_reserve_enabled": "Preisbewusste Entladereserve aktivieren",
-          "discharge_reserve_min_saving": "Mindestersparnis für die Entladereserve (Währung/kWh)",
-          "high_price_discharge_enabled": "Hochpreis-Entladung aktivieren",
-          "high_price_discharge_max_power_w": "Maximale Leistung der Hochpreis-Entladung (W)",
           "export_price_sensor": "Sensor für Einspeise-/Exportpreise (optional)",
           "export_price_integration_type": "Integration für den Exportpreis (optional)",
-          "negative_injection_threshold": "Schwellenwert für negative Einspeisung",
-          "predischarge_reserve_soc": "SOC-Reserve für Vorentladung (%)",
-          "predischarge_export_mode": "Modus für gezielte Netzeinspeisung",
-          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solarprognose-Sicherheitspuffer (kWh)"
+          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)"
         },
         "data_description": {
           "price_integration_type": "Wählen Sie die Heimautomatisierungsintegration, die Strompreisdaten liefert",
           "price_sensor": "Sensor, der stündliche Strompreise enthält (z.B. sensor.nordpool_kwh_de_eur_3_10_025)",
-          "max_price_threshold": "Stunden über diesem Preis werden nicht ausgewählt. Wenn die preisbasierte Entladesteuerung aktiviert ist, wird dieser Wert auch als Entladeschwellenwert verwendet. Hauptwährung/kWh verwenden: €/kWh für Nordpool/PVPC, CHF/kWh für CKW. In Cent konfigurierte HACS-Nordpool-Preise werden automatisch umgerechnet. Leer lassen, um alle Stunden zu verwenden und den Tagesdurchschnitt als Entladeschwellenwert zu nutzen. Sofern unten keine separate Entlade-Preisuntergrenze festgelegt ist.",
-          "discharge_price_threshold": "Optionale separate Untergrenze für die preisgesteuerte Entladung. Die Entladung wird blockiert, solange der Preis kleiner oder gleich diesem Wert ist, wodurch ein neutrales Band zwischen der oberen Ladegrenze und dieser Untergrenze entsteht: In diesem Band lädt die Batterie weder aus dem Netz noch entlädt sie (Laden aus Solarüberschuss funktioniert weiterhin). Leer lassen, um die maximale Preisgrenze für beides zu verwenden (bisheriges Verhalten mit einem Schwellenwert).",
-          "price_discharge_control": "Wenn aktiviert, entlädt die Batterie nur, wenn der aktuelle Strompreis den konfigurierten maximalen Preisschwellenwert übersteigt. Wenn kein Schwellenwert konfiguriert ist, wird der automatisch aus dem Preissensor berechnete Tagesdurchschnitt verwendet. Falls Zeitfenster die Entladung einschränken, müssen beide Bedingungen erfüllt sein.",
-          "negative_price_charging_enabled": "Optionale Funktion für dynamische Preise, die in den negativsten Importpreisfenstern lädt, auch wenn die normale Prognose keine Netzladung erfordert. Ein Solarprognosesensor ist nicht erforderlich.",
-          "smart_predischarge_enabled": "Aktiviert die optionale Vorentladung nur im dynamischen Preismodus, um vor negativen Einspeisepreisen Platz zu schaffen.",
-          "surplus_price_hold_enabled": "Optionale Funktion für dynamische Preise. Das Speichern von PV-Überschuss verwirkt die Einspeisevergütung dieses Zeitfensters. Die Batterie lässt den Überschuss daher einspeisen, solange noch ein deutlich günstigeres Einspeisefenster bevorsteht, und lädt stattdessen in den günstigsten Stunden. Sie gibt am Ende der Solarproduktion frei, sobald das Tagesziel erreicht ist und sobald die verbleibenden günstigen Fenster es nicht mehr decken können. Bestehende SOC-Untergrenzen, Ladeverzögerung, geplante günstige Netzfenster, Laden bei negativen Preisen, intelligente Vorentladung, wöchentliche Volladung und manuelle Steuerung haben immer Vorrang.",
-          "surplus_hold_min_saving": "Wie viel günstiger das beste verbleibende Zeitfenster sein muss, bevor Überschuss zurückgehalten wird. Verhindert Umschalten bei vernachlässigbaren Preisunterschieden. Angabe in Hauptwährung/kWh.",
-          "discharge_reserve_enabled": "Optionale Funktion für dynamische Preise. Die bestehende preisbasierte Entladesperre fragt nur, ob die aktuelle Stunde günstig ist, nie, ob die noch bevorstehenden teureren Stunden die Energie in der Batterie brauchen. Diese Reserve projiziert das gelernte Verbrauchsprofil abzüglich der erwarteten PV-Erzeugung auf die verbleibenden Preisfenster, gibt den teuersten davon den ersten Anspruch auf die gespeicherte Energie und hebt die Entladeuntergrenze jeder Batterie um das an, was diese Stunden beanspruchen. Alles oberhalb der Reserve bleibt sofort für den Eigenverbrauch verfügbar. Über Mitternacht hinaus wird nie reserviert, und manuelle Steuerung, intelligente Vorentladung, Lastspitzenkappung sowie SOC-Überschreibungen je Zeitfenster haben immer Vorrang.",
-          "discharge_reserve_min_saving": "Wie viel teurer eine spätere Stunde als die aktuelle sein muss, bevor ihr Bedarf gespeicherte Energie beanspruchen darf. Verhindert, dass sich die Untergrenze bei vernachlässigbaren Preisunterschieden bewegt. Angabe in Hauptwährung/kWh.",
-          "high_price_discharge_enabled": "Optionale Funktion für dynamische Preise. Verkauft gespeicherte Energie in den Zeitfenstern mit dem höchsten Einspeisepreis an das Netz, aber nur die Energie, die 1:1 an ein späteres Haushaltsdefizit innerhalb des Horizonts gebunden ist, und nur wenn der Verkaufspreis den schlechtesten späteren Rückkaufpreis dieser Energie zuzüglich der konfigurierten Zusatzkosten strikt übersteigt. Verkauft nie unterhalb der SOC-Untergrenzen, gegen einen geplanten Ladeauftrag oder während der wöchentlichen Volladung, der Anti-Abregelungs-Vorentladung, des Kapazitätsschutzes oder der manuellen Steuerung. Fehlt eine Eingabe (Prognose, Preis, Netzzähler), wird nicht exportiert.",
-          "high_price_discharge_max_power_w": "Obergrenze für die gezielte Einspeisung, netto am Netzanschlusspunkt gemessen (einschließlich gleichzeitiger Solarleistung). Verwendet standardmäßig die Entladeleistung der Flotte, sodass das Einschalten des Schalters genügt; ein Wert von 0 bleibt eine ungültige Konfiguration und hält die Funktion inaktiv.",
           "export_price_sensor": "Sensor, der die Einspeisevergütung liefert. Leer lassen, um die Importpreiskurve zu verwenden — das ist korrekt, wenn die Einspeisung zum Importpreis vergütet wird (Net Metering).",
           "export_price_integration_type": "Attributaufbau des Exportpreis-Sensors. Leer lassen, um die Import-Integration zu übernehmen. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve.",
-          "negative_injection_threshold": "Preise gleich oder unter diesem Wert gelten bei erwarteter Solarüberschussenergie als Risikofenster.",
-          "predischarge_reserve_soc": "SOC, der zusätzlich zu den vorhandenen Mindestgrenzen reserviert wird.",
-          "predischarge_export_mode": "Wähle, wie der Anti-Abregelungs-Puffer erstellt wird: Nur Eigenverbrauch (0 W), Automatisch (nur die erforderliche Leistung) oder Benutzerdefiniertes Limit (im nächsten Schritt). Dies ist ein Limit für gezielte Einspeisung, nicht die gesamte Entladeleistung.",
-          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet.",
-          "predictive_safety_margin_kwh": "Wie stark der Solarprognose misstraut wird: Diese kWh werden ihr abgezogen, bevor über das Laden entschieden wird; ein höherer Wert lädt also früher. Derselbe Puffer wird bei dynamischen Preisen auch als zusätzlicher Speicherplatz gegen Abregelung reserviert. Auf 0 setzen zum Deaktivieren. Standard sind 5% der Gesamtbatteriekapazität, und darauf ist er begrenzt."
-        }
-      },
-      "predischarge_export_limit": {
-        "title": "Anti-Abregelung — Benutzerdefiniertes Einspeiselimit",
-        "description": "Lege die maximale gezielte Einspeisung ins Netz beim Erstellen des Puffers fest. Dies ist ein Einspeiselimit, nicht die gesamte Entladeleistung der Batterie.",
-        "data": {
-          "predischarge_max_export_power_w": "Limit für gezielte Netzeinspeisung (W)"
-        },
-        "data_description": {
-          "predischarge_max_export_power_w": "Maximale gezielte Einspeiseleistung vor einem Solar-Risikofenster. SOC, Reserve, Leistung und vorhandene Sperren bleiben maßgeblich."
+          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
         }
       },
       "realtime_price_config": {
@@ -433,19 +391,13 @@
         "description": "Preissensor und Schwellenwert konfigurieren. Das System liest den aktuellen Preis alle paar Sekunden und startet oder stoppt das Netzladen sofort — ohne tägliche Planung.",
         "data": {
           "price_sensor": "Strompreissensor",
-          "max_price_threshold": "Maximaler Preisschwellenwert (optional)",
           "average_price_sensor": "Tagesdurchschnittspreis-Sensor (optional)",
-          "price_discharge_control": "Nur entladen wenn Preis über Schwellenwert",
-          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solarprognose-Sicherheitspuffer (kWh)"
+          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor, dessen Zustand der aktuelle Strompreis ist. Jeder Sensor, der den aktuellen Periodenpreis als Zustand anzeigt, funktioniert.",
-          "max_price_threshold": "Laden wird aktiviert, wenn der aktuelle Preis diesen Wert nicht übersteigt. Hauptwährung/kWh verwenden; in Cent konfigurierte HACS-Nordpool-Preise werden automatisch umgerechnet. Leer lassen, wenn der Tagesdurchschnittssensor verwendet wird.",
           "average_price_sensor": "Wenn angegeben, wird dieser Wert als Schwellenwert anstelle des fixen Wertes verwendet. Leer lassen für den fixen Schwellenwert.",
-          "price_discharge_control": "Wenn aktiviert, entlädt die Batterie nur, wenn der aktuelle Strompreis den Schwellenwert übersteigt. Falls Zeitfenster die Entladung einschränken, müssen beide Bedingungen erfüllt sein.",
-          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet.",
-          "predictive_safety_margin_kwh": "Wie stark der Solarprognose misstraut wird: Diese kWh werden ihr abgezogen, bevor über das Laden entschieden wird; ein höherer Wert lädt also früher. Derselbe Puffer wird bei dynamischen Preisen auch als zusätzlicher Speicherplatz gegen Abregelung reserviert. Auf 0 setzen zum Deaktivieren. Standard sind 5% der Gesamtbatteriekapazität, und darauf ist er begrenzt."
+          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
         }
       },
       "weekly_full_charge": {
@@ -1097,15 +1049,13 @@
           "start_time_3": "Fenster 3 — Startzeit (optional)",
           "end_time_3": "Fenster 3 — Endzeit (optional)",
           "days_3": "Fenster 3 — Wochentage",
-          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solarprognose-Sicherheitspuffer (kWh)"
+          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)"
         },
         "data_description": {
           "start_time": "Startzeit des Ladefensters (z.B. 01:00, Niedrigtarif)",
           "end_time": "Endzeit des Ladefensters (z.B. 06:00)",
           "days": "Tage, an denen Netzladung erlaubt ist",
-          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet.",
-          "predictive_safety_margin_kwh": "Wie stark der Solarprognose misstraut wird: Diese kWh werden ihr abgezogen, bevor über das Laden entschieden wird; ein höherer Wert lädt also früher. Derselbe Puffer wird bei dynamischen Preisen auch als zusätzlicher Speicherplatz gegen Abregelung reserviert. Auf 0 setzen zum Deaktivieren. Standard sind 5% der Gesamtbatteriekapazität, und darauf ist er begrenzt."
+          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
         }
       },
       "predictive_charging_mode": {
@@ -1124,56 +1074,16 @@
         "data": {
           "price_integration_type": "Preisintegration",
           "price_sensor": "Preissensor",
-          "max_price_threshold": "Maximaler Preisschwellenwert (€/kWh, optional)",
-          "discharge_price_threshold": "Entlade-Preisuntergrenze (optional)",
-          "price_discharge_control": "Nur entladen wenn Preis über Schwellenwert",
-          "negative_price_charging_enabled": "Opportunistisches Laden bei negativen Preisen aktivieren",
-          "smart_predischarge_enabled": "Intelligente Vorentladung / Anti-Abregelung",
-          "surplus_price_hold_enabled": "Preisbewusste Aufnahme von Solarüberschuss aktivieren",
-          "surplus_hold_min_saving": "Mindestersparnis für das Zurückhalten des Überschusses (Währung/kWh)",
-          "discharge_reserve_enabled": "Preisbewusste Entladereserve aktivieren",
-          "discharge_reserve_min_saving": "Mindestersparnis für die Entladereserve (Währung/kWh)",
-          "high_price_discharge_enabled": "Hochpreis-Entladung aktivieren",
-          "high_price_discharge_max_power_w": "Maximale Leistung der Hochpreis-Entladung (W)",
           "export_price_sensor": "Sensor für Einspeise-/Exportpreise (optional)",
           "export_price_integration_type": "Integration für den Exportpreis (optional)",
-          "negative_injection_threshold": "Schwellenwert für negative Einspeisung",
-          "predischarge_reserve_soc": "SOC-Reserve für Vorentladung (%)",
-          "predischarge_export_mode": "Modus für gezielte Netzeinspeisung",
-          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solarprognose-Sicherheitspuffer (kWh)"
+          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)"
         },
         "data_description": {
           "price_integration_type": "Wählen Sie die Heimautomatisierungsintegration, die Strompreisdaten liefert",
           "price_sensor": "Sensor, der stündliche Strompreise enthält (z.B. sensor.nordpool_kwh_de_eur_3_10_025)",
-          "max_price_threshold": "Stunden über diesem Preis werden nicht ausgewählt. Wenn die preisbasierte Entladesteuerung aktiviert ist, wird dieser Wert auch als Entladeschwellenwert verwendet. Hauptwährung/kWh verwenden: €/kWh für Nordpool/PVPC, CHF/kWh für CKW. In Cent konfigurierte HACS-Nordpool-Preise werden automatisch umgerechnet. Leer lassen, um alle Stunden zu verwenden und den Tagesdurchschnitt als Entladeschwellenwert zu nutzen. Sofern unten keine separate Entlade-Preisuntergrenze festgelegt ist.",
-          "discharge_price_threshold": "Optionale separate Untergrenze für die preisgesteuerte Entladung. Die Entladung wird blockiert, solange der Preis kleiner oder gleich diesem Wert ist, wodurch ein neutrales Band zwischen der oberen Ladegrenze und dieser Untergrenze entsteht: In diesem Band lädt die Batterie weder aus dem Netz noch entlädt sie (Laden aus Solarüberschuss funktioniert weiterhin). Leer lassen, um die maximale Preisgrenze für beides zu verwenden (bisheriges Verhalten mit einem Schwellenwert).",
-          "price_discharge_control": "Wenn aktiviert, entlädt die Batterie nur, wenn der aktuelle Strompreis den konfigurierten maximalen Preisschwellenwert übersteigt. Wenn kein Schwellenwert konfiguriert ist, wird der automatisch aus dem Preissensor berechnete Tagesdurchschnitt verwendet. Falls Zeitfenster die Entladung einschränken, müssen beide Bedingungen erfüllt sein.",
-          "negative_price_charging_enabled": "Optionale Funktion für dynamische Preise, die in den negativsten Importpreisfenstern lädt, auch wenn die normale Prognose keine Netzladung erfordert. Ein Solarprognosesensor ist nicht erforderlich.",
-          "smart_predischarge_enabled": "Aktiviert die optionale Vorentladung nur im dynamischen Preismodus, um vor negativen Einspeisepreisen Platz zu schaffen.",
-          "surplus_price_hold_enabled": "Optionale Funktion für dynamische Preise. Das Speichern von PV-Überschuss verwirkt die Einspeisevergütung dieses Zeitfensters. Die Batterie lässt den Überschuss daher einspeisen, solange noch ein deutlich günstigeres Einspeisefenster bevorsteht, und lädt stattdessen in den günstigsten Stunden. Sie gibt am Ende der Solarproduktion frei, sobald das Tagesziel erreicht ist und sobald die verbleibenden günstigen Fenster es nicht mehr decken können. Bestehende SOC-Untergrenzen, Ladeverzögerung, geplante günstige Netzfenster, Laden bei negativen Preisen, intelligente Vorentladung, wöchentliche Volladung und manuelle Steuerung haben immer Vorrang.",
-          "surplus_hold_min_saving": "Wie viel günstiger das beste verbleibende Zeitfenster sein muss, bevor Überschuss zurückgehalten wird. Verhindert Umschalten bei vernachlässigbaren Preisunterschieden. Angabe in Hauptwährung/kWh.",
-          "discharge_reserve_enabled": "Optionale Funktion für dynamische Preise. Die bestehende preisbasierte Entladesperre fragt nur, ob die aktuelle Stunde günstig ist, nie, ob die noch bevorstehenden teureren Stunden die Energie in der Batterie brauchen. Diese Reserve projiziert das gelernte Verbrauchsprofil abzüglich der erwarteten PV-Erzeugung auf die verbleibenden Preisfenster, gibt den teuersten davon den ersten Anspruch auf die gespeicherte Energie und hebt die Entladeuntergrenze jeder Batterie um das an, was diese Stunden beanspruchen. Alles oberhalb der Reserve bleibt sofort für den Eigenverbrauch verfügbar. Über Mitternacht hinaus wird nie reserviert, und manuelle Steuerung, intelligente Vorentladung, Lastspitzenkappung sowie SOC-Überschreibungen je Zeitfenster haben immer Vorrang.",
-          "discharge_reserve_min_saving": "Wie viel teurer eine spätere Stunde als die aktuelle sein muss, bevor ihr Bedarf gespeicherte Energie beanspruchen darf. Verhindert, dass sich die Untergrenze bei vernachlässigbaren Preisunterschieden bewegt. Angabe in Hauptwährung/kWh.",
-          "high_price_discharge_enabled": "Optionale Funktion für dynamische Preise. Verkauft gespeicherte Energie in den Zeitfenstern mit dem höchsten Einspeisepreis an das Netz, aber nur die Energie, die 1:1 an ein späteres Haushaltsdefizit innerhalb des Horizonts gebunden ist, und nur wenn der Verkaufspreis den schlechtesten späteren Rückkaufpreis dieser Energie zuzüglich der konfigurierten Zusatzkosten strikt übersteigt. Verkauft nie unterhalb der SOC-Untergrenzen, gegen einen geplanten Ladeauftrag oder während der wöchentlichen Volladung, der Anti-Abregelungs-Vorentladung, des Kapazitätsschutzes oder der manuellen Steuerung. Fehlt eine Eingabe (Prognose, Preis, Netzzähler), wird nicht exportiert.",
-          "high_price_discharge_max_power_w": "Obergrenze für die gezielte Einspeisung, netto am Netzanschlusspunkt gemessen (einschließlich gleichzeitiger Solarleistung). Verwendet standardmäßig die Entladeleistung der Flotte, sodass das Einschalten des Schalters genügt; ein Wert von 0 bleibt eine ungültige Konfiguration und hält die Funktion inaktiv.",
           "export_price_sensor": "Sensor, der die Einspeisevergütung liefert. Leer lassen, um die Importpreiskurve zu verwenden — das ist korrekt, wenn die Einspeisung zum Importpreis vergütet wird (Net Metering).",
           "export_price_integration_type": "Attributaufbau des Exportpreis-Sensors. Leer lassen, um die Import-Integration zu übernehmen. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve.",
-          "negative_injection_threshold": "Preise gleich oder unter diesem Wert gelten bei erwarteter Solarüberschussenergie als Risikofenster.",
-          "predischarge_reserve_soc": "SOC, der zusätzlich zu den vorhandenen Mindestgrenzen reserviert wird.",
-          "predischarge_export_mode": "Wähle, wie der Anti-Abregelungs-Puffer erstellt wird: Nur Eigenverbrauch (0 W), Automatisch (nur die erforderliche Leistung) oder Benutzerdefiniertes Limit (im nächsten Schritt). Dies ist ein Limit für gezielte Einspeisung, nicht die gesamte Entladeleistung.",
-          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet.",
-          "predictive_safety_margin_kwh": "Wie stark der Solarprognose misstraut wird: Diese kWh werden ihr abgezogen, bevor über das Laden entschieden wird; ein höherer Wert lädt also früher. Derselbe Puffer wird bei dynamischen Preisen auch als zusätzlicher Speicherplatz gegen Abregelung reserviert. Auf 0 setzen zum Deaktivieren. Standard sind 5% der Gesamtbatteriekapazität, und darauf ist er begrenzt."
-        }
-      },
-      "predischarge_export_limit": {
-        "title": "Anti-Abregelung — Benutzerdefiniertes Einspeiselimit",
-        "description": "Lege die maximale gezielte Einspeisung ins Netz beim Erstellen des Puffers fest. Dies ist ein Einspeiselimit, nicht die gesamte Entladeleistung der Batterie.",
-        "data": {
-          "predischarge_max_export_power_w": "Limit für gezielte Netzeinspeisung (W)"
-        },
-        "data_description": {
-          "predischarge_max_export_power_w": "Maximale gezielte Einspeiseleistung vor einem Solar-Risikofenster. SOC, Reserve, Leistung und vorhandene Sperren bleiben maßgeblich."
+          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
         }
       },
       "realtime_price_config": {
@@ -1181,19 +1091,13 @@
         "description": "Preissensor und Schwellenwert konfigurieren. Das System liest den aktuellen Preis alle paar Sekunden und startet oder stoppt das Netzladen sofort — ohne tägliche Planung.",
         "data": {
           "price_sensor": "Strompreissensor",
-          "max_price_threshold": "Maximaler Preisschwellenwert (optional)",
           "average_price_sensor": "Tagesdurchschnittspreis-Sensor (optional)",
-          "price_discharge_control": "Nur entladen wenn Preis über Schwellenwert",
-          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solarprognose-Sicherheitspuffer (kWh)"
+          "solar_forecast_sensor": "Solarprognose-Sensor (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor, dessen Zustand der aktuelle Strompreis ist. Jeder Sensor, der den aktuellen Periodenpreis als Zustand anzeigt, funktioniert.",
-          "max_price_threshold": "Laden wird aktiviert, wenn der aktuelle Preis diesen Wert nicht übersteigt. Hauptwährung/kWh verwenden; in Cent konfigurierte HACS-Nordpool-Preise werden automatisch umgerechnet. Leer lassen, wenn der Tagesdurchschnittssensor verwendet wird.",
           "average_price_sensor": "Wenn angegeben, wird dieser Wert als Schwellenwert anstelle des fixen Wertes verwendet. Leer lassen für den fixen Schwellenwert.",
-          "price_discharge_control": "Wenn aktiviert, entlädt die Batterie nur, wenn der aktuelle Strompreis den Schwellenwert übersteigt. Falls Zeitfenster die Entladung einschränken, müssen beide Bedingungen erfüllt sein.",
-          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet.",
-          "predictive_safety_margin_kwh": "Wie stark der Solarprognose misstraut wird: Diese kWh werden ihr abgezogen, bevor über das Laden entschieden wird; ein höherer Wert lädt also früher. Derselbe Puffer wird bei dynamischen Preisen auch als zusätzlicher Speicherplatz gegen Abregelung reserviert. Auf 0 setzen zum Deaktivieren. Standard sind 5% der Gesamtbatteriekapazität, und darauf ist er begrenzt."
+          "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
         }
       },
       "weekly_full_charge": {
@@ -1460,13 +1364,6 @@
         "entsoe": "ENTSO-e (Transparency-Plattform)",
         "zonneplan": "Zonneplan",
         "tibber": "Tibber (dienstbasiert)"
-      }
-    },
-    "predischarge_export_mode": {
-      "options": {
-        "self_consumption": "Nur Eigenverbrauch",
-        "automatic": "Automatisch",
-        "custom": "Benutzerdefiniertes Limit"
       }
     }
   },
@@ -2272,9 +2169,6 @@
       "discharge_reserve_min_saving": {
         "name": "Mindestersparnis Entladereserve"
       },
-      "high_price_discharge_max_power_w": {
-        "name": "Maximale Leistung der Hochpreis-Entladung"
-      },
       "excluded_device_exclusion_pct": {
         "name": "{device} – Ausschluss %"
       },
@@ -2379,9 +2273,6 @@
       },
       "predischarge_reserve_soc": {
         "name": "SOC-Reserve für Vorentladung"
-      },
-      "predischarge_max_export_power_w": {
-        "name": "Limit für gezielte Netzeinspeisung"
       },
       "predictive_min_soc_floor": {
         "name": "Garantierter Mindest-SOC"

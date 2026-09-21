@@ -388,15 +388,13 @@
           "start_time_3": "Window 3 — start time (optional)",
           "end_time_3": "Window 3 — end time (optional)",
           "days_3": "Window 3 — days of the week",
-          "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
         },
         "data_description": {
           "start_time": "Start time of charging window (e.g., 01:00, off-peak tariff)",
           "end_time": "End time of charging window (e.g., 06:00)",
           "days": "Days when grid charging is allowed",
-          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },
       "dynamic_pricing_config": {
@@ -405,54 +403,16 @@
         "data": {
           "price_integration_type": "Price integration",
           "price_sensor": "Electricity price sensor",
-          "max_price_threshold": "Maximum price threshold (optional)",
-          "price_discharge_control": "Only discharge when price is above threshold",
-          "negative_price_charging_enabled": "Enable negative-price opportunistic charging",
-          "smart_predischarge_enabled": "Enable Smart Pre-discharge / Anti-curtailment",
-          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
-          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
-          "discharge_reserve_enabled": "Enable price-aware discharge reserve",
-          "discharge_reserve_min_saving": "Discharge reserve minimum saving (currency/kWh)",
-          "high_price_discharge_enabled": "Enable high-price discharge",
-          "high_price_discharge_max_power_w": "High-price discharge maximum power (W)",
           "export_price_sensor": "Export/feed-in price sensor (optional)",
           "export_price_integration_type": "Export price integration (optional)",
-          "negative_injection_threshold": "Negative injection threshold (currency/kWh)",
-          "predischarge_reserve_soc": "Pre-discharge reserve SOC (%)",
-          "predischarge_export_mode": "Deliberate grid export mode",
-          "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
         },
         "data_description": {
           "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty.",
           "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
-          "max_price_threshold": "Slots above this price will not be selected. When price-gated discharge is enabled, this value is also used as the discharge threshold. Use major currency/kWh: €/kWh for Nordpool/PVPC, CHF/kWh for CKW. HACS Nordpool prices configured in cents are converted automatically. Leave empty to use all slots and use the daily average as the discharge threshold.",
-          "price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the configured maximum price threshold. If no threshold is configured, it uses today's average price computed automatically from the price sensor. If time slots restrict discharge, both conditions must be met.",
-          "negative_price_charging_enabled": "Opt-in dynamic-pricing feature that charges during the most negative import-price slots even when the normal energy forecast does not require grid charging. A solar forecast sensor is not required.",
-          "smart_predischarge_enabled": "Opt-in dynamic-pricing feature. It creates battery headroom before forecast PV surplus reaches a price slot at or below the negative-injection threshold. Existing SOC floors, user limits, time slots, manual ownership, backup and capacity protection remain authoritative.",
-          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
-          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
-          "discharge_reserve_enabled": "Opt-in dynamic-pricing feature. The existing price-based discharge block asks only whether the current hour is cheap; it never asks whether the dearer hours still ahead need the energy that is in the battery. This reserve projects the learned consumption profile minus the expected PV onto the remaining price slots, gives the dearest of them first claim on the stored energy, and raises every battery's discharge floor by what those hours claim. Everything above the reserve stays available for self-consumption right now. It never reserves past midnight, and manual control, smart pre-discharge, peak shaving and per-slot SOC overrides all take precedence.",
-          "discharge_reserve_min_saving": "How much dearer a later hour must be than the current one before its demand may claim stored energy. Prevents the floor from moving on negligible price differences. Use major currency/kWh.",
-          "high_price_discharge_enabled": "Opt-in dynamic-pricing feature. Sells stored energy to the grid during the highest export-price slots, but only the energy that is tied 1:1 to a later household deficit within the horizon, and only when the sell price strictly exceeds that energy's worst later buy-back price plus the configured additional cost. Never sells below SOC floors, against a scheduled charge order, or during the weekly full charge, anti-curtailment pre-discharge, capacity protection or manual control. If any input is missing (forecast, price, grid meter), it does not export.",
-          "high_price_discharge_max_power_w": "Ceiling for deliberate export, measured net at the grid connection point (including simultaneous solar contribution). Defaults to the fleet's own discharge power, so turning the switch on is enough; a value of 0 is still an invalid configuration and keeps the feature inactive.",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
-          "negative_injection_threshold": "A future slot is considered at risk when its normalized price is at or below this inclusive threshold and forecast PV exceeds estimated household consumption.",
-          "predischarge_reserve_soc": "Additional SOC floor for pre-discharge. 0 uses each battery's configured minimum and guaranteed minimum SOC floors.",
-          "predischarge_export_mode": "Choose how deliberate grid export creates anti-curtailment headroom. Self-consumption never exports deliberately; Automatic calculates only the power needed; Custom applies the W limit configured in the next step.",
-          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
-        }
-      },
-      "predischarge_export_limit": {
-        "title": "Anti-curtailment — Custom export limit",
-        "description": "Set the maximum deliberate export to the grid while creating headroom. This is an export limit, not the battery's total discharge power.",
-        "data": {
-          "predischarge_max_export_power_w": "Deliberate grid export limit (W)"
-        },
-        "data_description": {
-          "predischarge_max_export_power_w": "Maximum power that may be deliberately exported to the grid before a solar-risk window. Battery SOC, reserve, hardware power and existing locks remain authoritative."
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },
       "realtime_price_config": {
@@ -460,19 +420,13 @@
         "description": "Configure the price sensor and threshold. The system reads the current price every few seconds and starts or stops grid charging immediately — no daily schedule needed.",
         "data": {
           "price_sensor": "Electricity price sensor",
-          "max_price_threshold": "Maximum price threshold (optional)",
           "average_price_sensor": "Daily average price sensor (optional)",
-          "price_discharge_control": "Only discharge when price is above threshold",
-          "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor whose state is the current electricity price (e.g. sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Any sensor that exposes the current period price as its state works.",
-          "max_price_threshold": "Charging activates when the current price is at or below this value. Use major currency/kWh (e.g. €/kWh for Nordpool/PVPC, CHF/kWh for CKW). HACS Nordpool prices configured in cents are converted automatically. Leave empty if using the daily average sensor below.",
           "average_price_sensor": "If provided, this sensor's state is used as the threshold instead of the fixed value above — useful when your price integration already exposes a daily average. Leave empty to use the fixed threshold.",
-          "price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the threshold (fixed or daily average). If time slots restrict discharge, both conditions must be met.",
-          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },
       "weekly_full_charge": {
@@ -1100,15 +1054,13 @@
           "start_time_3": "Window 3 — start time (optional)",
           "end_time_3": "Window 3 — end time (optional)",
           "days_3": "Window 3 — days of the week",
-          "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
         },
         "data_description": {
           "start_time": "Start time of charging window (e.g., 01:00, off-peak tariff)",
           "end_time": "End time of charging window (e.g., 06:00)",
           "days": "Days when grid charging is allowed",
-          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },
       "dynamic_pricing_config": {
@@ -1117,54 +1069,16 @@
         "data": {
           "price_integration_type": "Price integration",
           "price_sensor": "Electricity price sensor",
-          "max_price_threshold": "Maximum price threshold (optional)",
-          "price_discharge_control": "Only discharge when price is above threshold",
-          "negative_price_charging_enabled": "Enable negative-price opportunistic charging",
-          "smart_predischarge_enabled": "Enable Smart Pre-discharge / Anti-curtailment",
-          "surplus_price_hold_enabled": "Enable price-aware solar surplus absorption",
-          "surplus_hold_min_saving": "Surplus hold minimum saving (currency/kWh)",
-          "discharge_reserve_enabled": "Enable price-aware discharge reserve",
-          "discharge_reserve_min_saving": "Discharge reserve minimum saving (currency/kWh)",
-          "high_price_discharge_enabled": "Enable high-price discharge",
-          "high_price_discharge_max_power_w": "High-price discharge maximum power (W)",
           "export_price_sensor": "Export/feed-in price sensor (optional)",
           "export_price_integration_type": "Export price integration (optional)",
-          "negative_injection_threshold": "Negative injection threshold (currency/kWh)",
-          "predischarge_reserve_soc": "Pre-discharge reserve SOC (%)",
-          "predischarge_export_mode": "Deliberate grid export mode",
-          "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
         },
         "data_description": {
           "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty.",
           "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
-          "max_price_threshold": "Slots above this price will not be selected. When price-gated discharge is enabled, this value is also used as the discharge threshold. Use major currency/kWh: €/kWh for Nordpool/PVPC, CHF/kWh for CKW. HACS Nordpool prices configured in cents are converted automatically. Leave empty to use all slots and use the daily average as the discharge threshold.",
-          "price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the configured maximum price threshold. If no threshold is configured, it uses today's average price computed automatically from the price sensor. If time slots restrict discharge, both conditions must be met.",
-          "negative_price_charging_enabled": "Opt-in dynamic-pricing feature that charges during the most negative import-price slots even when the normal energy forecast does not require grid charging. A solar forecast sensor is not required.",
-          "smart_predischarge_enabled": "Opt-in dynamic-pricing feature. It creates battery headroom before forecast PV surplus reaches a price slot at or below the negative-injection threshold. Existing SOC floors, user limits, time slots, manual ownership, backup and capacity protection remain authoritative.",
-          "surplus_price_hold_enabled": "Opt-in dynamic-pricing feature. Storing PV surplus forfeits that slot's feed-in revenue, so the battery lets surplus export while a materially cheaper feed-in window is still ahead, and absorbs in the cheapest hours instead. It releases at the end of solar production, once the day's target is met, and whenever the remaining cheap windows can no longer cover it. Existing SOC floors, charge delay, scheduled cheap grid slots, negative-price charging, smart pre-discharge, weekly full charge and manual ownership all take precedence.",
-          "surplus_hold_min_saving": "How much cheaper the best remaining slot must be before surplus is held back. Prevents the hold from toggling on negligible price differences. Use major currency/kWh.",
-          "discharge_reserve_enabled": "Opt-in dynamic-pricing feature. The existing price-based discharge block asks only whether the current hour is cheap; it never asks whether the dearer hours still ahead need the energy that is in the battery. This reserve projects the learned consumption profile minus the expected PV onto the remaining price slots, gives the dearest of them first claim on the stored energy, and raises every battery's discharge floor by what those hours claim. Everything above the reserve stays available for self-consumption right now. It never reserves past midnight, and manual control, smart pre-discharge, peak shaving and per-slot SOC overrides all take precedence.",
-          "discharge_reserve_min_saving": "How much dearer a later hour must be than the current one before its demand may claim stored energy. Prevents the floor from moving on negligible price differences. Use major currency/kWh.",
-          "high_price_discharge_enabled": "Opt-in dynamic-pricing feature. Sells stored energy to the grid during the highest export-price slots, but only the energy that is tied 1:1 to a later household deficit within the horizon, and only when the sell price strictly exceeds that energy's worst later buy-back price plus the configured additional cost. Never sells below SOC floors, against a scheduled charge order, or during the weekly full charge, anti-curtailment pre-discharge, capacity protection or manual control. If any input is missing (forecast, price, grid meter), it does not export.",
-          "high_price_discharge_max_power_w": "Ceiling for deliberate export, measured net at the grid connection point (including simultaneous solar contribution). Defaults to the fleet's own discharge power, so turning the switch on is enough; a value of 0 is still an invalid configuration and keeps the feature inactive.",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
-          "negative_injection_threshold": "A future slot is considered at risk when its normalized price is at or below this inclusive threshold and forecast PV exceeds estimated household consumption.",
-          "predischarge_reserve_soc": "Additional SOC floor for pre-discharge. 0 uses each battery's configured minimum and guaranteed minimum SOC floors.",
-          "predischarge_export_mode": "Choose how deliberate grid export creates anti-curtailment headroom. Self-consumption never exports deliberately; Automatic calculates only the power needed; Custom applies the W limit configured in the next step.",
-          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
-        }
-      },
-      "predischarge_export_limit": {
-        "title": "Anti-curtailment — Custom export limit",
-        "description": "Set the maximum deliberate export to the grid while creating headroom. This is an export limit, not the battery's total discharge power.",
-        "data": {
-          "predischarge_max_export_power_w": "Deliberate grid export limit (W)"
-        },
-        "data_description": {
-          "predischarge_max_export_power_w": "Maximum power that may be deliberately exported to the grid before a solar-risk window. Battery SOC, reserve, hardware power and existing locks remain authoritative."
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },
       "realtime_price_config": {
@@ -1172,19 +1086,13 @@
         "description": "Configure the price sensor and threshold. The system reads the current price every few seconds and starts or stops grid charging immediately — no daily schedule needed.",
         "data": {
           "price_sensor": "Electricity price sensor",
-          "max_price_threshold": "Maximum price threshold (optional)",
           "average_price_sensor": "Daily average price sensor (optional)",
-          "price_discharge_control": "Only discharge when price is above threshold",
-          "solar_forecast_sensor": "Solar forecast sensor (kWh)",
-          "predictive_safety_margin_kwh": "Solar forecast safety margin (kWh)"
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
         },
         "data_description": {
           "price_sensor": "Sensor whose state is the current electricity price (e.g. sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Any sensor that exposes the current period price as its state works.",
-          "max_price_threshold": "Charging activates when the current price is at or below this value. Use major currency/kWh (e.g. €/kWh for Nordpool/PVPC, CHF/kWh for CKW). HACS Nordpool prices configured in cents are converted automatically. Leave empty if using the daily average sensor below.",
           "average_price_sensor": "If provided, this sensor's state is used as the threshold instead of the fixed value above — useful when your price integration already exposes a daily average. Leave empty to use the fixed threshold.",
-          "price_discharge_control": "When enabled, the battery only discharges when the current electricity price exceeds the threshold (fixed or daily average). If time slots restrict discharge, both conditions must be met.",
-          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically.",
-          "predictive_safety_margin_kwh": "How much the solar forecast is distrusted: these kWh are subtracted from it before deciding whether to charge, so a higher value charges earlier. The same margin is also reserved as additional anti-curtailment headroom in Dynamic Pricing. Set to 0 to disable. Defaults to 5% of total battery capacity, and is capped at it."
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },
       "weekly_full_charge": {
@@ -1456,13 +1364,6 @@
         "entsoe": "ENTSO-e (Transparency Platform)",
         "zonneplan": "Zonneplan",
         "tibber": "Tibber (service-based)"
-      }
-    },
-    "predischarge_export_mode": {
-      "options": {
-        "self_consumption": "Self-consumption only",
-        "automatic": "Automatic",
-        "custom": "Custom limit"
       }
     }
   },
@@ -2268,9 +2169,6 @@
       "discharge_reserve_min_saving": {
         "name": "Discharge Reserve Minimum Saving"
       },
-      "high_price_discharge_max_power_w": {
-        "name": "High-Price Discharge Maximum Power"
-      },
       "excluded_device_exclusion_pct": {
         "name": "{device} – Exclusion %"
       },
@@ -2408,9 +2306,6 @@
       },
       "predischarge_reserve_soc": {
         "name": "Pre-discharge Reserve SOC"
-      },
-      "predischarge_max_export_power_w": {
-        "name": "Deliberate Grid Export Limit"
       }
     },
     "button": {
