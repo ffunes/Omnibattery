@@ -177,6 +177,36 @@ def test_vacation_baseline_ignores_nights_without_three_hours_coverage():
     assert source == "vacation_night_median"
 
 
+def test_vacation_baseline_does_not_recurse_through_the_profile_fallback():
+    """#499: the profile's legacy fallback asks the tracker for its daily value.
+
+    While vacation is active that answer *is* the vacation baseline, so the two
+    called each other ~140 deep on every entity read and froze the event loop.
+    """
+    tracker = _make_tracker([(date(2026, 9, 18), 9.6)])
+    tracker._controller.vacation_mode_enabled = True
+    tracker._vacation_nights = []
+    tracker._vacation_periods = []
+    calls = []
+
+    def _forecast_energy_between(start, end, *, exclude_charging_windows, fallback):
+        # What ConsumptionProfileTracker._fallback_daily_value() does, and the
+        # callable is the tracker's own get_avg_daily_consumption (see the
+        # ConsumptionProfileTracker construction in ConsumptionTracker.__init__).
+        calls.append(tracker.get_avg_daily_consumption())
+        return SimpleNamespace(source=fallback, energy_kwh=0.0)
+
+    tracker._consumption_profile = SimpleNamespace(
+        forecast_energy_between=_forecast_energy_between
+    )
+
+    baseline_kw, source = tracker._vacation_baseline_kw()
+
+    assert len(calls) == 1
+    assert calls[0] == pytest.approx(9.6)  # the re-entrant call took the history
+    assert (baseline_kw, source) == (pytest.approx(9.6 / 24.0), "daily_history")
+
+
 def test_vacation_baseline_averages_two_valid_nights():
     tracker = _make_tracker([])
     tracker._vacation_nights = [

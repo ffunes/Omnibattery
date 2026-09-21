@@ -1323,7 +1323,7 @@ class PricingManager:
         controller._curtailment_opportunistic_target_soc = targets
         if not getattr(controller, "_grid_charging_initialized", False):
             max_power = min(
-                max(0.0, float(getattr(controller, "max_contracted_power", 0.0) or 0.0)),
+                self._contracted_charge_ceiling(),
                 max(0.0, float(getattr(controller, "max_charge_capacity", 0.0) or 0.0)),
             )
             controller.previous_power = -max_power
@@ -1423,7 +1423,7 @@ class PricingManager:
         if keep:
             schedule.average_price = sum(slot.price for slot in keep) / len(keep)
             effective_power_kw = min(
-                float(getattr(self._controller, "max_contracted_power", 0.0)),
+                self._contracted_charge_ceiling(),
                 float(getattr(self._controller, "max_charge_capacity", 0.0)),
             ) / 1000.0
             schedule.estimated_cost = sum(
@@ -2935,7 +2935,7 @@ class PricingManager:
                     decision_data["planned_grid_charge_kwh"] = min(required, headroom)
                     decision_data["guaranteed_floor_deadline"] = solar_start_dt.isoformat()
             power_kw = min(
-                max(0.0, float(self._controller.max_contracted_power)),
+                self._contracted_charge_ceiling(),
                 max(0.0, float(self._controller.max_charge_capacity)),
             ) / 1000.0
             evaluation = self.evaluate_chronological_projection(
@@ -3375,14 +3375,14 @@ class PricingManager:
             planned_charge_kwh = decision_data.get("planned_grid_charge_kwh", deficit_kwh)
             deficit_hours_needed = calculations.calculate_charging_hours_needed(
                 planned_charge_kwh,
-                self._controller.max_contracted_power,
+                self._contracted_charge_ceiling(),
                 self._controller.max_charge_capacity,
             )
         else:
             # No deficit — use daily consumption as reference so the number of
             # selected hours is meaningful (same basis the algorithm uses to decide)
             deficit_hours_needed = calculations.calculate_charging_hours_needed(
-                decision_data["avg_consumption_kwh"], self._controller.max_contracted_power, self._controller.max_charge_capacity
+                decision_data["avg_consumption_kwh"], self._contracted_charge_ceiling(), self._controller.max_charge_capacity
             )
         # One instant, one computation. `ceiling` is what actually filters;
         # `arb_ceiling` is kept only so the notification can name the cause.
@@ -3406,7 +3406,7 @@ class PricingManager:
         )
         negative_price_hours_needed = calculations.calculate_exact_charging_hours_needed(
             negative_price_energy_kwh,
-            self._controller.max_contracted_power,
+            self._contracted_charge_ceiling(),
             self._controller.max_charge_capacity,
         )
         negative_price_selected = calculations.select_cheapest_slots_by_duration(
@@ -3448,7 +3448,7 @@ class PricingManager:
                 )
                 deficit_hours_needed = calculations.calculate_exact_charging_hours_needed(
                     chronological_plan.total_required_kwh,
-                    self._controller.max_contracted_power,
+                    self._contracted_charge_ceiling(),
                     self._controller.max_charge_capacity,
                 )
         else:
@@ -3487,7 +3487,7 @@ class PricingManager:
             ]
             weekly_hours_needed = calculations.calculate_charging_hours_needed(
                 weekly_reserve_kwh,
-                self._controller.max_contracted_power,
+                self._contracted_charge_ceiling(),
                 self._controller.max_charge_capacity,
             )
             # ponytail: the price ceiling was computed from the pre-reservation
@@ -3653,7 +3653,7 @@ class PricingManager:
 
         # Step 4: Build schedule
         avg_price = sum(s.price for s in selected) / len(selected)
-        effective_power_kw = min(self._controller.max_contracted_power, self._controller.max_charge_capacity) / 1000.0
+        effective_power_kw = min(self._contracted_charge_ceiling(), self._controller.max_charge_capacity) / 1000.0
         selected_hours = sum(
             max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
             for slot in selected
@@ -3779,6 +3779,7 @@ class PricingManager:
             arbitrage_ceiling=self._controller._dp_arbitrage_ceiling,
             max_contracted_power=self._controller.max_contracted_power,
             max_charge_capacity=self._controller.max_charge_capacity,
+            peak_limit=self._peak_shaving_limit(),
         )
         await self._hass.services.async_call(
             "persistent_notification",
@@ -3789,6 +3790,28 @@ class PricingManager:
                 "notification_id": f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation",
             },
         )
+
+    def _peak_shaving_limit(self):
+        """Peak shaving's import limit when it is capping grid charging."""
+        controller = self._controller
+        if not getattr(controller, "capacity_protection_enabled", False):
+            return None
+        limit = getattr(controller, "capacity_protection_limit", 0) or 0
+        return limit if limit > 0 else None
+
+    def _contracted_charge_ceiling(self) -> float:
+        """Contracted import power, capped by peak shaving.
+
+        Peak shaving limits grid import, so it limits grid charging too — the
+        same cap the controller enforces at runtime in
+        ``_predictive_charge_ceiling()``.  Planning that assumes the raw
+        contracted power books too few hours and under-reports cost.
+        """
+        contracted = max(
+            0.0, float(getattr(self._controller, "max_contracted_power", 0.0) or 0.0)
+        )
+        limit = self._peak_shaving_limit()
+        return min(contracted, float(limit)) if limit else contracted
 
     async def _send_dynamic_pricing_slot_start_notification(self, slot: PriceSlot) -> None:
         """Send notification when a cheap pricing slot starts."""
@@ -3801,6 +3824,7 @@ class PricingManager:
             schedule,
             unit=self._get_price_unit(),
             max_contracted_power=self._controller.max_contracted_power,
+            peak_limit=self._peak_shaving_limit(),
         )
         await self._hass.services.async_call(
             "persistent_notification",
@@ -4855,7 +4879,7 @@ class PricingManager:
 
         hours_needed = calculations.calculate_charging_hours_needed(
             planned_evening_charge_kwh,
-            self._controller.max_contracted_power,
+            self._contracted_charge_ceiling(),
             self._controller.max_charge_capacity,
         )
         decision_data["should_charge"] = True
@@ -4915,7 +4939,7 @@ class PricingManager:
             self._controller._dynamic_pricing_evaluated_date = max(s.start.date() for s in merged)
         else:
             avg_price = sum(s.price for s in selected) / len(selected)
-            effective_power_kw = min(self._controller.max_contracted_power, self._controller.max_charge_capacity) / 1000.0
+            effective_power_kw = min(self._contracted_charge_ceiling(), self._controller.max_charge_capacity) / 1000.0
             self._controller._dynamic_pricing_schedule = DynamicPricingSchedule(
                 hours_needed=hours_needed,
                 selected_slots=selected,
@@ -5026,7 +5050,7 @@ class PricingManager:
             remaining = shortfall
             if remaining > 0.01:
                 power_kw = min(
-                    max(0.0, float(controller.max_contracted_power)),
+                    self._contracted_charge_ceiling(),
                     max(0.0, float(controller.max_charge_capacity)),
                 ) / 1000.0
                 for slot in sorted(schedule.selected_slots, key=lambda item: item.start):
@@ -5852,7 +5876,7 @@ class PricingManager:
                     )
 
             if self._controller.grid_charging_active:
-                _LOGGER.info("Predictive Grid Charging ACTIVE - target power: %dW", self._controller.max_contracted_power)
+                _LOGGER.info("Predictive Grid Charging ACTIVE - target power: %dW", self._contracted_charge_ceiling())
                 await self._controller._handle_predictive_grid_charging()
                 return
             else:
@@ -5917,6 +5941,7 @@ class PricingManager:
             is_daily_evaluation,
             max_contracted_power=self._controller.max_contracted_power,
             max_charge_capacity=self._controller.max_charge_capacity,
+            peak_limit=self._peak_shaving_limit(),
             charging_time_slot=self._controller._active_charging_slot(),
         )
 

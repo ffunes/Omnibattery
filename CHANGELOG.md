@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.5.0b3] - 2026-09-21
 
 ### Added
 - **Excluded devices no longer push grid import above the contracted power**: an excluded device is hidden from the controller by design, but the breaker still sees it. When the excluded load alone would exceed "Maximum contracted power", the battery now covers just the excess. Always on, no setting. Peak shaving remains the opt-in economic layer below it.
@@ -20,6 +20,7 @@
 
 ### Fixed
 
+- **Vacation mode no longer freezes Home Assistant** (#499): with no vacation night learned yet, the away baseline asked the consumption profile for a forecast, whose fallback asked the tracker for its daily average, which is that same baseline. The pair recursed until Python gave up, so every read of the vacation switch or the expected-consumption sensor blocked the event loop for seconds.
 - **Price-only controls no longer appear on time-slot installs**: high price discharge, price-aware surplus hold and the discharge reserve only run under Dynamic Pricing, but their switches, sliders and status rows were showing in Time Slot and Real-Time Price mode. They are now registered only in Dynamic Pricing mode.
 - **Price-aware surplus absorption is reachable from the dashboard**: its toggle and minimum-saving slider existed only in the options flow, so the feature was invisible. Its status sensor is renamed "… Status" so the two entities no longer share a name.
 - **The discharge reserve is reachable from the dashboard** (#270): its toggle and minimum-saving slider existed only in the options flow, so it was the only one of the six economic predictive-charging features with no dashboard control. Its status sensor is renamed "… Status" so the two entities no longer share a name.
@@ -36,6 +37,7 @@
 - **A battery past its predictive target keeps absorbing solar surplus** (#470): during a grid-charge slot the per-battery target also blocked solar charging, so the house exported while that battery sat idle. The target now limits grid energy only: the battery takes measured export up to its normal ceiling, and shows as `battery_solar_only_charge` instead of charge-blocked. Thanks to @RobtoCopter.
 - **Peak shaving that holds the battery overnight no longer triggers a guaranteed-minimum-SOC grid charge**: in Time Slot mode the planner assumed the battery would cover all the load before sunrise. While peak shaving holds it, the planner now counts only the load above the peak limit. Releasing or engaging peak shaving inside a charging window triggers a re-evaluation. No-discharge time slots that apply to every battery are now projected the same way, with no battery drain at all.
 - **The weekly 100% charge now reserves a cheap slot after sunset** (#489): the midnight plan netted the weekly gap against the *forecast* surplus, so a sunny forecast reserved nothing and a day that underdelivered was left buying at 21:45. The weekly day now books the cheapest slot after the solar window closes, sized for the whole gap; if the sun does fill the pack, the pre-slot re-evaluation cancels it and nothing is bought. The evening top-up also sizes to 100% on that day as a last resort.
+- **Predictive charging now plans against the peak shaving limit** (#502): peak shaving caps grid import, so it caps grid charging, but every estimate ignored it — the notification announced a charge power the battery would never reach, and the schedule booked too few hours at too low a cost. Thanks to @alainsch.
 
 ## [1.5.0b2] - 2026-09-13
 

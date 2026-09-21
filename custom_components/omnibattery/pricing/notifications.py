@@ -111,12 +111,37 @@ def _horizon_text(context: dict, *, with_for: bool = False) -> str:
     return f"{prefix}the rest of today"
 
 
+def _max_charge_power_str(
+    max_contracted_power,
+    max_charge_capacity=None,
+    peak_limit=None,
+    *,
+    contracted_label: str = "contracted",
+) -> str:
+    """Render the effective grid-charge ceiling and the limits behind it.
+
+    Peak shaving caps grid import, so it caps grid charging too (see
+    ``_predictive_charge_ceiling``); it must appear here or the notification
+    promises a power the controller will never command.
+    """
+    limits = [max_contracted_power]
+    parts = [f"{contracted_label}: {max_contracted_power:g}W"]
+    if max_charge_capacity is not None:
+        limits.append(max_charge_capacity)
+        parts.append(f"batteries: {max_charge_capacity:g}W")
+    if peak_limit:
+        limits.append(peak_limit)
+        parts.append(f"peak limit: {peak_limit:g}W")
+    return f"{min(limits):g}W (" + ", ".join(parts) + ")"
+
+
 def format_predictive_notification_message(
     decision_data: dict,
     is_daily_evaluation: bool = False,
     *,
     max_contracted_power,
     max_charge_capacity,
+    peak_limit=None,
     charging_time_slot,
 ) -> tuple[str, str]:
     """Format notification title and message from decision data.
@@ -141,9 +166,8 @@ def format_predictive_notification_message(
 
     solar_str = f"{solar_forecast:.2f} kWh" if solar_forecast is not None else "unavailable"
     forecast_lines = _build_forecast_lines(context, solar_str, consumption_for_horizon)
-    effective_power = min(max_contracted_power, max_charge_capacity)
-    power_str = (
-        f"{effective_power}W (contracted: {max_contracted_power}W, batteries: {max_charge_capacity}W)"
+    power_str = _max_charge_power_str(
+        max_contracted_power, max_charge_capacity, peak_limit
     )
 
     # Safe mode: no solar forecast
@@ -256,6 +280,7 @@ def format_dynamic_pricing_notification(
     arbitrage_ceiling=None,
     max_contracted_power,
     max_charge_capacity,
+    peak_limit=None,
 ) -> tuple[str, str]:
     """Format dynamic pricing evaluation notification."""
     avg_soc = decision_data.get("avg_soc", 0)
@@ -364,8 +389,12 @@ def format_dynamic_pricing_notification(
                 f"Average price: {schedule.average_price:.4f} {unit}\n"
                 f"Estimated cost: ~{schedule.estimated_cost:.2f} {cost_unit}\n"
                 f"{price_config_line}"
-                f"Max charge power: {min(max_contracted_power, max_charge_capacity)}W "
-                f"(ICP: {max_contracted_power}W, batteries: {max_charge_capacity}W)"
+                "Max charge power: " + _max_charge_power_str(
+                    max_contracted_power,
+                    max_charge_capacity,
+                    peak_limit,
+                    contracted_label="ICP",
+                )
             )
         elif not schedule.charging_needed:
             title = f"Predictive Charging: Price Info - {hours_label} cheapest"
@@ -420,8 +449,12 @@ def format_dynamic_pricing_notification(
                 f"Average price: {schedule.average_price:.4f} {unit}\n"
                 f"Estimated cost: ~{schedule.estimated_cost:.2f} {cost_unit}\n"
                 f"{price_config_line}"
-                f"Max charge power: {min(max_contracted_power, max_charge_capacity)}W "
-                f"(ICP: {max_contracted_power}W, batteries: {max_charge_capacity}W)"
+                "Max charge power: " + _max_charge_power_str(
+                    max_contracted_power,
+                    max_charge_capacity,
+                    peak_limit,
+                    contracted_label="ICP",
+                )
             )
 
     return (title, message)
@@ -433,6 +466,7 @@ def format_slot_start_notification(
     *,
     unit: str,
     max_contracted_power,
+    peak_limit=None,
 ) -> tuple[str, str]:
     """Format the 'cheap pricing slot started' notification.
 
@@ -452,7 +486,7 @@ def format_slot_start_notification(
 
     title = f"Predictive Charging STARTED ({slot.price:.4f} {unit})"
     message = (
-        f"⚡ Charging at max {max_contracted_power}W\n"
+        f"⚡ Charging at max {min(max_contracted_power, peak_limit) if peak_limit else max_contracted_power:g}W\n"
         f"Slot: {slot.start.strftime('%H:%M')}-{slot.end.strftime('%H:%M')}\n"
         f"{next_slot_str} · {remaining_str}"
     )

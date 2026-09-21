@@ -84,6 +84,21 @@ def test_predictive_started():
     assert "contracted: 5000W, batteries: 3000W" in message
 
 
+def test_predictive_max_power_accounts_for_peak_shaving():
+    # Issue #502: peak shaving caps grid import, so the announced max charge
+    # power must not exceed it (reporter: 5000 ICP / 3500 batteries / 3000 peak
+    # → the controller charged at 3000W while the notification said 3500W).
+    _, message = notifications.format_predictive_notification_message(
+        _decision(should_charge=True, energy_deficit_kwh=2.0),
+        max_contracted_power=5000,
+        max_charge_capacity=3500,
+        peak_limit=3000,
+        charging_time_slot={"start_time": "23:00", "end_time": "06:00"},
+    )
+    assert "Max charge power: 3000W" in message
+    assert "peak limit: 3000W" in message
+
+
 def test_predictive_started_reports_the_actual_planned_grid_charge():
     """The notification must match the energy used to calculate the SOC target."""
     _, message = notifications.format_predictive_notification_message(

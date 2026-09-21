@@ -129,6 +129,10 @@ def home_balance_is_suspicious(
 class ConsumptionTracker:
     """Manages consumption history, accumulators and solar timing."""
 
+    # Re-entrancy guard for ``_vacation_baseline_kw``; see the note there.
+    # Class-level so instances built without ``__init__`` still have it.
+    _vacation_baseline_running = False
+
     def __init__(
         self,
         hass: "HomeAssistant",
@@ -434,17 +438,26 @@ class ConsumptionTracker:
         ]
         if values:
             return statistics.median(values), "vacation_night_median"
-        try:
-            today = dt_util.now().date()
-            midnight = datetime.combine(today, time.min, tzinfo=dt_util.now().tzinfo)
-            prior = self._consumption_profile.forecast_energy_between(
-                midnight + timedelta(hours=1), midnight + timedelta(hours=5),
-                exclude_charging_windows=False, fallback="legacy_daily",
-            )
-            if prior.source == "profile" and prior.energy_kwh > 0:
-                return prior.energy_kwh / 4.0, "prior_night_profile"
-        except Exception:  # noqa: BLE001
-            pass
+        # The profile's "legacy_daily" fallback resolves its daily value through
+        # ``get_avg_daily_consumption``, which lands back here while vacation is
+        # active. Without this guard the pair recursed ~140 deep on every read
+        # until RecursionError - swallowed below - and each entity state write
+        # blocked the event loop for seconds (#499).
+        if not self._vacation_baseline_running:
+            self._vacation_baseline_running = True
+            try:
+                today = dt_util.now().date()
+                midnight = datetime.combine(today, time.min, tzinfo=dt_util.now().tzinfo)
+                prior = self._consumption_profile.forecast_energy_between(
+                    midnight + timedelta(hours=1), midnight + timedelta(hours=5),
+                    exclude_charging_windows=False, fallback="legacy_daily",
+                )
+                if prior.source == "profile" and prior.energy_kwh > 0:
+                    return prior.energy_kwh / 4.0, "prior_night_profile"
+            except Exception:  # noqa: BLE001
+                pass
+            finally:
+                self._vacation_baseline_running = False
         history = [energy for day, energy in self._controller._daily_consumption_history
                    if not self._period_intersects(
                        datetime.combine(day, time.min, tzinfo=dt_util.now().tzinfo),

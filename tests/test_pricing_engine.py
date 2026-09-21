@@ -3363,3 +3363,32 @@ def test_soc_drop_at_0300_counts_today_and_the_next_overnight_leg():
             "solar_forecast_override_kwh": 10.0,
         }
     ]
+
+
+# ----------------------------------------------------------------------
+# _contracted_charge_ceiling (issue #502)
+# ----------------------------------------------------------------------
+
+def test_charge_ceiling_is_capped_by_peak_shaving():
+    # Peak shaving limits grid import, so every charge-power estimate
+    # (hours needed, cost, chronological plan) must plan against it.
+    manager = _mgr(_controller(
+        max_contracted_power=5000,
+        capacity_protection_enabled=True,
+        capacity_protection_limit=3000,
+    ))
+
+    assert manager._peak_shaving_limit() == 3000
+    assert manager._contracted_charge_ceiling() == 3000
+
+
+@pytest.mark.parametrize("overrides", [
+    {"capacity_protection_enabled": False, "capacity_protection_limit": 3000},
+    {"capacity_protection_enabled": True, "capacity_protection_limit": 0},
+    {},  # peak shaving not configured at all
+])
+def test_charge_ceiling_without_peak_shaving_is_the_contracted_power(overrides):
+    manager = _mgr(_controller(max_contracted_power=5000, **overrides))
+
+    assert manager._peak_shaving_limit() is None
+    assert manager._contracted_charge_ceiling() == 5000
