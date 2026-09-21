@@ -14,6 +14,8 @@ without the suite's ``-p no:homeassistant`` flag (conftest skips it otherwise)::
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -22,11 +24,13 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.omnibattery import async_migrate_entry
 from custom_components.omnibattery.const import (
+    CONFIG_NUMBER_DEFINITIONS,
     CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
     CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
     DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
     default_predictive_safety_margin_kwh,
 )
+from custom_components.omnibattery.number import MarstekConfigNumberEntity
 
 DOMAIN = "omnibattery"
 PREFIX = "marstek_venus_system_"
@@ -57,6 +61,32 @@ def test_default_margin_scales_with_the_fleet():
 )
 def test_default_margin_falls_back_to_no_margin_without_capacity(data):
     assert default_predictive_safety_margin_kwh(data) == DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
+
+
+# ----------------------------------------------------------------------
+# The slider must show that same default, not 0.0 (no hidden values)
+# ----------------------------------------------------------------------
+
+MARGIN_DEF = next(
+    d for d in CONFIG_NUMBER_DEFINITIONS if d["key"] == CONF_PREDICTIVE_SAFETY_MARGIN_KWH
+)
+FLEET = {"batteries": [{"battery_capacity_kwh": 5.12}] * 2}
+
+
+def _slider_value(data):
+    """native_value of the margin slider for a config entry holding ``data``."""
+    entry = SimpleNamespace(data=data)
+    return MarstekConfigNumberEntity(None, entry, MARGIN_DEF).native_value
+
+
+def test_slider_shows_the_same_default_the_controller_uses():
+    assert _slider_value(FLEET) == default_predictive_safety_margin_kwh(FLEET) > 0
+
+
+@pytest.mark.parametrize("stored", [0.0, 3.0], ids=["explicit_zero", "explicit_value"])
+def test_a_stored_margin_wins_over_the_default(stored):
+    """An upgrade must not rewrite the margin the user already fixed."""
+    assert _slider_value({**FLEET, CONF_PREDICTIVE_SAFETY_MARGIN_KWH: stored}) == stored
 
 
 # ----------------------------------------------------------------------

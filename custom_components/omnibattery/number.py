@@ -483,7 +483,10 @@ class MarstekConfigNumberEntity(NumberEntity):
     @property
     def native_value(self):
         """Return the current value from config_entry.data, in display units."""
-        raw = self.entry.data.get(self._key, self._definition["default"])
+        default = self._definition["default"]
+        if callable(default):
+            default = default(self.entry.data)
+        raw = self.entry.data.get(self._key, default)
         return raw / self._scale
 
     async def async_set_native_value(self, value: float) -> None:
