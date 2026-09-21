@@ -2844,6 +2844,36 @@ class PricingManager:
                 ) / 100.0 * float(c.data.get("battery_total_energy", 0) or 0))
                 for c in eligible
             )
+            weekly_pending = getattr(
+                self._controller, "_weekly_full_charge_pending", None
+            )
+            if (
+                callable(weekly_pending)
+                and weekly_pending()
+                and solar_end_dt is not None
+                and solar_end_dt > now
+            ):
+                # An unreliable solar forecast is why this reservation exists;
+                # crediting it would reproduce #489.  Over-reserving is safe because
+                # the pre-slot re-evaluation cancels or resizes against the real SOC.
+                projected_usable = min(
+                    usable + headroom,
+                    max(
+                        0.0,
+                        usable
+                        - sum(
+                            item.consumption_kwh
+                            for item in intervals
+                            if item.end <= solar_end_dt
+                        ),
+                    ),
+                )
+                decision_data["weekly_reserve_not_before"] = (
+                    solar_end_dt.isoformat()
+                )
+                decision_data["weekly_reserve_kwh"] = max(
+                    0.0, usable + headroom - projected_usable
+                )
             deadlines = build_energy_deadlines(
                 intervals, usable, usable_capacity_kwh=usable + headroom
             )
@@ -3440,6 +3470,62 @@ class PricingManager:
             )
         else:
             deficit_selected = []
+
+        weekly_reserve_kwh = float(
+            decision_data.get("weekly_reserve_kwh", 0.0) or 0.0
+        )
+        try:
+            weekly_reserve_not_before = datetime.fromisoformat(
+                decision_data.get("weekly_reserve_not_before", "")
+            )
+        except (TypeError, ValueError):
+            weekly_reserve_not_before = None
+        if weekly_reserve_kwh > 0.0 and weekly_reserve_not_before is not None:
+            post_solar = [
+                slot for slot in slots
+                if slot.start >= weekly_reserve_not_before
+            ]
+            weekly_hours_needed = calculations.calculate_charging_hours_needed(
+                weekly_reserve_kwh,
+                self._controller.max_contracted_power,
+                self._controller.max_charge_capacity,
+            )
+            # ponytail: the price ceiling was computed from the pre-reservation
+            # deficit_hours_needed and is deliberately not recomputed here.
+            weekly_selected = calculations.select_cheapest_hours(
+                post_solar,
+                weekly_hours_needed,
+                ceiling,
+                now=eval_now,
+            )
+            if weekly_selected:
+                if deficit_charging_needed:
+                    deficit_selected.extend(
+                        slot for slot in weekly_selected
+                        if slot not in deficit_selected
+                    )
+                else:
+                    # Without a deficit, this is the informational cheap-hour
+                    # calendar.  Arming it would book the pre-dawn slots #489
+                    # exists to avoid.
+                    deficit_selected = list(weekly_selected)
+                    deficit_hours_needed = weekly_hours_needed
+                    deficit_kwh = max(deficit_kwh, weekly_reserve_kwh)
+                deficit_charging_needed = True
+                first_weekly_slot = min(weekly_selected, key=lambda slot: slot.start)
+                _LOGGER.info(
+                    "Dynamic pricing: weekly reservation %.2f kWh (%.1f h) placed from %s at %.4f",
+                    weekly_reserve_kwh,
+                    weekly_hours_needed,
+                    first_weekly_slot.start,
+                    first_weekly_slot.price,
+                )
+            else:
+                _LOGGER.warning(
+                    "Dynamic pricing: weekly reservation %.2f kWh could not be placed after %s (no slots below ceiling)",
+                    weekly_reserve_kwh,
+                    weekly_reserve_not_before,
+                )
 
         def _combine_selected() -> tuple[list[PriceSlot], dict[PriceSlot, str]]:
             purposes: dict[PriceSlot, str] = {}
@@ -4631,11 +4717,16 @@ class PricingManager:
             c.data.get("battery_soc", 0) for c in coordinators_with_data
         ) / len(coordinators_with_data)
 
-        # Room to each battery's max_soc — the physical cap on how much the
-        # evening top-up can add.
+        # A weekly full-charge day raises the physical ceiling to 100%.
+        ceiling = getattr(self._controller, "_charge_ceiling_soc", None)
         energy_to_full_kwh = sum(
-            max(0.0, (c.max_soc - (c.data.get("battery_soc", c.max_soc) or 0)) / 100.0
-                * (c.data.get("battery_total_energy", 0) or 0))
+            max(0.0, (
+                (float(ceiling(c)) if callable(ceiling) else float(c.max_soc))
+                - float(c.data.get(
+                    "battery_soc",
+                    ceiling(c) if callable(ceiling) else c.max_soc,
+                ) or 0)
+            ) / 100.0 * (c.data.get("battery_total_energy", 0) or 0))
             for c in coordinators_with_data
         )
 
@@ -4700,12 +4791,21 @@ class PricingManager:
             for c in coordinators_with_data
         )
 
-        # --- Net deficit: grid energy still needed to cover tonight, after what
-        # the battery already holds and the solar still to come. Capped at the
-        # room to max_soc. ---
+        # Last resort when phase-3 reservation could not be placed: the weekly
+        # gap is demand that the consumption balance cannot see.
+        weekly_gap = getattr(self._controller, "_weekly_full_charge_gap_kwh", None)
+        weekly_gap_kwh = (
+            weekly_gap(coordinators_with_data) if callable(weekly_gap) else 0.0
+        )
         evening_deficit_kwh = min(
             energy_to_full_kwh,
-            max(0.0, remaining_consumption_kwh - usable_now_kwh - remaining_solar_kwh),
+            max(
+                weekly_gap_kwh,
+                max(
+                    0.0,
+                    remaining_consumption_kwh - usable_now_kwh - remaining_solar_kwh,
+                ),
+            ),
         )
         planned_evening_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
             evening_deficit_kwh,

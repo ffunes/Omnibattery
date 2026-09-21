@@ -3532,6 +3532,19 @@ class ChargeDischargeController:
         manager = getattr(self, "_weekly_charge_mgr", None)
         return manager is not None and manager.is_active()
 
+    def _weekly_full_charge_gap_kwh(self, coordinators) -> float:
+        """Return the fleet energy gap to 100% while a weekly charge is pending."""
+        if not ChargeDischargeController._weekly_full_charge_pending(self):
+            return 0.0
+        return sum(
+            max(
+                0.0,
+                (100.0 - float(c.data.get("battery_soc", 0) or 0.0)) / 100.0
+                * float(c.data.get("battery_total_energy", 0) or 0.0),
+            )
+            for c in coordinators
+        )
+
     def _charge_ceiling_soc(self, coordinator) -> float:
         """Return the SOC every charge path may plan against.
 
@@ -5033,16 +5046,9 @@ class ChargeDischargeController:
         # solar surplus it expects and takes the larger of the two demands, so
         # the grid only buys what the sun will not deliver. Zero when the
         # weekly cycle is off, not today, or already complete.
-        weekly_gap_kwh = 0.0
-        if ChargeDischargeController._weekly_full_charge_pending(self):
-            weekly_gap_kwh = sum(
-                max(
-                    0.0,
-                    (100.0 - float(c.data.get("battery_soc", 0) or 0.0)) / 100.0
-                    * float(c.data.get("battery_total_energy", 0) or 0.0),
-                )
-                for c in coordinators_with_data
-            )
+        weekly_gap_kwh = ChargeDischargeController._weekly_full_charge_gap_kwh(
+            self, coordinators_with_data
+        )
 
         # Get dynamic consumption forecast.  The normal 00:05 evaluation uses
         # the full-day average; a pre-slot re-evaluation may provide the
