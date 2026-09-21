@@ -13,8 +13,9 @@ branch heals the entity registry, which the light no-``hass``-fixture fakes can'
 provide, so we patch the two entity_registry helpers it calls to no-op here (the
 v9 heal has its own dedicated registry test). v10 renames the title, handled by
 accepting the kwarg in the fake; v11 adds the disabled-by-default phase schema.
-v13 and v14 also touch the entity registry (v13 merges the price-discharge
-switches, v14 deletes the removed grid-charge margin number), hence
+v13, v14 and v15 also touch the entity registry (v13 merges the price-discharge
+switches, v14 deletes the removed grid-charge margin number, v15 the export
+power numbers), hence
 ``_no_registry()`` on every test that walks past v12; each has its own dedicated
 registry test in ``test_price_discharge_control_migration.py`` and
 ``test_grid_charge_margin_removal.py``.
@@ -109,8 +110,17 @@ def test_v11_records_connected_panels_without_changing_existing_venus_behaviour(
     assert [battery["dc_pv_connected"] for battery in batteries] == [True, False, False]
 
 
-def test_already_v14_is_noop():
+def test_already_current_version_is_noop():
+    """The early-return guard must track the flow's VERSION.
+
+    Hardcoding it here let the guard go stale once already: a v15 branch was
+    added while the guard still returned early at 14.
+    """
+    from custom_components.omnibattery.config_flow import MarstekVenusConfigFlow
+
     hass = SimpleNamespace(config_entries=_FakeConfigEntries())
-    entry = SimpleNamespace(version=14, data={"batteries": [{}]})
+    entry = SimpleNamespace(
+        version=MarstekVenusConfigFlow.VERSION, data={"batteries": [{}]}
+    )
     assert asyncio.run(async_migrate_entry(hass, entry)) is True
     assert hass.config_entries.updated is None  # nothing rewritten
