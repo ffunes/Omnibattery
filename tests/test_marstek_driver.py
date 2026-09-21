@@ -22,6 +22,7 @@ from custom_components.omnibattery.drivers import (
 from custom_components.omnibattery.const import (
     MESSAGE_WAIT_MS,
     MESSAGE_WAIT_MS_RS485_GATEWAY,
+    READ_TIMEOUT_S,
     REGISTER_MAP,
     max_power_for_battery_version,
 )
@@ -1145,3 +1146,36 @@ def test_rs485_gateway_drops_the_v3_message_wait(monkeypatch):
     # The gateway replaces the TCP server for every firmware version, v2 too.
     MarstekModbusDriver("1.2.3.4", 502, "v2", rs485_gateway=True)
     assert captured["message_wait_ms"] == MESSAGE_WAIT_MS_RS485_GATEWAY
+
+
+# The stall a Venus D takes every five minutes, measured at the Modbus proxy
+# over eleven hours: 138 of them, mean 4.05 s, longest 4.46 s.
+VENUS_D_STALL_S = 4.46
+
+
+def test_venus_d_attempt_outlasts_the_five_minute_stall():
+    """A per-attempt timeout shorter than the stall expires in every one of them.
+
+    The retry then duplicates the request, the battery answers both, and one of
+    the two replies is discarded as unmatched - twelve times an hour on a
+    battery that always came back.
+    """
+    assert READ_TIMEOUT_S["vD"] > VENUS_D_STALL_S + 1
+
+
+def test_per_attempt_timeout_reaches_the_client(monkeypatch):
+    """Whatever the map says for a version is what the client is built with."""
+    captured = {}
+
+    def _fake_client_factory(*args, **kwargs):
+        captured.update(kwargs)
+        return _fake_client()
+
+    monkeypatch.setattr(
+        "custom_components.omnibattery.drivers.marstek.MarstekModbusClient",
+        _fake_client_factory,
+    )
+
+    for version in ("v2", "v3", "vA", "vD"):
+        MarstekModbusDriver("1.2.3.4", 502, version)
+        assert captured["timeout"] == READ_TIMEOUT_S[version], version
