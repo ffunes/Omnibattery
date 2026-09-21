@@ -2869,3 +2869,101 @@ async def test_after_dark_the_hybrid_takes_its_share_back():
     )
     assert _apply_driver_dynamic_limit(hybrid, 7000) == 7000
 
+
+
+# ----------------------------------------------------------------------
+# Invalid-value markers (#494)
+#
+# The inverter answers a register it cannot supply with an all-ones / max-int
+# marker instead of failing the read, so the block-level guard never sees it.
+# Measured in the wild on a LUNA2000 asleep at its cutoff: SOC 0xFFFF scaled by
+# 0.1 reached the control layer as 6553.5 %, which put the battery above every
+# floor and left the rest of the fleet idle for two hours.
+# ----------------------------------------------------------------------
+
+
+def _live_with(**regs):
+    """The live block with individual registers overridden by offset name."""
+    offsets = {"state": 0, "power_hi": 1, "power_lo": 2, "voltage": 3, "soc": 4}
+    live = list(_LIVE_BLOCKS[37000])
+    for name, value in regs.items():
+        live[offsets[name]] = value
+    blocks = dict(_LIVE_BLOCKS)
+    blocks[37000] = live
+    return blocks
+
+
+@pytest.mark.asyncio
+async def test_soc_marker_is_dropped_not_published_as_6553_percent():
+    driver = _driver(_fake_client(_live_with(soc=0xFFFF)))
+    data = await driver.read_telemetry()
+    assert "battery_soc" not in data
+
+
+@pytest.mark.asyncio
+async def test_a_marker_only_drops_its_own_key():
+    """The rest of the block is still good data and must survive."""
+    driver = _driver(_fake_client(_live_with(soc=0xFFFF)))
+    data = await driver.read_telemetry()
+    assert data["battery_voltage"] == 796.3
+    assert data["battery_power"] == -809
+
+
+@pytest.mark.asyncio
+async def test_battery_power_marker_is_dropped():
+    driver = _driver(_fake_client(_live_with(power_hi=0x7FFF, power_lo=0xFFFF)))
+    data = await driver.read_telemetry()
+    assert "battery_power" not in data
+
+
+@pytest.mark.asyncio
+async def test_an_out_of_range_percentage_is_dropped_even_without_a_marker():
+    """A misaligned read produces plausible-looking rubbish, not a marker."""
+    driver = _driver(_fake_client(_live_with(soc=1500)))  # would scale to 150 %
+    data = await driver.read_telemetry()
+    assert "battery_soc" not in data
+
+
+@pytest.mark.asyncio
+async def test_a_valid_reading_still_arrives_unchanged():
+    """The guard must not cost the ordinary case anything."""
+    driver = _driver(_fake_client())
+    data = await driver.read_telemetry()
+    assert data["battery_soc"] == 61.0
+    assert data["battery_power"] == -809
+
+
+@pytest.mark.asyncio
+async def test_a_sleeping_battery_warns_once_not_every_poll():
+    driver = _driver(_fake_client(_live_with(soc=0xFFFF)))
+    with patch.object(
+        __import__(
+            "custom_components.omnibattery.drivers.huawei", fromlist=["_LOGGER"]
+        ),
+        "_LOGGER",
+    ) as logger:
+        for _ in range(5):
+            await driver.read_telemetry(["battery_soc"])
+        assert logger.warning.call_count == 1
+        assert logger.debug.call_count == 4
+
+
+@pytest.mark.asyncio
+async def test_the_next_episode_warns_again():
+    """Recovery clears the latch, so a second outage is not silent."""
+    table = dict(_live_with(soc=0xFFFF))
+    client = _fake_client()
+    client.async_read_holding_block = AsyncMock(side_effect=lambda start, count: table.get(start))
+    driver = _driver(client)
+    with patch.object(
+        __import__(
+            "custom_components.omnibattery.drivers.huawei", fromlist=["_LOGGER"]
+        ),
+        "_LOGGER",
+    ) as logger:
+        await driver.read_telemetry(["battery_soc"])
+        table.update(_LIVE_BLOCKS)
+        assert (await driver.read_telemetry(["battery_soc"]))["battery_soc"] == 61.0
+        table.update(_live_with(soc=0xFFFF))
+        await driver.read_telemetry(["battery_soc"])
+        assert logger.warning.call_count == 2
