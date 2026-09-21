@@ -158,13 +158,11 @@ from .const import (
     CONF_SMART_PREDISCHARGE_ENABLED,
     CONF_NEGATIVE_INJECTION_THRESHOLD,
     CONF_PREDISCHARGE_RESERVE_SOC,
-    CONF_PREDISCHARGE_MAX_EXPORT_POWER_W,
     CONF_PREDISCHARGE_EXPORT_MODE,
-    normalize_predischarge_export_settings,
+    PREDISCHARGE_EXPORT_MODE_AUTOMATIC,
     DEFAULT_SMART_PREDISCHARGE_ENABLED,
     DEFAULT_NEGATIVE_INJECTION_THRESHOLD,
     DEFAULT_PREDISCHARGE_RESERVE_SOC,
-    DEFAULT_PREDISCHARGE_MAX_EXPORT_POWER_W,
     CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
     DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED,
     CONF_DISCHARGE_RESERVE_ENABLED,
@@ -983,20 +981,15 @@ class ChargeDischargeController:
         self.predischarge_reserve_soc = config_entry.data.get(
             CONF_PREDISCHARGE_RESERVE_SOC, DEFAULT_PREDISCHARGE_RESERVE_SOC
         )
-        self.predischarge_export_mode, self.predischarge_max_export_power_w = (
-            normalize_predischarge_export_settings(
-                config_entry.data.get(
-                    CONF_PREDISCHARGE_EXPORT_MODE,
-                ),
-                config_entry.data.get(
-                    CONF_PREDISCHARGE_MAX_EXPORT_POWER_W,
-                    DEFAULT_PREDISCHARGE_MAX_EXPORT_POWER_W,
-                ),
-            )
-        )
-        # Alias used by the pricing manager for the custom deliberate-export
-        # ceiling. Automatic and self-consumption intentionally expose 0 W.
-        self.predischarge_export_limit_w = self.predischarge_max_export_power_w
+        # The deliberate-export policy is not configurable: anti-curtailment
+        # always runs in "automatic", where the planner may use the fleet's own
+        # discharge power but never selects more than the headroom it actually
+        # needs. The ceiling a slider used to set is the one the batteries can
+        # already deliver, so the slider could only ever disagree with the
+        # system-wide discharge cap. The 0 W limit is what "not custom" means to
+        # the pure planner (see pricing/curtailment.normalize_export_mode).
+        self.predischarge_export_mode = PREDISCHARGE_EXPORT_MODE_AUTOMATIC
+        self.predischarge_export_limit_w = 0.0
         self.negative_price_charging_enabled = config_entry.data.get(
             CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
             DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED,
@@ -1010,9 +1003,10 @@ class ChargeDischargeController:
         self.high_price_discharge_enabled = config_entry.data.get(
             CONF_HIGH_PRICE_DISCHARGE_ENABLED, DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED
         )
-        self.high_price_discharge_max_power_w = config_entry.data.get(
-            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
-            default_high_price_discharge_max_power(config_entry.data),
+        # Not a stored setting: the export ceiling is the fleet's own discharge
+        # power, already narrowed by the system-wide cap. See the const helper.
+        self.high_price_discharge_max_power_w = default_high_price_discharge_max_power(
+            config_entry.data
         )
         self.discharge_reserve_enabled = config_entry.data.get(
             CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
@@ -2826,8 +2820,6 @@ class ChargeDischargeController:
         old_curtailment_config = (
             self.negative_injection_threshold,
             self.predischarge_reserve_soc,
-            self.predischarge_export_mode,
-            self.predischarge_max_export_power_w,
             self._predictive_safety_margin_kwh,
         )
         old_negative_price_enabled = self.negative_price_charging_enabled
@@ -2942,16 +2934,6 @@ class ChargeDischargeController:
         self.predischarge_reserve_soc = self.config_entry.data.get(
             CONF_PREDISCHARGE_RESERVE_SOC, DEFAULT_PREDISCHARGE_RESERVE_SOC
         )
-        self.predischarge_export_mode, self.predischarge_max_export_power_w = (
-            normalize_predischarge_export_settings(
-                self.config_entry.data.get(CONF_PREDISCHARGE_EXPORT_MODE),
-                self.config_entry.data.get(
-                    CONF_PREDISCHARGE_MAX_EXPORT_POWER_W,
-                    DEFAULT_PREDISCHARGE_MAX_EXPORT_POWER_W,
-                ),
-            )
-        )
-        self.predischarge_export_limit_w = self.predischarge_max_export_power_w
         self.negative_price_charging_enabled = self.config_entry.data.get(
             CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
             DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED,
@@ -2959,8 +2941,6 @@ class ChargeDischargeController:
         new_curtailment_config = (
             self.negative_injection_threshold,
             self.predischarge_reserve_soc,
-            self.predischarge_export_mode,
-            self.predischarge_max_export_power_w,
             self._predictive_safety_margin_kwh,
         )
         new_negative_price_enabled = self.negative_price_charging_enabled
@@ -2978,9 +2958,8 @@ class ChargeDischargeController:
         self.high_price_discharge_enabled = self.config_entry.data.get(
             CONF_HIGH_PRICE_DISCHARGE_ENABLED, DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED
         )
-        self.high_price_discharge_max_power_w = self.config_entry.data.get(
-            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
-            default_high_price_discharge_max_power(self.config_entry.data),
+        self.high_price_discharge_max_power_w = default_high_price_discharge_max_power(
+            self.config_entry.data
         )
         old_discharge_reserve_enabled = self.discharge_reserve_enabled
         self.discharge_reserve_enabled = self.config_entry.data.get(
@@ -10166,11 +10145,48 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "solar-forecast safety margin)",
         )
 
+    if entry.version < 15:
+        from homeassistant.helpers import entity_registry as er
+        from .infra.entity_naming import SYSTEM_UNIQUE_ID_PREFIX
+
+        # Export power is no longer a knob: anti-curtailment and high-price
+        # discharge both use the fleet's own discharge power (already capped by
+        # the system-wide discharge limit, which is the knob for exporting less).
+        dropped = (
+            "predischarge_max_export_power_w",
+            CONF_PREDISCHARGE_EXPORT_MODE,
+            CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
+        )
+        for key in dropped:
+            new_data.pop(key, None)
+
+        ent_reg = er.async_get(hass)
+        for key in dropped:
+            entity_id = ent_reg.async_get_entity_id(
+                "number", DOMAIN, f"{SYSTEM_UNIQUE_ID_PREFIX}{key}"
+            )
+            if entity_id:
+                ent_reg.async_remove(entity_id)
+
+        # The old flow wrote a 0% reserve to every entry, including the vast
+        # majority that never enabled pre-discharge.  Drop it so those reach
+        # the new 20% default instead of an anti-curtailment that may empty the
+        # fleet for a forecast that never arrives.
+        if not new_data.get(CONF_SMART_PREDISCHARGE_ENABLED) and not new_data.get(
+            CONF_PREDISCHARGE_RESERVE_SOC
+        ):
+            new_data.pop(CONF_PREDISCHARGE_RESERVE_SOC, None)
+
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 15 "
+            "(dropped the export-power knobs; discharge power is now the limit)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
-        version=14,
+        version=15,
     )
     return True
 

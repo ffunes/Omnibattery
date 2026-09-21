@@ -906,11 +906,13 @@ CONF_ROUND_TRIP_EFFICIENCY = "round_trip_efficiency"
 CONF_SMART_PREDISCHARGE_ENABLED = "smart_predischarge_enabled"
 CONF_NEGATIVE_INJECTION_THRESHOLD = "negative_injection_threshold"
 CONF_PREDISCHARGE_RESERVE_SOC = "predischarge_reserve_soc"
-CONF_PREDISCHARGE_MAX_EXPORT_POWER_W = "predischarge_max_export_power_w"
 DEFAULT_SMART_PREDISCHARGE_ENABLED = False
 DEFAULT_NEGATIVE_INJECTION_THRESHOLD = 0.0
-DEFAULT_PREDISCHARGE_RESERVE_SOC = 0.0
-DEFAULT_PREDISCHARGE_MAX_EXPORT_POWER_W = 0.0
+# A floor the pre-discharge may not dig below. Zero let anti-curtailment empty
+# the fleet down to each battery's own min SOC to make room for a forecast that
+# may not arrive; 20% is the cheapest insurance and is what a first-time
+# enabler wants. Deliberately not a config-flow field.
+DEFAULT_PREDISCHARGE_RESERVE_SOC = 20.0
 
 # Opportunistic import charging.  This is deliberately separate from
 # CONF_NEGATIVE_INJECTION_THRESHOLD: the latter prices exported solar for
@@ -948,14 +950,16 @@ DEFAULT_DISCHARGE_RESERVE_MIN_SAVING = 0.05
 CONF_HIGH_PRICE_DISCHARGE_ENABLED = "high_price_discharge_enabled"
 DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED = False
 # Ceiling for the deliberate export, measured net at the connection point.
-# Zero is an invalid activation, not a silent no-op: exporting needs a limit.
-# This constant is only the last-resort sentinel for a fleet whose discharge
-# power cannot be determined yet (no battery configured). Everywhere the key
-# is missing from config_entry.data, the effective default is the fleet's own
-# discharge power -- see default_high_price_discharge_max_power() below --
-# so enabling the switch without touching the slider does not leave the
-# feature silently dead.
+# There is no knob for it: it is always the fleet's own discharge power, already
+# narrowed by the system-wide discharge cap (see
+# default_high_price_discharge_max_power() below). A per-feature slider said the
+# same thing as that cap and could only ever disagree with it; a user who wants
+# to export less than the fleet can deliver lowers the system cap, or drives
+# it from an automation. The key is kept only for the v15 migration.
 CONF_HIGH_PRICE_DISCHARGE_MAX_POWER = "high_price_discharge_max_power_w"
+# Last-resort sentinel for a fleet whose discharge power cannot be determined
+# yet (no battery configured). Zero is an invalid activation, not a silent
+# no-op: exporting needs a limit.
 DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER = 0.0
 # The per-kWh margin a sale must clear is CONF_MIN_ARBITRAGE_MARGIN, shared with
 # the charge side: the same spread requirement read in the other direction.
@@ -964,8 +968,10 @@ DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER = 0.0
 def default_high_price_discharge_max_power(data) -> float:
     """Return the fleet's discharge power, or the invalid-configuration sentinel.
 
-    The only export ceiling that ever made sense as a default is the one the
-    fleet can already deliver. Falls back to
+    The only export ceiling that ever made sense is the one the fleet can
+    already deliver, so this is no longer a default but the value itself.
+    ``effective_system_power`` has already applied the system-wide discharge
+    cap, which is the knob for exporting less. Falls back to
     ``DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER`` (0.0, invalid per ``_config()``
     in ``control/high_price_discharge.py``) when no battery is configured yet,
     which preserves that fail-safe.
@@ -1264,17 +1270,6 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
         "icon": "mdi:cash-minus",
         "condition": CONF_DISCHARGE_RESERVE_ENABLED,
-    },
-    {
-        "key": CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
-        "name": "High Price Discharge Max Power",
-        "min": 0.0,
-        "max": 10000.0,
-        "step": 50.0,
-        "unit": "W",
-        "default": DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER,
-        "icon": "mdi:transmission-tower-export",
-        "condition": CONF_HIGH_PRICE_DISCHARGE_ENABLED,
     },
     {
         "key": CONF_HOURLY_BALANCE_TARGET_NET_WH,

@@ -36,13 +36,10 @@ from .const import (
     PRICE_INTEGRATION_CKW,
     CONF_NEGATIVE_INJECTION_THRESHOLD,
     CONF_PREDISCHARGE_RESERVE_SOC,
-    CONF_PREDISCHARGE_MAX_EXPORT_POWER_W,
-    CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
-    default_high_price_discharge_max_power,
-    CONF_PREDISCHARGE_EXPORT_MODE,
-    PREDISCHARGE_EXPORT_MODE_SELF_CONSUMPTION,
-    PREDISCHARGE_EXPORT_MODE_CUSTOM,
-    normalize_predischarge_export_settings,
+    DEFAULT_NEGATIVE_INJECTION_THRESHOLD,
+    DEFAULT_PREDISCHARGE_RESERVE_SOC,
+    CONF_SURPLUS_PRICE_HOLD_ENABLED,
+    CONF_DISCHARGE_RESERVE_ENABLED,
     MIN_CHARGE_HYSTERESIS_PERCENT,
     MAX_CHARGE_HYSTERESIS_PERCENT,
     DOMAIN,
@@ -150,7 +147,6 @@ async def async_setup_entry(
         entities.append(MarstekArbitrageNumber(hass, entry, "efficiency"))
         entities.append(SmartPredischargeNumber(hass, entry, "threshold"))
         entities.append(SmartPredischargeNumber(hass, entry, "reserve"))
-        entities.append(SmartPredischargeNumber(hass, entry, "export"))
 
     # Temperature charge limit sliders (system-level, when the feature is configured)
     if CONF_ENABLE_TEMP_CHARGE_LIMIT in entry.data:
@@ -475,16 +471,8 @@ class MarstekConfigNumberEntity(NumberEntity):
 
     @property
     def native_value(self):
-        """Return the current value from config_entry.data, converted to display units.
-
-        ``high_price_discharge_max_power_w`` is the one entry whose authored
-        default is not a static number: an unset slider must show the fleet's
-        own discharge power, or the switch turns on a dead feature (#270).
-        """
-        default = self._definition["default"]
-        if self._key == CONF_HIGH_PRICE_DISCHARGE_MAX_POWER:
-            default = default_high_price_discharge_max_power(self.entry.data)
-        raw = self.entry.data.get(self._key, default)
+        """Return the current value from config_entry.data, in display units."""
+        raw = self.entry.data.get(self._key, self._definition["default"])
         return raw / self._scale
 
     async def async_set_native_value(self, value: float) -> None:
@@ -681,6 +669,7 @@ class SmartPredischargeNumber(NumberEntity):
             2.0,
             0.001,
             "mdi:cash-minus",
+            DEFAULT_NEGATIVE_INJECTION_THRESHOLD,
         ),
         "reserve": (
             CONF_PREDISCHARGE_RESERVE_SOC,
@@ -688,13 +677,7 @@ class SmartPredischargeNumber(NumberEntity):
             100.0,
             1.0,
             "mdi:battery-lock",
-        ),
-        "export": (
-            CONF_PREDISCHARGE_MAX_EXPORT_POWER_W,
-            0.0,
-            10000.0,
-            50.0,
-            "mdi:transmission-tower-export",
+            DEFAULT_PREDISCHARGE_RESERVE_SOC,
         ),
     }
 
@@ -702,8 +685,9 @@ class SmartPredischargeNumber(NumberEntity):
         self.hass = hass
         self.entry = entry
         self._kind = kind
-        key, minimum, maximum, step, icon = self._DEFINITIONS[kind]
+        key, minimum, maximum, step, icon, default = self._DEFINITIONS[kind]
         self._conf_key = key
+        self._default = default
         self._attr_translation_key = key
         self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}{key}"
         self.entity_id = system_entity_id("number", key)
@@ -714,10 +698,8 @@ class SmartPredischargeNumber(NumberEntity):
         if kind == "threshold":
             is_chf = entry.data.get(CONF_PRICE_INTEGRATION_TYPE) == PRICE_INTEGRATION_CKW
             self._attr_native_unit_of_measurement = "CHF/kWh" if is_chf else "€/kWh"
-        elif kind == "reserve":
-            self._attr_native_unit_of_measurement = "%"
         else:
-            self._attr_native_unit_of_measurement = "W"
+            self._attr_native_unit_of_measurement = "%"
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(self.entry.add_update_listener(self._handle_entry_update))
@@ -727,31 +709,18 @@ class SmartPredischargeNumber(NumberEntity):
 
     @property
     def native_value(self) -> float:
-        _mode, export_power = normalize_predischarge_export_settings(
-            self.entry.data.get(CONF_PREDISCHARGE_EXPORT_MODE),
-            self.entry.data.get(self._conf_key, 0.0),
-        )
-        return export_power
+        return self.entry.data.get(self._conf_key, self._default)
 
     async def async_set_native_value(self, value: float) -> None:
         new_data = dict(self.entry.data)
-        _mode, export_power = normalize_predischarge_export_settings(
-            None,
-            value,
-        )
-        new_data[self._conf_key] = export_power
-        new_data[CONF_PREDISCHARGE_EXPORT_MODE] = (
-            PREDISCHARGE_EXPORT_MODE_CUSTOM
-            if export_power > 0
-            else PREDISCHARGE_EXPORT_MODE_SELF_CONSUMPTION
-        )
+        new_data[self._conf_key] = value
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         controller = self.hass.data[DOMAIN][self.entry.entry_id].get("controller")
         if controller is not None:
             controller.update_pd_parameters()
-            # Never keep applying a plan calculated with the previous threshold,
-            # forecast margin or export cap.  The existing reevaluate button (or
-            # the next scheduled evaluation) rebuilds it.
+            # Never keep applying a plan calculated with the previous
+            # threshold or reserve.  The existing reevaluate button (or the
+            # next scheduled evaluation) rebuilds it.
             controller._pricing_mgr.clear_curtailment_runtime(
                 "configuration_changed"
             )
