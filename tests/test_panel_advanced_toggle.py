@@ -90,16 +90,17 @@ def test_toggle_label_exists_in_all_six_languages():
     panel = PANEL.read_text(encoding="utf-8")
 
     assert panel.count('ctlAdvanced: "') == 6
-    # Rendered via _t(), not an item `lk:` (it isn't tied to an entity row).
-    assert panel.count('_t("ctlAdvanced")') == 1
+    # The button is icon-only, so the label is its title and its aria-label.
+    assert panel.count('_t("ctlAdvanced")') == 2
 
 
 def test_toggle_state_is_local_storage_not_an_entity():
     panel = PANEL.read_text(encoding="utf-8")
 
-    assert '_ctlAdvKey() { return "omnibattery:control-advanced"; }' in panel
-    assert "_loadCtlAdv()" in panel
-    assert "_saveCtlAdv(" in panel
+    # Per card: each section owning `adv` rows keeps its own persisted state.
+    assert '_ctlAdvKey(tk) { return "omnibattery:control-advanced:" + tk; }' in panel
+    assert "_loadCtlAdv(tk)" in panel
+    assert "_saveCtlAdv(tk, on)" in panel
 
 
 def test_render_sys_sections_hides_adv_items_when_toggle_is_off():
@@ -108,6 +109,9 @@ def test_render_sys_sections_hides_adv_items_when_toggle_is_off():
     end = panel.index("_hourlyWarnEl()", start)
     body = panel[start:end]
 
-    assert "const advOn = this._loadCtlAdv();" in body
-    assert 'r.item.adv && !advOn' in body
-    assert "if (!visibleRows) continue;" in body
+    # The rows stay in the DOM; the card class hides them via CSS, so the
+    # button can toggle in place without rebuilding the whole tab.
+    assert 'card.classList.toggle("adv-off", !this._loadCtlAdv(sec.tk));' in body
+    assert 'if (rows.some((r) => r.item.adv)) this._addAdvBtn(card, head, sec.tk);' in body
+    assert 'if (r.item.adv) for (const n of nodes) n.classList?.add("adv-row");' in body
+    assert ".card.adv-off .adv-row { display: none; }" in panel

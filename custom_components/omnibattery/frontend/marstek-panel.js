@@ -6282,15 +6282,6 @@ class MarstekVenusPanel extends HTMLElement {
       this._buildStepper(this._t("ctlRows"), () => this._loadCtlRows(), (n) => this._saveCtlRows(n), 8, 4),
     );
     bar.appendChild(tools);
-    const advBtn = document.createElement("button");
-    advBtn.className = "ctl-arrange-btn";
-    advBtn.classList.toggle("active", this._loadCtlAdv());
-    advBtn.innerHTML = `<ha-icon icon="mdi:tune-variant"></ha-icon><span>${this._t("ctlAdvanced")}</span>`;
-    advBtn.addEventListener("click", () => {
-      this._saveCtlAdv(!this._loadCtlAdv());
-      this._rebuildControl();
-    });
-    bar.appendChild(advBtn);
     const btn = document.createElement("button");
     btn.className = "ctl-arrange-btn";
     btn.innerHTML = `<ha-icon icon="mdi:drag-variant"></ha-icon><span>${this._t("ctlArrange")}</span>`;
@@ -6403,7 +6394,6 @@ class MarstekVenusPanel extends HTMLElement {
   _renderSysSections(defs, store, empty) {
     for (const k in store) delete store[k];
     const { sections, sig } = this._sysScan(defs);
-    const advOn = this._loadCtlAdv();
     const wrap = document.createElement("div");
     wrap.className = "sys-stack";
     if (!sections.length) {
@@ -6421,32 +6411,28 @@ class MarstekVenusPanel extends HTMLElement {
       const { card, head } = this._card(this._t(sec.tk), sec.icon || "mdi:cog-outline");
       card.dataset.tk = sec.tk;
       this._attachHelp(head, this._help(sec.tk));
+      card.classList.toggle("adv-off", !this._loadCtlAdv(sec.tk));
+      if (rows.some((r) => r.item.adv)) this._addAdvBtn(card, head, sec.tk);
       const grid = document.createElement("div");
       grid.className = "bat-ctl-grid sys-grid";
       // A `gate` switch (e.g. predictive_charging) hides its sibling param rows
       // when OFF: the feature's sliders disappear, the switch stays so it can be
       // turned back on. `gateInvert` flips this (PD section: show when no_pd_mode
       // is OFF). _patchSysControl keeps this in sync on state changes.
-      // An `adv` item is hidden outright while the Advanced toggle is off — same
-      // display:none mechanism, but keyed to the localStorage toggle instead of
-      // an entity's live state, so it's excluded from `gatedNodes` (no need to
-      // patch it again on every gate change; a full rebuild handles the switch).
+      // An `adv` item stays in the DOM and in `gatedNodes` (so the gate still
+      // governs it); the card's own Advanced button just adds/removes the
+      // `adv-off` class, which hides `.adv-row` via CSS. The two dimensions
+      // compose without a rebuild: the gate writes inline display, and inline
+      // `display: ""` lets the class rule win.
       let gateKey = null;
       const gatedNodes = [];
-      let visibleRows = 0;
       for (const r of rows) {
         const frag = this._buildSysControl(r.item, r.id, store, r.multi);
         const nodes = [...frag.childNodes];
+        if (r.item.adv) for (const n of nodes) n.classList?.add("adv-row");
         grid.appendChild(frag);
-        if (r.item.gate) {
-          gateKey = this._sysStoreKey(r.item, r.id);
-          visibleRows++;
-        } else if (r.item.adv && !advOn) {
-          for (const n of nodes) n.style.display = "none";
-        } else {
-          gatedNodes.push(...nodes);
-          visibleRows++;
-        }
+        if (r.item.gate) gateKey = this._sysStoreKey(r.item, r.id);
+        else gatedNodes.push(...nodes);
       }
       if (gateKey && gatedNodes.length && store[gateKey]) {
         const w = store[gateKey];
@@ -6455,10 +6441,6 @@ class MarstekVenusPanel extends HTMLElement {
         const shown = w.invert ? !on : on;
         for (const n of gatedNodes) n.style.display = shown ? "" : "none";
       }
-      // A section left with no visible rows (every item marked `adv`, hidden by
-      // the Advanced toggle) doesn't render its card at all — same rule already
-      // applied above when a section has no live registry entities.
-      if (!visibleRows) continue;
       if (sec.tk === "secHourly") {
         const warn = this._hourlyWarnEl();
         if (warn) card.appendChild(warn);
@@ -6637,13 +6619,34 @@ class MarstekVenusPanel extends HTMLElement {
     try { localStorage.setItem(this._ctlHiddenKey(), JSON.stringify(tks)); } catch { /* private mode */ }
   }
   // --- Control-tab advanced settings toggle (per-item `adv` flag, persisted) --
-  _ctlAdvKey() { return "omnibattery:control-advanced"; }
-  _loadCtlAdv() { return localStorage.getItem(this._ctlAdvKey()) === "1"; }
-  _saveCtlAdv(on) {
+  _ctlAdvKey(tk) { return "omnibattery:control-advanced:" + tk; }
+  _loadCtlAdv(tk) { return localStorage.getItem(this._ctlAdvKey(tk)) === "1"; }
+  _saveCtlAdv(tk, on) {
     try {
-      if (on) localStorage.setItem(this._ctlAdvKey(), "1");
-      else localStorage.removeItem(this._ctlAdvKey());
+      if (on) localStorage.setItem(this._ctlAdvKey(tk), "1");
+      else localStorage.removeItem(this._ctlAdvKey(tk));
     } catch { /* private mode */ }
+  }
+  /** Tune toggle in the card header of a section that owns `adv` items: shows or
+   *  hides that card's advanced rows. Per-card, so a future card with advanced
+   *  settings gets its own button and its own persisted state. */
+  _addAdvBtn(card, head, tk) {
+    const btn = document.createElement("button");
+    btn.className = "ctl-adv-btn";
+    btn.classList.toggle("active", this._loadCtlAdv(tk));
+    btn.title = this._t("ctlAdvanced");
+    btn.setAttribute("aria-label", this._t("ctlAdvanced"));
+    btn.innerHTML = `<ha-icon icon="mdi:tune-variant"></ha-icon>`;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const on = !this._loadCtlAdv(tk);
+      this._saveCtlAdv(tk, on);
+      // In-place: only this card's advanced rows appear/disappear. No rebuild,
+      // so no other card's sliders or switches are recreated under the user.
+      card.classList.toggle("adv-off", !on);
+      btn.classList.toggle("active", on);
+    });
+    head.appendChild(btn);
   }
   /** Wire HTML5 drag events on a card. Active only while arrange mode is ON
    *  (card.draggable is toggled by _applyArrangeMode). In flow mode it reorders
@@ -7518,6 +7521,15 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-hide-btn { display: none; margin-left: auto; padding: 0; border: 0; background: none;
         cursor: pointer; color: var(--ink-dim); place-items: center; --mdc-icon-size: 16px; }
       .ctl-hide-btn:hover { color: var(--ink); }
+      /* per-card advanced-settings toggle (always visible on cards that own
+         adv items); active = that card's advanced rows are shown */
+      .ctl-adv-btn { margin-left: auto; padding: 0; border: 0; background: none;
+        cursor: pointer; color: var(--ink-dim); display: grid; place-items: center;
+        --mdc-icon-size: 16px; }
+      .ctl-adv-btn:hover { color: var(--ink); }
+      .ctl-adv-btn.active { color: var(--accent); }
+      .card.adv-off .adv-row { display: none; }
+      .card-head .card-info + .ctl-adv-btn, .card-head .ctl-adv-btn + .ctl-hide-btn { margin-left: 8px; }
       .ctl-root.arranging .ctl-hide-btn { display: grid; }
       .card-head .card-info + .ctl-hide-btn, .card-head .ctl-hide-btn + .card-info { margin-left: 8px; }
       /* hidden-cards section: only visible while arranging; cards are parked
