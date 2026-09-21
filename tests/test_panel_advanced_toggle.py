@@ -25,9 +25,7 @@ ADV_KEYS = {
     "predictive_min_soc_floor",
     "negative_injection_threshold",
     "predischarge_reserve_soc",
-    "predischarge_max_export_power_w",
     "surplus_hold_min_saving",
-    "high_price_discharge_max_power_w",
     "discharge_reserve_min_saving",
 }
 

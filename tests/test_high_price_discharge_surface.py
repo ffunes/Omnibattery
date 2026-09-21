@@ -34,15 +34,14 @@ def test_switch_is_gated_on_presence_not_on_value():
     assert 'self._attr_translation_key = "high_price_discharge"' in switch
 
 
-def test_dashboard_exposes_the_toggle_and_its_only_setting():
+def test_dashboard_exposes_the_toggle_without_a_power_knob():
     panel = PANEL.read_text(encoding="utf-8")
 
     # A key missing from the allowlist simply never renders.
     assert '{ key: "high_price_discharge", domain: "switch"' in panel
-    assert '{ key: "high_price_discharge_max_power_w"' in panel
-    # One label per language block, or the row falls back to its raw key.
-    assert panel.count("itemHighPriceExport:") == 6
-    assert panel.count('lk: "itemHighPriceExport"') == 1
+    # The export ceiling is not a knob: the feature uses the fleet's own
+    # discharge power, already capped by the system-wide discharge limit.
+    assert "high_price_discharge_max_power_w" not in panel
     # The per-kWh margin is min_arbitrage_margin, already on the dashboard.
     assert "high_price_discharge_additional_cost" not in panel
     assert '{ key: "min_arbitrage_margin"' in panel
