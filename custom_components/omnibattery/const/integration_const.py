@@ -231,16 +231,20 @@ MAX_TIME_SLOTS = 8
 # Default base consumption fallback (kWh/day)
 DEFAULT_BASE_CONSUMPTION_KWH = 5.0  # Fallback when no consumption history available
 
-# Predictive charging / anti-curtailment safety margin
+# Predictive charging / anti-curtailment safety margin.
+# How much the solar forecast is distrusted: this many kWh are subtracted from
+# it before predictive charging decides whether to charge, and the same margin
+# reserves anti-curtailment headroom in Dynamic Pricing. 0.0 is the sentinel
+# for "no margin" and also the fallback when the fleet's capacity is unknown
+# (see default_predictive_safety_margin_kwh() below, which the config flow
+# uses to size the default for *new* entries only).
 CONF_PREDICTIVE_SAFETY_MARGIN_KWH = "predictive_safety_margin_kwh"
-DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH = 0.0  # kWh buffer; 0 = no margin
+DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH = 0.0
 
-# Predictive charging grid-charge margin
-# Extra % charged from grid on top of the solar-deficit, to hedge against
-# optimistic solar forecasts / worse-than-expected weather. 0 = no margin.
-# Capped so the charge never exceeds the gap to max SOC.
+# Legacy key, kept only for the v13->v14 migration that drops it. It inflated
+# the already-computed deficit, so it scaled inversely to the solar risk it
+# claimed to hedge. Do not read/write it elsewhere.
 CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT = "predictive_grid_charge_margin_pct"
-DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT = 0.0
 
 # Guaranteed minimum SOC floor (#417)
 # The whole-day energy balance can read zero deficit on a solar-positive day,
@@ -785,6 +789,27 @@ def effective_system_power(data) -> tuple[int, int]:
         min(discharge_w, discharge_cap) if discharge_cap else discharge_w,
     )
 
+
+def total_battery_capacity_kwh(data) -> float:
+    """Return the sum of each configured battery's rated capacity, in kWh."""
+    batteries = data.get("batteries") or []
+    return sum(float(battery.get("battery_capacity_kwh", 0.0) or 0.0) for battery in batteries)
+
+
+def default_predictive_safety_margin_kwh(data) -> float:
+    """Return ~5% of the fleet's total capacity, or the no-margin sentinel.
+
+    Mirrors ``default_high_price_discharge_max_power()``: the only forecast
+    buffer that means anything is sized to the fleet actually configured.
+    Falls back to ``DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH`` (0.0, no margin)
+    when no battery capacity can be determined yet.
+    """
+    capacity_kwh = total_battery_capacity_kwh(data)
+    if capacity_kwh <= 0:
+        return DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
+    return round(capacity_kwh * 0.05, 2)
+
+
 # PD Tuning Profiles
 # One-click presets for the PD response-shape parameters (Kp, Kd, max power
 # change). Selecting a profile writes those at once; the "custom" profile leaves
@@ -881,11 +906,13 @@ CONF_ROUND_TRIP_EFFICIENCY = "round_trip_efficiency"
 CONF_SMART_PREDISCHARGE_ENABLED = "smart_predischarge_enabled"
 CONF_NEGATIVE_INJECTION_THRESHOLD = "negative_injection_threshold"
 CONF_PREDISCHARGE_RESERVE_SOC = "predischarge_reserve_soc"
-CONF_PREDISCHARGE_MAX_EXPORT_POWER_W = "predischarge_max_export_power_w"
 DEFAULT_SMART_PREDISCHARGE_ENABLED = False
 DEFAULT_NEGATIVE_INJECTION_THRESHOLD = 0.0
-DEFAULT_PREDISCHARGE_RESERVE_SOC = 0.0
-DEFAULT_PREDISCHARGE_MAX_EXPORT_POWER_W = 0.0
+# A floor the pre-discharge may not dig below. Zero let anti-curtailment empty
+# the fleet down to each battery's own min SOC to make room for a forecast that
+# may not arrive; 20% is the cheapest insurance and is what a first-time
+# enabler wants. Deliberately not a config-flow field.
+DEFAULT_PREDISCHARGE_RESERVE_SOC = 20.0
 
 # Opportunistic import charging.  This is deliberately separate from
 # CONF_NEGATIVE_INJECTION_THRESHOLD: the latter prices exported solar for
@@ -923,11 +950,34 @@ DEFAULT_DISCHARGE_RESERVE_MIN_SAVING = 0.05
 CONF_HIGH_PRICE_DISCHARGE_ENABLED = "high_price_discharge_enabled"
 DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED = False
 # Ceiling for the deliberate export, measured net at the connection point.
-# Zero is an invalid activation, not a silent no-op: exporting needs a limit.
+# There is no knob for it: it is always the fleet's own discharge power, already
+# narrowed by the system-wide discharge cap (see
+# default_high_price_discharge_max_power() below). A per-feature slider said the
+# same thing as that cap and could only ever disagree with it; a user who wants
+# to export less than the fleet can deliver lowers the system cap, or drives
+# it from an automation. The key is kept only for the v15 migration.
 CONF_HIGH_PRICE_DISCHARGE_MAX_POWER = "high_price_discharge_max_power_w"
+# Last-resort sentinel for a fleet whose discharge power cannot be determined
+# yet (no battery configured). Zero is an invalid activation, not a silent
+# no-op: exporting needs a limit.
 DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER = 0.0
 # The per-kWh margin a sale must clear is CONF_MIN_ARBITRAGE_MARGIN, shared with
 # the charge side: the same spread requirement read in the other direction.
+
+
+def default_high_price_discharge_max_power(data) -> float:
+    """Return the fleet's discharge power, or the invalid-configuration sentinel.
+
+    The only export ceiling that ever made sense is the one the fleet can
+    already deliver, so this is no longer a default but the value itself.
+    ``effective_system_power`` has already applied the system-wide discharge
+    cap, which is the knob for exporting less. Falls back to
+    ``DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER`` (0.0, invalid per ``_config()``
+    in ``control/high_price_discharge.py``) when no battery is configured yet,
+    which preserves that fail-safe.
+    """
+    _, discharge_w = effective_system_power(data)
+    return float(discharge_w) if discharge_w > 0 else DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER
 
 # Optional export/feed-in price curve.  Unset falls back to the import curve,
 # which is both the historical behaviour and correct under net metering.  A
@@ -942,8 +992,11 @@ PREDICTIVE_MODE_REALTIME_PRICE = "realtime_price"
 CONF_AVERAGE_PRICE_SENSOR = "average_price_sensor"
 
 CONF_METER_INVERTED = "meter_inverted"
+# Legacy per-mode keys, kept only for the v12->v13 migration that folds them
+# into CONF_PRICE_DISCHARGE_CONTROL. Do not read/write these elsewhere.
 CONF_DP_PRICE_DISCHARGE_CONTROL = "dp_price_discharge_control"
 CONF_RT_PRICE_DISCHARGE_CONTROL = "rt_price_discharge_control"
+CONF_PRICE_DISCHARGE_CONTROL = "price_discharge_control"
 
 PRICE_INTEGRATION_NORDPOOL = "nordpool"
 PRICE_INTEGRATION_PVPC = "pvpc"
@@ -1181,19 +1234,11 @@ CONFIG_NUMBER_DEFINITIONS = [
         "max": 20.0,
         "step": 0.1,
         "unit": "kWh",
-        "default": DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
+        # Callable default: the slider must show the same 5%-of-capacity value
+        # the controller falls back to, or a new entry reads 0.0 on the panel
+        # while the engine hedges with something else.
+        "default": default_predictive_safety_margin_kwh,
         "icon": "mdi:solar-power-variant",
-        "condition": CONF_ENABLE_PREDICTIVE_CHARGING,
-    },
-    {
-        "key": CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
-        "name": "Predictive Grid Charge Margin",
-        "min": 0.0,
-        "max": 100.0,
-        "step": 5.0,
-        "unit": "%",
-        "default": DEFAULT_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
-        "icon": "mdi:transmission-tower-import",
         "condition": CONF_ENABLE_PREDICTIVE_CHARGING,
     },
     {
@@ -1219,15 +1264,15 @@ CONFIG_NUMBER_DEFINITIONS = [
         "condition": CONF_SURPLUS_PRICE_HOLD_ENABLED,
     },
     {
-        "key": CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
-        "name": "High Price Discharge Max Power",
+        "key": CONF_DISCHARGE_RESERVE_MIN_SAVING,
+        "name": "Discharge Reserve Minimum Saving",
         "min": 0.0,
-        "max": 10000.0,
-        "step": 50.0,
-        "unit": "W",
-        "default": DEFAULT_HIGH_PRICE_DISCHARGE_MAX_POWER,
-        "icon": "mdi:transmission-tower-export",
-        "condition": CONF_HIGH_PRICE_DISCHARGE_ENABLED,
+        "max": 1.0,
+        "step": 0.001,
+        "unit": "/kWh",
+        "default": DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
+        "icon": "mdi:cash-minus",
+        "condition": CONF_DISCHARGE_RESERVE_ENABLED,
     },
     {
         "key": CONF_HOURLY_BALANCE_TARGET_NET_WH,

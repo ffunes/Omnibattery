@@ -208,7 +208,12 @@ class HighPriceDischargeManager:
         """Return ``(max_export_power_w, margin)``, or None if invalid.
 
         RF-040: a positive export power is part of a valid activation, so zero
-        is an invalid configuration rather than a silent no-op.
+        is an invalid configuration rather than a silent no-op. ``power`` here
+        is whatever the controller resolved: config_entry.data when the slider
+        was touched, or the fleet's own discharge power otherwise (see
+        ``default_high_price_discharge_max_power`` in ``const``). Zero only
+        survives that resolution when no battery is configured yet, or the
+        user explicitly set it, so this stays the correct guard either way.
 
         The margin is ``min_arbitrage_margin``, the knob the charge side already
         uses. Both ask the same question — does the spread repay the round trip

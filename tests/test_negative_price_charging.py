@@ -376,7 +376,6 @@ def test_combined_calendar_keeps_positive_slot_deficit_only():
     assert schedule.purpose_for(slots[1]) == SLOT_PURPOSE_DEFICIT
 
     ctrl._last_decision_data = _decision(should_charge=True, deficit=2.0)
-    ctrl._predictive_grid_charge_margin_pct = 0.0
     ctrl._active_dynamic_slot_purpose = SLOT_PURPOSE_DEFICIT
     positive_target = ChargeDischargeController._compute_predictive_target_soc(ctrl)
     ctrl._active_dynamic_slot_purpose = SLOT_PURPOSE_COMBINED
