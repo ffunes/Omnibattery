@@ -26,6 +26,7 @@ from homeassistant.util import dt as dt_util
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
 from .const import (
     DOMAIN,
+    PREDICTIVE_MODE_DYNAMIC_PRICING,
     EFFICIENCY_SENSOR_DEFINITIONS,
     STORED_ENERGY_SENSOR_DEFINITIONS,
     CYCLE_SENSOR_DEFINITIONS,
@@ -216,8 +217,10 @@ async def async_setup_entry(
     if controller:
         entities.append(ThreePhaseProtectionSensor(hass, entry, controller))
 
-    # Add high-price discharge status sensor (always, when controller is present)
-    if controller:
+    # Add high-price discharge status sensor. The feature only runs under
+    # dynamic pricing (control/high_price_discharge.py), so elsewhere this was
+    # a permanently-idle diagnostic.
+    if controller and controller.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
         entities.append(HighPriceDischargeSensor(hass, entry, controller))
 
     # Add weekly full charge status sensor (when weekly charge is enabled)

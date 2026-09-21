@@ -27,7 +27,7 @@ def test_enable_key_is_backfilled_on_existing_entries():
 def test_switch_is_gated_on_presence_not_on_value():
     switch = (COMPONENT / "switch.py").read_text(encoding="utf-8")
 
-    assert "if controller and CONF_SURPLUS_PRICE_HOLD_ENABLED in entry.data:" in switch
+    assert "if CONF_SURPLUS_PRICE_HOLD_ENABLED in entry.data:" in switch
     assert "entities.append(SurplusPriceHoldSwitch(hass, entry, controller))" in switch
     assert 'self._attr_translation_key = "surplus_price_hold"' in switch
 

@@ -124,6 +124,15 @@ async def async_setup_entry(
     # hides disabled features' sliders, and toggling a feature switch doesn't
     # reload platforms, so the entities must exist either way. System power
     # limits predate their enable key, so presence is not required for them.
+    # Features whose keys are backfilled on every entry but which only run under
+    # dynamic pricing; their sliders would otherwise render on time-slot installs.
+    dynamic_pricing_only = {
+        CONF_SURPLUS_PRICE_HOLD_ENABLED,
+        CONF_DISCHARGE_RESERVE_ENABLED,
+    }
+    is_dynamic_pricing = (
+        entry.data.get(CONF_PREDICTIVE_CHARGING_MODE) == PREDICTIVE_MODE_DYNAMIC_PRICING
+    )
     for definition in CONFIG_NUMBER_DEFINITIONS:
         condition = definition.get("condition")
         if (
@@ -131,6 +140,8 @@ async def async_setup_entry(
             and condition not in entry.data
             and condition != CONF_ENABLE_SYSTEM_POWER_LIMITS
         ):
+            continue
+        if condition in dynamic_pricing_only and not is_dynamic_pricing:
             continue
         entities.append(MarstekConfigNumberEntity(hass, entry, definition))
 
