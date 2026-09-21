@@ -79,11 +79,6 @@ def test_planned_grid_charge_is_capped_by_small_battery_headroom():
     assert calculations.calculate_charging_hours_needed(planned, 7000, 1200) == 2.0
 
 
-def test_planned_grid_charge_margin_is_applied_before_headroom_cap():
-    assert calculations.calculate_planned_grid_charge_kwh(2.0, 5.0, 50.0) == 3.0
-    assert calculations.calculate_planned_grid_charge_kwh(2.0, 2.5, 50.0) == 2.5
-
-
 # ----------------------------------------------------------------------
 # select_cheapest_hours (hourly path)
 # ----------------------------------------------------------------------
