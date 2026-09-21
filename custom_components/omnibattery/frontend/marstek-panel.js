@@ -1125,9 +1125,9 @@ const SYS_SECTIONS = [
     tk: "diagPredictive",
     icon: "mdi:brain",
     items: [
-      // `grp` draws a divider whenever it changes between two live rows, so this
-      // long card reads as: base -> charge pricing -> predischarge -> discharge
-      // by price -> status readouts -> action.
+      // `grp` draws a divider whenever it changes between two live rows: base,
+      // charge pricing, then one group per discharge feature (switch + its
+      // sliders + its status readout), then the action button.
       { key: "predictive_charging", domain: "switch", lk: "itemEnable", icon: "mdi:brain", gate: true, grp: "base" },
       { key: "predictive_safety_margin_kwh", lk: "itemSolarSafety", icon: "mdi:solar-power-variant", adv: true, grp: "base" },
       { key: "min_soc_floor_enabled", domain: "switch", lk: "itemMinSocFloorEnable", icon: "mdi:battery-arrow-up", adv: true, grp: "base" },
@@ -1144,15 +1144,15 @@ const SYS_SECTIONS = [
       { key: "smart_predischarge", domain: "switch", lk: "itemSmartPredischarge", icon: "mdi:battery-arrow-down-outline", grp: "predischarge" },
       { key: "negative_injection_threshold", lk: "itemNegativeThreshold", icon: "mdi:cash-minus", adv: true, grp: "predischarge" },
       { key: "predischarge_reserve_soc", lk: "itemPredischargeReserve", icon: "mdi:battery-lock", adv: true, grp: "predischarge" },
-      { key: "surplus_price_hold", domain: "switch", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export", grp: "export" },
-      { key: "surplus_hold_min_saving", lk: "itemSurplusHoldSaving", icon: "mdi:cash-minus", adv: true, grp: "export" },
-      { key: "high_price_discharge", domain: "switch", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export", grp: "export" },
-      { key: "discharge_reserve", domain: "switch", lk: "diagDischargeReserve", icon: "mdi:battery-lock", grp: "export" },
-      { key: "discharge_reserve_min_saving", lk: "itemDischargeReserveSaving", icon: "mdi:cash-minus", adv: true, grp: "export" },
-      { key: "curtailment_status", domain: "binary_sensor", lk: "diagCurtailment", icon: "mdi:solar-power-variant", grp: "status" },
-      { key: "surplus_price_hold_status", domain: "binary_sensor", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export", grp: "status" },
-      { key: "high_price_discharge_status", domain: "sensor", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export", grp: "status" },
-      { key: "discharge_reserve_status", domain: "binary_sensor", lk: "diagDischargeReserve", icon: "mdi:battery-lock", grp: "status" },
+      { key: "curtailment_status", domain: "binary_sensor", lk: "diagCurtailment", icon: "mdi:solar-power-variant", grp: "predischarge" },
+      { key: "surplus_price_hold", domain: "switch", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export", grp: "surplus" },
+      { key: "surplus_hold_min_saving", lk: "itemSurplusHoldSaving", icon: "mdi:cash-minus", adv: true, grp: "surplus" },
+      { key: "surplus_price_hold_status", domain: "binary_sensor", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export", grp: "surplus" },
+      { key: "high_price_discharge", domain: "switch", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export", grp: "highPrice" },
+      { key: "high_price_discharge_status", domain: "sensor", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export", grp: "highPrice" },
+      { key: "discharge_reserve", domain: "switch", lk: "diagDischargeReserve", icon: "mdi:battery-lock", grp: "reserve" },
+      { key: "discharge_reserve_min_saving", lk: "itemDischargeReserveSaving", icon: "mdi:cash-minus", adv: true, grp: "reserve" },
+      { key: "discharge_reserve_status", domain: "binary_sensor", lk: "diagDischargeReserve", icon: "mdi:battery-lock", grp: "reserve" },
       // Dynamic pricing and time slot only; the system button does not exist on
       // real-time installs, so there this row simply doesn't render.
       { key: "reevaluate_dynamic_pricing", domain: "button", lk: "itemReevaluatePrices", icon: "mdi:calendar-refresh", grp: "action" },
