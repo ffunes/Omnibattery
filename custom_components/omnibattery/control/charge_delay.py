@@ -494,6 +494,20 @@ class ChargeDelayManager:
         # Update common status fields
         status["solar_t_start"] = _h_to_hhmm(ctrl._solar_t_start)
 
+        # Energy needed to reach target_soc.  Plain SOC arithmetic, independent of
+        # the forecast and of T_start, so publish it here: every hold below returns
+        # without calculating the solar balance, and a consumer that defaults the
+        # missing attribute to 0 would read the hold as "nothing to charge".
+        # Clamped for the sensor so a battery above target reports no deficit
+        # rather than a negative one; the raw value still drives the unlock below.
+        energy_needed_kwh = _energy_needed_kwh(automatic_batteries, target_soc)
+        status["energy_needed_kwh"] = round(max(0.0, energy_needed_kwh), 2)
+        # The solar balance below may not be reached this cycle.  Drop what it
+        # would have produced rather than leaving a previous cycle's figures
+        # beside the fresh deficit; each is rewritten as soon as it is computed.
+        for key in _BALANCE_STATUS_FIELDS:
+            status[key] = None
+
         # --- Exception 1: No solar forecast sensor or unavailable ---
         if not (
             get_configured_solar_forecast_sensor(ctrl, "remaining")
@@ -643,20 +657,6 @@ class ChargeDelayManager:
                 avg_consumption_kwh, deadband_kwh,
                 "grid needed (unlock delay)" if ctrl._charge_delay_balance_needs_charge else "solar sufficient (keep delay)",
             )
-
-        # Energy needed to reach target_soc.  Plain SOC arithmetic, independent of
-        # T_start, so publish it before the pre-sunrise holds below: they return
-        # without calculating the solar balance, and a consumer that defaults the
-        # missing attribute to 0 would read the hold as "nothing to charge".
-        # Clamped for the sensor so a battery above target reports no deficit
-        # rather than a negative one; the raw value still drives the unlock below.
-        energy_needed_kwh = _energy_needed_kwh(automatic_batteries, target_soc)
-        status["energy_needed_kwh"] = round(max(0.0, energy_needed_kwh), 2)
-        # The solar balance below may not be reached this cycle.  Drop what it
-        # would have produced rather than leaving a previous cycle's figures
-        # beside the fresh deficit; each is rewritten as soon as it is computed.
-        for key in _BALANCE_STATUS_FIELDS:
-            status[key] = None
 
         if ctrl._charge_delay_balance_needs_charge:
             # Genuine grid-deficit day: rather than unlocking immediately (often a

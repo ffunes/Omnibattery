@@ -576,6 +576,30 @@ def test_hold_clears_balance_figures_from_a_previous_cycle(monkeypatch):
     assert ctrl._charge_delay_status["charge_time_h"] is None
 
 
+def test_forecast_unavailable_hold_publishes_energy_needed():
+    # The grace hold returns before the forecast is even read, so the deficit
+    # has to be published above it to reach the sensor.
+    ctrl = _controller(_forecast_unavailable_since=None, _forecast_grace_s=300)
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state("unavailable")})
+
+    assert mgr._should_delay_charge(80) is True
+    assert ctrl._charge_delay_status["state"] == "Waiting for forecast"
+    assert ctrl._charge_delay_status["energy_needed_kwh"] == pytest.approx(1.5)
+
+
+def test_midnight_zero_forecast_hold_publishes_energy_needed(monkeypatch):
+    # The provisional-zero hold (#457) runs just after midnight, before the
+    # balance, and dropped the attribute the same way.
+    now = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
+    ctrl = _controller(solar_forecast_remaining_sensor="sensor.remaining")
+    mgr = _make_mgr(ctrl, states={"sensor.remaining": _state(0)})
+
+    assert mgr._should_delay_charge(80) is True
+    assert ctrl._charge_delay_status["state"] == "Waiting for forecast"
+    assert ctrl._charge_delay_status["energy_needed_kwh"] == pytest.approx(1.5)
+
+
 # ----------------------------------------------------------------------
 # _estimate_energy_balance_unlock_h: projection math
 # ----------------------------------------------------------------------
