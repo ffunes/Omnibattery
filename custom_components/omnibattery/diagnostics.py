@@ -472,6 +472,30 @@ def _discharge_reserve_info(controller) -> dict[str, Any]:
     return info
 
 
+def _high_price_discharge_info(controller) -> dict[str, Any]:
+    """Return deliberate high-price export diagnostics (#270).
+
+    The manager already publishes a JSON-safe snapshot, so this only adds the
+    configuration that explains it.
+    """
+    if controller is None:
+        return {"status": "unavailable", "reason": "controller_unavailable"}
+    manager = getattr(controller, "_high_price_discharge_mgr", None)
+    info: dict[str, Any] = {
+        "enabled": bool(getattr(controller, "high_price_discharge_enabled", False)),
+        "max_power_w": getattr(controller, "high_price_discharge_max_power_w", None),
+        # Shared with the charge side, so a diagnostic that named it
+        # "additional_cost" would hide which knob was actually read.
+        "min_arbitrage_margin": getattr(controller, "min_arbitrage_margin", None),
+    }
+    if manager is None:
+        info["status"] = "unavailable"
+        info["reason"] = "manager_unavailable"
+        return info
+    info.update(manager.get_status())
+    return info
+
+
 def _dynamic_pricing_info(controller) -> dict[str, Any]:
     """Return JSON-safe typed calendar diagnostics."""
     if controller is None:
@@ -938,6 +962,7 @@ async def async_get_config_entry_diagnostics(
         "curtailment": _curtailment_info(controller),
         "surplus_price_hold": _surplus_hold_info(controller),
         "discharge_reserve": _discharge_reserve_info(controller),
+        "high_price_discharge": _high_price_discharge_info(controller),
         "phase_protection": async_redact_data(
             controller._phase_power_limiter.diagnostics(), TO_REDACT
         )

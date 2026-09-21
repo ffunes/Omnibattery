@@ -33,7 +33,6 @@ def _ctrl(coords, decision, floor=0.0):
     return SimpleNamespace(
         coordinators=list(coords),
         _last_decision_data=decision,
-        _predictive_grid_charge_margin_pct=0.0,
         _predictive_min_soc_floor=floor,
         _predictive_min_soc_floor_enabled=floor > 0,
     )
@@ -79,14 +78,6 @@ def test_precomputed_planned_charge_keeps_target_in_sync_with_scheduler():
     }
     targets = _compute(_ctrl([c], decision))
     assert targets[c] == 95.0
-
-
-def test_grid_charge_margin_applies_to_fallback_target_calculation():
-    c = _Coord("c", 20.0, 5.0, max_soc=100)
-    ctrl = _ctrl([c], {"energy_deficit_kwh": 2.0})
-    ctrl._predictive_grid_charge_margin_pct = 50.0
-    targets = _compute(ctrl)
-    assert targets[c] == 80.0
 
 
 def test_target_never_below_current_soc():

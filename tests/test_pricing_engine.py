@@ -677,7 +677,6 @@ def _balance_ctrl(**overrides):
     """Controller stub carrying only the balance knobs the fingerprint reads."""
     base = dict(
         _predictive_safety_margin_kwh=0.0,
-        _predictive_grid_charge_margin_pct=0.0,
         _predictive_min_soc_floor=20.0,
         _predictive_min_soc_floor_enabled=True,
         coordinators=[SimpleNamespace(device_key="b1", min_soc=12, max_soc=95)],
@@ -702,7 +701,6 @@ def test_balance_fingerprint_moves_with_a_per_battery_soc_limit():
 def test_balance_fingerprint_moves_with_the_predictive_knobs():
     for field, value in (
         ("_predictive_safety_margin_kwh", 1.5),
-        ("_predictive_grid_charge_margin_pct", 25.0),
         ("_predictive_min_soc_floor", 35.0),
         ("_predictive_min_soc_floor_enabled", False),
     ):
@@ -1073,7 +1071,6 @@ def _evening_ctrl(claim, remaining_solar, **overrides):
         _dp_last_eval_soc=None,
         _dp_last_eval_excluded_claim_kwh=None,
         _external_loads=SimpleNamespace(claimable_solar_demand_kwh=lambda: claim),
-        _predictive_grid_charge_margin_pct=0.0,
         _daily_home_energy_date=None,
         _daily_home_energy_kwh=0.0,
         _household_accumulator_date=None,
@@ -1356,7 +1353,6 @@ def test_evening_recharge_uses_dynamic_base_consumption():
         _daily_home_energy_date=datetime.now().date(),
         _daily_home_energy_kwh=1.0,
         _last_decision_data={},
-        _predictive_grid_charge_margin_pct=0.0,
         _should_activate_grid_charging=should_activate,
     )
     manager = _mgr(ctrl)
@@ -1720,7 +1716,6 @@ def test_energy_balance_accepts_remaining_horizon_overrides():
         predictive_charging_overridden=False,
         coordinators=[coordinator],
         _predictive_safety_margin_kwh=0.0,
-        _predictive_grid_charge_margin_pct=0.0,
         _predictive_min_soc_floor=0.0,
         _predictive_min_soc_floor_enabled=False,
         _daily_consumption_history=[],
@@ -2732,7 +2727,6 @@ def test_daily_profile_consumes_energy_horizon_end():
         predictive_charging_overridden=False,
         coordinators=[coordinator],
         _predictive_safety_margin_kwh=0.0,
-        _predictive_grid_charge_margin_pct=0.0,
         _predictive_min_soc_floor=0.0,
         _predictive_min_soc_floor_enabled=False,
         _daily_consumption_history=[],
@@ -2779,7 +2773,6 @@ def test_daily_profile_scope_publishes_energy_horizon_end():
         predictive_charging_overridden=False,
         coordinators=[coordinator],
         _predictive_safety_margin_kwh=0.0,
-        _predictive_grid_charge_margin_pct=0.0,
         _predictive_min_soc_floor=0.0,
         _predictive_min_soc_floor_enabled=False,
         _daily_consumption_history=[],
@@ -2830,7 +2823,6 @@ def test_remaining_scope_does_not_publish_daily_profile_horizon():
         )
     ]
     ctrl._predictive_safety_margin_kwh = 0.0
-    ctrl._predictive_grid_charge_margin_pct = 0.0
     ctrl._predictive_min_soc_floor = 0.0
     ctrl._predictive_min_soc_floor_enabled = False
     ctrl.hass = SimpleNamespace(states=SimpleNamespace(get=lambda _entity_id: None))

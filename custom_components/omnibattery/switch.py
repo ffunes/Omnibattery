@@ -21,6 +21,9 @@ from .const import (
     CONF_ENABLE_TEMP_CHARGE_LIMIT,
     CONF_TEMP_LIMIT_APPLY_DISCHARGE,
     CONF_ENABLE_HOURLY_BALANCE,
+    CONF_HIGH_PRICE_DISCHARGE_ENABLED,
+    CONF_SURPLUS_PRICE_HOLD_ENABLED,
+    CONF_DISCHARGE_RESERVE_ENABLED,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
     CONF_ENABLE_WEEKLY_FULL_CHARGE,
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
@@ -34,8 +37,7 @@ from .const import (
     CONF_PRIMARY_FEEDFORWARD_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
     CONF_PREDICTIVE_CHARGING_MODE,
-    CONF_DP_PRICE_DISCHARGE_CONTROL,
-    CONF_RT_PRICE_DISCHARGE_CONTROL,
+    CONF_PRICE_DISCHARGE_CONTROL,
     CONF_SMART_PREDISCHARGE_ENABLED,
     CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
@@ -108,11 +110,11 @@ async def async_setup_entry(
     if controller and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data:
         mode = entry.data.get(CONF_PREDICTIVE_CHARGING_MODE)
         if mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
-            entities.append(PriceDischargeControlSwitch(hass, entry, controller, "dp"))
+            entities.append(PriceDischargeControlSwitch(hass, entry, controller))
             entities.append(SmartPredischargeSwitch(hass, entry, controller))
             entities.append(NegativePriceChargingSwitch(hass, entry, controller))
         elif mode == PREDICTIVE_MODE_REALTIME_PRICE:
-            entities.append(PriceDischargeControlSwitch(hass, entry, controller, "rt"))
+            entities.append(PriceDischargeControlSwitch(hass, entry, controller))
 
     # Add predictive charging switch (system-level, not per-battery). Shown
     # whenever predictive charging has been through config (the key is always
@@ -154,6 +156,23 @@ async def async_setup_entry(
     # Add hourly balance switch (system-level, when hourly balance is configured)
     if controller and CONF_ENABLE_HOURLY_BALANCE in entry.data:
         entities.append(HourlyBalanceSwitch(hass, entry, controller))
+
+    # Price-aware export/reserve features. Their keys are backfilled on every
+    # entry at setup, so presence says nothing about the active mode; all three
+    # bail out unless the predictive mode is dynamic pricing (see
+    # control/high_price_discharge.py, surplus_price_hold.py,
+    # discharge_reserve.py), so on time-slot installs the toggles would be dead
+    # rows on the dashboard.
+    if (
+        controller
+        and entry.data.get(CONF_PREDICTIVE_CHARGING_MODE) == PREDICTIVE_MODE_DYNAMIC_PRICING
+    ):
+        if CONF_HIGH_PRICE_DISCHARGE_ENABLED in entry.data:
+            entities.append(HighPriceDischargeSwitch(hass, entry, controller))
+        if CONF_SURPLUS_PRICE_HOLD_ENABLED in entry.data:
+            entities.append(SurplusPriceHoldSwitch(hass, entry, controller))
+        if CONF_DISCHARGE_RESERVE_ENABLED in entry.data:
+            entities.append(DischargeReserveSwitch(hass, entry, controller))
 
     # Add system power limits switch when the feature is configured. Mirrors the
     # number-platform heuristic so the toggle appears exactly when its sliders do
@@ -1824,6 +1843,162 @@ class OffgridModeSwitch(SwitchEntity):
         }
 
 
+class HighPriceDischargeSwitch(SwitchEntity):
+    """Switch to enable/disable deliberate export into high price slots."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the high-price discharge switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "high_price_discharge"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}high_price_discharge"
+        self.entity_id = system_entity_id("switch", "high_price_discharge")
+        self._attr_icon = "mdi:transmission-tower-export"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if high-price discharge is enabled."""
+        return self.controller.high_price_discharge_enabled
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable high-price discharge."""
+        self.controller.high_price_discharge_enabled = True
+        new_data = dict(self.entry.data)
+        new_data[CONF_HIGH_PRICE_DISCHARGE_ENABLED] = True
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("High Price Discharge ENABLED")
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable high-price discharge."""
+        # ponytail: no explicit override removal here. refresh_override() runs
+        # every control cycle and releases on a failed scope gate, so the export
+        # stops on the next cycle by the same path a mode change uses.
+        self.controller.high_price_discharge_enabled = False
+        new_data = dict(self.entry.data)
+        new_data[CONF_HIGH_PRICE_DISCHARGE_ENABLED] = False
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("High Price Discharge DISABLED")
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class SurplusPriceHoldSwitch(SwitchEntity):
+    """Switch to enable/disable price-aware solar surplus absorption."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the surplus price hold switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "surplus_price_hold"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}surplus_price_hold"
+        self.entity_id = system_entity_id("switch", "surplus_price_hold")
+        self._attr_icon = "mdi:transmission-tower-export"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if price-aware surplus hold is enabled."""
+        return self.controller.surplus_price_hold_enabled
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable price-aware surplus hold."""
+        self.controller.surplus_price_hold_enabled = True
+        new_data = dict(self.entry.data)
+        new_data[CONF_SURPLUS_PRICE_HOLD_ENABLED] = True
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Surplus Price Hold ENABLED")
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable price-aware surplus hold."""
+        # ponytail: no explicit plan teardown here. Writing the entry runs the
+        # update listener, and that path already clears the hold manager when
+        # the flag goes false — the same route the options flow takes.
+        self.controller.surplus_price_hold_enabled = False
+        new_data = dict(self.entry.data)
+        new_data[CONF_SURPLUS_PRICE_HOLD_ENABLED] = False
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Surplus Price Hold DISABLED")
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class DischargeReserveSwitch(SwitchEntity):
+    """Switch to enable/disable the price-aware discharge reserve."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the discharge reserve switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "discharge_reserve"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}discharge_reserve"
+        self.entity_id = system_entity_id("switch", "discharge_reserve")
+        self._attr_icon = "mdi:battery-lock"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if the price-aware discharge reserve is enabled."""
+        return self.controller.discharge_reserve_enabled
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable the price-aware discharge reserve."""
+        self.controller.discharge_reserve_enabled = True
+        new_data = dict(self.entry.data)
+        new_data[CONF_DISCHARGE_RESERVE_ENABLED] = True
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Discharge Reserve ENABLED")
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable the price-aware discharge reserve."""
+        self.controller.discharge_reserve_enabled = False
+        new_data = dict(self.entry.data)
+        new_data[CONF_DISCHARGE_RESERVE_ENABLED] = False
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Discharge Reserve DISABLED")
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
 class SystemPowerLimitsSwitch(SwitchEntity):
     """Switch to enable/disable the system-wide combined power limits at runtime."""
 
@@ -2028,27 +2203,21 @@ class WeeklyFullChargeEnableSwitch(SwitchEntity):
 class PriceDischargeControlSwitch(SwitchEntity):
     """Switch gating battery discharge on the electricity price being above threshold.
 
-    Two variants share this class: ``dp`` (dynamic pricing) and ``rt`` (real-time
-    price). The pricing engine reads the matching controller flag
-    (``dp_price_discharge_control`` / ``rt_price_discharge_control``) live each cycle.
+    Shared by the DP (dynamic pricing) and RT (real-time price) predictive modes,
+    which are mutually exclusive, so a single entity backs both. The pricing
+    engine reads ``controller.dp_price_discharge_control`` /
+    ``rt_price_discharge_control`` depending on the active mode; both are
+    read-only properties aliasing ``controller.price_discharge_control``.
     """
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller, kind: str) -> None:
-        """Initialize. kind must be 'dp' or 'rt'."""
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize."""
         self.hass = hass
         self.entry = entry
         self.controller = controller
-        self._kind = kind
-        if kind == "dp":
-            self._attr_translation_key = "dp_price_discharge_control"
-            self._conf_key = CONF_DP_PRICE_DISCHARGE_CONTROL
-            self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}dp_price_discharge_control"
-            self.entity_id = system_entity_id("switch", "dp_price_discharge_control")
-        else:
-            self._attr_translation_key = "rt_price_discharge_control"
-            self._conf_key = CONF_RT_PRICE_DISCHARGE_CONTROL
-            self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}rt_price_discharge_control"
-            self.entity_id = system_entity_id("switch", "rt_price_discharge_control")
+        self._attr_translation_key = "price_discharge_control"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}price_discharge_control"
+        self.entity_id = system_entity_id("switch", "price_discharge_control")
 
         self._attr_has_entity_name = True
         self._attr_icon = "mdi:cash-clock"
@@ -2057,21 +2226,16 @@ class PriceDischargeControlSwitch(SwitchEntity):
     @property
     def is_on(self) -> bool:
         """Return True if price-based discharge control is active."""
-        if self._kind == "dp":
-            return self.controller.dp_price_discharge_control
-        return self.controller.rt_price_discharge_control
+        return self.controller.price_discharge_control
 
     def _set_enabled(self, enabled: bool) -> None:
         """Set the controller flag and persist it."""
-        if self._kind == "dp":
-            self.controller.dp_price_discharge_control = enabled
-        else:
-            self.controller.rt_price_discharge_control = enabled
+        self.controller.price_discharge_control = enabled
         new_data = dict(self.entry.data)
-        new_data[self._conf_key] = enabled
+        new_data[CONF_PRICE_DISCHARGE_CONTROL] = enabled
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
-        _LOGGER.info("Price-based discharge control (%s) %s",
-                     self._kind, "ENABLED" if enabled else "DISABLED")
+        _LOGGER.info("Price-based discharge control %s",
+                     "ENABLED" if enabled else "DISABLED")
         self.async_write_ha_state()
 
     async def async_turn_on(self, **kwargs) -> None:
