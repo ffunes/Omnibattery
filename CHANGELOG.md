@@ -18,6 +18,7 @@
 
 ### Fixed
 
+- **Price-only controls no longer appear on time-slot installs**: high price discharge, price-aware surplus hold and the discharge reserve only run under Dynamic Pricing, but their switches, sliders and status rows were showing in Time Slot and Real-Time Price mode. They are now registered only in Dynamic Pricing mode.
 - **Price-aware surplus absorption is reachable from the dashboard**: its toggle and minimum-saving slider existed only in the options flow, so the feature was invisible. Its status sensor is renamed "… Status" so the two entities no longer share a name.
 - **The discharge reserve is reachable from the dashboard** (#270): its toggle and minimum-saving slider existed only in the options flow, so it was the only one of the six economic predictive-charging features with no dashboard control. Its status sensor is renamed "… Status" so the two entities no longer share a name.
 - **Predictive charging now covers the night through to sunrise** (#410, #344): every layer that decided to buy grid energy stopped at midnight, so the hours between midnight and sunrise belonged to no plan and the battery reached the morning peak empty. If you raised the solar safety margin or the grid charge margin to cover the night by hand, lower them again. The "Guaranteed Minimum SOC" help text now describes what that setting actually does — a floor on the current SOC, not a morning target.

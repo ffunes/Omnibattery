@@ -157,22 +157,22 @@ async def async_setup_entry(
     if controller and CONF_ENABLE_HOURLY_BALANCE in entry.data:
         entities.append(HourlyBalanceSwitch(hass, entry, controller))
 
-    # Add high-price discharge switch. The key is backfilled on every entry at
-    # setup, so the feature can be enabled from the dashboard without reopening
-    # the options flow.
-    if controller and CONF_HIGH_PRICE_DISCHARGE_ENABLED in entry.data:
-        entities.append(HighPriceDischargeSwitch(hass, entry, controller))
-
-    # Same deal for price-aware surplus hold: it shipped with a slider and a
-    # diagnostic but no way to reach either from the dashboard.
-    if controller and CONF_SURPLUS_PRICE_HOLD_ENABLED in entry.data:
-        entities.append(SurplusPriceHoldSwitch(hass, entry, controller))
-
-    # Same deal for the price-aware discharge reserve: it shipped with a
-    # diagnostic (discharge_reserve_status) but no way to reach it from the
-    # dashboard.
-    if controller and CONF_DISCHARGE_RESERVE_ENABLED in entry.data:
-        entities.append(DischargeReserveSwitch(hass, entry, controller))
+    # Price-aware export/reserve features. Their keys are backfilled on every
+    # entry at setup, so presence says nothing about the active mode; all three
+    # bail out unless the predictive mode is dynamic pricing (see
+    # control/high_price_discharge.py, surplus_price_hold.py,
+    # discharge_reserve.py), so on time-slot installs the toggles would be dead
+    # rows on the dashboard.
+    if (
+        controller
+        and entry.data.get(CONF_PREDICTIVE_CHARGING_MODE) == PREDICTIVE_MODE_DYNAMIC_PRICING
+    ):
+        if CONF_HIGH_PRICE_DISCHARGE_ENABLED in entry.data:
+            entities.append(HighPriceDischargeSwitch(hass, entry, controller))
+        if CONF_SURPLUS_PRICE_HOLD_ENABLED in entry.data:
+            entities.append(SurplusPriceHoldSwitch(hass, entry, controller))
+        if CONF_DISCHARGE_RESERVE_ENABLED in entry.data:
+            entities.append(DischargeReserveSwitch(hass, entry, controller))
 
     # Add system power limits switch when the feature is configured. Mirrors the
     # number-platform heuristic so the toggle appears exactly when its sliders do
