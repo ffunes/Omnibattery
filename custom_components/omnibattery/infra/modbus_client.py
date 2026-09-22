@@ -6,6 +6,7 @@ a Marstek Venus battery system asynchronously.
 
 from pymodbus.client import AsyncModbusTcpClient, AsyncModbusSerialClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
+from pymodbus.pdu import ExceptionResponse
 import asyncio
 import inspect
 import time
@@ -24,6 +25,27 @@ _LOGGER = logging.getLogger(__name__)
 # retries minted a new tid per attempt, which guaranteed every flushed reply
 # was discarded with a "transaction_id mismatch, Skipping" error.
 _PYMODBUS_RETRIES = 2
+
+
+class _BlockRefused:
+    """Sentinel: the device answered a block read with a Modbus exception.
+
+    Distinct from ``None`` (timeout / connection loss / incomplete frame) so a
+    caller can tell "this span covers an address the firmware does not
+    implement — read its members one at a time and stop block-reading it" from
+    "the link is down, do not fire N doomed requests" (issue #501).
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return "BLOCK_REFUSED"
+
+    def __bool__(self) -> bool:
+        return False
+
+
+BLOCK_REFUSED = _BlockRefused()
 
 
 def _backoff_jitter(delay: float) -> float:
@@ -332,6 +354,7 @@ class MarstekModbusClient:
         max_retries: int = 1,
         retry_delay: float = 0.1,
         sensor_key: Optional[str] = None,
+        exception_sentinel=None,
     ) -> Optional[list]:
         """Read ``count`` holding registers, returning raw words.
 
@@ -362,8 +385,10 @@ class MarstekModbusClient:
 
         attempt = 0
         current_retry_delay = retry_delay
+        last_was_exception_response = False
 
         while attempt < max_retries:
+            last_was_exception_response = False
             # Skip connection check - let pymodbus handle connection issues
             # This avoids problems with incorrect connection state reporting
 
@@ -379,11 +404,14 @@ class MarstekModbusClient:
                     if self._message_wait_sec and not self._is_shutting_down:
                         await asyncio.sleep(self._message_wait_sec)
                 if result.isError():
+                    last_was_exception_response = isinstance(result, ExceptionResponse)
                     if not self._is_shutting_down:
                         _LOGGER.error(
-                            "Modbus read error at register %d (0x%04X) on attempt %d",
+                            "Modbus read error at register %d (0x%04X), span length %d, exception code %s on attempt %d",
                             register,
                             register,
+                            count,
+                            getattr(result, "exception_code", "unavailable"),
                             attempt + 1,
                         )
                 elif not hasattr(result, "registers") or result.registers is None or len(result.registers) < count:
@@ -440,6 +468,8 @@ class MarstekModbusClient:
             register,
             max_retries,
         )
+        if last_was_exception_response and exception_sentinel is not None:
+            return exception_sentinel
         return None
 
     async def async_read_register(
@@ -491,8 +521,9 @@ class MarstekModbusClient:
     ) -> Optional[list]:
         """Read a contiguous span of holding registers in a single request.
 
-        Returns the raw list of register words (length ``count``) or None on
-        failure. Callers slice the buffer per field and decode each with
+        Returns the raw list of register words (length ``count``),
+        ``BLOCK_REFUSED`` for a Modbus exception response, or None for other
+        failures. Callers slice the buffer per field and decode each with
         :func:`decode_registers`. Used to cut request count on the weak v3 MCU
         (issue #361).
         """
@@ -502,6 +533,7 @@ class MarstekModbusClient:
             max_retries=max_retries,
             retry_delay=retry_delay,
             sensor_key=block_key,
+            exception_sentinel=BLOCK_REFUSED,
         )
 
     async def async_write_register(self, register: int, value: int, max_retries: int = 1, retry_delay: float = 0.1) -> bool:

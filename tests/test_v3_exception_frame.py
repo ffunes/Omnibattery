@@ -20,7 +20,10 @@ import time
 import pytest
 
 from custom_components.omnibattery.infra import modbus_client as modbus_client_module
-from custom_components.omnibattery.infra.modbus_client import MarstekModbusClient
+from custom_components.omnibattery.infra.modbus_client import (
+    BLOCK_REFUSED,
+    MarstekModbusClient,
+)
 
 MAPPED = 30200
 UNMAPPED = 39000
@@ -89,6 +92,33 @@ async def test_v3_rejection_costs_no_timeout(monkeypatch, split):
     elapsed, value = await _time_a_rejection(monkeypatch, is_v3=True, split=split)
     assert value is None  # a rejection is still a rejection
     assert elapsed < TIMEOUT_S / 2, f"rejection took {elapsed:.2f}s, the correction is not being called"
+
+
+async def test_rejected_block_read_is_told_apart_from_a_dead_link(monkeypatch):
+    """A real rejection frame must reach the caller as BLOCK_REFUSED (issue #501).
+
+    The unit tests hand ``_read_raw`` an ``ExceptionResponse`` they built
+    themselves, so they would pass even if pymodbus never produced one. Only a
+    read that really goes over a connection says whether the answered-with-an-
+    exception case is distinguishable from a timeout - which is what decides
+    whether the driver falls back to per-register reads or leaves the span
+    alone.
+    """
+    monkeypatch.setattr(modbus_client_module, "_PYMODBUS_RETRIES", 0)
+    loop = asyncio.get_running_loop()
+    server = await loop.create_server(_broken_device(split=False), "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+
+    client = MarstekModbusClient("127.0.0.1", port, message_wait_ms=0, timeout=TIMEOUT_S, is_v3=True)
+    try:
+        assert await client.async_connect()
+        assert await client.async_read_block(UNMAPPED, 4) is BLOCK_REFUSED
+        # An answered rejection leaves the link usable; a dead one would not.
+        assert await client.async_read_block(MAPPED, 1) == [0x1234]
+    finally:
+        client.client.close()
+        server.close()
+        await server.wait_closed()
 
 
 async def test_without_the_correction_the_same_read_waits_out_the_timeout(monkeypatch):

@@ -18,8 +18,10 @@ import asyncio
 
 import pytest
 from pymodbus.exceptions import ConnectionException
+from pymodbus.pdu import ExceptionResponse
 
 from custom_components.omnibattery.infra.modbus_client import (
+    BLOCK_REFUSED,
     MarstekModbusClient,
     _backoff_jitter,
 )
@@ -83,6 +85,31 @@ def test_read_success_returns_registers():
     regs = asyncio.run(c._read_raw(0x0000, 2, retry_delay=0))
     assert regs == [1, 2]
     assert fake.read_calls == 1
+
+
+def test_block_read_exception_response_returns_block_refused():
+    fake = _FakeClient(read_results=[ExceptionResponse(3, 2)])
+    c = _client_with_fake(fake)
+    assert asyncio.run(c.async_read_block(0xA41A, 4, retry_delay=0)) is BLOCK_REFUSED
+
+
+@pytest.mark.parametrize("failure", [asyncio.TimeoutError(), ConnectionException("boom")])
+def test_block_read_transport_failure_returns_none(failure):
+    fake = _FakeClient(read_results=[failure])
+    c = _client_with_fake(fake)
+    assert asyncio.run(c.async_read_block(0xA41A, 4, retry_delay=0)) is None
+
+
+def test_register_read_exception_response_returns_none():
+    fake = _FakeClient(read_results=[ExceptionResponse(3, 2)])
+    c = _client_with_fake(fake)
+    assert asyncio.run(c.async_read_register(0xA41A, retry_delay=0)) is None
+
+
+def test_block_read_success_returns_registers():
+    fake = _FakeClient(read_results=[_Result([1, 2, 3, 4])])
+    c = _client_with_fake(fake)
+    assert asyncio.run(c.async_read_block(0xA41A, 4, retry_delay=0)) == [1, 2, 3, 4]
 
 
 def test_read_default_is_single_attempt():

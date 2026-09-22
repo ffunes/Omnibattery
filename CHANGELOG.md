@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **A Marstek block read the battery refuses no longer drops its registers silently** (#501): when the battery answers a block read with an exception — the span covers an address its firmware does not implement — those registers are now read one at a time and the span is never grouped again. A timeout still skips the span, on purpose: N doomed requests per cycle is what grouping (#361) exists to avoid. Both cases now name the affected entities in the log. Thanks to @sphings79.
 - **A battery already below the guaranteed minimum SOC now charges instead of reporting "no energy quota"**: the floor deadline only measured the drain still to come, so a battery held by peak shaving or a no-discharge window asked for nothing, and its deficit was deferred to tomorrow's depletion — past the point the sun fills the pack, which no configured window can reach. The existing gap to the floor is now a requirement of its own, due at sunrise, and the band is checked per battery as the reactive trigger does, not against the fleet total. Thanks to @ssorgatem.
 
 ## [1.5.0b3] - 2026-09-21

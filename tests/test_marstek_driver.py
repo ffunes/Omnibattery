@@ -26,6 +26,7 @@ from custom_components.omnibattery.const import (
     REGISTER_MAP,
     max_power_for_battery_version,
 )
+from custom_components.omnibattery.infra.modbus_client import BLOCK_REFUSED
 
 
 def _fake_client():
@@ -393,9 +394,40 @@ async def test_read_telemetry_mixes_block_and_singleton():
     assert snap == {"set_charge_power": 100, "set_discharge_power": 200, "battery_soc": 55}
 
 
-async def test_read_telemetry_omits_block_members_when_block_read_fails():
+async def test_read_telemetry_refused_block_falls_back_to_individual_reads(caplog):
     client = _fake_client()
-    client.async_read_block = AsyncMock(return_value=None)  # block request failed
+    client.async_read_block = AsyncMock(return_value=BLOCK_REFUSED)
+    client.async_read_register = AsyncMock(side_effect=[3580, 3479])
+    drv = MarstekModbusDriver("1.2.3.4", 502, "v3", client=client)
+
+    snap = await drv.read_telemetry(["max_cell_voltage", "min_cell_voltage"])
+
+    client.async_read_block.assert_awaited_once()
+    assert client.async_read_register.await_count == 2
+    assert snap == {"max_cell_voltage": 3580, "min_cell_voltage": 3479}
+    assert "Block read at register 37007 (2 registers) was refused" in caplog.text
+    assert "max_cell_voltage, min_cell_voltage" in caplog.text
+
+
+async def test_read_telemetry_does_not_retry_a_refused_block():
+    client = _fake_client()
+    client.async_read_block = AsyncMock(return_value=BLOCK_REFUSED)
+    client.async_read_register = AsyncMock(side_effect=[3580, 3479, 3581, 3480])
+    drv = MarstekModbusDriver("1.2.3.4", 502, "v3", client=client)
+    keys = ["max_cell_voltage", "min_cell_voltage"]
+
+    first = await drv.read_telemetry(keys)
+    second = await drv.read_telemetry(keys)
+
+    client.async_read_block.assert_awaited_once()
+    assert client.async_read_register.await_count == 4
+    assert first == {"max_cell_voltage": 3580, "min_cell_voltage": 3479}
+    assert second == {"max_cell_voltage": 3581, "min_cell_voltage": 3480}
+
+
+async def test_read_telemetry_timeout_omits_block_members_without_fallback():
+    client = _fake_client()
+    client.async_read_block = AsyncMock(return_value=None)  # transport failure
     drv = MarstekModbusDriver("1.2.3.4", 502, "v3", client=client)
 
     snap = await drv.read_telemetry(["max_cell_voltage", "min_cell_voltage"])

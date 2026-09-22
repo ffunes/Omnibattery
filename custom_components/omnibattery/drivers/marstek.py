@@ -34,7 +34,7 @@ from ..const import (
     REGISTER_MAP,
     max_power_for_battery_version,
 )
-from ..infra.modbus_client import MarstekModbusClient, decode_registers
+from ..infra.modbus_client import BLOCK_REFUSED, MarstekModbusClient, decode_registers
 from .base import (
     BatteryDriver,
     DriverCapabilities,
@@ -376,6 +376,7 @@ class MarstekModbusDriver(BatteryDriver):
         self._register_blocks = (
             _derive_register_blocks(self._definitions["all"]) if definitions is None else []
         )
+        self._refused_register_blocks: set[tuple[int, int]] = set()
 
         # Telemetry grouped into schedulable poll units (see :class:`ReadGroup`):
         # one group per block (read in a single request) plus a singleton group per
@@ -734,13 +735,30 @@ class MarstekModbusDriver(BatteryDriver):
         # Collapse any fully-requested contiguous block into one request.
         for block in self._register_blocks:
             member_keys = [m["key"] for m in block["members"]]
+            block_span = (block["start"], block["count"])
+            if block_span in self._refused_register_blocks:
+                continue
             if not all(k in pending for k in member_keys):
                 continue
             pending.difference_update(member_keys)
             regs = await self._client.async_read_block(
                 block["start"], block["count"], block_key=f"block_{block['start']}",
             )
+            if regs is BLOCK_REFUSED:
+                pending.update(member_keys)
+                self._refused_register_blocks.add(block_span)
+                _LOGGER.warning(
+                    "Block read at register %s (%s registers) was refused; "
+                    "falling back to individual reads for keys: %s",
+                    block["start"], block["count"], ", ".join(member_keys),
+                )
+                continue
             if regs is None:
+                _LOGGER.debug(
+                    "Block read at register %s (%s registers) failed; "
+                    "dropped keys this cycle: %s",
+                    block["start"], block["count"], ", ".join(member_keys),
+                )
                 continue
             for member in block["members"]:
                 words = regs[member["offset"]:member["offset"] + member["count"]]
@@ -764,6 +782,8 @@ class MarstekModbusDriver(BatteryDriver):
             )
             if value is not None:
                 snapshot[key] = value
+            else:
+                _LOGGER.debug("Individual read failed for key %s", key)
 
         if "battery_soc" in snapshot:
             self._last_aggregate_soc = snapshot["battery_soc"]
