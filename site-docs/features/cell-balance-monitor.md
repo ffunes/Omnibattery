@@ -165,7 +165,7 @@ Every voltage cutoff used by the 100 % taper and the optional active-balance blu
 | **3.48 V (again)** | End-of-cycle discharge floor — the 200 W final discharge in the blueprint stops here | The same threshold used to enter the taper is reused to leave the balance window. Stopping at 3.48 V brings the pack just off the upper knee without dropping it back onto the deep plateau. Sitting at 3.55 – 3.60 V for long periods accelerates calendar ageing, so the automation deliberately bleeds the pack down to the lower edge of the window before releasing control. |
 | **3.40 V** | Lower bound for the blueprint retry voltage when charge rejection is detected | The automation gives each new charge leg 10 s to engage and, if charge power has not yet been observed, then requires 3 consecutive ~0 W cycles before declaring rejection. It drops the retry voltage by 0.01 V, but never below 3.40 V. Going further down exits the balance window entirely and forces a long, wasteful re-climb up the curve. |
 | **0.03 V (30 mV)** | Blueprint completion threshold | Considered "balanced enough" for an LFP pack at the top of the knee. Pushing for tighter values (10 mV or less) is rarely productive because passive balancing currents are tiny — see the next section. |
-| **0.05 V (50 mV)** | Green / yellow status boundary | A pack reading below 50 mV at the top is considered healthy. This is more conservative than typical LFP vendor specs (often 80 – 100 mV) because the measurement is taken in the balance window, where differences between cells are exaggerated. |
+| **0.20 V (200 mV)** | Green / yellow status boundary | A pack reading below 200 mV at the top is considered healthy. The threshold sits above the normal factory top-of-charge spread used by the monitor. |
 
 The normal taper uses 200 W so the cell voltage remains excited enough to advance through the top zone without returning to full power. The optional blueprint uses a gentler 95 W charge leg. Measurements are always taken at **rest** after charge and discharge stop for 60 seconds, so neither charge power contaminates the recorded delta.
 
@@ -207,10 +207,10 @@ Older OCV-style readings, opportunistic readings and long passive-hold readings 
 
 | Status | Delta range | Meaning |
 |---|---|---|
-| Green | < 50 mV | Good balance |
-| Yellow | 50-99 mV | Minor imbalance; monitor over time |
-| Orange | 100-149 mV | Moderate imbalance |
-| Red | >= 150 mV | High imbalance |
+| Green | < 200 mV | Good balance |
+| Yellow | 200-229 mV | Minor imbalance; monitor over time |
+| Orange | 230-249 mV | Moderate imbalance |
+| Red | >= 250 mV | High imbalance |
 
 Thresholds are fixed and apply equally to all supported LFP packs.
 

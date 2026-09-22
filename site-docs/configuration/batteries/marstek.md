@@ -36,8 +36,8 @@ required Marstek entities in Home Assistant.
 | `vA` | Venus A |
 | `vD` | Venus D |
 
-!!! warning "Maximum power 2500 W"
-    Use **2500 W** only when you are certain that the domestic installation can safely handle it.
+!!! warning "Maximum power depends on the model"
+    Venus E v2/v3 support **2500 W**, Venus A supports **1500 W**, and Venus D supports **2200 W** before EMS firmware 149 (or while its firmware is unknown) and **2500 W** from EMS 149 onward. Use the applicable maximum only when you are certain that the domestic installation can safely handle it.
 
 ## Marstek-specific limits
 

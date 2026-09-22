@@ -141,7 +141,7 @@ Todos los cortes de tensión usados por la reducción al 100 % y por el blueprin
 | **3,48 V (otra vez)** | Suelo de descarga al final del ciclo — la descarga final a 200 W del blueprint se detiene aquí | El mismo umbral usado para entrar en la reducción se reutiliza para salir de la ventana de balanceo. Parar a 3,48 V deja al pack justo por debajo del comienzo de la rodilla superior sin devolverlo del todo a la meseta profunda. Quedarse a 3,55 – 3,60 V durante mucho tiempo acelera el envejecimiento calendario, así que la automatización baja deliberadamente al borde inferior de la ventana antes de soltar el control. |
 | **3,40 V** | Límite inferior del voltaje de reintento del blueprint cuando se detecta rechazo de carga | La automatización concede 10 s para que arranque cada nuevo tramo de carga y, si aún no ha observado potencia de carga, exige después 3 ciclos consecutivos a ~0 W antes de declarar rechazo. Entonces baja el voltaje de reintento en 0,01 V, pero nunca por debajo de 3,40 V. Bajar más saldría completamente de la ventana de balanceo y obligaría a volver a subir toda la curva, lo que es una pérdida de tiempo. |
 | **0,03 V (30 mV)** | Umbral de finalización del blueprint | Se considera "suficientemente equilibrado" para un pack LFP en la parte alta de la rodilla. Forzar valores más estrictos (10 mV o menos) rara vez compensa, porque las corrientes de balanceo pasivo son minúsculas — ver la sección siguiente. |
-| **0,05 V (50 mV)** | Frontera verde / amarillo | Un pack por debajo de 50 mV en la parte alta se considera sano. Es más estricto que las especificaciones típicas de fabricantes LFP (80 – 100 mV) porque la medida se toma en la ventana de balanceo, donde las diferencias entre celdas están exageradas. |
+| **0,20 V (200 mV)** | Frontera verde / amarillo | Un pack por debajo de 200 mV en la parte alta se considera sano. El umbral queda por encima del desbalanceo normal de fábrica en la parte alta de carga que usa el monitor. |
 
 La reducción normal usa 200 W para mantener la tensión suficientemente excitada y avanzar por la zona superior sin volver a plena potencia. El blueprint opcional usa una carga más suave de 95 W. Las mediciones siempre se toman en **reposo**, 60 segundos después de detener carga y descarga, por lo que ninguna de las dos potencias contamina el delta registrado.
 
@@ -183,10 +183,10 @@ Las antiguas lecturas tipo OCV, las lecturas oportunistas y las retenciones pasi
 
 | Estado | Rango de delta | Significado |
 |---|---|---|
-| Verde | < 50 mV | Buen equilibrio |
-| Amarillo | 50-99 mV | Desbalanceo leve; monitorizar con el tiempo |
-| Naranja | 100-149 mV | Desbalanceo moderado |
-| Rojo | >= 150 mV | Desbalanceo alto |
+| Verde | < 200 mV | Buen equilibrio |
+| Amarillo | 200-229 mV | Desbalanceo leve; monitorizar con el tiempo |
+| Naranja | 230-249 mV | Desbalanceo moderado |
+| Rojo | >= 250 mV | Desbalanceo alto |
 
 Los umbrales son fijos y se aplican por igual a todos los packs LFP compatibles.
 

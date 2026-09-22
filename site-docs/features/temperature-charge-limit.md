@@ -2,7 +2,7 @@
 
 Reduces charge and discharge power when the battery gets hot. Above a configured temperature limit, power is throttled proportionally and restored as the battery cools down.
 
-The derating is linear: charge power falls from the normal ceiling to a configured floor as the battery temperature crosses the limit and ramp band. The floor is clamped to each battery's minimum operating power (v2/v3 = 800 W, vA/vD/Zendure = 0 W). Discharge derating can also be enabled to stay below the BMS over-temperature cutoff.
+The derating is linear: charge power falls from the normal ceiling to a configured floor as the battery temperature crosses the limit and ramp band. The floor is clamped to each battery's minimum operating power (Marstek v2/v3/vA/vD and Zendure = 0 W). Discharge derating can also be enabled to stay below the BMS over-temperature cutoff.
 
 ## Dashboard configuration
 

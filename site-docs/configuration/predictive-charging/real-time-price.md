@@ -14,8 +14,7 @@ Deadline-based slot selection is intentionally not applied in this mode: a curre
 | **Maximum price threshold (€)** | (Optional) Price below which grid charging activates |
 | **Daily average price sensor** | (Optional) Dynamic threshold instead of a fixed value |
 | **Only discharge when price exceeds threshold** | (Optional) Price-gated discharge — see below |
-| **Solar forecast safety margin (kWh)** | Extra energy buffer added to the consumption forecast before deciding whether to charge (default 0 kWh) |
-| **Predictive grid charge margin (%)** | Tops up the grid-charge amount to hedge optimistic solar forecasts — e.g. a 2 kWh grid need at 50 % charges 3 kWh. Capped at the gap to max SOC (default 0 %) |
+| **Solar forecast safety margin (kWh)** | Extra energy buffer added to the consumption forecast before deciding whether to charge (default for new entries: approximately 5% of total battery capacity) |
 
 ![Configuration form — Real-Time Price mode](../../assets/screenshots/configuration/predictive-charging/real-time-price-form.png){ width="650"  style="display: block; margin: 0 auto;"}
 

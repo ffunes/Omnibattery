@@ -2,7 +2,7 @@
 
 Reduce la potencia de carga y descarga cuando la batería se calienta. Por encima de un límite de temperatura configurable, la potencia se reduce proporcionalmente y se recupera cuando la batería se enfría.
 
-La reducción es lineal: la potencia de carga baja desde el límite normal hasta un mínimo configurable mientras la temperatura atraviesa el límite y la banda de rampa. El mínimo queda limitado por la potencia operativa mínima de cada batería (v2/v3 = 800 W, vA/vD/Zendure = 0 W). También se puede activar la reducción de descarga para mantenerse por debajo del corte por sobretemperatura del BMS.
+La reducción es lineal: la potencia de carga baja desde el límite normal hasta un mínimo configurable mientras la temperatura atraviesa el límite y la banda de rampa. El mínimo queda limitado por la potencia operativa mínima de cada batería (Marstek v2/v3/vA/vD y Zendure = 0 W). También se puede activar la reducción de descarga para mantenerse por debajo del corte por sobretemperatura del BMS.
 
 ## Configuración desde el dashboard
 

@@ -21,7 +21,7 @@ Potencia_batería = max(0, consumo_red - límite_pico)
 | Campo | Descripción | Por defecto | Rango |
 |---|---|---|---|
 | **Umbral de SOC (%)** | La protección de capacidad se activa por debajo de este SOC. | `30 %` | 20–100 % |
-| **Límite de potencia de pico (W)** | Umbral de potencia de red. Con la protección activa, la batería solo descarga el exceso sobre este límite. | `2500 W` | 500–10000 W |
+| **Límite de potencia de pico (W)** | Umbral de potencia de red. Con la protección activa, la batería solo descarga el exceso sobre este límite. | `2500 W` | 500–20000 W |
 
 ![Configuración de protección de capacidad](../assets/screenshots/configuration/advanced-capacity-protection-config.png){ width="650" style="display: block; margin: 0 auto;"}
 
