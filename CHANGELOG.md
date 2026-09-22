@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0b4] - 2026-09-22
+
+### Fixed
+
+- **A battery already below the guaranteed minimum SOC now charges instead of reporting "no energy quota"**: the floor deadline only measured the drain still to come, so a battery held by peak shaving or a no-discharge window asked for nothing, and its deficit was deferred to tomorrow's depletion — past the point the sun fills the pack, which no configured window can reach. The existing gap to the floor is now a requirement of its own, due at sunrise, and the band is checked per battery as the reactive trigger does, not against the fleet total. Thanks to @ssorgatem.
+
 ## [1.5.0b3] - 2026-09-21
 
 ### Added

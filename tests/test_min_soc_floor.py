@@ -559,10 +559,14 @@ _FLOOR_CAP = 5.12
 _FLOOR_BASE_KW = 0.3618
 
 
-def _floor_manager(soc):
-    coord = _Coord(soc, _FLOOR_CAP, min_soc=12, max_soc=100)
-    coord.name = "Venus"
-    coord.is_available = True
+def _floor_manager(soc, *extra_socs, floor=20.0):
+    coords = []
+    for index, value in enumerate((soc, *extra_socs)):
+        coord = _Coord(value, _FLOOR_CAP, min_soc=12, max_soc=100)
+        coord.name = f"Venus {index}"
+        coord.is_available = True
+        coords.append(coord)
+    coord = coords[0]
 
     def forecast_between(start, end, *, fallback="legacy_daily"):
         hours = (end - start).total_seconds() / 3600.0
@@ -583,13 +587,13 @@ def _floor_manager(soc):
         "days": ["mon", "tue", "wed", "thu", "fri", "sat"],
     }]
     controller = SimpleNamespace(
-        coordinators=[coord],
+        coordinators=coords,
         charging_time_slots=windows,
         config_entry=SimpleNamespace(data={}, options={}),
         _consumption_tracker=tracker,
         solar_profile_mode="off",
         _predictive_safety_margin_kwh=0.0,
-        _predictive_min_soc_floor=20.0,
+        _predictive_min_soc_floor=floor,
         _predictive_min_soc_floor_enabled=True,
         _active_time_slot_quota_kwh=None,
         max_contracted_power=14000.0,
@@ -748,3 +752,31 @@ if __name__ == "__main__":
     test_floor_charges_at_window_start_not_when_soc_already_crossed()
     test_lower_soc_at_window_start_asks_for_more_energy()
     print("ok")
+
+
+def test_floor_below_the_band_charges_even_when_the_fleet_gap_is_small():
+    """Reported: 30% avg under a 35% floor, window deferred with "no quota".
+
+    Peak shaving holds both batteries, so the projection shows no overnight
+    drain and the fleet gap (0.46 kWh) stays under 5% of the fleet capacity.
+    One battery is still below (floor - hysteresis), which is exactly what the
+    reactive trigger bands, so the window must carry the charge.
+    """
+    manager = _floor_manager(28.0, 33.0, floor=35.0)
+    manager._controller._is_capacity_protection_soc_limited = lambda: True
+    manager._controller.capacity_protection_limit = 3600
+    decision = manager._apply_time_slot_chronological_plan(
+        {
+            "should_charge": False,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 0.0,
+            "planned_grid_charge_kwh": 0.0,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        now=datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ),
+    )
+
+    assert decision["floor_active"] is True
+    assert decision["should_charge"] is True
+    assert not decision.get("chronological_deferred")
+    assert decision["active_slot_energy_target_kwh"] > 0.4

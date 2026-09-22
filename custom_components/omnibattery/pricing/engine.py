@@ -81,6 +81,7 @@ from .chronological import (
     ChronologicalEvaluationRequest,
     ChronologicalEvaluationResult,
     ChronologicalPlan,
+    EnergyDeadline,
     EnergyInterval,
     build_energy_deadlines,
     evaluate_chronological_request,
@@ -2899,20 +2900,50 @@ class PricingManager:
                     for c in eligible
                 )
                 pre_solar = [item for item in intervals if item.end <= solar_start_dt]
-                floor_deadlines = build_energy_deadlines(
-                    pre_solar,
-                    max(0.0, usable - reserve),
-                    kind="guaranteed_floor",
-                )
+                # Already sitting under the floor is a requirement by itself.
+                # ``build_energy_deadlines`` only reports the projected drain
+                # and the clamp below hides that gap, so a battery that is held
+                # (peak shaving, no-discharge window) and never drains produced
+                # no floor deadline at all; its deficit then bound itself to
+                # tomorrow's depletion, past the projected solar fill, which no
+                # configured window can serve ("no energy quota").
+                gap = max(0.0, reserve - usable)
+                floor_deadlines = [
+                    EnergyDeadline(
+                        item.deadline,
+                        item.required_cumulative_kwh + gap,
+                        item.kind,
+                        item.projected_soc_pct,
+                    )
+                    for item in build_energy_deadlines(
+                        pre_solar,
+                        max(0.0, usable - reserve),
+                        kind="guaranteed_floor",
+                    )
+                ]
                 floor_required = max(
                     (item.required_cumulative_kwh for item in floor_deadlines),
-                    default=0.0,
+                    default=gap,
                 )
+                if gap > 0.0:
+                    floor_deadlines.append(
+                        EnergyDeadline(
+                            solar_start_dt, floor_required, "guaranteed_floor"
+                        )
+                    )
                 hysteresis_kwh = sum(
                     float(c.data.get("battery_total_energy", 0) or 0)
                     for c in eligible
                 ) * FLOOR_HYSTERESIS_PCT / 100.0
-                if floor_required > hysteresis_kwh:
+                # The reactive trigger bands *each* battery; re-checking the
+                # band against the fleet total instead silently dropped a
+                # deficit the controller had already committed to.
+                under_band = any(
+                    float(c.data.get("battery_soc", 0) or 0)
+                    < floor - FLOOR_HYSTERESIS_PCT
+                    for c in eligible
+                )
+                if floor_required > hysteresis_kwh or (under_band and gap > 0.0):
                     # The floor requirement dominates ordinary depletion until
                     # sunrise. Preserve later, larger ordinary requirements.
                     combined: list = []
