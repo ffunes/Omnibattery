@@ -14,8 +14,7 @@ La selección de slots con plazos no se aplica deliberadamente en este modo: un 
 | **Umbral máximo de precio (€)** | (Opcional) Precio por debajo del cual se activa la carga desde la red |
 | **Sensor de precio medio diario** | (Opcional) Umbral dinámico en lugar del valor fijo |
 | **Descargar solo cuando el precio supere el umbral** | (Opcional) Descarga condicionada al precio actual — ver abajo |
-| **Margen de seguridad de previsión solar (kWh)** | Buffer de energía adicional añadido a la previsión de consumo antes de decidir si cargar (por defecto 0 kWh) |
-| **Margen de carga de red predictiva (%)** | Aumenta la cantidad de carga de red para cubrir previsiones solares optimistas — p. ej. una necesidad de 2 kWh de red al 50 % carga 3 kWh. Limitado al hueco hasta el SOC máximo (por defecto 0 %) |
+| **Margen de seguridad de previsión solar (kWh)** | Buffer de energía adicional añadido a la previsión de consumo antes de decidir si cargar (por defecto en entradas nuevas: aproximadamente el 5 % de la capacidad total de las baterías) |
 
 ![Formulario de configuración — Modo Precio en Tiempo Real](../../assets/screenshots/configuration/predictive-charging/real-time-price-form.png){ width="650"  style="display: block; margin: 0 auto;"}
 

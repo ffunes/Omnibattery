@@ -35,8 +35,7 @@ El planificador existente usa horas locales sin zona horaria. Durante el cambio 
 | **Umbral máximo de precio** | (Opcional) Precio techo; no carga aunque la hora sea "barata" si supera este valor. También se usa como umbral de descarga cuando el control de descarga por precio está activado |
 | **Descargar solo cuando el precio supere el umbral** | (Opcional) Descarga condicionada al precio actual — ver abajo |
 | **Suelo de precio de descarga (€)** | (Opcional) Suelo separado para la descarga condicionada — abre una banda de reposo entre el techo de carga y este suelo. Vacío = reutiliza el umbral máximo para ambos. Ver [Suelo de precio de descarga separado](#suelo-de-precio-de-descarga-separado) |
-| **Margen de seguridad de previsión solar (kWh)** | (Opcional) Buffer de energía adicional añadido a la previsión de consumo antes de decidir si cargar (por defecto 0 kWh) |
-| **Margen de carga de red predictiva (%)** | (Opcional) Aumenta la cantidad de carga de red para cubrir previsiones solares optimistas — p. ej. una necesidad de 2 kWh de red al 50 % carga 3 kWh. Limitado al hueco hasta el SOC máximo (por defecto 0 %) |
+| **Margen de seguridad de previsión solar (kWh)** | (Opcional) Buffer de energía adicional añadido a la previsión de consumo antes de decidir si cargar (por defecto en entradas nuevas: aproximadamente el 5 % de la capacidad total de las baterías) |
 | **Carga oportunista por precio negativo** | (Opcional, desactivada por defecto) Carga en franjas de importación negativas válidas aunque la previsión normal no detecte déficit |
 
 ![Formulario de configuración — Modo Precio Dinámico](../../assets/screenshots/configuration/predictive-charging/dynamic-pricing-form.png){ width="650"  style="display: block; margin: 0 auto;"}
@@ -72,7 +71,7 @@ El plan de las 00:05 no es inmutable. Precio Dinámico lo adapta a medida que av
 - **Después de una caída de 30 puntos de SOC**, ejecuta inmediatamente esa misma evaluación de déficit de final del día, sin esperar al disparador vespertino. La comparación se hace contra el SOC medio de las baterías registrado en la última evaluación de Precio Dinámico; solo dispara una caída de al menos 30 puntos porcentuales, la referencia se reinicia después de reevaluar y una subida de SOC nunca lo dispara.
 - **Cuando el proveedor revisa la previsión solar** en **1,5 kWh o más** en cualquier dirección, el plan se reconstruye. La comprobación previa a la franja solo puede quitar franjas, así que un día revisado a la baja dejaría la batería corta con las horas baratas ya pasadas. Una previsión restante baja sola a lo largo del día, así que la lectura guardada se proyecta hacia adelante con la solar realmente producida desde entonces; solo cuenta como revisión la diferencia contra esa proyección. Limitado a un *cooldown* de **30 minutos** y **cuatro** reevaluaciones al día. Un sensor no disponible nunca se lee como un desplome del día, y una instalación que no mide producción solar no tiene con qué proyectar, así que el disparador nunca se arma.
 - **Cuando se publican los precios de mañana**, el horizonte restante se reconstruye una vez ese día para poder mover la energía nocturna a franjas posteriores a medianoche que sean más baratas. Si hay una franja de carga activa, espera a que termine. Los proveedores que ya mostraban los precios de mañana durante la evaluación de las 00:05 no provocan una segunda reconstrucción.
-- **Cuando cambia un ajuste del que depende el balance energético** - el SOC mínimo o máximo de una batería, el margen de seguridad de la previsión solar, el margen de carga de red predictiva o el suelo de SOC mínimo garantizado - el plan se reconstruye en el siguiente ciclo de control. Sin esto, un plan que había decidido que no hacía falta carga de red mantenía esa decisión después de que el usuario la hiciera necesaria. Los ajustes no relacionados que comparten el mismo almacenamiento (modo manual forzado, límites de potencia, detección por batería) no lo disparan.
+- **Cuando cambia un ajuste del que depende el balance energético** - el SOC mínimo o máximo de una batería, el margen de seguridad de la previsión solar o el suelo de SOC mínimo garantizado - el plan se reconstruye en el siguiente ciclo de control. Sin esto, un plan que había decidido que no hacía falta carga de red mantenía esa decisión después de que el usuario la hiciera necesaria. Los ajustes no relacionados que comparten el mismo almacenamiento (modo manual forzado, límites de potencia, detección por batería) no lo disparan.
 
 Estas reevaluaciones mantienen vigentes los límites de carga, suelos de SOC, propiedad de franjas, modo manual, reserva y disponibilidad. La referencia diaria y la protección de una sola reevaluación vespertina se reinician a medianoche.
 
@@ -225,8 +224,6 @@ El sensor binario `predictive_charging_active` expone:
 | `overnight_consumption_kwh` | Demanda doméstica prevista desde medianoche hasta `energy_horizon_end` |
 
 Las notificaciones usan el mismo límite: describen la demanda restante hasta el amanecer y muestran aparte los kWh nocturnos cuando el horizonte cruza medianoche.
-
-![Atributos del sensor predictive_charging_active](../../assets/screenshots/configuration/predictive-charging/diagnostic-attributes.png){ width="650"  style="display: block; margin: 0 auto;"}
 
 El calendario dinámico consume el mismo timeline solar fechado que Franja
 Horaria. Una curva del proveedor tiene prioridad sobre un perfil local maduro y

@@ -35,7 +35,7 @@ La decisión tomada al entrar en el slot no es definitiva. Mientras la ventana e
 - **El SOC cae un 30 % o más** respecto al último punto de evaluación (p. ej. por un consumo elevado).
 - **Se cruza o se recupera el suelo de SOC mínimo garantizado**, si esa opción está activada.
 - **El proveedor revisa la previsión solar** en 1,5 kWh o más en cualquier dirección. Una previsión restante baja sola a lo largo del día, así que la lectura guardada se proyecta hacia adelante con la solar realmente producida desde entonces y solo cuenta como revisión la diferencia contra esa proyección. Limitado a un *cooldown* de 30 minutos y cuatro reevaluaciones al día.
-- **Cambia un ajuste del que depende el balance**: el SOC mínimo o máximo de una batería, el margen de seguridad de la previsión solar, el margen de carga de red predictiva o el suelo de SOC mínimo garantizado.
+- **Cambia un ajuste del que depende el balance**: el SOC mínimo o máximo de una batería, el margen de seguridad de la previsión solar o el suelo de SOC mínimo garantizado.
 - **Pulsas el botón Reevaluar Carga Predictiva** (`button.*_reevaluate_dynamic_pricing`) en el dispositivo del sistema.
 
 Solo una reevaluación que invierte la decisión del slot reemplaza la notificación; las demás son silenciosas.

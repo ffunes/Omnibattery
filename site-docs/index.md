@@ -44,7 +44,7 @@ The panel installs automatically as a Home Assistant sidebar panel — no extra 
 - **Batteries** with per-battery SOC/power, health & cells, daily energy, optional MPPT, firmware info, controls
 - **Control** with system-wide settings grouped by feature, each with its switch + config parameters
 
-![Dashboard](/assets/MVEM%20-%20Dashboard.gif)
+![Dashboard](assets/dashboard.gif)
 
 ## Key features
 

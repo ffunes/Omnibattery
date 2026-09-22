@@ -44,7 +44,7 @@ El panel se instala automáticamente como un panel lateral de Home Assistant; no
 - **Baterías** con SOC/potencia por batería, salud y celdas, energía diaria, MPPT opcional, información de firmware y controles
 - **Control** con los ajustes de todo el sistema agrupados por funcionalidad, cada uno con su interruptor y sus parámetros
 
-![Dashboard](/assets/MVEM%20-%20Dashboard.gif)
+![Dashboard](assets/dashboard.gif)
 
 ## Características principales
 

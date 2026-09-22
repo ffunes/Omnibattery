@@ -91,7 +91,7 @@ Cuando la batería carga desde la red, su potencia AC es negativa. Ese término 
 
 ### Dispositivos excluidos / adicionales
 
-Si has configurado [dispositivos excluidos o adicionales](excluded-devices.md), la potencia del hogar se corrige antes de acumular:
+Si has configurado [dispositivos excluidos o adicionales](../configuration/excluded-devices.md), la potencia del hogar se corrige antes de acumular:
 
 - **Excluido** (`included_in_consumption = true`): el dispositivo ya está en la lectura del hogar/red pero la batería no debe alimentarlo → su potencia se **resta**.
 - **Adicional** (`included_in_consumption = false`): el dispositivo no es visible para la lectura del hogar pero la batería sí debe cubrirlo → su potencia se **suma**.
