@@ -342,8 +342,6 @@ The `predictive_charging_active` binary sensor exposes:
 
 Notifications use the same boundary: they label demand as remaining until sunrise and show the overnight kWh separately when the horizon extends past midnight.
 
-![Diagnostic attributes of predictive_charging_active](../../assets/screenshots/configuration/predictive-charging/diagnostic-attributes.png){ width="650"  style="display: block; margin: 0 auto;"}
-
 The dynamic calendar consumes the same dated solar timeline as Time Slot. A
 provider curve has priority over a mature learned profile, and an invalid
 candidate falls back atomically to the next source. The learned profile is

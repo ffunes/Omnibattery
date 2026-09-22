@@ -88,7 +88,7 @@ When the battery charges from the grid, its AC power is negative. That term canc
 
 ### Excluded / additional devices
 
-If you have configured [excluded or additional devices](excluded-devices.md), the home power is corrected before accumulation:
+If you have configured [excluded or additional devices](../configuration/excluded-devices.md), the home power is corrected before accumulation:
 
 - **Excluded** (`included_in_consumption = true`): the device is already in the home/grid reading but the battery should not cover it → its power is **subtracted**.
 - **Additional** (`included_in_consumption = false`): the device is not visible to the home reading but the battery should cover it → its power is **added**.

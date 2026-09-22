@@ -226,8 +226,6 @@ El sensor binario `predictive_charging_active` expone:
 
 Las notificaciones usan el mismo límite: describen la demanda restante hasta el amanecer y muestran aparte los kWh nocturnos cuando el horizonte cruza medianoche.
 
-![Atributos del sensor predictive_charging_active](../../assets/screenshots/configuration/predictive-charging/diagnostic-attributes.png){ width="650"  style="display: block; margin: 0 auto;"}
-
 El calendario dinámico consume el mismo timeline solar fechado que Franja
 Horaria. Una curva del proveedor tiene prioridad sobre un perfil local maduro y
 una candidata inválida cae de forma atómica a la siguiente fuente. El perfil
