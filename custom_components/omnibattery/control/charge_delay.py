@@ -127,6 +127,43 @@ def _energy_needed_kwh(batteries: list, target_soc: float) -> float:
     )
 
 
+def _charge_time_h(
+    ctrl,
+    batteries: list,
+    target_soc: float,
+    energy_needed_kwh: float,
+    system_kw: float,
+) -> float:
+    """Hours of charging before the LAST battery reaches ``target_soc``.
+
+    Each battery's kWh have to pass through its own inverter at its own limit,
+    so the fleet is done when its slowest member is done -- not when a combined
+    deficit has crossed a combined power limit, which on a mixed fleet reads
+    hours short. The combined figure still binds when a global system limit
+    caps the sum below what the batteries could take individually.
+    """
+    slowest = 0.0
+    for coordinator in batteries:
+        if not coordinator.data:
+            continue
+        deficit = (
+            (target_soc - coordinator.data.get("battery_soc", 100))
+            / 100.0
+            * coordinator.data.get("battery_total_energy", 0)
+        )
+        if deficit <= 0:
+            continue
+        limit_w = ctrl._battery_power_limit(coordinator, True)
+        if limit_w <= 0:
+            continue
+        slowest = max(
+            slowest,
+            deficit / (limit_w / 1000.0 * CHARGE_EFFICIENCY),
+        )
+
+    return max(slowest, energy_needed_kwh / (system_kw * CHARGE_EFFICIENCY))
+
+
 class ChargeDelayManager:
     """Manages the unified charge-delay gate, persistence and projection."""
 
@@ -709,7 +746,10 @@ class ChargeDelayManager:
         ) / 1000.0
         if max_charge_power_kw <= 0:
             return _unlock("no_charge_power")
-        charge_time_h = energy_needed_kwh / (max_charge_power_kw * CHARGE_EFFICIENCY)
+        charge_time_h = _charge_time_h(
+            ctrl, automatic_batteries, target_soc, energy_needed_kwh,
+            max_charge_power_kw,
+        )
 
         # Remaining solar and consumption
         if forecast_is_remaining:

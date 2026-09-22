@@ -89,6 +89,7 @@ def _controller(**overrides):
         _solar_t_start=8.0,
         _charge_delay_last_date=None,
         _effective_system_capacity=lambda coords, is_charging: 3000.0,
+        _battery_power_limit=lambda c, is_charging: 3000.0,
         _weekly_charge_mgr=SimpleNamespace(is_active=lambda: False),
     )
     base["_consumption_tracker"] = overrides.pop("_consumption_tracker", _tracker())
@@ -1011,3 +1012,57 @@ def test_late_provider_zero_unlocks_without_latching_then_rearms(monkeypatch):
     states["sensor.forecast"] = _state(43.54)
     assert mgr.is_charge_delayed() is True
     assert ctrl._charge_delay_unlocked is False
+
+
+def test_charge_time_is_set_by_the_slowest_battery(monkeypatch):
+    # A slow inverter must determine fleet charging time even when aggregate power is high.
+    _at_hour(monkeypatch, 9)
+    slow = _coord(soc=0, total_energy=17.92)
+    fast = _coord(soc=0, total_energy=13.8)
+    ctrl = _controller(
+        coordinators=[slow, fast],
+        _effective_system_capacity=lambda coords, is_charging: 9500.0,
+        _battery_power_limit=lambda c, is_charging: 2500.0 if c is slow else 7000.0,
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(100.0)})
+
+    mgr._should_delay_charge(100)
+
+    charge_time_h = ctrl._charge_delay_status["charge_time_h"]
+    assert charge_time_h == pytest.approx(8.43, abs=0.05)
+    assert charge_time_h != pytest.approx(3.93, abs=0.05)
+
+
+def test_charge_time_unchanged_on_a_single_battery(monkeypatch):
+    # A single battery keeps the established energy-over-power estimate unchanged.
+    _at_hour(monkeypatch, 9)
+    battery = _coord(soc=0, total_energy=4.25)
+    ctrl = _controller(
+        coordinators=[battery],
+        _effective_system_capacity=lambda coords, is_charging: 2500.0,
+        _battery_power_limit=lambda c, is_charging: 2500.0,
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(100.0)})
+
+    mgr._should_delay_charge(100)
+
+    expected = 4.25 / (2.5 * 0.85)
+    assert ctrl._charge_delay_status["charge_time_h"] == expected
+
+
+def test_charge_time_still_respects_the_system_power_limit(monkeypatch):
+    # A configured fleet power cap must outweigh faster per-battery charge times.
+    _at_hour(monkeypatch, 9)
+    first = _coord(soc=0, total_energy=4.25)
+    second = _coord(soc=0, total_energy=4.25)
+    ctrl = _controller(
+        coordinators=[first, second],
+        _effective_system_capacity=lambda coords, is_charging: 2000.0,
+        _battery_power_limit=lambda c, is_charging: 5000.0,
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(100.0)})
+
+    mgr._should_delay_charge(100)
+
+    expected = 8.5 / (2.0 * 0.85)
+    assert ctrl._charge_delay_status["charge_time_h"] == expected
