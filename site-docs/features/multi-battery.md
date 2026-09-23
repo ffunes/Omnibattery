@@ -1,162 +1,198 @@
-# Multi-battery management
+# Multiple batteries
 
-The integration manages up to **10 batteries** as an aggregated system, distributing power intelligently to maximise efficiency.
+Omnibattery coordinates all configured batteries as one system while keeping per-battery limits and controls. It chooses which batteries should participate, then shares the requested power among those that are eligible.
 
-## Efficiency principle
+## Do I need it?
 
-Based on measured Venus efficiency curves, batteries are activated only when total power exceeds the **efficiency crossover point** — the wattage at which splitting load across two batteries becomes more efficient than running one alone. Running fewer batteries at higher power is more efficient than spreading the same load across all of them.
+**Use it if** you have more than one supported battery and want one grid target, coordinated power limits, and clear control over which battery may charge or discharge.
 
-The crossover points (derived from η external measurements) are:
+**You do not need it if** your installation has one battery. The system aggregate entities still mirror that battery.
 
-| Direction | Crossover | % of 2500 W physical max |
-|---|---:|---:|
-| Discharge | 1500 W | 60 % |
-| Charge | 1750 W | 70 % |
+## Before you start
 
-The activation threshold is computed dynamically as `crossover_W ÷ configured_max_W`, clamped to [50 %, 95 %]. This means users who configure a lower power limit per battery activate additional batteries later (closer to their configured max), which correctly reflects that their operating range stays within the single-battery efficiency peak.
+- Add every battery to the same Omnibattery config entry. A config entry supports up to **10 batteries**.
+- Confirm that each battery updates reliably and reports state of charge (SOC) and power.
+- Decide whether any battery needs manual control or should be excluded from one direction.
 
-The following measurements show DC power consumption/output, AC power at the meter (internal clamp) and at the wall outlet (external clamp), and the resulting efficiency at each power level:
+## How to enable it
 
-**Charging**
+1. Open **Settings → Devices & services → Omnibattery → Configure**.
+2. Add or review each battery in the battery setup section.
+3. Finish the form and let the integration reload.
+4. Open the Omnibattery panel and review **Allow Charge**, **Allow Discharge**, **Manual Battery Control**, **Primary Battery**, and **Charge Priority**.
 
-| % of max | Setpoint (W) | DC internal (W) | AC internal (W) | AC external (W) | η internal | η external |
-|---:|---:|---:|---:|---:|---:|---:|
-| 3 % | 63 | 41 | 58 | 68 | 70.7 % | 60.3 % |
-| 5 % | 125 | 105 | 123 | 136 | 85.4 % | 77.2 % |
-| 10 % | 250 | 232 | 247 | 262 | 93.9 % | 88.5 % |
-| 15 % | 375 | 357 | 372 | 387 | 96.0 % | 92.2 % |
-| 20 % | 500 | 481 | 497 | 513 | 96.8 % | 93.8 % |
-| 25 % | 625 | 604 | 621 | 639 | 97.3 % | 94.5 % |
-| 30 % | 750 | 727 | 743 | 766 | 97.8 % | 94.9 % |
-| 35 % | 875 | 850 | 871 | 892 | 97.6 % | 95.3 % |
-| 40 % | 1000 | 973 | 995 | 1019 | 97.8 % | 95.5 % |
-| 45 % | 1125 | 1095 | 1120 | 1146 | 97.8 % | 95.5 % |
-| 50 % | 1250 | 1245 | 1271 | 1274 | 98.0 % | 97.7 % |
-| 55 % | 1375 | 1339 | 1369 | 1401 | 97.8 % | 95.6 % |
-| 60 % | 1500 | 1460 | 1494 | 1530 | 97.7 % | 95.4 % |
-| 65 % | 1625 | 1581 | 1618 | 1658 | 97.7 % | 95.4 % |
-| 70 % | 1750 | 1702 | 1743 | 1786 | 97.6 % | 95.3 % |
-| 75 % | 1875 | 1823 | 1868 | 1916 | 97.6 % | 95.1 % |
-| 80 % | 2000 | 1942 | 1992 | 2044 | 97.5 % | 95.0 % |
-| 85 % | 2125 | 2062 | 2117 | 2175 | 97.4 % | 94.8 % |
-| 90 % | 2250 | 2183 | 2242 | 2304 | 97.4 % | 94.7 % |
-| 95 % | 2375 | 2304 | 2366 | 2436 | 97.4 % | 94.6 % |
-| 100 % | 2500 | 2424 | 2491 | 2567 | 97.3 % | 94.4 % |
+This behavior is automatic when the config entry contains multiple batteries; there is no separate multi-battery switch.
 
-**Discharging**
+![Multi-battery state in Home Assistant](../assets/screenshots/features/multi-battery-entities.png){ width="700" style="display: block; margin: 0 auto;" }
 
-| % of max | Setpoint (W) | DC internal (W) | AC internal (W) | AC external (W) | η internal | η external |
-|---:|---:|---:|---:|---:|---:|---:|
-| 3 % | 63 | 80 | 63 | 60 | 78.8 % | 75.0 % |
-| 5 % | 125 | 160 | 124 | 118 | 77.5 % | 73.8 % |
-| 10 % | 250 | 284 | 249 | 243 | 87.7 % | 85.6 % |
-| 15 % | 375 | 416 | 373 | 368 | 89.7 % | 88.5 % |
-| 20 % | 500 | 550 | 498 | 494 | 90.5 % | 89.8 % |
-| 25 % | 625 | 685 | 623 | 619 | 90.9 % | 90.4 % |
-| 30 % | 750 | 820 | 747 | 745 | 91.1 % | 90.9 % |
-| 35 % | 875 | 956 | 872 | 870 | 91.2 % | 91.0 % |
-| 40 % | 1000 | 1092 | 997 | 996 | 91.3 % | 91.2 % |
-| 45 % | 1125 | 1230 | 1121 | 1121 | 91.1 % | 91.1 % |
-| 50 % | 1250 | 1369 | 1246 | 1246 | 91.0 % | 91.0 % |
-| 55 % | 1375 | 1507 | 1370 | 1372 | 90.9 % | 91.0 % |
-| 60 % | 1500 | 1647 | 1495 | 1497 | 90.8 % | 90.9 % |
-| 65 % | 1625 | 1789 | 1620 | 1623 | 90.6 % | 90.7 % |
-| 70 % | 1750 | 1931 | 1745 | 1748 | 90.4 % | 90.5 % |
-| 75 % | 1875 | 2073 | 1869 | 1874 | 90.2 % | 90.4 % |
-| 80 % | 2000 | 2218 | 1994 | 1999 | 89.9 % | 90.1 % |
-| 85 % | 2125 | 2362 | 2118 | 2124 | 89.7 % | 89.9 % |
-| 90 % | 2250 | 2508 | 2243 | 2250 | 89.4 % | 89.7 % |
-| 95 % | 2375 | 2654 | 2368 | 2375 | 89.2 % | 89.5 % |
-| 100 % | 2500 | 2801 | 2492 | 2501 | 89.0 % | 89.3 % |
+## What you will see
 
-## Selection priorities
+**Active Batteries** identifies the batteries currently charging, discharging, idle, or manually owned. **Non-Responsive Batteries** identifies temporary exclusions. **Integration Status** exposes global and per-battery blockers.
 
-### Discharge
+Each battery has **Allow Charge**, **Allow Discharge**, and **Manual Battery Control**. Multi-battery installations also expose **Primary Battery** and **Charge Priority**. Optional **System Max Charge Power** and **System Max Discharge Power** cap the combined request when system power limits are configured.
 
-**Highest SOC first**: the most charged battery discharges first to balance the state of charge across the system.
+Automatic selection normally prefers higher SOC for discharge and lower SOC for charge. A battery can remain idle while another works; this is expected when one unit can serve the request more efficiently.
 
-### Charging
+## If it does not work
 
-**Lowest SOC first**: the least charged battery receives energy first.
-
-## Hysteresis
-
-To avoid "ping-pong" activation/deactivation, three hysteresis levels are applied:
-
-| Hysteresis | Value | Description |
+| Symptom | Likely cause | What to check |
 |---|---|---|
-| **SOC** | 5 % | An active battery stays active until another exceeds it by 5% SOC |
-| **Lifetime energy** | 2.5 kWh | Breaks SOC ties using accumulated lifetime energy with an advantage for the active battery |
-| **Power** | 10 pp | Activation threshold derived from efficiency crossover; deactivation = activation − 10 percentage points |
+| One battery never participates | Direction disabled, manual ownership, SOC priority, or a limit | **Active Batteries**, Allow switches, manual mode, and per-battery blockers |
+| A battery disappears temporarily | Communication or delivered-power failure | **Non-Responsive Batteries** and Home Assistant **Repairs** |
+| Combined power is lower than expected | System cap or per-battery limit | System and battery power-limit entities |
+| Batteries repeatedly swap roles | Meter noise or selection hysteresis near a boundary | **PD Control Quality**, SOC values, and the controller profile |
+| Manual battery fights automatic control | Manual ownership was not enabled | Turn on **Manual Battery Control** before writing raw setpoints |
 
-## Power distribution
+See [troubleshooting](../troubleshooting.md) for symptom-led checks.
 
-Once active batteries are selected, the total power calculated by the [PD controller](pd-controller.md) is distributed among them proportionally, respecting each battery's individual power and SOC limits.
+??? "Advanced details"
+    ## Efficiency principle
 
-Optional system-wide caps can also be configured in **Advanced PD controller** after enabling **Enable system power limits**:
+    Based on measured Venus efficiency curves, batteries are activated only when total power exceeds the **efficiency crossover point** — the wattage at which splitting load across two batteries becomes more efficient than running one alone. Running fewer batteries at higher power is more efficient than spreading the same load across all of them.
 
-| Setting | Effect |
-|---|---|
-| `System Max Charge Power` | Caps the combined charge power across all active batteries |
-| `System Max Discharge Power` | Caps the combined discharge power across all active batteries |
+    The crossover points (derived from η external measurements) are:
 
-Set either value to `0 W` to disable that direction's cap. These limits are applied after per-battery eligibility is determined and before power is distributed, so one battery can still use its full individual limit when it is the only active battery. If several batteries are active, the combined total is throttled to the configured system cap. The corresponding runtime slider entities are only created when the feature is enabled.
+    | Direction | Crossover | % of 2500 W physical max |
+    |---|---:|---:|
+    | Discharge | 1500 W | 60 % |
+    | Charge | 1750 W | 70 % |
 
-## Per-battery charge/discharge controls
+    The activation threshold is computed dynamically as `crossover_W ÷ configured_max_W`, clamped to [50 %, 95 %]. This means users who configure a lower power limit per battery activate additional batteries later (closer to their configured max), which correctly reflects that their operating range stays within the single-battery efficiency peak.
 
-Each battery exposes two software switches:
+    The following measurements show DC power consumption/output, AC power at the meter (internal clamp) and at the wall outlet (external clamp), and the resulting efficiency at each power level:
 
-| Switch | Effect |
-|--------|--------|
-| `Allow Charge` | When turned off, this battery is excluded from automatic charging. It may still discharge if `Allow Discharge` is turned on. |
-| `Allow Discharge` | When turned off, this battery is excluded from automatic discharging. It may still charge if `Allow Charge` is turned on. |
+    **Charging**
 
-These switches do not write Modbus control registers directly. They only affect the integration's automatic PD controller. If a battery is active in the disabled direction, the integration sends that battery to `0 W` and the next control cycle reallocates power to the remaining eligible batteries.
+    | % of max | Setpoint (W) | DC internal (W) | AC internal (W) | AC external (W) | η internal | η external |
+    |---:|---:|---:|---:|---:|---:|---:|
+    | 3 % | 63 | 41 | 58 | 68 | 70.7 % | 60.3 % |
+    | 5 % | 125 | 105 | 123 | 136 | 85.4 % | 77.2 % |
+    | 10 % | 250 | 232 | 247 | 262 | 93.9 % | 88.5 % |
+    | 15 % | 375 | 357 | 372 | 387 | 96.0 % | 92.2 % |
+    | 20 % | 500 | 481 | 497 | 513 | 96.8 % | 93.8 % |
+    | 25 % | 625 | 604 | 621 | 639 | 97.3 % | 94.5 % |
+    | 30 % | 750 | 727 | 743 | 766 | 97.8 % | 94.9 % |
+    | 35 % | 875 | 850 | 871 | 892 | 97.6 % | 95.3 % |
+    | 40 % | 1000 | 973 | 995 | 1019 | 97.8 % | 95.5 % |
+    | 45 % | 1125 | 1095 | 1120 | 1146 | 97.8 % | 95.5 % |
+    | 50 % | 1250 | 1245 | 1271 | 1274 | 98.0 % | 97.7 % |
+    | 55 % | 1375 | 1339 | 1369 | 1401 | 97.8 % | 95.6 % |
+    | 60 % | 1500 | 1460 | 1494 | 1530 | 97.7 % | 95.4 % |
+    | 65 % | 1625 | 1581 | 1618 | 1658 | 97.7 % | 95.4 % |
+    | 70 % | 1750 | 1702 | 1743 | 1786 | 97.6 % | 95.3 % |
+    | 75 % | 1875 | 1823 | 1868 | 1916 | 97.6 % | 95.1 % |
+    | 80 % | 2000 | 1942 | 1992 | 2044 | 97.5 % | 95.0 % |
+    | 85 % | 2125 | 2062 | 2117 | 2175 | 97.4 % | 94.8 % |
+    | 90 % | 2250 | 2183 | 2242 | 2304 | 97.4 % | 94.7 % |
+    | 95 % | 2375 | 2304 | 2366 | 2436 | 97.4 % | 94.6 % |
+    | 100 % | 2500 | 2424 | 2491 | 2567 | 97.3 % | 94.4 % |
 
-The state is stored per battery as `allow_charge` and `allow_discharge`. Missing values default to enabled, so existing installations keep their previous behavior after updating.
+    **Discharging**
 
-## Manual control per battery
+    | % of max | Setpoint (W) | DC internal (W) | AC internal (W) | AC external (W) | η internal | η external |
+    |---:|---:|---:|---:|---:|---:|---:|
+    | 3 % | 63 | 80 | 63 | 60 | 78.8 % | 75.0 % |
+    | 5 % | 125 | 160 | 124 | 118 | 77.5 % | 73.8 % |
+    | 10 % | 250 | 284 | 249 | 243 | 87.7 % | 85.6 % |
+    | 15 % | 375 | 416 | 373 | 368 | 89.7 % | 88.5 % |
+    | 20 % | 500 | 550 | 498 | 494 | 90.5 % | 89.8 % |
+    | 25 % | 625 | 685 | 623 | 619 | 90.9 % | 90.4 % |
+    | 30 % | 750 | 820 | 747 | 745 | 91.1 % | 90.9 % |
+    | 35 % | 875 | 956 | 872 | 870 | 91.2 % | 91.0 % |
+    | 40 % | 1000 | 1092 | 997 | 996 | 91.3 % | 91.2 % |
+    | 45 % | 1125 | 1230 | 1121 | 1121 | 91.1 % | 91.1 % |
+    | 50 % | 1250 | 1369 | 1246 | 1246 | 91.0 % | 91.0 % |
+    | 55 % | 1375 | 1507 | 1370 | 1372 | 90.9 % | 91.0 % |
+    | 60 % | 1500 | 1647 | 1495 | 1497 | 90.8 % | 90.9 % |
+    | 65 % | 1625 | 1789 | 1620 | 1623 | 90.6 % | 90.7 % |
+    | 70 % | 1750 | 1931 | 1745 | 1748 | 90.4 % | 90.5 % |
+    | 75 % | 1875 | 2073 | 1869 | 1874 | 90.2 % | 90.4 % |
+    | 80 % | 2000 | 2218 | 1994 | 1999 | 89.9 % | 90.1 % |
+    | 85 % | 2125 | 2362 | 2118 | 2124 | 89.7 % | 89.9 % |
+    | 90 % | 2250 | 2508 | 2243 | 2250 | 89.4 % | 89.7 % |
+    | 95 % | 2375 | 2654 | 2368 | 2375 | 89.2 % | 89.5 % |
+    | 100 % | 2500 | 2801 | 2492 | 2501 | 89.0 % | 89.3 % |
 
-Each battery also exposes `switch.*_battery_manual_mode`. When enabled, Omnibattery first sends and verifies a `0 W` command, clears the integration's software force mode and power setpoints, and removes that battery from the automatic pool. The switch state is persisted per battery, so the exclusion survives a restart. The battery continues to be polled and remains included in physical battery/grid telemetry, but it receives no automatic power setpoints; driver and BMS safety handling remains active.
+    ## Selection priorities
 
-Turning the switch off keeps the battery under manual ownership while the final idle command is verified. Only then is it returned to the automatic pool and an immediate control cycle scheduled. If the idle handoff fails, the switch stays enabled and the battery remains manual.
+    ### Discharge
 
-On register-backed drivers (Marstek, ESPHome) the raw `Force Mode`, `Set Charge Power` and `Set Discharge Power` entities write the device registers directly, and the control loop re-asserts those registers every cycle. Writing them while the battery is under automatic control is therefore refused with an error pointing at Manual Mode, instead of being accepted and reverted a second later. Turning on either the global `Manual Mode` switch or this battery's `Battery Manual Mode` switch releases the guard. Battery configuration registers such as the SOC cutoffs and power caps are not affected.
+    **Highest SOC first**: the most charged battery discharges first to balance the state of charge across the system.
 
-This control is independent from the global `Manual Mode` switch. For example, with two batteries, battery A can be left in manual mode at a user-selected power while battery B remains automatic. If B is already charging, the PD controller includes A's measured AC grid charge so B reduces its own charge and the meter remains at zero. Once the automatic batteries are no longer charging, A's intentional grid charge is excluded from feedback so B does not discharge to compensate it. DC-coupled solar power is not included when the driver exposes a separate AC-power reading.
+    ### Charging
 
-## Unified blocker registry
+    **Lowest SOC first**: the least charged battery receives energy first.
 
-Charge and discharge permissions are resolved through a runtime blocker registry. Blockers can be system-wide or scoped to one battery. The controller checks this registry before deadband and stale-sensor early returns, so an active command is stopped as soon as a blocker appears.
+    ## Hysteresis
 
-Global blockers include solar charge delay, time-slot charge/discharge rules, price-based discharge control, and EV charger no-telemetry pauses. Per-battery blockers include the `Allow Charge` and `Allow Discharge` switches, maximum SOC, minimum SOC, and charge hysteresis. Other availability checks such as backup/off-grid exclusion and non-responsive exclusion remain separate from the blocker registry.
+    To avoid "ping-pong" activation/deactivation, three hysteresis levels are applied:
 
-The top-level `charge_blocked` and `discharge_blocked` attributes report the effective system state: they become `true` when a global blocker is active or when every known battery is blocked in that direction. Per-battery details remain visible in `battery_charge_blockers` and `battery_discharge_blockers`.
+    | Hysteresis | Value | Description |
+    |---|---|---|
+    | **SOC** | 5 % | An active battery stays active until another exceeds it by 5% SOC |
+    | **Lifetime energy** | 2.5 kWh | Breaks SOC ties using accumulated lifetime energy with an advantage for the active battery |
+    | **Power** | 10 pp | Activation threshold derived from efficiency crossover; deactivation = activation − 10 percentage points |
 
-The registry is exposed on the `Integration Status` diagnostic sensor through these attributes:
+    ## Power distribution
 
-- `charge_blocked`
-- `discharge_blocked`
-- `charge_blockers`
-- `discharge_blockers`
-- `battery_charge_blockers`
-- `battery_discharge_blockers`
+    Once active batteries are selected, the total power calculated by the [PD controller](pd-controller.md) is distributed among them proportionally, respecting each battery's individual power and SOC limits. The same selection and distribution logic applies whenever the integration requests power from the fleet, not only during normal grid-following control — this includes solar charging and predictive/grid charging.
 
-## Non-responsive battery exclusion
+    Optional system-wide caps can also be configured in **Advanced PD controller** after enabling **Enable system power limits**:
 
-When a battery consistently fails to deliver the commanded power — for example due to a Modbus communication glitch or a firmware self-protection response — the integration detects this and temporarily removes it from the active pool.
+    | Setting | Effect |
+    |---|---|
+    | `System Max Charge Power` | Caps the combined charge power across all active batteries |
+    | `System Max Discharge Power` | Caps the combined discharge power across all active batteries |
 
-A battery is flagged as non-responsive when its measured output is below 5% of the commanded setpoint for **3 consecutive control cycles**. Once flagged, it enters a **5-minute exclusion window** during which it receives no new commands and the remaining batteries absorb its share of the load. After the window expires the fail counter resets and the battery becomes eligible again.
+    Set either value to `0 W` to disable that direction's cap. These limits are applied after per-battery eligibility is determined and before power is distributed, so one battery can still use its full individual limit when it is the only active battery. If several batteries are active, the combined total is throttled to the configured system cap. The corresponding runtime slider entities are only created when the feature is enabled.
 
-Discharge refusals at low SOC are exempt. At or below **20% SOC** (or just above the configured minimum SOC), the BMS can cut discharge on its own — for example a weak cell sagging under load — even though the reported SOC is still above the minimum. The battery then acknowledges the command but delivers 0 W; this is treated as an expected BMS cutoff rather than a fault, so it stays in the pool. This mirrors the high-SOC BMS-cutoff handling on the charge side.
+    ## Per-battery charge/discharge controls
 
-This mechanism prevents a single misbehaving battery from silently degrading system performance without raising alarms or requiring manual intervention.
+    Each battery exposes two software switches:
 
-## Compatible modes
+    | Switch | Effect |
+    |--------|--------|
+    | `Allow Charge` | When turned off, this battery is excluded from automatic charging. It may still discharge if `Allow Discharge` is turned on. |
+    | `Allow Discharge` | When turned off, this battery is excluded from automatic discharging. It may still charge if `Allow Charge` is turned on. |
 
-Multi-battery distribution applies in all modes:
-- Normal PD control
-- Solar charging
-- Predictive grid charging
+    These switches do not write Modbus control registers directly. They only affect the integration's automatic PD controller. If a battery is active in the disabled direction, the integration sends that battery to `0 W` and the next control cycle reallocates power to the remaining eligible batteries.
 
-![Multi-battery state in Home Assistant](../assets/screenshots/features/multi-battery-entities.png){ width="700"  style="display: block; margin: 0 auto;"}
+    The state is stored per battery as `allow_charge` and `allow_discharge`. Missing values default to enabled, so existing installations keep their previous behavior after updating.
+
+    ## Manual control per battery
+
+    Each battery also exposes `switch.*_battery_manual_mode`. When enabled, Omnibattery first sends and verifies a `0 W` command, clears the integration's software force mode and power setpoints, and removes that battery from the automatic pool. The switch state is persisted per battery, so the exclusion survives a restart. The battery continues to be polled and remains included in physical battery/grid telemetry, but it receives no automatic power setpoints; driver and BMS safety handling remains active.
+
+    Turning the switch off keeps the battery under manual ownership while the final idle command is verified. Only then is it returned to the automatic pool and an immediate control cycle scheduled. If the idle handoff fails, the switch stays enabled and the battery remains manual.
+
+    On register-backed drivers (Marstek, ESPHome) the raw `Force Mode`, `Set Charge Power` and `Set Discharge Power` entities write the device registers directly, and the control loop re-asserts those registers every cycle. Writing them while the battery is under automatic control is therefore refused with an error pointing at Manual Mode, instead of being accepted and reverted a second later. Turning on either the global `Manual Mode` switch or this battery's `Battery Manual Mode` switch releases the guard. Battery configuration registers such as the SOC cutoffs and power caps are not affected.
+
+    This control is independent from the global `Manual Mode` switch. For example, with two batteries, battery A can be left in manual mode at a user-selected power while battery B remains automatic. If B is already charging, the PD controller includes A's measured AC grid charge so B reduces its own charge and the meter remains at zero. Once the automatic batteries are no longer charging, A's intentional grid charge is excluded from feedback so B does not discharge to compensate it. DC-coupled solar power is not included when the driver exposes a separate AC-power reading.
+
+    ## Unified blocker registry
+
+    Charge and discharge permissions are resolved through a runtime blocker registry. Blockers can be system-wide or scoped to one battery. The controller checks this registry before deadband and stale-sensor early returns, so an active command is stopped as soon as a blocker appears.
+
+    Global blockers include solar charge delay, time-slot charge/discharge rules, price-based discharge control, and EV charger no-telemetry pauses. Per-battery blockers include the `Allow Charge` and `Allow Discharge` switches, maximum SOC, minimum SOC, and charge hysteresis. Other availability checks such as backup/off-grid exclusion and non-responsive exclusion remain separate from the blocker registry.
+
+    The top-level `charge_blocked` and `discharge_blocked` attributes report the effective system state: they become `true` when a global blocker is active or when every known battery is blocked in that direction. Per-battery details remain visible in `battery_charge_blockers` and `battery_discharge_blockers`.
+
+    The registry is exposed on the `Integration Status` diagnostic sensor through these attributes:
+
+    - `charge_blocked`
+    - `discharge_blocked`
+    - `charge_blockers`
+    - `discharge_blockers`
+    - `battery_charge_blockers`
+    - `battery_discharge_blockers`
+
+    ## Non-responsive battery exclusion
+
+    When a battery consistently fails to deliver the commanded power — for example due to a Modbus communication glitch or a firmware self-protection response — the integration detects this and temporarily removes it from the active pool.
+
+    A battery is flagged as non-responsive when its measured output is below 5% of the commanded setpoint for **3 consecutive control cycles**. Once flagged, it enters a **5-minute exclusion window** during which it receives no new commands and the remaining batteries absorb its share of the load. After the window expires the fail counter resets and the battery becomes eligible again.
+
+    Discharge refusals at low SOC are exempt. At or below **20% SOC** (or just above the configured minimum SOC), the BMS can cut discharge on its own — for example a weak cell sagging under load — even though the reported SOC is still above the minimum. The battery then acknowledges the command but delivers 0 W; this is treated as an expected BMS cutoff rather than a fault, so it stays in the pool. This mirrors the high-SOC BMS-cutoff handling on the charge side.
+
+    This mechanism prevents a single misbehaving battery from silently degrading system performance without raising alarms or requiring manual intervention.
+

@@ -1,138 +1,153 @@
-# Troubleshooting
+# Troubleshooting by symptom
 
-## Dynamic Pricing reports a deadline shortfall
+Start with what you can see in Home Assistant. **Integration Status** and its blocker attributes usually explain why Omnibattery is waiting, limiting power, or excluding a battery.
 
-Check `energy_horizon_end`, `overnight_consumption_kwh`, `deadline_shortfall_kwh`, `earliest_projected_depletion`, `slot_deadlines` and `chronological_plan_reason` on `binary_sensor.omnibattery_predictive_charging_active`. A shortfall means the best physically feasible plan cannot deliver all required energy before the projected minimum-SOC crossing, including demand after midnight through the next sunrise. Common causes are an explicit maximum-price threshold, no eligible slot before the deadline, insufficient charging power, battery headroom or manual/time-slot ownership. A later cheap slot is deliberately not shown as covering an earlier need. The integration continues normal control and never bypasses explicit safety limits.
+!!! note "Marstek app compatibility"
+    You do not need to change anything in the Marstek app for Omnibattery to work, including its energy meter setting. Once Omnibattery is running, do not change the operating mode or a setting from the Marstek app: doing so breaks compatibility until you disable and re-enable the integration.
 
-## Marstek app compatibility
+## Battery does nothing
 
-You do **not** need to make any changes in the Marstek app for the integration to work — including disabling the energy meter setting or changing any configuration. The integration works alongside the app without requiring any app-side adjustments.
+The battery may be idle by design when the grid is already near target. If household load changes and the battery still neither charges nor discharges, use this table.
 
-However, **do not change any operating mode or setting from the Marstek app while the Home Assistant integration is running**. Doing so will break compatibility, and you will need to disable and re-enable the integration to restore normal operation.
+| Likely cause | What to check | Action |
+|---|---|---|
+| Automatic control is paused | **Manual Mode** and per-battery **Manual Battery Control** | Turn off manual ownership when you want automatic control |
+| The battery is not eligible | **Allow Charge**, **Allow Discharge**, and `battery_charge_blockers` / `battery_discharge_blockers` on **Integration Status** | Enable the required direction or remove the reported blocker |
+| The battery is unavailable or excluded | Battery entities, **Non-Responsive Batteries**, and Home Assistant **Repairs** | Follow [Entities are unavailable](#entities-are-unavailable) |
+| A backup output is active | **Backup Function**, backup power, and `backup_cooldown_batteries` | Let backup activity finish before expecting grid control |
+| The grid meter is invalid | Main grid sensor state and update time | Follow [Grid meter is unavailable or frozen](#grid-meter-is-unavailable-or-frozen) |
 
----
+**Expected result:** **Integration Status** changes from a blocked/manual state to charging, discharging, or standby as grid flow changes. See [multiple batteries](features/multi-battery.md) for per-battery ownership.
 
-## Battery does not respond to commands
+## Battery does not charge
 
-1. Verify that the Modbus TCP converter (Elfin-EW11 or similar) is reachable by IP from Home Assistant.
-2. Check that the configured port is correct (default `502`).
-3. Make sure the **RS485 Control Mode** switch is enabled.
-4. Ensure the configured battery version matches the actual hardware.
+| Likely cause | What to check | Action |
+|---|---|---|
+| Maximum SOC or charge hysteresis reached | `battery_charge_blockers`, charging cutoff/target SOC, and **Charge Hysteresis** | Lower the target only if intentional; otherwise wait for SOC to fall |
+| Charging is disabled for this battery | **Allow Charge** | Turn it on |
+| Charge Delay is waiting for solar | **Charge Delay** and **Charge Delay Status** | Review [solar charge delay](features/solar-charge-delay.md) |
+| A time slot blocks charging | **Discharge Window**, time-slot switches, and `charge_blockers` | Review [time slots](configuration/time-slots.md) |
+| Predictive charging found no deficit | **Predictive Charging Active**, its reason, forecast, and consumption estimate | This is expected; review [predictive charging](configuration/predictive-charging/index.md) |
+| Temperature or battery protection limits charging | **Integration Status**, temperature status, battery alarm, and fault entities | Review [temperature charge limit](features/temperature-charge-limit.md) and the battery manual |
 
-!!! note "Delay for v3/vA/vD"
-    v3, vA and vD batteries require at least 150 ms between consecutive Modbus messages. The integration applies this automatically based on the configured version.
+**Expected result:** the blocker disappears and charge power rises when surplus solar, a manual request, or an eligible predictive period requires charging.
 
----
+## Battery does not discharge
 
-## PD controller oscillates
+| Likely cause | What to check | Action |
+|---|---|---|
+| Minimum SOC reached | `battery_discharge_blockers` and the battery minimum SOC | Wait for charging or adjust the limit deliberately |
+| Discharging is disabled | **Allow Discharge** | Turn it on |
+| Current time slot blocks discharge | **Discharge Window** and time-slot switches | Review [time slots](configuration/time-slots.md) |
+| Price or reserve control is holding energy | **Integration Status**, **Price-Based Discharge**, **Discharge Reserve**, and related statuses | Review [Dynamic Pricing](configuration/predictive-charging/dynamic-pricing.md) |
+| Capacity protection or excluded-load logic owns the response | **Capacity Protection**, active excluded devices, and blockers | Review [capacity protection](features/peak-shaving.md) and [load exclusion](features/load-exclusion.md) |
+| Battery is unavailable or excluded | **Non-Responsive Batteries** and Home Assistant **Repairs** | Follow [Entities are unavailable](#entities-are-unavailable) |
 
-The system continuously switches between charging and discharging.
+**Expected result:** discharge resumes when household demand exists and no safety, schedule, price, or participation rule blocks it.
 
-**Possible causes and solutions:**
+## Imports or exports more than expected
 
-| Cause | Solution |
-|---|---|
-| Deadband too small | The default ±40 W is appropriate for most installations |
-| Grid sensor with high latency | Use a sensor with frequent updates (1–2 s) |
-| Loads with sudden start-up | Configure the load as an [excluded device](configuration/excluded-devices.md) |
+| Likely cause | What to check | Action |
+|---|---|---|
+| Grid-meter sign is reversed | Compare the configured grid sensor with the utility meter while importing | Correct **Invert grid meter** in [main sensor configuration](configuration/main-sensor.md) |
+| Grid target is intentionally non-zero | **PD Target Grid Power** | Set the target that matches your intended import or export |
+| Meter updates arrive late | Grid sensor `last_updated` and **PD Control Quality** | Use a faster local meter or tune the controller after fixing latency |
+| A large load is excluded | Excluded-device state and its exclusion controls | Review [load exclusion](features/load-exclusion.md) |
+| Phase protection limits one or more batteries | **Three-Phase Protection Status** and phase assignment | Review [three-phase protection](configuration/three-phase.md) |
+| AC and cell power describe different points | **AC Power**, **Battery Cell Power**, and solar inputs | Use **Home Consumption** and the correct power entity for the task |
 
----
+**Expected result:** grid flow settles around the configured target after the meter and battery have reacted. Small short-lived errors can be normal.
 
-## Battery alarm or fault notification received
+## Entities are unavailable
 
-The integration monitors the battery's `Alarm Status` and `Fault Status` registers (v2 only) every 5 seconds. When a new bit is set a persistent notification appears in Home Assistant with the exact condition name (e.g. *BAT Overvoltage*, *Fan Abnormal Warning*). The notification is automatically dismissed once all conditions clear.
+| Likely cause | What to check | Action |
+|---|---|---|
+| Host, port, slave ID, or battery model is wrong | Integration entry and battery-specific setup | Correct the connection in the relevant [battery guide](configuration/batteries/index.md) |
+| Marstek RS-485 control is off | **RS485 Control Mode** | Enable it before sending control commands |
+| Gateway or bridge is offline | Gateway, ESPHome, MQTT, or API device status | Restore the local connection and reload the integration if needed |
+| Driver rejected repeated reads or writes | Home Assistant **Repairs**, logs, and **Non-Responsive Batteries** | Follow the Repair instructions; attach diagnostics if it repeats |
+| An old entity belongs to a previous driver | Entity registry device and integration | Remove the stale unavailable entity if the current driver has created its replacement |
 
-**Notification severity levels:**
+**Expected result:** the coordinator updates and supported entities return to numeric or named states. For Marstek protocol details, see the [Modbus overview](reference/modbus-registers.md).
 
-| Title prefix | Meaning |
-|---|---|
-| 🚨 Battery Fault | At least one fault bit is active — requires immediate attention |
-| ⚠️ Battery Warning | At least one alarm bit is active — monitor the situation |
+## Grid meter is unavailable or frozen
 
-**What to do when you receive a notification:**
+!!! warning "An unavailable meter can leave the last battery command active"
+    When the grid sensor becomes `unavailable` or `unknown`, the control loop sends no new command. A battery can therefore continue at its last requested power — for example 2000 W discharge — until meter data returns. There is no automatic timeout that ramps the battery to idle; only SOC and other safety limits still apply.
 
-1. Check the **`System Alarm Status`** sensor on the *Omnibattery System* device — its attributes list which battery is affected and what conditions are active.
-2. Check the individual **Alarm Status** and **Fault Status** sensors on the affected battery device for the full current state.
-3. Consult the Marstek Venus documentation or the Marstek app for the specific fault code.
-4. If the condition does not clear automatically, consider restarting the battery or contacting Marstek support.
+| Likely cause | What to check | Action |
+|---|---|---|
+| Wi-Fi or broker connection failed | Meter integration, MQTT broker, and sensor availability | Restore connectivity before relying on automatic control |
+| Sensor value stopped changing | `last_updated` while household power changes | Restart or repair the source integration |
+| Wrong entity was selected | Configured main grid sensor | Select the net grid-power entity described in [main sensor configuration](configuration/main-sensor.md) |
+| Shelly publishes too slowly | MQTT sensor update cadence | Use the matching [Shelly Pro 3EM MQTT script](hardware/shelly-pro-3em-mqtt-script.md) |
 
-!!! note "v2 batteries only"
-    Alarm and fault register monitoring is only available for v2 hardware. v3, vA and vD batteries do not expose these registers via Modbus.
+For up to 65 seconds after the last reading, the frozen value is still treated as authoritative. Past that point the controller may perform a safety recalculation with the derivative term suppressed, still using the stale value; it is safer to restore the source promptly rather than rely on this.
 
----
+## Keeps oscillating between charge and discharge
 
-## Predictive charging does not activate
+| Likely cause | What to check | Action |
+|---|---|---|
+| Control is too aggressive | **PD Control Quality**, tuning profile, deadband, and derivative setting | Select a smoother profile or increase deadband in [follow home consumption](features/pd-controller.md) |
+| Grid sensor is noisy or delayed | Sensor graph and update intervals | Fix the meter source before further tuning |
+| A pulsing load repeatedly crosses the target | Load history and excluded-device status | Configure it through [load exclusion](features/load-exclusion.md) |
+| Relay minimum power causes repeated starts | Minimum charge/discharge power and relay timing controls | Review the actuator settings in [follow home consumption](features/pd-controller.md) |
 
-1. Verify that the solar forecast sensor is available and has a value.
-2. Check the `price_data_status` attribute of the `predictive_charging_active` sensor (Dynamic Pricing mode).
-3. Review HA notifications: the 00:05 evaluation reports its result.
-4. Make sure the energy balance actually requires charging (there may already be enough energy).
+**Expected result:** **PD Control Quality** becomes stable after the controller has observed enough normal operation.
 
-### The consumption source says `legacy_daily`
+## Did not charge overnight
 
-This is expected while the 28-day profile is learning or when the requested
-intervals do not meet its coverage contract. Check
-`sensor.omnibattery_expected_home_consumption_profile` and the integration
-diagnostics endpoint. Changing a source or an excluded-load adjustment keeps
-every learned day, and a timezone change re-bins them by the offset between the
-two zones; Recorder backfill then rebuilds whatever is still missing in the
-background. A gap longer than five minutes is not interpolated.
+| Likely cause | What to check | Action |
+|---|---|---|
+| No energy deficit was forecast | **Predictive Charging Active** reason and target energy | No action is needed if stored energy and forecast solar cover demand |
+| Price or forecast data is missing | `price_data_status`, solar forecast, and source entity availability | Restore the source described by your [predictive mode](configuration/predictive-charging/index.md) |
+| No eligible period exists before demand | `chronological_plan_reason`, deadlines, selected slots, and time-slot switches | Adjust the schedule or price ceiling |
+| Charge power or free capacity is insufficient | `deadline_shortfall_kwh`, battery SOC, charge limit, and target SOC | Increase an intentional limit or accept the reported shortfall |
+| Another feature owned charging | `charge_blockers`, manual mode, charge delay, or time-slot state | Remove the conflicting rule |
 
-### The solar profile remains immature or falls back
+**Expected result:** the diagnostic sensor either shows a feasible grid-charge plan or clearly reports why charging is unnecessary or physically impossible. See [Dynamic Pricing](configuration/predictive-charging/dynamic-pricing.md) or [Time Slot mode](configuration/predictive-charging/time-slot.md).
 
-This is safe and expected during the first days. Learning requires direct PV
-power from the configured external sensor or readable MPPT channels, at least
-seven closed quality days, recent coverage and enough evidence in the requested
-future range. Invalid, negative and long-gap samples are excluded. Curtailment
-signals can exclude intervals, and a source or capacity change starts a new
-generation. Check the `solar_profile` diagnostics section and
-`solar_timeline_fallback_reason`; the profile does not repair a bad weather
-forecast or model unobservable curtailment.
+??? "Consumption source shows `legacy_daily`, or the solar profile falls back"
+    A consumption forecast source of `legacy_daily` is expected while the 28-day profile is still learning, or when the requested interval does not meet its coverage contract. Check **Expected Home Consumption Profile** and the integration diagnostics. Changing a source or an excluded-load adjustment keeps every learned day; a timezone change re-bins them by the offset between the two zones, and Recorder backfill rebuilds whatever is still missing in the background. A gap longer than five minutes is not interpolated.
 
----
+    A solar forecast that stays immature or falls back is also expected during the first days. Learning needs direct PV power from the configured external sensor or readable MPPT channels, at least seven closed quality days, recent coverage, and enough evidence in the requested future range; invalid, negative, and long-gap samples are excluded, and curtailment signals can exclude intervals. A source or capacity change starts a new generation. Check the diagnostics `solar_profile` section and `solar_timeline_fallback_reason`; the profile cannot repair a bad weather forecast or model curtailment it cannot observe.
 
-## Metering device unavailable or losing connectivity
+## Weekly full charge or cell balancing did not finish
 
-If the grid sensor (e.g. a power meter with a poor Wi-Fi connection) goes offline, the controller behaves differently depending on how the sensor fails.
+| Likely cause | What to check | Action |
+|---|---|---|
+| Wrong day or feature disabled | **Weekly Full Charge** and **Weekly Full Charge Day** | Enable and schedule [weekly full charge](features/weekly-full-charge.md) |
+| Charging is delayed or blocked | Weekly charge status, `charge_blockers`, and manual ownership | Remove the blocker or disable the configured delay for that run |
+| Battery management system stopped at the top | SOC, cell voltage, charge power, alarm, and fault entities | Let the integration apply its supported taper; inspect persistent faults |
+| Required cell telemetry is missing | Max/min cell voltage and balance entities | Check compatibility in [cell balance monitor](features/cell-balance-monitor.md) |
+| Blueprint owns the battery | **Manual Battery Control** and automation trace | Review the [active balancing blueprint](automations/blueprints.md) |
 
-### Sensor reports `unavailable` or `unknown`
+## One battery in a multi-battery system does not participate
 
-The control loop exits immediately without sending any new command. The batteries **hold their last commanded power level** until the sensor comes back online.
+| Likely cause | What to check | Action |
+|---|---|---|
+| Its SOC or priority makes another battery preferable | **Active Batteries**, **Primary Battery**, and **Charge Priority** | This can be expected; review [multiple batteries](features/multi-battery.md) |
+| Direction is disabled | Per-battery **Allow Charge** / **Allow Discharge** | Enable the required direction |
+| Battery is manually owned | **Manual Battery Control** | Release manual ownership after returning the battery to idle |
+| Power or SOC limit was reached | Per-battery blockers and limit entities | Adjust only the limit you intend to change |
+| Delivery or communication failed | **Non-Responsive Batteries** and **Repairs** | Follow the Repair and inspect diagnostics |
 
-### Sensor freezes (value stops updating)
+## Battery alarm or fault appears
 
-The integration detects that the sensor's timestamp has not changed:
+| Likely cause | What to check | Action |
+|---|---|---|
+| Battery reports a warning or protection | **System Alarm Status**, per-battery **Alarm Status**, and **Fault Status** | Follow the battery manufacturer's guidance for the named condition |
+| Condition has already cleared | Current status and persistent notification | Confirm that the notification clears; reload only if state remains stale |
+| Model does not expose alarm registers | Entity availability for that driver | Use the manufacturer's app or local interface |
 
-- For up to **15 cycles (~30 seconds)** it keeps the last command unchanged.
-- After that grace period it performs a safety recalculation using the frozen value, with the derivative term suppressed to avoid power spikes.
+Alarm and fault registers (polled every 5 seconds) are only available on v2 hardware; v3, vA, and vD do not expose them over Modbus. When a new bit is set, Omnibattery raises a persistent notification titled with 🚨 for a fault or ⚠️ for an alarm, naming the exact condition (for example *BAT Overvoltage* or *Fan Abnormal Warning*); it is dismissed automatically once every bit clears.
 
-### Summary
+## Before asking for help
 
-| Sensor state | Behaviour |
-|---|---|
-| `unavailable` / `unknown` | Control loop skips — batteries hold last power level |
-| Frozen value (no new readings) | ~30 s grace period, then recalculates with stale value |
+1. Open **Settings → Devices & services → Omnibattery**.
+2. Open the affected config entry and choose **Download diagnostics**.
+3. Review the JSON and remove anything you do not want to share.
+4. Enable debug logging from the integration page, reproduce the problem, then disable logging to download the log file.
+5. Include the observed symptom, approximate time, relevant entity states, diagnostics, and log with your report.
 
-!!! warning "No automatic fallback to 0 W"
-    If the meter goes unavailable while the battery was, for example, discharging at 2000 W, it will **continue discharging at 2000 W** until the meter recovers. There is no built-in timeout that ramps the battery to idle. Consider improving the Wi-Fi reliability of your metering device, or using a wired/Zigbee alternative if dropouts are frequent.
-
----
-
-## Reporting an issue — Download diagnostics
-
-When opening a bug report or asking for help, attach the JSON generated by Home Assistant's **Download diagnostics** action for the Omnibattery config entry. The dump contains the persisted configuration together with battery connection health, driver capabilities, non-responsive tracking, and dynamic-pricing runtime details. Sensitive connection fields and known identifiers are redacted by the integration.
-
-**How to download it:**
-
-1. Go to **Settings → Devices & Services**.
-2. Open the **Omnibattery** integration and its config entry.
-3. Click **Download diagnostics**.
-4. Attach the resulting JSON file to the support request.
-
-Review the file before sharing it and remove anything specific to your installation that you do not want to disclose.
-
----
-
-## Debug logging
-
-Enable `debug` for the integration by clicking in "Enable debug logging" button in the integration settings. Once you have run it for the appropriate time, disable it to avoid filling the logs, and a log file will be created with the debug information.
+Diagnostics redact known connection fields and identifiers, but you should still review the file before sharing it.
