@@ -63,6 +63,20 @@ If orange or red persists across full charges, use the [Marstek active-balance b
 
     Lithium iron phosphate (LFP) cell voltage stays relatively flat through much of the usable charge range. In that region, voltage differences are poor evidence of a state-of-charge difference. Near the upper knee, cell voltages separate more clearly and the battery management system (BMS) can identify and bleed the leading cells. Omnibattery therefore compares settled top-of-charge readings instead of treating a live mid-charge delta as a health result.
 
+    **The LFP charge curve in detail**
+
+    A typical 3.2 V nominal LFP cell follows a curve where voltage stays almost flat through most of the usable range and only separates near the top:
+
+    | SOC range | Cell voltage range | Slope |
+    |---|---|---|
+    | 0–10% | 2.50 V → 3.20 V | Steep entry knee |
+    | 10–90% | 3.20 V → 3.30 V | Almost flat — about 1 mV per % SOC |
+    | 90–97% | 3.30 V → 3.45 V | Mild rise begins |
+    | 97–99% | 3.45 V → 3.55 V | Knee — voltage starts climbing sharply |
+    | 99–100% | 3.55 V → 3.65 V | Steep top knee — full-charge cliff |
+
+    On the plateau, two cells reading nearly the same voltage can differ by several percentage points of SOC, so a mid-charge voltage delta is not useful evidence of imbalance. It also means passive balancing cannot do anything there: the BMS bleeds the highest cell through a resistor, and to identify which cell is highest it needs the spread between cells to rise above measurement noise. Only above the knee do cell voltages separate enough for the BMS to find and bleed the leader — which is why the thresholds below sit in that narrow top-of-charge window rather than the flat middle.
+
     **How Omnibattery creates a comparable reading**
 
     With **100% Charge Voltage Taper** enabled, the control path enters the taper zone at 3.48 V and limits that battery to 200 W. A Venus E battery normally stops at 3.60 V, or earlier when a commanded charge is rejected by the BMS. Charging then remains off for 60 seconds before Omnibattery records:
@@ -77,6 +91,19 @@ If orange or red persists across full charges, use the [Marstek active-balance b
 
     A BMS cutoff requires a real charge request, delivered power at or below 10 W, and Standby for five consecutive control cycles. This avoids classifying an idle battery as full. The same cutoff can trigger a settled reading below 3.60 V when the battery remains in the taper zone.
 
+    **Why these voltage thresholds**
+
+    | Threshold | Where it is used | Why this value |
+    |---|---|---|
+    | 3.45 V | Reference for the start of the upper knee | Roughly where the LFP curve leaves the plateau; below this, cell voltages are too close together to distinguish a real imbalance |
+    | 3.48 V | Trigger for tapering charge to 200 W (`NORMAL_BALANCE_TAPER_CELL_VOLTAGE`) | A small margin above the knee confirms the pack is genuinely entering the balance window, not just bouncing on a load step, before power is reduced |
+    | 3.44 V | Taper release point (`NORMAL_BALANCE_TAPER_EXIT_CELL_VOLTAGE`) | Starting and releasing the taper at different voltages avoids repeated transitions while the cell relaxes |
+    | 3.60 V | Top measurement point; charge stops and the integration waits 60 s before reading the delta (`NORMAL_BALANCE_PAUSE_CELL_VOLTAGE`) | High enough for supported BMS firmware to reach its native top-charge behaviour while retaining headroom below the LFP ceiling; the battery's own BMS can still cut off earlier |
+    | 3.57 V | SOC-recalibration retry voltage | The cell must relax back into the balance window before the one-shot 200 W retry begins |
+    | 0.20 V (200 mV) | Green/yellow status boundary (`BALANCE_THRESHOLD_YELLOW`) | Set above the normal factory top-of-charge spread so an expected small mismatch does not read as a fault |
+
+    The optional active-balance blueprint uses its own configurable defaults at a finer grain — 3.49 V as its regulated-charge switch-over and discharge floor between retries, 3.40 V as its lowest retry voltage, and 0.03 V (30 mV) as its completion target — since it runs outside the integration's automatic control loop.
+
     **Status and alerts**
 
     The status bands use the raw recorded delta: green below 200 mV, yellow from 200 mV to below 230 mV, orange from 230 mV to below 250 mV, and red from 250 mV. Orange and red readings create a persistent notification. A red result on two consecutive full charges adds the degraded-cell warning.
@@ -86,6 +113,12 @@ If orange or red persists across full charges, use the [Marstek active-balance b
     Omnibattery retains up to 52 comparable readings and calculates the displayed average and trend from the latest four. A change greater than 2 mV per reading is `rising`; less than −2 mV per reading is `falling`; values between those boundaries are `stable`.
 
     The trend alert accounts for a 180 mV factory baseline. It fires when the trend is rising and the four-reading raw average is above 220 mV. Cell-balance notifications have a seven-day per-battery cooldown, so a continuing condition does not create a new persistent notification every cycle.
+
+    **Why this takes so long**
+
+    Active cell balancing is slow, for two reasons. Passive balancing current is small: a typical LFP BMS bleeds the highest cell through a balance resistor at somewhere between roughly 30 mA and 150 mA, and Marstek Venus packs are typically observed at the low end of that range — around 50 mA for a 100 Ah cell, which removes only about 0.05% SOC per hour from the high cell. These are field-observed estimates, not fixed specifications. The balance window is also narrow: the BMS can only bleed while the pack is above roughly 3.45 V and the highest cell is detectably above the rest, so a charge that reaches the top and immediately returns to discharge spends only minutes there.
+
+    Field observations on real packs are consistent with that arithmetic: reducing the top-of-charge cell delta by roughly 5 mV typically takes around 24 hours of cumulative time at the top of the balance window. Larger imbalances (50 mV or more) can take multiple days of repeated top-balance sessions, and a pack left unbalanced for months may take a week or more to recover. If you run the active-balance blueprint to recover a noticeably imbalanced pack, leave it running overnight (or longer) before checking the result — watching the delta in real time will not show movement within minutes.
 
     **SOC recalibration on Venus E**
 

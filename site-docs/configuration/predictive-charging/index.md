@@ -76,6 +76,8 @@ Turn off **Predictive Charging** to pause all predictive grid charging and its D
     target_soc    = current_soc + grid_charge / capacity × 100
     ```
 
+    **Example**: the battery needs 5 kWh to reach `max_soc`. Solar forecast is 13 kWh and expected consumption is 10 kWh, leaving a surplus of 3 kWh available for the battery. Omnibattery charges only **2 kWh** from the grid; solar handles the remaining 3 kWh during the day.
+
     In a multi-battery fleet, the grid target is distributed in proportion to each battery's gap to its configured maximum SOC. Dynamic Pricing and Time Slot can also assign a quota to each period and transfer missed energy only to later periods that still meet its deadline.
 
     **Solar Forecast Safety Margin** is subtracted from expected solar once. New installations default to approximately 5% of total configured battery capacity; if capacity is unavailable during setup, the fallback is no margin.

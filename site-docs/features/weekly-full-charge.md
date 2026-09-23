@@ -56,6 +56,8 @@ The sensor's `batteries` attribute shows the live SOC and completion evidence fo
 
     Every battery with current data participates except batteries in **Manual Battery Control**. Configured limits are restored only after all participating batteries complete. The 60-second cell-delta measurement is diagnostic and does not hold the weekly cycle open.
 
+    The `batteries` attribute reports live SOC and BMS-cutoff cycle count for each battery while it charges, then adds `soc_at_completion`, `max_cell_voltage_at_completion`, `completion_reason`, and `bms_cutoff_cycles` once that battery finishes.
+
     **SOC recalibration and retry behavior**
 
     Outside the weekly cycle, a Venus E battery that reaches 3.60 V while reporting below 99% SOC can be kept at the 200 W taper until its BMS cuts off. If the first cutoff occurs above 3.60 V and SOC is still below 100%, Omnibattery waits for the cell to relax to 3.57 V and permits one more 200 W attempt. This is a best-effort opportunity for the BMS to recalibrate its SOC counter; firmware decides whether recalibration occurs.

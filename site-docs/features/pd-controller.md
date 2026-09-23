@@ -54,7 +54,7 @@ After changing a setting, allow the quality metric to reflect the new behavior b
 ??? "Advanced details"
     ### Control law and cadence
 
-    The controller runs when the grid sensor publishes a new value. A periodic safety watchdog keeps time-based features running and re-evaluates control if publications stop; a lock serializes overlapping runs.
+    The controller runs when the grid sensor publishes a new value. A periodic **2-second safety watchdog** runs in parallel to keep other time-based features moving, and it forces a safety re-evaluation instead of holding the last command indefinitely if the sensor goes silent for about **65 seconds**; a lock serializes overlapping runs.
 
     The controller uses an incremental control law. Positive command power means battery charging and negative command power means discharging:
 
@@ -84,6 +84,7 @@ After changing a setting, allow the quality metric to reflect the new behavior b
 
     | Control | Default | Range | Effect |
     |---|---:|---:|---|
+    | **PD Target Grid Power** | `0 W` | `±2,500 W` (fallback) | Grid setpoint the PD regulates to. Positive = import from grid (the battery charges), negative = export to grid (the battery discharges). The range follows your configured batteries: three 2,500 W units give a ±7,500 W range. Enabling the system power limits narrows each direction to its configured cap. A [time slot](../configuration/time-slots.md) can set a different target for its active period |
     | **PD Kp** | `0.35` | `0.1–2.0` | Raises or lowers the correction applied to a sustained error |
     | **PD Kd** | `0.30` | `0.0–2.0` | Reacts to changes in error; too much can amplify noisy or delayed readings |
     | **PD Deadband** | `40 W` | `0–200 W` | Ignores small errors around the target |
