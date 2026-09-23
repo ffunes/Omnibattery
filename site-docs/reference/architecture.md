@@ -1,174 +1,188 @@
 # Architecture
 
-## Main components
+This page maps the current Omnibattery codebase for contributors. It shows where hardware support ends, where shared control begins, and which modules own each part of a telemetry or setpoint cycle.
+
+## System map
+
+Omnibattery creates one `MarstekVenusDataUpdateCoordinator` for each configured battery. The class keeps its historical name, but it coordinates every supported brand. Each coordinator owns one concrete `BatteryDriver`, its connection lock, telemetry cache, polling schedule, health state, and effective limits.
+
+A config entry also creates one `ChargeDischargeController` for the fleet. The controller reads the Home Assistant grid sensor, combines feature blockers and overrides, calculates the fleet command, asks `PowerDistribution` to select batteries and allocate power, then writes through each coordinator and driver.
 
 ```mermaid
 flowchart TD
-    GS[HA Grid Sensor] --> CC[ChargeDischargeController\n__init__.py]
-    CC --> PD[PD Algorithm]
-    PD --> DIST[Power distribution\nmulti-battery]
-    DIST --> DRV[BatteryDriver\napply_setpoint]
+    GRID[Home Assistant grid sensor] --> CTRL[ChargeDischargeController]
+    PRICE[PricingManager and feature managers] --> CTRL
+    TRACK[Consumption and solar tracking] --> PRICE
 
-    COORD[MarstekVenusDataUpdateCoordinator\ninfra/coordinator.py] --> DRV2[BatteryDriver\nread_telemetry]
-    COORD --> EU[HA entity updates]
+    CTRL --> GUARDS[residual_load.apply_guards]
+    GUARDS --> PD[PD calculation and controller safeguards]
+    PD --> DIST[PowerDistribution]
+    ORDER[charge_order and phase limits] --> DIST
 
-    DRV --> M[MarstekModbusDriver\nModbus TCP/RTU]
-    DRV --> Z[ZendureLocalDriver\nlocal HTTP]
-    DRV --> A[AnkerModbusDriver\nModbus TCP]
-    DRV2 --> M
-    DRV2 --> Z
-    DRV2 --> A
-    M --> BAT1[Marstek battery]
-    Z --> BAT2[Zendure battery]
-    A --> BAT3[Anker Solarbank]
+    DIST --> COORD[MarstekVenusDataUpdateCoordinator per battery]
+    COORD --> DRIVER[BatteryDriver semantic contract]
+    DRIVER --> M[MarstekModbusDriver]
+    DRIVER --> Z[ZendureLocalDriver]
+    DRIVER --> A[AnkerModbusDriver]
+    DRIVER --> E[EsphomeEntityDriver]
+    DRIVER --> S[SessyLocalDriver]
+    DRIVER --> Y[HoymilesMqttDriver]
+    DRIVER --> H[HuaweiSolarDriver]
+
+    DRIVER -->|read_telemetry| COORD
+    COORD --> ENT[Home Assistant entities]
 ```
 
-The control loop and the coordinator never talk to the hardware directly: every
-read and write goes through a brand-agnostic **`BatteryDriver`** (see [Hardware
-drivers](#hardware-drivers) below). This is what makes the integration
-multi-brand — adding a battery brand is writing a new driver, not editing the
-control logic.
+The controller and entity platforms do not use register addresses, HTTP paths, or MQTT topics. Those details stay inside `drivers/` and the transport clients in `infra/`.
 
-## Modules
+## The driver boundary
 
-The integration root keeps only the Home Assistant platform files
-(`sensor.py`, `number.py`, …) and the controller. Everything else lives in
-subpackages by responsibility.
+`custom_components/omnibattery/drivers/base.py` defines the semantic hardware boundary:
 
-| File | Main class | Responsibility |
+- `BatteryDriver` represents one physical battery and owns its transport.
+- `DriverCapabilities` describes static traits that shared code may branch on.
+- `ReadGroup` groups logical telemetry keys by polling cadence.
+- `TelemetrySnapshot` is a flat mapping of logical keys to decoded values.
+- `SetpointResult` reports the applied signed command, confirmation state, measured delivery, failure reason, and any native state to merge into the coordinator cache.
+
+The contract uses signed net power throughout: positive watts charge, negative watts discharge, and `0 W` requests idle. A driver translates that meaning into its own modes, limits, registers, services, or entities.
+
+### Abstract `BatteryDriver` surface
+
+| Area | Member | Responsibility |
 |---|---|---|
-| `__init__.py` | `ChargeDischargeController` | Main control loop (event-driven on the grid sensor + 2 s watchdog), PD algorithm, multi-battery distribution |
-| `config_flow.py` | — | Multi-step configuration wizard in HA UI (brand selection, batteries, features) |
-| **`drivers/`** | `BatteryDriver` | Brand-agnostic hardware abstraction — see below |
-| `drivers/base.py` | `BatteryDriver`, `DriverCapabilities` | The driver contract and the static-traits dataclass |
-| `drivers/marstek.py` | `MarstekModbusDriver` | Marstek Venus (v2/v3/vA/vD) over Modbus TCP / RTU |
-| `drivers/zendure.py` | `ZendureLocalDriver` | Zendure SolarFlow over local HTTP |
-| `drivers/anker.py` | `AnkerModbusDriver` | Anker SOLIX Solarbank Max AC / 4 E5000 Pro over Modbus TCP (FC03/FC04 reads) |
-| `infra/coordinator.py` | `MarstekVenusDataUpdateCoordinator` | Periodic telemetry polling (via the driver), entity updates |
-| `infra/modbus_client.py` | `MarstekModbusClient` | Async Modbus TCP/RTU transport via pymodbus, retries with backoff |
-| `infra/anker_modbus_client.py` | `AnkerModbusClient` | Async Modbus TCP for Anker (FC03/FC04 reads, FC06/FC16 writes) |
-| `infra/external_loads.py` | — | Excluded-device load adjustment and solar-surplus crediting |
-| `infra/alarm_notifier.py` | `AlarmNotifier` | Alarm/fault bit-delta detection and HA persistent notification formatting |
-| `infra/entity_naming.py` | — | Translation-key based entity IDs and registry migrations |
-| `const/` | — | All Modbus register and entity definitions (split per battery version) |
-| `pricing/engine.py` | — | Predictive charging: dynamic pricing, time slot, real-time price, SOC floor |
-| `pricing/chronological.py` | — | Pure 15-minute energy simulation, cumulative deadlines and price-slot allocation; no Home Assistant or device I/O |
-| `control/power_distribution.py` | — | Splits the system setpoint across active batteries |
-| `control/charge_delay.py` | — | Solar charge delay |
-| `control/max_soc_charge.py` | — | 100 % voltage taper / top-of-charge protection |
-| `control/weekly_full_charge.py` | `WeeklyFullChargeManager` | Weekly full charge state, persistence and register-write orchestration |
-| `tracking/consumption_tracker.py` | `ConsumptionTracker` | Consumption history, daily energy accumulators, solar-timing detection, recorder backfill, daily capture |
-| `tracking/balance_monitor.py` | `CellBalanceMonitor` | Post-full-charge cell voltage spread measurement and health history |
-| `tracking/non_responsive_tracker.py` | `NonResponsiveTracker` | Non-responsive battery detection and 5-minute exclusion windows |
-| `tracking/hourly_balance.py` | — | Hourly net-balance (Spain RD 244/2019) accounting |
-| `sensors/aggregate_sensors.py` | — | System aggregate sensors (sum across all batteries) |
-| `sensors/calculated_sensors.py` | — | Derived sensors (cycle count, efficiency, synthetic energy, estimates) |
+| Identity | `capabilities` | Return the immutable `DriverCapabilities` for this device. |
+| Lifecycle | `connected`, `connect()`, `close()`, `set_shutting_down()` | Own connection state and release transport resources. |
+| Telemetry | `read_groups`, `read_telemetry(keys)` | Schedule and return decoded logical values; omit failed values. |
+| Net control | `apply_setpoint(net_power_w, mode_hint=None, read_back=True)` | Clamp and translate a signed fleet command into device operations. |
+| Entity control | `write_control(key, value)` | Handle a logical number, select, switch, or button write. |
+| Command echo | `net_power_from_data(data)` | Reconstruct the currently echoed command for skip-if-unchanged logic. |
+| Dependencies | `control_dependency_keys` | Keep control-critical telemetry polling even when its entity is disabled. |
 
-## Hardware drivers
+The base class also provides optional hooks for DC coupling, model and serial identity, balance dependencies, supplemental discharge measurement, and a dynamic discharge ceiling.
 
-A **driver** owns all brand-specific hardware I/O — transport, connection
-lifecycle, telemetry decoding and control commands — behind a single interface,
-[`drivers/base.py`](https://github.com/ffunes/omnibattery/blob/main/custom_components/omnibattery/drivers/base.py)`::BatteryDriver`.
-The coordinator and the control loop talk only to that interface, so they never
-branch on battery brand or firmware version.
+The coordinator currently calls these concrete-driver methods by convention even though they are not abstract members of `BatteryDriver`: `apply_config()`, `set_charge_cutoff()`, `standby()`, `set_rs485_control()`, and, for drivers with an external-control gate, `get_rs485_control()`. A new driver must implement the applicable behavior and return a controlled `False` for unsupported write operations.
 
-The contract is deliberately **semantic, not register-shaped**. It exposes two
-operations — "give me a telemetry snapshot" and "deliver this net power" — so a
-register/Modbus battery (Marstek) and a property/HTTP battery (Zendure) both fit
-behind it without register addresses or HTTP paths leaking into the control
-layer.
+### Capabilities
 
-### What a driver provides
+Shared code reads `coordinator.capabilities`; it should not branch on a brand or firmware string. `DriverCapabilities` currently contains all of these fields:
 
-| Surface | Method / property | Purpose |
+| Group | Capability | Meaning |
 |---|---|---|
-| Identity | `capabilities`, `model_label` | Static hardware traits (see below) and a display label |
-| Connection | `connect()`, `close()`, `connected` | Transport lifecycle (owns the v3 single TCP slot, etc.) |
-| Read | `read_telemetry(keys)`, `read_groups` | Latest telemetry as a flat `{logical_key: value}` dict; `read_groups` lets the coordinator schedule polling per register block |
-| Write | `apply_setpoint(net_power_w, …)` | Command a single signed net power (+charge / −discharge); the driver translates to its own wire format |
-| Write | `write_control(key, value)` | Generic entity-write path for user-facing number/select/switch entities |
+| Control | `hardware_soc_cutoff` | The device itself enforces the configured state-of-charge (SOC) cutoffs. |
+| Control | `has_force_mode` | The device exposes a distinct forced charge/discharge/idle mode. |
+| Control | `has_rs485_control` | An external RS-485 or Modbus control gate can be toggled. |
+| Power | `max_charge_power_w`, `max_discharge_power_w` | Inclusive per-device power envelope. |
+| Power | `min_charge_power_w`, `min_discharge_power_w` | Lowest reliable non-zero command in each direction. |
+| Timing | `actuator_latency_s` | Approximate physical response time used by direction-change protection. |
+| Timing | `readback_latency_s` | Time before command telemetry is settled; falls back to actuator latency. |
+| Timing | `engage_grace_s` | Optional allowance for a slow idle-to-active transition. |
+| Telemetry | `push_telemetry` | The driver reads a push-fed cache rather than polling hardware live. |
+| Telemetry | `telemetry_liveness_checked` | A push-cache read verifies freshness and can prove recovery. |
+| Telemetry | `setpoint_confirm_reliable` | Immediate readback reliably reflects the command just written. |
+| Solar | `has_mppt_pv` | Individual maximum power point tracking (MPPT) channels are available. |
+| Solar | `has_solar_telemetry` | Independent aggregate solar telemetry is available. |
+| Energy | `has_energy_counters` | Native cumulative energy counters are available. |
+| Energy | `has_daily_energy_counters` | Native counters that reset daily are available. |
+| Energy | `has_nominal_capacity` | The device reports nominal battery capacity. |
+| Energy | `cycles_from_discharge_only` | Equivalent cycles use discharged energy rather than total throughput. |
+| Diagnostics | `has_alarm_registers` | Native alarm or fault status is available. |
+| Cutoffs | `charge_cutoff_range`, `discharge_cutoff_range` | Inclusive ranges exposed by hardware cutoff controls. |
 
-`apply_setpoint` returns a `SetpointResult` carrying the applied power, whether
-the write was confirmed by a readback, the measured delivered power, and a
-brand-native state echo the coordinator merges into `coordinator.data`.
+The default values in `DriverCapabilities` preserve the older register-backed behavior. New drivers should declare every field deliberately; an inherited default is still a product decision.
 
-Individual manual ownership is coordinated above the driver. On handoff the
-controller verifies an idle (`0 W`) setpoint, then excludes the battery from
-automatic assignments. Drivers without force-mode/setpoint registers (for
-example Zendure and Anker) receive their persisted manual charge/discharge
-setpoint through `apply_setpoint` on each control cycle; an idle (`None`) manual
-selection is deliberately not reasserted, so it does not fight the device's
-own app mode.
+## Supported drivers
 
-### Capabilities replace version checks
+The package exports seven concrete drivers, and `MarstekVenusDataUpdateCoordinator.__init__()` constructs all seven from the configured brand.
 
-Each driver reports a frozen `DriverCapabilities` once; callers consult it instead
-of hard-coding `if battery_version in (...)`. The control and entity layers read
-these from `coordinator.capabilities`:
-
-| Capability | Meaning |
-|---|---|
-| `hardware_soc_cutoff` | Hardware enforces min/max SOC itself (v2); otherwise the control layer does it in software |
-| `has_force_mode` | Hardware has a distinct force/charge/discharge mode command |
-| `push_telemetry` | Telemetry arrives by push rather than poll |
-| `max_charge_power_w` / `max_discharge_power_w` | Power envelope the hardware accepts |
-| `has_mppt_pv` | DC-coupled PV / MPPT inputs present (Venus A/D) |
-| `has_alarm_registers` | Exposes alarm/fault status (Marstek v2 only) |
-| `has_rs485_control` | External RS485/Modbus control mode can be toggled |
-| `has_energy_counters` | Reports cumulative energy + nominal capacity; when false the integration synthesises energy from power and takes capacity from a user entity (Zendure) |
-| `setpoint_confirm_reliable` | A readback reliably reflects the just-written command on the confirmation cycle |
-| `actuator_latency_s` | Physical response timescale used to guard charge/discharge direction changes |
-| `readback_latency_s` | Time before post-command telemetry is settled enough for a hot-path readback; defaults to actuator latency |
-
-The coordinator selects the driver from the configured brand
-([`infra/coordinator.py`](https://github.com/ffunes/omnibattery/blob/main/custom_components/omnibattery/infra/coordinator.py)):
-`zendure` → `ZendureLocalDriver`, `anker` → `AnkerModbusDriver`, `esphome` → `EsphomeEntityDriver`, otherwise `MarstekModbusDriver`. The driver
-also owns its version's register/entity definition lists, which the platform
-setups read back instead of branching on the version string.
-
-## Data flow
-
-```
-Grid sensor → Controller (PD) → Power distribution → driver.apply_setpoint → Batteries
-                    ↑
-Coordinator → driver.read_telemetry → Entity updates
-```
-
-## Polling intervals
-
-| Interval | Period | Registers |
+| File | Class | Hardware and transport |
 |---|---|---|
-| `high` | 2 s | Power, SOC |
-| `medium` | 5 s | Voltage, current, temperature |
-| `low` | 30 s | Accumulated energy, alarms |
-| `very_low` | 600 s | Device info, firmware |
+| `drivers/marstek.py` | `MarstekModbusDriver` | Marstek Venus families over Modbus TCP or Modbus RTU. |
+| `drivers/zendure.py` | `ZendureLocalDriver` | Zendure SolarFlow families through the local HTTP API. |
+| `drivers/anker.py` | `AnkerModbusDriver` | Anker SOLIX Solarbank families over Modbus TCP. |
+| `drivers/esphome.py` | `EsphomeEntityDriver` | Marstek hardware behind a LilyGo RS-485 bridge, using ESPHome entities in Home Assistant. |
+| `drivers/sessy.py` | `SessyLocalDriver` | Sessy through its authenticated local HTTP API. |
+| `drivers/hoymiles.py` | `HoymilesMqttDriver` | Hoymiles MS-A2 through Home Assistant MQTT entities. |
+| `drivers/huawei.py` | `HuaweiSolarDriver` | Huawei SUN2000 with LUNA2000: native Modbus telemetry and service-based or direct setpoint writes. |
 
-## Consumption profile
+Each driver also owns its platform definition lists: `sensor_definitions`, `number_definitions`, `select_definitions`, `switch_definitions`, `binary_sensor_definitions`, `button_definitions`, and `all_definitions`. The coordinator exposes these lists to `sensor.py`, `number.py`, `select.py`, `switch.py`, `binary_sensor.py`, and `button.py`. This keeps unsupported entities out of the registry and keeps hardware metadata beside its decoder.
 
-`tracking/consumption_profile.py` owns the independent
-`omnibattery.<entry_id>.consumption_profile` Store. It captures adjusted home
-power continuously into raw local-date/96-interval energy and coverage arrays,
-then builds a weighted forecast only at query time. Recorder backfill is
-background work and never blocks setup or battery control. The tracker rejects
-invalid samples, isolates corrupt stored days, handles local DST boundaries and
-invalidates the raw profile when its source/configuration fingerprint changes.
+See [Add a battery driver](driver-requirements-template.md) for the implementation and review checklist.
 
-Control consumers use one contract: mature profile data for the requested range,
-otherwise an explicit legacy fallback. Neither capture nor runtime household
-forecasts mask predictive charging windows; those windows schedule battery grid
-charging rather than household operation. This keeps the same learned signal usable by daily predictive
-charging, Solar Charge Delay and Dynamic Pricing without coupling their runtime
-decisions to one another.
+## Coordinator and telemetry flow
 
-## Solar temporal profile
+`infra/coordinator.py::MarstekVenusDataUpdateCoordinator` is the per-device adapter between Home Assistant and a driver. It:
 
-`tracking/solar_profile.py` stores direct-PV energy, coverage and compact quality
-flags in `omnibattery.<entry_id>.solar_profile`. It learns a normalized shape on
-solar-window progress, with bounded 42-day retention and an isolated
-fingerprint/generation. It never learns from grid balance, export, weather
-forecast or the rounded public daily-energy sensor.
+1. Constructs the selected concrete driver.
+2. Connects it and applies setup configuration.
+3. Iterates `driver.read_groups`, skips disabled non-dependency keys, and serializes I/O with its lock.
+4. Merges successful `read_telemetry()` values into `coordinator.data`.
+5. Tracks failures, availability, reconnect backoff, stale energy readings, and transient fast polling.
+6. Exposes the driver’s definitions and capabilities to entities and shared control.
+7. Sends signed commands through `apply_power()` to `driver.apply_setpoint()` and merges the returned `SetpointResult.applied` data.
 
-`pricing/solar_timeline.py` validates dated provider periods, maps learned
-progress bins, builds the sinusoidal fallback and applies the remaining budget
-exactly once. `pricing/chronological.py` continues to receive only finished
-`EnergyInterval` values and remains free of Home Assistant dependencies.
+The nominal read-group cadences come from `const/integration_const.py`:
+
+| Cadence | Interval | Typical data |
+|---|---:|---|
+| `high` | 2 s | Power, mode, and SOC values used by control. |
+| `medium` | 5 s | Voltage, current, and temperature. |
+| `low` | 30 s | Energy counters and slower diagnostics. |
+| `very_low` | 600 s | Device identity and firmware. |
+
+A driver chooses the cadence for each `ReadGroup`. During a real command change, the coordinator can temporarily accelerate only groups that contain delivered-power telemetry.
+
+## Control pipeline
+
+`__init__.py::ChargeDischargeController` owns fleet orchestration. Its main cycle is `async_update_charge_discharge()`. The path from a grid update to hardware is:
+
+1. Validate and normalize the configured grid sensor.
+2. Refresh feature managers, blockers, manual ownership, and any active setpoint override.
+3. Apply target, capacity-protection, and excluded-load adjustments.
+4. Use `control/residual_load.py::apply_guards()` for feedforward, solar-surplus blocking, and the residual-demand discharge ceiling.
+5. Calculate the incremental proportional–derivative (PD) command and apply controller-level deadband, direction-change, minimum-power, relay-dwell, SOC, and non-delivery safeguards.
+6. Ask `PowerDistribution` to select eligible batteries and split the command within effective limits.
+7. Let `PhasePowerLimiter` reduce the final per-battery allocation when three-phase protection is enabled.
+8. Call `_set_battery_power()`, then `coordinator.apply_power()`, then `driver.apply_setpoint()` for each selected battery; idle batteries receive an explicit zero where the active control path requires it.
+
+### Modules in `control/`
+
+| Module | Class or public helpers | Role in the pipeline |
+|---|---|---|
+| `power_distribution.py` | `PowerDistribution` | Selects the minimum useful battery set and allocates charge or discharge within limits. |
+| `charge_order.py` | `charge_order()`, `charge_allocation_weights()` | Orders mixed AC/DC fleets and weights charging by remaining capacity. |
+| `residual_load.py` | `residual_demand_w()`, `apply_guards()`, `guards_pending()` | Reconstructs uncovered load and applies the shared guard pipeline. |
+| `phase_power_limit.py` | `PhasePowerLimiter`, `PhaseSensorReading` | Constrains final allocations from per-phase current measurements. |
+| `pack_soc.py` | `pack_socs()`, `soc_vs_ceiling()`, `soc_vs_floor()`, `control_vmax()` | Normalizes pack-level SOC and cell-voltage decisions. |
+| `charge_delay.py` | `ChargeDelayManager` | Owns solar charge-delay state, forecasts, persistence, and release decisions. |
+| `max_soc_charge.py` | `MaxSocChargeManager` | Applies top-of-charge taper, recalibration, and cell-delta measurement. |
+| `weekly_full_charge.py` | `WeeklyFullChargeManager` | Schedules and persists periodic full-charge behavior and temporary cutoff changes. |
+| `temperature_limit.py` | `TemperatureChargeLimitManager` | Derates per-battery charge and optional discharge limits from temperature. |
+| `discharge_reserve.py` | `DischargeReserveManager` | Reserves energy for a later high-price period through discharge blockers. |
+| `high_price_discharge.py` | `HighPriceDischargeManager` | Builds and applies deliberate high-price discharge overrides. |
+| `surplus_price_hold.py` | `SurplusPriceHoldManager` | Delays solar absorption when exporting now is more valuable. |
+
+Pure pricing calculations live under `pricing/`. `pricing/engine.py::PricingManager` coordinates price sources and evaluations, while `pricing/chronological.py` performs the chronological energy simulation without Home Assistant or device I/O. Runtime adapters in `control/` turn those plans into blockers or setpoint overrides.
+
+## Tracking and entities
+
+The `tracking/` package owns persisted observations and projections:
+
+- `ConsumptionTracker` composes consumption history, daily counters, recorder backfill, and the consumption profile.
+- `ConsumptionProfileTracker` stores local-day interval data and produces weighted forecasts.
+- `SolarProfileTracker` learns a normalized solar-production shape.
+- `BalanceMonitor` records cell-voltage spread around full charge.
+- `NonResponsiveTracker` tracks failed delivery episodes and recovery.
+- `HourlyBalanceManager` calculates hourly net-balance accounting.
+- `DailyOperationTimelineManager` builds the diagnostic daily timeline.
+
+The Home Assistant platform files are thin consumers of coordinator data and driver definitions. Shared derived entities live under `sensors/`; system-wide totals use `sensors/aggregate_sensors.py`, while calculated and restored values use `sensors/calculated_sensors.py`.
+
+## Rules for architectural changes
+
+- Put protocol, register, endpoint, topic, scaling, and sign conversion inside a concrete driver or its transport client.
+- Express shared hardware differences through `DriverCapabilities` or semantic driver hooks.
+- Keep the coordinator responsible for scheduling, locking, cache updates, and health; keep transport lifecycle inside the driver.
+- Keep fleet decisions in `ChargeDischargeController` and `control/`; do not make a driver choose system policy.
+- Return unknown or omit a telemetry key when a value cannot be trusted. Do not synthesize zero for a valid missing measurement.
+- Add pure planning code under `pricing/` or `tracking/` and a runtime adapter only where Home Assistant state or controller ownership is required.
