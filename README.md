@@ -5,7 +5,7 @@
 **Omnibattery** is your one stop Home Assistant integration designed to monitor and control pluggable solar batteries, as of today, the following ones are supported:
 
 - Marstek Venus E and C (v2 and v3), Venus D and Venus A via Modbus TCP
-- Zendure SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 (Local API)
+- Zendure SolarFlow 4000 Mix Pro, 4000 Mix AC+, 3000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 (Local API)
 - Anker SOLIX Solarbank Max AC and Solarbank 4 E5000 Pro via Modbus TCP (thanks @wouterbouvy!)
 - Huawei SUN2000 + LUNA2000 via Modbus TCP (validated on SUN2000-8K-MAP0; thanks @sphings79!)
 - Sessy Home Battery (Looking for testers!!!)
@@ -55,7 +55,7 @@ Full documentation (configuration, features, entities, troubleshooting) is avail
 
 | Requirement | Details |
 |---|---|
-| Battery | Marstek Venus E v2/v3, Venus A, Venus D, Zendure SolarFlow 4000 Mix Pro / 4000 Mix AC+, 2400 AC+, 2400 AC Pro, Anker SOLIX Solarbank Max AC / 4 E5000 Pro, Huawei SUN2000 + LUNA2000 |
+| Battery | Marstek Venus E v2/v3, Venus A, Venus D, Zendure SolarFlow 4000 Mix Pro / 4000 Mix AC+, 3000 Mix AC+, 2400 AC+, 2400 AC Pro, Anker SOLIX Solarbank Max AC / 4 E5000 Pro, Huawei SUN2000 + LUNA2000 |
 | Modbus bridge | Elfin-EW11 or compatible RS485-to-TCP converter. Venus E v3, Venus A and Venus D can also be connected via Ethernet with native Modbus TCP support. Anker Solarbank Max AC and 4 E5000 Pro use native Modbus TCP (enable in the Anker app under Third-Party Control; only one Modbus client at a time). Huawei uses the SUN2000 Modbus TCP endpoint; use a shared Modbus proxy when another client is connected. |
 | Wireless connection | Required for Zendure SolarFlow 4000 Mix AC+, 2400 AC+ and 2400 AC Pro |
 | Grid sensor | HA sensor measuring total grid consumption (e.g. Shelly EM3, Neurio, smart meter) |
