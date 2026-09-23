@@ -1,74 +1,90 @@
 ![Omnibattery](assets/logo-github.png){ width="420" }
 
-**Omnibattery** is a custom Home Assistant integration for monitoring and controlling pluggable solar batteries from several brands. Current supported hardware includes:
+# Use your home battery to reduce grid costs
 
-- **Marstek** Venus E/C (v2/v3), Venus A and Venus D via Modbus TCP, Modbus RTU or a LilyGo RS485/ESPHome bridge.
-- **Zendure** SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 via local HTTP.
-- **Anker SOLIX** Solarbank Max AC and Solarbank 4 E5000 Pro via Modbus TCP.
-- **Sessy** Home Battery via its local dongle API (testers welcome).
-- **Hoymiles** MS-A2 via the MQTT integration configured in Home Assistant.
+Omnibattery connects compatible home batteries to Home Assistant so they can follow household demand, store available solar energy and charge when your schedule or electricity price makes it worthwhile.
+
+## Is Omnibattery for me?
+
+**Use it if** you already have a supported battery and a Home Assistant sensor that measures power imported from or exported to the grid. It is especially useful when you want one place to coordinate batteries, solar forecasts, electricity prices and household loads.
+
+**You do not need it if** the manufacturer's own control already meets your needs, or if you only want to view battery data without Home Assistant adjusting battery power.
+
+## Supported brands at a glance
+
+| Brand | How Omnibattery connects | Start here |
+|---|---|---|
+| **Marstek Venus** | Modbus TCP, Modbus RTU or a LilyGo RS-485/ESPHome bridge | [Marstek setup](configuration/batteries/marstek.md) |
+| **Zendure SolarFlow** | Local HTTP API | [Zendure setup](configuration/batteries/zendure.md) |
+| **Anker SOLIX Solarbank** | Modbus TCP | [Anker SOLIX setup](configuration/batteries/anker.md) |
+| **Huawei SUN2000 + LUNA2000** | Modbus TCP through the inverter | [Choose a battery](configuration/batteries/index.md) |
+| **Sessy Home Battery** | Local HTTP API through the Sessy dongle | [Sessy setup](configuration/batteries/sessy.md) |
+| **Hoymiles MS-A2 and HiBattery** | MQTT through Home Assistant | [Hoymiles MQTT setup](configuration/batteries/hoymiles.md) |
+
+Omnibattery can coordinate supported brands in the same installation. Check the [installation requirements](installation.md#before-you-start) before changing any manufacturer settings.
+
+## What it can do for you
 
 <div class="grid cards" markdown>
 
--   :material-battery-charging: **Dynamic power control**
+-   :material-home-lightning-bolt: **Match battery power to home consumption**
 
-    Event-driven PD controller that keeps grid exchange near its target, with one-click tuning profiles and a quality sensor to help find a stable response.
+    Reduce unwanted grid import or export as appliances turn on and off.
 
--   :material-calendar-clock: **Predictive charging**
+-   :material-white-balance-sunny: **Make better use of solar energy**
 
-    Charges from the grid only when solar and stored energy are not enough, with time-slot, dynamic-pricing and real-time-pricing modes.
+    Combine live production, battery capacity and forecasts to decide when energy should be stored.
 
--   :material-battery-sync: **Multi-battery**
+-   :material-currency-eur: **Charge when grid energy makes sense**
 
-    Coordinates up to 10 batteries with SOC priorities, energy hysteresis and efficiency-aware power sharing.
+    Use time windows or electricity prices to buy only the energy your home is expected to need.
 
--   :material-brand_family: **Multi-brand**
+-   :material-battery-sync: **Coordinate several batteries**
 
-    Combine Marstek, Zendure, Anker SOLIX, Sessy and Hoymiles batteries in one installation while sharing the same control loop, system entities and energy-management features.
-
--   :material-view-dashboard: **Integrated dashboard**
-
-    Built-in Home Assistant sidebar panel with a power-flow diagram, history charts, battery health and all control settings in one place — no extra HACS card or YAML required.
-
--   :material-tune: **Highly configurable**
-
-    Adjust time slots, SOC and power limits, peak shaving, weekly full charge, solar-charge delay and excluded loads from Home Assistant.
+    Share demand across compatible batteries while respecting each battery's charge, discharge and state-of-charge limits.
 
 </div>
 
-## Built-in control dashboard
+## How to start
 
-The panel installs automatically as a Home Assistant sidebar panel — no extra HACS card or YAML configuration is required. It provides three tabs:
+1. [Check the requirements and install Omnibattery](installation.md).
+2. Add the integration and connect your grid sensor and battery.
+3. Open the Omnibattery sidebar panel to confirm power and state of charge, then enable only the features that suit your home.
 
-- **Overview** with animated SOC ring, Grid↔Home↔Battery↔Solar energy-flow diagram, diagnostics, 2×2 chart grid and a measured/projected daily operation timeline
-- **Batteries** with per-battery SOC/power, health & cells, daily energy, optional MPPT, firmware info, controls
-- **Control** with system-wide settings grouped by feature, each with its switch + config parameters
+Already using **Marstek Venus Energy Manager**? Follow the [upgrade guide](upgrading-from-marstek-vem.md) so your settings, entity history and dashboards remain connected.
 
-![Dashboard](assets/dashboard.gif)
+## Your control dashboard
 
-## Key features
+The sidebar panel is installed with the integration; it does not require another Home Assistant Community Store (HACS) card or YAML dashboard configuration. Use **Overview** to follow live energy flow and daily history, **Batteries** to inspect each unit, and **Control** to enable and adjust optional features.
 
-- **PD Controller (Zero Export/Import)**: adjusts battery power in real time to keep grid exchange close to zero.
-- **One-click PD profiles and control-quality sensor**: select a response from Very smooth to Very aggressive, then use the quality verdict to see whether regulation is stable, oscillating or sluggish.
-- **No-PD direct-tracking mode** (opt-in): the battery follows the consumption sensor 1:1 in a single cycle — no integral, derivative, smoothing or rate limiter — for installations that prefer raw tracking over the PD control law.
-- **Multi-brand support**: combine compatible Marstek, Zendure, Anker SOLIX, Sessy and Hoymiles batteries in the same installation.
-- **Predictive charging**: three modes (time slot, dynamic pricing, real-time price — including Tibber) that charge from the grid only when the energy balance requires it. Uses a 7-day rolling average of real household consumption to decide whether grid charging is needed.
-- **Multi-battery management**: smart selection with SOC priorities, energy hysteresis and efficiency zone operation.
-- **Time slots**: independently control charge and discharge windows, with per-slot SOC and power parameters.
-- **Peak shaving**: reserves battery capacity to cover demand spikes above a configurable power threshold.
-- **Weekly full charge**: charges to 100% once a week for cell balancing.
-- **Cell balance monitor**: measures the voltage spread between the strongest and weakest cell after each full charge; tracks imbalance trends over time, sends alerts for moderate or high imbalance, and blocks discharge during the open-circuit voltage rest period.
-- **Solar charge delay**: postpones morning battery charging (both solar and grid) while expected solar production is enough to cover the remaining energy needed.
-- **Hourly net balance**: adjusts the PD setpoint continuously to keep hourly net grid energy at a configurable target (default: net zero per hour). Supports external net balance sensors and composes cleanly with all other features via the setpoint registry.
-- **Load exclusion**: exclude high-power devices (e.g. EV chargers) so the controller does not try to compensate their consumption. Each excluded device has an individual exclusion percentage slider (0–100%).
-- **Proactive alarm notifications (Marstek v2 batteries only)**: monitors battery fault and alarm registers every 5 seconds and sends a Home Assistant notification the moment a new condition is detected, with the exact fault or alarm name. A system-level `System Alarm Status` sensor (`OK` / `Warning` / `Fault`) provides an at-a-glance view across all batteries.
+![Omnibattery dashboard showing home energy flow](assets/dashboard.gif)
+
+??? "Advanced details"
+    Omnibattery's proportional–derivative (PD) controller reacts when the grid sensor publishes a new value and adjusts battery power toward the configured grid target, including zero import or export. Tuning profiles from **Very smooth** to **Very aggressive** and the **PD Control Quality** sensor help identify a response that is stable, oscillating or slow. An optional direct-tracking mode follows the grid reading 1:1 in one control cycle, without integral, derivative, smoothing or rate-limit behavior.
+
+    The integration can coordinate up to ten batteries. It uses state-of-charge priorities, energy hysteresis and efficiency-aware sharing while applying per-battery and system power limits. See [Multi-battery management](features/multi-battery.md).
+
+    The dashboard's **Overview** tab includes an animated state-of-charge ring, a Grid↔Home↔Battery↔Solar flow diagram, diagnostics, history charts and a measured/projected daily timeline. **Batteries** shows each unit's power, state of charge, health, cells, daily energy, optional maximum power point tracking (MPPT) inputs, firmware and controls.
+
+    Optional energy features include:
+
+    - [Predictive charging](configuration/predictive-charging/index.md) using time slots, dynamic pricing or real-time prices, including Tibber; its demand estimate uses a seven-day rolling history of household consumption
+    - [Time slots](configuration/time-slots.md) for independent charge and discharge windows, each with its own state-of-charge and power settings
+    - [Capacity protection (peak shaving)](features/peak-shaving.md) to reserve energy for demand above a configured threshold
+    - [Weekly full charge](features/weekly-full-charge.md), which can charge to 100% for balancing, and a [cell balance monitor](features/cell-balance-monitor.md) that records cell-voltage spread and protects the open-circuit rest period
+    - [Solar charge delay](features/solar-charge-delay.md) when expected production can fill the battery later
+    - [Hourly net balance](features/hourly-net-balance.md), which adjusts the PD target toward a configurable hourly grid-energy result and can use an external balance sensor
+    - [Load exclusion](features/load-exclusion.md) for electric vehicle chargers and other large loads, with an individual exclusion setting from 0–100%
+    - Proactive Home Assistant fault and alarm notifications when a battery driver provides that telemetry; **System Alarm Status** summarizes the fleet as `OK`, `Warning` or `Fault`
+
+    State of charge (SOC) is the battery's remaining usable energy. The battery management system (BMS) applies the device's own cell and safety limits in addition to Omnibattery's software controls.
 
 ## Disclaimer
 
 !!! danger "Liability disclaimer"
     This software is provided "as is", without warranty of any kind. Use is at your own risk. The developer assumes no responsibility for damage to batteries, inverters, electrical installations, financial losses or personal injury.
 
-    **If you do not agree to these terms, DO NOT install or use this integration.**
+    **If you do not agree to these terms, do not install or use this integration.**
 
 ## Support
 
