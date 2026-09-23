@@ -1,3 +1,10 @@
+# Complete Marstek register table (English only)
+
+This table documents the Marstek register definitions used by Omnibattery. It is intentionally maintained in English only so addresses, types, scales, and safety notes have one technical source.
+
+!!! warning "Read before writing"
+    Rows described as switches, selects, numbers, schedules, or commands can change battery operation. Use Omnibattery entities where possible and verify the configured hardware family before any direct write.
+
 | Key / Name                        | Description                                | Type    | Bytes | Scale  | Unit | a     | d     | e_v12 | e_v3 |
 |:----------------------------------|:-------------------------------------------|:--------|:-----:|:------:|:----:|:-----:|:-----:|:------:|:-----:|
 | device_name                       | Device name (string)                       | char    | 20   | -      | -    | 31000 | 31000 | 31000 | 31000 |
@@ -12,7 +19,7 @@
 | bluetooth_status                  | Bluetooth connectivity/status              | uint16  | 2    | -      | -    | 30301 | 30301 | 30301 | 30301 |
 | wifi_status (binary)              | WiFi connected (0/1)                       | uint16  | 2    | 1      | -    | 30300 | 30300 | 30300 | 30300 |
 | cloud_status (binary)             | Cloud connected (0/1)                      | uint16  | 2    | 1      | -    | 30302 | 30302 | 30302 | 30302 |
-| battery_soc                       | State of charge                            | uint16  | 2    | 1      | %    | 32104 | 32104 | 32104 | 34002 |
+| battery_soc                       | State of charge                            | uint16  | 2    | 1      | %    | 32104 | 32104 | 32104 | 37005 |
 | battery_soc_pack_1                | Pack 1 state of charge (issue #350)                 | uint16  | 2    | 0.1    | %    | 34002 | 34002 |        |       |
 | battery_soc_pack_2                | Pack 2 state of charge (issue #350)                 | uint16  | 2    | 0.1    | %    | 34102 | 34102 |        |       |
 | battery_soc_pack_3                | Pack 3 state of charge (issue #350)                 | uint16  | 2    | 0.1    | %    | 34202 | 34202 |        |       |
@@ -194,10 +201,8 @@
 | battery_cycle_count_calc          | Cycle count calculated from total discharge and capacity | calculated | - | - | - |  |  |  |  |
 
 _Notes:_
-- Columns `a`, `d`, `e_v12` and `e_v3` correspond to the YAML files under `custom_components/marstek_modbus/registers/`.
-- Two Venus A/D entries deliberately **differ from that YAML**, which is wrong there (issue #350):
-  `battery_soc` is the aggregate at **32104** (the YAML's 34002 is pack 1's own SOC, and
-  `const/registers_va.py` has always read 32104); and the per-pack block is laid out with a
+- Columns `a`, `d`, `e_v12` and `e_v3` correspond to the active Python definitions in `custom_components/omnibattery/const/registers_va.py`, `registers_vd.py`, `registers_v2.py`, `registers_v3.py`, and `registers_common.py`.
+- Venus A/D `battery_soc` is the aggregate at **32104**; 34002 is pack 1's own SOC. The per-pack block is laid out with a
   **stride of 100** — pack *n* starts at `34000 + 100·(n−1)`, SOC at offset `+2`, that pack's
   max/min cell voltage at `+5`/`+6`, its 16 individual cells at `+18` —
   not as one flat run, so the column `a` cell addresses above are renumbered accordingly.
@@ -207,7 +212,7 @@ _Notes:_
   A Venus A/D charges one pack at a time (register **32111** is the active pack index), so
   37007 describes the pack under load only while slot 1 happens to be the active one.
 - `Bytes` shows the typical byte size for the key (each Modbus register = 2 bytes).
-- Blank cells mean that YAML does not define that key (or the value is calculated and has no direct Modbus register).
+- Blank cells mean that the selected hardware definition does not expose that key, or that the value is calculated and has no direct Modbus register.
 - The `rs485_control_mode` switch (register 42000) uses write commands (command_on=21930, command_off=21947) to trigger RS485 control operations; use with caution.
 - For access to registers in the 42000–42999 range, the battery must be set to RS485 control mode.
 - Schedule Time format: `start` and `end` are entered as HHMM 24-hour integers (for example `0830` = 08:30). Use values within the valid range shown in the YAML for each device; ensure `start` is earlier than `end` for a single active period.
