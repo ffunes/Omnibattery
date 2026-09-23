@@ -1,80 +1,67 @@
 # Weekly full charge
 
-Charges batteries to **100% once a week** so the pack reaches the LFP top-balancing window and the integration can measure cell imbalance under repeatable conditions.
+A weekly full charge gives a lithium iron phosphate (LFP) battery regular time at the top of its charge range and produces a comparable cell-balance reading. It is most useful when your normal maximum state of charge (SOC) is below 100%.
 
-## Charge profiles
+## Do I need it?
 
-| Profile | Description | Switch | Default |
-| --- | --- | --- | --- | 
-| **100% charge voltage taper** | Slows charging near top voltage window to allow some minor cell balancing | `full_charge_voltage_taper` | On |
+**Use it if** your battery rarely reaches 100%, or if you want a regular balance check without starting a full charge yourself.
 
-For Venus E models, the 100% charge voltage taper uses the same voltage profile
-as a normal battery configured with `max_soc = 100`. The weekly feature raises
-the target to 100%; it does not use a separate balancing algorithm.
+**You do not need it if** the battery already reaches 100% regularly. A full charge can also buy grid energy, so choose the day and solar-delay behavior to suit your tariff.
 
-On Venus A/D with coupled packs, the normal 3.60 V stop is also bypassed and a
-reported 100% SOC from the first pack does not finish the cycle. The tapered
-200 W command remains active until the shared BMS cutoff is confirmed.
+## Before you start
 
-For deliberate active cell balancing, use the optional [Marstek active-balance blueprint](../automations/blueprints.md#active-cell-balancing-for-one-marstek-battery). It runs one battery at a time through the per-battery Battery Manual Mode switch and is independent of this weekly feature.
+- Omnibattery must be able to charge the battery automatically.
+- Leave **100% Charge Voltage Taper** on for each compatible battery if you want a settled cell-balance reading.
+- If **Charge Delay** is enabled, decide whether the weekly cycle may start immediately or should wait for expected solar.
+- A battery in **Manual Battery Control** is excluded until automatic control resumes.
 
-!!! warning "Cell balancing"
-    Active cell balancing is **very slow**. Reducing the top-of-charge cell delta by roughly 5 mV typically takes around 24 hours of cumulative time at the top of the balance window.
+## How to enable it
 
-## Where the energy comes from
+1. Open the Omnibattery sidebar dashboard and select **Control**.
+2. In **Weekly Full Charge**, turn on **Weekly Full Charge**.
+3. Choose **Weekly Full Charge Day**.
+4. If you use **Charge Delay**, turn on **Delay Weekly Full Charge** to wait for solar; leave it off to start the weekly cycle without that delay.
 
-Solar surplus fills the pack first. On the weekly day, [predictive charging](../configuration/predictive-charging/index.md) also adds the remaining gap to 100% to its energy balance, exactly as the guaranteed minimum SOC does, so it buys from the grid whatever the solar forecast will not cover — in the cheapest hours with dynamic pricing, or in the configured window on a flat tariff. If the forecast surplus already covers the gap, nothing is bought.
+![Configure the weekly full charge day and solar delay](../assets/screenshots/configuration/advanced-weekly-full-charge-config.png){ width="650" style="display: block; margin: 0 auto;"}
 
-This needs no configuration beyond enabling predictive charging: the weekly day is the only trigger. Without predictive charging the cycle stays solar-only and may not complete on a cloudy day.
+## What you will see
 
-## Dashboard configuration
+**Weekly Full Charge** reports `idle`, `charging`, or `complete`. On the selected day, Omnibattery temporarily raises the charge target to 100% for batteries under automatic control. It marks the cycle complete only after every participating battery is considered full, then restores each configured limit.
 
-The weekly full charge is configured from the Omnibattery Dashboard. The only required choice is the day on which the cycle should run.
+With [predictive charging](../configuration/predictive-charging/index.md), the remaining energy needed for the weekly target enters the plan. Omnibattery can buy that energy during the configured charging period when forecast solar will not cover it. Without predictive charging, the cycle relies on available solar and may not complete on a cloudy day.
 
-| Field | Description | Default |
+The sensor's `batteries` attribute shows the live SOC and completion evidence for each battery. On compatible batteries, **Cell Delta**, **Balance Status**, and **Last Balance Read** update after the top-of-charge measurement. See [Is my battery healthy?](cell-balance-monitor.md) to interpret the result.
+
+!!! important "Solar delay behavior"
+    **Delay Weekly Full Charge** is off by default. The weekly cycle therefore bypasses **Charge Delay** and can start on its selected day. Turn the switch on if you prefer it to wait for the solar delay to release charging.
+
+## If it does not work
+
+| Symptom | Likely cause | What to check |
 |---|---|---|
-| **Day of the week** | The day on which the battery charges to 100% for cell balancing. | — |
-| **Wait for solar charge delay** | When enabled, solar charge delay has priority and the weekly charge waits for it to unlock. | Disabled |
+| The status stays `idle` | Today is not the selected day, or the feature is off | **Weekly Full Charge** and **Weekly Full Charge Day** |
+| The cycle is waiting instead of charging | The weekly cycle is respecting the solar delay | **Delay Weekly Full Charge** and **Charge Delay** |
+| One battery does not participate | Per-battery manual control owns it, or its data is unavailable | **Manual Battery Control** and the battery's availability |
+| The cycle remains `charging` near full | The battery management system (BMS) has not confirmed that every participating battery is full | The per-battery details in **Weekly Full Charge**; allow the top-of-charge process to finish |
+| The cycle completes but no balance result appears | The battery does not expose both cell-voltage extremes, or the diagnostic rest measurement could not finish | Whether **Cell Delta** exists and **Last Balance Read** changed |
 
-![Weekly full charge configuration](../assets/screenshots/configuration/advanced-weekly-full-charge-config.png){ width="650" style="display: block; margin: 0 auto;"}
+??? "Advanced details"
+    **Charge and completion sequence**
 
-See [Cell balancing](cell-balance-monitor.md) for full details.
+    The weekly feature raises the target SOC to 100%; it does not use a separate balancing algorithm. With **100% Charge Voltage Taper** enabled, charging is limited to 200 W after the control cell voltage enters the 3.48 V taper zone. The balance measurement is taken after charging stops and the cells rest for 60 seconds.
 
-!!! note "Drifted SOC"
-    During the weekly charge the 3.60 V pause is **not** applied — charging keeps going at the tapered 200 W until the BMS itself cuts off. If the BMS coulomb counter has drifted (cells genuinely full but reported SOC below 100%), completion is still detected: the BMS-cutoff signature (charge ≤10 W with the inverter in Standby for 5 consecutive cycles) is recognised whenever the pack is in the top taper zone (≥ 3.48 V), regardless of the reported SOC. This lets the weekly cycle finish even when the pack never reads 100%, and best-effort attempts to recalibrate the SOC — depending on BMS firmware. See [SOC recalibration on a stuck top voltage](cell-balance-monitor.md#soc-recalibration-on-a-stuck-top-voltage).
+    Omnibattery does not treat a single 3.60 V observation as proof that a battery is full. For Venus E batteries, completion can come from a reported SOC of 100% or a confirmed BMS cutoff. A cutoff is confirmed when the battery was commanded to charge, delivered power falls to 10 W or less, and the inverter remains in Standby for five consecutive control cycles. The same cutoff path covers a pack whose SOC counter has drifted below 100%.
 
-## When the cycle completes
+    Venus A/D batteries can contain coupled packs. Their reported maximum cell voltage may represent only one pack, so Omnibattery keeps the 200 W tapered command active until the BMS cutoff is confirmed. A pack reaching the voltage threshold cannot finish the whole cycle by itself.
 
-The weekly charge is marked **Complete** only when every battery is genuinely full — not merely when a cell touches the 3.60 V top voltage. For Venus E models, a battery counts as full when either:
+    Every battery with current data participates except batteries in **Manual Battery Control**. Configured limits are restored only after all participating batteries complete. The 60-second cell-delta measurement is diagnostic and does not hold the weekly cycle open.
 
-- its reported SOC reaches **100%**, or
-- a **BMS cutoff** is confirmed: charge collapses to ≤10 W with the inverter in Standby for 5 consecutive cycles (~10 s). During the weekly charge this is recognised whenever the pack is in the top taper zone (≥ 3.48 V), so a pack with a drifted SOC still completes.
+    **SOC recalibration and retry behavior**
 
-For Venus A/D with coupled packs, the BMS cutoff is required after the tapered
-charge reaches the top-voltage path, even if the reported SOC has already
-reached 100%.
+    Outside the weekly cycle, a Venus E battery that reaches 3.60 V while reporting below 99% SOC can be kept at the 200 W taper until its BMS cuts off. If the first cutoff occurs above 3.60 V and SOC is still below 100%, Omnibattery waits for the cell to relax to 3.57 V and permits one more 200 W attempt. This is a best-effort opportunity for the BMS to recalibrate its SOC counter; firmware decides whether recalibration occurs.
 
-The 60-second cell-delta measurement still runs as a diagnostic, but it no longer gates completion. If a battery's BMS cuts below 3.60 V while it is in the taper zone, the measurement starts after that confirmed cutoff so the charge is not interrupted prematurely. This also covers Venus A/D, whose final cutoff is required before measuring. On completion the configured max SOC (and the hardware cutoff register on v2) is restored, and charge hysteresis is re-enabled.
+    **Hardware and software limits**
 
-The **Weekly Full Charge** sensor exposes per-battery diagnostics under its `batteries` attribute: live SOC and BMS-cutoff cycle count while charging, and a completion snapshot (`soc_at_completion`, `max_cell_voltage_at_completion`, `completion_reason`, `bms_cutoff_cycles`).
+    Marstek Venus E v2 exposes charging-cutoff register `44000`, which the cycle temporarily raises to 100%. Venus E v3 and Venus A/D have no hardware SOC-cutoff register in Omnibattery and use software enforcement. Other drivers use their declared hardware or software control capability. In every case, the saved limit is restored when the cycle completes or is stopped.
 
-## Cell balance monitor
-
-The **cell balance monitor** records the voltage spread between the highest and lowest cell after each top-voltage measurement and keeps the sensor history, trend and alerts updated.
-
-## Interaction with solar charge delay
-
-If [solar charge delay](solar-charge-delay.md) is active, the weekly charge can be postponed while the forecast solar production is sufficient to reach 100%.
-
-When the weekly full charge is active, the integration bypasses the delay by default so the battery reaches the top-voltage measurement point and the balance reading is not skipped.
-
-The **Delay weekly full charge** switch (`weekly_full_charge_delay`, on the Weekly full charge card) reverses this: turn it on to let the weekly charge wait for the solar charge delay to unlock, charging from solar instead of starting immediately on the target day. It only appears when both weekly full charge and the charge delay are configured.
-
-## Modbus register involved
-
-This feature manipulates register **44000** (charging cutoff) to temporarily raise the limit.
-
-!!! info
-    This feature is available for all supported battery versions (v2, v3, vA, vD).
-
-![Weekly full charge configuration](../assets/screenshots/features/weekly-full-charge-config.png){ width="650"  style="display: block; margin: 0 auto;"}
+    For recovery of a persistent red balance result, use the optional [Marstek active-balance blueprint](../automations/blueprints.md#active-cell-balancing-for-one-marstek-battery). It takes control of one battery through **Manual Battery Control** and is independent of the weekly feature.

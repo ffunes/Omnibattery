@@ -66,6 +66,7 @@ plugins:
             Home: Inicio
             Get started: Empezar
             Installation guide: Guía de instalación
+            Upgrading from Marstek VEM: Actualizar desde Marstek VEM
             Configure: Configurar
             Start here: Empieza aquí
             Sensors and electrical limits: Sensores y límites eléctricos
@@ -155,6 +156,7 @@ nav:
   - Home: index.md
   - Get started:
       - Installation guide: installation.md
+      - Upgrading from Marstek VEM: upgrading-from-marstek-vem.md
   - Configure:
       - Start here: configuration/index.md
       - Sensors and electrical limits:
