@@ -1,188 +1,133 @@
-# PD Controller
+# Follow home consumption
 
-The PD (Proportional-Derivative) controller is the core of the integration. It runs **event-driven** — recalculating each time the grid consumption sensor publishes a new value — and adjusts battery power to keep grid flow close to the configured target (default: 0 W).
+The proportional–derivative (PD) controller adjusts battery power as household demand changes, keeping grid import or export close to your chosen target. Start with **Balanced** and tune it only when you can see a repeatable problem.
 
-## Algorithm
+## Do I need it?
 
-```
-error = grid_power - target_power
+**Use it if** you want Omnibattery to follow changing home consumption automatically. This is the normal control mode and is suitable for most installations.
 
-P = Kp × error
-D = Kd × (error - previous_error) / dt
+**You do not need to tune it if** grid flow stays close to the target without repeated charge/discharge changes. Small, steady differences inside the deadband are intentional and prevent inefficient micro-cycling.
 
-adjustment = P + D
-new_power = current_power + adjustment
-```
+## Before you start
 
-Because the loop is event-driven (variable cadence), the `P` term and the rate limit are internally scaled by the real elapsed time between sensor updates, so the tuning behaves the same regardless of how fast your sensor publishes.
+- Configure a working grid consumption sensor that updates regularly.
+- Allow Omnibattery to control the battery automatically; manual mode and other active rules can temporarily take control.
+- Check that the battery can charge and discharge and is not already at a state-of-charge or power limit.
 
-### Default parameters
+## How to enable it
 
-| Parameter | Value | Description |
+1. Open the Omnibattery sidebar panel and select **Control**.
+2. In **PD controller**, turn on **PD control**. This turns off **No-PD Direct Tracking** because the two modes are mutually exclusive.
+3. Select **Balanced** under **PD tuning profile** and leave the manual gain controls unchanged.
+4. Watch **PD Control Quality** while normal household loads change.
+
+![PD controller entities in Home Assistant](../assets/screenshots/features/pd-controller-entities.png){ width="700" style="display: block; margin: 0 auto;"}
+
+## What you will see
+
+**PD Control Quality** gives an actionable verdict:
+
+| State | Meaning | Action |
 |---|---|---|
-| `Kp` | `0.35` | Proportional gain |
-| `Kd` | `0.3` | Derivative gain |
-| Deadband | `±40 W` | Dead zone: ignores small errors |
-| Rate limit | `±800 W/cycle` | Maximum change per cycle |
+| **Stable** | Grid flow follows the target without persistent hunting | Keep the current settings |
+| **Oscillating** | Import and export repeatedly alternate outside the deadband | Follow the hunting row below |
+| **Sluggish** | A sustained error closes too slowly | Follow the slow-response row below |
+| **Battery limited** | The battery is full, empty, or at a power limit | Check battery limits; tuning cannot add capacity |
+| **Blocked** | A schedule, charge delay, price rule, or excluded load prevents the needed action | Find the active rule before tuning |
+| **Collecting data** | The metric is warming up or has not received usable control data recently | Wait for normal automatic control to resume |
+| **Disabled** | No-PD direct tracking is active | Use its controls instead of PD tuning |
 
-## Tuning profiles
+After changing a setting, allow the quality metric to reflect the new behavior before changing another one.
 
-Instead of tuning the gains by hand, pick a **tuning profile** (`select.*_pd_tuning_profile`) — a one-click preset that sets `Kp`, `Kd` and the rate limit together. Profiles are ordered smoothest → fastest:
+## If it does not work
 
-| Profile | Kp | Kd | Rate limit | Use when |
-|---|---|---|---|---|
-| Very smooth | 0.22 | 0.15 | 400 W | Noisy meter, want zero hunting; calm but slow |
-| Smooth | 0.30 | 0.25 | 600 W | Conservative |
-| Balanced | 0.35 | 0.30 | 800 W | Default — works for most installs |
-| Aggressive | 0.55 | 0.45 | 1200 W | Clean meter, want a fast response |
-| Very aggressive | 0.75 | 0.45 | 2000 W | Clean meter + battery at full power; fastest response |
-| Custom | — | — | — | Manual: tune the sliders yourself |
-
-- Selecting a profile writes its three gains and hot-reloads them (no restart).
-- Moving any of those three sliders by hand switches the profile to **Custom** automatically; your value is kept.
-- **Deadband is not part of the profiles.** It is your precision / meter-noise preference *and* the reference the control-quality sensor measures against, so it stays a separate slider you own. Changing it does not change the active profile.
-
-!!! warning "Limited battery output power"
-    If you cap the battery's output power (system or per-battery max charge/discharge) **below** a profile's rate limit, the rate limiter never engages — the whole 0→limit range fits in a single cycle, so the controller can jump straight to the cap in one step. The output stays correct and there is no windup (the internal baseline saturates at the cap), but the move is abrupt — more relay wear and possible overshoot before it settles. On a power-limited battery, prefer a smoother profile, or use **Custom** with a rate limit below your cap. **Very aggressive** (2000 W) is meant for a battery running at full power.
-
-In the dashboard, the profile selector and the quality sensor sit at the top of the **PD controller** section of the Control tab.
-
-## Dashboard configuration
-
-!!! warning "Expert users only"
-    Do not modify these values unless you understand PD control theory and how it interacts with inverter response times. **The default values work correctly for the vast majority of installations.**
-
-The following controls tune the internal PD controller. They can also be adjusted at runtime from the integration's configuration entities without restarting Home Assistant.
-
-!!! tip "Prefer profiles"
-    Most users do not need to change these values by hand. The **PD tuning profile** selector applies vetted `Kp`/`Kd`/rate-limit presets in one click, and the **PD Control Quality** sensor shows whether the result is stable, oscillating or sluggish.
-
-| Parameter | Default | Range | Description |
-|---|---|---|---|
-| **Kp** | `0.35` | 0.1–2.0 | Proportional gain. Higher values produce a faster response but more overshoot. |
-| **Kd** | `0.3` | 0.0–2.0 | Derivative gain. Higher values smooth transitions but slow the response. |
-| **Deadband** | `40 W` | 0–200 W | Dead zone. The controller does not act when the error is smaller than this value. |
-| **Max power change** | `800 W/cycle` | 100–2000 W | Maximum change per cycle. Protects against abrupt swings. |
-| **Direction hysteresis** | `60 W` | 0–200 W | Margin required to switch between charging and discharging. |
-| **Min charge power** | `0 W` | 0–2000 W | If calculated charge is below this value, the controller stays idle. `0` disables it. |
-| **Min discharge power** | `0 W` | 0–2000 W | Same as above, for discharge. `0` disables it. |
-| **Target grid power** | `0 W` | −(total configured discharge power) … +(total configured charge power) | Grid setpoint the PD regulates to. Positive = import from grid (the battery charges), negative = export to grid (the battery discharges), `0` = net zero. The range follows your batteries: three 2500 W units give ±7500 W. Enabling the system power limits narrows each direction to its configured cap. |
-| **Enable system power limits** | `off` | on/off | Enables the combined charge/discharge cap for all active batteries. |
-| **System max charge power** | `0 W` | Dynamic: configured charge-power sum | Optional cap for combined charge power. `0` disables it. |
-| **System max discharge power** | `0 W` | Dynamic: configured discharge-power sum | Optional cap for combined discharge power. `0` disables it. |
-
-The minimum charge/discharge power values are useful for preventing inefficient micro-cycling when grid demand is very low.
-
-System caps are useful when the installation has a shared hardware or wiring limit. They do not reduce each battery's individual maximum: a single active battery can still use its own configured limit, while several active batteries are throttled to the combined cap.
-
-When **Enable system power limits** is off, both caps are ignored and their runtime number entities are not created. When enabled, the caps are exposed as sliders on the Omnibattery System device.
-
-![Advanced PD controller configuration](../assets/screenshots/configuration/advanced-pd-controller-config.png){ width="650" style="display: block; margin: 0 auto;"}
-
-## Control quality sensor
-
-`sensor.marstek_venus_system_pd_control_quality` shows, at a glance, how well the PD is holding the grid target — so you can see the effect of a profile/slider change instead of guessing.
-
-The **state is a verdict**, not a number:
-
-| State | Meaning | What to do |
+| Symptom | Likely cause | What to check |
 |---|---|---|
-| Stable | PD tracks the target well | Nothing |
-| Oscillating | Hunting (frequent charge↔discharge) | Use a smoother profile, or raise the deadband |
-| Sluggish | Too slow to catch up | Use a more aggressive profile |
-| Battery limited | Battery full/empty or at its power rail — the PD cannot act | Not a tuning issue |
-| Blocked | The needed direction is not allowed (charge delay, time slot, price, EV pause) — the PD is muzzled | Not a tuning issue |
-| Collecting data | Warming up (just started), or the metric has not advanced for over 5 min | Wait |
+| Small import or export remains steady near the target | The error is inside the deadband | Leave it alone unless the difference matters to your tariff; narrowing the deadband can cause more switching |
+| Charge and discharge repeatedly alternate | The deadband is too narrow, the profile is too aggressive, or the derivative reacts to meter noise | Increase **PD Deadband** first; then select the next smoother profile; in **Custom**, reduce **Kp**, then **Kd** |
+| Response stays slow during a sustained load | The battery is limited or the profile is too smooth | Rule out **Battery limited** or **Blocked** first; then select the next faster profile; in **Custom**, increase **Kp**, then **PD Max Power Change** if the ramp is the limit |
+| Large import/export spikes appear after load changes | The inverter is still ramping, or the first correction is too abrupt | Brief spikes can be expected while measured power catches up; for repeated overshoot, choose a smoother profile, then reduce **PD Max Power Change** |
+| The battery clicks when entering and leaving idle | Demand hovers around the deadband edge | Increase **PD Relay Cooldown** gradually; it affects active-to-idle transitions only |
+| A fast meter causes frequent battery writes | Control cycles arrive faster than the bridge can handle | Increase **PD Min Cycle Interval**; in direct-tracking mode, increase **No-PD Command Delay** instead |
+| Quality remains **Battery limited** or **Blocked** | The controller cannot apply the required direction | Check state of charge, battery power limits, time slots, charge delay, pricing rules, and excluded loads |
 
-The attributes carry the raw figures: `rms_error_w` (average grid-tracking error), `oscillation_per_min`, `metric_age_s`, the active gains, and `active_profile`.
+??? "Advanced details"
+    ### Control law and cadence
 
-**How to tune:**
+    The controller runs when the grid sensor publishes a new value. A periodic safety watchdog keeps time-based features running and re-evaluates control if publications stop; a lock serializes overlapping runs.
 
-1. Watch the verdict (and `rms_error_w`).
-2. `Oscillating` → step down a profile (Aggressive → Balanced → Smooth). `Sluggish` → step up.
-3. Wait **1–2 minutes** — the metric is a 60 s rolling average, so it lags a change.
-4. Repeat until `Stable`.
+    The controller uses an incremental control law. Positive command power means battery charging and negative command power means discharging:
 
-The metric is robust against false readings: it pauses briefly after any target change (hourly net balance, capacity protection, a manual target change…) and while the battery is limited, so neither inflates the reading.
+    ```text
+    error = grid_power - target_power
+    P = Kp × error
+    D = Kd × filtered_change_in_error / elapsed_time
+    new_power = current_power − (P + D)
+    ```
 
-## Control cadence
+    The proportional term and rate limit are scaled by elapsed time, so a faster meter does not multiply the intended correction rate. The derivative is low-pass filtered to reduce meter quantisation and inverter noise. When measured AC power shows that the battery cannot deliver its command, anti-windup logic re-anchors the next correction to measured output.
 
-The controller is **event-driven**: it recalculates the moment the grid consumption sensor publishes a new value, so it reacts at the sensor's native rate (often once per second) instead of waiting for a fixed timer tick.
+    The default target is `0 W`: positive grid power is import and negative grid power is export. A [time slot](../configuration/time-slots.md) can set a different target for its active period.
 
-A periodic **2-second watchdog** runs in parallel. While the sensor is updating normally it does almost nothing — the event has already handled the latest value. Its job is to keep the time-based subsystems running and to force a **safety recalculation if the sensor goes silent** (after ~30 s without updates the controller re-evaluates instead of holding the last command indefinitely).
+    ### Tuning profiles
 
-Overlapping runs are prevented by a lock: if a cycle is still in progress when the next trigger fires, that trigger is skipped (the running cycle already reads the current state). This keeps the battery Modbus writes serialised.
+    A profile sets **Kp**, **Kd**, and **PD Max Power Change** together. Moving one of those controls switches the selector to **Custom**. **PD Deadband** remains independent.
 
-## Stabilisation mechanisms
+    | Profile | Kp | Kd | Max change | Intended behavior |
+    |---|---:|---:|---:|---|
+    | **Very Smooth** | `0.22` | `0.15` | `400 W` | Calmest response for a noisy meter |
+    | **Smooth** | `0.30` | `0.25` | `600 W` | Conservative response |
+    | **Balanced** | `0.35` | `0.30` | `800 W` | Shipping gains and normal starting point |
+    | **Aggressive** | `0.55` | `0.45` | `1,200 W` | Faster response with more overshoot risk |
+    | **Very Aggressive** | `0.75` | `0.45` | `2,000 W` | Fastest preset for batteries that can use the full step |
+    | **Custom** | — | — | — | Manual control of the three profiled values |
 
-### Deadband (dead zone)
+    | Control | Default | Range | Effect |
+    |---|---:|---:|---|
+    | **PD Kp** | `0.35` | `0.1–2.0` | Raises or lowers the correction applied to a sustained error |
+    | **PD Kd** | `0.30` | `0.0–2.0` | Reacts to changes in error; too much can amplify noisy or delayed readings |
+    | **PD Deadband** | `40 W` | `0–200 W` | Ignores small errors around the target |
+    | **PD Max Power Change** | `800 W per nominal cycle` | `100–2,000 W` | Limits how abruptly the command can change; internally scaled by elapsed time |
+    | **PD Direction Hysteresis** | `60 W` | `0–200 W` | Rejects small requests to reverse charge/discharge direction |
+    | **PD Min Charge Power** | `0 W` | `0–2,000 W` | Keeps small charge requests idle; `0 W` disables the minimum |
+    | **PD Min Discharge Power** | `0 W` | `0–2,000 W` | Keeps small discharge requests idle; `0 W` disables the minimum |
+    | **PD Relay Cooldown** | `0 s` | `0–60 s` | Holds an engaged battery before an active-to-idle transition; `0 s` disables it |
+    | **PD Min Cycle Interval** | `1.0 s` | `0–2.0 s` | Drops closer sensor-triggered cycles; `0 s` disables the interval |
 
-If the error is less than ±40 W, the controller does not adjust power. This prevents continuous micro-oscillations caused by sensor noise.
+    If battery output is capped below the profile's maximum change, the rate limiter may not engage before the battery reaches its cap. Use a smoother profile or set a lower custom maximum change when that first step causes overshoot.
 
-### Rate limiting
+    Minimum charge and discharge power can prevent inefficient low-power operation. During relay cooldown, Omnibattery holds the active direction at the configured minimum or `100 W` when that minimum is disabled. A large imbalance bypasses this hold. Charge-to-discharge reversals use the separate zero-cross protection below.
 
-Power changes are limited per cycle to smooth transitions and protect the battery from abrupt changes. A "cycle" is one control update, driven by each new sensor value. The configured per-cycle limit is internally scaled by the real elapsed time between updates, so the effective ramp rate (W/s) stays constant regardless of how fast the sensor publishes. Lower the limit if the response feels abrupt.
+    System power limits optionally cap the combined charge and discharge power without lowering each battery's own limit. When enabled, the two cap controls appear on the Omnibattery System device; `0 W` disables a cap.
 
-### Oscillation detection
+    ![Advanced PD controller configuration](../assets/screenshots/configuration/advanced-pd-controller-config.png){ width="650" style="display: block; margin: 0 auto;"}
 
-The controller monitors frequent direction reversals (charge↔discharge). If sustained oscillation is detected, the effective gain is temporarily reduced.
+    ### Automatic stabilisation
 
-### Directional hysteresis
+    - **Deadband:** no correction is made while the error remains inside the configured band.
+    - **Direction hysteresis:** a small opposite-direction request is held at idle.
+    - **Oscillation detection:** repeated error-sign reversals outside the deadband reset accumulated controller state so proportional control can recover.
+    - **Feedforward:** in PD mode, a large load step that persists into the next sample receives one direct, measured-power-anchored correction. A one-sample spike is ignored, opposite pulsing loads are guarded, and ordinary PD adjustment resumes on the following cycle. There is no user setting for feedforward.
+    - **Zero-cross hold:** every control path temporarily clamps a charge-to-discharge or discharge-to-charge reversal to idle. The request must persist for at least `5 s`, or twice the slowest battery actuator latency when that is longer. This can produce a brief `0 W` command after a real direction change.
 
-Prevents direction changes from momentary load variations (such as appliance start-ups). The controller requires the error to exceed a threshold for several cycles before switching from charging to discharging or vice versa.
+    ### No-PD direct tracking
 
-### Derivative filtering
+    **No-PD Direct Tracking** is an optional alternative for a clean, fast meter. It reconstructs household load from measured battery AC power and the grid error, then requests the result directly in one control cycle:
 
-The derivative term is low-pass filtered (short time constant) before it reaches the output. Differentiating a barely-smoothed grid signal would otherwise amplify meter quantisation and inverter PWM noise and inject it into battery power; filtering keeps the derivative useful without that noise.
+    ```text
+    new_power = measured_battery_power − error
+    ```
 
-### Measured-power anti-windup
+    This path bypasses the PD gains, derivative filter, gradual rate limit, and direction hysteresis. It still uses the deadband, minimum charge/discharge power, relay cooldown, target-grid setting, operating restrictions, and zero-cross hold. **No-PD Command Delay** collapses rapid meter updates into one command using the latest value; its default is `0.0 s` and its range is `0–3.0 s`.
 
-The controller assumes each battery delivers exactly the power it was commanded. When a battery cannot — for example because of SOC/voltage taper or ramp lag — the controller detects the sustained shortfall by comparing the command against the measured AC power, and re-anchors its internal baseline to reality. This prevents the control output from "winding up" past what the hardware actually delivered, which would otherwise cause an overshoot or a brief grid export when the load later drops.
+    ### Control quality diagnostics
 
-## Relay and write-rate protection
+    The quality metric uses a `60 s` exponential averaging window and pauses after target changes or while control is limited. If it has not advanced for `300 s`, the state returns to **Collecting data**.
 
-Two optional sliders protect the hardware from chatter when the grid hovers around the deadband edge or a fast meter publishes bursts. Both default to a near-disabled value, so existing installs are unchanged.
+    The diagnostic attributes are `rms_error_w`, `oscillation_per_min`, `metric_age_s`, `kp`, `kd`, `deadband_w`, `max_power_change_w`, and `active_profile`.
 
-| Slider | Default | What it does |
-|---|---|---|
-| **PD Relay Cooldown** (`number.*_pd_relay_cooldown`, s) | `0` (off) | Minimum time the battery stays engaged before returning to idle. Stops relay on/off chatter during solar ramp-up/down. The dwell is timed **from the moment idle is requested**, so it actually holds. While held it runs at the configured min charge/discharge power (or 100 W if that is 0). Large imbalances bypass it. Only gates active→idle, not charge↔discharge flips. |
-| **PD Min Cycle Interval** (`number.*_pd_min_cycle_interval`, s) | `1` | Caps how often the event-driven loop runs — grid updates closer together than this are dropped, so a fast meter can't flood slow Modbus bridges (e.g. Elfin EW11) with write bursts. The 2 s safety watchdog is never gated, so control never stalls. `0` = disabled. |
+    ### Backup output exclusion
 
-## No-PD direct tracking mode
+    A battery with **Backup Function** enabled is excluded when **AC Offgrid Power** exceeds its **Backup Offgrid Threshold**, or when that power reading is unavailable. The default threshold is `50 W`, so small permanent loads on the backup output do not remove the battery from normal control.
 
-An **opt-in** alternative to the PD control law, for users who want the battery to follow the consumption sensor **1:1 in a single cycle** — no integral, derivative, smoothing, rate limiter or hysteresis. Enable it with the **No-PD Direct Tracking** switch (`switch.*_no_pd_mode`); the PD controller is unchanged and untouched while it is off (the two are mutually exclusive in the dashboard).
-
-Each cycle it reconstructs the home load from the battery's **measured** AC power (`new = measured − error`) rather than from the last command, so it stays stable across the multi-second inverter ramp instead of oscillating rail-to-rail.
-
-It reuses the existing deadband, min charge/discharge power, relay min-ON and grid-setpoint sliders, plus one mode-specific knob:
-
-- **No-PD Command Delay** (`number.*_no_pd_command_delay`, s) — debounces fast meters by collapsing a burst of updates into a single command on the latest value.
-
-!!! tip "When to use it"
-    No-PD suits a clean, fast meter where you want the most direct possible response and find PD tuning unnecessary. On a noisy meter the PD controller's filtering is usually the better choice.
-
-## Backup function exclusion
-
-A battery is excluded from the PD controller when **both** of the following are true:
-
-1. The **Backup Function** switch (`switch.*_backup_function`) is enabled.
-2. The **AC Offgrid Power** sensor (`sensor.*_ac_offgrid_power`) reports a non-zero value — confirming the battery is actually providing offgrid power.
-
-Having the switch on alone is not sufficient. If the switch is on but AC offgrid power reads 0 W (the battery is not actively serving an offgrid load), it continues to participate in PD control normally.
-
-While excluded, the controller sends no power commands, force mode changes, or configuration register writes to the battery. The battery continues to be polled normally so all read-only sensors (SOC, power, temperature, etc.) remain up to date.
-
-### Post-backup cooldown
-
-When the offgrid load drops back to 0 W, the battery does not re-enter PD control immediately. A **5-minute cooldown** keeps the battery excluded after the backup event ends. This avoids sending write commands to a battery that may still be settling after a backup episode.
-
-Turning the **Backup Function** switch off clears the cooldown immediately.
-
-!!! info
-    This exclusion also covers the weekly full charge register writes and the shutdown sequence.
-
-## Per-slot target power
-
-Each [time slot](../configuration/time-slots.md) can have its own **target grid power** (`target_grid_power`), allowing different strategies at different times of day.
-
-![PD controller entities in Home Assistant](../assets/screenshots/features/pd-controller-entities.png){ width="700"  style="display: block; margin: 0 auto;"}
+    While excluded, Omnibattery continues polling read-only data but sends no power, forced-mode, configuration, or weekly full-charge commands to that battery. After off-grid power returns below the threshold, exclusion remains for `5 min`; turning **Backup Function** off clears the cooldown immediately.
