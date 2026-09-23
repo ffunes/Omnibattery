@@ -1,58 +1,60 @@
-# Marstek
+# Marstek Venus
 
-Omnibattery supports Marstek Venus E/C, Venus A and Venus D batteries. The
-connection can use Modbus TCP, Modbus RTU over USB–RS485, or a LilyGo RS485
-bridge running the supported ESPHome firmware.
+Use this connection for a Marstek Venus battery reached directly over Ethernet, through a Modbus gateway, or through a USB-to-RS-485 adapter. A LilyGo bridge uses its own option in the wizard.
 
-## Connection options
+## Do I need it?
 
-For Modbus TCP, Venus E v2 normally needs an RS485-to-TCP converter such as an
-Elfin-EW11. Venus E v3, Venus A and Venus D provide native Ethernet. For Modbus
-RTU, connect a USB–RS485 adapter to the Home Assistant host.
+| Battery | Wizard version | Maximum charge and discharge power |
+|---|---|---:|
+| Venus E v2 | **Ev2** | 2,500 W |
+| Venus E v3 | **Ev3** | 2,500 W |
+| Venus A | **A** | 1,500 W |
+| Venus D | **D** | 2,200 W before EMS firmware 149, or when firmware is unknown; 2,500 W from firmware 149 |
 
-The wizard asks for:
+**Use this page if** one of these wizard choices matches your battery and you can reach it through Modbus TCP or Modbus RTU. **Use the LilyGo route instead** when a supported ESPHome bridge already exposes the battery in Home Assistant.
 
-| Field | Description | Default |
+Venus E v1 and Venus C remain in the documented Marstek family for now, but the current wizard has no dedicated v1 or C profile. Do not guess a version; confirm the correct register map before adding either model.
+
+## Before you start
+
+- For Venus E v2, prepare an RS-485-to-TCP gateway or a USB-to-RS-485 adapter.
+- For Venus E v3, Venus A, or Venus D, confirm that Home Assistant can reach the battery's Ethernet address.
+- Know the Modbus slave ID and the exact Venus version.
+- If several batteries share one gateway, give each unit its own slave ID.
+
+## How to add it
+
+1. In the Omnibattery setup flow, choose **Marstek Venus**.
+2. Enter a battery name and either **Host IP** or **Serial port**. Leave **Serial port** empty for a network connection.
+3. Keep **Modbus port** at `502` unless the battery or gateway uses another port.
+4. Enter the **Modbus slave ID** and select **Ev2**, **Ev3**, **A**, or **D**.
+5. Continue to the limits form and choose values no higher than the model limit above.
+
+![Marstek connection form](../../assets/screenshots/configuration/battery-connection-form.png){ width="650" style="display: block; margin: 0 auto;" }
+
+## What you will see
+
+Marstek exposes automatic and manual charge/discharge control, state of charge (SOC), power and energy readings, and the sensors available in the selected register map. Solar and alarm readings appear only on models whose map provides them.
+
+Venus E v2 can use hardware SOC cutoffs. Omnibattery enforces the configured SOC limits in software for Venus E v3, Venus A, and Venus D. Venus A and Venus D also ask whether direct-current solar is connected so power-flow calculations can use the correct source.
+
+![Marstek configuration form](../../assets/screenshots/configuration/battery-config-form.png){ width="650" style="display: block; margin: 0 auto;" }
+
+## If it does not work
+
+| Symptom | Likely cause | What to check |
 |---|---|---|
-| **Name** | Name used for the battery device | — |
-| **Host IP** | IP address of the battery or Modbus converter; leave empty for RTU | — |
-| **Modbus port** | TCP port | `502` |
-| **Serial port** | USB–RS485 path, for example `/dev/ttyUSB0` or `COM3`; use instead of the host for RTU | — |
-| **Modbus slave ID** | Unit ID when several batteries share one endpoint | `1` |
-| **Battery version** | Register map for the installed model | — |
+| The wizard reports **Cannot connect** | The address, serial path, port, slave ID, wiring, or selected map is wrong | Test network reachability or the serial adapter, then verify the model and slave ID |
+| Values are implausible or unavailable | The selected Venus version uses a different register map | Reconfigure the battery with the exact model version |
+| Venus D is limited to 2,200 W | EMS firmware is older than 149 or its version could not be read | Check the EMS firmware before expecting the higher limit |
+| A LilyGo-connected battery is missing | The direct Marstek route was selected | Return to the brand step and select **Marstek via LilyGo RS485 (ESPHome)** |
+| Charging slows near full | The optional full-charge taper is active | Check **100% Charge Voltage Taper** and the cell-voltage sensors |
 
-When using the LilyGo bridge, choose **Marstek via LilyGo RS485 (ESPHome)** in
-the brand selector and select the ESPHome device. The bridge must expose the
-required Marstek entities in Home Assistant.
+??? "Advanced details"
+    Marstek uses native force mode and separate charge/discharge setpoints. The available registers depend on the selected version; Omnibattery derives force mode, solar, alarms, hardware SOC cutoffs, and RS-485 control capability from that map.
 
-![Marstek connection form](../../assets/screenshots/configuration/battery-connection-form.png){ width="650"  style="display: block; margin: 0 auto;"}
+    The optional **100% Charge Voltage Taper** is Marstek-specific. At a 100% target, it limits charging to `200 W` when the highest measured cell reaches `3.48 V`. Venus E pauses at `3.60 V` and waits `60 s` before evaluating cell imbalance. Coupled-pack Venus A and D systems continue at the taper power until the battery management system (BMS) ends charging. See [Cell balance monitor](../../features/cell-balance-monitor.md).
 
-## Battery versions
+    A Modbus TCP connection normally uses port `502`; the slave ID accepts the Modbus unit range `1–247`. A serial path such as `/dev/ttyUSB0` or `COM3` selects Modbus RTU instead of the host address.
 
-| Version | Models |
-|---|---|
-| `v1/v2` | Venus E v1, Venus E v2 |
-| `v3` | Venus E v3 |
-| `vA` | Venus A |
-| `vD` | Venus D |
-
-!!! warning "Maximum power depends on the model"
-    Venus E v2/v3 support **2500 W**, Venus A supports **1500 W**, and Venus D supports **2200 W** before EMS firmware 149 (or while its firmware is unknown) and **2500 W** from EMS 149 onward. Use the applicable maximum only when you are certain that the domestic installation can safely handle it.
-
-## Marstek-specific limits
-
-The limits page includes the common charge/discharge power, SOC and backup
-threshold controls. Marstek also exposes the **100% charge voltage taper**:
-when the target is 100%, charging is limited to 200 W from a maximum cell
-voltage of 3.48 V. Venus E models stop at 3.60 V so the integration can
-measure cell imbalance after 60 seconds; Venus A/D models with coupled packs
-keep charging at 200 W until their BMS cuts off.
-
-This voltage-based protection and the cell-balance monitor are Marstek-specific.
-See [Cell balance monitor](../../features/cell-balance-monitor.md) for the
-measurement and recovery sequence.
-
-![Marstek configuration form](../../assets/screenshots/configuration/battery-config-form.png){ width="650"  style="display: block; margin: 0 auto;"}
-
-For SOC sliders, runtime power limits, system caps and backup thresholds, see
-the [common battery settings](index.md).
+    For shared state-of-charge controls, system caps, and backup behavior, see [Choose your battery connection](index.md).
