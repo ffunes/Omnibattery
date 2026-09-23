@@ -62,6 +62,7 @@ ZENDURE_MODEL_SOLARFLOW_800_PRO = "solarflow_800_pro"
 ZENDURE_MODEL_1600AC_PLUS = "1600ac_plus"
 ZENDURE_MODEL_2400AC_PRO = "2400ac_pro"
 ZENDURE_MODEL_2400AC_PLUS = "2400ac_plus"
+ZENDURE_MODEL_3000MIX_AC_PLUS = "3000mix_ac_plus"
 ZENDURE_MODEL_4000MIX_AC_PLUS = "4000mix_ac_plus"
 ZENDURE_MODEL_4000MIX_PRO = "4000mix_pro"
 
@@ -75,6 +76,8 @@ _MODEL_POWER_LIMITS: dict[str, tuple[int, int]] = {
     ZENDURE_MODEL_1600AC_PLUS: (1600, 1600),
     ZENDURE_MODEL_2400AC_PRO: (2400, 2400),
     ZENDURE_MODEL_2400AC_PLUS: (2400, 2400),
+    # The 3000 Mix AC+ battery/inverter supports 3 kW in both directions.
+    ZENDURE_MODEL_3000MIX_AC_PLUS: (3000, 3000),
     # The 4000 Mix AC+ battery/inverter supports 4 kW in both directions.
     # Installation-specific grid limits remain separate system-level settings.
     ZENDURE_MODEL_4000MIX_AC_PLUS: (4000, 4000),
@@ -90,6 +93,7 @@ _SOLAR_MPPT_KEYS: frozenset[str] = frozenset({
 _AC_COUPLED_MODELS: frozenset[str] = frozenset({
     ZENDURE_MODEL_1600AC_PLUS,
     ZENDURE_MODEL_2400AC_PLUS,
+    ZENDURE_MODEL_3000MIX_AC_PLUS,
     ZENDURE_MODEL_4000MIX_AC_PLUS,
 })
 _MPPT_MODELS: frozenset[str] = frozenset({ZENDURE_MODEL_4000MIX_PRO})
@@ -581,6 +585,7 @@ class ZendureLocalDriver(BatteryDriver):
         if detected == self._model:
             return
         if detected not in {
+            ZENDURE_MODEL_3000MIX_AC_PLUS,
             ZENDURE_MODEL_4000MIX_AC_PLUS,
             ZENDURE_MODEL_4000MIX_PRO,
         }:
@@ -883,6 +888,8 @@ def detect_model(product: str | None) -> str:
         return ZENDURE_MODEL_4000MIX_PRO
     if "4000mixac" in normalized or normalized.startswith("zda2502"):
         return ZENDURE_MODEL_4000MIX_AC_PLUS
+    if "3000mixac" in normalized:
+        return ZENDURE_MODEL_3000MIX_AC_PLUS
     if "800pro" in normalized:
         return ZENDURE_MODEL_SOLARFLOW_800_PRO
     if "800plus" in normalized or "800pls" in normalized:

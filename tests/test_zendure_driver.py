@@ -21,6 +21,7 @@ from custom_components.omnibattery.drivers.zendure import (
     ZENDURE_MODEL_SOLARFLOW_800_PRO,
     ZENDURE_MODEL_1600AC_PLUS,
     ZENDURE_MODEL_2400AC_PLUS,
+    ZENDURE_MODEL_3000MIX_AC_PLUS,
     ZENDURE_MODEL_4000MIX_AC_PLUS,
     ZENDURE_MODEL_4000MIX_PRO,
     detect_model,
@@ -186,6 +187,29 @@ def test_solarflow_1600_ac_plus_excludes_dc_solar_entities():
     assert not keys & {"solar_power", "mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"}
 
 
+
+@pytest.mark.parametrize(("product", "model"), [
+    ("SolarFlow 3000 Mix AC+", ZENDURE_MODEL_3000MIX_AC_PLUS),
+    ("solarFlow3000MixAC+", ZENDURE_MODEL_3000MIX_AC_PLUS),
+])
+def test_detect_model_identifies_solarflow_3000_mix_models(product, model):
+    assert detect_model(product) == model
+
+@pytest.mark.parametrize("model", [
+    ZENDURE_MODEL_3000MIX_AC_PLUS,
+])
+def test_solarflow_3000_mix_models_use_their_power_envelope(model):
+    driver = ZendureLocalDriver(
+        "192.168.1.100", model=model
+    )
+
+    assert driver.capabilities.max_charge_power_w == 3000
+    assert driver.capabilities.max_discharge_power_w == 3000
+    assert next(
+        d for d in driver.number_definitions if d["key"] == "inverse_max_power"
+    )["max"] == 3000
+
+
 @pytest.mark.parametrize(("product", "model"), [
     ("SolarFlow 4000 Mix AC+", ZENDURE_MODEL_4000MIX_AC_PLUS),
     ("solarFlow4000MixAC+", ZENDURE_MODEL_4000MIX_AC_PLUS),
@@ -233,6 +257,7 @@ def test_solarflow_4000_mix_pro_exposes_dc_mppt_entities():
 
 
 @pytest.mark.parametrize(("product", "model"), [
+    ("solarFlow3000MixAC+", ZENDURE_MODEL_3000MIX_AC_PLUS),
     ("solarFlow4000MixAC+", ZENDURE_MODEL_4000MIX_AC_PLUS),
     ("solarFlow4000MixPro", ZENDURE_MODEL_4000MIX_PRO),
 ])
@@ -244,10 +269,11 @@ async def test_legacy_zendure_profile_promotes_from_report_product(product, mode
         session=_session(get_data=report),
     )
 
+    limit = 3000 if model == ZENDURE_MODEL_3000MIX_AC_PLUS else 4000
     assert await driver.connect() is True
     assert driver.model_key == model
-    assert driver.capabilities.max_charge_power_w == 4000
-    assert driver.capabilities.max_discharge_power_w == 4000
+    assert driver.capabilities.max_charge_power_w == limit
+    assert driver.capabilities.max_discharge_power_w == limit
     assert driver.capabilities.has_mppt_pv is (model == ZENDURE_MODEL_4000MIX_PRO)
 
 
