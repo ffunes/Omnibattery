@@ -16,7 +16,7 @@ A Home Assistant sensor that measures power exchange with the grid (in **W** or 
 
     Home consumption can vary by several kilowatts in fractions of a second (appliance start-ups, oven, washing machine…). Slow sensors are supported, but their delay means that the controller may react to a situation that has already changed, reducing regulation quality.
 
-    **Recommended: 1–2 second update interval.** Shelly devices do not provide this MQTT cadence natively. A script must run on the device; see the [Shelly Pro 3EM MQTT scripts](../reference/shelly-pro-3em-mqtt-script.md) reference for examples.
+    **Recommended: 1–2 second update interval.** Shelly devices do not provide this MQTT cadence natively. A script must run on the device; see the [Shelly Pro 3EM MQTT scripts](../hardware/shelly-pro-3em-mqtt-script.md) reference for examples.
 
     Omnibattery always follows the latest published value until it is more than **65 seconds old**, regardless of the sensor's polling rate. Sensors that repeatedly update every 10 seconds or more trigger one Home Assistant Repairs warning per integration run; no recurring log warning is emitted. If the sensor is fast after the next restart, the persisted Repair is cleared after three updates.
 

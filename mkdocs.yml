@@ -46,6 +46,12 @@ theme:
 
 plugins:
   - search
+  - redirects:
+      redirect_maps:
+        blueprints.md: automations/blueprints.md
+        es/blueprints.md: https://ffunes.github.io/omnibattery/es/automations/blueprints/
+        reference/shelly-pro-3em-mqtt-script.md: hardware/shelly-pro-3em-mqtt-script.md
+        es/reference/shelly-pro-3em-mqtt-script.md: https://ffunes.github.io/omnibattery/es/hardware/shelly-pro-3em-mqtt-script/
   - i18n:
       docs_structure: suffix
       languages:
@@ -58,47 +64,60 @@ plugins:
           build: true
           nav_translations:
             Home: Inicio
-            Installation: Instalación
+            Get started: Empezar
             Installation guide: Guía de instalación
-            Battery-specific setup: Configuración específica por batería
-            Blueprints: Blueprints
-            Configuration: Configuración
-            Overview: Resumen
+            Configure: Configurar
+            Start here: Empieza aquí
+            Sensors and electrical limits: Sensores y límites eléctricos
             Main sensor: Sensor principal
             Three-phase current protection: Protección de corriente trifásica
-            Batteries: Baterías
+            Your battery: Tu batería
+            Choose a brand: Elegir marca
+            Marstek: Marstek
+            Zendure: Zendure
+            Anker SOLIX: Anker SOLIX
+            Sessy: Sessy
             Hoymiles MQTT: Hoymiles MQTT
             Hoymiles MS-A2 setup: Instalación de Hoymiles MS-A2
             Time slots: Franjas horarias
+            Large loads and EV chargers: Cargas grandes y cargadores VE
             Excluded devices: Dispositivos excluidos
+            Load exclusion: Exclusión de cargas
             Predictive charging: Carga predictiva
+            Which mode should I choose?: ¿Qué modo elijo?
             Time Slot mode: Modo Franja Horaria
             Dynamic Pricing mode: Modo Precio Dinámico
             Real-Time Price mode: Modo Precio en Tiempo Real
             Features: Funcionalidades
-            Grid control: Control de red
-            Energy management: Gestión energética
-            Battery health and protection: Salud y protección de la batería
+            Follow home consumption: Seguir el consumo de casa
             PD Controller: Controlador PD
-            Multi-battery management: Gestión multi-batería
+            Hourly net balance: Balance neto horario
+            Make the most of solar: Aprovechar el sol
             Daily consumption estimate: Estimación de consumo diario
+            Solar charge delay: Retraso de carga solar
+            Protect your installation: Proteger la instalación
+            Peak shaving: Peak shaving
+            Temperature charge limit: Límite de carga por temperatura
+            Care for your battery: Cuidar la batería
             Weekly full charge: Carga semanal completa
             Cell balance monitor: Monitor de equilibrio de celdas
-            Peak shaving: Peak shaving
-            Solar charge delay: Retraso de carga solar
-            Temperature charge limit: Límite de carga por temperatura
-            Load exclusion: Exclusión de cargas
-            Hourly net balance: Balance neto horario
-            Reference: Referencia
-            Architecture: Arquitectura
-            Battery driver requirements: Requisitos para drivers de batería
-            Complete register table: Tabla completa de registros
+            Multiple batteries: Varias baterías
+            Daily operation timeline: Cronología diaria
+            Hardware and meters: Hardware y medidores
             Shelly Pro 3EM MQTT scripts: Scripts MQTT para Shelly Pro 3EM
-            For contributors: Para colaboradores
-            Modbus registers: Registros Modbus
-            HA entities: Entidades HA
+            Automations: Automatizaciones
+            Blueprints: Blueprints
+            Support: Soporte
             Troubleshooting: Solución de problemas
             Changelog: Changelog
+            Reference: Referencia
+            HA entities: Entidades HA
+            Modbus registers: Registros Modbus
+            Overview: Resumen
+            Complete register table: Tabla completa de registros
+            Contribute: Contribuir
+            Architecture: Arquitectura
+            Battery driver requirements: Requisitos para drivers de batería
 
 extra:
   social:
@@ -134,52 +153,57 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Installation:
+  - Get started:
       - Installation guide: installation.md
-      - Battery-specific setup:
-          - Hoymiles MS-A2 setup: configuration/hoymiles-ms-a2.md
-  - Configuration:
-      - Overview: configuration/index.md
-      - Main sensor: configuration/main-sensor.md
-      - Three-phase current protection: configuration/three-phase.md
-      - Batteries:
-          - Overview: configuration/batteries/index.md
+  - Configure:
+      - Start here: configuration/index.md
+      - Sensors and electrical limits:
+          - Main sensor: configuration/main-sensor.md
+          - Three-phase current protection: configuration/three-phase.md
+      - Your battery:
+          - Choose a brand: configuration/batteries/index.md
           - Marstek: configuration/batteries/marstek.md
           - Zendure: configuration/batteries/zendure.md
           - Anker SOLIX: configuration/batteries/anker.md
           - Sessy: configuration/batteries/sessy.md
           - Hoymiles MQTT: configuration/batteries/hoymiles.md
+          - Hoymiles MS-A2 setup: configuration/hoymiles-ms-a2.md
       - Time slots: configuration/time-slots.md
-      - Excluded devices: configuration/excluded-devices.md
+      - Large loads and EV chargers:
+          - Excluded devices: configuration/excluded-devices.md
+          - Load exclusion: features/load-exclusion.md
       - Predictive charging:
-          - Overview: configuration/predictive-charging/index.md
+          - Which mode should I choose?: configuration/predictive-charging/index.md
           - Time Slot mode: configuration/predictive-charging/time-slot.md
           - Dynamic Pricing mode: configuration/predictive-charging/dynamic-pricing.md
           - Real-Time Price mode: configuration/predictive-charging/real-time-price.md
   - Features:
-      - Grid control:
+      - Follow home consumption:
           - PD Controller: features/pd-controller.md
           - Hourly net balance: features/hourly-net-balance.md
-      - Energy management:
+      - Make the most of solar:
           - Daily consumption estimate: features/consumption-estimate.md
-          - Daily operation timeline: features/daily-operation-timeline.md
           - Solar charge delay: features/solar-charge-delay.md
+      - Protect your installation:
           - Peak shaving: features/peak-shaving.md
-          - Load exclusion: features/load-exclusion.md
-      - Battery health and protection:
+          - Temperature charge limit: features/temperature-charge-limit.md
+      - Care for your battery:
           - Weekly full charge: features/weekly-full-charge.md
           - Cell balance monitor: features/cell-balance-monitor.md
-          - Temperature charge limit: features/temperature-charge-limit.md
-  - Blueprints: blueprints.md
-  - Troubleshooting: troubleshooting.md
+      - Multiple batteries: features/multi-battery.md
+      - Daily operation timeline: features/daily-operation-timeline.md
+  - Hardware and meters:
+      - Shelly Pro 3EM MQTT scripts: hardware/shelly-pro-3em-mqtt-script.md
+  - Automations:
+      - Blueprints: automations/blueprints.md
+  - Support:
+      - Troubleshooting: troubleshooting.md
+      - Changelog: changelog.md
   - Reference:
       - HA entities: reference/entities.md
-      - Multi-battery management: features/multi-battery.md
-      - Shelly Pro 3EM MQTT scripts: reference/shelly-pro-3em-mqtt-script.md
       - Modbus registers:
           - Overview: reference/modbus-registers.md
           - Complete register table: reference/registers.md
-  - For contributors:
+  - Contribute:
       - Architecture: reference/architecture.md
       - Battery driver requirements: reference/driver-requirements-template.md
-  - Changelog: changelog.md

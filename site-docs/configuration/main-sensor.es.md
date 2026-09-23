@@ -16,7 +16,7 @@ Sensor de Home Assistant que mide el intercambio de potencia con la red (en **W*
 
     El consumo del hogar puede variar varios kilovatios en fracciones de segundo (arranque de electrodomésticos, horno, lavadora…). Los sensores lentos son compatibles, pero su retraso puede hacer que el controlador reaccione a una situación que ya ha cambiado, reduciendo la calidad de la regulación.
 
-    **Recomendado: actualización cada 1–2 segundos.** Los dispositivos Shelly no ofrecen esta cadencia MQTT de forma nativa. Es necesario ejecutar un script dentro del dispositivo; consulta la [referencia de scripts MQTT para Shelly Pro 3EM](../reference/shelly-pro-3em-mqtt-script.md) para ver ejemplos.
+    **Recomendado: actualización cada 1–2 segundos.** Los dispositivos Shelly no ofrecen esta cadencia MQTT de forma nativa. Es necesario ejecutar un script dentro del dispositivo; consulta la [referencia de scripts MQTT para Shelly Pro 3EM](../hardware/shelly-pro-3em-mqtt-script.md) para ver ejemplos.
 
     Omnibattery sigue siempre el último valor publicado hasta que supera los **65 segundos de antigüedad**, independientemente del polling rate del sensor. Los sensores que actualizan repetidamente cada 10 segundos o más generan un único aviso de Repairs de Home Assistant por ejecución de la integración; no se emiten avisos recurrentes en el log. Si el sensor es rápido después del siguiente reinicio, el Repair persistente se elimina tras tres actualizaciones.
 

@@ -16,7 +16,7 @@ On Venus A/D with coupled packs, the normal 3.60 V stop is also bypassed and a
 reported 100% SOC from the first pack does not finish the cycle. The tapered
 200 W command remains active until the shared BMS cutoff is confirmed.
 
-For deliberate active cell balancing, use the optional [Marstek active-balance blueprint](../blueprints.md#active-cell-balancing-for-one-marstek-battery). It runs one battery at a time through the per-battery Battery Manual Mode switch and is independent of this weekly feature.
+For deliberate active cell balancing, use the optional [Marstek active-balance blueprint](../automations/blueprints.md#active-cell-balancing-for-one-marstek-battery). It runs one battery at a time through the per-battery Battery Manual Mode switch and is independent of this weekly feature.
 
 !!! warning "Cell balancing"
     Active cell balancing is **very slow**. Reducing the top-of-charge cell delta by roughly 5 mV typically takes around 24 hours of cumulative time at the top of the balance window.

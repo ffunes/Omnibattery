@@ -2,7 +2,7 @@
 
 Blueprints are optional Home Assistant automations that complement Omnibattery. They are not part of the integration configuration and do not change its code. Import one from **Settings → Automations & scenes → Blueprints** using its link below, then create an automation from it.
 
-For manual installation, copy the YAML file to `/config/blueprints/automation/omnibattery/` and reload blueprints. See [Installation](installation.md#blueprint-installation) for the general steps.
+For manual installation, copy the YAML file to `/config/blueprints/automation/omnibattery/` and reload blueprints. See [Installation](../installation.md#blueprint-installation) for the general steps.
 
 ## Active cell balancing for one Marstek battery
 

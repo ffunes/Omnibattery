@@ -56,7 +56,7 @@ debajo de 3,60 V. Cuando ese corte se confirma mientras la batería sigue en la
 zona de reducción, el propio corte activa la medición: la integración detiene
 la carga, espera 60 segundos y registra el delta de celdas estabilizado.
 
-Para recuperar activamente un pack con desbalanceo persistente, usa el [blueprint de balanceo activo para una batería Marstek](../blueprints.es.md#balanceo-activo-de-una-batería-marstek). Es una automatización externa de Home Assistant: toma una batería mediante **Battery Manual Mode**, descubre sus entidades estándar a partir del dispositivo seleccionado y deja la propiedad manual activada si no puede confirmar la limpieza.
+Para recuperar activamente un pack con desbalanceo persistente, usa el [blueprint de balanceo activo para una batería Marstek](../automations/blueprints.es.md#balanceo-activo-de-una-batería-marstek). Es una automatización externa de Home Assistant: toma una batería mediante **Battery Manual Mode**, descubre sus entidades estándar a partir del dispositivo seleccionado y deja la propiedad manual activada si no puede confirmar la limpieza.
 
 ## Reducción por voltaje al 100 %
 
@@ -122,7 +122,7 @@ Llegar al punto de pausa de 3.60 V normalmente solo ocurre en una carga al 100 %
 
 ## Blueprint opcional de balanceo activo
 
-El [blueprint de balanceo activo para una batería Marstek](../blueprints.es.md#balanceo-activo-de-una-batería-marstek) es la ruta recomendada para recuperar un pack cuando el balanceo pasivo de las cargas normales o semanales no basta. Está deliberadamente fuera del bucle de control automático de la integración y debe configurarse una vez por batería. Al crear la automatización se selecciona el dispositivo Omnibattery de la batería; el blueprint resuelve automáticamente las entidades estándar y permite sobrescribir por ID las que se hayan renombrado.
+El [blueprint de balanceo activo para una batería Marstek](../automations/blueprints.es.md#balanceo-activo-de-una-batería-marstek) es la ruta recomendada para recuperar un pack cuando el balanceo pasivo de las cargas normales o semanales no basta. Está deliberadamente fuera del bucle de control automático de la integración y debe configurarse una vez por batería. Al crear la automatización se selecciona el dispositivo Omnibattery de la batería; el blueprint resuelve automáticamente las entidades estándar y permite sobrescribir por ID las que se hayan renombrado.
 
 Su perfil predeterminado es: potencia máxima configurada hasta `max_cell_voltage >= 3.49 V`, carga regulada a 95 W hasta 3.60 V, reposo de 60 s para medir, descargas a 200 W hacia 3.49 V hasta que `delta_V <= 0.03 V` y una descarga final a 200 W hasta 3.48 V. Si el BMS rechaza un tramo nuevo de carga, el blueprint espera 10 s y exige tres muestras aproximadamente a 0 W. Cuando el rechazo ocurre todavía en la ventana superior, primero reposa 60 s y publica el delta estabilizado; después baja el objetivo de reintento en 0.01 V, hasta 3.40 V, y continúa con la descarga adaptativa. Los rechazos por debajo de la ventana superior no se registran como medidas formales.
 

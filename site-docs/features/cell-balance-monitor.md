@@ -56,7 +56,7 @@ When that cutoff is confirmed while the battery is still in the taper zone,
 the cutoff itself becomes the measurement trigger; the integration stops
 charging, waits 60 seconds, and records the settled cell delta.
 
-For active recovery of a pack with a persistent imbalance, use the optional [Marstek active-balance blueprint](../blueprints.md#active-cell-balancing-for-one-marstek-battery). The blueprint is an external Home Assistant automation: it takes one battery through **Battery Manual Mode**, discovers the standard entities from the selected Omnibattery device (with manual ID overrides for renamed entities), and leaves manual ownership asserted if cleanup cannot be confirmed.
+For active recovery of a pack with a persistent imbalance, use the optional [Marstek active-balance blueprint](../automations/blueprints.md#active-cell-balancing-for-one-marstek-battery). The blueprint is an external Home Assistant automation: it takes one battery through **Battery Manual Mode**, discovers the standard entities from the selected Omnibattery device (with manual ID overrides for renamed entities), and leaves manual ownership asserted if cleanup cannot be confirmed.
 
 ## 100% charge voltage taper
 
@@ -146,7 +146,7 @@ Reaching the 3.60 V threshold normally only happens on a 100% charge, so this ra
 
 ## Optional active-balance blueprint
 
-The [Marstek active-balance blueprint](../blueprints.md#active-cell-balancing-for-one-marstek-battery) is the supported recovery path when passive balancing during normal or weekly charging is not enough. It is deliberately outside the integration's automatic control loop and must be configured once per battery.
+The [Marstek active-balance blueprint](../automations/blueprints.md#active-cell-balancing-for-one-marstek-battery) is the supported recovery path when passive balancing during normal or weekly charging is not enough. It is deliberately outside the integration's automatic control loop and must be configured once per battery.
 
 Its default profile is: configured maximum charge power until `max_cell_voltage >= 3.49 V`, regulated charge at 95 W until 3.60 V, a 60-second rest measurement, 200 W discharge retries toward 3.49 V until `delta_V <= 0.03 V`, and a final 200 W discharge to 3.48 V. If the BMS rejects a new charge leg, the blueprint waits 10 seconds and requires three approximately-zero-power samples. When rejection still occurs inside the upper window, it first rests for 60 seconds and publishes the settled delta; it then lowers the retry target by 0.01 V, down to 3.40 V, and continues with adaptive discharge. Rejections below the upper window are not stored as formal measurements.
 

@@ -20,7 +20,7 @@ un SOC del 100 % reportado por el primer pack no completa el ciclo. La carga
 reducida a 200 W continúa hasta confirmar el corte de la BMS; después espera 60 s
 sin cargar y registra la medición del delta de celdas.
 
-Para realizar un balanceo activo deliberado, usa el [blueprint de balanceo activo para una batería Marstek](../blueprints.es.md#balanceo-activo-de-una-batería-marstek). Ejecuta una batería cada vez mediante su interruptor Battery Manual Mode y es independiente de esta función semanal.
+Para realizar un balanceo activo deliberado, usa el [blueprint de balanceo activo para una batería Marstek](../automations/blueprints.es.md#balanceo-activo-de-una-batería-marstek). Ejecuta una batería cada vez mediante su interruptor Battery Manual Mode y es independiente de esta función semanal.
 
 El sensor **Carga semanal completa** expone diagnósticos por batería en su atributo `batteries`: SOC en vivo y contador de ciclos de corte del BMS durante la carga, y una instantánea al completar (`soc_at_completion`, `max_cell_voltage_at_completion`, `completion_reason`, `bms_cutoff_cycles`).
 
