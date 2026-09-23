@@ -1,183 +1,87 @@
-# Excluded devices
+# Configure a large load or EV charger
 
-Allows you to "mask" heavy loads so the battery does not try to cover them.
+Add a device here when its demand needs different battery treatment from the rest of the home. This page covers the sensors and setup fields; [Load exclusion](../features/load-exclusion.md) explains which behavior to choose and what it does.
 
-## Typical use case
+## Do I need it?
 
-If you have a 7 kW EV charger and a 2.5 kW battery, without exclusion the battery will try to compensate the full charger load and drain quickly. With exclusion active, the controller ignores that power and the battery only manages the rest of the household.
+**Use it if** you want to add a large load, such as an electric vehicle (EV) charger, wallbox, heat pump, or immersion heater, that the battery should ignore fully or partly.
 
----
+**You do not need it if** the battery should treat the device exactly like ordinary household demand.
 
-## Configuring an excluded device
+## Before you start
 
-| Field | Description |
+- For a metered device, prepare a numeric **Device power sensor** in watts.
+- For dynamic power control (DPC), also prepare a **Device active / EV charging sensor** that reports when the device requests power.
+- For an EV charger without power telemetry, prepare that activity sensor instead of a watt sensor.
+- Decide whether your main home/grid sensor already includes this device's consumption.
+- Optional: prepare an energy sensor for demand still expected today and a presence entity when predictive charging should reserve solar for the device.
+
+## How to enable it
+
+1. Open **Settings → Devices & services → Omnibattery → Configure → Excluded devices**, enable **Configure special devices**, and add a device.
+2. Select **Device power sensor**. For a state-only charger, leave it empty, select **Device active / EV charging sensor**, and enable **EV charger without power telemetry**.
+3. Set **Consumption is included in home consumption sensor** using the test below.
+4. Select the behavior you need: **Allow to use solar surplus (do not charge battery)**, **Device has dynamic power control**, or **Cover home while device is active**. Use the [behavior guide](../features/load-exclusion.md) before combining them.
+5. Optional: add **Expected remaining demand (kWh)** and its presence entity, then save the device.
+
+```text
+Main sensor measures the whole home, including this device
+→ Enable "Consumption is included in home consumption sensor"
+
+Main sensor measures only the domestic circuit and cannot see this device
+→ Leave it disabled
+```
+
+![Configure an excluded device](../assets/screenshots/configuration/excluded-device-form.png){ width="650" style="display: block; margin: 0 auto;"}
+
+!!! warning "Screenshot needs updating"
+    The current form also includes expected remaining demand and its presence entity, which are not visible in this screenshot.
+
+## What you will see
+
+Each saved device exposes live controls on the Omnibattery system device:
+
+| Control | Availability |
 |---|---|
-| **Device power sensor** | HA entity measuring the device's numeric power (e.g. `sensor.wallbox_power`). Optional for an EV charger without power telemetry. |
-| **Device active / EV charging sensor** | State or binary sensor that reports `on`, `Charging`, `Cargando`, or another recognised charging state. Required by Dynamic Power Control and by new no-telemetry configurations; otherwise optional. |
-| **Included in consumption** | Check if your main sensor **already** includes this load |
-| **Allow solar surplus** | If enabled, the battery will not charge to compensate this device when there is a solar surplus. Can also be toggled at runtime via a switch entity (see below). |
-| **Device has dynamic power control** | Enable for a load such as a surplus-controlled wallbox that adjusts its own demand from a grid meter. Requires **Allow solar surplus**. |
-| **Cover home while device is active** | Allow the battery to cover genuine household load while only the device's grid share remains excluded. Requires **Allow solar surplus** and a solar-production sensor. |
-| **EV charger without power telemetry** | Check if the sensor is a state sensor that reads `Charging` (or a localised equivalent) instead of a watt value. See [EV charger without power telemetry](#ev-charger-without-power-telemetry) below. |
-| **Expected remaining demand (kWh)** | Optional sensor reporting the energy the device still expects to consume today. Predictive charging reserves that share of the remaining solar forecast for the device. See [Expected remaining demand](#expected-remaining-demand) below. |
-| **Presence entity for the remaining demand** | Optional. While set, the claim above counts only when this entity reports the device as present. See [Expected remaining demand](#expected-remaining-demand) below. |
+| **Device – Enabled** | Every configured device |
+| **Device – Solar Surplus** | Every configured device; setup determines its initial state |
+| **Device – Dynamic Power Control** | Metered devices; setup determines its initial state |
+| **Device – Cover Home** | Every configured device; setup determines its initial state |
+| **Device – Exclusion %** | Metered devices |
 
-### Included in consumption?
+These entities let you pause or change the saved behavior without reopening setup. See [Load exclusion](../features/load-exclusion.md#what-you-will-see) for the effect of each control.
 
-```
-Main sensor reads: whole house
-EV charger is part of "whole house" → ✅ Included in consumption
+## If it does not work
 
-Main sensor reads: only domestic circuit
-EV charger is on a separate circuit → ❌ Not included in consumption
-```
-
-The integration uses this setting to correctly calculate the net consumption without the excluded device.
-
-![Excluded device form](../assets/screenshots/configuration/excluded-device-form.png){ width="650"  style="display: block; margin: 0 auto;"}
-
----
-
-## Solar Surplus switch
-
-For each excluded device a **Solar Surplus** switch entity is automatically created (`Solar Surplus – <device name>`). It mirrors the *Allow solar surplus* setting and can be toggled at any time without entering the options flow.
-
-This makes it possible to change the charging priority from automations — for example:
-
-- Turn ON when the EV is connected, so solar charges the car first.
-- Turn OFF at a scheduled time to let the battery capture morning surplus.
-- React to battery SOC: turn ON above 80 %, turn OFF below 50 %.
-
-The switch state is persisted in the config entry and survives restarts.
-
----
-
-## Dynamic power control
-
-Telemetry devices also get a **Dynamic Power Control** switch. It is designed for flexible loads such as wallboxes that regulate themselves from the same grid meter as Omnibattery. Enable it together with **Solar Surplus**.
-
-!!! note "Solar production sensor"
-    The **solar-production sensor is recommended** for this control. When it is configured, Omnibattery detects increases of at least 200 W in the available margin (solar production minus device power), including a wallbox power drop, and yields battery charging again for 20 seconds. Without that sensor, it runs a 20-second probe every 5 minutes.
-
-The **Device active / EV charging sensor** lets Omnibattery yield while the wallbox is requesting power but still reads 0 W, avoiding the cold-start deadlock where the battery absorbs all export before the wallbox starts. Omnibattery automatically:
-
-- Bblocks battery charging while the optional activity sensor requests power but the wallbox still reads 0 W.
-- Yields battery charging for 30 seconds when device demand rises above 100 W.
-- Lets the external controller ramp up before the battery takes residual export.
-- Yields again for 20 seconds when the available margin (solar production minus device power) rises by at least 200 W, either because solar production rises or the wallbox reduces power.
-- When device power falls, keeps battery discharge blocked for 5 minutes and gives charging a short restart grace so a wallbox can restart after a cloud or phase transition.
-- Probes every 5 minutes when no solar-production sensor is available.
-
-Legacy sensor-less Dynamic Power Control entries still fall back to detection at the first measured load above 100 W. Dynamic Power Control is not available for the state-only **EV charger without power telemetry** mode because that mode already manages the battery directly from the same activity sensor.
-
----
-
-## Exclusion % slider
-
-Exclusion is not all-or-nothing. Each excluded device also gets an **Exclusion %** slider (`<device> – Exclusion %`, `number.*_exclusion_pct`, 0–100 %, default `100`) controlling **how much** of its demand stays off the battery:
-
-- `100 %` (default) — the device is fully masked, exactly as before. The battery covers none of its load.
-- `0 %` — the device is treated as normal household load; the battery covers it like anything else.
-- e.g. `60 %` — 60 % of the device's power is kept off the battery; the battery may cover the remaining 40 %.
-
-This lets the battery cover *part* of a big load instead of all-or-nothing — for example letting a 2.5 kW battery help with a 7 kW EV charger up to its share, rather than ignoring the charger entirely. The slider is per device and adjustable at runtime.
-
----
-
-## Expected remaining demand
-
-Predictive charging plans the battery against the remaining solar forecast. That forecast is not
-all yours: an excluded device on solar surplus consumes part of it. Left unaccounted, the energy
-balance reports "sufficient energy", skips the cheap grid slots, and the battery sits at a low
-SOC through a sunny day while the car takes the sun.
-
-Point **Expected remaining demand (kWh)** at a sensor reporting the energy the device still plans
-to consume today, and predictive charging reserves that share instead:
-
-```
-claim = min(expected remaining demand, remaining solar forecast − safety margin)
-solar available to the battery = remaining solar forecast − safety margin − claim
-```
-
-Notes:
-
-- The field is optional and off by default. Without it, nothing changes.
-- Eligibility follows the consumption correction exactly, so the same demand is never removed
-  twice. Only devices with **Included in consumption** checked may claim; a device the home sensor
-  does not see is an additional load the battery is meant to cover. **EV charger without power
-  telemetry** devices are skipped for the same reason they are skipped there.
-- **Exclusion %** scales the claim the same way it scales the consumption correction. At 50 % the
-  consumption forecast keeps half the device's demand, so only the other half is reserved.
-- The claim is capped at the available solar. Grid energy the device draws beyond the forecast is
-  already covered by the consumption forecast.
-- The sensor must report an energy unit (kWh, Wh, MJ, …). If it is unavailable, unknown,
-  unparsable or carries a non-energy unit, no claim is made.
-- evcc publishes a suitable entity per loadpoint: `sensor.evcc_<loadpoint>_charge_remaining_energy`.
-- **That sensor does not go to zero when the car leaves.** evcc derives it from the vehicle's SOC
-  target, so it keeps reporting a demand with nothing plugged in, and the claim then takes solar
-  away from the battery for a car that is not there. Set **Presence entity for the remaining
-  demand** to `binary_sensor.evcc_<loadpoint>_connected` and the claim counts only while a vehicle
-  is actually connected. A `binary_sensor`, a `device_tracker` or a text status sensor all work:
-  `on`, `true`, `home`, `connected`, `plugged` and `present` count as present, as does the whole
-  state matching a connected or charging word in any supported language (`Verbunden`,
-  `Aangesloten`, `Connesso`, `Branché`, `Charging`, …). The match is on the whole state, never on a
-  fragment of it, because every negative phrasing contains its own positive one — `Disconnected`
-  contains `connected`. A compound state such as `Connected, not charging` is therefore not
-  recognised and counts as absent; point the field at a `binary_sensor` in that case. An
-  unavailable, unknown or missing entity counts as absent too, so a broken sensor stops reserving
-  rather than reserving for a device that may not be there, and the refusal is written to the debug
-  log. A device judged absent contributes a
-  zero claim rather than no reading, so the intraday re-evaluation still sees the change. Leave the
-  field empty to keep the previous behaviour.
-- The reservation is taken from today's remaining solar in proportion to each interval's energy, so
-  a sunny hour gives up more than a dim one and every hour keeps the same share. The plan does not
-  assume *when* the device will draw. In a cross-midnight projection tomorrow's forecast is never
-  reduced.
-
-Because a charging session usually starts long after the 00:05 evaluation, predictive charging
-re-plans during the day whenever the claim moves by 2 kWh or more in either direction, at most
-every 15 minutes and four times a day. A session that ends releases the reserved solar the same way.
-
-The current value is published as the `excluded_demand_claim_kwh` attribute of
-`binary_sensor.<name>_predictive_charging_active`, next to `solar_surplus_kwh` and
-`solar_available_to_battery_kwh`, and in the integration's diagnostics.
-
----
-
-## EV charger without power telemetry
-
-Some EV charger integrations do not expose a real-time power sensor — they only report a **charging state** (e.g. `Charging`, `Idle`, `Disconnected`). This option is designed for those chargers.
-
-For new configurations, select the state entity in **Device active / EV charging sensor**; the numeric power sensor may be left empty. Existing configurations that stored the state entity in **Device power sensor** remain fully supported and are prefilled automatically when edited. Binary state `on` and charging words are recognised case-insensitively, covering:
-
-- `Charging` (most English-language integrations)
-- `Cargando`, `Cargando VE`, `Cargando Vehículo` (Spanish)
-
-### Behaviour when the EV starts charging
-
-```
-t = 0  EV state → "Charging" detected
-       Battery immediately set to 0 W (charge AND discharge blocked)
-       PD state frozen
-
-t = 5 min  Pause expires
-           Battery may charge from solar surplus
-           Battery discharge remains permanently blocked while EV is charging
-
-t = N  EV state → any other value (Idle / Disconnected / …)
-       Normal operation resumes
-```
-
-### Why the 5-minute pause?
-
-When an EV charger activates it negotiates the available current with the car over a brief handshake. Any battery discharge during this window can temporarily reduce the apparent grid capacity, causing the charger to settle at a lower current. The pause gives the handshake time to complete before the battery does anything.
-
-### Comparison with the standard Solar Surplus option
-
-| | Standard exclusion + Solar Surplus | EV without telemetry |
+| Symptom | Likely cause | What to check |
 |---|---|---|
-| Needs a power sensor | Yes | No |
-| Battery discharges for EV | Never | Never |
-| Battery charges from solar when EV charges | Yes | Yes (after 5-min pause) |
-| Initial 5-min pause | No | Yes |
-| Reacts to EV state changes | No | Yes (automatic) |
+| The form requires a power sensor | The device is configured as a metered load | Select a numeric watt sensor, or enable **EV charger without power telemetry** and provide an activity sensor |
+| Dynamic Power Control cannot be saved | Its required activity sensor is missing | Select **Device active / EV charging sensor** |
+| The battery compensates the wrong amount | The included-in-consumption choice does not match the main meter | Check whether switching the device changes the main sensor reading |
+| **Cover Home** has no useful effect | Solar Surplus or external solar-production data is missing | Enable Solar Surplus and configure the solar production sensor under **Sensors** |
+| Predictive charging reserves energy for an absent EV | The demand sensor stays above zero after disconnection | Configure **Presence entity for the remaining demand (optional)** using a reliable connected/present entity |
+| A runtime control is missing | The device definition does not enable that behavior, or its entity is disabled | Reopen the device configuration and check the Omnibattery device's disabled entities |
+
+??? "Advanced details"
+    **Field requirements**
+
+    Omnibattery supports up to 4 configured special devices. A normal excluded device requires a numeric power sensor. A new state-only EV configuration requires an activity sensor. Dynamic Power Control also requires an activity sensor and is meaningful only with Solar Surplus enabled. Cover Home requires Solar Surplus and an external solar-production sensor.
+
+    Existing state-only EV entries that stored their status entity in **Device power sensor** remain supported. Activity detection accepts binary `on` and charging words case-insensitively.
+
+    **Expected remaining demand**
+
+    The optional sensor must report convertible energy such as `Wh`, `kWh`, or `MJ`. Omnibattery uses it only when **Consumption is included in home consumption sensor** is enabled. State-only EV devices are skipped because their demand is already represented by the consumption forecast. The runtime exclusion percentage scales the reserved amount as well as the load correction.
+
+    The reservation cannot exceed solar remaining after the predictive safety margin:
+
+    ```text
+    claim = min(expected remaining demand, remaining solar after safety margin)
+    solar available to the battery = remaining solar after safety margin - claim
+    ```
+
+    If the demand value is unavailable, unknown, non-numeric, or not an energy unit, no claim is made. The optional presence entity avoids reserving solar when an upstream integration keeps reporting demand for a disconnected device. Whole-state values `on`, `true`, `home`, `present`, `connected`/`plugged`/`plugged in` (EN), `verbunden` (DE), `aangesloten`/`aanwezig` (NL), `connesso` (IT), `connecté`/`branché` (FR), `conectado` (ES/PT), `connectat` (CA), and `charging`/`cargando`/`laden` count as present. The match is on the whole state, never a fragment, because a negative phrasing contains its own positive one — `disconnected` contains `connected`. Unknown, unavailable, missing, and unmatched compound states (`Connected, not charging`) count as absent; use a binary sensor if a text state is ambiguous. Leaving the field empty always counts a valid demand sensor.
+
+    evcc users can select `sensor.evcc_<loadpoint>_charge_remaining_energy` and pair it with `binary_sensor.evcc_<loadpoint>_connected`.
+
+    The reservation is spread in proportion to the energy in today's remaining solar intervals; it does not predict when the device will consume. Tomorrow's forecast is not reduced in a cross-midnight projection. Predictive charging may re-plan when the claim changes by at least 2 kWh, with at least 15 minutes between those evaluations and no more than 4 claim-driven evaluations per day. Diagnostics publish the current value as `excluded_demand_claim_kwh` alongside `solar_surplus_kwh` and `solar_available_to_battery_kwh` on **Predictive Charging Active**.

@@ -1,46 +1,68 @@
-# Three-phase current protection
+# Protect each phase of a three-phase supply
 
-Three-phase current protection is an optional safety envelope for installations where the batteries share a three-phase connection. It is **disabled by default** and can be configured in the initial setup or from **Settings → Integrations → Omnibattery → Configure → Sensors**.
+Three-phase current protection limits automatic battery commands on the phase where each battery is connected. It helps keep battery charging and discharging within the current margin you reserve for that phase.
 
-## Configuration
+## Do I need it?
 
-Enable the feature and select one real-time signed RMS current sensor and one fuse-size/current limit in amperes for each phase you want to protect. Leave both fields empty for unused phases, so a one- or two-phase installation does not need placeholder values for the remaining phases. The sensors must be Home Assistant `sensor` entities with an `A` or `mA` unit. They use the same convention as the global grid sensor:
+**Use it if** your batteries share a three-phase installation and you need a separate current ceiling for each physical phase.
 
-- positive = grid import
-- negative = grid export
+**You do not need it if** your installation is single-phase, your electrical protection already handles the required operating envelope without software limits, or you cannot measure signed current on each phase you want to protect.
 
-The global **Inverted meter sign** setting is applied to the configured phase meters and Grid 0. Set one positive symmetric fuse-size/current limit in amperes for each configured phase, preferably below the fuse nameplate rating to leave operating margin. The physical phase assignment can be `L1`, `L2`, `L3` or **Unassigned** for each battery; Omnibattery cannot discover which AC phase a battery is wired to. An unassigned battery is excluded from the three-phase envelope and continues normal automatic operation. A battery assigned to a phase without a sensor and limit operates normally, without a phase protection cap.
+## Before you start
 
-Once the feature is configured, the system **Three-Phase Current Protection** switch is available on the dashboard. While it is off, the per-battery **Battery Phase** selectors are unavailable; they become live controls as soon as protection is enabled. Changing a battery's phase persists immediately and is used by the next automatic control cycle.
+- Use a signed root mean square (RMS) current sensor in `A` or `mA` for every protected phase. Positive must mean grid import and negative must mean grid export after the global meter-sign setting is applied.
+- Know the current limit for each phase and leave operating margin below the fuse nameplate rating.
+- Confirm which physical phase each battery uses. Omnibattery cannot discover the wiring.
+- Treat this feature as an additional software guard, not as a replacement for breakers, inverter protection, or electrical design.
 
-The diagnostic sensor `sensor.omnibattery_three_phase_protection_status` is also created. Its state is `disabled`, `active`, `limiting` or `degraded`. Attributes include `limited_batteries` and `limited_battery_details` (the batteries and power reduced in the latest automatic order), `unassigned_batteries`, `degraded_phases` and the complete per-phase detail under `phases`, including sensor, reading, limit, budgets and requested/assigned power.
+## How to enable it
 
-The global consumption sensor remains the controller's Grid 0 signal. Phase sensors are safety envelopes only: they do not replace Grid 0 or change the PD target.
+1. Open **Settings → Devices & services → Omnibattery → Configure → Sensors** and enable **Three-phase current protection**.
+2. For each protected phase, select its **L1/L2/L3 grid current sensor** and enter the matching **L1/L2/L3 fuse size (A)**. Leave both fields empty for an unused phase.
+3. In each battery's setup, set **Physical battery phase** to its actual conductor. Choose **Unassigned** only when the battery is outside the protected phase layout.
+4. Finish setup, then turn on **Three-Phase Current Protection** from the Omnibattery dashboard or device page.
+5. Confirm that **Three-Phase Protection Status** reports **Active** under normal load.
 
-## How the envelope works
+## What you will see
 
-For each phase, Omnibattery reconstructs the non-battery current and calculates both directional budgets:
+**Three-Phase Protection Status** shows one of these states:
 
-```text
-base_current = phase_current - battery_current_on_phase
-battery_current_min = max(-fuse_size, -fuse_size - base_current)
-battery_current_max = min(+fuse_size, +fuse_size - base_current)
-charge_budget_current = max(0, battery_current_max)
-discharge_budget_current = max(0, -battery_current_min)
-```
+| State | Meaning |
+|---|---|
+| **Disabled** | The runtime protection switch is off |
+| **Active** | Configured phase sensors are healthy and no battery command is being reduced |
+| **Limiting Batteries** | At least one automatic battery command is being capped |
+| **Degraded / Failsafe** | A configured phase cannot provide a valid current reading |
 
-The current sensor must be signed: positive means import and negative means export. Battery telemetry and commands use the controller convention (`+` charge, `−` discharge) and remain in active watts. Internally, the meter constraint and the absolute battery-command constraint are intersected as a signed interval before converting the directional budgets back to watts. Battery watts are converted to current and the available current budget is converted back to a conservative watt cap using 230 V nominal voltage and a 0.90 power factor. The normal load-sharing selection and proportional allocation run first. The result is then rounded down in 5 W increments and capped independently on each phase. Only power rejected by that cap is moved to batteries on healthy phases with remaining capacity, following the normal SOC/energy priority order.
+When the protection switch is on, each battery's **Physical Battery Phase** selector is available for runtime correction. A changed assignment persists and applies on the next automatic control cycle. The global grid-power sensor remains the control signal; phase sensors only limit the result.
 
-The configured phase limit is an absolute per-phase cap for automatic battery assignments in either direction. The reconstructed base current can reduce the available budget, but it cannot increase the battery current above the configured limit. A phase meter can still exceed the limit because of an external load, measurement/actuator latency or a manual command; the automatic guard cannot remove an external load.
+## If it does not work
 
-The envelope is applied to normal PD and direct-tracking control, predictive grid charging, automatic time-slot PD, active-balance rebalances and the final common automatic command guard. The assigned total is fed back into the controller so a phase cap does not create integral windup.
+| Symptom | Likely cause | What to check |
+|---|---|---|
+| Status is **Degraded / Failsafe** | A configured current sensor is missing, stale, unavailable, non-numeric, or in the wrong unit | Check that the entity reports a fresh numeric value in `A` or `mA` |
+| Battery charging on one phase stays at zero | Its protected phase has no valid current reading | Check that phase's sensor, limit, and physical assignment |
+| A battery is never limited | It is **Unassigned**, or its phase has no complete sensor-and-limit pair | Set the physical phase and configure both fields for that phase |
+| Import and export limits act in the wrong direction | The phase-current sign is reversed | Compare a known grid import with the sensor and review **Inverted meter sign** |
+| The phase meter still exceeds the configured limit | An external load, command latency, or a manual command caused the excess | Reduce the configured operating limit and keep manual commands within the electrical envelope |
 
-If a configured phase sensor is missing, unavailable, non-numeric, in the wrong unit or older than 65 seconds, batteries assigned to that phase receive 0 W. The sensor must be signed; an unsigned current sensor cannot represent export correctly and should not be used for this feature. A phase left unconfigured has no phase protection, so batteries assigned to it continue under the normal controller and per-battery limits. Other healthy phases continue operating. Sensor recovery is picked up on the next report.
+??? "Advanced details"
+    For each phase, Omnibattery reconstructs current that does not come from the battery, then intersects the meter limit with an absolute battery-current limit:
 
-## Important limitations
+    ```text
+    base_current = phase_current - battery_current_on_phase
+    battery_current_min = max(-phase_limit, -phase_limit - base_current)
+    battery_current_max = min(+phase_limit, +phase_limit - base_current)
+    charge_budget_current = max(0, battery_current_max)
+    discharge_budget_current = max(0, -battery_current_min)
+    ```
 
-Manual register writes and manual time-slot commands intentionally remain direct and can bypass this software envelope. Home Assistant shows a Repairs warning while the feature is enabled; keep those commands within the electrical limit.
+    Battery commands use positive watts for charge and negative watts for discharge. Current budgets are converted with a nominal 230 V and 0.90 power factor, then rounded down in 5 W steps. Normal battery selection and proportional allocation run first. Power rejected by a phase cap may move to healthy phases with available battery capacity, following the normal state of charge (SOC) and energy priority.
 
-This is a conservative current guard, not a replacement for breakers, inverter protection or an electrician's design. Use a true-RMS sensor with a reliable import/export sign and leave margin below the fuse nameplate rating for measurement latency, actuator latency, external loads, voltage, power factor, harmonics and transient peaks. The internal 230 V/0.90 conversion is an estimate for translating the battery's active-watt commands into an RMS-current budget; the current sensor remains the source of the phase safety measurement. An external load can exceed a phase limit by itself, while Omnibattery can only avoid making that excess worse. The global controller does not issue simultaneous charge on one phase and discharge on another. The sensors must be installed and mapped to the actual conductors; an incorrect L1/L2/L3 assignment cannot be detected automatically.
+    The envelope applies to proportional–derivative (PD) control, direct tracking, predictive grid charging, automatic time-slot control, active balancing, and the final shared automatic-command guard. The accepted total is fed back to the controller to prevent windup.
 
-The beta configuration uses current-sensor and fuse-size fields. There is intentionally no migration from the previous phase-power fields, so re-enter the phase protection settings after upgrading.
+    A current reading older than 65 seconds is stale. If a configured phase has no valid reading, new charging on that phase is capped at 0 W. A previously measured safe discharge may be held because stopping it would hand the household load back to the grid and could increase phase current. Healthy phases continue. A phase with no configured sensor-and-limit pair has no phase cap. An **Unassigned** battery also remains outside the envelope.
+
+    The status entity exposes diagnostic attributes including `limited_batteries`, `limited_battery_details`, `unassigned_batteries`, `degraded_phases`, and per-phase readings, budgets, and assignments under `phases`.
+
+    Manual register writes and manual time-slot commands can bypass this envelope. Home Assistant creates a Repair while protection is enabled to remind you to keep those commands within the configured current limits. The guard cannot remove current caused by an external load, detect incorrect conductor mapping, or issue simultaneous charge on one phase and discharge on another.
