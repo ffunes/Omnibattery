@@ -7,7 +7,7 @@ Choose the route that matches your battery and the way it is connected to Home A
 | What you own | What you need | Select in the wizard | Setup guide |
 |---|---|---|---|
 | Marstek Venus connected directly or through a Modbus gateway | A reachable Ethernet, RS-485, or USB connection | **Marstek Venus** | [Marstek](marstek.md) |
-| Marstek Venus connected through a LilyGo bridge | The supported ESPHome firmware and its device in Home Assistant | **Marstek via LilyGo RS485 (ESPHome)** | Dedicated guide not yet available |
+| Marstek Venus connected through a LilyGo bridge | The supported ESPHome firmware and its device in Home Assistant | **Marstek via LilyGo RS485 (ESPHome)** | [ESPHome / LilyGo](esphome-lilygo.md) |
 | Zendure SolarFlow | The device's local IP address and HEMS disabled | **Zendure SolarFlow** | [Zendure](zendure.md) |
 | Anker SOLIX Solarbank | Modbus TCP and Third-Party Control enabled | **Anker SOLIX Solarbank Max AC / 4 E5000 Pro** | [Anker SOLIX](anker.md) |
 | Sessy Home Battery | A reachable Sessy dongle and its credentials | **Sessy** | [Sessy](sessy.md) |

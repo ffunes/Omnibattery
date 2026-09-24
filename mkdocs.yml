@@ -75,6 +75,7 @@ plugins:
             Your battery: Tu batería
             Choose a brand: Elegir marca
             Marstek: Marstek
+            ESPHome / LilyGo: ESPHome / LilyGo
             Zendure: Zendure
             Anker SOLIX: Anker SOLIX
             Sessy: Sessy
@@ -165,6 +166,7 @@ nav:
       - Your battery:
           - Choose a brand: configuration/batteries/index.md
           - Marstek: configuration/batteries/marstek.md
+          - ESPHome / LilyGo: configuration/batteries/esphome-lilygo.md
           - Zendure: configuration/batteries/zendure.md
           - Anker SOLIX: configuration/batteries/anker.md
           - Sessy: configuration/batteries/sessy.md
