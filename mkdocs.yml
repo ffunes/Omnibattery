@@ -65,6 +65,7 @@ plugins:
           nav_translations:
             Home: Inicio
             Get started: Empezar
+            Is my battery compatible?: ¿Es compatible mi batería?
             Installation guide: Guía de instalación
             Upgrading from Marstek VEM: Actualizar desde Marstek VEM
             Configure: Configurar
@@ -157,6 +158,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Get started:
+      - Is my battery compatible?: compatibility.md
       - Installation guide: installation.md
       - Upgrading from Marstek VEM: upgrading-from-marstek-vem.md
   - Configure:

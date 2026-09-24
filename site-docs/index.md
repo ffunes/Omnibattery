@@ -10,6 +10,8 @@ Omnibattery connects compatible home batteries to Home Assistant so they can fol
 
 **You do not need it if** the manufacturer's own control already meets your needs, or if you only want to view battery data without Home Assistant adjusting battery power.
 
+Check [whether your exact battery is compatible](compatibility.md) before installing.
+
 ## Supported brands at a glance
 
 | Brand | How Omnibattery connects | Start here |
