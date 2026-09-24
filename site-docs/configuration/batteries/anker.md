@@ -7,6 +7,7 @@ Omnibattery controls supported Anker SOLIX Solarbank batteries over the local Mo
 | Supported model | Control connection | Independent solar telemetry |
 |---|---|---|
 | Solarbank Max AC | Modbus TCP | No; its solar registers are derived from AC measurements |
+| Solarbank XE AC | Modbus TCP | No; its solar registers are derived from AC measurements |
 | Solarbank 4 E5000 Pro | Modbus TCP | Yes |
 
 **Use it if** your supported Solarbank exposes Modbus TCP and the Anker app allows **Third-Party Control**. **Do not add another Modbus client:** the battery accepts only one client session at a time.
@@ -20,7 +21,7 @@ Omnibattery controls supported Anker SOLIX Solarbank batteries over the local Mo
 
 ## How to add it
 
-1. In the Omnibattery setup flow, choose **Anker SOLIX Solarbank Max AC / 4 E5000 Pro**.
+1. In the Omnibattery setup flow, choose **Anker SOLIX Solarbank Max AC / 4 E5000 Pro**. This wizard choice also detects Solarbank XE AC.
 2. Enter a descriptive **Name** and the Solarbank's **Host IP**.
 3. Keep **Modbus port** at `502` unless the device uses another port.
 4. Enter the **Modbus slave ID**; its default is `1`.
@@ -39,7 +40,7 @@ The common register map provides state of charge (SOC), battery power, temperatu
 | The wizard cannot connect | Third-Party Control is off, the address is wrong, or another client owns Modbus | Enable the app options, close the other client, and retry |
 | The battery ignores a command | Third-Party Control was disabled after setup | Re-enable it in the Anker app |
 | Power stops below the product rating | The live device ceiling or Omnibattery's safety envelope is lower | Check the detected charge and discharge limit entities |
-| Solar power is absent on Max AC | This model does not provide an independent solar source through these registers | Use the installation's external solar sensor if needed |
+| Solar power is absent on Max AC or XE AC | These models do not provide an independent solar source through these registers | Use the installation's external solar sensor if needed |
 | SoH is unavailable | The model returned an unsupported or zero value | Confirm the reading in diagnostics; zero is treated as unavailable |
 
 ??? "Advanced details"
@@ -49,7 +50,7 @@ The common register map provides state of charge (SOC), battery power, temperatu
 
     **Battery State of Health (SoH)** uses input register `10015`. The shared map makes it available to supported models, but it has been field-verified only on Solarbank Max AC product code `DMWH`. A raw value of `0` is treated as unavailable instead of 0% health.
 
-    Solarbank 4 E5000 Pro product codes expose an independent solar source. Max AC solar fields are derived from the battery's own AC calculation and are excluded from Omnibattery's solar total.
+    Solarbank 4 E5000 Pro product codes expose an independent solar source. Max AC and XE AC solar fields are derived from the battery's own AC calculation and are excluded from Omnibattery's solar total.
 
     On the dashboard, the battery card's **Health & cells** section shows internal temperature and SoH when available. Voltage and cell rows are omitted when the driver has no matching entities, so Anker cards do not show empty placeholders.
 

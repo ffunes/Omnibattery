@@ -9,6 +9,7 @@ Omnibattery controls supported Zendure SolarFlow devices through their local net
 | SolarFlow 800 / 800 Plus / 800 Pro | 1,000 W | 800 W | No dedicated MPPT telemetry |
 | SolarFlow 1600 AC+ | 1,600 W | 1,600 W | No |
 | SolarFlow 2400 AC Pro / 2400 AC+ | 2,400 W | 2,400 W | No dedicated MPPT telemetry |
+| SolarFlow 3000 Mix AC+ | 3,000 W | 3,000 W | No dedicated MPPT telemetry |
 | SolarFlow 4000 Mix AC+ | 4,000 W | 4,000 W | No |
 | SolarFlow 4000 Mix Pro | 4,000 W | 4,000 W | Dual MPPT telemetry |
 
