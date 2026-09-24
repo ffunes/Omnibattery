@@ -42,18 +42,18 @@ Durante una ranura PD activa, la batería continúa respondiendo a la demanda de
 | El modo manual no fuerza la alimentación | Falta la anulación de energía, ambas direcciones están seleccionadas o una regla de seguridad bloquea el comando | Configure una dirección y su potencia, luego verifique el SOC mínimo/máximo y el estado de pausa EV |
 
 ??? "Detalles avanzados"
-**Reglas de dirección**
+    **Reglas de dirección**
 
-La carga y descarga se evalúan de forma independiente para cada batería. Si ningún intervalo aplicable habilitado tiene **Permitir cargo**, el cobro no está restringido por intervalos de tiempo. Una vez que cualquier ranura aplicable permita la carga, la carga solo se permitirá dentro de una ranura habilitada coincidente. La misma regla se aplica por separado al alta. Se siguen aplicando el SOC mínimo y máximo, las pausas del vehículo eléctrico, la propiedad manual de la batería y otras reglas de seguridad.
+    La carga y descarga se evalúan de forma independiente para cada batería. Si ningún intervalo aplicable habilitado tiene **Permitir cargo**, el cobro no está restringido por intervalos de tiempo. Una vez que cualquier ranura aplicable permita la carga, la carga solo se permitirá dentro de una ranura habilitada coincidente. La misma regla se aplica por separado al alta. Se siguen aplicando el SOC mínimo y máximo, las pausas del vehículo eléctrico, la propiedad manual de la batería y otras reglas de seguridad.
 
-Esto mantiene los programas migrados sin alta funcionando como ventanas de permiso de alta. Las configuraciones anteriores de aplicabilidad de cargos migran a **Permitir cargo**.
+    Esto mantiene los programas migrados sin alta funcionando como ventanas de permiso de alta. Las configuraciones anteriores de aplicabilidad de cargos migran a **Permitir cargo**.
 
-**Anulaciones y límites**
+    **Anulaciones y límites**
 
-Omnibattery acepta hasta 8 ranuras. En forma detallada, el SOC mínimo oscila entre 12 y 30 %, el SOC máximo entre 80 y 100 % y la potencia comienza en 100 W y termina en el hardware máximo de cada batería en pasos de 50 W. En el modo PD, los valores de potencia limitan el control automático. En modo Manual, el valor seleccionado se convierte en la potencia exacta solicitada.
+    Omnibattery acepta hasta 8 ranuras. En forma detallada, el SOC mínimo oscila entre 12 y 30 %, el SOC máximo entre 80 y 100 % y la potencia comienza en 100 W y termina en el hardware máximo de cada batería en pasos de 50 W. En el modo PD, los valores de potencia limitan el control automático. En modo Manual, el valor seleccionado se convierte en la potencia exacta solicitada.
 
-Una ranura Manual válida necesita la anulación de energía habilitada y exactamente una dirección seleccionada. Ordena directamente a la batería ese ciclo de control y la elimina de la asignación de PD. La propiedad del modo manual de la batería, el SOC mínimo y máximo y la pausa del EV siguen siendo autoritativos. Los comandos manuales de intervalo de tiempo pueden omitir la [sobre automática trifásica](three-phase.md).
+    Una ranura Manual válida necesita la anulación de energía habilitada y exactamente una dirección seleccionada. Ordena directamente a la batería ese ciclo de control y la elimina de la asignación de PD. La propiedad del modo manual de la batería, el SOC mínimo y máximo y la pausa del EV siguen siendo autoritativos. Los comandos manuales de intervalo de tiempo pueden omitir la [sobre automática trifásica](three-phase.md).
 
-Las ranuras destinadas a diferentes baterías físicas pueden cubrir el mismo período. Las ranuras que apuntan a la misma batería, incluido un visor para todas las baterías, no pueden superponerse. Un objetivo guardado para una batería eliminada de la integración se vuelve inerte hasta que edites o elimines la ranura.
+    Las ranuras destinadas a diferentes baterías físicas pueden cubrir el mismo período. Las ranuras que apuntan a la misma batería, incluido un visor para todas las baterías, no pueden superponerse. Un objetivo guardado para una batería eliminada de la integración se vuelve inerte hasta que edites o elimines la ranura.
 
-Para diagnóstico, el sensor binario **Carga predictiva activa** puede exponer `active_slot_per_battery` con la definición de ranura actual y `manual_slot_owned` con baterías controladas por una ranura manual.
+    Para diagnóstico, el sensor binario **Carga predictiva activa** puede exponer `active_slot_per_battery` con la definición de ranura actual y `manual_slot_owned` con baterías controladas por una ranura manual.

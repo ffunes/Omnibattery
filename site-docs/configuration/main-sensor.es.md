@@ -26,7 +26,7 @@ Omnibattery utiliza su sensor de energía de la red para decidir cuánto deben c
 ![Seleccione los principales sensores Omnibattery](../assets/screenshots/configuration/main-sensor.png){ width="600" style="display: block; margin: 0 auto;"}
 
 !!! warning "La captura de pantalla necesita actualizarse"
-El formulario actual también incluye campos separados de pronóstico del día restante, medidor fuera de la red y protección trifásica que no son visibles en esta captura de pantalla.
+    El formulario actual también incluye campos separados de pronóstico del día restante, medidor fuera de la red y protección trifásica que no son visibles en esta captura de pantalla.
 
 ## lo que veras
 
@@ -48,34 +48,34 @@ Un pronóstico solar del resto del día estará disponible para predecir la carg
 | **Consumo en el hogar** se mantiene brevemente o se convierte en `unknown` durante un cambio de dirección | Las lecturas de red, batería y energía solar describen diferentes instantes | Comprobar que las fuentes se actualizan puntualmente y luego esperar lecturas coherentes |
 
 ??? "Detalles avanzados"
-**Cadencia del medidor y datos obsoletos**
+    **Cadencia del medidor y datos obsoletos**
 
-El controlador vuelve a calcular cada vez que el sensor de red publica. También se ejecuta un ciclo de seguridad cada 2 segundos. Se recomienda un intervalo de actualización de 1 a 2 segundos; Los intervalos de 10 segundos o más activan una reparación de Home Assistant después de 3 informes lentos consecutivos. La reparación se borra después de 20 intervalos consecutivos más rápidos. La última lectura sigue teniendo autoridad hasta que tenga más de 65 segundos.
+    El controlador vuelve a calcular cada vez que el sensor de red publica. También se ejecuta un ciclo de seguridad cada 2 segundos. Se recomienda un intervalo de actualización de 1 a 2 segundos; Los intervalos de 10 segundos o más activan una reparación de Home Assistant después de 3 informes lentos consecutivos. La reparación se borra después de 20 intervalos consecutivos más rápidos. La última lectura sigue teniendo autoridad hasta que tenga más de 65 segundos.
 
-La demanda del hogar puede cambiar en varios kilovatios entre lecturas lentas, por lo que el controlador puede responder a una carga que ya ha cambiado.
+    La demanda del hogar puede cambiar en varios kilovatios entre lecturas lentas, por lo que el controlador puede responder a una carga que ya ha cambiado.
 
-Si utiliza un medidor Shelly, consulte los [scripts MQTT de Shelly Pro 3EM](../hardware/shelly-pro-3em-mqtt-script.md) para obtener una cadencia de publicación más rápida.
+    Si utiliza un medidor Shelly, consulte los [scripts MQTT de Shelly Pro 3EM](../hardware/shelly-pro-3em-mqtt-script.md) para obtener una cadencia de publicación más rápida.
 
-Los sensores con `unit_of_measurement: kW` se convierten a vatios automáticamente.
+    Los sensores con `unit_of_measurement: kW` se convierten a vatios automáticamente.
 
-**Protección de potencia contratada**
+    **Protección de potencia contratada**
 
-El valor de configuración predeterminado es 7000 W y acepta entre 1000 y 20 000 W. Limita la carga de la batería en control normal, objetivos positivos, saldo neto por hora y carga de red predictiva. Durante un intervalo de carga predictiva, Omnibattery primero deja de cargar si la importación alcanza el límite; Una vez que la telemetría se estabilice, puede descargar el exceso confirmado. [Protección de capacidad (reducción de picos)](../features/peak-shaving.md) es una estrategia de reserva separada.
+    El valor de configuración predeterminado es 7000 W y acepta entre 1000 y 20 000 W. Limita la carga de la batería en control normal, objetivos positivos, saldo neto por hora y carga de red predictiva. Durante un intervalo de carga predictiva, Omnibattery primero deja de cargar si la importación alcanza el límite; una vez que la telemetría se estabilice, puede descargar el exceso confirmado. [Protección de capacidad (reducción de picos)](../features/peak-shaving.md) es una estrategia de reserva separada.
 
-**Fuentes solares**
+    **Fuentes solares**
 
-Un pronóstico restante de hoy ya es energía futura, por lo que Omnibattery no le resta la producción medida. El campo heredado de todo el día permanece disponible para las entradas existentes; guardar un sensor restante de hoy lo reemplaza. El sensor de producción externo en tiempo real y los canales MPPT de batería legibles ayudan a conocer la forma de producción, pero no reemplazan el pronóstico total.
+    Un pronóstico restante de hoy ya es energía futura, por lo que Omnibattery no le resta la producción medida. El campo heredado de todo el día permanece disponible para las entradas existentes; guardar un sensor restante de hoy lo reemplaza. El sensor de producción externo en tiempo real y los canales MPPT de batería legibles ayudan a conocer la forma de producción, pero no reemplazan el pronóstico total.
 
-Cuando hay períodos de proveedores con fecha disponibles, Omnibattery los utiliza para la línea de tiempo solar. De lo contrario, utiliza un perfil local maduro y luego un retroceso sinusoidal. El perfil no predice la energía total ni corrige el proveedor meteorológico.
+    Cuando hay períodos de proveedores con fecha disponibles, Omnibattery los utiliza para la línea de tiempo solar. De lo contrario, utiliza un perfil local maduro y luego un retroceso sinusoidal. El perfil no predice la energía total ni corrige el proveedor meteorológico.
 
-**Consumo derivado de la vivienda**
+    **Consumo derivado de la vivienda**
 
     ```text
     home consumption = grid power + battery alternating current (AC) power + solar power
     ```
 
-El valor alimenta un historial de consumo de 7 días utilizado por la carga predictiva y el retraso de la carga solar. Se acumula durante el día local, se reinicia a medianoche y sobrevive a los reinicios de Home Assistant. La energía de carga de la batería anula la energía de la red utilizada para cargarla.
+    El valor alimenta un historial de consumo de 7 días utilizado por la carga predictiva y el retraso de la carga solar. Se acumula durante el día local, se reinicia a medianoche y sobrevive a los reinicios de Home Assistant. La energía de carga de la batería anula la energía de la red utilizada para cargarla.
 
-Debido a que las fuentes se actualizan de forma independiente, un cambio de dirección puede crear brevemente un equilibrio imposible. **Consumo doméstico** mantiene su último valor coherente durante hasta 15 segundos y luego informa `unknown` si las entradas aún no están de acuerdo. Su acumulador físico de energía diaria rompe ese intervalo en lugar de añadir un falso cero. Las exclusiones de carga externa utilizadas para el control no alteran el total de este panel físico.
+    Debido a que las fuentes se actualizan de forma independiente, un cambio de dirección puede crear brevemente un equilibrio imposible. **Consumo doméstico** mantiene su último valor coherente durante hasta 15 segundos y luego informa `unknown` si las entradas aún no están de acuerdo. Su acumulador físico de energía diaria rompe ese intervalo en lugar de añadir un falso cero. Las exclusiones de carga externa utilizadas para el control no alteran el total de este panel físico.
 
-Al seleccionar **Modo de medidor fuera de la red** se interrumpe el intervalo de integración de energía actual, por lo que un salto entre medidores no se cuenta como energía. La configuración del letrero fuera de la red se aplica solo a esa fuente. Las baterías que alimentan su propia salida de respaldo permanecen fuera del control proporcional-derivado (PD), mientras que las otras baterías disponibles usan el medidor seleccionado.
+    Al seleccionar **Modo de medidor fuera de la red** se interrumpe el intervalo de integración de energía actual, por lo que un salto entre medidores no se cuenta como energía. La configuración del letrero fuera de la red se aplica solo a esa fuente. Las baterías que alimentan su propia salida de respaldo permanecen fuera del control proporcional-derivado (PD), mientras que las otras baterías disponibles usan el medidor seleccionado.

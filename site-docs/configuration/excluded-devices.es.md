@@ -35,7 +35,7 @@ Main sensor measures only the domestic circuit and cannot see this device
 ![Configurar un dispositivo excluido](../assets/screenshots/configuration/excluded-device-form.png){ width="650" style="display: block; margin: 0 auto;"}
 
 !!! warning "La captura de pantalla necesita actualizarse"
-El formulario actual también incluye la demanda restante esperada y su entidad de presencia, que no son visibles en esta captura de pantalla.
+    El formulario actual también incluye la demanda restante esperada y su entidad de presencia, que no son visibles en esta captura de pantalla.
 
 ## lo que veras
 
@@ -63,25 +63,25 @@ Estas entidades le permiten pausar o cambiar el comportamiento guardado sin volv
 | Falta un control de tiempo de ejecución | La definición del dispositivo no habilita ese comportamiento o su entidad está deshabilitada | Vuelva a abrir la configuración del dispositivo y verifique las entidades deshabilitadas del dispositivo Omnibattery |
 
 ??? "Detalles avanzados"
-**Requisitos de campo**
+    **Requisitos de campo**
 
-Omnibattery admite hasta 4 dispositivos especiales configurados. Un dispositivo excluido normal requiere un sensor de potencia numérico. Una nueva configuración de EV de solo estado requiere un sensor de actividad. El control dinámico de energía también requiere un sensor de actividad y es significativo solo con Solar Surplus habilitado. Cover Home requiere Solar Surplus y un sensor externo de producción solar.
+    Omnibattery admite hasta 4 dispositivos especiales configurados. Un dispositivo excluido normal requiere un sensor de potencia numérico. Una nueva configuración de EV de solo estado requiere un sensor de actividad. El control dinámico de energía también requiere un sensor de actividad y es significativo solo con Solar Surplus habilitado. Cover Home requiere Solar Surplus y un sensor externo de producción solar.
 
-Las entradas EV existentes de solo estado que almacenaron su entidad de estado en **Sensor de potencia del dispositivo** siguen siendo compatibles. La detección de actividad acepta `on` binario y palabras de carga sin distinguir entre mayúsculas y minúsculas.
+    Las entradas EV existentes de solo estado que almacenaron su entidad de estado en **Sensor de potencia del dispositivo** siguen siendo compatibles. La detección de actividad acepta `on` binario y palabras de carga sin distinguir entre mayúsculas y minúsculas.
 
-**Demanda restante esperada**
+    **Demanda restante esperada**
 
-El sensor opcional debe informar energía convertible como `Wh`, `kWh` o `MJ`. Omnibattery lo utiliza sólo cuando **El consumo está incluido en el sensor de consumo del hogar** está habilitado. Se omiten los dispositivos eléctricos estatales porque su demanda ya está representada por la previsión de consumo. El porcentaje de exclusión del tiempo de ejecución escala la cantidad reservada así como la corrección de carga.
+    El sensor opcional debe informar energía convertible como `Wh`, `kWh` o `MJ`. Omnibattery lo utiliza sólo cuando **El consumo está incluido en el sensor de consumo del hogar** está habilitado. Se omiten los dispositivos eléctricos estatales porque su demanda ya está representada por la previsión de consumo. El porcentaje de exclusión del tiempo de ejecución escala la cantidad reservada así como la corrección de carga.
 
-La reserva no puede exceder el resto solar después del margen de seguridad predictivo:
+    La reserva no puede exceder el resto solar después del margen de seguridad predictivo:
 
     ```text
     claim = min(expected remaining demand, remaining solar after safety margin)
     solar available to the battery = remaining solar after safety margin - claim
     ```
 
-Si el valor de la demanda no está disponible, es desconocido, no es numérico o no es una unidad de energía, no se realiza ningún reclamo. La entidad de presencia opcional evita reservar energía solar cuando una integración upstream sigue informando la demanda de un dispositivo desconectado. Valores de estado completo `on`, `true`, `home`, `present`, `connected`/`plugged`/`plugged in` (EN), `verbunden` (DE), `aangesloten`/`aanwezig` (NL), `connesso` (IT), `connecté`/`branché` (FR), `conectado` (ES/PT), `connectat` (CA) y `charging`/`cargando`/`laden` cuentan como presentes. La coincidencia es completa, nunca un fragmento, porque una frase negativa contiene su propia frase positiva: `disconnected` contiene `connected`. Los estados compuestos desconocidos, no disponibles, faltantes y no coincidentes (`Connected, not charging`) cuentan como ausentes; utilice un sensor binario si el estado de un texto es ambiguo. Dejar el campo vacío siempre cuenta como un sensor de demanda válido.
+    Si el valor de la demanda no está disponible, es desconocido, no es numérico o no es una unidad de energía, no se realiza ningún reclamo. La entidad de presencia opcional evita reservar energía solar cuando una integración upstream sigue informando la demanda de un dispositivo desconectado. Valores de estado completo `on`, `true`, `home`, `present`, `connected`/`plugged`/`plugged in` (EN), `verbunden` (DE), `aangesloten`/`aanwezig` (NL), `connesso` (IT), `connecté`/`branché` (FR), `conectado` (ES/PT), `connectat` (CA) y `charging`/`cargando`/`laden` cuentan como presentes. La coincidencia es completa, nunca un fragmento, porque una frase negativa contiene su propia frase positiva: `disconnected` contiene `connected`. Los estados compuestos desconocidos, no disponibles, faltantes y no coincidentes (`Connected, not charging`) cuentan como ausentes; utilice un sensor binario si el estado de un texto es ambiguo. Dejar el campo vacío siempre cuenta como un sensor de demanda válido.
 
-Los usuarios de evcc pueden seleccionar `sensor.evcc_<loadpoint>_charge_remaining_energy` y vincularlo con `binary_sensor.evcc_<loadpoint>_connected`.
+    Los usuarios de evcc pueden seleccionar `sensor.evcc_<loadpoint>_charge_remaining_energy` y vincularlo con `binary_sensor.evcc_<loadpoint>_connected`.
 
-La reserva se distribuye en proporción a la energía en los intervalos solares restantes de hoy; no predice cuándo consumirá el dispositivo. El pronóstico de mañana no se reduce en una proyección cruzada a medianoche. La carga predictiva puede volver a planificarse cuando el reclamo cambia en al menos 2 kWh, con al menos 15 minutos entre esas evaluaciones y no más de 4 evaluaciones basadas en reclamo por día. Los diagnósticos publican el valor actual como `excluded_demand_claim_kwh` junto con `solar_surplus_kwh` y `solar_available_to_battery_kwh` en **Carga predictiva activa**.
+    La reserva se distribuye en proporción a la energía en los intervalos solares restantes de hoy; no predice cuándo consumirá el dispositivo. El pronóstico de mañana no se reduce en una proyección cruzada a medianoche. La carga predictiva puede volver a planificarse cuando el reclamo cambia en al menos 2 kWh, con al menos 15 minutos entre esas evaluaciones y no más de 4 evaluaciones basadas en reclamo por día. Los diagnósticos publican el valor actual como `excluded_demand_claim_kwh` junto con `solar_surplus_kwh` y `solar_available_to_battery_kwh` en **Carga predictiva activa**.

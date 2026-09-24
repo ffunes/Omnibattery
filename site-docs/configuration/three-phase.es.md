@@ -47,7 +47,7 @@ Cuando el interruptor de protección está activado, el selector **Fase de bater
 | El medidor de fase aún supera el límite configurado | Una carga externa, latencia de comando o un comando manual causaron el exceso | Reducir el límite operativo configurado y mantener los comandos manuales dentro del envolvente eléctrico |
 
 ??? "Detalles avanzados"
-Para cada fase, Omnibattery reconstruye la corriente que no proviene de la batería y luego cruza el límite del medidor con un límite absoluto de corriente de la batería:
+    Para cada fase, Omnibattery reconstruye la corriente que no proviene de la batería y luego cruza el límite del medidor con un límite absoluto de corriente de la batería:
 
     ```text
     base_current = phase_current - battery_current_on_phase
@@ -57,12 +57,12 @@ Para cada fase, Omnibattery reconstruye la corriente que no proviene de la bater
     discharge_budget_current = max(0, -battery_current_min)
     ```
 
-Los comandos de batería utilizan vatios positivos para carga y vatios negativos para descarga. Los presupuestos actuales se convierten con un factor de potencia nominal de 230 V y 0,90 y luego se redondean hacia abajo en pasos de 5 W. La selección normal de batería y la asignación proporcional se ejecutan primero. La energía rechazada por un límite de fase puede pasar a fases saludables con capacidad de batería disponible, siguiendo el estado normal de carga (SOC) y la prioridad energética.
+    Los comandos de batería utilizan vatios positivos para carga y vatios negativos para descarga. Los presupuestos actuales se convierten con un factor de potencia nominal de 230 V y 0,90 y luego se redondean hacia abajo en pasos de 5 W. La selección normal de batería y la asignación proporcional se ejecutan primero. La energía rechazada por un límite de fase puede pasar a fases saludables con capacidad de batería disponible, siguiendo el estado normal de carga (SOC) y la prioridad energética.
 
-La envolvente se aplica al control proporcional-derivativo (PD), el seguimiento directo, la carga predictiva de la red, el control automático de intervalos de tiempo, el equilibrio activo y la protección final de comando automático compartido. El total aceptado se devuelve al controlador para evitar la liquidación.
+    La envolvente se aplica al control proporcional-derivativo (PD), el seguimiento directo, la carga predictiva de la red, el control automático de intervalos de tiempo, el equilibrio activo y la protección final de comando automático compartido. El total aceptado se devuelve al controlador para evitar la liquidación.
 
-Una lectura actual de más de 65 segundos está obsoleta. Si una fase configurada no tiene una lectura válida, la nueva carga en esa fase tiene un límite de 0 W. Se puede mantener una descarga segura medida previamente porque detenerla devolvería la carga doméstica a la red y podría aumentar la corriente de la fase. Las fases saludables continúan. Una fase sin un par de sensor y límite configurado no tiene límite de fase. Una batería **No asignada** también permanece fuera del sobre.
+    Una lectura actual de más de 65 segundos está obsoleta. Si una fase configurada no tiene una lectura válida, la nueva carga en esa fase tiene un límite de 0 W. Se puede mantener una descarga segura medida previamente porque detenerla devolvería la carga doméstica a la red y podría aumentar la corriente de la fase. Las fases saludables continúan. Una fase sin un par de sensor y límite configurado no tiene límite de fase. Una batería **No asignada** también permanece fuera del sobre.
 
-La entidad de estado expone atributos de diagnóstico que incluyen `limited_batteries`, `limited_battery_details`, `unassigned_batteries`, `degraded_phases` y lecturas, presupuestos y asignaciones por fase en `phases`.
+    La entidad de estado expone atributos de diagnóstico que incluyen `limited_batteries`, `limited_battery_details`, `unassigned_batteries`, `degraded_phases` y lecturas, presupuestos y asignaciones por fase en `phases`.
 
-Las escrituras manuales de registros y los comandos manuales de intervalos de tiempo pueden omitir este sobre. Home Assistant crea una reparación mientras la protección está habilitada para recordarle que mantenga esos comandos dentro de los límites actuales configurados. El protector no puede eliminar la corriente causada por una carga externa, detectar un mapeo incorrecto de conductores o emitir carga simultánea en una fase y descarga en otra.
+    Las escrituras manuales de registros y los comandos manuales de intervalos de tiempo pueden omitir este sobre. Home Assistant crea una reparación mientras la protección está habilitada para recordarle que mantenga esos comandos dentro de los límites actuales configurados. El protector no puede eliminar la corriente causada por una carga externa, detectar un mapeo incorrecto de conductores o emitir carga simultánea en una fase y descarga en otra.

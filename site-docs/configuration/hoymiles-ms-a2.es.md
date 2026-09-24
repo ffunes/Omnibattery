@@ -19,7 +19,7 @@ Necesitas:
 - el ID completo del dispositivo MS-A2 MQTT.
 
 !!! warning "Instalación eléctrica"
-Siga la [guía de instalación oficial de MS-A2](https://www.hoymiles.com/statics/5/hoymiles/picture/User-Manual_MS_A2_Global_EN_REV1.4.pdf)] actual, las etiquetas del producto y las normas eléctricas locales. Aísle la batería y el equipo solar antes de cambiar las conexiones de CA.
+    Siga la [guía de instalación oficial de MS-A2](https://www.hoymiles.com/statics/5/hoymiles/picture/User-Manual_MS_A2_Global_EN_REV1.4.pdf)] actual, las etiquetas del producto y las normas eléctricas locales. Aísle la batería y el equipo solar antes de cambiar las conexiones de CA.
 
 ## como agregarlo
 
@@ -47,21 +47,21 @@ Después de la configuración, verifique un comando de carga, descarga e inactiv
 | Se rechaza el control | El firmware es antiguo o el ID pertenece a la unidad incorrecta | Actualice el firmware y utilice el ID del dispositivo maestro o independiente |
 
 ??? "Detalles avanzados"
-El MS-A2 publica el estado rápido en `homeassistant/sensor/<device_id>/quick/state`; por ejemplo, `homeassistant/sensor/MSA-280024341346/quick/state`. Omnibattery se suscribe a través de Home Assistant, por lo que no es necesario crear sensores o automatizaciones MQTT. Los temas de voltaje, temperatura y energía diaria normalmente se actualizan con menos frecuencia que el tema de estado rápido.
+    El MS-A2 publica el estado rápido en `homeassistant/sensor/<device_id>/quick/state`; por ejemplo, `homeassistant/sensor/MSA-280024341346/quick/state`. Omnibattery se suscribe a través de Home Assistant, por lo que no es necesario crear sensores o automatizaciones MQTT. Los temas de voltaje, temperatura y energía diaria normalmente se actualizan con menos frecuencia que el tema de estado rápido.
 
-Mantenga al corredor en la red local confiable y cree un usuario de batería dedicado siempre que sea posible.
+    Mantenga al corredor en la red local confiable y cree un usuario de batería dedicado siempre que sea posible.
 
-El controlador selecciona `mqtt_ctrl` y actualiza el objetivo exacto cada `30 s`. Un reintento de actualización fallido después de `5 s`. El control externo caduca si se detienen las actualizaciones de comandos, por lo que la estabilidad del intermediario es importante. Cuando Omnibattery se descarga, envía `0 W` y restaura el modo `general`.
+    El controlador selecciona `mqtt_ctrl` y actualiza el objetivo exacto cada `30 s`. Un reintento de actualización fallido después de `5 s`. El control externo caduca si se detienen las actualizaciones de comandos, por lo que la estabilidad del intermediario es importante. Cuando Omnibattery se descarga, envía `0 W` y restaura el modo `general`.
 
-El firmware `01.06.03` puede anunciar una envolvente asimétrica `−1,000…+2,000 W` para una unidad aunque su límite de hardware sea simétrico en `1,000 W`. Omnibattery utiliza la magnitud del lado de la carga para mantener simétrica una sola unidad. Un dispositivo emparejado que publica `−2,000…+2,000 W` conserva ese rango.
+    El firmware `01.06.03` puede anunciar una envolvente asimétrica `−1,000…+2,000 W` para una unidad aunque su límite de hardware sea simétrico en `1,000 W`. Omnibattery utiliza la magnitud del lado de la carga para mantener simétrica una sola unidad. Un dispositivo emparejado que publica `−2,000…+2,000 W` conserva ese rango.
 
-El protocolo MQTT no expone límites de SOC grabables ni voltajes de celda individuales. Omnibattery impone límites de estado de carga en el software; Las funciones de equilibrio de celda y reducción de voltaje no están disponibles. Los valores predeterminados de configuración son SOC máximo `100%`, SOC mínimo `10%` e histéresis de carga `2%`.
+    El protocolo MQTT no expone límites de SOC grabables ni voltajes de celda individuales. Omnibattery impone límites de estado de carga en el software; Las funciones de equilibrio de celda y reducción de voltaje no están disponibles. Los valores predeterminados de configuración son SOC máximo `100%`, SOC mínimo `10%` e histéresis de carga `2%`.
 
-Comience la verificación a baja potencia y deténgase si la dirección medida no coincide con la dirección de carga o descarga solicitada.
+    Comience la verificación a baja potencia y deténgase si la dirección medida no coincide con la dirección de carga o descarga solicitada.
 
-Mantenga al corredor en la red local o detrás de una VPN segura. No exponga un oyente MQTT no cifrado directamente a Internet.
+    Mantenga al corredor en la red local o detrás de una VPN segura. No exponga un oyente MQTT no cifrado directamente a Internet.
 
-Referencias oficiales:
+    Referencias oficiales:
 
     - [Página del producto Hoymiles MS-A2](https://www.hoymiles.com/products/micro-storage.html)
     - [Guía de instalación y usuario de MS-A2](https://www.hoymiles.com/statics/5/hoymiles/picture/User-Manual_MS_A2_Global_EN_REV1.4.pdf)
