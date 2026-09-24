@@ -1,30 +1,44 @@
 # Blueprints
 
-Los blueprints son automatizaciones opcionales de Home Assistant que complementan Omnibattery. No forman parte de la configuración de la integración ni modifican su código. Importa cualquiera desde **Ajustes → Automatizaciones y escenas → Blueprints** usando el enlace correspondiente y crea después una automatización basada en él.
+Los blueprints son automatizaciones opcionales de Home Assistant que complementan Omnibattery. No forman parte de la configuración de la integración ni cambian su código.
 
-Para la instalación manual, copia el archivo YAML en `/config/blueprints/automation/omnibattery/` y recarga los blueprints. Consulta los pasos generales en [Instalación](../installation.es.md#instalación-de-blueprints).
+## Antes de empezar
 
-## Balanceo activo de una batería Marstek
+- Importa un blueprint desde **Ajustes → Automatizaciones y escenas → Blueprints** mediante el enlace siguiente; después crea una automatización a partir de él.
+- Para instalarlo manualmente, copia el archivo YAML en `/config/blueprints/automation/omnibattery/` y recarga los blueprints. Consulta [Instalación](../installation.md#blueprint-installation) para los pasos generales.
+
+## Balanceo activo de una batería Marstek {#balanceo-activo-de-una-batería-marstek}
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/marstek_active_balance_blueprint.yaml)
 
-Ejecuta el perfil de balanceo activo para exactamente una batería Marstek. Crea un `input_boolean` persistente y una automatización por batería; después selecciona el dispositivo de esa batería creado por Omnibattery. El blueprint descubre automáticamente en ese dispositivo la telemetría y los controles estándar, incluido el número `charging_cutoff_capacity` que representa el límite máximo de SOC. Hay sobrescrituras avanzadas opcionales por ID de entidad para instalaciones que hayan renombrado alguna entidad. La automatización usa el interruptor por batería **Battery Manual Mode** como límite de propiedad: mientras dure el ciclo, el controlador automático de Omnibattery y otras automatizaciones manuales no pueden escribir setpoints en competencia.
+- **Finalidad:** ejecuta un perfil de balanceo activo de celdas que carga y descarga una batería en pequeños pasos para reducir la diferencia entre sus celdas.
+- **Requiere:** un `input_boolean` persistente por batería, usado como solicitud de ejecutar/cancelar; el blueprint detecta automáticamente el resto de entidades de telemetría y control en el dispositivo Omnibattery seleccionado.
+- **Controla:** el interruptor por batería **Battery Manual Mode**, el modo forzado y las entidades de consigna solo del dispositivo seleccionado, mientras la ejecución esté activa.
+- **Compatible con:** exactamente una batería Marstek por instancia de automatización. Solo usa entidades de Home Assistant; no accede directamente a Modbus.
+- **No hace:** ejecutar más de una batería por automatización ni mantener el control al salir; cada salida intenta escribir 0 W en ambas direcciones, restaurar el máximo de SOC normal y liberar Battery Manual Mode.
 
-El blueprint solo utiliza entidades de Home Assistant; no accede directamente a Modbus. Valida la telemetría, las opciones del modo forzado, el orden de tensiones y los límites de los números antes de tomar el control. Sus valores predeterminados son 3,49 V → 3,60 V, carga superior a 95 W, descarga a 200 W, reposo de 60 s, objetivo de 30 mV y suelo de reintento adaptativo de 3,40 V. Si el BMS rechaza la carga antes de 3,60 V pero todavía dentro de la ventana superior, el blueprint hace el mismo reposo de 60 s y publica la medición antes de continuar con la descarga adaptativa; los rechazos por debajo de esa ventana no se incorporan al histórico formal. Las opciones de `force_mode` se llaman **None**, **Charge** y **Discharge**; las entidades ESPHome antiguas en minúsculas siguen siendo compatibles durante la migración.
+Crea una automatización por batería. **Battery Manual Mode** es el límite de control: mientras una ejecución está activa, el controlador automático de Omnibattery y otras automatizaciones manuales no pueden escribir consignas que compitan en esa batería. Activa el `input_boolean` de solicitud para iniciar o reanudar tras un reinicio, y desactívalo para cancelar.
 
-Activa el helper de solicitud para iniciar o reanudar tras un reinicio y desactívalo para cancelar. El único helper que debes crear es este `input_boolean`; el blueprint no necesita crear otro switch ni sensor. La línea base de la notificación procede del valor persistente `Cell Delta` de la integración, que representa la última lectura formal al 100%/OCV y no la telemetría instantánea de las celdas. En cada salida intenta escribir 0 W en ambas direcciones, restaurar el SOC máximo normal y liberar Battery Manual Mode. Si falla alguna confirmación de seguridad, el interruptor se deja deliberadamente activado para inspeccionar la batería antes de permitir otro control automático.
+??? "Detalles avanzados"
+    El blueprint valida la telemetría, las opciones de modo forzado, el orden de tensiones y los límites de los números antes de tomar el control, incluido el número `charging_cutoff_capacity` usado como límite máximo de SOC. Las sustituciones opcionales avanzadas de ID de entidad siguen disponibles para instalaciones donde se haya cambiado el nombre de una entidad. Las opciones de `force_mode` se llaman **None**, **Charge** y **Discharge**; las entidades ESPHome antiguas en minúsculas siguen siendo compatibles durante la migración.
 
-Después de cada medición estable tras 60 segundos de reposo, el blueprint emite el evento público `omnibattery_balance_measurement_ready` con el dispositivo seleccionado y un identificador de medida. Omnibattery resuelve el dispositivo, lee las tensiones desde su propio coordinador y guarda el resultado en el histórico existente de `Cell Delta` con `source: blueprint`. El evento es de solo lectura y no devuelve a la integración la propiedad de la batería.
+    Sus valores predeterminados son 3,49 V → 3,60 V, 95 W de carga superior, 200 W de descarga, 60 s de reposo, un objetivo de 30 mV y un suelo de reintento adaptativo de 3,40 V. Si el BMS rechaza la carga antes de 3,60 V pero todavía dentro de la ventana superior, el blueprint toma la misma medición estabilizada de 60 segundos antes de continuar con la descarga adaptativa; los rechazos por debajo de esa ventana no se añaden al historial formal.
 
-## Reporte de estado a webhook central
+    Si falla alguna confirmación de seguridad, el `input_boolean` de solicitud se deja deliberadamente activado para que se pueda inspeccionar la batería antes de que otra automatización pueda controlarla.
+
+    Su línea base de notificación procede del valor persistente `Cell Delta` de la integración, que representa la última lectura formal al 100%/OCV en lugar de la telemetría instantánea de celdas. Tras cada medición estabilizada de 60 segundos, el blueprint lanza el evento público `omnibattery_balance_measurement_ready` con el dispositivo seleccionado y un ID de medición. Omnibattery resuelve el dispositivo, lee las tensiones de celda de su propio coordinador y registra el resultado en el historial existente de `Cell Delta` con `source: blueprint`. El evento es de solo lectura y no concede a la integración el control de la batería.
+
+## Informador de estado central mediante webhook
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/central_status_webhook_reporter_blueprint.yaml)
 
-Envía entidades seleccionadas de Omnibattery y Home Assistant desde cada instalación a un endpoint HTTP central. Es útil para tener un único panel con varias viviendas o baterías.
+- **Finalidad:** informa sensores seleccionados de Omnibattery y Home Assistant desde cada instalación a un punto final HTTP central, para un único panel que cubra varias casas o baterías.
+- **Requiere:** un `rest_command` definido una vez en `configuration.yaml` (abajo) y su URL guardada en `secrets.yaml`.
+- **Controla:** nada en Omnibattery; solo lee estados de sensores y los envía.
+- **Compatible con:** cualquier instalación; eliges qué sensores informar (por ejemplo, SOC, potencia de batería, potencia de red y estado de integración).
+- **No hace:** crear por sí mismo la orden HTTP saliente; Home Assistant debe definirla porque un blueprint no puede hacerlo.
 
-Elige un identificador único de instalación, los sensores que se reportarán —por ejemplo SOC, potencia de batería, potencia de red y estado de la integración— y el intervalo. También se envía un reporte al iniciar Home Assistant. Cada reporte contiene el identificador, hora de envío y el estado, nombre, unidad y clase de dispositivo de cada entidad seleccionada.
-
-Home Assistant exige definir una vez el comando HTTP saliente en `configuration.yaml`; un blueprint no puede crearlo por sí mismo:
+Elige un ID de sitio único, los sensores que informar y un intervalo de notificación. También se envía un informe cuando se inicia Home Assistant. Cada informe contiene el ID de sitio, marca de tiempo y el estado, nombre, unidad y clase de dispositivo de cada entidad seleccionada.
 
 ```yaml
 rest_command:
@@ -35,52 +49,79 @@ rest_command:
     payload: "{{ report }}"
 ```
 
-Guarda la URL en `secrets.yaml`, reinicia Home Assistant y conserva en el blueprint el servicio REST predeterminado, salvo que hayas elegido otro nombre. Usa HTTPS y trata la URL del endpoint como un secreto.
+Reinicia Home Assistant después de añadir el `rest_command` y conserva el servicio de orden REST predeterminado en el blueprint salvo que hayas elegido otro nombre. Usa HTTPS y trata la URL del punto final como un secreto.
 
-## Objetivo de red distinto al cargar y descargar
+## Objetivo de red distinto para carga y descarga
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/different_grid_target_blueprint.yaml)
 
-Establece el **objetivo de potencia de red del PD** según la dirección activa de la batería. Por defecto fija `-50 W` mientras carga (una pequeña exportación a red) y `+50 W` mientras descarga (una pequeña importación de red). Puede servir para evitar oscilaciones alrededor de un objetivo de red cero o para aplicar un sesgo deliberado de importación/exportación.
+- **Finalidad:** establece **PD Target Grid Power** según la dirección activa de la batería, para evitar oscilaciones alrededor de un objetivo de red cero o aplicar un sesgo deliberado de importación/exportación.
+- **Requiere:** los sensores de potencia de carga y descarga del sistema, además del número **PD Target Grid Power**.
+- **Controla:** solo el número **PD Target Grid Power**.
+- **Compatible con:** cualquier instalación que use control de seguimiento de red proporcional–derivativo (PD).
+- **No hace:** cambiar el objetivo en reposo; es opcional y, si no se establece, el objetivo existente no cambia mientras el sistema está en reposo.
 
-Selecciona los sensores de potencia de carga y descarga del sistema y el número **PD Target Grid Power**. El umbral de potencia activa ignora el ruido cercano a cero. Opcionalmente, puedes fijar un objetivo en reposo; de lo contrario, cuando el sistema está inactivo se mantiene el objetivo actual. La automatización actúa cuando la potencia cruza el umbral y al iniciar Home Assistant.
+De forma predeterminada establece `-50 W` mientras carga (una pequeña exportación a red) y `+50 W` mientras descarga (una pequeña importación de red). El umbral de potencia activa ignora el ruido cerca de cero. La automatización se ejecuta cuando la potencia cruza el umbral y cuando se inicia Home Assistant.
 
 ## Sincronización del límite de peak shaving
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/peak_shaving_limit_sync_blueprint.yaml)
 
-Sincroniza el **límite de protección de capacidad** de Omnibattery con un sensor de pico mensual. Está pensado para tarifas o configuraciones de gestión de demanda en las que el máximo permitido sigue a una medición mensual.
+- **Finalidad:** sincroniza **Capacity Protection Limit** de Omnibattery con un sensor de pico mensual, para tarifas o configuraciones de gestión de demanda donde el pico permitido sigue un valor mensual medido.
+- **Requiere:** el sensor de pico mensual y el número **Capacity Protection Limit**.
+- **Controla:** solo el número **Capacity Protection Limit**.
+- **Compatible con:** un sensor de pico mensual que informa en `kW` o `W`; el blueprint convierte automáticamente `kW` a vatios.
+- **No hace:** escribir el número cuando su valor ya coincide con el pico medido.
 
-Selecciona el sensor de pico mensual y el número de límite de protección de capacidad. El origen puede usar `kW` o `W`; el blueprint convierte automáticamente de `kW` a vatios. Comprueba cambios y también cada 15 segundos, y solo escribe el número si su valor difiere del pico medido.
+Comprueba los cambios y también cada 15 segundos.
 
-## Recarga por peak shaving hasta SOC
+## Recarga de peak shaving hasta SOC
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/peak_shaving_recharge_blueprint.yaml)
 
-Opcionalmente repone la batería desde la red mientras está activa la **protección de capacidad** (peak shaving). Cuando el SOC del sistema baja del umbral configurado, mueve el objetivo de potencia de red del PD a un valor positivo de importación para que la batería cargue. Restaura el objetivo en reposo cuando el SOC alcanza el objetivo de recuperación o termina la protección de capacidad.
+- **Finalidad:** repone opcionalmente la batería desde la red mientras está activa la **Capacity Protection** (peak shaving), para que un SOC bajo no te deje sin protección frente al siguiente pico.
+- **Requiere:** los sensores de SOC del sistema y estado de integración, además del número **PD Target Grid Power**.
+- **Controla:** solo el número **PD Target Grid Power**, moviéndolo a un valor de importación positivo para cargar cuando el SOC del sistema cae por debajo del suelo configurado.
+- **Compatible con:** cualquier instalación que use peak shaving (protección de capacidad) y control de seguimiento de red PD.
+- **No hace:** sobrescribir un cambio manual posterior ni el objetivo de otra automatización; solo restaura el objetivo en reposo cuando el objetivo de recarga que estableció sigue aplicado.
 
-Selecciona los sensores de SOC del sistema y estado de integración, además del número PD Target Grid Power. Configura el umbral de SOC, un objetivo de recuperación superior, la potencia de carga y el objetivo en reposo. La automatización solo restaura el objetivo en reposo si todavía está aplicado el objetivo de recarga, así que no sobrescribe un cambio manual posterior ni el de otra automatización.
+Configura el suelo de SOC, un objetivo de recuperación de SOC más alto, la potencia de carga y el objetivo en reposo. Restaura el objetivo en reposo cuando el SOC alcanza el objetivo de recuperación o termina la protección de capacidad.
 
-## Reenvío de notificaciones persistentes a Telegram
+## Reenviar notificaciones persistentes a Telegram
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/persistent_notification_to_telegram_blueprint.yaml)
 
-Reenvía notificaciones persistentes nuevas o actualizadas de Home Assistant a una entidad de notificación de Telegram. Envía el título, el ID y el mensaje, escapando correctamente HTML.
+- **Finalidad:** reenvía notificaciones persistentes de Home Assistant nuevas o actualizadas a una entidad de notificación de Telegram seleccionada.
+- **Requiere:** una entidad de notificación `telegram_bot` configurada.
+- **Controla:** nada en Omnibattery; solo lee notificaciones y envía mensajes de Telegram.
+- **Compatible con:** cualquier notificación persistente, no solo las de Omnibattery; un filtro opcional por prefijo de ID lo delimita. El valor predeterminado `marstek_venus_` conserva la compatibilidad con las notificaciones creadas por la integración anterior; borra el filtro para reenviar todas las notificaciones persistentes o sustitúyelo por otro prefijo.
+- **No hace:** reenviar notificaciones existentes cuando se reinicia Home Assistant.
 
-Elige una entidad `notify` de `telegram_bot` y, opcionalmente, un filtro por prefijo de ID. El prefijo predeterminado `marstek_venus_` mantiene la compatibilidad con las notificaciones de la integración anterior; déjalo vacío para reenviar todas las notificaciones persistentes o sustitúyelo por otro prefijo. Las notificaciones ya existentes no se reenvían al reiniciar Home Assistant.
+Envía el título, ID y mensaje de la notificación escapando HTML de forma segura.
 
 ## Descartar notificaciones de carga predictiva
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/dismiss_predictive_charging_notifications_blueprint.yaml)
 
-Descarta automáticamente las notificaciones persistentes sobre carga de red predictiva, incluidas las evaluaciones, los inicios de slots de precio y las reevaluaciones nocturnas. No afecta a las alarmas de batería, los mensajes de equilibrio de celdas ni las notificaciones de modo manual.
+- **Finalidad:** descarta automáticamente notificaciones persistentes sobre carga predictiva desde red, incluidas evaluaciones, inicios de franjas de precio y reevaluaciones nocturnas.
+- **Requiere:** ninguna entidad ni helper adicional.
+- **Controla:** nada en Omnibattery; solo descarta notificaciones persistentes coincidentes.
+- **Compatible con:** cualquier instalación que use carga predictiva.
+- **No hace:** tocar alarmas de batería, mensajes de equilibrio de celdas o notificaciones de modo manual; solo se descartan notificaciones de carga predictiva.
 
-La notificación puede verse brevemente antes de que Home Assistant ejecute la automatización. Desactiva la automatización en cualquier momento para volver a recibir las notificaciones de carga predictiva.
+La notificación puede ser visible brevemente antes de que Home Assistant ejecute la automatización. Desactiva la automatización en cualquier momento para volver a recibir notificaciones de carga predictiva.
 
 ## Reserva de descarga según previsión solar
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/solar_forecast_reserve_discharge_blueprint.yaml)
 
-Mantiene una reserva nocturna de SOC controlando los interruptores **Allow Discharge** de Omnibattery. Bloquea la descarga en la reserva salvo que la previsión solar restante permita recargar desde el SOC mínimo configurado hasta esa reserva durante una ventana diurna indicada.
+- **Finalidad:** mantiene una reserva nocturna de SOC bloqueando la descarga por debajo de ella, salvo que la previsión solar restante sea suficiente para recargar desde el SOC mínimo configurado hasta la reserva durante una ventana diurna especificada.
+- **Requiere:** los interruptores Allow Discharge que se controlarán, los sensores de SOC y energía total del sistema, un sensor de previsión solar *restante* en kWh y los números de SOC mínimo de las baterías controladas.
+- **Controla:** solo los interruptores **Allow Discharge** seleccionados.
+- **Compatible con:** cualquier instalación con un sensor de previsión de producción solar restante en kWh.
+- **No hace:** escribir registros Modbus ni forzar modos de batería; solo conmuta Allow Discharge.
 
-Selecciona todos los interruptores Allow Discharge que se controlarán, los sensores de SOC y energía total del sistema, un sensor de previsión solar *restante* en kWh y los números de SOC mínimo de las baterías controladas. Configura la reserva, la histéresis de liberación, el margen de previsión y la ventana horaria. El cálculo incorpora una eficiencia fija de carga del 78 % y el margen de seguridad. El blueprint solo conmuta Allow Discharge; nunca escribe registros Modbus ni fuerza modos de batería.
+Configura la reserva, la histéresis de liberación, el margen de previsión y la ventana diurna.
+
+??? "Detalles avanzados"
+    El cálculo incluye una hipótesis fija de eficiencia de carga del 78% y el margen de seguridad.
