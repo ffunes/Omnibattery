@@ -4,6 +4,8 @@ Install the integration, connect a supported battery and choose the Home Assista
 
 Already using **Marstek Venus Energy Manager**? Stop here and follow [Upgrading from Marstek VEM](upgrading-from-marstek-vem.md) to preserve your configuration and history.
 
+Check [whether your exact battery is compatible](compatibility.md) before installing.
+
 ## Before you start
 
 You need:
