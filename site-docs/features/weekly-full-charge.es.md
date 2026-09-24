@@ -66,4 +66,4 @@ El atributo `batteries` del sensor muestra el SOC en directo y la evidencia de f
 
     Marstek Venus E v2 expone el registro de corte de carga `44000`, que el ciclo eleva temporalmente al 100%. Venus E v3 y Venus A/D no tienen registro de corte de SOC de hardware en Omnibattery y usan aplicación por software. Otros controladores usan su capacidad declarada de control por hardware o software. En todos los casos, el límite guardado se restaura cuando el ciclo termina o se detiene.
 
-    Para recuperar un resultado de equilibrio rojo persistente, usa el [blueprint opcional de equilibrado activo Marstek](../automations/blueprints.md#active-cell-balancing-for-one-marstek-battery). Toma el control de una batería mediante **Control manual de batería** y es independiente de la función semanal.
+    Para recuperar un resultado de equilibrio rojo persistente, usa el [blueprint opcional de equilibrado activo Marstek](../automations/blueprints.md#balanceo-activo-de-una-bateria-marstek). Toma el control de una batería mediante **Control manual de batería** y es independiente de la función semanal.

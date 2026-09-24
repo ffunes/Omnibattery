@@ -41,7 +41,7 @@ La opción LilyGo es una vía de conexión independiente para una batería Marst
 | **Backup Offgrid Threshold** | Mantiene una batería fuera del control automático mientras su salida de respaldo alimenta una carga por encima de este valor. |
 | **Nominal capacity** | Activa los cálculos de energía almacenada y eficiencia cuando la batería no comunica su capacidad. |
 
-La integración crea controles en tiempo de ejecución para los límites de estado de carga y potencia, así que puedes ajustarlos sin volver a ejecutar el asistente de configuración. **Battery Manual Control** reserva una batería para tus propias órdenes de carga, descarga o reposo; consulta el [control manual en una instalación con varias baterías](../../features/multi-battery.md#manual-control-per-battery).
+La integración crea controles en tiempo de ejecución para los límites de estado de carga y potencia, así que puedes ajustarlos sin volver a ejecutar el asistente de configuración. **Battery Manual Control** reserva una batería para tus propias órdenes de carga, descarga o reposo; consulta el [control manual en una instalación con varias baterías](../../features/multi-battery.md#control-manual-por-bateria).
 
 ## Si la vía de batería no está clara
 

@@ -13,9 +13,9 @@ La batería puede estar en reposo intencionadamente cuando la red ya está cerca
 |---|---|---|
 | El control automático está pausado | **Manual Mode** y **Manual Battery Control** por batería | Desactiva el control manual cuando quieras control automático |
 | La batería no es apta | **Allow Charge**, **Allow Discharge** y `battery_charge_blockers` / `battery_discharge_blockers` en **Integration Status** | Activa el sentido requerido o elimina el bloqueador indicado |
-| La batería no está disponible o está excluida | Entidades de batería, **Non-Responsive Batteries** y **Repairs** de Home Assistant | Sigue [Las entidades no están disponibles](#las-entidades-no-están-disponibles) |
+| La batería no está disponible o está excluida | Entidades de batería, **Non-Responsive Batteries** y **Repairs** de Home Assistant | Sigue [Las entidades no están disponibles](#las-entidades-no-estan-disponibles) |
 | Hay una salida de respaldo activa | **Backup Function**, potencia de respaldo y `backup_cooldown_batteries` | Deja que termine la actividad de respaldo antes de esperar control de red |
-| El medidor de red no es válido | Estado y hora de actualización del sensor de red principal | Sigue [El medidor de red no está disponible o está bloqueado](#el-medidor-de-red-no-está-disponible-o-está-bloqueado) |
+| El medidor de red no es válido | Estado y hora de actualización del sensor de red principal | Sigue [El medidor de red no está disponible o está bloqueado](#el-medidor-de-red-no-esta-disponible-o-esta-bloqueado) |
 
 **Resultado esperado:** **Integration Status** cambia de un estado bloqueado/manual a carga, descarga o reposo cuando cambia el flujo de red. Consulta [varias baterías](features/multi-battery.md) para el control por batería.
 
@@ -41,7 +41,7 @@ La batería puede estar en reposo intencionadamente cuando la red ya está cerca
 | La franja horaria actual bloquea la descarga | **Discharge Window** e interruptores de franja horaria | Revisa las [franjas horarias](configuration/time-slots.md) |
 | El control de precio o reserva retiene energía | **Integration Status**, **Price-Based Discharge**, **Discharge Reserve** y estados relacionados | Revisa [Precio dinámico](configuration/predictive-charging/dynamic-pricing.md) |
 | La protección de capacidad o lógica de carga excluida posee la respuesta | **Capacity Protection**, dispositivos excluidos activos y bloqueadores | Revisa [protección de capacidad](features/peak-shaving.md) y [exclusión de carga](features/load-exclusion.md) |
-| La batería no está disponible o está excluida | **Non-Responsive Batteries** y **Repairs** de Home Assistant | Sigue [Las entidades no están disponibles](#las-entidades-no-están-disponibles) |
+| La batería no está disponible o está excluida | **Non-Responsive Batteries** y **Repairs** de Home Assistant | Sigue [Las entidades no están disponibles](#las-entidades-no-estan-disponibles) |
 
 **Resultado esperado:** la descarga se reanuda cuando existe demanda doméstica y ninguna regla de seguridad, horario, precio o participación la bloquea.
 

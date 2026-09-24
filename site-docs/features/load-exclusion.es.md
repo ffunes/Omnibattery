@@ -28,7 +28,7 @@ Elige el comportamiento que coincide con tu objetivo:
 
 ## Cómo activarlo
 
-1. Añade el dispositivo mediante **Ajustes → Dispositivos y servicios → Omnibattery → Configurar → Dispositivos excluidos**, usando la [lista de configuración](../configuration/excluded-devices.md#how-to-enable-it).
+1. Añade el dispositivo mediante **Ajustes → Dispositivos y servicios → Omnibattery → Configurar → Dispositivos excluidos**, usando la [lista de configuración](../configuration/excluded-devices.md#como-activarlo).
 2. Abre el dispositivo del sistema Omnibattery o el panel y activa **Device – Enabled**.
 3. Establece **Device – Exclusion %** en la parte que la batería debe ignorar.
 4. Activa solo los controles de comportamiento en vivo que correspondan a tu objetivo: **Solar Surplus**, **Dynamic Power Control** o **Cover Home**.

@@ -46,7 +46,7 @@ Por ejemplo, con un límite de `3,000 W` y `4,500 W` de demanda del hogar, la ba
 
 ![Controles de peak shaving](../assets/screenshots/features/peak-shaving-config.png){ width="650" style="display: block; margin: 0 auto;"}
 
-Consulta la [cronología diaria de funcionamiento](daily-operation-timeline.md) para comparar las acciones de peak shaving con la demanda del hogar, y la [carga predictiva](../configuration/predictive-charging/index.md#household-demand-during-a-charging-slot) para la secuencia de protección de importación durante un periodo de carga.
+Consulta la [cronología diaria de funcionamiento](daily-operation-timeline.md) para comparar las acciones de peak shaving con la demanda del hogar, y la [carga predictiva](../configuration/predictive-charging/index.md#demanda-de-la-vivienda-durante-una-franja-de-carga) para la secuencia de protección de importación durante un periodo de carga.
 
 ## Si no funciona
 

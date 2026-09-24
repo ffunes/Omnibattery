@@ -49,7 +49,7 @@ Cada dispositivo guardado expone controles en vivo en el dispositivo del sistema
 | **Dispositivo – Portada de portada** | Cada dispositivo configurado; setup determina su estado inicial |
 | **Dispositivo – % de exclusión** | Dispositivos medidos |
 
-Estas entidades le permiten pausar o cambiar el comportamiento guardado sin volver a abrir la configuración. Consulte [Cargar exclusión](../features/load-exclusion.md#what-you-will-see) para conocer el efecto de cada control.
+Estas entidades le permiten pausar o cambiar el comportamiento guardado sin volver a abrir la configuración. Consulte [Cargar exclusión](../features/load-exclusion.md#que-veras) para conocer el efecto de cada control.
 
 ## Si no funciona
 
