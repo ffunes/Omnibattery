@@ -1,83 +1,82 @@
-# Exclusión de cargas
+# Evitar que cargas grandes y cargadores de VE usen la batería
 
-Ver [Dispositivos excluidos](../configuration/excluded-devices.md) para la configuración.
+La exclusión de cargas evita que un dispositivo grande agote la batería como si fuera consumo doméstico normal. Tú decides si el sol debe ir primero al dispositivo, si la batería puede cubrir el resto de la casa y si una wallbox autorregulada necesita margen para reaccionar.
 
-## Cómo funciona internamente
+## ¿Lo necesito?
 
-Cuando un dispositivo excluido está activo, el controlador resta su potencia del consumo de red antes de calcular el ajuste del controlador PD:
+**Úsala si** una carga grande supera la potencia de la batería, debe pagarse desde la red o ya tiene su propio controlador de excedente solar.
 
-```
-consumo_efectivo = consumo_red - potencia_excluida
-error = consumo_efectivo - target_grid_power
-```
+**No la necesitas si** quieres que la batería cubra el dispositivo exactamente como cualquier otra carga de casa.
 
-Esto hace que la batería "ignore" esa carga y no intente compensarla.
+Elige el comportamiento que coincide con tu objetivo:
 
-### Si el dispositivo NO está incluido en el sensor principal
-
-La integración **suma** la potencia del dispositivo excluido al consumo de red medido (porque el sensor principal no la ve) y luego la resta, resultando en el mismo consumo efectivo neto.
-
-## Opción "Permitir excedente solar"
-
-Cuando está activa, si el sistema opera con excedente solar (la batería está cargando por excedente), la exclusión no se aplica para la parte de carga. En otras palabras: la batería no cargará para compensar el consumo de este dispositivo cuando ya hay excedente solar disponible.
-
-Esta opción es la base para la **prioridad batería vs. carga del VE**:
-
-| Modo | ¿La batería carga con solar? | ¿La batería descarga para el dispositivo? |
-|---|---|---|
-| Excluido, excedente OFF | Sí | No |
-| Excluido, excedente ON | **No** — el solar va primero al dispositivo | No |
-
-### Switch de excedente solar (control en tiempo real)
-
-Cada dispositivo excluido dispone de una entidad switch **Solar Surplus** dedicada que permite cambiar este comportamiento en tiempo real sin reconfigurar la integración. Úsalo en automatizaciones de HA para cambiar la prioridad dinámicamente:
-
-```yaml
-# Ejemplo: priorizar el VE cuando está conectado
-automation:
-  trigger:
-    - platform: state
-      entity_id: binary_sensor.ev_conectado
-      to: "on"
-  action:
-    - service: switch.turn_on
-      target:
-        entity_id: switch.solar_surplus_wallbox_power
-```
-
-![Sensor de potencia de dispositivo excluido en HA](../assets/screenshots/features/load-exclusion-entities.png){ width="700"  style="display: block; margin: 0 auto;"}
-
-### Switch de control dinámico de potencia
-
-Con una wallbox u otra carga flexible que tenga su propio regulador de excedente,
-el modo Excedente Solar estándar todavía puede dejar ambos controladores en un
-reparto no deseado: la batería elimina la exportación antes de que la wallbox
-pueda aumentar potencia. **Control Dinámico de Potencia** añade una pequeña máquina
-de estados alrededor de la exclusión normal.
-
-El sensor de dispositivo activo / carga del VE resuelve el bloqueo de
-arranque: mientras solicita potencia pero la wallbox todavía marca 0 W, la carga
-de batería permanece bloqueada para que la wallbox vea la exportación y arranque.
-Es obligatorio en nuevas configuraciones de Control Dinámico de Potencia; las
-entradas antiguas sin él conservan el fallback por potencia medida.
-
-Al detectar consumo por primera vez bloquea la carga de batería durante 30
-segundos. Después la batería solo puede aprovechar la exportación que el
-dispositivo deje libre. Un aumento de al menos 200 W en el margen disponible
-(producción solar menos potencia del dispositivo) provoca una nueva cesión de 20
-segundos; esto también detecta que una wallbox reduzca su potencia mientras la
-producción solar permanece estable. Una pausa a 0 W mantiene bloqueada la
-descarga durante 5 minutos y da una breve gracia a la carga para que el
-dispositivo pueda reiniciarse. No exige ningún sensor de potencia máxima.
-
-## Cargador VE sin telemetría de potencia
-
-Para cargadores VE que solo exponen un sensor de estado (sin lectura de potencia en tiempo real), existe la opción **Cargador VE sin telemetría de potencia**. Se utiliza el mismo campo de dispositivo activo / carga del VE. Las entradas antiguas que guardaron ese estado en el campo anterior de sensor del dispositivo siguen funcionando sin cambios.
-
-| Fase | Comportamiento de la batería |
+| Objetivo | Comportamiento que debes usar |
 |---|---|
-| Estado VE → Cargando (primeros 5 min) | 0 W — carga y descarga bloqueadas, estado PD congelado |
-| VE cargando (después de 5 min) | Se permite cargar con excedente solar; descarga siempre bloqueada |
-| Estado VE → cualquier otro valor | Operación normal |
+| Mantener toda o parte de una carga grande fuera de la batería | Exclusión y **Exclusion percentage** |
+| Dejar que un VE u otra carga use el sol disponible antes de que cargue la batería | **Solar Surplus** |
+| Dejar que la batería cubra la demanda de casa mientras el sol y la red suministran la carga grande | **Cover Home**, junto con Solar Surplus |
+| Coordinar con una wallbox que cambia su propia potencia según el contador de red | **Dynamic Power Control**, junto con Solar Surplus |
+| Gestionar un cargador que informa del estado de carga pero no de vatios | **EV charger without power telemetry** |
+| Evitar que la carga predictiva prometa el mismo sol a la batería y al VE | **Expected remaining demand** y, cuando sea necesario, su entidad de presencia |
 
-Ver [Cargador VE sin telemetría de potencia](../configuration/excluded-devices.md#cargador-ve-sin-telemetría-de-potencia) en la referencia de configuración para los detalles de configuración.
+## Antes de empezar
+
+- Decide si el contador principal ya incluye el dispositivo.
+- Identifica si el dispositivo expone telemetría de potencia, solo un estado de actividad o ambos.
+- Para la prioridad solar y Cover Home, configura un sensor externo de producción solar en tiempo real cuando el comportamiento lo requiera.
+- Completa la lista de sensores y campos de [Configurar una carga grande o cargador de VE](../configuration/excluded-devices.md).
+
+## Cómo activarlo
+
+1. Añade el dispositivo mediante **Ajustes → Dispositivos y servicios → Omnibattery → Configurar → Dispositivos excluidos**, usando la [lista de configuración](../configuration/excluded-devices.md#how-to-enable-it).
+2. Abre el dispositivo del sistema Omnibattery o el panel y activa **Device – Enabled**.
+3. Establece **Device – Exclusion %** en la parte que la batería debe ignorar.
+4. Activa solo los controles de comportamiento en vivo que correspondan a tu objetivo: **Solar Surplus**, **Dynamic Power Control** o **Cover Home**.
+5. Arranca el dispositivo y observa el flujo de red, la potencia de batería y la entidad de potencia o actividad del dispositivo.
+
+![Controles de dispositivo excluido en Home Assistant](../assets/screenshots/features/load-exclusion-entities.png){ width="700" style="display: block; margin: 0 auto;"}
+
+## Qué verás
+
+- **Device – Enabled** activa o desactiva toda la corrección. Al desactivarlo, el control automático trata el dispositivo según la lectura de contador sin ajustar.
+- **Device – Exclusion %** elige cuánta demanda queda fuera de la batería. Al 100%, la batería no cubre nada del dispositivo; al 0%, trata toda la demanda como carga normal. Los valores intermedios dividen la demanda.
+- **Device – Solar Surplus** da al dispositivo activo prioridad sobre la carga de batería cuando hay sol disponible. La batería sigue sin descargar para la parte excluida.
+- **Device – Cover Home** permite que la batería continúe cubriendo la demanda doméstica real mientras solo queda excluida la parte de red del dispositivo.
+- **Device – Dynamic Power Control** da a una wallbox flexible tiempo para detectar y reclamar la exportación cambiante antes de que la batería cargue con el resto.
+
+Un cargador de VE solo con estado pausa la carga y descarga de batería cuando aparece la carga. Tras la pausa, la batería puede cargar con excedente solar, pero permanece bloqueada para descargar hacia el VE hasta que termine la carga.
+
+Si el dispositivo tiene configurada demanda restante prevista, la carga predictiva resta esa demanda del sol disponible para la batería. Una entidad de presencia libera la reserva cuando el VE o dispositivo está ausente. La [página de configuración](../configuration/excluded-devices.md) contiene las unidades aceptadas y las reglas de presencia.
+
+## Si no funciona
+
+| Síntoma | Causa probable | Qué comprobar |
+|---|---|---|
+| La batería sigue cubriendo todo el dispositivo | La exclusión está desactivada o su porcentaje es cero | Comprueba **Device – Enabled** y **Device – Exclusion %** |
+| La batería ignora demasiada demanda de casa | **Cover Home** está desactivado mientras Solar Surplus da prioridad al dispositivo | Activa **Cover Home** si quieres que la batería cubra el resto de la casa |
+| Batería y wallbox compiten por un sol cambiante | Dynamic Power Control está desactivado o su señal de actividad es incorrecta | Activa **Dynamic Power Control** y verifica que la entidad de actividad configurada cambie antes o junto con la demanda |
+| La batería nunca carga mientras está activa la carga flexible | La wallbox sigue pidiendo prioridad o no queda exportación real | Comprueba potencia de dispositivo, estado de actividad, producción solar externa y exportación de red |
+| Un cargador solo con estado no pausa la batería | Su entidad de actividad no informa de un estado activo reconocido | Comprueba **Device active / EV charging sensor** en la configuración del dispositivo |
+| La carga predictiva omite energía barata y la batería queda baja | El sol prometido al dispositivo no está reservado | Configura **Expected remaining demand (kWh)** y una entidad de presencia si la demanda persiste tras desconectar |
+
+??? "Detalles avanzados"
+    **Corrección de carga**
+
+    Para un dispositivo ya incluido en el contador principal, Omnibattery elimina la parte excluida antes de que el control proporcional–derivativo (PD) calcule su ajuste:
+
+    ```text
+    effective consumption = grid consumption - excluded device power
+    control error = effective consumption - grid target
+    ```
+
+    Si el contador principal no ve el dispositivo, Omnibattery suma primero su potencia para reconstruir la demanda total y después aplica el tratamiento configurado. Esto evita eliminar la misma carga dos veces.
+
+    **Temporización de Dynamic Power Control**
+
+    Se considera que un dispositivo medido está consumiendo por encima de 100 W. En la primera demanda, la carga de batería cede durante 30 segundos. Un aumento de al menos 200 W en el margen disponible, calculado como producción solar menos potencia de dispositivo, inicia otra cesión de 20 segundos. Si no hay sensor de producción solar disponible, Omnibattery sondea durante 20 segundos cada 5 minutos en su lugar.
+
+    Cuando baja la potencia del dispositivo, la descarga permanece bloqueada durante 5 minutos y la carga recibe una gracia de reinicio más corta. Un sensor de actividad activo también bloquea la carga antes de que aparezca la potencia medida, evitando un bloqueo de arranque en frío en el que la batería absorbe la exportación antes de que arranque la wallbox. Dynamic Power Control solo se aplica cuando el dispositivo está activado, incluido en el sensor principal de consumo, medido, no está en modo VE solo con estado y están activados tanto Solar Surplus como Dynamic Power Control.
+
+    **Temporización de VE solo con estado**
+
+    Cuando se detecta por primera vez la carga, Omnibattery ordena 0 W, bloquea ambas direcciones y congela el estado PD durante 5 minutos. La pausa da tiempo al cargador para negociar la corriente con el vehículo. Después, puede reanudarse la carga por excedente solar mientras la descarga sigue bloqueada hasta que el estado de actividad deje de informar carga.
