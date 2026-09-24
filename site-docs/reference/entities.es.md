@@ -1,209 +1,187 @@
 # Entidades de Home Assistant
 
-La integración crea automáticamente entidades para cada batería configurada y sensores agregados del sistema completo.
+Esta referencia enumera las familias de entidades que puede crear Omnibattery. Tu instalación solo muestra las entidades que admite su controlador de batería y las funciones que hayas configurado.
 
-El sensor binario de estado de carga predictiva incluye diagnósticos de Precio Dinámico con plazos: `chronological_planning_active`, fuentes de curvas, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, kWh con plazo/flexibles, *shortfalls*, `energy_deadlines` acumulados y mapas JSON-safe de cuota/plazo por slot. `energy_horizon_end` es la marca ISO local del próximo amanecer que usa el plan; `overnight_consumption_kwh` es la demanda prevista entre medianoche y ese límite. Estos atributos describen la intención del plan; los límites reales de baterías y red siguen siendo autoritativos.
+## Encuentra la entidad que necesitas
 
-## Sensores (por batería)
+1. Empieza por la tabla de uso diario.
+2. Busca en el catálogo completo el nombre visible o la clave.
+3. Lee **Cuándo aparece** antes de usar una entidad en una automatización.
 
-| Entidad | Descripción | Unidad |
+Home Assistant puede conservar un ID de entidad anterior o añadir un sufijo. Las entidades nuevas del sistema usan `omnibattery_`; las instalaciones actualizadas pueden conservar `marstek_venus_system_` para que el historial y las automatizaciones sigan funcionando. Usa el selector de entidades o el registro de entidades en lugar de asumir un ID exacto.
+
+## Entidades de uso diario
+
+| Nombre visible | Patrón habitual de una instalación nueva | Uso |
 |---|---|---|
-| `sensor.*_battery_soc` | Estado de carga | % |
-| `sensor.*_battery_soh` | Estado de salud (SoH); registro de entrada Modbus Anker **10015** | % |
-| `sensor.*_battery_power` | Potencia actual | W |
-| `sensor.*_ac_power` | Potencia en el lado AC; en Anker se deriva de la potencia de batería con la convención de signo común | W |
-| `sensor.*_battery_voltage` | Tensión (no expuesta en Anker) | V |
-| `sensor.*_battery_current` | Corriente | A |
-| `sensor.*_battery_temperature` | Temperatura | °C |
-| `sensor.*_internal_temperature` | Temperatura interna usada por la protección térmica; en Anker es un alias de `temperature` | °C |
-| `sensor.*_total_charging_energy` | Energía total cargada | kWh |
-| `sensor.*_total_discharging_energy` | Energía total descargada | kWh |
-| `sensor.*_total_daily_charging_energy` | Energía cargada hoy (registro diario en Marstek; derivada del contador acumulado en Anker; integrada en Zendure) | kWh |
-| `sensor.*_total_daily_discharging_energy` | Energía descargada hoy (registro diario en Marstek; derivada del contador acumulado en Anker; integrada en Zendure) | kWh |
-| `sensor.*_battery_cycle_count` | Ciclos (registros, v3/vA/vD) | — |
-| `sensor.*_battery_cycle_count_calc` | Ciclos calculados (todos) | — |
-| `sensor.*_max_cell_voltage` | Tensión máx. de celda (v3/vA/vD; no expuesta en Anker) | V |
-| `sensor.*_min_cell_voltage` | Tensión mín. de celda (v3/vA/vD; no expuesta en Anker) | V |
-| `sensor.*_alarm_status` | Condiciones de alarma activas (v2) — diagnóstico | texto |
-| `sensor.*_fault_status` | Condiciones de fallo activas (v2) — diagnóstico | texto |
+| **System SOC** | `sensor.omnibattery_system_soc` | Estado de carga (SOC) combinado |
+| **System Charge Power** | `sensor.omnibattery_system_charge_power` | Potencia total de carga |
+| **System Discharge Power** | `sensor.omnibattery_system_discharge_power` | Potencia total de descarga |
+| **Home Consumption** | `sensor.omnibattery_home_consumption` | Demanda actual del hogar |
+| **Integration Status** | `sensor.omnibattery_integration_status` | Modo de control actual y bloqueadores |
+| **PD Control Quality** | `sensor.omnibattery_system_pd_control_quality` | Calidad del seguimiento de red |
+| **Active Batteries** | `sensor.omnibattery_active_batteries` | Baterías que participan actualmente |
+| **Non-Responsive Batteries** | `sensor.omnibattery_non_responsive_batteries` | Baterías retiradas temporalmente del control |
+| **Predictive Charging Active** | `binary_sensor.omnibattery_predictive_charging_active` | Plan predictivo y estado de carga |
+| **Allow Charge / Allow Discharge** | `switch.*_battery_allow_charge`, `switch.*_battery_allow_discharge` | Participación por batería |
+| **Manual Battery Control** | `switch.*_battery_manual_mode` | Control manual de una batería |
 
-## Sensores del monitor de equilibrio de celdas (por batería)
+La potencia positiva de batería significa carga y la negativa, descarga. **System Charge Power** y **System Discharge Power** son valores separados sin signo.
 
-Solo presentes cuando el [monitor de equilibrio de celdas](../features/cell-balance-monitor.md) está activado en la configuración de carga semanal completa.
+## Cómo se forman los ID
 
-| Entidad | Descripción | Unidad |
-|---|---|---|
-| `sensor.*_cell_delta` | Diferencia de tensión entre la celda máxima y mínima en la última lectura OCV | mV |
-| `sensor.*_balance_status` | Resultado del equilibrio: `green` / `yellow` / `orange` / `red` | — |
-| `sensor.*_delta_trend` | Tendencia en las últimas lecturas formales: `rising` / `stable` / `falling` | — |
-| `sensor.*_last_balance_read` | Marca de tiempo de la última lectura | timestamp |
-| `sensor.*_delta_avg_4w` | Media de las últimas 4 lecturas formales | mV |
+Las entidades por batería normalmente usan `<domain>.<battery-name>_<key>`, mostrado abajo como `<domain>.*_<key>`. Las entidades del sistema usan `<domain>.omnibattery_<key>` en instalaciones nuevas. Las entradas existentes en el registro conservan sus ID actuales, incluidos los ID traducidos y el prefijo heredado `marstek_venus_system_`.
 
-## Sensores de información de dispositivo
+## Dispositivo del sistema
 
-| Entidad | Descripción |
-|---|---|
-| `sensor.*_device_name` | Nombre del dispositivo |
-| `sensor.*_sn_code` | Número de serie |
-| `sensor.*_software_version` | Versión de firmware |
-| `sensor.*_bms_version` | Versión BMS |
-| `sensor.*_mac_address` | Dirección MAC |
+Estas entidades pertenecen a **Omnibattery System**, no a una batería.
 
-## Sensores binarios
+??? "Sensores de potencia, energía y aprendizaje"
 
-| Entidad | Descripción |
-|---|---|
-| `binary_sensor.*_wifi_status` | Estado WiFi |
-| `binary_sensor.*_cloud_status` | Estado Cloud |
-| `binary_sensor.marstek_venus_system_predictive_charging_active` | Carga predictiva activa (sistema) |
-| `binary_sensor.omnibattery_curtailment_status` | Estado de predescarga inteligente / anti-vertido (solo Precio Dinámico) |
+    | Claves | Cuándo aparecen |
+    |---|---|
+    | `system_soc`, `system_charge_power`, `system_discharge_power`, `system_battery_cell_power`, `system_total_energy`, `system_stored_energy` | Mediciones básicas del sistema |
+    | `home_consumption`, `system_daily_home_energy`, `system_daily_grid_import_energy`, `system_daily_grid_export_energy`, `system_daily_grid_at_min_soc_energy` | Medidor de red y controlador disponibles |
+    | `system_daily_charging_energy`, `system_daily_discharging_energy` | Energía agregada básica |
+    | `system_solar_power`, `system_daily_solar_energy` | Telemetría solar de batería admitida o fuente solar configurada, según corresponda |
+    | `expected_home_consumption_profile`, `consumption_profile_capture` | Aprendizaje de consumo disponible |
+    | `balance_neto` | Balance neto horario configurado |
 
-## Números (sliders)
+??? "Sensores de control y diagnóstico"
 
-| Entidad | Descripción | Rango |
-|---|---|---|
-| `number.*_max_soc` | SOC máximo | 0–100 % |
-| `number.*_min_soc` | SOC mínimo | 0–100 % |
-| `number.*_max_charge_power` | Potencia máx. de carga | W |
-| `number.*_max_discharge_power` | Potencia máx. de descarga | W |
-| `number.marstek_venus_system_system_max_charge_power` | Límite opcional de carga combinada para todo el sistema (`0 W` = desactivado). Solo se crea cuando los límites del sistema están activados. | Dinámico: suma de potencias de carga configuradas |
-| `number.marstek_venus_system_system_max_discharge_power` | Límite opcional de descarga combinada para todo el sistema (`0 W` = desactivado). Solo se crea cuando los límites del sistema están activados. | Dinámico: suma de potencias de descarga configuradas |
-| `number.omnibattery_predictive_safety_margin_kwh` | Margen de previsión solar usado por la carga predictiva y el anti-vertido en Precio Dinámico | 0–20 kWh |
-| `number.omnibattery_negative_injection_threshold` | Umbral inclusivo de precio para franjas de riesgo de inyección negativa | -2–2 moneda/kWh |
-| `number.omnibattery_predischarge_reserve_soc` | Suelo de SOC adicional para la predescarga inteligente | 0–100 % |
-| `number.omnibattery_predischarge_max_export_power_w` | Exportación máxima durante la predescarga (`0 W` = solo autoconsumo) | 0–10000 W |
+    | Claves | Cuándo aparecen |
+    |---|---|
+    | `integration_status`, `active_batteries`, `non_responsive_batteries`, `discharge_window`, `three_phase_protection_status`, `system_pd_control_quality`, `daily_operation_timeline` | Controlador disponible |
+    | `predictive_charging_active` | Se ha configurado carga predictiva |
+    | `curtailment_status`, `surplus_price_hold_status`, `discharge_reserve_status`, `high_price_discharge_status` | Función de Precio dinámico pertinente disponible |
+    | `capacity_protection_active` | Protección de capacidad configurada |
+    | `weekly_full_charge` | Carga completa semanal activada |
+    | `charge_delay_status` | Retraso de carga configurado |
+    | `system_alarm_status` | Al menos una batería expone registros de alarma |
 
-## Selectores
+??? "Números del sistema"
 
-| Entidad | Opciones |
-|---|---|
-| `select.*_force_mode` | None / Charge / Discharge |
-| `select.marstek_venus_system_pd_tuning_profile` | Muy suave / Suave / Equilibrado / Agresivo / Personalizado — presets de PD de un clic que fijan `Kp`, `Kd` y el límite de rampa a la vez (el deadband lo controla el usuario) |
+    Los controles de funciones aparecen solo cuando se configura esa función o modo de precio.
 
-## Switches
+    - Control PD: `pd_controller_kp`, `pd_controller_kd`, `pd_controller_deadband`, `pd_controller_max_power_change`, `pd_controller_direction_hysteresis`, `pd_min_charge_power`, `pd_min_discharge_power`, `pd_relay_cooldown`, `pd_min_cycle_interval`, `pd_target_grid_power`, `no_pd_command_delay`
+    - Límites de flota: `system_max_charge_power`, `system_max_discharge_power`, `max_contracted_power`
+    - Protección de capacidad: `capacity_protection_limit`, `capacity_protection_soc_threshold`
+    - Retraso de carga: `delay_safety_margin_min`, `charge_delay_balance_deadband_kwh`, `delay_soc_setpoint`
+    - Temperatura: `temp_charge_limit_c`, `temp_charge_limit_band_c`, `temp_charge_limit_floor_pct`
+    - Carga predictiva: `predictive_safety_margin_kwh`, `predictive_min_soc_floor`
+    - Precio dinámico: `max_price_threshold`, `discharge_price_threshold`, `min_arbitrage_margin`, `round_trip_efficiency`, `negative_injection_threshold`, `predischarge_reserve_soc`, `surplus_hold_min_saving`, `discharge_reserve_min_saving`
+    - Balance neto horario: `hourly_balance_target_net_wh`, `hourly_balance_max_offset_w`, `hourly_balance_deadband_wh`, `hourly_balance_hysteresis_w`
+    - Carga excluida: `excluded_device_exclusion_pct`, uno por cada dispositivo compatible configurado
 
-| Entidad | Descripción |
-|---|---|
-| `switch.*_rs485_control` | Modo control RS485 |
-| `switch.*_allow_charge` | Control de software que permite que esta batería participe en la carga automática |
-| `switch.*_allow_discharge` | Control de software que permite que esta batería participe en la descarga automática |
-| `switch.*_battery_manual_mode` | Excluye esta batería del control automático de potencia, manteniendo su telemetría y potencia física en los agregados del sistema |
-| `switch.*_backup_function` | Función de reserva — cuando está activo **y** la potencia AC offgrid ≠ 0 W, la batería queda excluida del control PD (no se envían comandos de escritura) |
-| `switch.marstek_venus_system_override_predictive_charging` | Cancelar carga predictiva |
-| `switch.omnibattery_smart_predischarge` | Activar predescarga inteligente / anti-vertido (solo Precio Dinámico) |
-| `switch.omnibattery_negative_price_charging` | Activar carga oportunista con precios negativos de importación (solo Precio Dinámico) |
+??? "Interruptores del sistema"
 
-## Botones
+    - Opciones de controlador siempre disponibles: `manual_mode`, `no_pd_mode`, `three_phase_protection`, `weekly_full_charge_enabled`, `vacation_mode`
+    - Funciones condicionales: `offgrid_mode`, `primary_feedforward`, `system_power_limits`, `predictive_charging`, `min_soc_floor_enabled`, `charge_delay`, `delay_soc_setpoint_enabled`, `weekly_full_charge_delay`, `temp_charge_limit`, `temp_charge_limit_discharge`, `capacity_protection`, `capacity_protection_excluded_devices`, `hourly_balance`
+    - Controles de precios: `price_discharge_control`, `high_price_discharge`, `smart_predischarge`, `negative_price_charging`, `surplus_price_hold`, `discharge_reserve`
+    - Controles generados: `time_slot` para cada franja horaria configurada; `excluded_device_enabled`, `excluded_device_solar_surplus`, `excluded_device_dynamic_power_control` y `excluded_device_cover_home` para cada dispositivo excluido aplicable
+    - Compatibilidad con automatización externa: `automation_charging_active`
 
-| Entidad | Descripción |
-|---|---|
-| `button.*_reset` | Reset del dispositivo |
-| `button.omnibattery_reevaluate_dynamic_pricing` | **Reevaluar Carga Predictiva**: reconstruye el plan ahora. Se crea en modo Precio Dinámico y Franja Horaria; el precio en tiempo real reevalúa cada ciclo y no lo necesita |
+??? "Selectores y botones del sistema"
 
-## Sensores del sistema
+    | Clave | Cuándo aparece |
+    |---|---|
+    | `pd_tuning_profile` | Controlador disponible |
+    | `weekly_full_charge_day` | Controlador disponible |
+    | `battery_phase` | Por batería, para asignación de fase |
+    | `primary_battery`, `charge_priority` | Hay más de una batería configurada |
+    | `reevaluate_dynamic_pricing` | Modo predictivo de Precio dinámico o Franja horaria |
 
-### Estado de la integración
+## Dispositivos de batería
 
-`sensor.marstek_venus_system_integration_status` muestra de un vistazo qué está haciendo la integración en cada momento. Refleja el modo activo de mayor prioridad:
+Las entidades de batería dependen del controlador. Una entidad ausente normalmente significa que el controlador no puede suministrar o controlar con seguridad ese campo; no significa que la configuración haya fallado.
 
-| Estado | Descripción |
-|---|---|
-| `Charging from Grid` | Carga predictiva desde la red activa |
-| `Weekly Full Charge` | Cargando al 100 % para equilibrado de celdas |
-| `Charge Delayed` | Carga bloqueada, esperando el momento óptimo según previsión solar |
-| `Waiting for Solar` | Retraso de carga: esperando que comience la producción solar |
-| `Charging to Setpoint` | Retraso de carga: cargando hasta el SOC mínimo configurado |
-| `Capacity Protection` | Descarga limitada por SOC bajo (peak shaving activo) |
-| `No-Discharge Window` | Dentro de una franja horaria sin descarga configurada |
-| `Charging` | Cargando (excedente solar u otro) |
-| `Discharging` | Descargando para cubrir el consumo del hogar |
-| `Standby` | Sistema equilibrado dentro de la banda muerta, sin acción necesaria |
-| `Manual Mode` | Modo manual activo — la integración no envía comandos automáticos |
-| `Initializing` | Primer ciclo del controlador aún no completado |
+??? "Sensores de estado, potencia y energía de batería"
 
-El sensor también expone diagnósticos del registro de bloqueos como atributos:
+    | Finalidad | Claves |
+    |---|---|
+    | Carga y salud | `battery_soc`, `battery_soh`, `battery_total_energy`, `stored_energy`, `battery_runtime_estimate`, `battery_cycle_count`, `battery_cycle_count_calc` |
+    | Potencia | `battery_power`, `ac_power`, `battery_cell_power`, `grid_power`, `inverter_ac_power`, `ac_offgrid_power`, `max_charge_power`, `max_discharge_power`, `inverter_max_power`, `inverter_rated_power`, `output_limit`, `input_limit`, `power_restriction` |
+    | Energía | `total_charging_energy`, `total_discharging_energy`, `total_daily_charging_energy`, `total_daily_discharging_energy`, `pv_total_generation`, `round_trip_efficiency_total` |
+    | Estado eléctrico | `battery_voltage`, `max_cell_voltage`, `min_cell_voltage`, `cell_voltage_delta`, `internal_temperature`, `internal_mos1_temperature`, `internal_mos2_temperature`, `max_cell_temperature`, `min_cell_temperature` |
+    | Estado de funcionamiento | `inverter_state`, `battery_status`, `operating_mode`, `user_work_mode`, `ac_mode`, `remain_discharge_time`, `balancing_mode`, `backup_function` |
 
-| Atributo | Descripción |
-|---|---|
-| `charge_blocked` | `true` cuando la carga está bloqueada de forma efectiva en todo el sistema, por un bloqueo global o porque todas las baterías conocidas tienen la carga bloqueada |
-| `discharge_blocked` | `true` cuando la descarga está bloqueada de forma efectiva en todo el sistema, por un bloqueo global o porque todas las baterías conocidas tienen la descarga bloqueada |
-| `charge_blockers` | Bloqueos globales de carga activos con motivo, detalles y marca temporal |
-| `discharge_blockers` | Bloqueos globales de descarga activos con motivo, detalles y marca temporal |
-| `battery_charge_blockers` | Bloqueos de carga activos por batería, agrupados por batería, incluyendo permitir carga, SOC máximo e histéresis de carga |
-| `battery_discharge_blockers` | Bloqueos de descarga activos por batería, agrupados por batería, incluyendo permitir descarga y SOC mínimo |
+    La energía diaria puede proceder de un contador nativo, del incremento de un contador acumulado o de integrar potencia. La fuente depende de las capacidades del controlador.
 
-### Calidad de control PD
+??? "Sensores de paquetes y solar"
 
-`sensor.marstek_venus_system_pd_control_quality` indica cómo de bien mantiene el controlador PD el objetivo de red, para que se vea el efecto de un [perfil de ajuste](../features/pd-controller.md#perfiles-de-ajuste) o un cambio de slider. El estado es un veredicto:
+    La telemetría de paquetes se crea solo para los controladores y los recuentos de paquetes activos que la exponen.
 
-| Estado | Significado |
-|---|---|
-| `stable` | El PD sigue bien el objetivo |
-| `oscillating` | Cabeceo — usa un perfil más suave o sube el deadband |
-| `sluggish` | Demasiado lento — usa un perfil más agresivo |
-| `battery_limited` | Batería llena/vacía o en su límite de potencia; el PD no puede actuar (no es problema de ajuste) |
-| `blocked` | La dirección que exige el error de red no está permitida (retardo de carga, franja horaria, precio, pausa por VE); el PD está bloqueado, no mal ajustado |
-| `collecting_data` | Calentando, o la métrica lleva más de 5 min sin avanzar |
+    - Carga de paquetes: `battery_soc_pack_1` hasta `battery_soc_pack_7`
+    - Extremos de tensión de paquete: `max_cell_voltage_pack_1` hasta `max_cell_voltage_pack_7`, y `min_cell_voltage_pack_1` hasta `min_cell_voltage_pack_7`
+    - Metadatos de paquetes: `pack_count`, `pack1_firmware_version`, `pack2_firmware_version`, `pack3_firmware_version`, `pack1_serial_number`, `pack2_serial_number`, `pack3_serial_number`
+    - Entrada solar: `solar_power`, `mppt1_power` hasta `mppt4_power`, y `pv1_voltage` hasta `pv4_voltage`
 
-Atributos: `rms_error_w` (error medio de seguimiento), `oscillation_per_min`, `metric_age_s` (segundos desde el último avance de la métrica), los `kp` / `kd` / `deadband_w` / `max_power_change_w` activos, y `active_profile`. La métrica es una media móvil de 60 s y se pausa brevemente tras un cambio de objetivo y mientras está limitada por batería o bloqueada, así que espera 1–2 min tras un cambio.
+??? "Sensores de dispositivo y conexión"
 
-### Sensores agregados
+    Los diagnósticos proporcionados por el controlador incluyen `device_name`, `sn_code`, `software_version`, `bms_version`, `ems_version`, `vms_version`, `inverter_software_version`, `comm_module_firmware`, `power_module_serial_number`, `power_module_firmware_version`, `inverter_serial_number`, `mac_address`, `wifi_signal_strength`, `esp_ip`, `esp_ssid`, `esp_version`, `esp_wifi_signal_strength`, `bt_status`, `fault_level`, `fault_status` y `alarm_status`.
 
-Disponibles bajo el prefijo `sensor.marstek_venus_system_*`, suman los valores de todas las baterías:
+??? "Sensores del monitor de balance de celdas"
 
-- `system_battery_power` — Potencia total del sistema
-- `system_battery_soc` — SOC promedio del sistema
-- `system_total_charging_energy` — Energía total cargada (sistema)
-- `system_total_discharging_energy` — Energía total descargada (sistema)
-- `grid_at_min_soc` — Importación de red durante periodos en SOC mínimo (kWh)
-- `system_alarm_status` — Estado de alarma agregado de todas las baterías (`OK` / `Warning` / `Fault`); los atributos listan las condiciones activas por batería
-- `system_home_consumption` — Consumo instantáneo del hogar (W). Lee el sensor del hogar si está configurado, en caso contrario lo deriva de `red + AC de baterías + solar`.
-- `system_daily_home_energy` — Consumo del hogar de hoy (kWh), integrado del valor de Consumo de la Casa anterior. Se reinicia a medianoche (hora local).
+    Cuando se activa el monitor de balance de celdas, cada batería compatible puede exponer `cell_delta`, `balance_status`, `delta_trend`, `last_balance_read` y `delta_avg_4w`. Consulta el [monitor de balance de celdas](../features/cell-balance-monitor.md).
 
-### Modo vacaciones
+??? "Sensores binarios de batería"
 
-`switch.omnibattery_vacation_mode` pausa el aprendizaje de consumo sin pausar
-la medición física ni el control de batería. Sus atributos muestran la carga
-base constante activa, su origen, las noches válidas y los periodos excluidos
-persistidos. Durante las vacaciones el sensor de perfil esperado usa
-`source: vacation_baseline`.
+    Los estados de conexión son `wifi_status`, `cloud_status` y `esp_wifi_status`. Las alarmas del controlador pueden incluir `pll_abnormal_restart`, `overtemperature_limit`, `low_temperature_limit`, `fan_abnormal_warning`, `low_battery_soc_warning`, `output_overcurrent_warning`, `abnormal_line_sequence_detection`, `wifi_abnormal`, `ble_abnormal`, `network_abnormal`, `ct_connection_abnormal`, `grid_overvoltage`, `grid_undervoltage`, `grid_overfrequency`, `grid_underfrequency`, `grid_peak_voltage_abnormal`, `current_dcover`, `voltage_dcover`, `bat_overvoltage`, `bat_undervoltage`, `bat_overcurrent`, `bat_low_soc`, `bat_communication_failure` y `bms_protect`.
 
-### Perfil de consumo esperado del hogar
+    `balancing_mode` y `charge_hysteresis` aparecen solo cuando el controlador o la configuración los admiten.
 
-`sensor.omnibattery_expected_home_consumption_profile` es un sensor de
-diagnóstico del perfil aprendido de 28 días. Su estado es la previsión de hoy en
-kWh. Sus atributos incluyen `interval_profile_kwh`, `hourly_profile_kwh`,
-`target_date`, `source`, `mature`, `coverage_ratio`, `weekday_samples`,
-`day_type_samples`, `total_profile_days` y `newest_profile_date`. El resumen
-acotado por día está disponible en los diagnósticos de la integración. El origen
-es `profile` solo cuando se cumple el
-contrato de madurez; `legacy_daily` identifica el fallback.
+??? "Números, interruptores, selectores y botones de batería"
 
-La carga predictiva también publica `solar_timeline_source`,
-`solar_remaining_raw_kwh`, `solar_remaining_effective_kwh`,
-`solar_timeline_fallback_reason`, `solar_profile_mature`,
-`solar_profile_days`, `solar_profile_coverage_ratio` y
-`solar_profile_generation`. Los diagnósticos contienen una sección acotada
-`solar_profile` con origen de telemetría, contadores de calidad, generación,
-estado de backfill y como máximo 24 valores resumidos de progreso.
+    | Plataforma | Claves | Condición |
+    |---|---|---|
+    | Número | `set_charge_power`, `set_discharge_power` | Control por registro o control manual mediante software |
+    | Número | `max_charge_power`, `max_discharge_power`, `inverse_max_power` | Límite de hardware o software admitido |
+    | Número | `charging_cutoff_capacity`, `discharging_cutoff_capacity`, `charge_to_soc`, `soc_set`, `min_soc` | Corte de hardware o límite de software, según el controlador |
+    | Número | `backup_offgrid_threshold`, `charge_hysteresis_percent`, `battery_capacity` | Controlador/configuración pertinente |
+    | Interruptor | `battery_allow_charge`, `battery_allow_discharge`, `battery_manual_mode` | Cada batería controlada |
+    | Interruptor | `full_charge_voltage_taper` | Telemetría de celdas compatible |
+    | Interruptor | `backup_function`, `rs485_control_mode`, `lamp_switch` | El controlador expone el control |
+    | Selector | `force_mode`, `grid_off_mode`, `user_work_mode` | El controlador expone el control |
+    | Botón | `reset_device` | El controlador expone la orden |
 
-### Línea temporal de operación diaria
+## Atributos de estado y diagnóstico
 
-`sensor.omnibattery_daily_operation_timeline` es un snapshot de diagnóstico del
-día local que usa la tarjeta Resumen. Su estado es la fecha local y sus
-atributos acotados contienen `schema_version`, `timezone`,
-`interval_minutes` (15), `interval_count` (96), `current_index`,
-`current_progress`, `mode`, frescura y los objetos `series`, `operations` y
-`sources`. Las listas se excluyen de Recorder. Los valores `actual_*` son
-medidos; los `planned_*` son proyecciones informativas y pueden ser `null` si
-su fuente está obsoleta.
+??? "Estados y bloqueadores de Integration Status"
 
-La línea conserva los intervalos cerrados aunque se reevalúe el plan y, tras un
-reinicio, solo restaura el día local actual. Las máscaras `action_mask` usan
-`solar_charge=1`, `grid_charge=2` y `discharge=4`; las máscaras de contexto
-identifican setpoint, Retraso de Carga y el modo predictivo.
-`grid_charge_decision` es independiente del flujo físico (`scheduled`,
-`not_needed`, `unknown` o `not_applicable`).
+    **Integration Status** informa de la condición activa con mayor prioridad. Sus estados cubren carga predictiva, carga completa semanal, retraso de carga, controles de precios, pausas de vehículo eléctrico, retención por balance de celdas, protección de capacidad, balance neto horario, modo de respaldo, control manual por franja horaria, ventanas cerradas de carga o descarga, carga o descarga normal, reposo, modo manual e inicialización.
 
-Consulta la [guía de la línea temporal diaria](../features/daily-operation-timeline.es.md)
-para las reglas visuales, DST e interacción móvil.
+    | Atributo | Significado |
+    |---|---|
+    | `charge_blocked`, `discharge_blocked` | Permiso efectivo del sistema |
+    | `charge_blockers`, `discharge_blockers` | Motivos globales, detalles y marcas temporales |
+    | `battery_charge_blockers`, `battery_discharge_blockers` | Motivos agrupados por batería |
+    | `manual_batteries` | Baterías bajo control manual |
+    | `non_responsive_batteries` | Baterías excluidas tras fallos de comunicación o entrega |
+    | `balance_hold_batteries` | Baterías retenidas por protección de balance de celdas |
+    | `backup_cooldown_batteries` | Baterías retenidas tras actividad de salida de respaldo |
+    | `ev_chargers_active`, `ev_pause_until` | Exclusiones y pausas de cargadores activos |
+    | `hourly_balance_status`, `hourly_balance_offset_w`, `hourly_balance_net_kwh` | Estado del controlador de balance neto |
+    | `temperature_charge_limit` | Decisión actual de límite térmico |
+
+??? "Atributos de Predictive Charging Active"
+
+    Los atributos comunes incluyen `charging_needed`, `reason`, `price_data_status`, valores de previsión y consumo, franjas de precio seleccionadas, energía objetivo y progreso actual.
+
+    Precio dinámico también puede exponer `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `energy_deadlines`, `slot_deadlines` y `chronological_plan_reason`. Describen la intención de planificación; los límites activos de batería, red y seguridad mantienen la autoridad.
+
+??? "Otros atributos de diagnóstico"
+
+    **PD Control Quality** usa `stable`, `oscillating`, `sluggish`, `battery_limited`, `blocked` o `collecting_data`. Sus atributos exponen el error de seguimiento, la tasa de oscilación, la antigüedad de la métrica, los ajustes activos de control proporcional–derivativo (PD) y el perfil.
+
+    **Daily Operation Timeline** expone datos de día local acotado en `series`, `operations` y `sources`. Consulta la [cronología diaria](../features/daily-operation-timeline.md).
+
+    **Expected Home Consumption Profile** expone fuente, madurez, cobertura, recuentos de muestras y datos de previsión. **Vacation Mode** expone su línea base y periodos de aprendizaje excluidos.
+
+## Seguridad de control
+
+Los controles directos **Force Mode**, **Set Charge Power** y **Set Discharge Power** requieren el **Manual Mode** global o el **Manual Battery Control** por batería. El control automático rechaza escrituras que compiten con él. Los controles de configuración de batería siguen siendo editables cuando el controlador los admite.
+
+Usa [varias baterías](../features/multi-battery.md) para el comportamiento de control y participación, y [solución de problemas](../troubleshooting.md) cuando un estado o bloqueador no explica el resultado.
+
+!!! note "Actualmente no se crea ninguna entidad de hora"
+    `automation_charging_end_time` permanece en los recursos de traducción, pero la integración no tiene plataforma `time` y no crea esa entidad.
