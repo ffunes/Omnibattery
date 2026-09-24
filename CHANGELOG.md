@@ -352,7 +352,7 @@
 
 ### Internal
 - **Source reorganisation into subpackages**: 18 modules moved into `sensors/`, `control/`, `tracking/`, `infra/`; root keeps only the HA platform files.
-- **Driver abstraction layer**: all hardware access goes through a brand-agnostic `BatteryDriver` — the foundation of multi-brand support. [`drivers/`](custom_components/omnibattery/drivers/).
+- **Driver abstraction layer**: all hardware access goes through a brand-agnostic `BatteryDriver` — the foundation of multi-brand support. `drivers/`.
 
 ---
 
@@ -401,7 +401,7 @@
 - **v3 batteries marked non-responsive near full / charge ping-pong**: charge pause now also latches on the BMS-cutoff signature (~0 W in standby at top zone), not only at 3.58 V; high-SOC standby treated as expected BMS-full (not a fault); SOC recalibration threshold raised 90→99 % so a stuck pack is driven to one BMS cutoff. `__init__.py`, `integration_const.py`.
 
 ### Internal
-- Automated test suite (pytest) + CI on every PR. [`tests/`](tests/), `tests.yml`.
+- Automated test suite (pytest) + CI on every PR. `tests/`, `tests.yml`.
 - `external_loads`, `power_distribution`, `charge_delay`, `pricing`, and `max_soc_charge` modules extracted from `__init__.py`; behavior unchanged, guarded by characterization tests. `const.py` split into a `const/` package (all imports unchanged).
 
 ## [2.0.3] - 2026-06-10
