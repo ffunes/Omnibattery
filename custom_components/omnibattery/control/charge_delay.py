@@ -281,9 +281,11 @@ class ChargeDelayManager:
             await self._save_state()
 
     def handle_daily_reset_and_eval(self) -> None:
-        """Reset the delay latch on a new day, then evaluate to keep the sensor live.
+        """Reset the delay latch on a new day and detect the solar start.
 
-        Runs once per control cycle; no-op when the feature is disabled.
+        Runs once per control cycle; no-op when the feature is disabled. The
+        delay itself is evaluated by ``_refresh_operation_blockers``, which the
+        cycle calls right after this, so it is not repeated here.
         """
         ctrl = self._controller
         if not ctrl.charge_delay_enabled:
@@ -320,8 +322,6 @@ class ChargeDelayManager:
 
         # Detect solar production start (shared with weekly charge)
         ctrl._consumption_tracker.detect_solar_t_start()
-        # Proactively evaluate delay to keep ChargeDelaySensor populated
-        self.is_charge_delayed()
 
     def is_charge_delayed(self) -> bool:
         """Unified gate: check if charging should be delayed based on solar forecast.

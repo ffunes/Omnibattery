@@ -666,6 +666,17 @@ def test_daily_reset_first_cycle_preserves_restored_unlock():
     assert ctrl._charge_delay_last_date == date.today()
 
 
+def test_daily_reset_leaves_the_evaluation_to_the_blocker_refresh():
+    # _refresh_operation_blockers evaluates the delay right after this in the
+    # same cycle; a second full projection here doubled the cycle's cost (#511).
+    ctrl = _controller(_charge_delay_last_date=date.today())
+    mgr = _make_mgr(ctrl)
+    calls = []
+    mgr._should_delay_charge = lambda target: calls.append(target) or True
+    mgr.handle_daily_reset_and_eval()
+    assert calls == []
+
+
 # ----------------------------------------------------------------------
 # refresh_setpoint_blocks: per-battery SOC-setpoint floor enforcement
 # ----------------------------------------------------------------------
