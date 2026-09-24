@@ -13,8 +13,6 @@ Use this connection for a Marstek Venus battery reached directly over Ethernet, 
 
 **Use this page if** one of these wizard choices matches your battery and you can reach it through Modbus TCP or Modbus RTU. **Use the LilyGo route instead** when a supported ESPHome bridge already exposes the battery in Home Assistant.
 
-Venus E v1 and Venus C remain in the documented Marstek family for now, but the current wizard has no dedicated v1 or C profile. Do not guess a version; confirm the correct register map before adding either model.
-
 ## Before you start
 
 - For Venus E v2, prepare an RS-485-to-TCP gateway or a USB-to-RS-485 adapter.
