@@ -11,7 +11,7 @@ Use this connection for a Marstek Venus battery reached directly over Ethernet, 
 | Venus A | **A** | 1,500 W |
 | Venus D | **D** | 2,200 W before EMS firmware 149, or when firmware is unknown; 2,500 W from firmware 149 |
 
-**Use this page if** one of these wizard choices matches your battery and you can reach it through Modbus TCP or Modbus RTU. **Use the LilyGo route instead** when a supported ESPHome bridge already exposes the battery in Home Assistant.
+**Use this page if** one of these wizard choices matches your battery and you can reach it through Modbus TCP or Modbus RTU. **Use the [ESPHome / LilyGo route](esphome-lilygo.md) instead** when a supported ESPHome bridge already exposes the battery in Home Assistant.
 
 ## Before you start
 
