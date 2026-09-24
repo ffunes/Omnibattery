@@ -1,86 +1,57 @@
 # Anker SOLIX
 
-Omnibattery es compatible con Anker SOLIX Solarbank Max AC y Solarbank 4 E5000
-Pro mediante Modbus TCP. La prueba de conexión lee los límites de hardware en
-tiempo real y el identificador del modelo.
+Omnibattery controla las baterías Anker SOLIX Solarbank compatibles mediante la conexión local Modbus TCP. La prueba de configuración lee el modelo y sus límites de hardware en vivo antes de crear la batería.
 
-!!! warning "Activa Third-Party Control"
-    Activa **Third-Party Control** y Modbus TCP en la aplicación de Anker antes de añadir la batería. Solo un cliente Modbus puede conectarse a la Solarbank a la vez.
+## ¿Lo necesito?
 
-## Conexión
-
-Introduce el nombre de la batería, su IP local, el puerto Modbus y el ID de
-esclavo.
-
-| Campo | Descripción | Por defecto |
+| Modelo compatible | Conexión de control | Telemetría solar independiente |
 |---|---|---|
-| **Nombre** | Nombre usado para el dispositivo de batería | — |
-| **IP del host** | IP local de la Solarbank | — |
-| **Puerto Modbus** | Puerto TCP | `502` |
-| **ID de esclavo Modbus** | ID de unidad usado por el dispositivo | `1` |
+| Solarbank Max AC | Modbus TCP | No; sus registros solares se obtienen de medidas de CA |
+| Solarbank XE AC | Modbus TCP | No; sus registros solares se obtienen de medidas de CA |
+| Solarbank 4 E5000 Pro | Modbus TCP | Sí |
 
-La prueba de conexión consulta el mapa Modbus antes de continuar. Cierra la
-aplicación de Anker o desconéctala si ya está usando la única sesión Modbus
-disponible.
+**Úsalo si** tu Solarbank compatible expone Modbus TCP y la app Anker permite **Third-Party Control**. **No añadas otro cliente Modbus:** la batería acepta una sola sesión de cliente a la vez.
 
-## Límites de potencia y SOC
+## Antes de empezar
 
-Anker comunica sus límites de carga y descarga, por lo que el asistente no
-solicita sliders de potencia manuales durante la configuración. Omnibattery usa
-esos límites de hardware en vivo y los restringe a una envolvente de software de
-3500 W.
+- Activa **Third-Party Control** y Modbus TCP en la app Anker.
+- Cierra o desconecta cualquier otra aplicación que use la conexión Modbus de la batería.
+- Asigna una dirección IP local estable a la Solarbank.
+- Anota el ID de esclavo Modbus.
 
-La página de límites también incluye:
+## Cómo añadirla
 
-- SOC máximo: 80–100 % (por defecto `100 %`);
-- SOC mínimo: 0–20 % (por defecto `10 %`);
-- histéresis de carga obligatoria (mínimo 2 %);
-- umbral de backup offgrid.
+1. En el asistente de configuración de Omnibattery, elige **Anker SOLIX Solarbank Max AC / 4 E5000 Pro**. Esta opción del asistente también detecta Solarbank XE AC.
+2. Introduce un **Name** descriptivo y el **Host IP** de la Solarbank.
+3. Mantén **Modbus port** en `502` salvo que el dispositivo use otro puerto.
+4. Introduce el **Modbus slave ID**; su valor predeterminado es `1`.
+5. Espera la prueba de conexión y después elige los ajustes comunes de estado de carga y seguridad.
 
-Anker no ofrece la reducción de carga por tensión de celdas de Marstek. Para los
-controles de SOC en tiempo de ejecución, los límites del sistema y los umbrales
-de backup, consulta la [configuración de baterías](index.md).
+## Qué verás
 
-### Control manual
+Anker comunica sus propios límites de carga y descarga, por lo que Omnibattery usa esos valores detectados en vez de pedir límites de potencia durante la configuración. Hay control automático y controles por software **Force Mode**, **Set Charge Power** y **Set Discharge Power**. Activa **Battery Manual Control** antes de enviar objetivos manuales y mantén activado **Third-Party Control** en la app.
 
-Anker no ofrece entidades de modo forzado y consignas de potencia al estilo de
-Marstek. Omnibattery guarda los valores de software `Modo forzado`, `Potencia
-de carga` y `Potencia de descarga`, y reaplica las consignas distintas de reposo
-mediante el driver local mientras **Control Manual de Batería** esté activado.
-Mantén **Third-Party Control** activado en la aplicación de Anker; el driver y
-el BMS siguen siendo responsables de sus propios límites de seguridad de
-hardware.
+El mapa de registros común proporciona estado de carga (SOC), potencia de batería, temperatura, energía y estado de salud (SoH) cuando el dispositivo implementa esas lecturas. Anker no expone la tensión del paquete ni las tensiones de celdas individuales mediante esta conexión, por lo que no están disponibles las funciones de equilibrio de celdas y reducción gradual por tensión.
 
-## Telemetría de salud
+## Si no funciona
 
-| Lectura | Entidad | Fuente |
+| Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| **Estado de salud (SoH)** | `sensor.<battery>_battery_soh` | Registro de entrada Modbus **10015** |
+| El asistente no puede conectarse | Third-Party Control está desactivado, la dirección es incorrecta u otro cliente controla Modbus | Activa las opciones de la app, cierra el otro cliente y vuelve a intentarlo |
+| La batería ignora una orden | Third-Party Control se desactivó después de la configuración | Vuelve a activarlo en la app Anker |
+| La potencia se detiene por debajo de la especificación del producto | El límite del dispositivo en vivo o la envolvente de seguridad de Omnibattery es menor | Comprueba las entidades de límite de carga y descarga detectadas |
+| Falta potencia solar en Max AC o XE AC | Estos modelos no proporcionan una fuente solar independiente mediante estos registros | Usa el sensor solar externo de la instalación si lo necesitas |
+| SoH no está disponible | El modelo devolvió un valor no compatible o cero | Confirma la lectura en diagnósticos; cero se trata como no disponible |
 
-El SoH se expone para todos los modelos Anker Solarbank compatibles que comparten
-el mapa de registros común. Solo se ha verificado en campo en **Solarbank Max AC**
-(código de producto **DMWH**); otros modelos pueden informar el mismo registro,
-pero aún no están confirmados en campo. Un valor de registro **0** se trata como
-no disponible (desconocido o no implementado) en lugar de 0 % SoH.
+??? "Detalles avanzados"
+    Omnibattery limita las órdenes Anker a los límites de hardware en vivo y a una envolvente de integración de `3,500 W`. El objetivo mínimo de funcionamiento distinto de cero es `100 W`; los objetivos menores se cambian a reposo o a ese mínimo según corresponda.
 
-El sensor SoH es una entidad de medición normal (no categoría de diagnóstico de
-HA) y se muestra en el panel cuando está disponible.
+    Los controles de SOC del dispositivo permiten un máximo de `80–100%` y un mínimo de `0–20%`. Los cortes de hardware permanecen activos. Anker no utiliza la reducción gradual por tensión de celda de Marstek.
 
-Anker no expone tensión del pack, tensiones por celda ni telemetría de equilibrio
-de celdas por Modbus. Por eso Omnibattery no crea `battery_voltage`,
-`max_cell_voltage`, `min_cell_voltage` ni sensores del monitor de equilibrio para
-baterías Anker.
+    **Battery State of Health (SoH)** usa el registro de entrada `10015`. El mapa compartido lo pone a disposición de los modelos compatibles, pero solo se ha verificado en campo en Solarbank Max AC con código de producto `DMWH`. Un valor bruto de `0` se trata como no disponible en lugar de como 0% de salud.
 
-### Panel
+    Los códigos de producto Solarbank 4 E5000 Pro exponen una fuente solar independiente. Los campos solares de Max AC y XE AC se obtienen del cálculo propio de CA de la batería y se excluyen del total solar de Omnibattery.
 
-La sección **Salud y celdas** de la tarjeta de batería del panel de Omnibattery
-muestra solo las métricas disponibles en cada dispositivo:
+    En el panel, la sección **Health & cells** de la tarjeta de batería muestra temperatura interna y SoH cuando están disponibles. Las filas de tensión y celdas se omiten cuando el driver no tiene entidades correspondientes, por lo que las tarjetas Anker no muestran marcadores de posición vacíos.
 
-- **Anker**: temperatura interna y **Estado de salud (SoH)** cuando está
-  disponible.
-- **Marstek / Zendure / otros**: temperatura, tensión, celdas mín./máx., delta
-  de celda y cualquier otro sensor expuesto por el driver.
-
-Las filas de tensión y celdas se omiten automáticamente cuando la integración no
-tiene entidades equivalentes (esto aplica a todas las marcas de batería, no solo
-Anker), de modo que las tarjetas Anker ya no muestran marcadores vacíos.
+    Para controles compartidos en tiempo de ejecución y límites del sistema, consulta [Elige la conexión de tu batería](index.md).

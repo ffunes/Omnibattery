@@ -1,87 +1,68 @@
-# Baterías Hoymiles mediante MQTT
+# Baterías Hoymiles MQTT
 
-Las baterías de microalmacenamiento Hoymiles compatibles se comunican con
-Omnibattery mediante la integración MQTT ya configurada en Home Assistant.
-Omnibattery no necesita el host, puerto ni las credenciales del broker; Home
-Assistant gestiona la conexión.
+Omnibattery controla las baterías Hoymiles compatibles mediante la integración MQTT ya configurada en Home Assistant. Home Assistant controla la conexión con el broker, por lo que Omnibattery solo necesita el ID de dispositivo de la batería.
 
-## Modelos compatibles
+## ¿Lo necesito?
 
-Omnibattery lee `device.model` y la envolvente de potencia firmada `min`/`max`
-del payload MQTT discovery retenido. El perfil detectado aporta la capacidad
-nominal y el techo de seguridad específico del modelo; la envolvente anunciada
-por el equipo sigue siendo el límite final.
+| Producto compatible | Capacidad nominal | Límite de potencia de integración | Solar visible para Omnibattery |
+|---|---:|---:|---|
+| MS-A2 | 2,24 kWh por unidad; hasta 4,48 kWh | 1.000 W por unidad; hasta 2.000 W | No |
+| HiBattery 1920 AC | 1,92 kWh por unidad; hasta 11,52 kWh | 1.000 W por unidad; hasta 6.000 W | No |
+| HiBattery 4020 X | 4,02 kWh por paquete; hasta 16,08 kWh | 2.500 W de carga y descarga | Sí |
+| HiBattery 4020 AC | 4,02 kWh por paquete; hasta 16,08 kWh | 2.500 W de carga y descarga | No |
 
-| Modelo MQTT | Producto | Capacidad | Techo de seguridad del perfil¹ |
-|---|---|---:|---:|
-| `MS-A2`, `MS-A2-FX`, `MS-A2-ZZ` | MS-A2 | 2,24 kWh por unidad, hasta 4,48 kWh | 1000 W por unidad, hasta 2000 W |
-| `HB-1920-AC-SV` | HiBattery 1920 AC | 1,92 kWh por unidad, hasta 11,52 kWh | 1000 W por unidad, hasta 6000 W |
-| `HB-4020-X`, `HB-4020-XM` | HiBattery 4020 X | 4,02 kWh por pack, hasta 16,08 kWh | Techo actual de la integración: 2500/2500 W de carga/descarga |
-| `HB-4020-AC`, `HB-4020-ACM` | HiBattery 4020 AC | 4,02 kWh por pack, hasta 16,08 kWh | Techo actual de la integración: 2500/2500 W de carga/descarga |
+**Úsalo si** el firmware de la batería expone **MQTT Service**, la batería puede acceder a tu broker MQTT local y conoces su ID de dispositivo completo. La envolvente MQTT publicada por el dispositivo sigue siendo la fuente autorizada y puede reducir el límite de la tabla.
 
-¹ La envolvente MQTT retenida `min`/`max` es la autoridad final y puede ser
-inferior o asimétrica según la variante, el país o el firmware.
+## Antes de empezar
 
-El manual de la 4020 X especifica límites superiores para pilas con más módulos,
-y el manual actual de la 4020 AC (REV1.2) también documenta límites dependientes
-de la expansión. Omnibattery usa por ahora un techo de software simétrico de
-`2500/2500 W` para ambas variantes 4020. La operación por encima de 2500 W con
-más módulos queda fuera de alcance; antes de ampliarla debe abrirse una
-solicitud de funcionalidad. La envolvente MQTT publicada por el equipo sigue
-siendo la autoridad final y puede reducir el límite efectivo. La capacidad sí
-puede reflejar los módulos de expansión.
+- Pon en servicio la batería en **S-Miles Home**.
+- Instala firmware que exponga **MQTT Service**.
+- Configura un broker MQTT local mediante Home Assistant y haz que sea accesible desde la batería.
+- Anota el ID de dispositivo MQTT completo.
+- Para una MS-A2, sigue la [guía de instalación y MQTT de MS-A2](../hoymiles-ms-a2.md).
 
-## Requisitos previos
+## Cómo añadirla
 
-Antes de añadir la batería:
+1. En el asistente de configuración de Omnibattery, elige **Hoymiles MQTT**.
+2. Introduce un **Name** descriptivo y el **MQTT device ID** completo.
+3. Deja **Battery model** en **Auto-detect** salvo que el firmware publique un modelo incorrecto o genérico.
+4. Espera mientras Omnibattery recibe telemetría en vivo y el mensaje retenido de descubrimiento del control de potencia.
+5. Revisa la capacidad y los límites de potencia detectados, y después elige los límites comunes de estado de carga.
 
-- ponla en marcha en **S-Miles Home**;
-- usa un firmware que exponga **Servicio MQTT**;
-- configura un broker MQTT local mediante Home Assistant;
-- asegúrate de que la batería puede alcanzar el broker;
-- anota el ID MQTT completo, normalmente similar a `MSA-280024341346`.
+## Qué verás
 
-La [guía de instalación de la MS-A2](../hoymiles-ms-a2.md) cubre la
-configuración del broker, S-Miles Home y las comprobaciones. Los pasos MQTT
-también sirven para los modelos HiBattery compatibles; sigue el manual propio
-del producto para la instalación eléctrica.
+Omnibattery envía objetivos automáticos y manuales de carga, descarga y reposo por MQTT. Activa **Battery Manual Control** antes de usar **Force Mode** y los controles de potencia por software. La orden se actualiza mientras el control permanece activo para que la batería no vuelva a su estrategia interna.
 
-## Conexión y límites
+El estado de carga (SOC), potencia de batería, tensión, temperatura, capacidad y lecturas de energía aparecen cuando el modelo las publica. Solo HiBattery 4020 X se considera una fuente solar del sistema. Ningún perfil Hoymiles compatible expone telemetría MPPT para la corrección MPPT específica de Marstek.
 
-Selecciona **Hoymiles MQTT** como marca e introduce un nombre descriptivo y el
-ID MQTT completo. Deja **Modelo de batería** en **Detección automática** en el
-caso normal. Si el firmware publica un modelo incorrecto o genérico, elige el
-modelo instalado; la envolvente de potencia MQTT en vivo sigue siendo el límite
-final. La prueba de conexión espera la telemetría en tiempo real y el payload
-discovery retenido del control de potencia. No hacen falta dirección IP, puerto
-HTTP, sensores MQTT ni automatizaciones manuales.
+## Si no funciona
 
-El paso siguiente muestra la capacidad y los límites de carga/descarga
-detectados. Siguen siendo techos de software editables y se pueden reducir para
-la instalación. Por ejemplo, una 4020 X base usa una capacidad de `4,02 kWh` y
-un techo de software de `2500/2500 W`, en vez de heredar los `2,24 kWh` y
-`1000/1000 W` de la MS-A2. Se conserva cualquier límite inferior anunciado por
-ese equipo concreto.
+| Síntoma | Causa probable | Qué comprobar |
+|---|---|---|
+| El asistente indica **Cannot connect** | MQTT está desconectado, el servicio está desactivado o el ID de dispositivo está incompleto | Comprueba la integración MQTT de Home Assistant, S-Miles Home y el ID completo |
+| Aparece el modelo o capacidad equivocados | El firmware publicó un modelo genérico o incorrecto | Vuelve a configurar y elige explícitamente el modelo instalado |
+| La potencia es menor que la tabla | La envolvente MQTT retenida es menor o asimétrica | Inspecciona el mensaje de descubrimiento del control de potencia del dispositivo |
+| La batería vuelve al control autónomo | Las actualizaciones de órdenes no pueden llegar al broker | Comprueba la disponibilidad del broker y las desconexiones MQTT |
+| Falta solar en un modelo de CA | Solo HiBattery 4020 X declara una fuente solar independiente | Usa el sensor solar externo de la instalación si lo necesitas |
 
-El protocolo MQTT no expone límites de SOC editables ni tensiones de celda
-individuales. Por ello Omnibattery aplica los límites de SOC por software y las
-funciones de equilibrio de celdas y reducción por tensión específicas de
-Marstek no están disponibles.
+??? "Detalles avanzados"
+    Los alias de modelo MQTT detectados incluyen `MS-A2`, `MS-A2-FX`, `MS-A2-ZZ`, `HB-1920-AC-SV`, `HB-4020-X`, `HB-4020-XM`, `HB-4020-AC` y `HB-4020-ACM`. La capacidad escala con las unidades o paquetes detectados hasta el total del modelo indicado arriba.
 
-Las entradas existentes creadas por el antiguo flujo exclusivo para MS-A2 se
-corrigen al reconfigurar la conexión Hoymiles: si discovery identifica otro
-modelo, solo se sustituyen los antiguos valores predeterminados de `1000 W` y
-`2,24 kWh` por los de ese perfil. Selecciona el modelo manualmente durante la
-reconfiguración si el firmware antiguo no lo identifica correctamente.
+    Los perfiles HiBattery 4020 X y 4020 AC usan un límite de integración simétrico de `2,500 W` incluso cuando pilas de expansión mayores pueden admitir más. El funcionamiento a mayor potencia queda fuera del alcance actual de la integración. Una envolvente MQTT `min`/`max` retenida menor siempre prevalece.
 
-Para los controles en tiempo de ejecución y los límites del sistema, consulta
-la [configuración de baterías](index.md).
+    Hoymiles MQTT no expone cortes de SOC escribibles ni tensiones de celdas individuales. Omnibattery aplica los límites de SOC por software y las funciones Marstek de equilibrio de celdas y reducción gradual por tensión no están disponibles.
 
-## Referencias del fabricante
+    Omnibattery publica `mqtt_ctrl` más el objetivo con signo y después actualiza la orden exacta cada `30 s`. Una actualización fallida se reintenta tras `5 s`. Al descargar la integración envía reposo y restaura el modo general del dispositivo.
 
-- [Protocolo MQTT de Hoymiles](https://www.hoymiles.com/uploadfile/1/202511/9350aa1077.txt)
-- [HiBattery 1920 AC](https://www.hoymiles.com/products/hibattery-1920-ac.html)
-- [Ficha técnica HiBattery 4020 X](https://www.hoymiles.com/uploadfile/1/202606/95d670b3a3.pdf)
-- [Manual de HiBattery 4020 X](https://www.hoymiles.com/downloads/user-manual-hb-4020-x-global-en-de-fr-nl.html)
-- [HiBattery 4020 AC](https://www.hoymiles.com/products/hibattery-4020-ac.html)
-- [Manual de HiBattery 4020 AC](https://www.hoymiles.com/downloads/user-manual-hb-4020-ac-global-en-de-fr-nl.html)
+    Las entradas existentes del anterior asistente exclusivo para MS-A2 se corrigen al reconfigurarlas cuando el descubrimiento identifica un modelo distinto. Solo se sustituyen los valores predeterminados antiguos de MS-A2; se conservan los valores ajustados por el usuario.
+
+    Referencias del fabricante:
+
+    - [Guía del protocolo MQTT de Hoymiles](https://www.hoymiles.com/uploadfile/1/202511/9350aa1077.txt)
+    - [HiBattery 1920 AC](https://www.hoymiles.com/products/hibattery-1920-ac.html)
+    - [Ficha técnica HiBattery 4020 X](https://www.hoymiles.com/uploadfile/1/202606/95d670b3a3.pdf)
+    - [Manual de usuario HiBattery 4020 X](https://www.hoymiles.com/downloads/user-manual-hb-4020-x-global-en-de-fr-nl.html)
+    - [HiBattery 4020 AC](https://www.hoymiles.com/products/hibattery-4020-ac.html)
+    - [Manual de usuario HiBattery 4020 AC](https://www.hoymiles.com/downloads/user-manual-hb-4020-ac-global-en-de-fr-nl.html)
+
+    Para controles compartidos en tiempo de ejecución y límites del sistema, consulta [Elige la conexión de tu batería](index.md).

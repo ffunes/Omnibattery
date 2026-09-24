@@ -1,66 +1,58 @@
 # Zendure SolarFlow
 
-Omnibattery se conecta a los equipos Zendure SolarFlow mediante su API HTTP
-local. El asistente consulta el dispositivo y detecta el modelo
-automáticamente; no tienes que seleccionarlo manualmente.
+Omnibattery controla los dispositivos Zendure SolarFlow compatibles mediante su interfaz de red local. Detecta el modelo durante la configuración y aplica la envolvente de potencia correspondiente.
 
-!!! warning "Desactiva HEMS"
-    Mantén **HEMS desactivado** en la aplicación de Zendure mientras Omnibattery controle el equipo. HEMS sobrescribe las consignas manuales de potencia después de unos segundos.
+## ¿Lo necesito?
 
-## Conexión
+| Modelo compatible | Carga máxima en CA | Descarga máxima en CA | Entrada solar visible para Omnibattery |
+|---|---:|---:|---|
+| SolarFlow 800 / 800 Plus / 800 Pro | 1.000 W | 800 W | Sin telemetría MPPT específica |
+| SolarFlow 1600 AC+ | 1.600 W | 1.600 W | No |
+| SolarFlow 2400 AC Pro / 2400 AC+ | 2.400 W | 2.400 W | Sin telemetría MPPT específica |
+| SolarFlow 3000 Mix AC+ | 3.000 W | 3.000 W | Sin telemetría MPPT específica |
+| SolarFlow 4000 Mix AC+ | 4.000 W | 4.000 W | No |
+| SolarFlow 4000 Mix Pro | 4.000 W | 4.000 W | Telemetría MPPT dual |
 
-Introduce un nombre descriptivo, la IP local del equipo y su puerto HTTP. El
-puerto predeterminado es `80`. El dispositivo debe ser accesible desde Home
-Assistant en la red local o mediante enrutamiento.
+**Úsalo si** Home Assistant puede llegar al SolarFlow en la red local y puedes mantener desactivado el sistema de gestión energética doméstica (HEMS) de Zendure. **No uses ambos controladores a la vez:** HEMS anula la orden de Omnibattery después de unos segundos.
 
-| Campo | Descripción | Por defecto |
+## Antes de empezar
+
+- Desactiva **HEMS** en la app Zendure.
+- Asigna al dispositivo una dirección IP local estable y confirma que Home Assistant puede acceder a él.
+- Anota el puerto HTTP local; su valor predeterminado es `80`.
+- Conoce la capacidad nominal de la batería, porque el informe local no la proporciona.
+
+## Cómo añadirlo
+
+1. En el asistente de configuración de Omnibattery, elige **Zendure SolarFlow**.
+2. Introduce un **Name** descriptivo y el **Host IP** del dispositivo.
+3. Mantén **HTTP port** en `80` salvo que tu red use otro puerto.
+4. Espera mientras Omnibattery lee el informe del dispositivo y detecta el modelo.
+5. Introduce la capacidad nominal y elige límites de potencia y estado de carga dentro de la envolvente detectada.
+
+## Qué verás
+
+Omnibattery proporciona control automático y controles por software **Force Mode**, **Set Charge Power** y **Set Discharge Power**. Activa **Battery Manual Control** antes de usar esos valores manuales. La orden activa se envía mediante la interfaz local del dispositivo; mantén HEMS desactivado para que Zendure no recupere el control.
+
+El estado de carga (SOC), potencia de batería, temperatura, energía y otras lecturas aparecen cuando el modelo las comunica. Solo SolarFlow 4000 Mix Pro proporciona telemetría específica de seguimiento del punto de máxima potencia (MPPT) mediante esta conexión.
+
+## Si no funciona
+
+| Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| **Nombre** | Nombre usado para el dispositivo de batería | — |
-| **IP del host** | IP local del SolarFlow | — |
-| **Puerto HTTP** | Puerto de la API local | `80` |
+| El asistente no puede conectarse | La dirección o el puerto HTTP son incorrectos, o la interfaz local no está accesible | Prueba la dirección del dispositivo desde la red de Home Assistant |
+| La potencia cambia brevemente y vuelve al reposo | HEMS está activado | Desactiva HEMS en la app Zendure |
+| El modelo o límite es menor de lo previsto | El informe del dispositivo indicó otro producto o un límite de hardware inferior | Comprueba el producto que muestra Zendure y el límite de carga comunicado |
+| Los valores manuales no tienen efecto | La batería sigue en el grupo automático | Activa **Battery Manual Control** para esa batería |
+| Falta la energía almacenada o la eficiencia | Falta la capacidad nominal o es incorrecta | Vuelve a configurar la batería e introduce su capacidad nominal utilizable |
 
-La prueba de conexión lee `/properties/report`, verifica el equipo y prepara los
-límites de potencia del modelo detectado.
+??? "Detalles avanzados"
+    La configuración lee `/properties/report` y asigna el producto comunicado a un perfil de modelo. El informe sigue siendo la fuente autorizada cuando anuncia un límite de carga menor que el perfil.
 
-## Modelos compatibles y límites de potencia
+    Zendure no tiene registros de modo forzado como Marstek. Para el control en vivo, Omnibattery escribe el modo de carga o descarga y su límite con el control no persistente activado, y después actualiza el objetivo durante los ciclos normales del controlador. Las escrituras de configuración, como los límites de SOC, usan modo persistente.
 
-| Modelo | Carga máxima en CA | Descarga máxima en CA |
-|---|---:|---:|
-| SolarFlow 800 / 800 Plus / 800 Pro | `1000 W` | `800 W` |
-| SolarFlow 1600 AC+ | `1600 W` | `1600 W` |
-| SolarFlow 2400 AC Pro / 2400 AC+ | `2400 W` | `2400 W` |
-| SolarFlow 4000 Mix AC+ | `4000 W` | `4000 W` |
-| SolarFlow 4000 Mix Pro | `4000 W` | `4000 W` |
+    Las entradas existentes de SolarFlow 2400 AC+ se pueden promocionar automáticamente cuando el dispositivo comunica después un identificador de producto SolarFlow 4000 Mix. Los límites de usuario guardados se conservan hasta que los aumentes en las opciones de batería.
 
-El informe del dispositivo tiene prioridad si anuncia un límite inferior. Los
-El 4000 Mix Pro expone telemetría MPPT dual de CC; los modelos acoplados en CA
-1600 AC+, 2400 AC+ y 4000 Mix AC+ no exponen telemetría MPPT de CC a través de
-esta conexión.
+    El ajuste de SOC mínimo de Zendure acepta `5–50%`. La capacidad nominal acepta `0.01–100 kWh`. Zendure no usa la reducción gradual de carga por tensión de celda de Marstek.
 
-Las entradas existentes de 2400 AC+ se promocionan automáticamente cuando el
-equipo informa del identificador de producto 4000 Mix AC+ o 4000 Mix Pro. Se
-conservan los límites de potencia elegidos por el usuario; si quieres usar el
-margen mayor, auméntalos en las opciones de la batería.
-
-## Ajustes específicos de Zendure
-
-La página de límites incluye potencia de carga/descarga, SOC máximo, SOC mínimo,
-histéresis de carga y umbral de backup offgrid. Zendure usa un rango de SOC
-mínimo de 5–50 % y no utiliza la reducción de carga por tensión de Marstek.
-
-La capacidad nominal es opcional. Introdúcela si quieres que Omnibattery
-calcule la energía almacenada y la eficiencia a partir del SOC; Zendure no
-ofrece un contador de capacidad nominal en su informe.
-
-### Control manual
-
-Zendure no tiene entidades nativas de modo forzado ni de consigna de
-carga/descarga en esta API. Por eso Omnibattery ofrece los controles de
-software `Modo forzado`, `Potencia de carga` y `Potencia de descarga`. Activa
-primero el switch **Control Manual de Batería** antes de usarlos; el controlador
-reaplica una consigna de software distinta de reposo en cada ciclo mientras el
-switch está activado. Mantén HEMS desactivado o la aplicación de Zendure puede
-sobrescribir la orden.
-
-Para los controles comunes en tiempo de ejecución y los límites del sistema,
-consulta la [configuración de baterías](index.md).
+    Para controles compartidos en tiempo de ejecución y límites del sistema, consulta [Elige la conexión de tu batería](index.md).
