@@ -1,199 +1,126 @@
 # Carga predictiva
 
-La carga predictiva es una función **opcional** que carga las baterías desde la red cuando el balance energético previsto para su horizonte de planificación es negativo. En modo Precio Dinámico, ese horizonte llega hasta el próximo amanecer.
+La carga predictiva compra energía de la red durante periodos baratos cuando la batería y la solar prevista no cubrirán la demanda de la vivienda. Elige el modo según cómo indique tu tarifa *cuándo* es barata la energía.
 
-## Lógica de decisión
+| Tu tarifa o fuente de precios | Lo que quieres | Modo recomendado |
+|---|---|---|
+| Los periodos baratos se repiten en un horario semanal conocido | Permitir la carga desde red solo en las ventanas que elijas | **[Franja horaria](time-slot.md)** |
+| Tu proveedor publica precios futuros | Dejar que Omnibattery elija los periodos más baratos que aún cumplen el plazo energético | **[Precio dinámico](dynamic-pricing.md)** |
+| Solo puedes leer el precio vigente ahora | Cargar siempre que el precio en directo esté bajo tu umbral | **[Precio en tiempo real](real-time-price.md)** |
+| La energía cuesta lo mismo todo el día y no hay una ventana barata fija | Mantener el control normal de batería y la carga solar | **No actives la carga predictiva desde red** |
 
-```
-Si (Batería utilizable + Previsión solar) < Consumo esperado:
-    Cargar desde la red la diferencia exacta
-Si no:
-    No cargar (ahorro económico)
-```
+Los tres modos calculan si falta energía. La diferencia es quién decide cuándo puede comprarse: tú, un calendario de precios futuros o el precio actual.
 
-- **Batería utilizable**: energía actual por encima del SOC mínimo configurado.
-- **Previsión solar**: preferiblemente la producción restante de hoy (sensor Solcast/Forecast.Solar). El sensor del día completo se mantiene como fallback legado durante la transición. Precio Dinámico no presupone solar de mañana antes de su límite al amanecer.
-- **Consumo esperado**: demanda aprendida durante el horizonte del modo. Precio Dinámico incluye el consumo posterior a medianoche hasta el próximo amanecer. Ver [Estimación del consumo diario](../../features/consumption-estimate.md).
+## ¿Lo necesito?
 
----
+**Úsalo si…** tu tarifa tiene periodos más baratos y quieres que Omnibattery compre solo la energía que espera que necesite la vivienda.
 
-## Objetivo de carga
+**No lo necesitas si…** la energía de la red cuesta lo mismo todo el día, quieres que la batería cargue solo con solar o ya hay otro gestor energético que programa la carga desde red.
 
-Cuando se activa la carga predictiva, la batería no se carga hasta `max_soc` desde la red. En su lugar, la integración calcula un **SOC objetivo de red** — el mínimo necesario para cubrir únicamente lo que la solar no podrá aportar durante el horizonte de planificación:
+## Antes de empezar
 
-```
-excedente_solar = max(0, previsión_solar − consumo_estimado)
-carga_red       = max(0, hueco_hasta_max − excedente_solar)
-soc_objetivo    = soc_actual + carga_red / capacidad × 100
-```
+- Configura la batería y un [sensor principal de red](../main-sensor.md) que funcione.
+- Prepara el horario o la fuente de precios que requiere el modo de la tabla anterior.
+- La previsión solar es opcional. Se prefiere una previsión de energía restante porque no cuenta la solar ya producida; sin una previsión utilizable, Omnibattery planifica de forma conservadora sin solar futura.
+- Un perfil local de consumo de la vivienda mejora la estimación. Consulta [Estimación diaria y horaria del consumo](../../features/consumption-estimate.md).
 
-`hueco_hasta_max` es la distancia en kWh desde el SOC actual hasta `max_soc`. La producción solar en exceso sobre el consumo del hogar carga la batería el resto del camino durante el día.
+## Cómo activarlo
 
-**Ejemplo**: la batería necesita 5 kWh para llegar a max_soc. La previsión solar es de 13 kWh y el consumo estimado es de 10 kWh — un excedente de 3 kWh disponible para la batería. La integración carga solo **2 kWh** desde la red; la solar gestiona los 3 kWh restantes durante el día.
+1. Abre **Ajustes → Dispositivos y servicios → Omnibattery → Configurar** y activa la configuración de carga predictiva.
+2. Elige **Franja horaria**, **Precio dinámico** o **Precio en tiempo real** usando la tabla anterior.
+3. Introduce el horario o fuente de precios de ese modo, añade opcionalmente un sensor de previsión solar y termina el formulario.
+4. Abre la pestaña **Control** de Omnibattery y confirma que **Carga predictiva** está activada.
 
-### Margen de carga de red
+![Elige un modo de carga predictiva](../../assets/screenshots/configuration/predictive-charging/mode-selector.png){ width="600" style="display: block; margin: 0 auto;" }
 
-El cálculo de la carga de red confía en la previsión solar. Cuando la previsión es optimista — o el tiempo resulta peor de lo previsto — la solar puede no aportar el excedente esperado y la batería termina el día por debajo de `max_soc`. El **Margen de Carga de Red Predictiva** (%) opcional cubre este riesgo aumentando la cantidad de red:
+## Qué verás
 
-```
-carga_red = max(0, hueco_hasta_max − excedente_solar) × (1 + margen%)
-```
+**Carga predictiva activa** muestra si se necesita, se ha planificado o está en curso una carga desde red. Un periodo barato visible puede ser informativo cuando la batería y la solar prevista ya cubren la demanda; no siempre implica una carga pendiente.
 
-Siguiendo el ejemplo anterior, una necesidad de 2 kWh de red con un margen del **50 %** carga **3 kWh** desde la red en su lugar. El resultado se limita a `hueco_hasta_max`, por lo que el margen nunca puede cargar por encima de `max_soc`. El valor por defecto es `0 %` (desactivado); también se aplica a la reevaluación de la tarde en precio dinámico. Configúralo en el **asistente de configuración**, en el flujo de opciones, o con el slider `number.*_predictive_grid_charge_margin_pct` en la pestaña **Control** del panel.
+Cuando se necesita carga desde red, Omnibattery se dirige solo al déficit calculado en vez de llenar cada batería hasta su estado de carga (SOC) máximo. En un sistema con varias baterías, reparte ese objetivo según la capacidad disponible de cada una. Alcanzar el objetivo de carga desde red no bloquea el excedente solar posterior: la batería puede continuar en estado solo solar.
 
-### Sistemas multibatería
+Usa **SOC mínimo garantizado** si el balance de todo el día parece suficiente pero la batería alcanza a menudo su mínimo antes de que empiece la producción solar. El interruptor y la entidad numérica establecen una reserva que debe estar disponible antes del inicio solar previsto.
 
-En sistemas con varias baterías a distintos niveles de SOC, la carga de red se distribuye **proporcionalmente al hueco individual de cada batería hasta max_soc**. Una batería más lejos del máximo recibe una mayor parte; una batería ya próxima al máximo se apoya principalmente en la solar. Esto evita sobrecargar una única unidad desde la red y minimiza la importación total.
+Usa **Reevaluar carga predictiva** tras un cambio importante de previsión o ajuste. En Precio dinámico reconstruye inmediatamente el horario restante. En Franja horaria fuerza una decisión nueva en el siguiente ciclo de control dentro de una ventana de carga activa; pulsarlo fuera de una ventana no abre ninguna. Precio en tiempo real no tiene botón porque decide de nuevo en cada ciclo de control.
 
----
+Desactiva **Carga predictiva** para pausar toda la carga predictiva desde red y sus subfunciones de Precio dinámico.
 
-## Consumo del hogar durante una franja de carga
+## Si no funciona
 
-Una franja predictiva mantiene el control de las baterías hasta que termina o
-alcanza su objetivo. El PD normal no toma el control solo porque aumente el
-consumo doméstico: podría interpretar como demanda real una importación de red
-que todavía incluye la carga anterior de la batería e invertir inmediatamente
-la dirección de forma innecesaria.
+| Síntoma | Causa probable | Qué comprobar |
+|---|---|---|
+| No se planifica carga desde red | La energía almacenada y la solar prevista ya cubren la demanda | **Carga predictiva activa** y sus atributos de decisión |
+| Aparecen periodos baratos pero no empieza a cargar | El calendario es informativo, la cuota ya está cumplida o hay una regla de seguridad/control activa | `charging_needed`, la página del modo activo, límites de SOC de la batería y **Estado de integración** |
+| El plan informa de un déficit no cubierto | Los periodos elegibles no pueden entregar suficiente energía antes de necesitarla | Potencia de carga, capacidad de batería, techo de precio, ventanas configuradas y bloqueos físicos |
+| La batería carga demasiado o demasiado poco | La estimación solar o de demanda de la vivienda no coincide con el día restante | Tipo de sensor de previsión, cobertura del perfil de consumo y **Margen de seguridad de previsión solar** |
+| La carga se pausa mientras aumenta la carga de la vivienda | La protección de potencia contratada, fase o capacidad conserva el límite de importación | [Protección de capacidad](../../features/peak-shaving.md) y [Sensor principal de red](../main-sensor.md) |
+| Un cambio de ajuste no tiene efecto inmediato | El plan activo aún no se ha reconstruido | Pulsa **Reevaluar carga predictiva** donde esté disponible |
 
-El techo de importación durante la carga predictiva es:
+??? "Detalles avanzados"
+    ### Decisión energética y objetivo de carga
 
-```
-techo = min(max_contracted_power, capacity_protection_limit si está activado)
-```
+    Omnibattery compara la energía utilizable de la batería por encima del SOC mínimo, la producción solar prevista y el consumo esperado de la vivienda durante el horizonte de planificación del modo:
 
-Omnibattery responde por etapas cuando aumenta el consumo del hogar. El techo es
-el objetivo de regulación del PD predictivo, no una orden inmediata de reposo:
+    ```text
+    if usable_battery + solar_forecast < expected_consumption:
+        grid_charge = expected_consumption - usable_battery - solar_forecast
+    else:
+        grid_charge = 0
+    ```
 
-1. **Reduce la carga.** El margen disponible de red se entrega primero al hogar,
-   por lo que la potencia de carga de la batería disminuye al aumentar el consumo.
-2. **Mantiene una carga positiva.** Si el PD calcula una reducción que cruzaría
-   matemáticamente a descarga, la salida se limita a la mínima carga efectiva de
-   la batería y conserva el estado incremental del PD. No se ordena `0 W` por un
-   simple sobrepaso del objetivo.
-3. **Confirma una emergencia real.** Solo un exceso físico importante sobre el
-   límite duro, confirmado por tres publicaciones nuevas consecutivas, activa la
-   protección de demanda. Un pico aislado o un sobrepaso ordinario continúa
-   modulando la carga.
-4. **Protege el límite si la emergencia persiste.** La batería pasa entonces por
-   la latencia de respuesta/lectura del inversor, vuelve a reposo y, si la
-   importación estabilizada continúa por encima del límite, descarga únicamente
-   el exceso confirmado. Con Protección de Capacidad activa se aplica Peak
-   Shaving contra su límite configurado.
-5. **Reanuda desde el margen disponible.** Tras dos publicaciones nuevas que
-   confirmen un margen de al menos `max(200 W, 2 × banda muerta del PD)`, la carga
-   vuelve desde una potencia calculada por el margen, no desde la máxima batería.
+    Después reserva espacio de batería para la solar en vez de llenarla hasta el SOC máximo desde la red:
 
-`0 W` queda reservado para bloqueos explícitos, BMS, baterías no disponibles,
-telemetría crítica, fin de franja, SOC alcanzado, protección de fase o una
-emergencia de seguridad confirmada.
+    ```text
+    solar_surplus = max(0, solar_forecast − estimated_consumption)
+    grid_charge   = max(0, gap_to_max − solar_surplus)
+    target_soc    = current_soc + grid_charge / capacity × 100
+    ```
 
-!!! important "Carga positiva, Peak Shaving y PD normal son acciones distintas"
-    Durante una franja predictiva barata, un sobrepaso ordinario se corrige
-    modulando la carga positiva; no habilita una descarga económica normal hacia
-    `pd_target_grid_power`. Peak Shaving o la emergencia por potencia contratada
-    solo actúan tras confirmar un exceso de seguridad. Fuera de la franja
-    predictiva vuelve el PD normal y persigue el objetivo de red configurado.
+    **Ejemplo**: la batería necesita 5 kWh para alcanzar `max_soc`. La previsión solar es de 13 kWh y el consumo esperado es de 10 kWh, dejando un excedente de 3 kWh disponible para la batería. Omnibattery carga solo **2 kWh** desde la red; la solar aporta los 3 kWh restantes durante el día.
 
-Por ejemplo, con `max_contracted_power = 2 000 W`, Protección de Capacidad
-desactivada y una carga física estabilizada de `2 800 W`, la protección de
-emergencia solicita aproximadamente `800 W` de descarga. Busca mantener la red
-cerca de `2 000 W`, no de `0 W`. Un pico breve que desaparece mientras se
-estabiliza la telemetría no provoca descarga.
+    En una flota con varias baterías, el objetivo de red se distribuye proporcionalmente a la distancia de cada batería a su SOC máximo configurado. Precio dinámico y Franja horaria también pueden asignar una cuota a cada periodo y transferir la energía no entregada solo a periodos posteriores que aún cumplan su plazo.
 
-La descarga de seguridad solo puede ignorar bloqueos económicos de precio o
-curtailment. Siguen siendo autoritativos el SOC mínimo, las baterías no
-disponibles o bajo control manual, las restricciones de backup/RS485, los
-límites por batería y de sistema, y la protección por fase. La política de
-dispositivos excluidos puede afectar al Peak Shaving ordinario, pero la
-emergencia por potencia contratada siempre usa la importación física que ve el
-contador de red.
+    **Margen de seguridad de previsión solar** se resta una vez de la solar esperada. Las instalaciones nuevas tienen por defecto aproximadamente el 5% de la capacidad total de batería configurada; si la capacidad no está disponible durante la configuración, el método alternativo es no aplicar margen.
 
-Si el contador deja de publicar, una descarga protectora existente no aumenta
-a partir de la lectura antigua. Cuando la lectura supera el límite de antigüedad,
-el controlador devuelve las baterías automáticas a reposo y espera telemetría
-nueva y estabilizada.
+    ### Demanda de la vivienda durante una franja de carga
 
-El objetivo y la energía pendiente permanecen asociados al plan mientras la
-carga está suspendida. Precio Dinámico intenta mover una cuota incompleta a
-franjas futuras elegibles; Franja Horaria reconstruye el plan de ventanas
-restantes desde el SOC real; Precio en Tiempo Real registra el *shortfall*
-porque no dispone de un calendario futuro de precios. Si no existe capacidad
-futura viable, los kWh restantes se publican como *shortfall* en vez de
-descartarse silenciosamente.
+    Un periodo predictivo mantiene la responsabilidad sobre las baterías hasta que termina o alcanza su objetivo. El control proporcional–derivativo (PD) normal no toma el control inmediatamente cuando aumenta la demanda de la vivienda porque la importación de red aún puede incluir la orden de carga previa de la batería.
 
-Consulta también [Protección de capacidad](../../features/peak-shaving.es.md) y
-[Sensor principal de red](../main-sensor.es.md).
+    El techo de importación es el menor entre la potencia contratada y el límite de protección de capacidad cuando esta función está activada. Omnibattery primero reduce la carga para que la vivienda reciba la capacidad de red disponible. Si el cálculo cruza a descarga durante un exceso ordinario, mantiene la menor carga positiva efectiva y conserva el estado incremental del PD.
 
----
+    Un exceso físico se convierte en emergencia solo después de que tres publicaciones consecutivas y recientes del contador lo confirmen. La protección de emergencia puede entonces esperar la respuesta del inversor y descargar solo el exceso estabilizado. Tras dos muestras recientes que muestren al menos `max(200 W, 2 × PD deadband)` de capacidad disponible, la carga se reanuda desde ese margen en vez de desde la potencia máxima de batería.
 
-## SOC mínimo garantizado
+    Por ejemplo, con un límite de potencia contratada de 2.000 W y una carga física estabilizada de la vivienda de 2.800 W, la protección de emergencia solicita unos 800 W de descarga para mantener la importación cerca de 2.000 W. Un pico breve que desaparece mientras se estabiliza la telemetría no activa esa descarga.
 
-La carga predictiva solo carga desde la red cuando su horizonte arroja un déficit. El balance total puede ser positivo aunque la batería esté casi vacía antes de que arranque la solar, dejando ese hueco de la mañana cubierto desde la red a precio completo o agotando la batería.
+    `0 W` se reserva para bloqueos explícitos, límites del sistema de gestión de batería (BMS), baterías no disponibles, telemetría crítica, el final de un periodo, SOC alcanzado, protección de fase o una emergencia de seguridad confirmada. La descarga de seguridad puede ignorar bloqueos económicos de precio o de limitación de producción solar, pero no puede ignorar el SOC mínimo, baterías no disponibles o controladas manualmente, restricciones de respaldo/RS-485, límites de dispositivo y sistema ni la protección de fase.
 
-El slider **SOC Mínimo Garantizado** opcional (pestaña Control, se desactiva con el switch **SOC Mínimo Garantizado** contiguo) reserva energía suficiente para mantener cada batería en ese suelo hasta que comience la producción solar efectiva, sin importar el balance neto del horizonte. Precio Dinámico elige los slots elegibles más baratos que pueden entregar la reserva antes de ese plazo. El techo máximo de precio explícito y los bloqueos físicos siguen siendo autoritativos: una garantía imposible se muestra como *shortfall* en vez de asignarse a una franja posterior.
+    Si el contador de red deja de publicar, una orden protectora no aumenta desde un valor antiguo. Cuando la telemetría supera el límite de datos antiguos, las baterías bajo control automático vuelven a reposo hasta que se estabilicen datos recientes.
 
-Se reactiva con histéresis: una vez que el SOC recupera el suelo configurado, la carga se detiene si el suelo era la única razón para cargar; se rearma cuando el SOC baja a `suelo − 5 %`. Configúralo con el slider `number.*_predictive_min_soc_floor`, junto al switch **SOC Mínimo Garantizado**.
+    Una carga suspendida conserva su objetivo y el registro de energía no entregada. Precio dinámico intenta mover la cuota a futuros periodos elegibles; Franja horaria reconstruye el plan de ventana restante desde el SOC en vivo; Precio en tiempo real registra el déficit no cubierto porque no tiene calendario futuro de precios.
 
----
+    ### SOC mínimo garantizado
 
-## Origen de la previsión de consumo
+    El balance energético total puede ser positivo mientras se prevé que la batería se vacíe antes de que empiece la solar. **SOC mínimo garantizado** añade energía suficiente para conservar el suelo seleccionado hasta que comience la producción solar efectiva. Precio dinámico elige periodos baratos elegibles antes de ese plazo; los límites de precio configurados y los bloqueos físicos siguen aplicándose, por lo que una garantía imposible aparece como déficit no cubierto.
 
-La estimación diaria se conserva como fallback de compatibilidad, pero las
-instalaciones maduras usan el perfil local de 15 minutos descrito en
-[Estimación diaria y horaria del consumo](../../features/consumption-estimate.es.md).
-Precio Dinámico y sus reevaluaciones intradía solicitan el horizonte local
-restante hasta el próximo amanecer. Las franjas de carga predictiva no se restan de la demanda del hogar. Los atributos de la
-decisión identifican el origen como `profile` o `legacy_daily`, junto con la
-cobertura y el número de días aprendidos.
+    La carga se detiene en el suelo cuando esta reserva es la única razón para cargar. Se rearma tras caer el SOC cinco puntos porcentuales por debajo del suelo, evitando cambios repetidos en el límite.
 
-## Modos disponibles
+    ### Cronologías de consumo y solar
 
-| Modo | Descripción |
-|---|---|
-| [Franja Horaria](time-slot.md) | Carga durante una ventana fija (p. ej. tarifa nocturna) |
-| [Precio Dinámico](dynamic-pricing.md) | Selecciona automáticamente las franjas más baratas hasta el próximo amanecer |
-| [Precio en Tiempo Real](real-time-price.md) | Activa/desactiva la carga en función del precio actual |
+    Las instalaciones maduras usan el perfil local de consumo de la vivienda de 15 minutos. La estimación diaria heredada sigue siendo un método alternativo. Precio dinámico y sus reevaluaciones diurnas solicitan el horizonte restante en hora local hasta el próximo amanecer. Los periodos de carga predictiva se eliminan de la demanda derivada de la vivienda para que la carga de batería no se aprenda como consumo doméstico.
 
-![Selector de modo de carga predictiva](../../assets/screenshots/configuration/predictive-charging/mode-selector.png){ width="600"  style="display: block; margin: 0 auto;"}
+    El total solar y su distribución temporal son entradas separadas. La prioridad de la cronología es:
 
----
+    1. Periodos fechados válidos proporcionados por el proveedor de previsiones.
+    2. Un perfil local maduro aprendido de telemetría solar directa y de seguimiento del punto de máxima potencia (MPPT) de la batería.
+    3. Una curva sinusoidal de luz diurna.
+    4. Una cronología cero cuando no existe una ventana de luz diurna segura.
 
-## Notificaciones
+    El perfil aprendido se normaliza antes de aplicar el presupuesto de previsión. Da forma a cuándo llega la energía prevista; no predice el total, repara una mala previsión meteorológica, controla un inversor solar ni reconstruye energía limitada.
 
-La integración envía notificaciones de Home Assistant:
+    Entre los atributos de decisión útiles están `solar_timeline_source`, `solar_remaining_raw_kwh`, `solar_remaining_effective_kwh`, `solar_timeline_fallback_reason`, `solar_profile_mature`, `solar_profile_coverage_ratio`, `chronological_planning_active`, `slot_energy_targets_kwh` y `total_shortfall_kwh`.
 
-- **1 hora antes** del inicio del slot: análisis del balance energético y decisión de carga.
-- **Al inicio del slot**: confirmación de que la carga ha comenzado.
-- En modo Precio Dinámico, el plan también se comprueba **1 hora antes de cada franja futura**, una vez a **última hora de la tarde/noche**, después de una **caída de 30 puntos porcentuales de SOC** y una vez cuando se publican los precios de mañana.
+    ### Notificaciones
 
-Usa el switch **Override Predictive Charging** para cancelar la carga predictiva en cualquier momento.
+    Franja horaria puede notificar una hora antes de un periodo configurado y cuando empieza a cargar. Precio dinámico también comprueba antes de futuros periodos seleccionados, durante la evaluación de final del día, tras una caída importante de SOC y cuando están disponibles los precios de mañana. Las páginas de cada modo describen el comportamiento exacto.
 
-## Timeline solar y modo de despliegue
-
-El total de la previsión y su forma temporal son contratos separados. El total
-procede del sensor de previsión configurado; la telemetría FV directa solo se
-usa para aprender cuándo suele llegar esa energía. La prioridad del timeline es:
-
-1. Periodos fechados válidos proporcionados explícitamente por el proveedor.
-2. Perfil local maduro aprendido de potencia FV directa y MPPT de baterías.
-3. La curva sinusoidal de luz ya existente.
-4. Timeline cero cuando no existe una ventana solar segura.
-
-La selección temporal es automática. Mientras el perfil aprendido no es maduro
-o no puede cubrir el rango solicitado, se usa la curva sinusoidal. Cuando el
-perfil alcanza la madurez, se aplica automáticamente siguiendo la prioridad
-anterior. No hace falta seleccionar ningún modo en la configuración. Las
-entradas antiguas que guardaban `shadow` se normalizan a este comportamiento;
-`off` se conserva únicamente como compatibilidad interna.
-
-El perfil se normaliza para sumar uno antes de aplicar el presupuesto de la
-previsión. No predice kWh, no corrige una previsión meteorológica errónea, no
-controla el inversor ni reconstruye energía perdida por curtailment. El margen
-de seguridad se resta una sola vez del presupuesto restante antes de darle forma.
-
-Atributos útiles de la decisión son `solar_timeline_source`,
-`solar_remaining_raw_kwh`, `solar_remaining_effective_kwh`,
-`solar_timeline_fallback_reason`, `solar_profile_mature` y
-`solar_profile_coverage_ratio`.
-
-![Notificación de carga predictiva en HA](../../assets/screenshots/configuration/predictive-charging/notification-example.png){ width="500"  style="display: block; margin: 0 auto;"}
+    ![Notificación de carga predictiva](../../assets/screenshots/configuration/predictive-charging/notification-example.png){ width="500" style="display: block; margin: 0 auto;" }

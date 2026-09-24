@@ -1,235 +1,233 @@
-# Carga predictiva — Modo Precio Dinámico
+# Carga predictiva con precios futuros
 
-Selecciona automáticamente las **franjas más baratas hasta el próximo amanecer** para cubrir el déficit energético calculado.
+Precio dinámico lee un calendario de precios futuros y compra el déficit energético calculado en los periodos más baratos que aún pueden entregarlo a tiempo. También puede proteger la energía almacenada, gestionar la exportación solar y vender energía seleccionada durante periodos caros.
 
-## Integraciones de precio compatibles
+## ¿Lo necesito?
 
-- **Nord Pool** — tanto la integración oficial de Home Assistant como la integración de HACS
-- **PVPC** (ESIOS REE, España)
-- **CKW** (Suiza)
-- **EPEX Spot** (p. ej. aWATTar)
-- **ENTSO-e** (Plataforma de Transparencia)
-- **Zonneplan** — previsiones horarias y de 15 minutos de la [integración Zonneplan One](https://github.com/fsaris/home-assistant-zonneplan-one)
-- **Tibber** — no necesita sensor de precio; el motor llama directamente al servicio `tibber.get_prices` (ver abajo)
+**Úsalo si…** tu proveedor publica precios por intervalos para hoy y el futuro y quieres que Omnibattery elija cuándo cargar.
 
-!!! note "Tibber no necesita sensor"
-    Al elegir **Tibber** como integración de precios, el campo *Sensor de precio* queda sin usar — el motor llama al servicio `tibber.get_prices` (precios de hoy y, tras las ~13:00, los de mañana), cachea los slots y refresca cada hora. La integración oficial de Tibber debe estar configurada en HA.
+**No lo necesitas si…** tu tarifa tiene periodos baratos fijos que se repiten; usa [Franja horaria](time-slot.md). Si tu fuente solo expone el precio vigente ahora, usa [Precio en tiempo real](real-time-price.md).
 
-!!! note "Nord Pool oficial y HACS se configuran igual"
-    Selecciona **Nordpool** y elige una entidad de precios del proveedor. Los sensores de HACS se siguen leyendo desde sus atributos `raw_today` / `raw_tomorrow`. Si el sensor tiene `price_in_cents: true`, Omnibattery convierte automáticamente sus slots y el precio actual a moneda principal/kWh; por tanto, los umbrales se siguen introduciendo en €/kWh (o la moneda principal correspondiente), no en céntimos. Si la entidad pertenece a la integración oficial de Nord Pool de Home Assistant, Omnibattery resuelve automáticamente su área de mercado, llama a `nordpool.get_prices_for_date` para el día actual, convierte los valores de moneda/MWh a moneda/kWh y refresca la caché cada hora. No hace falta elegir otro proveedor ni crear un sensor de plantilla.
+## Antes de empezar
 
-### Configuración de Zonneplan
+- Configura una fuente compatible: **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **Zonneplan** o **Tibber**.
+- Selecciona la entidad de precio actual del proveedor salvo que uses Tibber. Tibber usa el servicio `tibber.get_prices` de la integración oficial y no necesita sensor de precio.
+- La previsión solar es opcional. Una previsión de energía restante mejora la replanificación diurna y evita contar la solar ya producida.
+- Decide si necesitas una fuente de precio de exportación. Es opcional y la usa **Retención de excedente por precio**; déjala vacía cuando la exportación se remunere al precio de importación.
 
-Selecciona **Zonneplan** y elige **Current quarter hourly electricity tariff** para un contrato de 15 minutos, o **Current hourly electricity tariff** para un contrato horario. También se admite el sensor antiguo **Current electricity tariff**. Elige el sensor que corresponda a tu contrato; los sensores de grupo tarifario o de hora más barata no sirven como fuente de previsiones.
+## Cómo activarlo
 
-Omnibattery lee directamente el atributo `forecast`, incluidos los precios de mañana cuando se hayan publicado. No hacen falta sensores de plantilla, nuevas credenciales ni otra conexión a la API. Los importes de la previsión se dividen entre 10 000 000 para obtener €/kWh con impuestos incluidos; el estado actual del sensor ya está en €/kWh. Introduce los umbrales en €/kWh sin añadir los impuestos de nuevo. Se conservan los precios negativos y cero. Las previsiones modernas mantienen sus límites explícitos; las antiguas usan intervalos de una hora.
+1. Abre **Ajustes → Dispositivos y servicios → Omnibattery → Configurar** y elige **Precio dinámico** como modo de carga predictiva.
+2. Selecciona **Tipo de integración de precios** y después **Sensor de precio de electricidad**. Deja el sensor vacío para Tibber.
+3. Selecciona una previsión solar opcional y, si hace falta, un sensor de precio de exportación/inyección y su tipo de integración.
+4. Termina el formulario y confirma que **Carga predictiva** está activada en la pestaña **Control** de Omnibattery.
+5. Deja desactivados los controles de precio opcionales hasta que el horario básico se comporte como esperas; activa solo la política que corresponda a tu objetivo.
 
-El planificador existente usa horas locales sin zona horaria. Durante el cambio de hora de otoño no puede representar por separado los intervalos locales repetidos y omite los intervalos cuyo final local no sea posterior al inicio. Es una limitación compartida del planificador; revisa el calendario en los días de cambio de hora.
+![Configura una fuente de precios futuros](../../assets/screenshots/configuration/predictive-charging/dynamic-pricing-form.png){ width="650" style="display: block; margin: 0 auto;" }
 
-## Configuración
+!!! note "Elección de sensor específica del proveedor"
+    Para Zonneplan, elige **Current quarter hourly electricity tariff** para un contrato de cuarto de hora o **Current hourly electricity tariff** para un contrato horario. También se admite el antiguo **Current electricity tariff**. Para Nord Pool, elige una entidad de la integración oficial o el sensor de HACS; Omnibattery detecta el formato.
 
-| Campo | Descripción |
-|---|---|
-| **Tipo de integración de precios** | Nordpool / PVPC / CKW / EPEX Spot / ENTSO-e / Tibber / Zonneplan |
-| **Sensor de precio** | Entidad de precios de HA. Para Nord Pool, selecciona una entidad oficial o el sensor existente de HACS; Tibber no usa este campo |
-| **Umbral máximo de precio** | (Opcional) Precio techo; no carga aunque la hora sea "barata" si supera este valor. También se usa como umbral de descarga cuando el control de descarga por precio está activado |
-| **Descargar solo cuando el precio supere el umbral** | (Opcional) Descarga condicionada al precio actual — ver abajo |
-| **Suelo de precio de descarga (€)** | (Opcional) Suelo separado para la descarga condicionada — abre una banda de reposo entre el techo de carga y este suelo. Vacío = reutiliza el umbral máximo para ambos. Ver [Suelo de precio de descarga separado](#suelo-de-precio-de-descarga-separado) |
-| **Margen de seguridad de previsión solar (kWh)** | (Opcional) Buffer de energía adicional añadido a la previsión de consumo antes de decidir si cargar (por defecto 0 kWh) |
-| **Margen de carga de red predictiva (%)** | (Opcional) Aumenta la cantidad de carga de red para cubrir previsiones solares optimistas — p. ej. una necesidad de 2 kWh de red al 50 % carga 3 kWh. Limitado al hueco hasta el SOC máximo (por defecto 0 %) |
-| **Carga oportunista por precio negativo** | (Opcional, desactivada por defecto) Carga en franjas de importación negativas válidas aunque la previsión normal no detecte déficit |
+## Qué verás
 
-![Formulario de configuración — Modo Precio Dinámico](../../assets/screenshots/configuration/predictive-charging/dynamic-pricing-form.png){ width="650"  style="display: block; margin: 0 auto;"}
+**Carga predictiva activa** muestra si se necesita carga, los periodos seleccionados, sus cuotas de energía y cualquier déficit no cubierto. Omnibattery elige el periodo elegible más barato que ocurre antes de cada necesidad proyectada, por lo que puede omitir el periodo más barato absoluto si llega demasiado tarde.
 
-## Evaluación diaria (00:05)
+Un calendario visible puede ser informativo. Cuando la energía almacenada y la solar prevista ya cubren la demanda, `selected_hours` puede seguir mostrando periodos baratos útiles mientras `charging_needed` permanece en falso. Alcanzar un objetivo de carga desde red también deja disponible la carga con excedente solar; no bloquea la batería frente a la solar posterior.
 
-A las 00:05 el controlador:
+El plan se reconstruye cuando nueva información cambia el horizonte restante: antes de periodos seleccionados, al final del día solar, tras una caída importante de SOC, tras una revisión importante de previsión solar, cuando llegan los precios de mañana, cuando cambia un ajuste relevante o cuando una carga grande excluida cambia cuánta solar prevista queda para la batería. Pulsa **Reevaluar carga predictiva** para reconstruirlo inmediatamente.
 
-1. Calcula el déficit y proyecta consumo, solar y energía utilizable de batería en intervalos de 15 minutos hasta el próximo amanecer local. La hora estimada se limita al tramo 00:00–12:00; si no puede calcularse, el horizonte termina a medianoche.
-2. Recupera de la integración configurada todas las franjas de precio disponibles hasta ese horizonte.
-3. Detecta cuándo la energía acumulada alcanzaría el SOC mínimo y reserva los slots elegibles más baratos capaces de entregar cada requisito antes de su plazo.
-4. Calcula y almacena el **precio medio del día** a partir del perfil de precios disponible.
-5. Asigna una cuota energética a cada slot; solo la energía sin plazo temprano sigue compitiendo libremente por precio.
+Los controles opcionales de la pestaña **Control** resuelven problemas distintos:
 
-«Más barato» significa, por tanto, más barato entre los slots capaces de cumplir el requisito a tiempo. Una franja posterior nunca cuenta como cobertura de energía que ya se necesitaba antes. La proyección limita la energía almacenada a la capacidad utilizable de la flota, por lo que la solar que no cabe no se arrastra como energía ficticia; la demanda posterior a un punto de llenado previsto crea un requisito nuevo. Un plan parcial sigue siendo ejecutable, pero publica los kWh de *shortfall* y si se deben al filtro de precio o a la capacidad física. Las cuotas son objetivos, no garantías: potencia contratada, hueco de batería, límites de fase, temperatura, ownership y las demás protecciones runtime siguen siendo autoritativos.
+| Objetivo | Control | Resultado |
+|---|---|---|
+| Llenar el espacio disponible de batería cuando los precios de importación son negativos | **Carga oportunista con precio negativo** | Añade periodos con precio negativo que cumplan la condición incluso sin un déficit energético normal |
+| Conservar energía de batería mientras el precio actual es barato | **Descarga basada en precio** | Bloquea la descarga ordinaria hasta que el precio supera su umbral activo |
+| Evitar perder solar cuando se penaliza la exportación | **Predescarga inteligente / Antilimitación de producción** | Crea espacio de batería antes de periodos de riesgo solar previsto |
+| Exportar solar ahora y absorberla después cuando el valor de inyección es inferior | **Retención de excedente por precio** | Pausa la carga por excedente fuera de los periodos seleccionados de menor precio de exportación |
+| Guardar energía almacenada para periodos de demanda doméstica más caros | **Reserva de descarga** | Eleva un suelo económico de descarga para la futura demanda cara |
+| Exigir un diferencial de compra/venta que merezca la pena | **Margen mínimo de arbitraje** | Rechaza operaciones de carga o exportación cuyo diferencial no cubra pérdidas y el margen seleccionado |
+| Vender energía almacenada durante un pico de precio que cumpla la condición | **Descarga con precio alto** | Exporta solo energía emparejada con demanda doméstica posterior más barata |
 
-En este horizonte de control solo entra la previsión solar restante de hoy: el tramo posterior a medianoche añade el consumo previsto hasta el amanecer, cuando puede comenzar la producción de mañana.
+## Si no funciona
 
-### Lógica de reintentos
+| Síntoma | Causa probable | Qué comprobar |
+|---|---|---|
+| No aparece ningún horario | Los precios futuros no están disponibles o se eligió la entidad de proveedor incorrecta | `price_data_status`, integración del proveedor y atributos del sensor de precio |
+| Aparecen periodos baratos pero no empieza la carga | El calendario es informativo, no queda déficit o ya se cumplió la cuota por periodo | `charging_needed`, `slot_energy_targets_kwh` y SOC objetivo de batería |
+| Se omitió el periodo más barato | Ocurre después del plazo energético, supera el techo de precio o no cumple el margen de arbitraje | `energy_deadlines`, controles de precio activos y `total_shortfall_kwh` |
+| El horario informa de un déficit no cubierto | Los periodos elegibles no pueden suministrar suficiente energía antes de necesitarla | Techo de precio, potencia de carga, capacidad de batería y límites de fase y potencia contratada |
+| Faltan periodos más baratos de mañana | El proveedor aún no los ha publicado o se permite que termine el periodo activo antes de replanificar | Datos del proveedor y **Reevaluar carga predictiva** tras su publicación |
+| Una función de precio está activada pero inactiva | No están disponibles su previsión, perfil, precio de exportación, capacidad de batería o lectura de red requeridos | Sensor binario de estado de la función y atributo de motivo |
+| El excedente solar se exporta inesperadamente | **Retención de excedente por precio** seleccionó un periodo posterior de absorción más barato | **Estado de retención de excedente por precio** y su próxima hora de liberación |
+| La batería no descarga | **Descarga basada en precio**, **Reserva de descarga**, franjas horarias de funcionamiento u otro bloqueo de descarga están activos | **Estado de integración**, sensores de estado de funciones y [franjas horarias de funcionamiento](../time-slots.md) |
 
-Si los datos de precios no están disponibles a las 00:05, el sistema reintenta cada 15 minutos durante la primera hora.
+??? "Detalles avanzados"
+    ### Normalización de fuentes de precio
 
-### Reinicio de HA a mitad del día
+    Omnibattery admite **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **Zonneplan** y **Tibber**. Los analizadores de proveedores normalizan los periodos de precios fechados al mismo horario local.
 
-Si HA se reinicia después de la ventana de las 00:05 sin evaluación previa, el controlador lanza una evaluación automática en el arranque (tras 15 segundos). Reconstruye el plan energético restante hasta el próximo amanecer y usa las franjas de mañana cuando el proveedor ya las ha publicado.
+    Zonneplan lee el atributo `forecast` del sensor elegido, incluido mañana cuando está disponible. Los importes de previsión se dividen por 10.000.000 para obtener moneda principal/kWh con impuestos incluidos; el estado actual del sensor ya está en moneda principal/kWh. Se conservan los precios negativos y cero. Las entradas modernas conservan límites de periodo explícitos; las entradas heredadas usan periodos de una hora.
 
-## Reevaluación automática durante el día
+    Una entidad Nord Pool de HACS se lee desde `raw_today` y `raw_tomorrow`. Si `price_in_cents` es verdadero, Omnibattery convierte el calendario y el precio en vivo a moneda principal/kWh. Para una entidad oficial de Nord Pool, resuelve el área de mercado, llama a `nordpool.get_prices_for_date`, convierte moneda/MWh a moneda/kWh y actualiza la caché cada hora.
 
-El plan de las 00:05 no es inmutable. Precio Dinámico lo adapta a medida que avanza el día:
+    Tibber llama a `tibber.get_prices`, almacena en caché los precios de hoy y los de mañana una vez publicados y actualiza la caché cada hora. La integración oficial de Tibber debe estar ya configurada.
 
-- **Una hora antes de cada franja futura seleccionada**, se vuelve a comprobar el balance energético. La franja se omite silenciosamente si la batería y la solar prevista ya cubren la necesidad. Si sigue existiendo déficit, se envía una notificación persistente confirmando que se utilizará. Las franjas consecutivas no se reevalúan mientras la anterior siga cargando.
-- **A última hora de la tarde / por la noche**, el controlador hace una evaluación adicional de recarga. Si se detectó el inicio de la solar, se ejecuta aproximadamente **1,5 horas antes del final estimado de producción**; si no se detectó, usa un fallback seguro a las **16:00**. Proyecta el consumo restante del hogar hasta el próximo amanecer, resta la energía utilizable de la batería y la solar restante de hoy, y añade solo las franjas baratas necesarias para cubrir un déficit material (al menos **0,3 kWh**). Es una recarga de seguridad, por lo que no la bloquea el margen de arbitraje opcional.
-- **Después de una caída de 30 puntos de SOC**, ejecuta inmediatamente esa misma evaluación de déficit de final del día, sin esperar al disparador vespertino. La comparación se hace contra el SOC medio de las baterías registrado en la última evaluación de Precio Dinámico; solo dispara una caída de al menos 30 puntos porcentuales, la referencia se reinicia después de reevaluar y una subida de SOC nunca lo dispara.
-- **Cuando el proveedor revisa la previsión solar** en **1,5 kWh o más** en cualquier dirección, el plan se reconstruye. La comprobación previa a la franja solo puede quitar franjas, así que un día revisado a la baja dejaría la batería corta con las horas baratas ya pasadas. Una previsión restante baja sola a lo largo del día, así que la lectura guardada se proyecta hacia adelante con la solar realmente producida desde entonces; solo cuenta como revisión la diferencia contra esa proyección. Limitado a un *cooldown* de **30 minutos** y **cuatro** reevaluaciones al día. Un sensor no disponible nunca se lee como un desplome del día, y una instalación que no mide producción solar no tiene con qué proyectar, así que el disparador nunca se arma.
-- **Cuando se publican los precios de mañana**, el horizonte restante se reconstruye una vez ese día para poder mover la energía nocturna a franjas posteriores a medianoche que sean más baratas. Si hay una franja de carga activa, espera a que termine. Los proveedores que ya mostraban los precios de mañana durante la evaluación de las 00:05 no provocan una segunda reconstrucción.
-- **Cuando cambia un ajuste del que depende el balance energético** - el SOC mínimo o máximo de una batería, el margen de seguridad de la previsión solar, el margen de carga de red predictiva o el suelo de SOC mínimo garantizado - el plan se reconstruye en el siguiente ciclo de control. Sin esto, un plan que había decidido que no hacía falta carga de red mantenía esa decisión después de que el usuario la hiciera necesaria. Los ajustes no relacionados que comparten el mismo almacenamiento (modo manual forzado, límites de potencia, detección por batería) no lo disparan.
+    El planificador usa horas locales de reloj. Durante la transición de horario de verano (DST) de otoño, los periodos locales repetidos no pueden representarse por separado; se omite un periodo cuyo final local precede al inicio. Revisa el horario los días de cambio de hora.
 
-Estas reevaluaciones mantienen vigentes los límites de carga, suelos de SOC, propiedad de franjas, modo manual, reserva y disponibilidad. La referencia diaria y la protección de una sola reevaluación vespertina se reinician a medianoche.
+    ### Plan cronológico diario
 
-### Botón Reevaluar Carga Predictiva
+    A las 00:05 locales, Omnibattery:
 
-Cuando Precio Dinámico está activado, el dispositivo del sistema expone **Reevaluar Carga Predictiva** (`button.*_reevaluate_dynamic_pricing`) en el panel y en Home Assistant. Al pulsarlo reconstruye inmediatamente el plan con los precios y la previsión solar más recientes hasta el próximo amanecer.
+    1. Proyecta consumo de la vivienda, solar y energía utilizable de batería en intervalos de 15 minutos hasta el próximo amanecer local. El amanecer se limita a 00:00–12:00; si no puede calcularse, el horizonte termina a medianoche.
+    2. Obtiene los periodos de precio disponibles hasta ese horizonte.
+    3. Detecta cuándo la energía acumulada alcanzaría el SOC mínimo y reserva los periodos elegibles más baratos que pueden entregar cada requisito antes de su plazo.
+    4. Calcula el precio medio diario sobre el horizonte disponible.
+    5. Asigna a cada periodo seleccionado una cuota de energía; solo la energía sin un plazo anterior se optimiza libremente por precio.
 
-El mismo botón se crea en modo [Franja Horaria](time-slot.md), donde ejecuta la evaluación propia de ese modo. No se crea en modo precio en tiempo real, que ya reevalúa en cada ciclo de control.
+    «Más barato» significa más barato entre los periodos que pueden cumplir el requisito a tiempo. La proyección limita la energía almacenada a la capacidad utilizable de la flota, por lo que la solar que no cabe no se arrastra como energía ficticia. Un plan parcial sigue siendo ejecutable, pero registra si el filtro de precio o la capacidad física de los periodos causó los kWh no cubiertos.
 
-El botón es útil después de cambiar un umbral de precio, la previsión o una opción en tiempo de ejecución. Deliberadamente no es un planificador de varios días: al pulsarlo por la tarde cubre la noche hasta el amanecer, pero no reserva energía para la tarde de mañana. El plan normal de mañana se construye a las 00:05, cuando ya se conoce el balance de ese día.
+    Solo la solar restante de hoy entra en el horizonte de control. La demanda doméstica posterior a medianoche se incluye hasta el amanecer, cuando puede empezar la producción de mañana. **Margen de seguridad de previsión solar** se resta una vez de esa previsión. Las instalaciones nuevas comienzan con aproximadamente el 5% de la capacidad de flota configurada; si la capacidad no está disponible durante la configuración, el método alternativo es no aplicar margen. Es un control en vivo, no un campo de formulario.
 
----
+    Si faltan precios a las 00:05, la evaluación se reintenta a intervalos de 15 minutos durante la primera hora, hasta cuatro reintentos. Si Home Assistant arranca después de la evaluación diaria y no existe plan, reconstruye el horizonte restante tras un retraso de arranque de 15 segundos.
 
-## Carga oportunista por precio negativo
+    ### Reevaluación automática
 
-Esta función **optativa y exclusiva de Precio Dinámico** sirve para instalaciones con o sin paneles solares. Al activarla, Omnibattery busca de forma independiente franjas horarias o de 15 minutos cuyo **precio normalizado de importación sea negativo**. Calcula la energía necesaria para llegar al SOC máximo configurado de cada batería y elige primero las franjas individuales más negativas. No necesita sensor de previsión solar.
+    El plan diario puede reconstruirse mediante estos eventos:
 
-El calendario registra el motivo de cada franja: `deficit`, `negative_price` o `combined`. Por eso una franja positiva seleccionada por déficit conserva el objetivo normal calculado por déficit y no puede consumir energía pendiente solo por oportunidad. En una franja negativa combinada se aplica el mayor de ambos objetivos. Cada batería usa su propio SOC máximo configurado como techo oportunista.
+    - **Antes de un periodo seleccionado:** una hora antes de un futuro periodo seleccionado, Omnibattery comprueba el balance restante. Elimina silenciosamente el periodo si ahora basta la energía o lo confirma mediante notificación si persiste el déficit. Los periodos consecutivos no se reconsideran mientras el anterior está cargando.
+    - **Evaluación de final del día:** cuando se ha detectado el inicio solar, se ejecuta aproximadamente 1,5 horas antes del final de producción estimado; en caso contrario usa las 16:00. Añade futuros periodos elegibles solo para un déficit restante de al menos 0,3 kWh. Esta recarga de seguridad no se rechaza por la puerta opcional del margen de arbitraje.
+    - **Caída de SOC:** un plan cronológico se reconstruye tras una caída de cinco puntos porcentuales desde la última media de flota evaluada. Un plan alternativo no cronológico conserva el umbral de 30 puntos. Una subida de SOC no lo activa.
+    - **Revisión de previsión solar:** un cambio de al menos 1,5 kWh en cualquier dirección reconstruye el plan, con un periodo de espera de 30 minutos y un máximo de cuatro reconstrucciones al día. La solar medida desde la lectura guardada se elimina antes de comparar, y un sensor no disponible no se trata como una previsión desplomada.
+    - **Reclamación solar de dispositivo excluido:** un cambio importante en una carga excluida, como una sesión de vehículo eléctrico, reconstruye el plan porque ese dispositivo cambia cuánta solar prevista queda para la batería.
+    - **Precios de mañana:** los precios recién publicados reconstruyen el horizonte restante una vez al día. Si hay un periodo de carga seleccionado en curso, la reconstrucción espera hasta que termine.
+    - **Ajustes relevantes:** los cambios de SOC mínimo/máximo de batería, **Margen de seguridad de previsión solar** o **SOC mínimo garantizado** reconstruyen el plan en el siguiente ciclo de control.
 
-La carga se detiene en cuanto alcanza el SOC máximo configurado de la batería y se eliminan las oportunidades futuras que ya no hacen falta. Una oportunidad pura también se detiene si el precio en vivo deja de estar disponible o deja de ser negativo. Siguen siendo autoritativos la potencia contratada, los límites individuales y del sistema, bloqueos del usuario, control manual, backup, disponibilidad y todas las protecciones existentes.
+    Las referencias diarias se reinician a medianoche. Las protecciones en ejecución, control manual, estado de respaldo, permisos de franjas horarias, disponibilidad de batería y límites de SOC siguen siendo autoritativos durante cada reconstrucción.
 
-La condición de precio de importación negativo es independiente del **Umbral de inyección negativa** descrito abajo. La primera detecta cuándo conviene importar; el segundo detecta riesgo solar de anti-vertido. Fuera de una ventana de riesgo solar, un slot de precio negativo puede cargar hasta el SOC máximo configurado como antes. Dentro de una ventana de riesgo no se rechaza automáticamente: solo puede usar el espacio que queda después de la reserva solar:
+    **Reevaluar carga predictiva** reconstruye inmediatamente el horizonte restante de Precio dinámico. No crea un plan de varios días: una reconstrucción de tarde cubre el periodo restante hasta el próximo amanecer, mientras que el siguiente plan diario normal se construye a las 00:05.
 
-```
-espacio oportunista = espacio libre actual − reserva solar restante
-```
+    ### Carga oportunista con precio negativo
 
-La oportunidad nunca consume la reserva solar. Si llega menos solar de la prevista, la reserva restante disminuye progresivamente y se libera más espacio para cargar desde red; si llega más solar, la oportunidad se reduce o se detiene. La potencia contratada, los límites de SOC, las reservas, la propiedad manual y todos los demás bloqueos de seguridad siguen siendo autoritativos. La carga necesaria para garantizar el SOC mínimo sigue siendo la excepción de seguridad. La falta de datos solares pone el planner anti-vertido en modo seguro, pero no cancela una oportunidad válida por precio de importación.
+    Esta función opcional selecciona independientemente periodos de importación horarios o de cuarto de hora cuyo precio normalizado sea inferior a cero. Calcula la energía de batería necesaria para alcanzar el SOC máximo configurado de cada batería y toma primero los periodos más negativos. No se requiere previsión solar.
 
-El interruptor está disponible en los controles del sistema Omnibattery, por lo que una automatización puede activar la función sin reabrir el flujo de opciones.
+    Cada periodo seleccionado registra `deficit`, `negative_price` o `combined` como su propósito. Un periodo de déficit con precio positivo conserva el objetivo normal de déficit. En un periodo combinado, se aplica el mayor de los objetivos de déficit y oportunidad. La carga se detiene en el SOC máximo configurado de cada batería y se eliminan los periodos solo de oportunidad no usados.
 
----
+    Durante una ventana de riesgo de limitación de producción, la carga oportunista solo puede usar el espacio de batería que queda después de reservar espacio para la solar esperada:
 
-## Predescarga inteligente / anti-vertido
+    ```text
+    opportunistic space = current free space − remaining solar reserve
+    ```
 
-Es una **subfunción optativa de Precio Dinámico** y no controla ningún inversor FV. Al activarla, Omnibattery reutiliza las franjas de precios normalizadas de 15 o 60 minutos y el modelo solar existente para encontrar franjas futuras donde:
+    Un requisito de SOC mínimo garantizado es la excepción de seguridad. La falta de datos solares hace que la antilimitación de producción falle de forma segura, pero no cancela una oportunidad válida de precio de importación negativo. Potencia contratada, límites de batería, control manual, estado de respaldo, disponibilidad y demás bloqueos de seguridad siguen aplicándose.
 
-- el precio sea igual o inferior al **Umbral de inyección negativa** (por defecto `0 €/kWh`), y
-- el excedente FV previsto supere el consumo doméstico.
+    ### Predescarga inteligente / Antilimitación de producción
 
-El plan calcula primero el hueco necesario para absorber el excedente solar previsto. Antes de la primera ventana de riesgo selecciona los bloques elegibles de mayor precio para descargar mediante el PD existente, respetando suelos de SOC, reservas, límites de potencia y bloqueos existentes. El mismo **Margen de seguridad de previsión solar** se usa en la carga predictiva al decidir si la previsión solar es suficiente. Agrupa subfranjas en bloques de aproximadamente una hora para evitar cambios constantes. Si no hay un modelo de consumo más detallado, reparte uniformemente por franja la estimación diaria histórica.
+    Esta función opcional no controla un inversor solar. Encuentra periodos donde el precio de importación es igual o inferior a **Umbral de inyección negativa** y el excedente solar previsto supera el consumo de la vivienda. Antes del primer periodo de riesgo, selecciona los periodos elegibles de mayor valor para predescargar hasta que exista suficiente espacio de batería, sujeto a suelos de SOC, reservas, límites de potencia y bloqueos.
 
-Los controles solo aparecen cuando la Carga Predictiva usa Precio Dinámico:
+    El umbral de inyección negativa predeterminado es 0 moneda/kWh. **SOC de reserva de predescarga** añade un suelo; su valor predeterminado es 20%, mientras que un valor de 0 usa los suelos existentes de las baterías. Los periodos de riesgo se agrupan en bloques de aproximadamente una hora para reducir cambios repetidos.
 
-| Control | Significado |
-|---|---|
-| **Predescarga inteligente** | Interruptor optativo en tiempo de ejecución; desactivado por defecto |
-| **Umbral de inyección negativa** | Umbral inclusivo para detectar una franja de riesgo |
-| **Reserva de SOC de predescarga** | Suelo adicional; `0` usa los suelos existentes |
-| **Modo de exportación de predescarga** | **Solo autoconsumo**, **Automático** o **Límite personalizado** |
-| **Límite de exportación deliberada (W)** | Se muestra con **Límite personalizado**; limita la exportación deliberada a la red durante la predescarga. Es un límite de exportación, no la potencia total de descarga de la batería |
-| **Margen de seguridad de previsión solar** | Margen adicional en kWh usado por la carga predictiva y el anti-vertido |
+    El comportamiento de exportación puede ser **Solo autoconsumo**, **Automático** o **Límite personalizado**:
 
-Los tres modos de exportación son:
+    - **Solo autoconsumo** no permite exportación deliberada a red y equivale a 0 W.
+    - **Automático** exporta solo la potencia necesaria para crear el espacio calculado.
+    - **Límite personalizado** limita la exportación deliberada a red al valor configurado en W; no limita la descarga total de batería usada por la vivienda.
 
-- **Solo autoconsumo**: no exporta deliberadamente a la red; equivale a `0 W`.
-- **Automático**: calcula solo la potencia de exportación necesaria para crear el hueco requerido; no usa siempre la máxima potencia de descarga disponible.
-- **Límite personalizado**: exporta deliberadamente hasta el límite configurado en W. El valor describe la exportación deliberada a la red, no la potencia total de descarga de la batería.
+    Durante un periodo de riesgo, el objetivo neto de red se limita a cero para que la batería pueda cubrir el consumo de la vivienda sin exportación deliberada. Siguen prevaleciendo SOC mínimo y mínimo garantizado, franjas horarias de funcionamiento, control manual, estado de respaldo, baterías no disponibles y protección de capacidad. La falta de precios, previsión, SOC, capacidad o datos de red elimina la anulación y el bloqueo.
 
-Las configuraciones existentes siguen siendo compatibles: el `0` antiguo se interpreta como **Solo autoconsumo** y un valor antiguo positivo como **Límite personalizado**. Durante la ventana de riesgo, el controlador limita a cero el objetivo neto de la red: la batería puede cubrir el consumo doméstico, pero no exporta deliberadamente a la red. La función nunca ignora SOC mínimo o garantizado, franjas y ownership manual del usuario, backup, baterías no disponibles/no responsivas ni protección de capacidad. Sin precios, previsión, SOC, capacidad o contador de red válido actúa de forma segura: elimina cualquier override o bloqueo inteligente. El plan se reconstruye tras reinicio, en las evaluaciones diarias normales, al activar la función, cuando cambia de forma apreciable el hueco disponible de las baterías y con el botón existente **Reevaluar Precios Dinámicos**. Los cambios de parámetros invalidan el plan anterior; usa ese botón para aplicarlos inmediatamente en vez de esperar a la siguiente evaluación. El plan no se persiste.
+    `curtailment_status` informa de estado, motivo, siguiente periodo de riesgo, espacio necesario/actual, descarga planificada, déficit no cubierto, objetivos de batería, periodos seleccionados y objetivo de exportación activo. Los atributos para automatización incluyen `protected_window_active`, `headroom_deficit_kwh`, `inverter_curtailment_required`, `charge_limit_reason` y `charge_limit_reasons`. Los diagnósticos también exponen `solar_reserve_remaining_kwh`, `current_free_space_kwh` y `opportunistic_space_available_kwh`.
 
-El único sensor binario de esta función, `curtailment_status`, muestra el estado, el motivo, la próxima ventana de riesgo, las franjas de riesgo, el espacio requerido/actual, la descarga planificada, el *shortfall*, los objetivos por batería, las franjas seleccionadas y el objetivo de exportación activo. También expone atributos para automatizaciones:
+    `active_export_target_w` es el objetivo de la batería, no una orden universal para un inversor solar. Una automatización de inversor debe aplicar y después restaurar su propio límite.
 
-- `protected_window_active`: indica que la ventana de inyección negativa está activa.
-- `headroom_deficit_kwh`: hueco que todavía falta para absorber la previsión.
-- `inverter_curtailment_required`: `true` solo si la ventana está activa y falta hueco; `false` cuando el plan es válido y no hace falta limitar el inversor; `null` si el plan está en modo seguro o aún no existe.
-- El diagnóstico descargado incluye `solar_reserve_remaining_kwh`, `current_free_space_kwh` y `opportunistic_space_available_kwh`. Este último nunca es negativo y sigue la regla `espacio libre actual − reserva solar restante`.
-- `charge_limit_reason` y `charge_limit_reasons` identifican por qué se limita la carga oportunista desde red, incluidos los bloqueos activos y el agotamiento de la reserva solar. El diagnóstico `export` informa del modo seleccionado y, si existe, del límite de exportación deliberada en W.
+    ### Retención de excedente por precio
 
-`active_export_target_w` es el objetivo de exportación de la batería durante la predescarga, no una consigna universal para el inversor FV. La automatización debe aplicar su propio límite según el inversor y restaurar la operación normal solo cuando el estado deje de requerir limitación.
+    Esta función opcional decide cuándo absorber excedente solar bajo una tarifa de exportación dinámica. Estima el objetivo diario de energía restante de la batería, distribuye solar y consumo esperados entre futuros periodos de precio y selecciona los periodos de menor precio de exportación que pueden absorber ese objetivo. Un periodo de precio bajo sin excedente disponible no se selecciona solo por ser barato.
 
-## Control de descarga por precio
+    Fuera de los periodos seleccionados añade el bloqueo de carga `surplus_price_hold`. La carga de batería se limita a 0 W y el excedente se exporta, mientras que la descarga de batería para autoconsumo sigue disponible.
 
-La opción **"Descargar solo cuando el precio supere el umbral"** añade una condición adicional al comportamiento de descarga.
+    La retención se libera en un periodo de absorción seleccionado, tras el plazo solar, una vez alcanzado el objetivo, cuando los periodos restantes no pueden cubrir el objetivo o cuando el mejor ahorro restante es inferior a **Ahorro mínimo de retención de excedente**. Ese control tiene por defecto 0,02 moneda/kWh. El objetivo sigue el SOC en vivo en cada ciclo, y el plan se reconstruye cada cinco minutos y durante las reconstrucciones normales de Precio dinámico.
 
-Cuando está activa, en **cada ciclo del controlador (dirigido por eventos)** se evalúa si el precio actual permite la descarga:
+    La falta de precios, previsión, SOC/capacidad utilizable o entradas finitas libera la retención. El retraso de carga, un periodo activo de carga desde red, carga con precio negativo, antilimitación de producción, carga completa semanal, protección de picos, pausa de vehículo eléctrico, control manual, control de franjas horarias y una batería en su suelo de SOC también la liberan.
 
-```
-Si precio_actual > umbral:
-    → Descarga permitida (el controlador PD opera con normalidad)
-Si precio_actual <= umbral:
-    → Descarga BLOQUEADA (la batería se mantiene en espera)
-```
+    **Sensor de precio de exportación/inyección** es opcional. Cuando falta, se reutiliza la curva de importación. Tibber no puede suministrar la curva de exportación porque su caché de servicio pertenece a la fuente de importación. Un sensor de exportación fallido no plantea el problema de reparación del precio de importación.
 
-El umbral se resuelve así:
+    **Estado de retención de excedente por precio** informa de estado, motivo, objetivo diario, capacidad de absorción restante, plazo, próxima liberación, periodos seleccionados y sus precios, y la fuente de curva. **Estado de integración** informa de `surplus_price_hold` mientras está activa.
 
-1. Si **Umbral máximo de precio** está configurado, se usa ese valor.
-2. Si **Umbral máximo de precio** está vacío, se usa el precio medio diario.
+    ### Descarga basada en precio y umbral de descarga separado
 
-El precio medio se calcula automáticamente durante la evaluación de las 00:05 a partir de las franjas disponibles hasta el próximo amanecer, y se vuelve a calcular cuando la publicación de los precios de mañana provoca una reconstrucción. El objetivo es preservar la batería para las horas más caras de ese horizonte. Si no hay umbral fijo configurado y la media aún no está disponible, el control de descarga no actúa.
+    **Descarga basada en precio** comprueba el precio actual en cada ciclo de control. Si está por encima de su umbral, se permite la descarga PD normal; en o por debajo del umbral, la descarga se bloquea y se congela el estado del controlador.
 
-### Suelo de precio de descarga separado
+    Precio dinámico usa **Umbral máximo de precio** cuando está configurado; de lo contrario usa la media diaria calculada sobre el horizonte de planificación actual. Si no existe ninguno, este bloqueo no actúa. El umbral máximo también impide la carga desde red a precios superiores.
 
-Por defecto un único umbral controla ambos extremos: la batería carga desde la red solo **por debajo** del umbral máximo de precio y descarga solo **por encima**. El **Suelo de precio de descarga** opcional desacopla los dos fijando un suelo de descarga más bajo, abriendo una **banda de reposo** entre ellos:
+    **Umbral de precio de descarga** puede abrir una banda de precio inactiva. Debe estar en o por encima del techo de carga:
 
-```
-precio ≥ umbral máximo de precio        → descarga permitida
-suelo < precio < techo                  → reposo (sin carga de red, sin descarga)
-precio ≤ suelo de precio de descarga    → descarga BLOQUEADA
-```
+    ```text
+    price ≥ discharge threshold                   → discharge allowed
+    charge ceiling < price < discharge threshold → neither grid charge nor discharge
+    price ≤ charge ceiling                        → discharge blocked; cheap grid charge may run
+    ```
 
-En la banda de reposo la batería no carga desde red ni descarga — pero la **carga con excedente solar sigue funcionando**. Así se evita ciclar la batería por la diferencia marginal de precio en torno a la media. El suelo debe estar **igual o por encima** del techo de carga (se valida al guardar); déjalo vacío para reutilizar el umbral máximo para ambos (el comportamiento de umbral único de arriba).
+    Deja vacío el umbral de descarga separado para usar el umbral máximo de precio en ambas decisiones. La carga por excedente solar sigue disponible en la banda inactiva. Las franjas horarias de funcionamiento y el permiso de precio deben permitir ambos la descarga; consulta [franjas horarias de funcionamiento](../time-slots.md).
 
-Ambos umbrales se exponen además como entidades `number` en vivo (**Umbral Máximo de Precio** y **Suelo de Precio de Descarga**) para que las automatizaciones puedan reescribirlos sin entrar al flujo de opciones.
+    ### Reserva de descarga
 
-### Reserva de descarga según el precio
+    Esta función opcional guarda energía almacenada para periodos de demanda doméstica más caros antes del próximo amanecer. Proyecta el perfil aprendido de demanda de 15 minutos y la solar esperada, permite que los periodos más caros reclamen solo la energía necesaria y reserva reclamaciones que superan el precio actual en **Ahorro mínimo de reserva de descarga**. Ese control tiene por defecto 0,05 moneda/kWh.
 
-La **Reserva de descarga según el precio** es una subfunción optativa de Precio Dinámico. Proyecta el perfil de consumo de 15 minutos y la solar prevista sobre las franjas que quedan hasta el próximo amanecer, y da prioridad a las horas más caras que superen el precio actual al menos en el **Ahorro mínimo de reserva de descarga**. La energía que esas horas todavía necesitan se convierte en un suelo económico `price_reserve`; todo lo que queda por encima sigue disponible para autoconsumo.
+    El excedente solar esperado puede liberar parte de la reserva, pero solo cuando cabe físicamente en la batería. El excedente que **Retención de excedente por precio** planea exportar no recibe crédito. El planificador acredita el 75% del excedente esperado que cumple la condición para que la incertidumbre de previsión no libere toda la reserva antes de que llegue producción real.
 
-La reserva puede conservar energía para un pico anterior al amanecer, pero termina al salir el sol: nunca guarda energía para la tarde de mañana, porque la solar puede recargar la batería entre ambos momentos. Se recalcula con el precio y el SOC actuales, no modifica `min_soc`, y las protecciones de emergencia, peak shaving, control manual y overrides explícitos de SOC siguen teniendo prioridad.
+    La energía resultante se convierte en un suelo adicional de SOC de flota. La energía por encima sigue disponible ahora y el suelo cae cuando el periodo actual se vuelve caro. El `min_soc` configurado de batería no se reescribe. La protección de picos, emergencia y antilimitación de producción pueden ignorar este bloqueo económico.
 
-El sensor binario `discharge_reserve_status` publica la energía y el porcentaje reservados, el precio de referencia, las franjas que la reclaman y los atributos `horizon_demand_kwh`, `horizon_surplus_kwh` y `claims`. El sensor **Integration Status** muestra `price_reserve_hold` mientras una batería está retenida.
+    La reserva termina en el próximo amanecer. La falta de precios, perfil de consumo, energía utilizable o demanda futura la deja en el SOC mínimo configurado. Control manual, antilimitación de producción, protección de picos, control de franjas horarias y una anulación explícita de SOC por periodo también la liberan.
 
-### Interacción con franjas horarias
+    **Estado de reserva de descarga** informa de estado activo, motivo, energía/porcentaje reservado, precio de referencia, reclamaciones, crédito solar esperado, demanda de horizonte y excedente de horizonte. **Estado de integración** informa de `price_reserve_hold` mientras una batería está retenida.
 
-Si las franjas horarias están configuradas para restringir la descarga, **ambas condiciones deben cumplirse** para que la batería descargue:
+    ### Margen mínimo de arbitraje y eficiencia de ciclo completo
 
-```
-Descarga permitida = dentro_de_franja_horaria_de_descarga AND precio_actual > umbral
-```
+    El **Margen mínimo de arbitraje** opcional rechaza un periodo de carga salvo que el valor esperado de descarga futura cubra las pérdidas de conversión y el margen seleccionado:
 
-Fuera de una franja que permita la descarga, la batería nunca descarga. Dentro de ella, solo descarga si el precio es suficientemente alto.
+    ```text
+    expected_discharge_price × round_trip_efficiency − charge_price ≥ margin
+    ```
 
-### Efecto en el controlador PD
+    El margen se desactiva cuando está vacío o se establece en 0. Se aplica además de **Umbral máximo de precio**, y prevalece el techo más estricto. Filtra la selección comercial de las 00:05; las reconstrucciones posteriores de horizonte restante y seguridad de final del día aún pueden programar la energía necesaria para evitar un déficit.
 
-Cuando la descarga está bloqueada por precio, el controlador congela completamente su estado (potencia a 0, sin actualización del término derivativo), igual que ocurre durante una restricción de franja horaria. La batería se reactiva sin perturbaciones en cuanto el precio vuelve a superar el umbral activo.
+    **Eficiencia de ciclo completo** tiene por defecto 0,85 y representa la eficiencia marginal de energía de CA a CA. Valores inferiores requieren un diferencial bruto mayor. Es distinta de los totales vitalicios de carga/descarga, que incluyen el consumo en reposo.
 
----
+    El mismo margen mínimo se aplica a **Descarga con precio alto**, de manera que las decisiones de compra y venta usan una sola preferencia de riesgo económico.
 
-## Atributos de diagnóstico
+    ### Descarga con precio alto
 
-El sensor binario `predictive_charging_active` expone:
+    Esta función opcional vende energía almacenada en un periodo caro que cumple la condición solo cuando puede emparejar esa energía uno a uno con demanda doméstica más barata posterior dentro del horizonte:
 
-| Atributo | Descripción |
-|---|---|
-| `charging_needed` | Si se necesita carga según el balance |
-| `selected_hours` | Horas seleccionadas con sus precios individuales |
-| `average_price` | Precio medio de las horas seleccionadas |
-| `estimated_cost` | Coste estimado de la carga |
-| `evaluation_timestamp` | Cuándo se realizó la última evaluación |
-| `price_data_status` | Estado del sensor de precios (`ok (N slots)`, `sensor_unavailable`, `no_slots`, `not_evaluated`) |
-| `chronological_planning_active` | Si el calendario activo procede del planificador con plazos |
-| `chronological_source` / `solar_timeline_source` | Origen de las curvas de consumo y solar |
-| `earliest_projected_depletion` | Primer cruce previsto del SOC mínimo sin carga de red |
-| `deadline_required_kwh` / `flexible_required_kwh` | Energía reservada antes de plazos y energía flexible por precio |
-| `deadline_shortfall_kwh` / `total_shortfall_kwh` | Energía urgente y total que los slots elegibles no pueden entregar |
-| `energy_deadlines` | Requisitos acumulados y plazos ISO locales |
-| `slot_energy_targets_kwh` / `slot_deadlines` | Cuotas y plazos por slot, serializados con timestamps locales |
-| `energy_horizon_end` | Marca ISO local del próximo amanecer que limita el plan; medianoche si no puede calcularse |
-| `overnight_consumption_kwh` | Demanda doméstica prevista desde medianoche hasta `energy_horizon_end` |
+    ```text
+    export_price > highest later import price + minimum arbitrage margin
+    ```
 
-Las notificaciones usan el mismo límite: describen la demanda restante hasta el amanecer y muestran aparte los kWh nocturnos cuando el horizonte cruza medianoche.
+    La energía sin demanda doméstica posterior no se vende y la exportación nunca cruza el suelo de SOC de una batería. El periodo de exportación más caro recibe primero energía. La exportación deliberada neta a red usa el límite efectivo de descarga de la flota; no existe un control separado de límite de exportación con precio alto.
 
-![Atributos del sensor predictive_charging_active](../../assets/screenshots/configuration/predictive-charging/diagnostic-attributes.png){ width="650"  style="display: block; margin: 0 auto;"}
+    El plan se reconstruye cada cinco minutos y la retirada se comprueba en cada ciclo de control. Cobertura de precio ausente, un periodo caducado, antilimitación de producción, protección de capacidad, carga completa semanal, un periodo activo de carga desde red, control manual, control de franjas horarias, un contador de red no válido o cualquier bloqueo de descarga detienen la exportación. Desactivar **Descarga con precio alto** la elimina en el siguiente ciclo de control.
 
-El calendario dinámico consume el mismo timeline solar fechado que Franja
-Horaria. Una curva del proveedor tiene prioridad sobre un perfil local maduro y
-una candidata inválida cae de forma atómica a la siguiente fuente. El perfil
-aprendido se aplica automáticamente cuando es maduro; mientras tanto se usa la
-curva sinusoidal.
+    **Estado de descarga con precio alto** informa de estado, motivo, potencia objetivo, demanda posterior protegida, energía utilizable, energía asignada y asignaciones por periodo con sus umbrales.
+
+    ### Atributos de diagnóstico
+
+    El sensor binario `predictive_charging_active` expone:
+
+    | Atributo | Significado |
+    |---|---|
+    | `charging_needed` | Si el balance restante requiere carga desde red |
+    | `selected_hours` | Periodos y precios seleccionados; pueden ser informativos cuando no hace falta carga |
+    | `average_price` | Precio medio sobre el perfil evaluado |
+    | `estimated_cost` | Coste de carga estimado |
+    | `evaluation_timestamp` | Hora de la última evaluación |
+    | `price_data_status` | Resultado de fuente de precio como `ok (N slots)`, `sensor_unavailable`, `no_slots` o `not_evaluated` |
+    | `chronological_planning_active` | Si la planificación consciente de plazos produjo el horario |
+    | `chronological_source` / `solar_timeline_source` | Fuentes de tiempo de demanda de la vivienda y solar |
+    | `earliest_projected_depletion` | Primer cruce de SOC mínimo proyectado sin carga desde red |
+    | `deadline_required_kwh` / `flexible_required_kwh` | Energía vinculada a plazos y energía optimizada libremente por precio |
+    | `deadline_shortfall_kwh` / `total_shortfall_kwh` | Energía urgente y total que los periodos elegibles no pueden entregar |
+    | `energy_deadlines` | Requisitos acumulados y plazos ISO locales |
+    | `slot_energy_targets_kwh` / `slot_deadlines` | Cuotas y plazos por periodo |
+    | `energy_horizon_end` | Límite del próximo amanecer o medianoche si no puede calcularse |
+    | `overnight_consumption_kwh` | Demanda doméstica prevista posterior a medianoche hasta el límite |
+
+    Las notificaciones usan el mismo límite de planificación y muestran la demanda nocturna por separado. La cronología solar fechada prefiere periodos del proveedor, después un perfil solar local maduro y después una curva de luz diurna sinusoidal; una fuente no válida pasa atómicamente a la siguiente.

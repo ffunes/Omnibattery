@@ -1,89 +1,94 @@
-# Predictive charging — Real-Time Price mode
+# Predictive charging from the current price
 
-Activates or deactivates grid charging every controller cycle (event-driven) based on the **current electricity price**.
+Real-Time Price mode checks the price in effect now and grid-charges when that price is cheap enough and the home has a forecast energy deficit. It makes no promise about future periods because it has no future price calendar.
 
-Unlike Dynamic Pricing mode, it requires no price forecast and no overnight evaluation. It reacts purely to the live price.
+## Do I need it?
 
-Deadline-based slot selection is intentionally not applied in this mode: a current-price sensor provides no trustworthy future intervals to reserve before a deadline. The energy balance and per-battery target remain predictive, but selecting or promising a future slot would require switching to Dynamic Pricing. Configured charge-permission windows and all physical blockers still apply.
+**Use it if** your source exposes only the current electricity price, or you want a direct “charge below this price” rule.
 
-## Configuration
+**You do not need it if** your provider publishes future prices and you want the cheapest periods selected in advance; use [Dynamic Pricing](dynamic-pricing.md). For fixed weekly cheap periods, use [Time Slot](time-slot.md).
 
-| Field | Description |
-|---|---|
-| **Electricity price sensor** | Any HA sensor with the current period price (PVPC, Nordpool, CKW…) |
-| **Maximum price threshold (€)** | (Optional) Price below which grid charging activates |
-| **Daily average price sensor** | (Optional) Dynamic threshold instead of a fixed value |
-| **Only discharge when price exceeds threshold** | (Optional) Price-gated discharge — see below |
-| **Solar forecast safety margin (kWh)** | Extra energy buffer added to the consumption forecast before deciding whether to charge (default 0 kWh) |
-| **Predictive grid charge margin (%)** | Tops up the grid-charge amount to hedge optimistic solar forecasts — e.g. a 2 kWh grid need at 50 % charges 3 kWh. Capped at the gap to max SOC (default 0 %) |
+## Before you start
 
-![Configuration form — Real-Time Price mode](../../assets/screenshots/configuration/predictive-charging/real-time-price-form.png){ width="650"  style="display: block; margin: 0 auto;"}
+- Prepare a Home Assistant sensor for the current electricity price.
+- Choose either a fixed **Max Price Threshold** or an optional daily-average price sensor. The average sensor takes priority when it has a valid value.
+- A solar forecast is optional. Without one, Omnibattery evaluates conservatively with no future solar.
+- Configure the common requirements described in [Which mode should I choose?](index.md).
 
-## Charging behaviour
+## How to enable it
 
-Every cycle (event-driven) the controller evaluates whether to start or stop grid charging:
+1. Open **Settings → Devices & services → Omnibattery → Configure** and choose **Real-Time Price** as the predictive charging mode.
+2. Select **Electricity price sensor** and, if available, **Daily average price sensor**.
+3. Select an optional solar forecast sensor and finish the form.
+4. In the Omnibattery **Control** tab, set **Max Price Threshold** if you did not provide an average sensor, then confirm **Predictive Charging** is on.
 
-```
-If current_price ≤ threshold:
-    And if (battery + solar) < expected_consumption:
-        → Activate grid charging
-If current_price > threshold:
-    → Deactivate grid charging
-```
+![Configure the current-price source](../../assets/screenshots/configuration/predictive-charging/real-time-price-form.png){ width="650" style="display: block; margin: 0 auto;" }
 
-The energy balance (battery + solar vs. expected consumption) is evaluated before starting charging, the same as in other modes.
+## What you will see
 
-### Threshold resolution
+When the current price is at or below the active threshold, Omnibattery checks the remaining energy balance. It starts grid charging only when battery energy and expected solar do not cover expected household demand. Charging stops when price rises above the threshold, the calculated target is met, or a charging permission or safety rule blocks it.
 
-The threshold is resolved in this priority order:
+This mode does not reserve a cheaper future period, assign future price quotas, or expose **Re-evaluate Predictive Charging**. It checks again on every control cycle. Configured [operating time slots](../time-slots.md) can still restrict when charging is allowed.
 
-1. **Daily average price sensor** — if configured and available, its value is the dynamic threshold.
-2. **Maximum price threshold** — static numeric value configured in the setup flow.
+Turn on **Price-Based Discharge** if you also want to preserve the battery while electricity is cheap. Discharge is blocked at or below the same active threshold and resumes above it, subject to operating-time and safety rules. Solar-surplus charging remains available.
 
-If neither is available, the mode does not act.
+## If it does not work
 
----
-
-## Price-based discharge control
-
-The **"Only discharge when price exceeds threshold"** option adds an extra condition to discharge behaviour, independent of charging.
-
-When active, **every controller cycle (event-driven)** checks whether the current price justifies discharge using the same threshold as for charging:
-
-```
-If current_price > threshold:
-    → Discharge allowed (PD controller operates normally)
-If current_price ≤ threshold:
-    → Discharge BLOCKED (battery holds)
-```
-
-The inverse logic of charging: charge when price is low, discharge when price is high.
-
-### Interaction with time slots
-
-If time slots are configured to restrict discharge, **both conditions must be met**:
-
-```
-Discharge allowed = within_discharge_time_slot AND current_price > threshold
-```
-
-### Effect on the PD controller
-
-When discharge is blocked by price, the controller completely freezes its state (power to 0, no derivative term update), the same as during a time slot restriction. The battery resumes smoothly as soon as the price exceeds the threshold.
-
----
-
-## Differences from Dynamic Pricing
-
-| Feature | Dynamic Pricing | Real-Time Price |
+| Symptom | Likely cause | What to check |
 |---|---|---|
-| Price forecast required | ✅ | ❌ |
-| Overnight evaluation (00:05) | ✅ | ❌ |
-| Reacts to live price | ❌ | ✅ |
-| Optimal hour selection | ✅ | ❌ |
-| Discharge threshold | Daily average (calculated at 00:05) | Configurable threshold (fixed or dynamic sensor) |
+| Charging never starts at a cheap price | No valid threshold exists or no energy deficit remains | Current-price sensor, average sensor, **Max Price Threshold**, and **Predictive Charging Active** |
+| Charging stops immediately | The current price rose, an operating time slot ended, or a safety/control rule intervened | Live price, charge permissions, SOC target, and **Integration Status** |
+| A cheaper period later is ignored | This mode has no future price calendar | Switch to [Dynamic Pricing](dynamic-pricing.md) if future prices are available |
+| The battery will not discharge | **Price-Based Discharge** or an operating time slot blocks discharge | Active threshold, live price, and [operating time slots](../time-slots.md) |
+| The average sensor appears to be ignored | Its state is unavailable or not numeric | Sensor state and unit; the fixed threshold is used as fallback |
+| Forecast energy changes but charging does not start early | The current price is above threshold | Wait for price to qualify; this mode cannot reserve a future period |
 
-Real-Time Price remains reactive: it uses the normalized remaining total for its
-gate and does not consume the learned temporal curve or create future
-deadlines. A future anticipatory implementation should enter through the same
-chronological planner as the other scheduling modes.
+??? "Advanced details"
+    ### Charging rule and threshold priority
+
+    Every control cycle applies this rule:
+
+    ```text
+    if current_price ≤ active_threshold:
+        if usable_battery + expected_solar < expected_consumption:
+            start or continue grid charging
+    else:
+        stop grid charging
+    ```
+
+    The active threshold is resolved in this order:
+
+    1. A valid **Daily average price sensor**, when configured.
+    2. **Max Price Threshold**, the live number entity.
+
+    If neither produces a value, Real-Time Price takes no charging action. If the live price becomes unavailable during a charge, charging stops and undelivered energy is recorded as a shortfall.
+
+    The energy target is still predictive: Omnibattery calculates the current-horizon deficit and a per-battery target. What remains reactive is period selection. A current-price sensor cannot prove that a future period will exist or reach an energy deadline, so this mode creates no future reservations.
+
+    **Solar Forecast Safety Margin** is subtracted from expected solar. New installations start at approximately 5% of total configured battery capacity; if capacity is unknown during setup, the fallback is no margin. It is a live control entity rather than a setup-form field.
+
+    ### Price-Based Discharge
+
+    The optional discharge rule is the inverse of charging:
+
+    ```text
+    if current_price > active_threshold:
+        discharge allowed
+    else:
+        discharge blocked
+    ```
+
+    When blocked, battery power returns to 0 W and the proportional–derivative (PD) controller freezes its state so it can resume without a derivative jump. If operating time slots also restrict discharge, both the time permission and price permission must be true.
+
+    This rule gates ordinary economic discharge. Minimum SOC, phase protection, battery availability, manual control, backup restrictions, and other safety rules remain authoritative.
+
+    ### Comparison with Dynamic Pricing
+
+    | Capability | Dynamic Pricing | Real-Time Price |
+    |---|---|---|
+    | Price input | Future dated price periods | Current price state |
+    | Period choice | Cheapest eligible future periods before each deadline | The period in effect now |
+    | Energy shortfall handling | Can move quota to eligible future periods | Records undelivered energy; no future calendar exists |
+    | Re-evaluation button | Rebuilds the remaining calendar | Not present; every cycle decides again |
+    | Price-Based Discharge threshold | Fixed maximum threshold or calculated daily average | Daily-average sensor, then fixed maximum threshold |
+    | Dynamic-only policies | Negative-price scheduling, anti-curtailment, surplus hold, discharge reserve, arbitrage margin, high-price export | Not available |

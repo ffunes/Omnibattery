@@ -1,98 +1,77 @@
-# Protección de capacidad (también conocido como peak shaving)
+# Reserva potencia de batería para picos de demanda
 
-Reserva parte de la capacidad de la batería para satisfacer picos de demanda que superen un umbral de potencia configurable. En lugar de cubrir todo el consumo doméstico, la batería retiene energía y solo descarga para compensar la parte del consumo que supera el límite de pico — manteniendo capacidad en reserva para cuando realmente se necesita.
+Protege tu instalación con protección de capacidad (peak shaving): por debajo de un umbral de estado de carga (SOC), Omnibattery guarda energía para la demanda que superaría el límite de importación de red elegido. Puede reducir picos de potencia contratada y conservar una reserva para más tarde.
 
-## Comportamiento sin peak shaving
+## ¿Lo necesito?
 
-El controlador PD cubre todo el consumo doméstico → la batería puede descargarse completamente si el consumo es alto y continuo.
+**Úsalo si** tu tarifa penaliza picos de importación altos, tu instalación tiene un techo práctico de importación o el seguimiento normal del hogar vacía la batería antes del periodo en que aparecen cargas grandes.
 
-## Comportamiento con peak shaving activo
+**No lo necesitas si** quieres que la batería cubra la demanda ordinaria del hogar hasta su SOC mínimo normal y no tienes un límite de picos independiente que proteger.
 
-Cuando el SOC está por debajo del umbral:
-- La batería **no** cubre todo el consumo.
-- Solo descarga para compensar la parte del consumo que supera el **límite de potencia de pico** configurado.
+La protección de capacidad es una estrategia de reserva opcional. La protección de emergencia de potencia contratada es independiente y puede seguir protegiendo la conexión física a red durante la carga predictiva.
 
-```
-Potencia_batería = max(0, consumo_red - límite_pico)
-```
+## Antes de empezar
 
-## Configuración desde el dashboard
+- Confirma que **Consumo de la casa** y la importación de red tienen el signo correcto y siguen las cargas reales.
+- Elige el SOC de batería por debajo del cual debe detenerse la descarga ordinaria.
+- Elige el nivel de importación de red por encima del cual debe intervenir la batería. Es independiente de la potencia contratada máxima configurada.
+- Si las cargas grandes están [excluidas de la cobertura normal de batería](../configuration/excluded-devices.md), decide si sus picos también deben recortarse.
 
-| Campo | Descripción | Por defecto | Rango |
-|---|---|---|---|
-| **Umbral de SOC (%)** | La protección de capacidad se activa por debajo de este SOC. | `30 %` | 20–100 % |
-| **Límite de potencia de pico (W)** | Umbral de potencia de red. Con la protección activa, la batería solo descarga el exceso sobre este límite. | `2500 W` | 500–10000 W |
+## Cómo activarlo
 
-![Configuración de protección de capacidad](../assets/screenshots/configuration/advanced-capacity-protection-config.png){ width="650" style="display: block; margin: 0 auto;"}
+1. Abre el panel lateral de Omnibattery y selecciona **Control**.
+2. Activa **Peak Shaving**.
+3. Configura **Umbral de SOC de Peak Shaving**. Por debajo de este SOC medio de flota, la batería conserva capacidad para picos.
+4. Configura **Límite de Peak Shaving** con el umbral de importación de red que quieres mantener.
+5. Opcional: activa **Peak Shaving para dispositivos excluidos** si las cargas normalmente excluidas también deben respetar ese límite.
 
-## Ejemplo
+| Ajuste | Predeterminado | Rango |
+|---|---:|---:|
+| **Umbral de SOC de Peak Shaving** | `30%` | `20–100%` |
+| **Límite de Peak Shaving** | `2,500 W` | `500–20,000 W` |
 
-```
-Límite pico: 3 000 W
-Consumo actual: 4 500 W
+![Configurar la protección de capacidad](../assets/screenshots/configuration/advanced-capacity-protection-config.png){ width="650" style="display: block; margin: 0 auto;"}
 
-Potencia batería = 4 500 - 3 000 = 1 500 W
-La red cubre 3 000 W y la batería solo 1 500 W
-```
+## Qué verás
 
-Si el consumo fuera de 2 000 W (< límite), la batería no descargaría nada.
+Por encima del umbral de SOC, continúa el seguimiento normal del hogar. Por debajo:
 
-## Interacción con la carga predictiva desde red
+- La demanda igual o inferior al límite de pico se queda en la red para que la batería conserve su reserva.
+- La demanda superior al límite se cubre solo con la cantidad necesaria para devolver la importación hacia el límite.
+- El excedente solar aún puede cargar la batería.
 
-Durante una franja predictiva activa, el consumo del hogar siempre tiene
-prioridad sobre la carga desde red. El controlador reduce primero la potencia
-de carga de la batería; si alcanza el techo de importación, ordena reposo y
-espera a que la telemetría del inversor y del contador se estabilice antes de
-considerar una descarga.
+Por ejemplo, con un límite de `3,000 W` y `4,500 W` de demanda del hogar, la batería suministra `1,500 W` y la red `3,000 W`. Con `2,000 W` de demanda, la batería permanece inactiva.
 
-Después de la estabilización:
+**Peak Shaving activo** y el estado de integración distinguen entre recortar un pico, conservar capacidad, cargar con excedente y permanecer inactivo. Un enfriamiento de relé configurado puede mantener brevemente la potencia mínima de batería después de que el controlador pida inactividad; es protección esperada del relé, no una nueva decisión de carga o descarga.
 
-- Con Protección de Capacidad activa, Peak Shaving descarga únicamente el
-  exceso sobre `min(capacity_protection_limit, max_contracted_power)`.
-- Independientemente del switch de Protección de Capacidad, una importación
-  física superior a `max_contracted_power` activa la emergencia por potencia
-  contratada. Las cargas excluidas de la cobertura ordinaria no pueden
-  excluirse de esta comprobación porque la conexión de red también las ve.
-- Las restricciones económicas de descarga por precio y las ventanas protegidas
-  de precio negativo no pueden impedir una orden legítima de Peak Shaving o
-  emergencia. Siguen aplicándose las protecciones físicas y del usuario: SOC
-  mínimo, disponibilidad, propiedad manual o de franjas, backup, fases y límites
-  de potencia.
+![Controles de peak shaving](../assets/screenshots/features/peak-shaving-config.png){ width="650" style="display: block; margin: 0 auto;"}
 
-Detener la carga predictiva, descargar por Peak Shaving, descargar por PD normal
-y descargar por emergencia de potencia contratada son, por tanto, acciones
-distintas. La protección de pico nunca convierte una franja barata en descarga
-económica normal hacia el objetivo de red del PD. Cuando vuelve un margen
-estable, primero detiene la descarga, espera otra estabilización y reanuda la
-carga predictiva con histéresis. Conserva su SOC objetivo y los kWh pendientes.
+Consulta la [cronología diaria de funcionamiento](daily-operation-timeline.md) para comparar las acciones de peak shaving con la demanda del hogar, y la [carga predictiva](../configuration/predictive-charging/index.md#demanda-de-la-vivienda-durante-una-franja-de-carga) para la secuencia de protección de importación durante un periodo de carga.
 
-Consulta [Consumo del hogar durante una franja de carga predictiva](../configuration/predictive-charging/index.es.md#consumo-del-hogar-durante-una-franja-de-carga)
-para ver la secuencia completa y un ejemplo.
+## Si no funciona
 
-## Peak shaving para dispositivos excluidos
+| Síntoma | Causa probable | Qué comprobar |
+|---|---|---|
+| La batería sigue cubriendo demanda ordinaria | El SOC medio de batería está por encima del umbral de conservación | **Umbral de SOC de Peak Shaving** y **Peak Shaving activo** |
+| Un pico permanece por encima del límite | La potencia de descarga disponible o alguna regla de seguridad limita la salida | SOC mínimo, disponibilidad de batería, límites de fase, estado de respaldo y límites de potencia |
+| No se recorta una carga excluida | La opción independiente de dispositivos excluidos está desactivada | **Peak Shaving para dispositivos excluidos** |
+| La batería no pasa a inactividad inmediatamente | El enfriamiento de relé mantiene potencia mínima o la telemetría se está estabilizando | Enfriamiento de relé PD y potencia instantánea de batería |
+| Se pausa la carga predictiva desde red | La importación del hogar alcanzó el techo aplicable | Estado de carga predictiva, **Límite de Peak Shaving** y potencia contratada máxima |
+| La batería descarga durante un periodo protegido por precio | Tiene prioridad un pico físico o una emergencia de potencia contratada | Importación de red y estado de protección activo |
 
-El switch opcional **Reducción de picos para dispositivos excluidos** extiende
-el límite de pico a las cargas que normalmente están excluidas de la batería.
-Está desactivado por defecto.
+??? "Detalles avanzados"
+    Por debajo del umbral de conservación, Omnibattery reconstruye la carga del hogar a partir de telemetría de CA de red y batería y aplica este objetivo:
 
-Cuando se activa y el SOC está por encima del umbral de conservación, la batería
-sigue cubriendo el consumo normal del hogar. Si la parte excluida provocaría que
-la importación de red superase el límite configurado, la batería cubre solamente
-ese exceso.
+    ```text
+    battery_discharge = max(0, household_load - peak_limit)
+    ```
 
-Por ejemplo, con 1 000 W de consumo normal, 4 000 W de consumo excluido y un
-límite de 3 000 W, la batería suministra 2 000 W: 1 000 W para el hogar y
-1 000 W para recortar el pico del dispositivo excluido. La red queda en 3 000 W.
+    El SOC medio excluye baterías no disponibles y controladas manualmente. Siguen aplicándose SOC mínimo, disponibilidad, control manual o por franja, restricciones de respaldo, protección de fase y límites de potencia de batería/sistema.
 
-Cuando el SOC está por debajo del umbral de conservación, el comportamiento
-existente ya aplica el límite de pico a la demanda total. El SOC mínimo, la
-potencia de descarga disponible y el resto de protecciones continúan
-aplicándose siempre.
+    **Peak Shaving para dispositivos excluidos** está desactivado de forma predeterminada. Por encima del umbral de conservación, la cobertura ordinaria del hogar no cambia y solo se vuelve a añadir la parte excluida que dejaría la importación física por encima del límite. Con `1,000 W` de demanda normal, `4,000 W` excluidos y un límite de `3,000 W`, la batería suministra `2,000 W`: `1,000 W` para demanda normal y `1,000 W` para recortar la carga excluida. Por debajo del umbral, la protección de capacidad ya aplica el límite a la demanda total.
 
-## Cuándo usarlo
+    Durante un periodo activo de carga predictiva, la demanda del hogar tiene prioridad. Omnibattery reduce primero la carga positiva de batería, después ordena inactividad y espera a que se estabilice la telemetría de inversor y medidor. Si la importación sigue demasiado alta, Peak Shaving usa el menor entre su límite configurado y la potencia contratada máxima. De forma independiente, la importación física por encima de la potencia contratada máxima puede activar descarga de emergencia, también para cargas excluidas que vea la conexión de red.
 
-Útil cuando:
-- La red tiene un coste fijo por potencia máxima contratada y quieres limitar los picos.
-- Quieres asegurarte de tener reserva de batería para la noche.
+    Las restricciones de descarga basadas en precio y los periodos protegidos de precio negativo no pueden suprimir una orden legítima de emergencia por peak shaving o potencia contratada. Detener la carga predictiva, la descarga de Peak Shaving, la descarga normal proporcional–derivativa (PD) y la descarga de emergencia siguen siendo acciones independientes. Cuando vuelve capacidad de importación estable, la descarga se detiene, la telemetría se estabiliza y la carga predictiva se reanuda con histéresis; se conservan su objetivo de SOC y energía pendiente.
 
-![Configuración de peak shaving](../assets/screenshots/features/peak-shaving-config.png){ width="650"  style="display: block; margin: 0 auto;"}
+    El enfriamiento de relé es opcional y por defecto es `0 seconds`. Cuando se configura, una solicitud de activo a inactivo puede mantener la dirección ya activa a la potencia mínima configurada, o `100 W` si no se establece mínimo, hasta que vence el enfriamiento seleccionado. Un gran desequilibrio evita esta retención. Protege el relé de ciclos rápidos de apagado/encendido y no retrasa cambios directos de dirección entre carga y descarga.

@@ -1,225 +1,117 @@
-# Estimación diaria y horaria del consumo
+# Aprende el consumo de tu hogar
 
-La carga predictiva necesita saber cuánta energía consume tu hogar para decidir si hace falta cargar desde la red. La integración aprende un **perfil de consumo de 15 minutos** a partir de hasta 28 días locales completos. Hasta que ese perfil alcanza la madurez, la estimación diaria existente de 7 días sigue siendo el fallback seguro.
+Aprovecha al máximo la energía solar dejando que Omnibattery aprenda cuánta energía usa tu hogar y cuándo la usa. La estimación es automática; ayuda a la carga predictiva y al [Retraso de carga solar](solar-charge-delay.md) a decidir si la energía almacenada y la solar prevista pueden cubrir la demanda.
 
-## Modo vacaciones
+## ¿Lo necesito?
 
-Activa el interruptor **Modo vacaciones** del dispositivo de sistema de
-Omnibattery cuando el patrón habitual de la vivienda deje de ser representativo.
-Los contadores físicos y el gráfico de consumo real siguen registrando, y el
-control de batería funciona con normalidad. Solo se pausa el aprendizaje: los
-días afectados se eliminan del histórico diario heredado y solo los intervalos
-de 15 minutos afectados se excluyen del perfil de 28 días. Los periodos se
-guardan para que un backfill posterior de Recorder no los reincorpore.
+**Úsalo si** empleas la carga predictiva o el Retraso de carga solar y quieres que estas funciones tengan en cuenta la rutina habitual de tu hogar.
 
-Durante las vacaciones todas las previsiones de consumo usan una carga base
-constante: la mediana de las tres últimas noches válidas entre 01:00 y 05:00
-(cada noche necesita al menos tres horas de cobertura). Antes de la primera
-noche válida se usa el perfil nocturno aprendido, después la media diaria/24 y
-por último el valor predeterminado. Al cambiar el interruptor se rompe la
-continuidad de los integradores de aprendizaje para no atribuir intervalos al
-modo equivocado.
+**No necesitas gestionarlo** cuando tu consumo reciente es representativo. Intervén solo ante vacaciones, fallos del medidor o días inusuales que no deban influir en previsiones futuras.
 
-Precio Dinámico lo usa como curva cronológica, no solo como total diario. Así puede reservar energía de red antes de un agotamiento temprano previsto y mantener flexible por precio el resto del déficit hasta el próximo amanecer. Tanto el perfil maduro como la curva provisional se normalizan a los mismos kWh agregados usados por la decisión predictiva.
+## Antes de empezar
 
-Mientras el perfil aprendido no está maduro, ese total diario no se reparte de
-forma completamente plana: se usa una curva temporal provisional de hogar. La
-noche (00:00–06:00) recibe el peso mínimo, el desayuno tiene un pequeño repunte,
-las horas centrales del día reciben más peso y la cena es el pico principal. La
-curva se normaliza para que el total siga siendo exactamente el consumo diario
-estimado, incluidos los días de cambio horario, y desaparece en cuanto hay un
-perfil aprendido con datos reales.
+- Configura un sensor de red y una batería que funcionen. Omnibattery deriva la demanda del hogar de las mismas mediciones que usa el diagrama de flujo de energía.
+- Mantén activado el Recorder de Home Assistant si quieres recuperar días recientes que falten tras la instalación o un reinicio.
+- Los [dispositivos excluidos y adicionales](../configuration/excluded-devices.md) son opcionales. Sus ajustes de potencia configurados se incluyen en el aprendizaje.
 
-En las reevaluaciones intradía de Precio Dinámico, la curva abarca desde el
-momento actual hasta el próximo amanecer. El tramo restante de hoy se corrige
-de forma gradual con el consumo real acumulado; el tramo posterior a medianoche
-procede del perfil del día siguiente o, si no está disponible, de la tasa
-horaria histórica. La corrección empieza tras las tres primeras horas, alcanza
-toda su fuerza al mediodía y se limita al 30 % del consumo restante de hoy para
-que un pico puntual no distorsione el resto del día.
+## Cómo activarlo
 
----
+Esta función es automática; no hay ningún interruptor para activar el aprendizaje.
 
-## Excluir un día que no es representativo
+1. Abre el panel lateral de Omnibattery y comprueba que **Consumo de la casa** sigue la carga de tu hogar.
+2. Deja que la integración recopile consumo diario representativo. **Perfil de consumo esperado de la casa** muestra cuándo está listo el perfil aprendido.
+3. Activa **Modo vacaciones** en el dispositivo Sistema Omnibattery mientras se interrumpa tu rutina habitual. Desactívalo cuando el hogar vuelva a la normalidad.
+4. Para eliminar un día inusual pasado, abre **Herramientas para desarrolladores → Acciones**, ejecuta **Omnibattery: Excluir días de consumo** y elige la primera y la última fecha local que ignorar.
 
-Un día que la vivienda no consumió de verdad — un corte del contador que infló
-el consumo derivado, un evento puntual, una ausencia — arrastra tanto la media
-de 7 días como el perfil de 28 días. Usa la acción **Excluir días de consumo**
-(`omnibattery.exclude_consumption_days`) desde Herramientas para desarrolladores
-→ Acciones:
+![Atributos del aprendizaje de consumo](../assets/screenshots/features/consumption-estimate-attributes.png){ width="700" style="display: block; margin: 0 auto;"}
 
-```yaml
-action: omnibattery.exclude_consumption_days
-data:
-  start_date: "2026-09-07"
-  end_date: "2026-09-07"   # opcional, por defecto igual a start_date
-```
+## Qué verás
 
-Los días excluidos salen de inmediato del histórico diario heredado y quedan
-enmascarados en el perfil de 28 días, igual que hace el modo vacaciones con los
-días que cubre. Los contadores físicos, el gráfico de consumo real y el
-historial del Recorder no se tocan, y el control de batería no se ve afectado.
-Solo se aceptan días dentro de los últimos 35, porque los más antiguos ya no
-participan en el aprendizaje.
+- **Consumo de la casa** muestra la potencia instantánea del hogar utilizada para aprender.
+- **Consumo diario de la casa** acumula la energía de hoy del hogar y se reinicia a la medianoche local.
+- **Perfil de consumo esperado de la casa** muestra la previsión de hoy y si su fuente es el perfil aprendido maduro o una estimación alternativa.
+- **Captura actual del perfil de consumo** muestra cuánta demanda de hoy se ha capturado hasta ahora.
+- **Modo vacaciones** informa de la línea base fija de vacaciones mientras el aprendizaje está en pausa.
 
-!!! warning "Borrar el día de `.storage` no funciona"
-    Los dos almacenes de consumo son caché del Recorder. Un día borrado a mano
-    es un día *que falta*, así que el backfill de arranque vuelve a consultar
-    el Recorder y lo reescribe tal cual. La exclusión guardada es lo único que
-    respeta una reconstrucción.
+La integración aprende tanto un total diario como un patrón por hora del día. Un patrón maduro permite que Precio dinámico reserve energía antes de un pico de demanda temprano, manteniendo flexible por precio la demanda posterior hasta el siguiente amanecer. El Retraso de carga solar usa la misma previsión de demanda restante, de modo que la demanda ya observada hoy no se cuenta dos veces.
 
----
+Consulta la [cronología diaria de funcionamiento](daily-operation-timeline.md) para comparar el consumo aprendido con las acciones de batería previstas para hoy.
 
-## Qué mide el consumo estimado
+## Si no funciona
 
-El estimado es el **consumo total del hogar durante todo el día local**, incluidas las franjas de carga predictiva desde la red. Se promedia sobre los últimos 7 días naturales.
-
-### Origen del consumo del hogar
-
-La potencia del hogar de cada ciclo se **deriva** de los valores que la integración ya tiene:
-
-```
-hogar = red + Σ(potencia AC de baterías) + solar
-```
-
-Es el mismo valor que muestra el diagrama de flujo de energía y el sensor **`sensor.marstek_venus_system_home_consumption`** (Consumo de la Casa, W). La FV acoplada en DC (MPPT) no aparece aquí — ya está neteada en la potencia AC de cada batería en el inversor.
-
-Cuando la batería carga desde la red, su potencia AC es negativa. Ese término cancela la importación de red correspondiente, por lo que la energía destinada a cargar la batería no se confunde con consumo del hogar. Por ejemplo, importar 2,8 kW mientras la batería carga a 2,5 kW da 0,3 kW de demanda de la casa.
-
-!!! note "Sensor de hogar heredado"
-    Un `household_consumption_sensor` guardado en una instalación antigua se lee directamente **en vez** de derivar, pero **solo cuando no hay sensor de producción solar configurado** — con sensor solar, el valor derivado es exacto y preferido. El campo ya no se ofrece en la configuración.
-
-### Dispositivos excluidos / adicionales
-
-Si has configurado [dispositivos excluidos o adicionales](excluded-devices.md), la potencia del hogar se corrige antes de acumular:
-
-- **Excluido** (`included_in_consumption = true`): el dispositivo ya está en la lectura del hogar/red pero la batería no debe alimentarlo → su potencia se **resta**.
-- **Adicional** (`included_in_consumption = false`): el dispositivo no es visible para la lectura del hogar pero la batería sí debe cubrirlo → su potencia se **suma**.
-
----
-
-## Acumulación en tiempo real
-
-En cada ciclo de control (dirigido por eventos, a la cadencia del sensor de red), la potencia corregida del hogar se integra durante todo el día local. Las franjas de carga predictiva solo programan cuándo puede cargar la batería desde la red; nunca pausan el aprendizaje del consumo de la casa.
-
-```
-incremento (kWh) = potencia_hogar (W) × Δt (s) / 3 600 000
-```
-
-`Δt` es el tiempo real transcurrido desde la muestra anterior, así se adapta a la cadencia variable. El valor diario en curso se expone como `household_consumption_full_day_kwh` en `binary_sensor.marstek_venus_system_predictive_charging_active`, y se persiste para sobrevivir reinicios dentro del mismo día.
-
----
-
-## Captura diaria a las 23:55
-
-Cada día a las **23:55 (hora local)** la integración guarda una instantánea del acumulador en el historial de 7 días antes de que se resetee a medianoche. El valor solo se almacena si es ≥ 1,5 kWh (para descartar días sin datos significativos).
-
----
-
-## Historial de 7 días
-
-La integración mantiene un historial rodante de las últimas **7 entradas** con formato `(fecha, kWh)`, persistido en disco para sobrevivir reinicios de Home Assistant.
-
-### Valor de reserva
-
-Mientras no haya 7 días reales acumulados (p. ej. recién instalada la integración), las entradas que falten se rellenan con el valor de reserva **`DEFAULT_BASE_CONSUMPTION_KWH = 5,0 kWh`**. Actúa solo como marcador temporal y se reemplaza en cuanto hay datos reales disponibles.
-
-### Backfill desde el historial del recorder
-
-Al arrancar, la integración recupera los días que falten consultando el **recorder de Home Assistant** para el sensor `sensor.marstek_venus_system_home_consumption` (que ya resuelve al valor derivado, o al sensor de hogar heredado cuando aplica). Para cada día que falte integra el historial de ese sensor durante todo el día local, aplica los ajustes de dispositivos excluidos/adicionales, y almacena el resultado igual que haría la captura de las 23:55. Así el historial se construye con datos reales incluso tras un reinicio de HA o una instalación nueva. Los historiales creados por versiones antiguas con ventanas se descartan una vez y se reconstruyen desde Recorder para no mezclar totales parciales y completos.
-
----
-
-## Media móvil de 7 días
-
-El consumo estimado que usa la carga predictiva es la **media aritmética** de todos los valores del historial:
-
-```
-consumo_esperado = Σ(consumo_i) / n días
-```
-
-donde `n` puede ser menor de 7 si aún no hay suficientes días reales (los valores de reserva también cuentan en el promedio hasta ser reemplazados).
-
----
-
-## Ejemplo completo
-
-```
-Lunes:     consumo del hogar del día completo = 5,0 kWh
-Martes:    consumo del hogar del día completo = 5,1 kWh
-Miércoles: consumo del hogar del día completo = 5,3 kWh
-Jueves:    consumo del hogar del día completo = 4,8 kWh
-Viernes:   consumo del hogar del día completo = 4,9 kWh
-Sábado:    consumo del hogar del día completo = 6,3 kWh
-Domingo:   consumo del hogar del día completo = 6,0 kWh
-
-Consumo esperado = (5,0 + 5,1 + 5,3 + 4,8 + 4,9 + 6,3 + 6,0) / 7 = 5,34 kWh
-```
-
----
-
-## Sensor de diagnóstico
-
-| Sensor | Descripción | Reset |
+| Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| `sensor.marstek_venus_system_daily_grid_at_min_soc_energy` | Energía importada de la red mientras todas las baterías estaban en SOC mínimo dentro de una franja de descarga — demanda del hogar que la batería no pudo cubrir | Medianoche (hora local) |
+| La previsión aún usa una alternativa | El perfil por hora no ha reunido cobertura reciente suficiente | **Perfil de consumo esperado de la casa** y sus atributos `source`, `mature` y `coverage_ratio` |
+| El Consumo de la casa no es plausible | Una medición de red, solar, batería o dispositivo excluido tiene el signo incorrecto o no está disponible | El diagrama de flujo de energía y las entidades de origen |
+| Un día inusual sigue afectando al aprendizaje | Se registró antes de activar Modo vacaciones | Ejecuta **Omnibattery: Excluir días de consumo** para esa fecha local |
+| No aparece historial reciente tras un reinicio | Recorder no tiene historial utilizable de Consumo de la casa | Retención de Recorder, disponibilidad de entidades y diagnósticos de la integración |
+| Modo vacaciones informa de una línea base genérica | Aún no ha observado suficientes datos nocturnos válidos | Mantén el modo activo durante noches representativas e inspecciona la fuente de su línea base |
 
-Este sensor **Grid at Min SOC** es informativo: muestra la demanda que la batería no atendió por estar vacía. Ya **no** se suma al consumo estimado (el consumo del hogar derivado ya captura la carga total de la casa, incluida la parte servida desde la red).
+??? "Detalles avanzados"
+    ### Qué cuenta como consumo del hogar
 
-El sensor `binary_sensor.marstek_venus_system_predictive_charging_active` expone en sus atributos el historial de consumo de los últimos 7 días y el número de entradas reales vs. valores de reserva, útil para verificar el estado del aprendizaje. En modo Precio Dinámico, `energy_horizon_end` indica el límite local al amanecer y `overnight_consumption_kwh` la demanda prevista entre medianoche y ese límite.
+    Omnibattery deriva la potencia instantánea del hogar de las mediciones que ya tiene:
 
-![Atributos del historial de consumo en HA](../assets/screenshots/features/consumption-estimate-attributes.png){ width="700"  style="display: block; margin: 0 auto;"}
+    ```text
+    home = grid + Σ(battery AC power) + solar
+    ```
 
-## Perfil de 28 días por cuarto de hora
+    La energía solar de corriente continua (CC) conectada mediante una entrada de seguimiento del punto de máxima potencia (MPPT) ya está neteada en la potencia de corriente alterna (CA) de la batería y no se añade dos veces. Durante la carga desde la red, la potencia de CA negativa de la batería cancela la importación de red correspondiente. Por ejemplo, importar `2.8 kW` mientras la batería carga a `2.5 kW` produce `0.3 kW` de demanda del hogar.
 
-La integración captura además la demanda corregida del hogar de forma continua,
-las 24 horas, en **96 intervalos locales de 15 minutos**. Cada muestra se integra
-con regla trapezoidal y se divide al cruzar medianoche, cuartos de hora y cambios
-de horario de verano. Un hueco de más de cinco minutos rompe la continuidad; un
-intervalo solo es válido cuando tiene al menos 675 segundos (75 %) de cobertura.
-Las franjas de carga no se aplican al aprendizaje ni a la previsión de la demanda
-del hogar: programan la carga de la batería, pero no eliminan la carga de la casa
-de esas horas.
+    Una instalación antigua puede conservar un `household_consumption_sensor`. Omnibattery lo lee directamente solo si no se ha configurado ningún sensor de producción solar; con un sensor solar, se prefiere el valor derivado. Este campo ya no se ofrece durante la configuración. El valor derivado también se expone como `sensor.marstek_venus_system_home_consumption`.
 
-El perfil combina muestras del mismo día de la semana, del mismo tipo
-laborable/fin de semana y globales. Los días recientes pesan `1,0`, `0,75`, `0,5`
-y `0,25`. Solo se considera maduro con al menos siete días válidos, dos muestras
-—del mismo día de la semana o, en su defecto, del mismo tipo laborable/fin de
-semana— para el 75 % de los intervalos solicitados, un 80 % de cobertura del rango y una
-muestra de menos de siete días. Si no es maduro, se usa automáticamente la media
-diaria heredada o la estimación por potencia actual, según el consumidor.
+    Antes de acumular, se resta un dispositivo excluido con `included_in_consumption = true` porque ya aparece en la lectura de red/hogar. Se añade un dispositivo adicional con `included_in_consumption = false` porque esa carga no aparece en la lectura. Consulta los [dispositivos excluidos](../configuration/excluded-devices.md).
 
-En la curva diaria provisional, el consumo restante se aproxima gradualmente
-al presupuesto diario todavía no consumido. La corrección alcanza toda su
-fuerza al mediodía y se limita al 30 % de la curva restante para que un pico
-puntual no elimine la demanda doméstica que aún cabe esperar durante el día.
+    ### Total diario y estimación heredada
 
-Tras arrancar, el backfill del Recorder se ejecuta en segundo plano con una
-consulta por cada fuente configurada. Los datos crudos están aislados en
-`omnibattery.<entry_id>.consumption_profile`. Nada de lo que configures borra lo
-aprendido: cambiar la fuente o un ajuste de cargas sólo rompe la continuidad del
-muestreo y lanza un backfill de los días que falten, y cambiar la zona horaria
-de Home Assistant reubica los días guardados según el desfase entre ambas zonas
-en vez de descartarlos (los dos días de los extremos se quedan con parte de sus
-horas y el backfill los vuelve a pedir). Sólo una zona horaria guardada que ya
-no exista obliga a aprender de cero.
+    Cada muestra de control aporta energía usando el tiempo real transcurrido:
 
-El sensor de diagnóstico
-`sensor.omnibattery_expected_home_consumption_profile` expone la previsión,
-los 96 intervalos/valores horarios, el origen, la madurez, la cobertura y los
-metadatos del fallback. Los diagnósticos de la integración contienen el resumen
-acotado por día. La carga predictiva, el Retraso de Carga
-Solar y Precio Dinámico solo usan el perfil cuando cumple el contrato de madurez.
+    ```text
+    increment (kWh) = home_power (W) × elapsed_time (s) / 3,600,000
+    ```
 
-Para comprobar cómo se llena el día actual, el sensor de diagnóstico
-`sensor.omnibattery_consumption_profile_capture` muestra los kWh capturados hasta
-el momento. Sus atributos `hourly_capture_kwh`, `interval_capture_kwh` e
-`interval_coverage_s` permiten localizar el consumo en las 24 horas y en los 96
-intervalos de 15 minutos. Este sensor muestra la captura cruda del día actual;
-no es la previsión y se reinicia al comenzar el siguiente día local.
+    Las franjas de carga no pausan el aprendizaje. A las `23:55` hora local, Omnibattery guarda el acumulador de todo el día si es de al menos `1.5 kWh`; después el acumulador se reinicia a medianoche. Conserva las `7` entradas diarias más recientes y calcula su media:
 
-Este perfil del hogar es independiente del perfil temporal solar. El consumo
-aprende demanda absoluta por intervalos de hora local y puede servir como
-fallback de carga; el perfil solar solo aprende una forma normalizada de luz a
-partir de potencia FV directa. Ninguno de los dos cambia el presupuesto de kWh
-de la previsión.
+    ```text
+    expected_consumption = Σ(daily_consumption) / number_of_days
+    ```
+
+    Las entradas que faltan al inicio usan `5.0 kWh` hasta que el relleno de Recorder o una captura real las reemplaza. El relleno integra **Consumo de la casa** de cada día local que falta, incluidos los ajustes de dispositivos excluidos/adicionales. Los historiales de versiones antiguas que solo cubrían franjas de carga se descartan y reconstruyen para que nunca se mezclen totales de días parciales y completos.
+
+    Ejemplo:
+
+    ```text
+    Daily totals: 5.0, 5.1, 5.3, 4.8, 4.9, 6.3, 6.0 kWh
+    Expected consumption = 37.4 / 7 = 5.34 kWh
+    ```
+
+    El valor en curso de todo el día también se expone como `household_consumption_full_day_kwh` en `binary_sensor.marstek_venus_system_predictive_charging_active` y persiste tras reinicios del mismo día. Sus atributos incluyen el historial diario y los recuentos de entradas reales y alternativas. En modo Precio dinámico, `energy_horizon_end` identifica el límite del amanecer local y `overnight_consumption_kwh` informa de la demanda prevista entre medianoche y ese límite.
+
+    **Red en SOC mínimo** (`sensor.marstek_venus_system_daily_grid_at_min_soc_energy`) se reinicia a medianoche local e informa de la energía de red importada mientras todas las baterías estaban en su estado de carga (SOC) mínimo durante una franja de descarga. Es solo diagnóstico y no se añade a la estimación porque el consumo derivado del hogar ya incluye esa demanda.
+
+    ### Perfil aprendido por hora del día
+
+    Omnibattery conserva hasta `28` días locales en `96` intervalos de quince minutos. Integra muestras con una regla trapezoidal entre límites de intervalo, medianoche y cambios de horario de verano. Un hueco de muestra superior a `5 minutes` rompe la continuidad; un intervalo necesita al menos `675 seconds` (`75%`) de cobertura para ser utilizable.
+
+    El perfil prefiere el día de la semana coincidente, después el tipo laborable/fin de semana coincidente y después todos los días utilizables. Las muestras se ponderan por antigüedad con `1.0`, `0.75`, `0.5` y `0.25`. Un rango solicitado solo es maduro si tiene al menos `7` días válidos; al menos `2` muestras coincidentes para el `75%` de sus intervalos; al menos `80%` de cobertura total; y una muestra más reciente de no más de `7` días.
+
+    Hasta entonces, Omnibattery distribuye la estimación diaria sobre una curva temporal provisional con forma de hogar: la demanda más baja de `00:00–06:00`, un aumento de desayuno, mayor demanda diurna y el pico de cena más intenso. La curva se normaliza para conservar el total diario exacto, incluso en días de cambio de horario de verano. Las previsiones ajustan el tramo restante de hoy después de las primeras `3 hours`, alcanzan el ajuste completo a las `12:00` y limitan esa corrección al `30%` de la previsión restante de hoy para que un único pico no elimine la demanda posterior esperada. El tramo posterior a medianoche usa el perfil del día siguiente o la tasa horaria histórica cuando el perfil no está disponible.
+
+    Durante Modo vacaciones, los días de calendario afectados se omiten del historial diario y solo los cuartos de hora afectados se omiten del perfil. Las previsiones usan la carga mediana de las últimas `3` noches válidas de `01:00–05:00`, donde una noche necesita `3 hours` de cobertura. Antes de disponer de ello, el orden alternativo es el perfil nocturno aprendido, el historial diario distribuido a lo largo del día y, por último, la estimación predeterminada. Conmutar el interruptor rompe la continuidad de las muestras para que un intervalo nunca se atribuya a ambos lados del cambio de modo.
+
+    **Excluir días de consumo** acepta fechas de los últimos `35` días, las elimina del historial diario y las enmascara del perfil sin modificar contadores físicos ni Recorder. La misma acción se puede llamar como:
+
+    ```yaml
+    action: omnibattery.exclude_consumption_days
+    data:
+      start_date: "2026-09-07"
+      end_date: "2026-09-07"  # optional; defaults to start_date
+    ```
+
+    Eliminar manualmente un día de `.storage` no lo excluye: el relleno lo trata como ausente y lo restaura.
+
+    Un perfil inmaduro recurre a la estimación diaria heredada o a una estimación de tasa actual, según la función solicitante. El relleno de Recorder se ejecuta en segundo plano con una consulta por cada origen configurado. Los datos de perfil sin procesar están aislados en `omnibattery.<entry_id>.consumption_profile`. Cambiar un origen o ajuste de carga rompe la continuidad de las muestras y vuelve a llenar los días ausentes. Un cambio de zona horaria de Home Assistant vuelve a agrupar los días almacenados; las dos fechas de los extremos conservan sus horas parciales y se recuperan de nuevo. Solo una zona horaria almacenada que ya no existe fuerza un perfil nuevo.
+
+    `sensor.omnibattery_expected_home_consumption_profile` expone la previsión por intervalos y horas, el origen, la madurez, la cobertura y los metadatos alternativos. `sensor.omnibattery_consumption_profile_capture` expone la captura sin procesar de hoy mediante `hourly_capture_kwh`, `interval_capture_kwh` e `interval_coverage_s`; se reinicia el siguiente día local. Los diagnósticos de la integración incluyen un resumen de aprendizaje acotado por día.
+
+    Este perfil de hogar es independiente del perfil temporal solar. El aprendizaje doméstico estima demanda absoluta por hora local; el perfil solar aprende una forma normalizada de luz a partir de potencia solar directa. Ninguno cambia el presupuesto energético de la previsión.

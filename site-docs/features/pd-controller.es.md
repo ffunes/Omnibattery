@@ -1,184 +1,134 @@
-# Controlador PD
+# Seguir el consumo de casa
 
-El controlador PD (Proporcional-Derivativo) es el núcleo de la integración. Se ejecuta **dirigido por eventos** —recalcula cada vez que el sensor de consumo de red publica un valor nuevo— y ajusta la potencia de la batería para mantener el flujo de red cercano al objetivo configurado (por defecto, 0 W).
+El control proporcional–derivativo (PD) ajusta la potencia de la batería según cambia la demanda del hogar y mantiene la importación o exportación de red cerca del objetivo que elijas. Empieza con **Balanced** y ajusta solo si observas un problema repetible.
 
-## Algoritmo
+## ¿Lo necesito?
 
-```
-error = grid_power - target_power
+**Úsalo si** quieres que Omnibattery siga automáticamente los cambios del consumo de casa. Es el modo de control normal y sirve para la mayoría de instalaciones.
 
-P = Kp × error
-D = Kd × (error - error_anterior) / dt
+**No necesitas ajustarlo si** el flujo de red se mantiene cerca del objetivo sin cambios repetidos de carga y descarga. Las diferencias pequeñas y estables dentro de la banda muerta son intencionadas y evitan microciclos ineficientes.
 
-ajuste = P + D
-nueva_potencia = potencia_actual + ajuste
-```
+## Antes de empezar
 
-Como el lazo es dirigido por eventos (cadencia variable), el término `P` y el límite de rampa se escalan internamente por el tiempo real transcurrido entre actualizaciones del sensor, de modo que el ajuste se comporta igual independientemente de la rapidez con que publique tu sensor.
+- Configura un sensor de consumo de red que funcione y se actualice con frecuencia.
+- Permite que Omnibattery controle la batería automáticamente; el modo manual y otras reglas activas pueden tomar el control temporalmente.
+- Comprueba que la batería puede cargar y descargar y que no está ya en un límite de estado de carga o de potencia.
 
-### Parámetros por defecto
+## Cómo activarlo
 
-| Parámetro | Valor | Descripción |
+1. Abre el panel lateral de Omnibattery y selecciona **Control**.
+2. En **PD controller**, activa **PD control**. Esto desactiva **No-PD Direct Tracking** porque ambos modos son mutuamente excluyentes.
+3. Selecciona **Balanced** en **PD tuning profile** y deja sin cambios los controles manuales de ganancias.
+4. Observa **PD Control Quality** mientras cambian las cargas normales de casa.
+
+![Entidades del controlador PD en Home Assistant](../assets/screenshots/features/pd-controller-entities.png){ width="700" style="display: block; margin: 0 auto;"}
+
+## Qué verás
+
+**PD Control Quality** muestra un veredicto práctico:
+
+| Estado | Significado | Acción |
 |---|---|---|
-| `Kp` | `0.35` | Ganancia proporcional |
-| `Kd` | `0.3` | Ganancia derivativa |
-| Deadband | `±40 W` | Zona muerta: ignora errores pequeños |
-| Rate limit | `±800 W/ciclo` | Límite de cambio por ciclo |
+| **Stable** | El flujo de red sigue el objetivo sin oscilación persistente | Mantén la configuración actual |
+| **Oscillating** | La importación y la exportación se alternan repetidamente fuera de la banda muerta | Sigue la fila sobre oscilación de abajo |
+| **Sluggish** | Un error sostenido se corrige demasiado despacio | Sigue la fila sobre respuesta lenta de abajo |
+| **Battery limited** | La batería está llena, vacía o en un límite de potencia | Comprueba los límites de batería; el ajuste no puede añadir capacidad |
+| **Blocked** | Una programación, retraso de carga, regla de precio o carga excluida impide la acción necesaria | Busca la regla activa antes de ajustar |
+| **Collecting data** | La métrica se está calentando o no ha recibido datos de control utilizables recientemente | Espera a que se reanude el control automático normal |
+| **Disabled** | Está activo el seguimiento directo No-PD | Usa sus controles en lugar del ajuste PD |
 
-## Perfiles de ajuste
+Después de cambiar un ajuste, deja que la métrica de calidad refleje el nuevo comportamiento antes de cambiar otro.
 
-En vez de ajustar las ganancias a mano, elige un **perfil de ajuste** (`select.*_pd_tuning_profile`): un preset de un clic que fija `Kp`, `Kd` y el límite de rampa a la vez. Ordenados de más suave a más rápido:
+## Si no funciona
 
-| Perfil | Kp | Kd | Rate limit | Cuándo |
-|---|---|---|---|---|
-| Muy suave | 0.22 | 0.15 | 400 W | Medidor ruidoso, cero cabeceo; calmo pero lento |
-| Suave | 0.30 | 0.25 | 600 W | Conservador |
-| Equilibrado | 0.35 | 0.30 | 800 W | Por defecto — vale para la mayoría |
-| Agresivo | 0.55 | 0.45 | 1200 W | Medidor limpio, respuesta rápida |
-| Muy agresivo | 0.75 | 0.45 | 2000 W | Medidor limpio + batería a plena potencia; respuesta más rápida |
-| Personalizado | — | — | — | Manual: ajusta tú los sliders |
-
-- Elegir un perfil escribe sus tres ganancias y las recarga en caliente (sin reinicio).
-- Mover a mano cualquiera de esos tres sliders pasa el perfil a **Personalizado** automáticamente; tu valor se conserva.
-- **El deadband no forma parte de los perfiles.** Es tu preferencia de precisión / ruido del medidor *y* la referencia contra la que mide el sensor de calidad, así que queda como un slider aparte que controlas tú. Cambiarlo no cambia el perfil activo.
-
-En el dashboard, el selector de perfil y el sensor de calidad están al principio de la sección **Controlador PD** de la pestaña Control.
-
-## Configuración desde el dashboard
-
-!!! warning "Solo para usuarios expertos"
-    No modifiques estos valores salvo que entiendas la teoría de control PD y cómo interactúa con los tiempos de respuesta del inversor. **Los valores por defecto funcionan correctamente en la gran mayoría de instalaciones.**
-
-Los siguientes controles ajustan los parámetros internos del controlador PD. También se pueden modificar en tiempo de ejecución desde las entidades de configuración de la integración, sin reiniciar Home Assistant.
-
-!!! tip "Mejor usa perfiles"
-    La mayoría de usuarios no necesita cambiar estos valores a mano. El selector de **perfil de ajuste PD** aplica presets validados de `Kp`/`Kd`/límite de rampa en un clic, y el sensor de **calidad de control PD** muestra si el resultado es estable, oscilante o lento.
-
-| Parámetro | Por defecto | Rango | Descripción |
-|---|---|---|---|
-| **Kp** | `0.35` | 0.1–2.0 | Ganancia proporcional. Un valor mayor produce una respuesta más rápida, pero más sobreoscilación. |
-| **Kd** | `0.3` | 0.0–2.0 | Ganancia derivativa. Un valor mayor suaviza las transiciones, pero ralentiza la respuesta. |
-| **Deadband** | `40 W` | 0–200 W | Zona muerta. El controlador no actúa si el error es menor que este valor. |
-| **Cambio máximo de potencia** | `800 W/ciclo` | 100–2000 W | Cambio máximo por ciclo. Protege frente a variaciones bruscas. |
-| **Histéresis direccional** | `60 W` | 0–200 W | Margen necesario para cambiar entre carga y descarga. |
-| **Potencia mínima de carga** | `0 W` | 0–2000 W | Si la carga calculada está por debajo de este valor, el controlador permanece inactivo. `0` lo desactiva. |
-| **Potencia mínima de descarga** | `0 W` | 0–2000 W | Igual que el anterior, para la descarga. `0` lo desactiva. |
-| **Potencia objetivo de red** | `0 W` | −(descarga total configurada) … +(carga total configurada) | Consigna de red que regula el PD. Positivo = importar de red (la batería carga), negativo = exportar a red (la batería descarga), `0` = balance neto cero. El rango sigue tus baterías: tres unidades de 2500 W dan ±7500 W. Activar los límites de potencia del sistema estrecha cada dirección hasta su límite configurado. |
-| **Activar límites de potencia del sistema** | desactivado | activado/desactivado | Activa el límite combinado de carga/descarga de todas las baterías activas. |
-| **Potencia máxima de carga del sistema** | `0 W` | Dinámico: suma de potencias de carga configuradas | Límite opcional para la potencia de carga combinada. `0` lo desactiva. |
-| **Potencia máxima de descarga del sistema** | `0 W` | Dinámico: suma de potencias de descarga configuradas | Límite opcional para la potencia de descarga combinada. `0` lo desactiva. |
-
-Las potencias mínimas de carga/descarga son útiles para evitar microciclos ineficientes cuando la demanda de red es muy baja.
-
-Los límites del sistema son útiles cuando la instalación tiene un límite compartido de hardware o cableado. No reducen el máximo individual de cada batería: una única batería activa puede seguir usando su límite configurado, mientras que varias baterías activas se limitan al máximo combinado.
-
-Cuando **Activar límites de potencia del sistema** está desactivado, ambos límites se ignoran y no se crean sus entidades `number` de runtime. Cuando está activado, se exponen como sliders en el dispositivo Omnibattery System.
-
-![Configuración avanzada del controlador PD](../assets/screenshots/configuration/advanced-pd-controller-config.png){ width="650" style="display: block; margin: 0 auto;"}
-
-## Sensor de calidad de control
-
-`sensor.marstek_venus_system_pd_control_quality` muestra de un vistazo cómo de bien mantiene el PD el objetivo de red, para que veas el efecto de un cambio de perfil/slider en vez de adivinar.
-
-El **estado es un veredicto**, no un número:
-
-| Estado | Significado | Qué hacer |
+| Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| Estable | El PD sigue bien el objetivo | Nada |
-| Oscilando | Cabeceo (carga↔descarga frecuente) | Usa un perfil más suave, o sube el deadband |
-| Lento | Demasiado lento para alcanzar | Usa un perfil más agresivo |
-| Limitado por batería | Batería llena/vacía o en su límite de potencia — el PD no puede actuar | No es problema de ajuste |
-| Recopilando datos | Calentando (recién arrancado) | Espera |
+| Hay una importación o exportación pequeña y estable cerca del objetivo | El error está dentro de la banda muerta | Déjalo como está salvo que la diferencia importe para tu tarifa; estrechar la banda muerta puede provocar más conmutaciones |
+| La carga y descarga se alternan repetidamente | La banda muerta es demasiado estrecha, el perfil demasiado agresivo o la derivada reacciona al ruido del medidor | Aumenta primero **PD Deadband**; después elige el siguiente perfil más suave; en **Custom**, reduce **Kp** y luego **Kd** |
+| La respuesta sigue siendo lenta ante una carga sostenida | La batería está limitada o el perfil es demasiado suave | Descarta primero **Battery limited** o **Blocked**; después elige el siguiente perfil más rápido; en **Custom**, aumenta **Kp** y luego **PD Max Power Change** si la rampa es el límite |
+| Aparecen picos grandes de importación/exportación tras cambios de carga | El inversor aún está acelerando, o la primera corrección es demasiado brusca | Pueden esperarse picos breves mientras la potencia medida se estabiliza; si se repite el sobreimpulso, elige un perfil más suave y después reduce **PD Max Power Change** |
+| La batería hace clic al entrar y salir de reposo | La demanda oscila alrededor del borde de la banda muerta | Aumenta gradualmente **PD Relay Cooldown**; solo afecta a transiciones de activo a reposo |
+| Un medidor rápido provoca muchas escrituras en la batería | Los ciclos de control llegan más rápido de lo que el puente puede manejar | Aumenta **PD Min Cycle Interval**; en modo de seguimiento directo, aumenta **No-PD Command Delay** |
+| La calidad sigue en **Battery limited** o **Blocked** | El controlador no puede aplicar la dirección requerida | Comprueba el estado de carga, los límites de potencia de batería, franjas horarias, retraso de carga, reglas de precios y cargas excluidas |
 
-Los atributos llevan las cifras crudas: `rms_error_w` (error medio de seguimiento), `oscillation_per_min`, las ganancias activas y `active_profile`.
+??? "Detalles avanzados"
+    ### Ley de control y cadencia
 
-**Cómo ajustar:**
+    El controlador se ejecuta cuando el sensor de red publica un valor nuevo. En paralelo, una **vigilancia de seguridad de 2 segundos** mantiene en marcha las demás funciones basadas en tiempo y fuerza una reevaluación de seguridad, en lugar de conservar indefinidamente la última orden, si el sensor queda en silencio durante unos **65 segundos**; un bloqueo serializa las ejecuciones solapadas.
 
-1. Mira el veredicto (y `rms_error_w`).
-2. `Oscilando` → baja un perfil (Agresivo → Equilibrado → Suave). `Lento` → sube.
-3. Espera **1–2 minutos** — la métrica es una media móvil de 60 s, así que va con retraso.
-4. Repite hasta `Estable`.
+    El controlador usa una ley de control incremental. Una potencia de orden positiva significa carga de batería y una negativa, descarga:
 
-La métrica es robusta frente a lecturas falsas: se pausa brevemente tras cualquier cambio de objetivo (balance neto horario, protección de capacidad, cambio manual de objetivo…) y mientras la batería está limitada, para no inflar la lectura.
+    ```text
+    error = grid_power - target_power
+    P = Kp × error
+    D = Kd × filtered_change_in_error / elapsed_time
+    new_power = current_power − (P + D)
+    ```
 
-## Cadencia de control
+    El término proporcional y el límite de rampa se escalan según el tiempo transcurrido, de modo que un medidor más rápido no multiplica la tasa de corrección prevista. La derivada se filtra paso bajo para reducir la cuantización del medidor y el ruido del inversor. Cuando la potencia CA medida muestra que la batería no puede entregar su orden, la protección contra acumulación del control vuelve a anclar la siguiente corrección a la salida medida.
 
-El controlador es **dirigido por eventos**: recalcula en el instante en que el sensor de consumo de red publica un valor nuevo, por lo que reacciona a la cadencia nativa del sensor (a menudo una vez por segundo) en lugar de esperar a un tick de temporizador fijo.
+    El objetivo predeterminado es `0 W`: una potencia de red positiva es importación y una negativa, exportación. Una [franja horaria](../configuration/time-slots.md) puede establecer un objetivo distinto durante su periodo activo.
 
-En paralelo corre un **watchdog de 2 segundos**. Mientras el sensor se actualiza con normalidad casi no hace nada —el evento ya procesó el último valor—; su función es mantener en marcha los subsistemas basados en tiempo y forzar una **recálculo de seguridad si el sensor se queda en silencio** (tras ~30 s sin actualizaciones el controlador reevalúa en vez de mantener el último comando indefinidamente).
+    ### Perfiles de ajuste
 
-Un lock evita ejecuciones solapadas: si un ciclo sigue en curso cuando se dispara el siguiente trigger, ese trigger se descarta (el ciclo en curso ya lee el estado actual). Así las escrituras Modbus a la batería quedan serializadas.
+    Un perfil establece conjuntamente **Kp**, **Kd** y **PD Max Power Change**. Al mover uno de esos controles, el selector cambia a **Custom**. **PD Deadband** es independiente.
 
-## Mecanismos de estabilización
+    | Perfil | Kp | Kd | Cambio máx. | Comportamiento previsto |
+    |---|---:|---:|---:|---|
+    | **Very Smooth** | `0.22` | `0.15` | `400 W` | Respuesta más tranquila para un medidor ruidoso |
+    | **Smooth** | `0.30` | `0.25` | `600 W` | Respuesta conservadora |
+    | **Balanced** | `0.35` | `0.30` | `800 W` | Ganancias de fábrica y punto de partida normal |
+    | **Aggressive** | `0.55` | `0.45` | `1,200 W` | Respuesta más rápida con mayor riesgo de sobreimpulso |
+    | **Very Aggressive** | `0.75` | `0.45` | `2,000 W` | El preajuste más rápido para baterías que pueden aprovechar todo el paso |
+    | **Custom** | — | — | — | Control manual de los tres valores del perfil |
 
-### Deadband (zona muerta)
+    | Control | Predeterminado | Rango | Efecto |
+    |---|---:|---:|---|
+    | **PD Target Grid Power** | `0 W` | `±2,500 W` (alternativa) | Consigna de red que regula el PD. Positivo = importación de red (la batería carga), negativo = exportación a red (la batería descarga). El rango sigue tus baterías configuradas: tres unidades de 2,500 W dan un rango de ±7,500 W. Activar los límites de potencia del sistema estrecha cada dirección a su tope configurado. Una [franja horaria](../configuration/time-slots.md) puede establecer un objetivo distinto durante su periodo activo |
+    | **PD Kp** | `0.35` | `0.1–2.0` | Aumenta o reduce la corrección aplicada a un error sostenido |
+    | **PD Kd** | `0.30` | `0.0–2.0` | Reacciona a los cambios de error; un valor excesivo puede amplificar lecturas ruidosas o retrasadas |
+    | **PD Deadband** | `40 W` | `0–200 W` | Ignora errores pequeños alrededor del objetivo |
+    | **PD Max Power Change** | `800 W per nominal cycle` | `100–2,000 W` | Limita lo brusco que puede ser el cambio de orden; se escala internamente por el tiempo transcurrido |
+    | **PD Direction Hysteresis** | `60 W` | `0–200 W` | Rechaza pequeñas peticiones de invertir la dirección carga/descarga |
+    | **PD Min Charge Power** | `0 W` | `0–2,000 W` | Mantiene en reposo peticiones de carga pequeñas; `0 W` desactiva el mínimo |
+    | **PD Min Discharge Power** | `0 W` | `0–2,000 W` | Mantiene en reposo peticiones de descarga pequeñas; `0 W` desactiva el mínimo |
+    | **PD Relay Cooldown** | `0 s` | `0–60 s` | Mantiene una batería activada antes de una transición de activo a reposo; `0 s` lo desactiva |
+    | **PD Min Cycle Interval** | `1.0 s` | `0–2.0 s` | Descarta ciclos activados por el sensor demasiado cercanos; `0 s` desactiva el intervalo |
 
-Si el error es menor de ±40 W, el controlador no ajusta la potencia. Evita micro-oscilaciones continuas por ruido del sensor.
+    Si la salida de la batería está limitada por debajo del cambio máximo del perfil, el limitador de rampa puede no actuar antes de que la batería alcance su tope. Usa un perfil más suave o establece un cambio máximo personalizado menor cuando ese primer paso produzca sobreimpulso.
 
-### Rate limiting
+    Las potencias mínimas de carga y descarga pueden evitar un funcionamiento ineficiente a baja potencia. Durante la espera del relé, Omnibattery mantiene la dirección activa en el mínimo configurado o en `100 W` cuando ese mínimo está desactivado. Un gran desequilibrio evita esta retención. Las inversiones de carga a descarga usan la protección de cruce por cero independiente de abajo.
 
-El cambio de potencia se limita por ciclo para suavizar las transiciones y proteger la batería de cambios bruscos. Un «ciclo» es una actualización de control, que se dispara con cada valor nuevo del sensor. El límite por ciclo configurado se escala internamente por el tiempo real transcurrido entre actualizaciones, de modo que la tasa efectiva de rampa (W/s) se mantiene constante independientemente de la rapidez con que publique el sensor. Baja el límite si la respuesta se siente brusca.
+    Los límites de potencia del sistema pueden limitar opcionalmente la potencia combinada de carga y descarga sin reducir el límite propio de cada batería. Cuando se activan, aparecen los dos controles de tope en el dispositivo Omnibattery System; `0 W` desactiva un tope.
 
-### Detección de oscilaciones
+    ![Configuración avanzada del controlador PD](../assets/screenshots/configuration/advanced-pd-controller-config.png){ width="650" style="display: block; margin: 0 auto;"}
 
-El controlador monitoriza reversiones de dirección (carga↔descarga) frecuentes. Si detecta oscilación sostenida, reduce temporalmente la ganancia efectiva.
+    ### Estabilización automática
 
-### Histéresis direccional
+    - **Banda muerta:** no se realiza ninguna corrección mientras el error se mantenga dentro de la banda configurada.
+    - **Histéresis de dirección:** una pequeña petición en dirección opuesta se mantiene en reposo.
+    - **Detección de oscilación:** las inversiones repetidas del signo del error fuera de la banda muerta reinician el estado acumulado del controlador para que el control proporcional pueda recuperarse.
+    - **Feedforward:** en modo PD, un gran escalón de carga que persiste hasta la siguiente muestra recibe una corrección directa anclada a la potencia medida. Se ignora un pico de una sola muestra, se protegen cargas pulsantes opuestas y el ajuste PD normal se reanuda en el ciclo siguiente. No hay ajuste de usuario para feedforward.
+    - **Retención de cruce por cero:** todas las rutas de control fijan temporalmente en reposo una inversión de carga a descarga o de descarga a carga. La petición debe persistir al menos `5 s`, o el doble de la latencia del actuador de la batería más lenta si es mayor. Esto puede producir una breve orden de `0 W` tras un cambio de dirección real.
 
-Evita cambios de dirección por variaciones de carga momentáneas (como el arranque de electrodomésticos). El controlador requiere que el error supere un umbral durante varios ciclos antes de cambiar de carga a descarga o viceversa.
+    ### Seguimiento directo No-PD
 
-### Filtrado del término derivativo
+    **No-PD Direct Tracking** es una alternativa opcional para un medidor limpio y rápido. Reconstruye la carga de casa a partir de la potencia CA medida de batería y el error de red, y pide directamente el resultado en un ciclo de control:
 
-El término derivativo se filtra con un paso-bajo (constante de tiempo corta) antes de llegar a la salida. Derivar una señal de red apenas suavizada amplificaría el ruido de cuantización del medidor y el PWM del inversor, inyectándolo en la potencia de la batería; el filtrado mantiene el derivativo útil sin ese ruido.
+    ```text
+    new_power = measured_battery_power − error
+    ```
 
-### Anti-windup por potencia medida
+    Esta vía evita las ganancias PD, el filtro derivativo, el límite de rampa gradual y la histéresis de dirección. Sigue usando la banda muerta, la potencia mínima de carga/descarga, la espera de relé, el ajuste de objetivo de red, las restricciones de operación y la retención de cruce por cero. **No-PD Command Delay** agrupa actualizaciones rápidas del medidor en una orden con el último valor; su valor predeterminado es `0.0 s` y su rango es `0–3.0 s`.
 
-El controlador asume que cada batería entrega exactamente la potencia comandada. Cuando no puede —por ejemplo por reducción (taper) de SOC/voltaje o por retardo de rampa—, el controlador detecta el déficit sostenido comparando el comando con la potencia AC medida y reancla su línea base interna a la realidad. Así evita que la salida de control «se acumule» (windup) por encima de lo que el hardware entregó realmente, lo que de otro modo causaría un sobreimpulso o una breve exportación a red cuando la carga baja después.
+    ### Diagnóstico de calidad de control
 
-## Protección de relé y de tasa de escritura
+    La métrica de calidad usa una ventana de promedio exponencial de `60 s` y se pausa tras cambios de objetivo o mientras el control está limitado. Si no avanza durante `300 s`, el estado vuelve a **Collecting data**.
 
-Dos sliders opcionales protegen el hardware del traqueteo cuando la red ronda el borde del deadband o un medidor rápido publica ráfagas. Ambos vienen con un valor casi desactivado, así que las instalaciones existentes no cambian.
+    Los atributos de diagnóstico son `rms_error_w`, `oscillation_per_min`, `metric_age_s`, `kp`, `kd`, `deadband_w`, `max_power_change_w` y `active_profile`.
 
-| Slider | Por defecto | Qué hace |
-|---|---|---|
-| **PD Relay Cooldown** (`number.*_pd_relay_cooldown`, s) | `0` (desactivado) | Tiempo mínimo que la batería sigue activa antes de volver a reposo. Frena el traqueteo de relé durante las rampas solares. El tiempo se cuenta **desde el momento en que se pide el reposo**, así que de verdad se mantiene. Mientras se mantiene corre a la potencia mínima de carga/descarga configurada (o 100 W si es 0). Los desbalances grandes lo saltan. Solo gobierna activo→reposo, no los cambios carga↔descarga. |
-| **PD Min Cycle Interval** (`number.*_pd_min_cycle_interval`, s) | `1` | Limita con qué frecuencia corre el lazo dirigido por eventos — las actualizaciones de red más cercanas que esto se descartan, así un medidor rápido no inunda bridges Modbus lentos (p. ej. Elfin EW11) con ráfagas de escritura. El watchdog de seguridad de 2 s nunca se limita, así que el control nunca se detiene. `0` = desactivado. |
+    ### Exclusión de salida de respaldo
 
-## Modo de seguimiento directo No-PD
+    Una batería con **Backup Function** activada queda excluida cuando **AC Offgrid Power** supera su **Backup Offgrid Threshold**, o cuando esa lectura de potencia no está disponible. El umbral predeterminado es `50 W`, por lo que pequeñas cargas permanentes en la salida de respaldo no retiran la batería del control normal.
 
-Una alternativa **opcional** a la ley de control PD, para quien quiere que la batería siga el sensor de consumo **1:1 en un único ciclo** — sin integral, derivativo, suavizado, limitador de rampa ni histéresis. Actívalo con el switch **No-PD Direct Tracking** (`switch.*_no_pd_mode`); el controlador PD queda intacto mientras esté desactivado (los dos son mutuamente excluyentes en el dashboard).
-
-En cada ciclo reconstruye la carga del hogar a partir de la potencia AC **medida** de la batería (`nueva = medida − error`) en vez del último comando, así se mantiene estable durante la rampa de varios segundos del inversor en lugar de oscilar de extremo a extremo.
-
-Reutiliza el deadband, la potencia mínima de carga/descarga, el min-ON de relé y los sliders de setpoint de red existentes, más una perilla específica del modo:
-
-- **No-PD Command Delay** (`number.*_no_pd_command_delay`, s) — amortigua medidores rápidos colapsando una ráfaga de actualizaciones en un único comando sobre el último valor.
-
-!!! tip "Cuándo usarlo"
-    No-PD encaja con un medidor limpio y rápido donde quieres la respuesta más directa posible y el ajuste PD te sobra. Con un medidor ruidoso, el filtrado del controlador PD suele ser mejor opción.
-
-## Exclusión por función de reserva
-
-Una batería queda excluida del controlador PD cuando se cumplen **las dos** condiciones siguientes:
-
-1. El switch **Función de reserva** (`switch.*_backup_function`) está activado.
-2. El sensor **Potencia AC offgrid** (`sensor.*_ac_offgrid_power`) reporta un valor distinto de 0 W, lo que confirma que la batería está proporcionando energía offgrid activamente.
-
-Tener el switch activado por sí solo no es suficiente. Si el switch está activo pero la potencia AC offgrid lee 0 W (la batería no está sirviendo ninguna carga offgrid), la batería sigue participando en el control PD con normalidad.
-
-Mientras está excluida, el controlador no envía ningún comando de potencia, cambio de modo forzado ni escritura de registros de configuración. La batería sigue siendo consultada con normalidad, por lo que todos los sensores de solo lectura (SOC, potencia, temperatura, etc.) se mantienen actualizados.
-
-### Cooldown post-backup
-
-Cuando la carga offgrid vuelve a 0 W, la batería no se reincorpora inmediatamente al control PD. Se aplica un **cooldown de 5 minutos** que mantiene la batería excluida tras el fin del evento de reserva, evitando enviar comandos de escritura a una batería que puede estar aún estabilizándose.
-
-Desactivar el switch de **Función de reserva** elimina el cooldown de forma inmediata.
-
-!!! info
-    La exclusión también aplica a las escrituras de registro de la carga semanal completa y a la secuencia de apagado.
-
-## Potencia objetivo por franja
-
-Cada [franja horaria](../configuration/time-slots.md) puede tener su propia **potencia objetivo de red** (`target_grid_power`), permitiendo distintas estrategias según el momento del día.
-
-![Entidades del controlador PD en Home Assistant](../assets/screenshots/features/pd-controller-entities.png){ width="700"  style="display: block; margin: 0 auto;"}
+    Mientras está excluida, Omnibattery sigue consultando datos de solo lectura, pero no envía a esa batería órdenes de potencia, modo forzado, configuración ni carga completa semanal. Tras volver la potencia aislada por debajo del umbral, la exclusión se mantiene `5 min`; desactivar **Backup Function** elimina el periodo de espera inmediatamente.

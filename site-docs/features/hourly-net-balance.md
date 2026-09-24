@@ -1,89 +1,114 @@
-# Hourly Net Balance
+# Hourly net balance
 
-Tracks grid import and export within each civil hour and adjusts the PD setpoint in real time to drive the net energy toward a configurable target. The default target is 0 Wh — net zero each hour — but you can shift it to allow a fixed import or target a fixed export.
+Hourly net balance adjusts battery power during each clock hour so grid import minus export approaches the energy target you choose. It is useful when your tariff or compensation is settled hour by hour rather than from each instant of power flow.
 
-## How it works
+## Do I need it?
 
-Every PD control cycle (event-driven, at the grid sensor's cadence) the manager:
+**Use it if** your electricity contract values net grid energy within each clock hour and you want Omnibattery to correct an early import or export before that hour ends.
 
-1. Accumulates grid import and export for the current civil hour.
-2. Computes the deficit versus the target: `deficit = target_net_Wh − (imp_Wh − exp_Wh)`.
-3. Derives a power correction: `offset = deficit / remaining_hours`.
-4. Applies a 5-minute ramp-in at the start of each hour to avoid aggressive early corrections.
-5. Clamps the offset to the configured maximum.
-6. Applies a configurable hysteresis (default 15 W): the offset only updates if it changes by more than this threshold (bypassed during the last 10 minutes of the hour so the hour closes cleanly).
-7. Registers the offset via the setpoint registry so it composes cleanly with other features.
+**You do not need it if** your billing uses a different settlement period, instant zero-grid control already meets your goal, or you do not want the battery to spend energy correcting the current hour.
 
-The offset is cleared automatically when:
+## Before you start
 
-- The current time is outside all configured [time slots that allow discharge](../configuration/time-slots.md) (or 24/7 when no slots are defined).
-- Manual mode is active.
+- Configure the grid consumption sensor used by Omnibattery. It is the fallback source for this feature.
+- Enable automatic battery control and make sure at least one battery can act in the required direction.
+- If you use time slots, the feature operates only while a configured slot allows discharge. With no enabled slots, it operates all day.
+- Check whether [capacity protection (peak shaving)](peak-shaving.md) is active. When it intervenes, its safety target takes precedence over the hourly correction.
 
-## Data source
+## How to enable it
 
-By default, the integration integrates the grid power sensor using the trapezoidal rule. If a sensor named `sensor.balance_neto` is present in Home Assistant, it is used instead. Detection is automatic:
+1. Open the Omnibattery sidebar panel and select **Control**.
+2. Find **Hourly net balance** and turn it on.
+3. Leave **Hourly Balance Target** at `0.0 kWh` for net zero, or choose a positive target for net import and a negative target for net export.
+4. Start with the default **Hourly Balance Max Offset** of `1,000 W`, then confirm that **Balance Neto** begins tracking the current hour.
 
-| Sensor type | Unit | `state_class` | Method |
-|---|---|---|---|
-| Cumulative energy | kWh / Wh | `total` or `total_increasing` | Snapshot at hour start, delta per cycle |
-| Instantaneous energy | kWh / Wh | `measurement` | Read directly |
-| Power | W / kW | any | Trapezoidal integration |
+## What you will see
 
-If the external sensor becomes unavailable, the integration falls back to trapezoidal automatically. The active source is visible in the `source` attribute of the Balance Neto sensor.
+**Balance Neto** shows the current hour's net grid energy. A positive state means net export; a negative state means net import. Its status indicates whether the feature is idle, outside a time slot, compensating toward import or export, capped by its maximum offset, or blocked from charging.
 
-The candidate list is defined in `const.py → EXTERNAL_NET_BALANCE_CANDIDATES`. Sign convention: **positive = net export to grid**.
+The correction changes during the hour. For example, after net import has accumulated, Omnibattery shifts the grid target toward discharge or export for the remaining time. It does not erase the measured history; it adjusts the power needed to approach the target by the end of the hour.
 
-## Priority and composition
+## If it does not work
 
-The hourly balance offset is registered as an **additive offset** in the setpoint registry (key `hourly_balance`). It is summed with the user's target grid power preference and any other additive offsets. Capacity Protection uses an absolute override (priority 10) and takes full precedence when active.
-
-## Compensation blocking
-
-Certain conditions prevent the offset from being applied. The `charge_block_reason` attribute on the Balance Neto sensor shows why:
-
-| Reason | What it means |
-|---|---|
-| `solar_charge_delay` | Solar charge delay is active — both import and export correction are blocked |
-| `hysteresis` | Charge hysteresis is active — import correction only is blocked |
-| `max_soc` | All batteries are at max SOC — import correction only is blocked |
-
-When blocked, the accumulator continues tracking so the correct offset is applied as soon as the block lifts.
-
-## Balance Neto sensor
-
-A single diagnostic sensor (`sensor.*_balance_neto`) is created when the feature is enabled.
-
-**State**: net kWh for the current hour (positive = net export, negative = net import).
-
-**Attributes**:
-
-| Attribute | Description |
-|---|---|
-| `status` | `idle`, `out_of_slot`, `capped`, `compensating_import`, `compensating_export`, `compensation_stopped` |
-| `offset_w` | Active setpoint correction in watts |
-| `imp_wh` | Grid import accumulated so far this hour |
-| `exp_wh` | Grid export accumulated so far this hour |
-| `target_net_wh` | Configured target in Wh |
-| `remaining_min` | Minutes remaining in the current hour |
-| `source` | Sensor entity ID used, or `trapezoidal` |
-| `hour_iso` | ISO timestamp of the current hour start |
-| `charge_block_reason` | Present only when compensation is blocked; contains the block reason |
-
-## Configuration
-
-Enable and configure from **Settings → Devices & Services → Omnibattery → Configure → Hourly net balance**.
-
-| Parameter | Default | Description |
+| Symptom | Likely cause | What to check |
 |---|---|---|
-| Target net balance (kWh) | `0.0` | Target net energy per hour. `0` = net zero. Positive = allow net import. Negative = target net export. |
-| Maximum offset (W) | `1000` | Maximum power correction the controller can apply. |
-| Net balance tolerance (kWh) | `0.0` | Deadband: no correction when the net balance is within ±N kWh of the target. `0` = exact correction. |
-| Offset hysteresis (W) | `15` | Minimum offset change required before a new correction is applied. Prevents micro-adjustments every cycle. `0` = update every cycle. |
+| **Balance Neto** stays **Idle** | The switch is off, no valid sample has arrived, or the balance is already within tolerance | Confirm **Hourly net balance**, the grid sensor, and **Hourly Balance Deadband** |
+| Status is **Out of slot** | Enabled time slots exist and the current time is outside all of them | Check the days and times in [Time slots](../configuration/time-slots.md) |
+| Status is **Blocked** or `compensation_stopped` | Charging is prevented by solar charge delay, a time slot, electric-vehicle pause, charge hysteresis, or maximum state of charge | Inspect `charge_block_reason` and the corresponding control |
+| Status remains **Capped** and the hour misses its target | The required correction exceeds **Hourly Balance Max Offset**, or the battery lacks available power or energy | Check battery limits first; then raise **Hourly Balance Max Offset** gradually if the installation can support it |
+| The offset changes too often | Offset hysteresis is too small for the meter noise | Increase **Hourly Balance Hysteresis** |
+| No correction occurs near the target | The deviation is inside the energy tolerance | Reduce **Hourly Balance Deadband** if tighter correction is worth the extra cycling |
+| Correction disappears while peak shaving is active | Capacity protection owns the grid target | This is expected; its absolute safety target replaces hourly and other additive targets while active |
+| The displayed source is unavailable | The optional external balance sensor stopped updating | Restore that sensor; Omnibattery uses the grid-power integration when no external sensor is detected |
 
-![Hourly net balance warning](../assets/screenshots/configuration/hourly_net_balance_warning.png){ width="650" style="display: block; margin: 0 auto;"}
+??? "Advanced details"
+    ### Settings
 
-![Hourly net balance configuration](../assets/screenshots/configuration/hourly_net_balance_config.png){ width="650" style="display: block; margin: 0 auto;"}
+    | Control | Default | Range | Effect |
+    |---|---:|---:|---|
+    | **Hourly Balance Target** | `0.0 kWh` | `−2.0–2.0 kWh` | Net grid energy wanted for each civil hour; positive means import and negative means export |
+    | **Hourly Balance Max Offset** | `1,000 W` | `100–5,000 W` | Limits how far the feature can move the grid-power target |
+    | **Hourly Balance Deadband** | `0.0 kWh` | `0.0–0.5 kWh` | Applies no correction while the energy deviation remains within this tolerance |
+    | **Hourly Balance Hysteresis** | `15 W` | `0–200 W` | Requires this much offset change before publishing a new correction |
 
-## Persistence
+    A larger maximum offset can close a larger energy gap in the time remaining, but it also makes the power response more aggressive. The battery and system limits still apply.
 
-State is persisted to Home Assistant storage every ~5 minutes and on integration unload. On restart, the current-hour accumulators are restored only if the restart occurred within the same civil hour.
+    ### Calculation
+
+    On every control cycle, Omnibattery accumulates import and export for the current local civil hour and calculates an additive target offset:
+
+    ```text
+    net_Wh = imported_Wh − exported_Wh
+    deficit_Wh = target_net_Wh − net_Wh
+    offset_W = deficit_Wh / remaining_hours
+    ```
+
+    A positive offset moves the target toward grid import; a negative offset moves it toward discharge or export. The offset ramps in during the first `5 min` of the hour, is clamped to **Hourly Balance Max Offset**, and stops during the final `1 min`. Offset hysteresis is bypassed during the final `10 min` so the correction can follow the remaining time more closely.
+
+    The feature clears its offset in manual mode and outside active time slots. With no enabled time slots, it remains eligible throughout the day.
+
+    ### Data source
+
+    Omnibattery first looks for `sensor.balance_neto`. It assumes a positive value means export and chooses a reading method from the unit and state class:
+
+    | Source type | Unit | State class | Reading method |
+    |---|---|---|---|
+    | Cumulative energy | `kWh` or `Wh` | `total` or `total_increasing` | Difference from a snapshot taken at the hour boundary |
+    | Instantaneous net energy | `kWh` or `Wh` | `measurement` or another non-total class | Read directly |
+    | Grid power | `W` or `kW` | Any | Integrate power over time with a trapezoidal calculation |
+
+    When no supported external sensor is detected, the configured grid consumption sensor supplies the power samples. **Balance Neto** exposes the active entity ID in `source`, or `trapezoidal` for the fallback.
+
+    ### Blocking and target priority
+
+    Charge-direction correction can report these `charge_block_reason` values:
+
+    | Reason | Meaning |
+    |---|---|
+    | `solar_charge_delay` | Solar charge delay prevents charging |
+    | `time_slot` | The active time-slot rules prevent charging |
+    | `ev_pause` | Electric-vehicle load handling has paused charging |
+    | `hysteresis` | Battery charge hysteresis is active |
+    | `max_soc` | Every battery with data has reached its maximum state of charge |
+
+    While charging is blocked, the positive target offset remains registered. This prevents the PD controller from discharging the battery to cover the home load while the grid supplies it, and allows the stored correction to take effect when the blocker clears. Export-direction corrections are not blocked by these charge conditions.
+
+    Hourly balance is an additive target: Omnibattery sums it with the user's grid target and other additive preferences. An active absolute override replaces that sum. Capacity protection uses such an override, so it takes precedence while controlling a peak.
+
+    ### Diagnostic attributes and persistence
+
+    **Balance Neto** can expose these attributes:
+
+    | Attribute | Meaning |
+    |---|---|
+    | `status` | `idle`, `out_of_slot`, `capped`, `compensating_import`, `compensating_export`, or `compensation_stopped` |
+    | `offset_w` | Active target correction in watts |
+    | `imp_wh` | Grid import accumulated in the current hour |
+    | `exp_wh` | Grid export accumulated in the current hour |
+    | `target_net_wh` | Configured hourly target in watt-hours |
+    | `remaining_min` | Time remaining in the current hour |
+    | `source` | External source entity ID or `trapezoidal` |
+    | `hour_iso` | Local timestamp at the start of the tracked hour |
+    | `charge_block_reason` | Charge blocker, present only while one applies |
+
+    Accumulators and the last offset are saved about every `5 min` and when the integration unloads. A restart restores them only when the saved data belongs to the current local civil hour.

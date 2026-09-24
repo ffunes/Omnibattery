@@ -1,26 +1,40 @@
-# Scripts MQTT para Shelly Pro 3EM
+# Shelly Pro 3EM MQTT scripts
 
-Un Shelly Pro 3EM no ofrece de forma nativa una cadencia de telemetría MQTT de 1–2 segundos. Los scripts de esta página se ejecutan en el dispositivo y publican la telemetría cada segundo. Elige la sección que corresponda al perfil de medición configurado en el Shelly.
+A Shelly Pro 3EM does not provide a 1–2 second MQTT telemetry cadence natively, and Omnibattery's [main sensor](../configuration/main-sensor.md) works best with a fast-updating grid sensor. The scripts on this page run on the device itself and publish telemetry every second over MQTT, with Home Assistant MQTT Discovery so the sensors appear automatically.
 
-## Perfil de tres contadores monofásicos
+## Which script do I need?
 
-!!! warning "Ámbito"
-    Usa este script con un Shelly Pro 3EM configurado en el perfil de tres contadores monofásicos. Lee `EM1.GetStatus` para los canales `0`, `1` y `2`, y expone cada canal como una pinza independiente.
+A Shelly Pro 3EM is configured with one of two metering profiles. Check yours in the Shelly web interface under **Settings → Device profile** before choosing a script — the two scripts are not interchangeable and only one should run on the device at a time.
 
-### Requisitos
+| Your Shelly profile | Use this script |
+|---|---|
+| Three single-phase meters (`monophase` / three independent `EM1` channels) | [Three single-phase meters profile](#three-single-phase-meters-profile) |
+| Triphase (one `EM` component across three phases) | [Three-phase profile](#three-phase-profile) |
 
-- MQTT activado y conectado en el dispositivo Shelly.
-- Home Assistant conectado al mismo broker MQTT.
-- MQTT Discovery activado en Home Assistant (el prefijo predeterminado es `homeassistant`).
+## Before you start
 
-### Instalación
+- MQTT enabled and connected on the Shelly device.
+- Home Assistant connected to the same MQTT broker.
+- MQTT Discovery enabled in Home Assistant (the default prefix is `homeassistant`).
 
-1. Abre la interfaz web de Shelly y entra en **Scripts**.
-2. Crea un script nuevo y pega el código siguiente.
-3. Guarda el script y, después, actívalo y ejecútalo.
-4. Selecciona el sensor de potencia de red descubierto al configurar el [sensor principal](../configuration/main-sensor.md) de Omnibattery.
+## Selecting the sensor in Omnibattery
 
-El script publica el estado en `shellypro3em/<device-id>/state` y la disponibilidad en `shellypro3em/<device-id>/availability`. El broker MQTT conserva los mensajes de descubrimiento; el estado se publica una vez por segundo.
+Once the script is running, open Omnibattery's [main sensor](../configuration/main-sensor.md) configuration and select the discovered total-power sensor (**Total Active Power**) as the grid consumption sensor. Watch the sensor's value while importing and exporting: Omnibattery's standard convention is a **positive** value for import and **negative** for export. If your installation reports the opposite, enable **Inverted meter sign** rather than editing the script.
+
+## Three single-phase meters profile
+
+!!! warning "Scope"
+    Use this script with a Shelly Pro 3EM configured in the three single-phase meters profile. It reads `EM1.GetStatus` for channels `0`, `1` and `2` and exposes each channel as a separate clamp.
+
+### Install and verify
+
+1. Open the Shelly web interface and go to **Scripts**.
+2. Create a new script and paste the code below.
+3. Save the script, then enable and run it.
+4. In Home Assistant, confirm that **Total Active Power** and the three per-clamp sensors appear and update roughly once per second.
+5. Select **Total Active Power** as described in [Selecting the sensor in Omnibattery](#selecting-the-sensor-in-omnibattery).
+
+The script publishes state to `shellypro3em/<device-id>/state` and availability to `shellypro3em/<device-id>/availability`. Discovery messages are retained by the MQTT broker, while state is published once per second.
 
 ### Script
 
@@ -278,37 +292,31 @@ publishState();
 Timer.set(STATE_INTERVAL_MS, true, publishState);
 ```
 
-## Perfil trifásico
+## Three-phase profile
 
-!!! warning "Ámbito"
-    Usa este script con un Shelly Pro 3EM configurado con el perfil **triphase**. Lee **EM.GetStatus** con **id: 0** y publica las tres fases como **phase_a**, **phase_b** y **phase_c**. Ejecuta solo uno de los dos scripts de perfil cada vez.
+!!! warning "Scope"
+    Use this script with a Shelly Pro 3EM configured with the **triphase** profile. It reads **EM.GetStatus** with **id: 0** and publishes the three phases as **phase_a**, **phase_b** and **phase_c**. Run only one of the two profile scripts at a time.
 
-### Requisitos
+### Install and verify
 
-- El Shelly Pro 3EM debe usar el perfil de medición **triphase**.
-- MQTT activado y conectado en el dispositivo Shelly.
-- Home Assistant conectado al mismo broker MQTT.
-- MQTT Discovery activado en Home Assistant (el prefijo predeterminado es **homeassistant**).
+1. Open the Shelly web interface and go to **Scripts**.
+2. Create a new script, or replace the script for the other metering profile.
+3. Paste the code below, save it, then enable and run it.
+4. In Home Assistant, confirm that **Total Active Power** and the per-phase sensors appear and update roughly once per second.
+5. Select **Total Active Power** as described in [Selecting the sensor in Omnibattery](#selecting-the-sensor-in-omnibattery).
 
-### Instalación
-
-1. Abre la interfaz web de Shelly y entra en **Scripts**.
-2. Crea un script nuevo o sustituye el script del otro perfil de medición.
-3. Pega el código siguiente, guárdalo y, después, actívalo y ejecútalo.
-4. Selecciona el sensor de potencia de red descubierto al configurar el [sensor principal](../configuration/main-sensor.md) de Omnibattery.
-
-Este script usa los mismos tópicos de estado y disponibilidad que el script del perfil monofásico, por lo que no debes ejecutar ambos a la vez en el mismo dispositivo.
+This script uses the same state and availability topics as the single-phase-profile script, so do not run both scripts simultaneously for the same device.
 
 ### Script
 
-~~~javascript
-// Shelly Pro 3EM — perfil trifásico
+```javascript
+// Shelly Pro 3EM — triphase profile
 // MQTT telemetry + Home Assistant MQTT Discovery.
 //
-// Requiere:
-// - Perfil del Shelly: "triphase"
-// - MQTT habilitado y conectado
-// - MQTT Discovery habilitado en Home Assistant
+// Requirements:
+// - Shelly profile: "triphase"
+// - MQTT enabled and connected
+// - MQTT Discovery enabled in Home Assistant
 
 let DISCOVERY_PREFIX = "homeassistant";
 let STATE_INTERVAL_MS = 1000;
@@ -381,28 +389,28 @@ function publishDiscoverySensor(
 function publishPhaseDiscovery(phase, label) {
   publishDiscoverySensor(
     "phase_" + phase + "_active_power",
-    "Fase " + label + " Potencia activa",
+    "Phase " + label + " Active Power",
     "W", "power", "measurement",
     "{{ value_json.phase_" + phase + ".act_power | float(0) }}"
   );
 
   publishDiscoverySensor(
     "phase_" + phase + "_voltage",
-    "Fase " + label + " Voltaje",
+    "Phase " + label + " Voltage",
     "V", "voltage", "measurement",
     "{{ value_json.phase_" + phase + ".voltage | float(0) }}"
   );
 
   publishDiscoverySensor(
     "phase_" + phase + "_current",
-    "Fase " + label + " Corriente",
+    "Phase " + label + " Current",
     "A", "current", "measurement",
     "{{ value_json.phase_" + phase + ".current | float(0) }}"
   );
 
   publishDiscoverySensor(
     "phase_" + phase + "_power_factor",
-    "Fase " + label + " Factor de potencia",
+    "Phase " + label + " Power Factor",
     "", "power_factor", "measurement",
     "{{ value_json.phase_" + phase + ".pf | float(0) }}"
   );
@@ -411,14 +419,14 @@ function publishPhaseDiscovery(phase, label) {
 function publishDiscovery() {
   publishDiscoverySensor(
     "total_active_power",
-    "Potencia activa total",
+    "Total Active Power",
     "W", "power", "measurement",
     "{{ value_json.total_act_power | float(0) }}"
   );
 
   publishDiscoverySensor(
     "total_current",
-    "Corriente total",
+    "Total Current",
     "A", "current", "measurement",
     "{{ value_json.total_current | float(0) }}"
   );
@@ -479,4 +487,17 @@ function publishState() {
 publishDiscovery();
 publishState();
 Timer.set(STATE_INTERVAL_MS, true, publishState);
-~~~
+```
+
+## Uninstalling
+
+Stop and disable the script in the Shelly web interface's **Scripts** page. The retained MQTT discovery and availability messages remain on the broker until they expire or are cleared; if you do not plan to reinstall, remove them from Home Assistant by publishing an empty, retained payload to each `homeassistant/sensor/<device-id>_*/config` topic, or delete the entities from **Settings → Devices & services → MQTT**.
+
+## If it does not work
+
+| Symptom | Likely cause | What to check |
+|---|---|---|
+| No sensors appear in Home Assistant | MQTT Discovery is disabled, or the broker is unreachable from the Shelly | The MQTT integration's discovery prefix matches `homeassistant`; the Shelly's MQTT connection status in its web interface |
+| Sensors appear but never update | The script is not running, or the wrong profile's script is installed | The script is enabled and running (Shelly **Scripts** page, script log); the device profile matches the script |
+| Sensors go `unavailable` after ~5 seconds | The script stopped publishing (device reboot, script error, MQTT disconnect) | The `expire_after: 5` availability window; the script's log for `EM1:*` or `EM:0` errors |
+| Grid power reads the wrong sign | Import and export are reversed for this meter's wiring | The **Inverted meter sign** toggle on the [main sensor](../configuration/main-sensor.md) — do not edit the script's sign convention |

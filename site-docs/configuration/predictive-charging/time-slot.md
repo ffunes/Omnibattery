@@ -1,50 +1,75 @@
-# Predictive charging — Time Slot mode
+# Predictive charging with fixed time slots
 
-Charges from the grid during a **fixed time window** (typically cheap overnight tariff).
+Time Slot mode buys only the energy your home is expected to need during the cheap weekly windows you define. It never opens an unconfigured charging window.
 
-## Configuration
+## Do I need it?
 
-| Field | Description |
-|---|---|
-| **Charging window 1** | Start and end of the first charging slot (e.g. `02:00` – `05:00`), plus the days of the week it applies |
-| **Charging windows 2 & 3** | (Optional) Up to two more windows, each with its own start/end and days |
-| **Solar forecast sensor** | Current-day production sensor in kWh (optional) |
-| **Solar forecast safety margin (kWh)** | Extra energy buffer added to consumption forecast before deciding whether to charge (default 0 kWh) |
-| **Predictive grid charge margin (%)** | Extra % charged from the grid on top of the solar deficit (default 0%) |
+**Use it if** your tariff has predictable off-peak periods that repeat on known days, including tariffs with separate night and midday periods.
 
-!!! note "Up to 3 windows"
-    You can configure 1, 2 or 3 charging windows — useful for a split tariff with both a night and a midday off-peak block. Fill only window 1 for the previous single-window behaviour; each extra window needs **both** a start and an end time (fill both or leave both empty). These windows schedule predictive grid charging only: household-consumption history still covers all 24 hours, while the battery's negative AC power removes its own charging energy from the derived home load.
+**You do not need it if** your provider publishes changing future prices and you want Omnibattery to pick the cheapest periods; use [Dynamic Pricing](dynamic-pricing.md). If you know only the current price, use [Real-Time Price](real-time-price.md).
 
-!!! note "No solar sensor"
-    If you have no solar panels, leave the forecast sensor empty. The system will charge whenever battery energy is insufficient to cover expected consumption.
+## Before you start
 
-![Configuration form — Time Slot mode](../../assets/screenshots/configuration/predictive-charging/time-slot-form.png){ width="650"  style="display: block; margin: 0 auto;"}
+- Decide which days and start/end times are cheap. You can configure up to three predictive charging windows.
+- A solar forecast sensor is optional. Prefer a remaining-energy sensor when available; a whole-day forecast is supported as a fallback.
+- Configure the common predictive-charging requirements described in [Which mode should I choose?](index.md).
 
-## Evaluation flow
+## How to enable it
 
-1. **On slot entry**: the system evaluates the remaining energy balance immediately when no solar forecast is configured or the configured forecast is readable. If the forecast is temporarily unavailable, the evaluation is retried for up to five minutes so a transient provider update does not produce a false decision.
-2. **After the evaluation**: the system simulates consumption, solar and usable battery energy in 15-minute intervals until midnight. If the forecast remains unavailable after the retry grace, it evaluates conservatively with zero solar.
-3. Every configured window receives its own kWh quota. Energy needed before a projected minimum-SOC crossing is assigned only to windows that can deliver it in time; later energy is distributed across the remaining configured windows.
-4. A notification is sent with the decision. If no configured window can meet a deadline, the diagnostic attributes expose the uncovered kWh instead of claiming that a later window covers it.
-5. Charging stops when the current window's quota is stored or when the window ends. The first window therefore no longer consumes the whole flexible daily target by default.
+1. Open **Settings → Devices & services → Omnibattery → Configure** and choose **Time Slot** as the predictive charging mode.
+2. Enter both the start and end time for **Charging window 1**, then select its active days.
+3. Add **Charging windows 2 and 3** only if your tariff has more cheap periods; complete both times for every window you use.
+4. Select an optional solar forecast sensor, finish the form, and confirm **Predictive Charging** is on in the Omnibattery **Control** tab.
 
-The planner never opens an unconfigured charging window. A deadline shortfall means the configured windows or physical charging power cannot deliver enough energy in time; normal household grid import can still occur after the battery reaches its minimum.
+![Configure fixed predictive charging windows](../../assets/screenshots/configuration/predictive-charging/time-slot-form.png){ width="650" style="display: block; margin: 0 auto;" }
 
-## Re-evaluation inside the window
+## What you will see
 
-The decision taken on slot entry is not final. While the window is open, the energy balance is evaluated again when:
+At the start of an active window, Omnibattery checks the remaining energy balance and gives that window a quota. It can share the required energy across several windows, so the first window does not automatically consume the whole flexible daily target. Charging stops when the quota is stored or the window ends.
 
-- **The SOC drops 30 % or more** from the last evaluation point (e.g. due to high consumption).
-- **The guaranteed minimum SOC floor is crossed or recovered**, when that option is enabled.
-- **The provider revises the solar forecast** by 1.5 kWh or more in either direction. A remaining forecast falls all day by itself, so the stored reading is projected forward by the solar actually produced since it was taken and only the gap against that projection counts as a revision. Bounded by a 30-minute cooldown and four re-evaluations per day.
-- **A setting the balance depends on changes**: a battery's minimum or maximum SOC, the solar forecast safety margin, the predictive grid charge margin, or the guaranteed minimum SOC floor.
-- **You press the Re-evaluate Predictive Charging button** (`button.*_reevaluate_dynamic_pricing`) on the system device.
+**Predictive Charging Active** shows the decision and any uncovered energy. **Re-evaluate Predictive Charging** forces a fresh decision on the next control cycle while a configured window is active. Outside a window, the button invalidates the old reference for the next window but does not evaluate immediately or start charging.
 
-Only a re-evaluation that reverses the slot's decision replaces the notification; the others are silent.
+The plan adapts inside an active window when SOC changes materially, the guaranteed floor is crossed or recovered, the provider revises the solar forecast, a relevant battery or forecast setting changes, or [capacity protection](../../features/peak-shaving.md) changes the power available to the plan.
 
-These triggers act **inside a charging window only** - outside one there is nothing to re-plan, because this mode never charges from the grid outside its configured windows. If your windows are overnight and the forecast collapses at midday, the correction happens at the next window, not immediately. Dynamic Pricing, which schedules its own slots, does not have this limitation.
+## If it does not work
 
-Time Slot and Dynamic Pricing use one shared dated solar timeline and one
-remaining-energy budget. The learned profile changes intraday deadlines
-automatically once it is mature; until then the sinusoidal curve is used. It
-never increases the forecast total or opens a window that was not configured.
+| Symptom | Likely cause | What to check |
+|---|---|---|
+| Charging never starts | Today or the current time does not match a complete configured window | Start/end times, active days, and windows that cross midnight |
+| The current window appears but no charge is needed | Battery energy and expected solar cover the remaining demand | **Predictive Charging Active** decision attributes |
+| A changed forecast does not start charging at midday | No configured charging window is open | Wait for the next window or add a tariff-valid window |
+| The first window stops before reaching the full daily target | Energy has been assigned to a later window | Per-window quota and remaining selected windows |
+| The plan reports an energy shortfall | The configured windows or physical charge power cannot deliver enough energy before its deadline | Window duration, charge limits, battery capacity, and active blockers |
+| Pressing re-evaluate does nothing | The button was pressed outside an active window | Press it during a configured window; outside one it prepares the next entry |
+
+??? "Advanced details"
+    ### Evaluation and quotas
+
+    On window entry, Omnibattery evaluates immediately when no solar forecast is configured or the configured forecast is readable. If the forecast is temporarily unavailable, it retries during a five-minute grace period; after that it evaluates conservatively with zero solar.
+
+    The planner simulates consumption, solar, and usable battery energy in 15-minute intervals until midnight. Energy needed before a projected minimum-SOC crossing is assigned only to windows that can deliver it in time. Later energy is distributed across the remaining configured windows. If no window can meet a deadline, the uncovered kWh is reported as an energy shortfall instead of being assigned to a window that is too late.
+
+    Each window receives its own kWh quota. Charging stops when the live battery reaches that quota or the window ends. A suspended quota remains attached to the plan and is rebuilt from live SOC when charging can continue.
+
+    ### Re-evaluation triggers
+
+    Inside an active charging window, the balance is reconsidered when:
+
+    - average battery SOC moves by at least 30 percentage points from the last evaluation;
+    - **Guaranteed Minimum SOC** is crossed or recovered;
+    - the provider revises remaining solar by at least 1.5 kWh in either direction;
+    - battery minimum/maximum SOC, **Solar Forecast Safety Margin**, or the guaranteed floor changes;
+    - capacity protection changes whether the planned charge can be delivered; or
+    - you press **Re-evaluate Predictive Charging**.
+
+    Solar-revision checks compare the new reading with a projection that subtracts solar already produced, so the normal decline of a remaining-energy forecast does not look like a provider revision. They use a 30-minute cooldown and allow up to four re-evaluations per day. An unavailable forecast is not interpreted as the forecast collapsing.
+
+    Only a re-evaluation that reverses the current decision replaces its notification; other updates are silent. These triggers operate only inside a configured window because this mode cannot buy grid energy outside one.
+
+    ### Solar timeline and household demand
+
+    Time Slot and Dynamic Pricing share a dated solar timeline and one remaining-energy budget. Explicit provider periods have priority; a mature locally learned solar profile comes next, then the sinusoidal daylight fallback. The timeline changes deadlines but never increases the forecast total or creates a charging window.
+
+    Household-consumption history still covers the whole day. Battery AC charging is removed from derived household demand so a predictive window does not teach the profile that the battery itself is a recurring home load.
+
+    **Solar Forecast Safety Margin** is subtracted from expected solar. For a new installation its initial value is approximately 5% of configured fleet capacity; it falls back to no margin when capacity is unknown during setup. The margin is a live control entity rather than a field in this mode's setup form.

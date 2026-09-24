@@ -1,196 +1,126 @@
 # Predictive charging
 
-Predictive charging is an **optional** feature that charges batteries from the grid when the expected energy balance for its planning horizon is negative. In Dynamic Pricing mode that horizon runs through the next sunrise.
+Predictive charging buys grid energy during cheap periods when the battery and expected solar will not cover household demand. Choose the mode by asking what your tariff tells you about *when* energy is cheap.
 
-## Decision logic
+| Your tariff or price source | What you want | Recommended mode |
+|---|---|---|
+| The cheap periods repeat on a known weekly schedule | Allow grid charging only in the windows you choose | **[Time Slot](time-slot.md)** |
+| Your provider publishes future prices | Let Omnibattery choose the cheapest periods that still meet the energy deadline | **[Dynamic Pricing](dynamic-pricing.md)** |
+| You can read only the price in effect now | Charge whenever the live price is below your threshold | **[Real-Time Price](real-time-price.md)** |
+| Energy costs the same all day and there is no fixed cheap window | Keep normal battery control and solar charging | **Do not enable predictive grid charging** |
 
-```
-If (Usable battery + Solar forecast) < Expected consumption:
-    Charge from grid the exact deficit
-Else:
-    Do not charge (cost saving)
-```
+All three modes calculate whether energy is missing. The difference is who chooses when it may be bought: you, a future price calendar, or the current price.
 
-- **Usable battery**: energy currently stored above the configured min SOC.
-- **Solar forecast**: preferably the production remaining today (Solcast/Forecast.Solar sensor). Whole-day sensors remain a legacy fallback during the transition. Dynamic Pricing does not assume tomorrow's solar before its sunrise boundary.
-- **Expected consumption**: learned demand over the mode's planning horizon. Dynamic Pricing includes the post-midnight demand through the next sunrise. See [Daily consumption estimate](../../features/consumption-estimate.md).
+## Do I need it?
 
----
+**Use it if** your tariff has cheaper periods and you want Omnibattery to buy only the energy it expects the home to need.
 
-## Charge target
+**You do not need it if** grid energy costs the same all day, you want the battery to charge only from solar, or another energy manager already schedules grid charging.
 
-When charging is triggered, the integration does not charge all the way to `max_soc` from the grid. Instead it calculates a **grid-only target SOC** — enough to cover only what solar will not be able to provide over the planning horizon:
+## Before you start
 
-```
-solar_surplus = max(0, solar_forecast − estimated_consumption)
-grid_charge   = max(0, gap_to_max − solar_surplus)
-target_soc    = current_soc + grid_charge / capacity × 100
-```
+- Configure the battery and a working [main grid sensor](../main-sensor.md).
+- Prepare the schedule or price source required by the mode in the table above.
+- A solar forecast is optional. A remaining-energy forecast is preferred because it does not count solar already produced; without a usable forecast, Omnibattery plans conservatively with no future solar.
+- A local household-consumption profile improves the estimate. See [Daily and hourly consumption estimate](../../features/consumption-estimate.md).
 
-`gap_to_max` is the kWh distance from the current SOC to `max_soc`. Solar output in excess of household demand charges the battery the rest of the way during the day.
+## How to enable it
 
-**Example**: the battery needs 5 kWh to reach max_soc. Solar forecast is 13 kWh, expected consumption is 10 kWh — a surplus of 3 kWh available for the battery. The integration charges only **2 kWh** from the grid; solar handles the remaining 3 kWh during the day.
+1. Open **Settings → Devices & services → Omnibattery → Configure** and enable predictive charging configuration.
+2. Choose **Time Slot**, **Dynamic Pricing**, or **Real-Time Price** using the table above.
+3. Enter that mode's schedule or price source, add an optional solar forecast sensor, and finish the form.
+4. Open the Omnibattery **Control** tab and confirm **Predictive Charging** is on.
 
-### Grid charge margin
+![Choose a predictive charging mode](../../assets/screenshots/configuration/predictive-charging/mode-selector.png){ width="600" style="display: block; margin: 0 auto;" }
 
-The grid-charge calculation trusts the solar forecast. When the forecast is optimistic — or the weather turns out worse than predicted — solar may not deliver the expected surplus and the battery ends the day below `max_soc`. The optional **Predictive Grid Charge Margin** (%) hedges this by topping up the grid amount:
+## What you will see
 
-```
-grid_charge = max(0, gap_to_max − solar_surplus) × (1 + margin%)
-```
+**Predictive Charging Active** shows whether a grid charge is needed, planned, or running. A visible cheap period can be informational when the battery and expected solar already cover demand; it is not always a pending charge.
 
-Continuing the example above, a 2 kWh grid need with a **50 %** margin charges **3 kWh** from the grid instead. The result is capped at `gap_to_max`, so the margin can never charge past `max_soc`. Default is `0 %` (off); it also applies to the dynamic-pricing evening re-evaluation. Set it in the **setup wizard**, the options flow, or via the `number.*_predictive_grid_charge_margin_pct` slider on the dashboard **Control** tab.
+When grid charging is needed, Omnibattery targets only the calculated deficit instead of filling every battery to its maximum state of charge (SOC). In a multi-battery system, it shares that target according to each battery's available capacity. Reaching the grid-charge target does not block later solar surplus: the battery can continue in a solar-only state.
 
-### Multi-battery systems
+Use **Guaranteed Minimum SOC** if the whole-day balance looks sufficient but the battery often reaches its minimum before solar production begins. The switch and number entity set a reserve that must be available before the expected solar start.
 
-In systems with multiple batteries at different SOC levels the grid charge is distributed **proportionally to each battery's individual gap to max_soc**. A battery further from full receives a larger share; a battery already close to full relies mostly on solar for its remainder. This prevents overcharging any single unit from the grid and minimises total grid import.
+Use **Re-evaluate Predictive Charging** after a material forecast or setting change. In Dynamic Pricing it rebuilds the remaining schedule immediately. In Time Slot mode it forces a fresh decision on the next control cycle inside an active charging window; pressing it outside a window does not open one. Real-Time Price has no button because it decides again on every control cycle.
 
----
+Turn off **Predictive Charging** to pause all predictive grid charging and its Dynamic Pricing subfeatures.
 
-## Household demand during a charging slot
+## If it does not work
 
-A predictive slot remains responsible for the batteries until the slot ends or
-its target is reached. Normal PD does not take over just because household
-demand increases: doing so could interpret grid import that still includes the
-previous battery charge as real household demand and immediately reverse the
-battery into an unnecessary discharge.
+| Symptom | Likely cause | What to check |
+|---|---|---|
+| No grid charge is planned | Stored energy and expected solar already cover demand | **Predictive Charging Active** and its decision attributes |
+| Cheap periods appear but charging does not start | The calendar is informational, the quota is already met, or a safety/control rule is active | `charging_needed`, the active mode page, battery SOC limits, and **Integration Status** |
+| The plan reports an energy shortfall | Eligible periods cannot deliver enough energy before it is needed | Charging power, battery capacity, price ceiling, configured windows, and physical blockers |
+| The battery charges too much or too little | The solar or household-demand estimate does not match the remaining day | Forecast sensor type, consumption profile coverage, and **Solar Forecast Safety Margin** |
+| Charging pauses while household load rises | Contracted-power, phase, or capacity protection is preserving the import limit | [Capacity protection](../../features/peak-shaving.md) and [Main grid sensor](../main-sensor.md) |
+| A setting change has no immediate effect | The active plan has not yet been rebuilt | Press **Re-evaluate Predictive Charging** where available |
 
-The import ceiling while predictive charging is active is:
+??? "Advanced details"
+    ### Energy decision and charge target
 
-```
-ceiling = min(max_contracted_power, capacity_protection_limit when enabled)
-```
+    Omnibattery compares usable battery energy above minimum SOC, expected solar production, and expected household consumption over the mode's planning horizon:
 
-Omnibattery reacts to increasing household demand in stages. The ceiling is the
-predictive PD's regulation target, not an immediate idle command:
+    ```text
+    if usable_battery + solar_forecast < expected_consumption:
+        grid_charge = expected_consumption - usable_battery - solar_forecast
+    else:
+        grid_charge = 0
+    ```
 
-1. **Reduce charging.** Available grid headroom is given to the house first, so
-   the battery charge command falls as household consumption rises.
-2. **Keep a positive charge.** If the PD calculation would mathematically cross
-   into discharge, the output is clamped to the battery's smallest effective
-   charge and the incremental PD state is preserved. A normal target overshoot
-   never commands `0 W`.
-3. **Confirm a real emergency.** Only a substantial physical excess over the
-   hard limit, confirmed by three consecutive fresh publications, enters demand
-   protection. An isolated spike or ordinary target overshoot keeps modulating
-   positive charge.
-4. **Protect the import limit if the emergency persists.** The battery then
-   waits for inverter response/readback latency and, if settled import remains
-   above the limit, discharges only the confirmed excess. With Capacity
-   Protection enabled this is Peak Shaving against its configured limit.
-5. **Resume from available headroom.** After two fresh samples show at least
-   `max(200 W, 2 × PD deadband)` of headroom, predictive charging resumes from a
-   power calculated from that margin rather than from the battery maximum.
+    It then reserves battery space for solar rather than filling to maximum SOC from the grid:
 
-`0 W` is reserved for explicit blockers, BMS, unavailable batteries, critical
-telemetry, the end of a slot, reached SOC, phase protection, or a confirmed
-safety emergency.
+    ```text
+    solar_surplus = max(0, solar_forecast − estimated_consumption)
+    grid_charge   = max(0, gap_to_max − solar_surplus)
+    target_soc    = current_soc + grid_charge / capacity × 100
+    ```
 
-!!! important "Positive charge, Peak Shaving and normal PD are different"
-    During a cheap predictive slot, an ordinary overshoot is corrected by
-    modulating positive charge; it does **not** enable a normal economic
-    discharge towards `pd_target_grid_power`. Peak Shaving or contracted-power
-    emergency control acts only after a safety excess is confirmed. Outside the
-    predictive slot, normal PD resumes and follows the configured grid target.
+    **Example**: the battery needs 5 kWh to reach `max_soc`. Solar forecast is 13 kWh and expected consumption is 10 kWh, leaving a surplus of 3 kWh available for the battery. Omnibattery charges only **2 kWh** from the grid; solar handles the remaining 3 kWh during the day.
 
-For example, with `max_contracted_power = 2,000 W`, Capacity Protection off and
-a settled physical household load of `2,800 W`, emergency protection requests
-approximately `800 W` of discharge. It aims to keep grid import near `2,000 W`,
-not `0 W`. A short inrush that disappears while telemetry settles produces no
-discharge.
+    In a multi-battery fleet, the grid target is distributed in proportion to each battery's gap to its configured maximum SOC. Dynamic Pricing and Time Slot can also assign a quota to each period and transfer missed energy only to later periods that still meet its deadline.
 
-Safety discharge may bypass only economic price/curtailment blocks. Minimum
-SOC, unavailable or manually owned batteries, backup/RS485 restrictions,
-per-battery limits, system limits and phase protection remain authoritative.
-Excluded-device policy may affect ordinary Peak Shaving, but contracted-power
-emergency protection always uses the physical import seen by the grid meter.
+    **Solar Forecast Safety Margin** is subtracted from expected solar once. New installations default to approximately 5% of total configured battery capacity; if capacity is unavailable during setup, the fallback is no margin.
 
-If the grid meter stops publishing, an existing protective command is not
-increased from the old reading. Once the reading exceeds the stale-data limit,
-the controller returns automatic batteries to idle and waits for fresh settled
-telemetry.
+    ### Household demand during a charging slot
 
-The charge target and undelivered energy remain attached to the predictive
-plan while charging is suspended. Dynamic Pricing attempts to move a missed
-quota to eligible future slots; Time Slot mode rebuilds its remaining-window
-plan from live SOC; Real-Time Price records the shortfall because it has no
-future price calendar. If no feasible future capacity exists, the remaining
-kWh are exposed as a shortfall rather than silently discarded.
+    A predictive period remains responsible for the batteries until it ends or reaches its target. Normal proportional–derivative (PD) control does not immediately take over when household demand rises because grid import can still include the battery's previous charge command.
 
-See also [Capacity protection](../../features/peak-shaving.md) and
-[Main grid sensor](../main-sensor.md).
+    The import ceiling is the lower of contracted power and the capacity-protection limit when that feature is enabled. Omnibattery first reduces charging so the house gets the available grid capacity. If the calculation crosses into discharge during an ordinary overshoot, it keeps the smallest effective positive charge and preserves the incremental PD state.
 
----
+    A physical excess becomes an emergency only after three consecutive fresh meter publications confirm it. Emergency protection can then wait for inverter response and discharge only the settled excess. After two fresh samples show at least `max(200 W, 2 × PD deadband)` of available capacity, charging resumes from that margin rather than from maximum battery power.
 
-## Guaranteed minimum SOC floor
+    For example, with a 2,000 W contracted-power limit and a settled physical household load of 2,800 W, emergency protection requests about 800 W of discharge to keep import near 2,000 W. A short inrush that disappears while telemetry settles does not trigger that discharge.
 
-Predictive charging only grid-charges when its planning horizon nets to a deficit. The total balance can be positive even though the battery is near empty before solar ramps up — leaving the morning gap covered from the grid at full price, or the battery drained.
+    `0 W` remains reserved for explicit blockers, battery-management-system (BMS) limits, unavailable batteries, critical telemetry, the end of a period, reached SOC, phase protection, or a confirmed safety emergency. Safety discharge can bypass economic price or solar-curtailment blocks, but it cannot bypass minimum SOC, unavailable or manually controlled batteries, backup/RS-485 restrictions, device and system limits, or phase protection.
 
-The optional **Guaranteed Minimum SOC** slider (Control tab, turned off with the **Guaranteed Minimum SOC** switch next to it) reserves enough energy to keep each battery at that floor until effective solar production starts, regardless of the horizon's net balance. Dynamic Pricing chooses the cheapest eligible slots that can deliver the reserve before that deadline. The explicit maximum-price threshold and physical blockers remain authoritative, so an impossible guarantee is reported as a shortfall instead of being assigned to a later slot.
+    If the grid meter stops publishing, a protective command is not increased from an old value. Once telemetry exceeds the stale-data limit, automatically controlled batteries return to idle until fresh data settles.
 
-It re-triggers with hysteresis: once SOC recovers to the configured floor, charging stops if the floor was the only reason to charge; it re-arms when SOC drops to `floor − 5 %`. Set it via the `number.*_predictive_min_soc_floor` slider, paired with the **Guaranteed Minimum SOC** switch.
+    A suspended charge keeps its target and undelivered-energy record. Dynamic Pricing tries to move the quota to eligible future periods; Time Slot rebuilds the remaining-window plan from live SOC; Real-Time Price records the shortfall because it has no future price calendar.
 
----
+    ### Guaranteed minimum SOC
 
-## Consumption forecast source
+    The total energy balance can be positive while the battery is still projected to empty before solar starts. **Guaranteed Minimum SOC** adds enough energy to preserve the selected floor until effective solar production begins. Dynamic Pricing chooses eligible cheap periods before that deadline; configured price limits and physical blockers still apply, so an impossible guarantee appears as an energy shortfall.
 
-The daily estimate is retained as a compatibility fallback, but mature
-installations use the local 15-minute profile described in [Daily and hourly
-consumption estimate](../../features/consumption-estimate.md). Dynamic Pricing
-and its intraday re-evaluations request the remaining local-time horizon through
-the next sunrise.
-Predictive charging windows are not subtracted from household demand. The decision attributes identify the
-source as `profile` or `legacy_daily`, together with profile coverage and the
-number of learned days.
+    Charging stops at the floor when this reserve is the only reason to charge. It re-arms after SOC falls five percentage points below the floor, preventing repeated switching at the boundary.
 
-## Available modes
+    ### Consumption and solar timelines
 
-| Mode | Description |
-|---|---|
-| [Time Slot](time-slot.md) | Charges during a fixed window (e.g. overnight off-peak tariff) |
-| [Dynamic Pricing](dynamic-pricing.md) | Automatically selects the cheapest slots through the next sunrise |
-| [Real-Time Price](real-time-price.md) | Activates/deactivates charging based on the current price |
+    Mature installations use the local 15-minute household-consumption profile. The legacy daily estimate remains a fallback. Dynamic Pricing and its daytime re-evaluations request the remaining local-time horizon through the next sunrise. Predictive charging periods are removed from derived household demand so battery charging is not learned as home consumption.
 
-![Predictive charging mode selector](../../assets/screenshots/configuration/predictive-charging/mode-selector.png){ width="600"  style="display: block; margin: 0 auto;"}
+    Solar total and solar timing are separate inputs. The timeline priority is:
 
----
+    1. Valid dated periods supplied by the forecast provider.
+    2. A mature local profile learned from direct solar and battery maximum-power-point-tracking (MPPT) telemetry.
+    3. A sinusoidal daylight curve.
+    4. A zero timeline when no safe daylight window exists.
 
-## Notifications
+    The learned profile is normalized before the forecast budget is applied. It shapes when forecast energy arrives; it does not predict the total, repair a poor weather forecast, control a solar inverter, or reconstruct curtailed energy.
 
-The integration sends Home Assistant notifications:
+    Useful decision attributes include `solar_timeline_source`, `solar_remaining_raw_kwh`, `solar_remaining_effective_kwh`, `solar_timeline_fallback_reason`, `solar_profile_mature`, `solar_profile_coverage_ratio`, `chronological_planning_active`, `slot_energy_targets_kwh`, and `total_shortfall_kwh`.
 
-- **1 hour before** the slot starts: energy balance analysis and charging decision.
-- **When the slot starts**: confirmation that charging has begun.
-- In Dynamic Pricing mode, the plan is also checked **1 hour before each future slot**, once in the **late afternoon/evening**, after a **30 percentage-point SOC drop**, and once when tomorrow's prices become available.
+    ### Notifications
 
-Use the **Override Predictive Charging** switch to cancel predictive charging at any time.
+    Time Slot can notify one hour before a configured period and when charging starts. Dynamic Pricing also checks before future selected periods, during the late-day assessment, after a material SOC drop, and when tomorrow's prices become available. The active mode pages describe the exact behavior.
 
-## Solar timeline and rollout mode
-
-The forecast total and its temporal shape are separate contracts. The total
-comes from the configured forecast sensor; direct PV telemetry is used only to
-learn when that energy normally arrives. The timeline priority is:
-
-1. Valid dated periods explicitly supplied by the provider.
-2. A mature local profile learned from direct PV power and battery MPPT power.
-3. The existing sinusoidal daylight curve.
-4. A zero timeline when no safe daylight window exists.
-
-Solar-timeline selection is automatic. While the learned profile is immature or
-cannot cover the requested range, the integration uses the sinusoidal curve.
-Once the profile is mature, it is applied automatically using the priority
-above. Users do not need to select a rollout mode. Existing entries that stored
-`shadow` are normalized to this behaviour; `off` is retained only as an
-internal compatibility override.
-
-The profile is normalized to sum to one before the forecast budget is applied.
-It does not predict kWh, repair a bad weather forecast, control the inverter or
-reconstruct energy lost to curtailment. A forecast safety margin is subtracted
-once from the remaining budget before shaping.
-
-Useful decision attributes include `solar_timeline_source`,
-`solar_remaining_raw_kwh`, `solar_remaining_effective_kwh`,
-`solar_timeline_fallback_reason`, `solar_profile_mature` and
-`solar_profile_coverage_ratio`.
-
-![Predictive charging notification](../../assets/screenshots/configuration/predictive-charging/notification-example.png){ width="500"  style="display: block; margin: 0 auto;"}
+    ![Predictive charging notification](../../assets/screenshots/configuration/predictive-charging/notification-example.png){ width="500" style="display: block; margin: 0 auto;" }

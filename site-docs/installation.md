@@ -1,109 +1,96 @@
-# Installation
+# Install Omnibattery
 
-## Requirements
+Install the integration, connect a supported battery and choose the Home Assistant sensor that measures your home's grid exchange. You can finish a basic setup first and add forecasts, schedules and price-based charging later.
 
-### Hardware
+Already using **Marstek Venus Energy Manager**? Stop here and follow [Upgrading from Marstek VEM](upgrading-from-marstek-vem.md) to preserve your configuration and history.
 
-The table shows the connection path used by Omnibattery for each supported
-battery. Adapters and bridges are only required where noted.
+Check [whether your exact battery is compatible](compatibility.md) before installing.
 
-| Battery / component | Supported connection | Additional requirement |
+## Before you start
+
+You need:
+
+- Home Assistant **2024.4.1** or later
+- a [supported battery](configuration/batteries/index.md) reachable from Home Assistant
+- a Home Assistant power sensor that measures total grid import and export in watts or kilowatts
+
+The battery or its bridge must be reachable over the relevant local connection. A grid sensor is required because Omnibattery uses it to decide how much the batteries should charge or discharge.
+
+| If you have | Prepare this before setup | Connection |
 |---|---|---|
-| **Marstek Venus E/C (v2/v3), Venus A, Venus D** | Modbus TCP; Modbus RTU over USB–RS485; or LilyGo RS485/ESPHome bridge *(Venus E v2)* | **Modbus TCP:** Venus E v2 needs an RS485 → TCP converter (e.g. Elfin-EW11); Venus E v3, Venus A and Venus D use native Ethernet. **Modbus RTU:** USB–RS485 adapter. **ESPHome:** the LilyGo bridge must expose its required entities in Home Assistant. |
-| **Zendure SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus, 800** | Local HTTP API | Keep **HEMS disabled** in the Zendure app. HEMS overrides Omnibattery's manual power setpoint when enabled. |
-| **Anker SOLIX Solarbank Max AC, 4 E5000 Pro** | Modbus TCP | Enable **Third-Party Control** in the Anker app. Only one Modbus client can connect at a time. |
-| **Sessy Home Battery** | Local HTTP API through the Sessy dongle | The dongle must be reachable from Home Assistant. Enter its IP/hostname, port and dongle credentials; port `80` is the default. |
-| **Hoymiles MS-A2 / HiBattery** | MQTT through Home Assistant's configured MQTT integration | A working local MQTT broker is required (for example, Mosquitto; an existing broker can be reused). Enable **MQTT Service** in S-Miles Home and make the broker reachable from the battery. |
-| **Grid sensor** | Home Assistant entity | Sensor measuring total grid consumption (e.g. Shelly EM3, Neurio, smart-meter integration). |
-| **Solar production meter** *(optional)* | Home Assistant entity | Real-time PV production power sensor in W or kW. It lets Omnibattery derive Home Consumption accurately and populate the Solar node in the integration dashboard. Leave it empty when the panels feed the battery's MPPT inputs directly. |
+| **Marstek Venus E v2/v3, Venus A or Venus D** | Enable or add the connection described in the [Marstek guide](configuration/batteries/marstek.md). | Modbus TCP, Modbus RTU over USB–RS-485, or a LilyGo RS-485/ESPHome bridge for Venus E v2 |
+| **Zendure SolarFlow 800, 800 Plus, 800 Pro, 1600 AC+, 2400 AC+, 2400 AC Pro, 3000 Mix AC+, 4000 Mix AC+ or 4000 Mix Pro** | Keep the manufacturer's **HEMS** control disabled so it does not replace Omnibattery's power request. | Local HTTP API |
+| **Anker SOLIX Solarbank Max AC, Solarbank 4 E5000 Pro or Solarbank XE AC** | Enable **Third-Party Control** in the Anker app and disconnect any other Modbus client. | Modbus TCP |
+| **Huawei SUN2000 + LUNA2000** | Prepare the inverter's Modbus connection. The default control method also needs the Huawei Solar integration. | Modbus TCP through the inverter or a shared proxy |
+| **Sessy Home Battery** | Have the local credentials printed on the Sessy dongle available. | Local HTTP API |
+| **Hoymiles MS-A2 or HiBattery** | Configure Home Assistant's MQTT integration and a local MQTT broker, then enable **MQTT Service** in S-Miles Home. | MQTT through Home Assistant |
 
-!!! warning "Grid-meter update rate"
-    The grid meter/sensor must publish a new value in **less than 10 seconds**.
-    An update interval of **1–2 seconds** is recommended because the controller
-    is event-driven and uses each publication to adjust battery power.
+!!! warning "Use a responsive grid sensor"
+    An update every **1–2 seconds** is recommended. Sensors that publish every **10 seconds or more** are accepted, but Omnibattery raises a Repairs warning because delayed readings reduce control quality. The latest reading remains valid for up to **65 seconds**.
 
-### Software
+    See [Main sensor](configuration/main-sensor.md) for sign conventions, units and meter-specific guidance.
 
-- Home Assistant **2024.1.0** or later
-- For **Hoymiles MQTT batteries** only: the Home Assistant MQTT integration and a working local MQTT broker. Omnibattery uses the broker through Home Assistant; it does not install one.
-- (Optional) Solar forecast sensor for predictive charging (Solcast, Forecast.Solar, etc.)
+### Optional information
 
-### Network
+You can leave these fields empty or disabled during the first setup and add them later through **Settings → Devices & services → Omnibattery → Configure**:
 
-- For Modbus TCP and local HTTP, the battery or bridge must be reachable from Home Assistant by IP on the same network segment or via routing. 
-- For Modbus RTU, connect the USB adapter to the Home Assistant host. 
-- For the LilyGo/ESPHome path, add the bridge to Home Assistant.
-- For MQTT based batteries, the battery must be able to reach the MQTT broker over the local network.
+- **Solar forecast remaining today** for predictive charging and solar charge delay
+- **Solar production sensor** when an external inverter measures panels that do not feed the battery's own solar inputs
+- **Off-grid power sensor** when a separate meter measures the backed-up circuit
+- **Three-phase current protection** when phase-current sensors are available; see [Three-phase current protection](configuration/three-phase.md)
 
----
+Set **Maximum contracted power** to the actual import limit for your home. Omnibattery uses it as a charging safety ceiling.
 
-## Installation via HACS (recommended)
+??? "Connection details by battery type"
+    **Marstek:** Venus E v2 needs an RS-485 connection, such as a USB adapter or an RS-485-to-TCP converter. Venus E v3, Venus A and Venus D can use their network connection. The LilyGo path requires the supported ESPHome firmware and its stock Home Assistant entities.
 
-1. Click the button to add the repository to HACS:
+    **Zendure and Sessy:** Home Assistant must be able to reach the device's local HTTP endpoint. Omnibattery communicates locally rather than through a manufacturer cloud account.
 
-    [![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ffunes&repository=Omnibattery&category=integration)
+    **Anker:** its Modbus server accepts one client at a time. Close another integration or tool before Omnibattery tests the connection.
 
-2. Search for **"Omnibattery"** and install.
-3. Restart Home Assistant.
+    **Huawei:** Omnibattery reads through the SUN2000 inverter. By default, control commands use Huawei Solar services; direct Modbus writes are an optional setup choice.
 
-![HACS search](assets/screenshots/installation/hacs-search.png){ width="700"  style="display: block; margin: 0 auto;"}
+    **Hoymiles:** Omnibattery uses Home Assistant's configured MQTT broker. It does not install or manage a broker.
 
----
+## Install with HACS
 
-## Manual installation
+Home Assistant Community Store (HACS) is the recommended installation method.
 
-1. Download the zip from the latest release at [GitHub Releases](https://github.com/ffunes/Omnibattery/releases).
-2. Extract the `omnibattery` folder.
-3. Copy it to the `custom_components/` directory of your Home Assistant instance.
+1. Use the button below to add the repository to HACS.
+
+    [![Add Omnibattery to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ffunes&repository=Omnibattery&category=integration)
+
+2. In HACS, search for **Omnibattery** and select **Download**.
+3. Restart Home Assistant when HACS asks you to.
+
+## Install manually
+
+1. Download the zip file from the [latest Omnibattery release](https://github.com/ffunes/Omnibattery/releases).
+2. Extract the `omnibattery` folder into your Home Assistant `custom_components` directory.
+3. Confirm the resulting path is `custom_components/omnibattery/manifest.json`.
 4. Restart Home Assistant.
 
----
+## Add the integration
 
-## Adding the integration
+1. Open **Settings → Devices & services**.
+2. Select **Add integration** and search for **Omnibattery**.
+3. Choose your grid sensor and enter your installation's electrical settings.
+4. Add each battery, then finish or configure the optional time slots, excluded devices and predictive charging sections.
 
-After installing and restarting:
+![Add Omnibattery from Home Assistant's integration dialog](assets/screenshots/installation/add-integration.png){ width="600" style="display: block; margin: 0 auto;" }
 
-1. Go to **Settings** → **Devices & Services**.
-2. Click **+ ADD INTEGRATION**.
-3. Search for **Omnibattery**.
-4. Follow the [configuration wizard](configuration/index.md).
+The [configuration guide](configuration/index.md) explains each page of the setup wizard.
 
-![Add integration in HA](assets/screenshots/installation/add-integration.png){ width="600"  style="display: block; margin: 0 auto;"}
+## Check the result
 
----
+After the wizard finishes:
+
+- open the Omnibattery sidebar panel and confirm that **Grid**, **Home** and **Battery** show plausible power values
+- open **Batteries** and confirm that each battery reports its state of charge (SOC) and power
+- open **Control** to enable only the optional features you want
+
+If the battery is unavailable or its values have the wrong sign, use the relevant [battery setup guide](configuration/batteries/index.md) and [Troubleshooting](troubleshooting.md) before enabling automatic control.
 
 ## Blueprint installation
 
-Blueprints are optional and are installed in the Home Assistant configuration folder, not inside `custom_components/`.
-
-The blueprint folder for your Home Assistant instance is:
-
-```text
-/config/blueprints/automation/omnibattery/
-```
-
-If you access Home Assistant through Samba, Studio Code Server or File Editor, the same path is usually shown as:
-
-```text
-config/blueprints/automation/omnibattery/
-```
-
-### Install from the Home Assistant UI
-
-1. Go to **Settings** → **Automations & Scenes** → **Blueprints**.
-2. Click **Import Blueprint**.
-3. Paste the URL of the blueprint you want to import, for example:
-
-    ```text
-    https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/different_grid_target_blueprint.yaml
-    ```
-
-4. Click **Preview Blueprint** and then **Import Blueprint**.
-5. Create a new automation from the imported blueprint and configure its inputs. For the Marstek active-balance blueprint, select the Omnibattery battery device; its standard entities are discovered automatically.
-
-### Manual installation
-
-1. Create the `/config/blueprints/automation/omnibattery/` folder if it does not already exist.
-2. Copy the `.yaml` files from this repository's `blueprints/` folder into it.
-3. In Home Assistant, go to **Settings** → **Automations & Scenes** → **Blueprints** and click **Reload Blueprints**. If the option is not available, restart Home Assistant.
-4. Create a new automation from the installed blueprint.
+Blueprints are optional and are installed separately from the integration. Omnibattery works without them. When the basic integration is operating correctly, see [Blueprints](automations/blueprints.md) for Home Assistant and manual installation steps.

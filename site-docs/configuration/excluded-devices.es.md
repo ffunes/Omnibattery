@@ -1,171 +1,87 @@
-# Dispositivos excluidos
+# Configurar una carga grande o un cargador para vehículos eléctricos
 
-Permite "enmascarar" cargas pesadas para que la batería no intente cubrirlas.
+Agregue un dispositivo aquí cuando su demanda necesite un tratamiento de batería diferente al del resto de la casa. Esta página cubre los sensores y los campos de configuración; [Cargar exclusión](../features/load-exclusion.md) explica qué comportamiento elegir y qué hace.
 
-## Caso de uso típico
+## ¿Lo necesito?
 
-Si tienes un cargador de vehículo eléctrico de 7 kW y una batería de 2,5 kW, sin exclusión la batería intentará compensar todo el consumo del cargador y se agotará rápidamente. Con la exclusión activa, el controlador ignora esa potencia y la batería solo gestiona el resto del hogar.
+**Úselo si** desea agregar una carga grande, como un cargador de vehículo eléctrico (EV), una caja de pared, una bomba de calor o un calentador de inmersión, que la batería debe ignorar total o parcialmente.
 
----
+**No lo necesita si** la batería debe tratar el dispositivo exactamente como la demanda doméstica normal.
 
-## Configuración de un dispositivo excluido
+## Antes de empezar
 
-| Campo | Descripción |
+- Para un dispositivo con medidor, prepare un **sensor de potencia del dispositivo** numérico en vatios.
+- Para el control dinámico de energía (DPC), también prepare un **Sensor de carga EV/activo del dispositivo** que informa cuando el dispositivo solicita energía.
+- Para un cargador de vehículos eléctricos sin telemetría de potencia, prepare ese sensor de actividad en lugar de un sensor de vatios.
+- Decide si tu sensor principal de casa/red ya incluye el consumo de este dispositivo.
+- Opcional: preparar un sensor de energía para la demanda que aún se espera hoy y una entidad de presencia cuando la carga predictiva deba reservar energía solar para el dispositivo.
+
+## Cómo activarlo
+
+1. Abra **Configuración → Dispositivos y servicios → Omnibattery → Configurar → Dispositivos excluidos**, habilite **Configurar dispositivos especiales** y agregue un dispositivo.
+2. Seleccione **Sensor de energía del dispositivo**. Para un cargador de solo estado, déjelo vacío, seleccione **Dispositivo activo/sensor de carga EV** y habilite **Cargador EV sin telemetría de energía**.
+3. Configure **El consumo está incluido en el sensor de consumo del hogar** mediante la prueba siguiente.
+4. Seleccione el comportamiento que necesita: **Permitir usar excedente solar (no cargar la batería)**, **El dispositivo tiene control dinámico de energía** o **Cubrir la casa mientras el dispositivo está activo**. Utilice la [guía de comportamiento](../features/load-exclusion.md) antes de combinarlos.
+5. Opcional: agregue **Demanda restante esperada (kWh)** y su entidad de presencia, luego guarde el dispositivo.
+
+```text
+Main sensor measures the whole home, including this device
+→ Enable "Consumption is included in home consumption sensor"
+
+Main sensor measures only the domestic circuit and cannot see this device
+→ Leave it disabled
+```
+
+![Configurar un dispositivo excluido](../assets/screenshots/configuration/excluded-device-form.png){ width="650" style="display: block; margin: 0 auto;"}
+
+!!! warning "La captura de pantalla necesita actualizarse"
+    El formulario actual también incluye la demanda restante esperada y su entidad de presencia, que no son visibles en esta captura de pantalla.
+
+## lo que veras
+
+Cada dispositivo guardado expone controles en vivo en el dispositivo del sistema Omnibattery:
+
+| Controlar | Disponibilidad |
 |---|---|
-| **Sensor de potencia del dispositivo** | Entidad HA que mide la potencia numérica del dispositivo (p. ej. `sensor.wallbox_power`). Es opcional para un cargador VE sin telemetría. |
-| **Sensor de dispositivo activo / carga del VE** | Sensor de estado o binario que indica `on`, `Charging`, `Cargando` u otro estado reconocido de carga. Es obligatorio para Control Dinámico de Potencia y para configuraciones nuevas sin telemetría; en los demás casos es opcional. |
-| **Incluido en el consumo** | Marca si tu sensor principal **ya** incluye esta carga |
-| **Permitir excedente solar** | Si está activo, la batería no cargará para compensar este dispositivo cuando hay excedente solar. También puede activarse en tiempo real desde una entidad switch (ver más abajo). |
-| **El dispositivo tiene control dinámico de potencia** | Actívalo para una carga, como una wallbox por excedente, que ajuste su propia demanda mediante un contador de red. Requiere **Permitir excedente solar**. |
-| **Cubrir el hogar mientras el dispositivo está activo** | Permite que la batería cubra el consumo real del hogar mientras solo permanece excluida la parte de red del dispositivo. Requiere **Permitir excedente solar** y un sensor de producción solar. |
-| **Cargador VE sin telemetría de potencia** | Marca si el sensor es un sensor de estado que indica `Charging`/`Cargando` en lugar de un valor en vatios. Ver [Cargador VE sin telemetría](#cargador-ve-sin-telemetría-de-potencia) más abajo. |
-| **Demanda restante prevista (kWh)** | Sensor opcional que indica la energía que el dispositivo aún espera consumir hoy. La carga predictiva reserva esa parte de la previsión solar restante para el dispositivo. Ver [Demanda restante prevista](#demanda-restante-prevista) más abajo. |
+| **Dispositivo – Habilitado** | Cada dispositivo configurado |
+| **Dispositivo – Excedente solar** | Cada dispositivo configurado; setup determina su estado inicial |
+| **Dispositivo – Control dinámico de potencia** | Dispositivos medidos; setup determina su estado inicial |
+| **Dispositivo – Portada de portada** | Cada dispositivo configurado; setup determina su estado inicial |
+| **Dispositivo – % de exclusión** | Dispositivos medidos |
 
-### ¿Incluido en el consumo?
+Estas entidades le permiten pausar o cambiar el comportamiento guardado sin volver a abrir la configuración. Consulte [Cargar exclusión](../features/load-exclusion.md#que-veras) para conocer el efecto de cada control.
 
-```
-Sensor principal lee: toda la casa
-Cargador VE forma parte de "toda la casa" → ✅ Incluido en el consumo
+## Si no funciona
 
-Sensor principal lee: solo circuito doméstico
-Cargador VE está en circuito separado → ❌ No incluido en el consumo
-```
-
-La integración usa esta configuración para calcular correctamente el consumo neto sin el dispositivo excluido.
-
-![Formulario de dispositivo excluido](../assets/screenshots/configuration/excluded-device-form.png){ width="650"  style="display: block; margin: 0 auto;"}
-
----
-
-## Switch de excedente solar
-
-Por cada dispositivo excluido se crea automáticamente una entidad switch **Solar Surplus – \<nombre del dispositivo\>** que refleja el ajuste *Permitir excedente solar* y puede activarse en cualquier momento sin entrar en el flujo de opciones.
-
-Esto permite cambiar la prioridad de carga desde automatizaciones — por ejemplo:
-
-- Activar cuando el VE está conectado, para que el solar cargue primero el coche.
-- Desactivar a una hora programada para que la batería capture el excedente de la mañana.
-- Reaccionar al SOC de la batería: activar por encima del 80 %, desactivar por debajo del 50 %.
-
-El estado del switch se persiste en la entrada de configuración y sobrevive reinicios.
-
----
-
-## Control dinámico de potencia
-
-Los dispositivos con telemetría también disponen de un switch **Control Dinámico
-de Potencia**. Está pensado para cargas flexibles, como wallboxes, que se regulan
-mediante el mismo contador de red que Omnibattery. Debe activarse junto con
-**Excedente Solar**.
-
-!!! note "Sensor de producción solar"
-    Se recomienda configurar el **sensor de producción solar** para este control. Si está configurado, Omnibattery detecta aumentos de al menos 200 W en el margen disponible (producción solar menos potencia del dispositivo), incluido cuando una wallbox reduce su potencia, y cede de nuevo la carga de batería durante 20 segundos. Sin ese sensor, realiza una comprobación de 20 segundos cada 5 minutos.
-
-El **Sensor de dispositivo activo / carga del VE** permite que Omnibattery ceda mientras la wallbox solicita potencia pero todavía marca 0 W, evitando el bloqueo de arranque en el que la batería absorbe toda la exportación. Automáticamente:
-
-- Bloquea la carga de batería mientras el sensor de actividad solicita potencia   y la wallbox todavía marca 0 W.
-- Cede la carga de batería durante 30 segundos cuando el dispositivo supera 100 W.
-- Deja que el regulador externo aumente potencia antes de usar el excedente restante.
-- Vuelve a ceder durante 20 segundos cuando el margen disponible (producción solar menos potencia del dispositivo) aumenta al menos 200 W, ya sea porque sube la producción solar o porque la wallbox reduce su potencia.
-- Cuando cae la potencia del dispositivo, mantiene bloqueada la descarga durante 5 minutos y da una breve gracia a la carga para que la wallbox pueda reiniciarse tras una nube o un cambio de fase.
-- Realiza una comprobación cada 5 minutos si no hay sensor de producción solar.
-
-Las entradas antiguas de Control Dinámico de Potencia sin sensor de actividad siguen usando como fallback la primera lectura superior a 100 W. Este control no está disponible para el modo **Cargador VE sin telemetría de potencia**, porque ese modo ya gestiona la batería directamente con el mismo sensor de actividad.
-
----
-
-## Slider de % de exclusión
-
-La exclusión no es todo o nada. Cada dispositivo excluido tiene además un slider de **% de exclusión** (`<dispositivo> – Exclusion %`, `number.*_exclusion_pct`, 0–100 %, por defecto `100`) que controla **cuánta** de su demanda se mantiene fuera de la batería:
-
-- `100 %` (por defecto) — el dispositivo se enmascara por completo, igual que antes. La batería no cubre nada de su carga.
-- `0 %` — el dispositivo se trata como carga doméstica normal; la batería lo cubre como cualquier otra cosa.
-- p. ej. `60 %` — el 60 % de la potencia del dispositivo se mantiene fuera de la batería; la batería puede cubrir el 40 % restante.
-
-Esto permite que la batería cubra *parte* de una carga grande en vez de todo o nada — por ejemplo dejar que una batería de 2,5 kW ayude con un cargador VE de 7 kW hasta su parte, en lugar de ignorar el cargador por completo. El slider es por dispositivo y ajustable en tiempo de ejecución.
-
----
-
-## Demanda restante prevista
-
-La carga predictiva planifica la batería frente a la previsión solar restante. Esa previsión no
-es toda tuya: un dispositivo excluido con excedente solar consume una parte. Si no se tiene en
-cuenta, el balance energético concluye "energía suficiente", descarta las franjas baratas de red
-y la batería se queda con un SOC bajo durante un día soleado mientras el coche se lleva el sol.
-
-Indica en **Demanda restante prevista (kWh)** un sensor con la energía que el dispositivo aún
-piensa consumir hoy y la carga predictiva reservará esa parte:
-
-```
-reserva = min(demanda restante prevista, previsión solar restante − margen de seguridad)
-solar disponible para la batería = previsión solar restante − margen de seguridad − reserva
-```
-
-Notas:
-
-- El campo es opcional y está desactivado por defecto. Sin él, nada cambia.
-- La elegibilidad sigue exactamente la corrección de consumo, así la misma demanda nunca se
-  descuenta dos veces. Solo pueden reservar los dispositivos con **Incluido en el consumo**
-  marcado; si el sensor principal no ve la carga, es una carga adicional que la batería debe
-  cubrir. Los **Cargador VE sin telemetría de potencia** se omiten por la misma razón que allí.
-- El **% de exclusión** escala la reserva igual que escala la corrección de consumo. Al 50 % la
-  previsión de consumo conserva la mitad de la demanda, así que solo se reserva la otra mitad.
-- La reserva se limita a la solar disponible. La energía de red que el dispositivo consuma por
-  encima de la previsión ya está cubierta por la previsión de consumo.
-- El sensor debe indicar una unidad de energía (kWh, Wh, MJ, …). Si no está disponible, es
-  desconocido, no es numérico o su unidad no es de energía, no se reserva nada.
-- evcc publica una entidad adecuada por punto de carga:
-  `sensor.evcc_<punto_de_carga>_charge_remaining_energy`.
-- La reserva se descuenta de la solar restante de hoy en proporción a la energía de cada intervalo,
-  así que una hora soleada cede más que una nublada y todas conservan la misma fracción. El plan no
-  supone *cuándo* consumirá el dispositivo. En una proyección que cruza la medianoche nunca se
-  reduce la previsión de mañana.
-
-Como una sesión de carga suele empezar mucho después de la evaluación de las 00:05, la carga
-predictiva replanifica durante el día cuando la reserva cambia 2 kWh o más en cualquier sentido,
-como mucho cada 15 minutos y cuatro veces al día. Una sesión que termina libera la solar reservada
-del mismo modo.
-
-El valor actual se publica como atributo `excluded_demand_claim_kwh` de
-`binary_sensor.<nombre>_predictive_charging_active`, junto a `solar_surplus_kwh` y
-`solar_available_to_battery_kwh`, y en el diagnóstico de la integración.
-
----
-
-## Cargador VE sin telemetría de potencia
-
-Algunas integraciones de cargadores de vehículo eléctrico no exponen un sensor de potencia en tiempo real — solo informan del **estado de carga** (p. ej. `Charging`, `Idle`, `Disconnected`). Esta opción está diseñada para esos cargadores.
-
-En configuraciones nuevas, selecciona la entidad de estado en **Sensor de dispositivo activo / carga del VE**; el sensor numérico de potencia puede quedar vacío. Las configuraciones existentes que guardaron la entidad de estado en **Sensor de potencia del dispositivo** siguen siendo totalmente compatibles y se precargan automáticamente al editarlas. Se reconoce el estado binario `on` y palabras de carga sin distinguir mayúsculas, lo que cubre:
-
-- `Charging` (la mayoría de integraciones en inglés)
-- `Cargando`, `Cargando VE`, `Cargando Vehículo` (español)
-
-### Comportamiento cuando el VE empieza a cargar
-
-```
-t = 0  Estado VE → "Charging" detectado
-       Batería forzada a 0 W (carga Y descarga bloqueadas)
-       Estado del controlador PD congelado
-
-t = 5 min  Pausa finalizada
-           La batería puede cargar con excedente solar
-           La descarga permanece bloqueada mientras el VE sigue cargando
-
-t = N  Estado VE → cualquier otro valor (Idle / Disconnected / …)
-       Operación normal reanudada
-```
-
-### ¿Por qué la pausa de 5 minutos?
-
-Cuando un cargador VE se activa, negocia la corriente disponible con el coche durante una breve fase de handshake. Cualquier descarga de la batería durante esa ventana puede reducir temporalmente la capacidad de red aparente, haciendo que el cargador se estabilice en una corriente más baja. La pausa da tiempo al handshake para completarse antes de que la batería actúe.
-
-### Comparativa con la opción estándar de excedente solar
-
-| | Exclusión estándar + Excedente solar | VE sin telemetría |
+| Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| Requiere sensor de potencia | Sí | No |
-| La batería descarga para el VE | Nunca | Nunca |
-| La batería carga con solar mientras el VE carga | Sí | Sí (tras pausa de 5 min) |
-| Pausa inicial de 5 minutos | No | Sí |
-| Reacciona automáticamente al estado del VE | No | Sí |
+| El formulario requiere un sensor de potencia | El dispositivo está configurado como carga medida | Seleccione un sensor de vatios numérico o habilite **Cargador EV sin telemetría de energía** y proporcione un sensor de actividad |
+| El control dinámico de potencia no se puede guardar | Falta el sensor de actividad requerido | Seleccione **Dispositivo activo/sensor de carga EV** |
+| La batería compensa la cantidad incorrecta | La opción incluida en el consumo no coincide con el contador principal | Compruebe si cambiar el dispositivo cambia la lectura del sensor principal |
+| **Cover Home** no tiene ningún efecto útil | Faltan datos de Solar Surplus o producción solar externa | Habilite Solar Surplus y configure el sensor de producción solar en **Sensores** |
+| La carga predictiva reserva energía para un vehículo eléctrico ausente | El sensor de demanda permanece por encima de cero tras la desconexión | Configure **Entidad de presencia para la demanda restante (opcional)** usando una entidad conectada/presente confiable |
+| Falta un control de tiempo de ejecución | La definición del dispositivo no habilita ese comportamiento o su entidad está deshabilitada | Vuelva a abrir la configuración del dispositivo y verifique las entidades deshabilitadas del dispositivo Omnibattery |
+
+??? "Detalles avanzados"
+    **Requisitos de campo**
+
+    Omnibattery admite hasta 4 dispositivos especiales configurados. Un dispositivo excluido normal requiere un sensor de potencia numérico. Una nueva configuración de EV de solo estado requiere un sensor de actividad. El control dinámico de energía también requiere un sensor de actividad y es significativo solo con Solar Surplus habilitado. Cover Home requiere Solar Surplus y un sensor externo de producción solar.
+
+    Las entradas EV existentes de solo estado que almacenaron su entidad de estado en **Sensor de potencia del dispositivo** siguen siendo compatibles. La detección de actividad acepta `on` binario y palabras de carga sin distinguir entre mayúsculas y minúsculas.
+
+    **Demanda restante esperada**
+
+    El sensor opcional debe informar energía convertible como `Wh`, `kWh` o `MJ`. Omnibattery lo utiliza sólo cuando **El consumo está incluido en el sensor de consumo del hogar** está habilitado. Se omiten los dispositivos eléctricos estatales porque su demanda ya está representada por la previsión de consumo. El porcentaje de exclusión del tiempo de ejecución escala la cantidad reservada así como la corrección de carga.
+
+    La reserva no puede exceder el resto solar después del margen de seguridad predictivo:
+
+    ```text
+    claim = min(expected remaining demand, remaining solar after safety margin)
+    solar available to the battery = remaining solar after safety margin - claim
+    ```
+
+    Si el valor de la demanda no está disponible, es desconocido, no es numérico o no es una unidad de energía, no se realiza ningún reclamo. La entidad de presencia opcional evita reservar energía solar cuando una integración upstream sigue informando la demanda de un dispositivo desconectado. Valores de estado completo `on`, `true`, `home`, `present`, `connected`/`plugged`/`plugged in` (EN), `verbunden` (DE), `aangesloten`/`aanwezig` (NL), `connesso` (IT), `connecté`/`branché` (FR), `conectado` (ES/PT), `connectat` (CA) y `charging`/`cargando`/`laden` cuentan como presentes. La coincidencia es completa, nunca un fragmento, porque una frase negativa contiene su propia frase positiva: `disconnected` contiene `connected`. Los estados compuestos desconocidos, no disponibles, faltantes y no coincidentes (`Connected, not charging`) cuentan como ausentes; utilice un sensor binario si el estado de un texto es ambiguo. Dejar el campo vacío siempre cuenta como un sensor de demanda válido.
+
+    Los usuarios de evcc pueden seleccionar `sensor.evcc_<loadpoint>_charge_remaining_energy` y vincularlo con `binary_sensor.evcc_<loadpoint>_connected`.
+
+    La reserva se distribuye en proporción a la energía en los intervalos solares restantes de hoy; no predice cuándo consumirá el dispositivo. El pronóstico de mañana no se reduce en una proyección cruzada a medianoche. La carga predictiva puede volver a planificarse cuando el reclamo cambia en al menos 2 kWh, con al menos 15 minutos entre esas evaluaciones y no más de 4 evaluaciones basadas en reclamo por día. Los diagnósticos publican el valor actual como `excluded_demand_claim_kwh` junto con `solar_surplus_kwh` y `solar_available_to_battery_kwh` en **Carga predictiva activa**.

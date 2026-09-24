@@ -1,425 +1,406 @@
-# Plantilla de requisitos para integrar un driver de batería
+# Añadir un controlador de batería
 
-Esta plantilla sirve para auditar la documentación oficial de una batería antes
-de desarrollar su driver para Omnibattery. La referencia funcional es **Marstek
-Venus E v3**, pero no se exige que otra marca copie sus registros ni sus modos.
-Lo que debe conservarse es el contrato semántico de Omnibattery: leer el estado
-real de la batería y ordenar una potencia neta segura.
+Esta guía lleva una nueva integración de baterías desde la evidencia del fabricante hasta una solicitud de extracción (pull request) revisable en Omnibattery. Un controlador puede utilizar registros, una interfaz de programación de aplicaciones (API) local, Mensajería con Cola de Transmisión Telemétrica (MQTT), o entidades de Home Assistant, pero debe exponer el mismo comportamiento semántico de batería a través de `drivers/base.py::BatteryDriver`.
 
-La plantilla debe completarse por combinación de **marca, modelo y familia de
-firmware**. Una API documentada para un modelo no se debe dar por válida para
-toda la gama.
+Comienza con evidencia de hardware real. Un documento de protocolo por sí solo no puede establecer la polaridad, la escalada, la persistencia de comandos, la latencia o un comportamiento seguro tras una escritura parcial.
 
-## Resultado de la evaluación
+## Decidir si el dispositivo es adecuado
 
-Usa estas clasificaciones:
+Utiliza estos niveles de requisitos al evaluar el dispositivo:
 
 | Código | Significado |
 |---|---|
-| **B** | Bloqueante. Sin esta capacidad no debe habilitarse el control automático. |
-| **R** | Requerida para una integración robusta. Puede admitirse provisionalmente si el riesgo está documentado y mitigado. |
-| **O** | Opcional. Su ausencia elimina entidades o funcionalidades concretas, pero no el control básico. |
+| **B** | Bloqueante. No habilitar el control automático bidireccional sin él. |
+| **R** | Necesario para un soporte de producción robusto. Documenta cualquier mitigación provisional. |
+| **O** | Opcional. Su ausencia elimina una característica o entidad, no el control central. |
 
-Para el origen de cada dato o control:
+Registra de dónde proviene cada valor:
 
-| Código | Origen |
+| Código | Fuente |
 |---|---|
-| **N** | Nativo: la batería lo expone directamente. |
-| **D** | Derivado: el driver lo calcula a partir de datos nativos. |
-| **C** | Configurado: lo aporta el usuario o una constante validada por modelo. |
-| **X** | No soportado: la entidad o funcionalidad queda fuera. |
+| **N** | Valor nativo del dispositivo o control. |
+| **D** | Derivado por el controlador a partir de datos nativos validados. |
+| **C** | Constante de modelo configurada por el usuario o validada. |
+| **X** | No compatible; omitir o desactivar la entidad o característica dependiente. |
 
-Dictamen final:
+Un dispositivo es:
 
-- **APTO**: están cubiertos todos los requisitos B y R.
-- **APTO CON LIMITACIONES**: están cubiertos todos los B, pero falta algún R u
-  O. Deben enumerarse las funciones desactivadas y los riesgos residuales.
-- **NO APTO**: falta al menos un B, la documentación no permite confirmar la
-  semántica de los comandos o el control depende de una interfaz inestable/no
-  autorizada.
+- **ADECUADO** cuando cada requisito B y R está cubierto.
+- **ADECUADO CON LIMITACIONES** cuando cada requisito B está cubierto pero falta un elemento R u O, documentando las características y riesgos afectados.
+- **NO ADECUADO** cuando falta un elemento B, no se pueden confirmar los semánticos de comandos, o el control depende de una interfaz inestable o no autorizada.
 
-## 1. Identificación y evidencia documental
+### Puerta de acceso para control automático
 
-| Campo | Valor a completar |
+Cada elemento en esta lista es bloqueante:
+
+- [ ] Un transporte programable soporta conexión, reconexión y cierre controlados.
+- [ ] Un estado de carga (SOC) fresco está disponible como porcentaje.
+- [ ] La potencia de batería medida está disponible directamente o puede derivarse de mediciones simultáneas.
+- [ ] El dispositivo acepta comandos de carga y descarga limitados por la energía.
+- [ ] El dispositivo acepta y mantiene un comando de reposo seguro (`0 W`).
+- [ ] Se conocen los máximos seguros de carga y descarga por dispositivo.
+- [ ] Las protecciones del sistema de gestión de baterías (BMS) del fabricante permanecen activas bajo control externo.
+- [ ] El ritmo de escritura no desgasta la memoria flash ni viola los límites de la API.
+- [ ] Se puede detectar comunicación obsoleta o perdida sin reproducir valores antiguos indefinidamente.
+
+Sin SOC, potencia medida, ninguna dirección de control, o reposo fiable, el dispositivo no es adecuado para el control automático bidireccional. Se puede proponer soporte solo de monitorización por separado, pero no es un controlador de batería completo.
+
+## Recopilar evidencia del fabricante y hardware
+
+Abre una incidencia o nota de ingeniería con una evaluación por fabricante, modelo y familia de firmware. Rellena esta tabla antes de programar:
+
+| Campo | Evidencia |
 |---|---|
-| Fabricante | `...` |
-| Modelo comercial | `...` |
-| Identificador devuelto por el equipo | `...` |
-| Firmware mínimo/máximo verificado | `...` |
+| Fabricante y modelo comercial | `...` |
+| Modelo reportado por el dispositivo | `...` |
+| Versiones de firmware probadas | `...` |
 | Región o variante de hardware | `...` |
-| Capacidad y potencia nominales | `...` |
-| Tipo de acoplamiento | `AC / DC / híbrido` |
-| Documento oficial, versión y fecha | `...` |
-| URL o fichero archivado | `...` |
-| Contacto/canal de soporte del fabricante | `...` |
-| Equipo real usado para validar | `...` |
-| Fecha de la prueba | `...` |
+| Capacidad nominal y potencia de carga/descarga | `...` |
+| Topología acoplada por CA, CC o híbrida | `...` |
+| Documento oficial, revisión, fecha y enlace | `...` |
+| Autorización del fabricante o contacto de soporte | `...` |
+| Hardware utilizado para validación | `...` |
+| Fecha de prueba | `...` |
 
-Documentar también:
+Recopila suficiente detalle para responder a todas estas preguntas:
 
-- [ ] La interfaz está publicada o autorizada por el fabricante.
-- [ ] Se conocen los modelos y firmwares a los que aplica.
-- [ ] Se han guardado ejemplos reales de petición y respuesta, sin secretos.
-- [ ] Cada campo tiene tipo, unidad, escala, signo, rango y valor centinela.
-- [ ] Cada escritura tiene rango, granularidad, persistencia y respuesta de error.
-- [ ] Se conocen límites de frecuencia, concurrencia y tamaño de petición.
-- [ ] Se conoce qué ocurre al reiniciar, perder la conexión o cerrar Omnibattery.
+- ¿Qué modelos y versiones de firmware utilizan el mismo protocolo y distribución de campos?
+- ¿Es el acceso local, basado en la nube o ambos? ¿Qué sucede sin acceso a internet?
+- ¿Cómo se maneja la autenticación, renovación de tokens, encriptación de transporte y validación de certificados?
+- ¿Qué dispositivo, unidad, punto final o tema identifica una batería física individual?
+- ¿Cuáles son los límites de tiempo, reintentos, concurrencia, conexión, tamaño de solicitud y velocidad?
+- ¿El telescopio lleva una marca de tiempo, número de secuencia o vida útil?
+- Para cada campo, ¿cuáles son su tipo, orden de bytes, unidad, escala, signo, rango válido y valores sentinel?
+- Para cada escritura, ¿cuáles son su rango, paso, persistencia, confirmación y respuesta de error?
+- ¿Son atómicos los comandos de multi-escritura? Si no, ¿qué orden y vuelta atrás alcanzan un estado seguro?
+- ¿Un comando sobrevive el reinicio del dispositivo, pérdida de red, recarga de Home Assistant y apagado de Omnibattery?
+- ¿Una escritura frecuente actualiza memoria volátil o flash persistente?
+
+Mantén capturas de solicitud/respuesta borradas y observaciones de hardware. Nunca incluyas credenciales, tokens, direcciones de red o números de serie completos en pruebas, diagnósticos, documentación o solicitudes de extracción.
 
 ### Matriz de compatibilidad de firmware
 
-| Modelo | Firmware | Transporte | Lectura | Escritura | Diferencias conocidas | Estado |
+| Modelo | Firmware | Transporte | Lectura | Escritura | Diferencias conocidas | Hardware probado |
 |---|---|---|---|---|---|---|
-| `...` | `...` | `...` | `sí/no` | `sí/no` | `...` | `probado/no probado` |
+| `...` | `...` | `...` | `yes/no` | `yes/no` | `...` | `yes/no` |
 
-### Ficha de transporte y acceso
+Una API solo en la nube no se rechaza automáticamente. Su latencia, expiración, cuotas y comportamiento durante interrupciones deben seguir soportando reposo seguro y el ritmo de control requerido.
 
-| Aspecto | Valor a completar |
-|---|---|
-| Alcance | `local / cloud / ambos` |
-| Protocolo y versión | `...` |
-| Dirección, puerto, endpoint o topic | `...` |
-| Descubrimiento | `manual / mDNS / broadcast / cloud / ...` |
-| Autenticación y renovación | `...` |
-| Cifrado/TLS y validación de certificado | `...` |
-| Identificador de unidad/dispositivo | `...` |
-| Timeout y reintentos recomendados | `...` |
-| Máximo de conexiones simultáneas | `...` |
-| Límite de lecturas/escrituras | `...` |
-| Orden o atomicidad de escrituras múltiples | `...` |
-| Timestamp, secuencia o TTL de telemetría | `...` |
-| Comandos volátiles frente a persistentes | `...` |
-| Comportamiento sin red/cloud | `...` |
+## Mapear el protocolo del fabricante a Omnibattery
 
-Una API exclusivamente cloud no es un rechazo automático, pero su latencia,
-caducidad de token, cuotas y comportamiento durante una caída deben permitir un
-reposo seguro y una cadencia de control estable. Estas condiciones forman parte
-del dictamen, no son meros detalles de implementación.
+El controlador traduce detalles del protocolo en claves lógicas canónicas y operaciones. Registros, puntos finales, temas, nombres de servicio y modos propietarios deben permanecer dentro del controlador o su cliente de transporte.
 
-## 2. Puerta de entrada: mínimos para control automático
+Usa estas convenciones:
 
-Todos los puntos siguientes son bloqueantes:
+- La potencia neta firmada es positiva mientras carga, negativa mientras descarga y cero mientras está inactivo.
+- `battery_power` es una medición física con la misma convención de signo, no el último comando.
+- Publica unidades finales en W, kWh, %, V y °C.
+- Omitir un valor fallido o no disponible. Nunca reemplazarlo con cero cuando cero es válido.
+- Clampear comandos a la envoltura declarada del dispositivo.
+- Devolver un `SetpointResult` coherente de cada ruta `apply_setpoint()`, incluyendo fallos y escrituras sin retroalimentación inmediata.
+- Tratar una caché de intenciones como historial de comandos. No es entrega medida.
 
-- [ ] Existe un transporte programático con conexión, reconexión y cierre
-  controlables (`Modbus TCP/RTU`, HTTP local, MQTT, API equivalente).
-- [ ] Puede leerse un **SOC real** y actualizado en porcentaje.
-- [ ] Puede obtenerse la **potencia real de batería**, directa o derivada de
-  medidas simultáneas, con la convención de signo de Omnibattery.
-- [ ] Puede ordenarse una **carga** a potencia limitada.
-- [ ] Puede ordenarse una **descarga** a potencia limitada.
-- [ ] Puede ordenarse y mantener un estado de **reposo** (`0 W`) seguro.
-- [ ] Se conocen los límites máximos seguros de carga y descarga por unidad.
-- [ ] La protección BMS independiente del fabricante continúa activa bajo
-  control externo. Omnibattery no sustituye protecciones eléctricas del BMS.
-- [ ] La cadencia de escritura necesaria no desgasta memoria flash ni incumple
-  límites de la API. Si hay comandos volátiles y persistentes, están distinguidos.
-- [ ] Se puede detectar una comunicación obsoleta o perdida sin reutilizar datos
-  antiguos indefinidamente.
+### Telemetría y controles obligatorios
 
-Si falta SOC, potencia medida, una de las dos direcciones o un reposo fiable, el
-driver es **NO APTO** para el bucle automático bidireccional. Se puede estudiar
-un modo de solo monitorización, pero no debe presentarse como soporte completo.
+| Clave canónica u operación | Nivel | Requisito del fabricante | Sustituto aceptado |
+|---|---|---|---|
+| `battery_soc` | B | SOC real fresco como porcentaje | Un estimado de voltaje no es soporte completo. |
+| `battery_power` | B | Potencia instantánea en ambas direcciones | Fórmula D de flujos simultáneos validados. |
+| `apply_setpoint(+W)` | B | Carga limitada por la energía | Modo más límite, o una propiedad firmada. |
+| `apply_setpoint(-W)` | B | Descarga limitada por la energía | Modo más límite, o una propiedad firmada. |
+| `apply_setpoint(0)` y `standby()` | B | Reposo mantenido sin importación/exportación autónoma | Secuencia documentada de cero-límite y modo. |
+| Potencia máxima | B | Valores seguros por modelo o dispositivo | Valores C acotados por máximos oficiales. |
+| Disponibilidad y frescura | B | Error, marca de tiempo, secuencia o equivalente | Temporizador de expiración de caché del controlador. |
+| Eco de setpoint | R | Modo aplicado y límite | Una caché de intenciones puede optimizar escrituras pero no confirma la entrega. |
+| Latencia de actuador | R | Retraso comando-respuesta física | Medición de hardware con margen conservador. |
+| Latencia de retroalimentación | R | Retraso comando-telemetría establecida | Reutilizar latencia de actuador solo cuando pruebas demuestran que coinciden. |
+| Potencia mínima fiable | R | Mínimo no-cero sostenible y paso de comando | Constante C validada por modelo. |
 
-## 3. Contrato canónico de Omnibattery
+### Telemetría opcional y degradación de características
 
-El driver traduce el protocolo de la marca al contrato de
-`drivers/base.py::BatteryDriver`. La capa de control nunca debe conocer
-direcciones de registro, endpoints, topics ni nombres propietarios.
-
-### Convenciones obligatorias
-
-- Potencia neta: `+W` significa **carga**, `-W` significa **descarga** y `0 W`
-  significa reposo.
-- `battery_power` usa la misma convención y representa potencia **medida**, no
-  solamente el último setpoint solicitado.
-- Potencia en `W`, energía/capacidad en `kWh`, SOC en `%`, tensión en `V` y
-  temperatura en `°C` después de aplicar escala.
-- Un valor fallido se omite o se entrega como desconocido; nunca se inventa `0`
-  si cero es una medida válida.
-- `apply_setpoint()` limita el valor al sobre de potencia del equipo y devuelve
-  un `SetpointResult` coherente aunque el protocolo no tenga readback inmediato.
-
-### Superficie mínima del driver
-
-| Superficie | Requisito | Nivel |
+| Datos canónicos | Habilita | Si falta |
 |---|---|---|
-| Identidad/capacidades | `capabilities`, `model_label` y, si existe, `serial` estable | R |
-| Ciclo de vida | `connected`, `connect()`, `close()`, `set_shutting_down()` | B |
-| Lectura | `read_groups` y `read_telemetry(keys)` con caché si la fuente es push | B |
-| Control neto | `apply_setpoint(+W/-W/0)` | B |
-| Controles de entidad | `write_control(key, value)`; devuelve `False` para claves no soportadas | R |
-| Eco de orden | `net_power_from_data(data)`; puede devolver `None` si no hay eco | R |
-| Dependencias | `control_dependency_keys` para datos que deben leerse aunque su entidad esté deshabilitada | R |
-| Configuración | `apply_config(...)`, omitiendo de forma explícita los ajustes no aplicables | R |
-| Parada | `standby()` que deje el equipo en un estado seguro antes de cerrar | B |
-| Corte de carga | `set_charge_cutoff()` o retorno controlado `False` cuando se aplique por software | O/condicional |
-| Puerta externa | `set_rs485_control()`/`get_rs485_control()` o equivalente si el equipo la necesita | B/condicional |
+| `battery_total_energy` | Energía almacenada, asignación y carga predictiva | Requiere capacidad nominal configurada. |
+| Totales de energía de carga/descarga | Entidades de energía y eficiencia | Integrar potencia medida y persistir el resultado. |
+| `max_cell_voltage`, `min_cell_voltage` | Comportamiento en la parte superior de la carga y monitorización de equilibrio | Desactivar características dependientes del voltaje. |
+| `internal_temperature` | Limitación de potencia térmica | Desactivar limitación de temperatura. |
+| `inverter_state` | Reposo y confirmación de corte BMS | Usar potencia medida y omitir detección dependiente. |
+| `ac_offgrid_power` | Exclusión de carga de respaldo | Desactivar exclusión automática de respaldo. |
+| MPPT o potencia solar agregada | Producción CC y cálculos solares | Declarar las capacidades solares aplicables como falsas. |
+| Estado de alarma o fallo | Notificaciones de alarma | Omitir la entrada del sensor y notificador dependiente. |
+| Voltaje de batería | Diagnósticos | Omitir la entidad. |
+| Serial estable y firmware | Identidad del dispositivo y soporte | Usar la mejor clave de dispositivo estable y omitir entidades no disponibles. |
+| Cortafoche de SOC en hardware | Límites autónomos persistentes | Permitir que el control compartido imponga límites por software. |
+| Tope de potencia de hardware escribible | Configuración del dispositivo persistente | Usar un tope de software sin exponer un control de hardware falso. |
+| Puerta de acceso de control externo | Entrar y restaurar control externo | Necesario solo cuando los setpoints dependen de la puerta. |
+| Entrega del puerto AC del dispositivo | Comprobaciones de entrega correctas con DC solar compartido | Omitir `ac_delivered_power`; el código compartido solo regresa donde sea válido. |
 
-Aunque algunos métodos semánticos todavía no estén declarados abstractos en la
-clase base, el coordinador los usa y el nuevo driver debe implementarlos.
+Las características no compatibles deben estar bloqueadas mediante capacidades, definiciones de entidad o configuración. No crear entidades ni decisiones desde ceros fabricados.
 
-### Capacidades a declarar
+## Implementar el contrato del controlador
 
-| `DriverCapabilities` | Valor | Evidencia/justificación |
-|---|---:|---|
-| `hardware_soc_cutoff` | `...` | `...` |
-| `has_force_mode` | `...` | `...` |
-| `push_telemetry` | `...` | `...` |
-| `max_charge_power_w` | `...` | `...` |
-| `max_discharge_power_w` | `...` | `...` |
-| `min_charge_power_w` | `...` | `...` |
-| `min_discharge_power_w` | `...` | `...` |
-| `has_mppt_pv` | `...` | `...` |
-| `has_alarm_registers` | `...` | `...` |
-| `has_rs485_control` | `...` | `...` |
-| `has_energy_counters` | `...` | `...` |
-| `setpoint_confirm_reliable` | `...` | `...` |
-| `actuator_latency_s` | `...` | Escala medida de la respuesta física |
-| `readback_latency_s` | `...` | Retardo de peor caso hasta telemetría asentada, si difiere |
+Crea `custom_components/omnibattery/drivers/<brand>.py` y subclasea `BatteryDriver`. Usa un controlador existente con el transporte más cercano como punto de partida:
 
-## 4. Mapa mínimo de palancas y telemetría
+- `marstek.py`, `anker.py` y `huawei.py` muestran diseños Modbus consultados.
+- `zendure.py` y `sessy.py` muestran diseños HTTP locales.
+- `esphome.py` y `hoymiles.py` muestran diseños de entidades de Home Assistant alimentadas por impulso.
 
-### Núcleo obligatorio
+### Miembros abstractos
 
-| Clave/operación Omnibattery | Nivel | Qué debe aportar la marca | Sustitución admitida |
-|---|---|---|---|
-| `battery_soc` | B | SOC real 0–100 %, con cadencia y antigüedad conocidas | No se acepta una estimación simple por tensión como soporte completo |
-| `battery_power` | B | Potencia instantánea real en ambos sentidos | Fórmula D a partir de flujos simultáneos y validados |
-| `apply_setpoint(+W)` | B | Orden de carga con límite de potencia | Combinación de modo + límite o propiedad única |
-| `apply_setpoint(-W)` | B | Orden de descarga con límite de potencia | Combinación de modo + límite o propiedad única |
-| `apply_setpoint(0)` / `standby()` | B | Reposo mantenido, sin quedar en un modo autónomo que exporte | Secuencia documentada de modo y límites a cero |
-| Límites máx. de potencia | B | Valores por modelo o lectura del equipo | Configuración C limitada por máximos oficiales |
-| Estado de conexión/frescura | B | Error, timestamp, disponibilidad o mecanismo equivalente | Temporizador de caducidad en el driver |
-| Eco del setpoint | R | Modo/límite aplicado o aceptado | Caché de orden solo para optimizar; no sustituye potencia medida |
-| Latencia de actuador | R | Tiempo escritura → respuesta física | Medición sobre equipo real y margen conservador |
-| Latencia de readback | R | Tiempo escritura → telemetría asentada | Reutilizar la latencia del actuador solo si ambas coinciden |
-| Potencia mínima fiable | R | Mínimo no nulo sostenible y pasos aceptados | Constante C por modelo, validada físicamente |
+Implementa cada miembro abstracto en `drivers/base.py`:
 
-### Telemetría y controles que amplían funciones
-
-| Clave canónica | Nivel | Función que habilita | Si falta |
-|---|---|---|---|
-| `battery_total_energy` | R | Energía almacenada, reparto y carga predictiva | Capacidad C introducida por el usuario |
-| `total_charging_energy` / `total_discharging_energy` | O | Energía y eficiencia acumuladas | Integración D de `battery_power`, con persistencia |
-| `max_cell_voltage` | O | Taper y pausa segura al 100 %, recalibración y balance | Desactivar las funciones dependientes de tensión de celda |
-| `min_cell_voltage` | O | Delta de celdas y monitor de balance | No publicar delta/balance |
-| `internal_temperature` | O | Derating térmico de carga/descarga | No habilitar el límite térmico |
-| `inverter_state` | O | Confirmación adicional de standby/corte BMS | Usar solo potencia medida; omitir detecciones que exijan estado |
-| `ac_offgrid_power` | O | Detectar carga de backup y excluir la batería del PD | Desactivar exclusión automática por backup |
-| `backup_function` o equivalente | O | Saber/controlar el modo backup | Omitir la entidad y su lógica específica |
-| `mppt1_power`…`mppt4_power` | O | Producción DC y eficiencia por plano | `has_mppt_pv=False`; no crear esas entidades |
-| `alarm_status` / `fault_status` | O | Alarmas de sistema | No crear el sensor/notificador dependiente |
-| `battery_voltage` | O | Diagnóstico | Omitir la entidad |
-| Identidad, firmware, RSSI | O | Diagnóstico y soporte | Omitir entidades; preferir `serial` estable si existe |
-| Corte SOC hardware | O | Persistencia autónoma de límites SOC | `hardware_soc_cutoff=False` y corte por software |
-| Límite potencia escribible | O | Ajuste persistente en el equipo | Límite C en software, sin fingir una entidad hardware |
-| Puerta de control externo | Condicional | Activar/devolver el control al firmware | Solo obligatoria si los setpoints no funcionan sin ella |
-
-## 5. Referencia: Marstek Venus E v3
-
-La v3 define el comportamiento de referencia, no la forma obligatoria del
-protocolo:
-
-| Semántica | Implementación v3 de referencia |
+| Miembro | Comportamiento requerido |
 |---|---|
-| SOC | `battery_soc`, registro `37005`, `uint16`, `%` |
-| Potencia medida | `battery_power`, registro `30001`, `int16`; positiva al cargar y negativa al descargar |
-| Orden de carga | `set_discharge_power=0`, `set_charge_power=W`, `force_mode=Charge` |
-| Orden de descarga | `set_discharge_power=W`, `set_charge_power=0`, `force_mode=Discharge` |
-| Reposo | Ambos setpoints a `0` y `force_mode=None` |
-| Sobre de potencia | Setpoints `0–2500 W`, paso documentado `50 W`; límites de instalación en `max_charge_power`/`max_discharge_power` |
-| Potencia mínima declarada | `800 W` para los límites v3; se refleja en las capacidades del driver |
-| Control externo | `rs485_control_mode`, comandos específicos `0x55AA`/`0x55BB` |
-| Corte SOC | No hay registros de corte en v3; Omnibattery aplica min/max SOC por software |
-| Confirmación | Readback de modo, setpoints y potencia; tolerancia durante la rampa |
-| Transporte | Modbus, polling, un único slot TCP y pacing específico |
+| `capabilities` | Devolver un objeto inmutable `DriverCapabilities` para el modelo conectado. |
+| `connected` | Informar si el transporte o fuente upstream es actualmente usable. |
+| `connect()` | Establecer o validar acceso; sea seguro llamar de nuevo tras un fallo. |
+| `close()` | Liberar sesiones, suscripciones, clientes y recursos de conexión única. |
+| `set_shutting_down(value)` | Suprimir ruido de transporte esperado durante descargo. |
+| `read_groups` | Agrupar claves lógicas en unidades programables con nombres de ritmo válidos. |
+| `read_telemetry(keys)` | Devolver valores lógicos decodificados, honrando el subconjunto de claves opcional. |
+| `apply_setpoint()` | Clampear, traducir, escribir, confirmar opcionalmente y devolver `SetpointResult`. |
+| `write_control()` | Escribir un control de entidad lógica o devolver `False` cuando no compatible. |
+| `net_power_from_data()` | Reconstruir el comando firmada ecocado o devolver `None` cuando incompleto. |
+| `control_dependency_keys` | Nombrar valores que las necesidades de control necesitan incluso cuando las entidades están deshabilitadas. |
 
-La consecuencia importante es que **`force_mode` no es obligatorio**. Otra
-batería puede cumplir exactamente el mismo contrato mediante un único límite
-con signo, dos límites, un enum distinto o una API HTTP.
+`BatteryDriver` también proporciona ganchos semánticos opcionales: `dc_coupled`, `model_label`, `serial`, `balance_dependency_keys`, `supplemental_discharge_dependency_keys`, `supplemental_discharge_power_w()`, y `dynamic_discharge_limit_w()`.
 
-## 6. Sustituciones válidas: patrón Zendure
+### Ganchos llamados por el coordinador
 
-Zendure demuestra qué ausencias se pueden resolver dentro de Omnibattery:
+El coordinador también invoca estos métodos por convención. No son actualmente abstractos en `BatteryDriver`, así que verifícalos explícitamente durante la revisión:
 
-| Ausencia/diferencia de la marca | Adaptación válida del driver |
+| Gancho | Comportamiento |
 |---|---|
-| No existe `battery_power` directo | Se deriva como `outputPackPower - packInputPower`, tras validar signo y simultaneidad |
-| No hay contadores kWh | Omnibattery integra `battery_power` y persiste los totales sintéticos |
-| No se informa capacidad nominal | El usuario configura `battery_total_energy` en kWh |
-| No existe `force_mode` Marstek | `acMode` + `inputLimit`/`outputLimit` implementan el setpoint neto |
-| El límite de carga es de solo lectura | Se combina el máximo real del equipo con un techo de software del usuario |
-| Las celdas llegan como una lista de packs | El driver calcula extremos globales y publica también claves por pack |
-| El readback tarda varios segundos | Se declara `setpoint_confirm_reliable=False` y una `readback_latency_s` conservadora |
-| La escritura frecuente podría tocar flash | Los setpoints usan modo volátil; la configuración persistente usa escritura explícita a flash |
+| `apply_config(max_soc_pct, min_soc_pct, max_charge_power_w, max_discharge_power_w)` | Aplicar valores de configuración soportados y saltar deliberadamente configuraciones inaplicables. |
+| `standby()` | Dejar el dispositivo en un estado de reposo seguro antes de cerrar el transporte. |
+| `set_charge_cutoff(soc_pct)` | Cambiar un cortafuegos de hardware cuando se soporta; de lo contrario devolver `False`. |
+| `set_rs485_control(enable)` | Conmutar la puerta de acceso de control externo cuando se soporta; de lo contrario devolver `False`. |
+| `get_rs485_control()` | Confirmar el estado de la puerta para controladores que declaran `has_rs485_control=True`. |
 
-Reglas para aceptar una sustitución:
+No afirmar una capacidad cuando su gancho correspondiente no puede cumplir el contrato.
 
-- [ ] La fórmula y la convención de signo están probadas con carga, descarga y reposo.
-- [ ] Las entradas de una fórmula corresponden al mismo instante o su desfase es acotado.
-- [ ] El dato derivado conserva unidad, rango y precisión suficientes.
-- [ ] Los acumuladores se restauran tras reinicio y toleran huecos de telemetría.
-- [ ] Un valor C queda identificado como configuración, no como lectura del equipo.
-- [ ] La UI no crea una entidad hardware que en realidad no existe.
+### Declarar cada capacidad
 
-No deben sintetizarse sin una fuente física fiable: SOC real, alarmas, temperatura,
-tensiones de celda ni confirmación de potencia entregada. Una caché del último
-comando representa **intención**, no estado real.
+Construye `DriverCapabilities` con evidencia para cada campo:
 
-## 7. Matriz de degradación funcional
+| Campo | Qué establecer |
+|---|---|
+| `hardware_soc_cutoff` | Si el hardware impone todo el rango de SOC visible por el usuario. |
+| `has_force_mode` | Si un modo forzado distinto es parte de la secuencia de comandos. |
+| `push_telemetry` | Si `read_telemetry()` devuelve una caché alimentada por impulso. |
+| `max_charge_power_w`, `max_discharge_power_w` | Envoltura segura inclusiva para este modelo. |
+| `min_charge_power_w`, `min_discharge_power_w` | Menor comando no-cero sostenible, o cero cuando no existe un suelo. |
+| `has_mppt_pv` | Si existen canales de seguimiento del punto de máxima potencia (MPPT) distintos. |
+| `has_solar_telemetry` | Si existe una producción solar agregada independiente. |
+| `has_alarm_registers` | Si el estado nativo de alarma o fallo se expone. |
+| `has_rs485_control` | Si una puerta de acceso de control externo puede conmutarse y confirmarse. |
+| `has_energy_counters` | Si los contadores de energía acumulativa son nativos. |
+| `has_daily_energy_counters` | Si los contadores nativos se reinician diariamente. |
+| `has_nominal_capacity` | Si la capacidad nominal se reporta por el hardware. |
+| `cycles_from_discharge_only` | Si el cálculo del ciclo debe usar solo energía descargada. |
+| `setpoint_confirm_reliable` | Si la retroalimentación inmediata del comando es confiable. |
+| `actuator_latency_s` | Tiempo de respuesta física medido conservador. |
+| `readback_latency_s` | Peor tiempo antes de que la telemetría se establezca, o `None` para reutilizar latencia de actuador. |
+| `engage_grace_s` | Permiso extra de reposo-a-activo, o `None` para el valor por defecto del controlador. |
+| `telemetry_liveness_checked` | Si una lectura de caché prueba que la transmisión de datos frescos reanudó. |
+| `charge_cutoff_range`, `discharge_cutoff_range` | Valores que la ruta de escritura de hardware acepta realmente. |
 
-Completarla antes de aprobar el desarrollo:
+Los valores por defecto en la clase de datos son comportamiento de compatibilidad para controladores existentes. Un nuevo controlador debe establecer campos intencionalmente y explicar los valores dependientes del modelo en comentarios y pruebas.
 
-| Funcionalidad | Dependencias mínimas | Alternativa | Estado para este modelo |
-|---|---|---|---|
-| Control PD carga/descarga | SOC, potencia medida, setpoint ±W/0, límites | Ninguna para soporte completo | `...` |
-| Gestión multi-batería | Lo anterior por unidad; capacidad mejora el reparto energético | Capacidad C | `...` |
-| Límites min/max SOC | SOC + mando de reposo | Hardware o software | `...` |
-| Carga predictiva/precios | SOC + capacidad kWh + control de carga | Capacidad C | `...` |
-| Energía/ciclos/eficiencia | Contadores o potencia con tiempo fiable | Integración D | `...` |
-| Taper/protección al 100 % | `max_cell_voltage`, SOC y potencia | Sin alternativa equivalente | `...` |
-| Monitor/diagnóstico de balance | `max_cell_voltage` + `min_cell_voltage` | Extremos D desde celdas/packs | `...` |
-| Carga semanal completa | SOC, potencia y control; corte hardware si existe | Corte software | `...` |
-| Límite térmico | Temperatura interna | Ninguna | `...` |
-| Exclusión por backup | Potencia off-grid y estado/modo backup | Ninguna fiable | `...` |
-| Producción MPPT/DC | Potencia por MPPT o total DC | Suma D de canales | `...` |
-| Alarmas | Bits/códigos de fallo con tabla oficial | Ninguna | `...` |
-| Persistencia de energía sintética | Potencia + identificador estable | Clave de dispositivo menos estable | `...` |
+### Definir entidades junto al decodificador
 
-Una función marcada como no soportada debe quedar fuera mediante capacidades,
-definiciones de entidades o configuración. No debe recibir ceros ficticios.
+Expon estas propiedades del controlador incluso cuando una plataforma no tenga definiciones nativas:
 
-## 8. Ficha de mapeo de telemetría
-
-Añadir una fila por cada clave. En “evidencia” indicar página/sección del manual
-y adjuntar una muestra real anonimizada.
-
-| Clave Omnibattery | B/R/O | Campo/registro/topic fabricante | R/W | Tipo/endian | Escala y unidad final | Rango/centinelas | Cadencia/TTL | N/D/C/X | Evidencia | Validado |
-|---|---|---|---|---|---|---|---|---|---|---|
-| `battery_soc` | B | `...` | R | `...` | `... → %` | `...` | `...` | `...` | `...` | [ ] |
-| `battery_power` | B | `...` | R | `...` | `... → W; +carga/-descarga` | `...` | `...` | `...` | `...` | [ ] |
-| Estado/eco de setpoint | R | `...` | R | `...` | `...` | `...` | `...` | `...` | `...` | [ ] |
-| `battery_total_energy` | R | `...` | R/C | `...` | `... → kWh` | `...` | `...` | `...` | `...` | [ ] |
-| `total_charging_energy` | O | `...` | R | `...` | `... → kWh` | `...` | `...` | `...` | `...` | [ ] |
-| `total_discharging_energy` | O | `...` | R | `...` | `... → kWh` | `...` | `...` | `...` | `...` | [ ] |
-| `max_cell_voltage` | O | `...` | R | `...` | `... → V` | `...` | `...` | `...` | `...` | [ ] |
-| `min_cell_voltage` | O | `...` | R | `...` | `... → V` | `...` | `...` | `...` | `...` | [ ] |
-| `internal_temperature` | O | `...` | R | `...` | `... → °C` | `...` | `...` | `...` | `...` | [ ] |
-| `inverter_state` | O | `...` | R | enum | `mapa: ...` | `...` | `...` | `...` | `...` | [ ] |
-| `ac_offgrid_power` | O | `...` | R | `...` | `... → W` | `...` | `...` | `...` | `...` | [ ] |
-| Alarmas/fallos | O | `...` | R | bitmap/enum | `mapa: ...` | `...` | `...` | `...` | `...` | [ ] |
-| MPPT/PV | O | `...` | R | `...` | `... → W` | `...` | `...` | `...` | `...` | [ ] |
-| Identidad/firmware | O | `...` | R | string | `...` | `...` | `...` | `...` | `...` | [ ] |
-
-## 9. Ficha de mapeo de controles
-
-| Operación semántica | B/R/O | Campo(s)/comando(s) fabricante | Secuencia | Rango/paso | Volátil/persistente | ACK/readback | Timeout/latencia | Estado seguro al fallar | Evidencia | Validado |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Conectar/autenticar | B | `...` | `...` | — | — | `...` | `...` | sin control | `...` | [ ] |
-| Cargar a `W` | B | `...` | `...` | `...` | `...` | `...` | `...` | `...` | `...` | [ ] |
-| Descargar a `W` | B | `...` | `...` | `...` | `...` | `...` | `...` | `...` | `...` | [ ] |
-| Reposo `0 W` | B | `...` | `...` | `...` | `...` | `...` | `...` | `...` | `...` | [ ] |
-| Límite máximo carga | R | `...` | `...` | `...` | `...` | `...` | `...` | límite C | `...` | [ ] |
-| Límite máximo descarga | R | `...` | `...` | `...` | `...` | `...` | `...` | límite C | `...` | [ ] |
-| Corte SOC máximo | O | `...` | `...` | `...` | `...` | `...` | `...` | software | `...` | [ ] |
-| Corte SOC mínimo | O | `...` | `...` | `...` | `...` | `...` | `...` | software | `...` | [ ] |
-| Activar control externo | Cond. | `...` | `...` | `...` | `...` | `...` | `...` | devolver control | `...` | [ ] |
-| Restablecer control del fabricante | Cond. | `...` | `...` | — | `...` | `...` | `...` | `...` | `...` | [ ] |
-| Otros controles UI | O | `...` | `...` | `...` | `...` | `...` | `...` | omitir entidad | `...` | [ ] |
-
-## 10. Pruebas mínimas de aceptación
-
-No basta con que el documento mencione una clave; debe verificarse sobre equipo
-real o simulador oficial representativo.
-
-### Transporte y datos
-
-- [ ] Conecta, lee identidad/SOC y cierra sin dejar recursos o sesiones abiertos.
-- [ ] Reconecta después de timeout, reinicio del equipo y cambio temporal de red.
-- [ ] Rechaza respuestas parciales, valores centinela y datos fuera de rango.
-- [ ] Caduca la caché push o los últimos datos cuando deja de recibir mensajes.
-- [ ] Mantiene las unidades y el signo en carga, descarga y reposo.
-- [ ] Respeta exclusión mutua si el dispositivo solo admite una conexión.
-
-### Control
-
-- [ ] `+W`: carga, queda limitada al máximo y la potencia medida cambia de signo correcto.
-- [ ] `-W`: descarga, queda limitada al máximo y la potencia medida cambia de signo correcto.
-- [ ] `0 W`: detiene ambos sentidos y no vuelve solo a exportar/importar.
-- [ ] Transiciones carga → descarga, descarga → carga y movimiento → reposo.
-- [ ] Comandos repetidos son idempotentes y no desgastan flash.
-- [ ] Si una orden usa varias escrituras, un fallo parcial converge a reposo o a
-  otro estado definido; se ha verificado el orden obligatorio.
-- [ ] El readback distingue orden aceptada de potencia realmente entregada.
-- [ ] Se mide latencia en caso normal y peor caso; se configura el valor conservador.
-- [ ] Una escritura fallida devuelve razón y no actualiza la caché como confirmada.
-- [ ] Al descargar con SOC mínimo y cargar con SOC máximo, el sistema queda seguro.
-- [ ] Al cerrar Omnibattery se aplica `standby()` y, si procede, se devuelve el control al firmware.
-
-### Sustituciones y degradación
-
-- [ ] Cada fórmula D tiene pruebas unitarias con valores límite y signos.
-- [ ] Energía sintética sobrevive a reinicios y no integra durante huecos de datos.
-- [ ] La capacidad C se valida contra rangos razonables y aparece como configurada.
-- [ ] Las funciones X no crean entidades, avisos ni decisiones con valores ficticios.
-- [ ] El driver convive con otra marca en un pool multi-batería.
-
-### Cobertura de código esperada
-
-- [ ] Contrato del driver: conexión, grupos de lectura, escalado y claves ausentes.
-- [ ] `apply_setpoint`: carga, descarga, cero, clamp, fallo, ACK tardío y sin readback.
-- [ ] `net_power_from_data` y `control_dependency_keys`.
-- [ ] Configuración/cortes/standby y puerta de control condicional.
-- [ ] Detección de modelo y validación del flujo de configuración.
-- [ ] Matriz de firmware/modelo soportado y no soportado.
-
-## 11. Informe de decisión para copiar y completar
-
-```text
-Marca/modelo:
-Firmware probado:
-Documentación oficial (versión/fecha/enlace):
-
-Dictamen: APTO / APTO CON LIMITACIONES / NO APTO
-
-Bloqueantes B:
-- SOC real: N/D/C/X — evidencia:
-- Potencia real: N/D/C/X — evidencia/fórmula:
-- Carga regulable: sí/no — rango/paso:
-- Descarga regulable: sí/no — rango/paso:
-- Reposo seguro: sí/no — secuencia:
-- Límites seguros: origen/valores:
-- Frescura y pérdida de conexión: mecanismo:
-
-Adaptaciones en Omnibattery:
-- Datos derivados:
-- Datos configurados por usuario:
-- Límites aplicados por software:
-
-Funcionalidades excluidas:
--
-
-Riesgos abiertos:
--
-
-Pruebas en hardware pendientes:
--
-
-Responsable de aprobación y fecha:
+```python
+sensor_definitions
+number_definitions
+select_definitions
+switch_definitions
+binary_sensor_definitions
+button_definitions
+all_definitions
 ```
 
-## 12. Checklist de implementación después de aprobar
+Cada definición usa claves canónicas e incluye la metadata consumida por su plataforma de Home Assistant, tales como unidad, clase de dispositivo, clase de estado, escala, precisión, ritmo de consulta, categoría y habilitación por defecto. Semilla definiciones durante `__init__`; `connect()` puede refinarlas después del descubrimiento de modelo o paquete. Una batería que comienza inaccesible aún necesita suficientes definiciones para que las entidades se suscriban y disparen una recuperación posterior.
 
-- [ ] Crear el driver sin filtrar detalles propietarios fuera de `drivers/`.
-- [ ] Añadir selección/detección de marca y modelo en el flujo de configuración.
-- [ ] Instanciar el driver en el coordinador y declarar correctamente capacidades.
-- [ ] Definir solo las entidades realmente soportadas y sus traducciones.
-- [ ] Añadir campos de configuración para valores C, como capacidad nominal.
-- [ ] Desactivar por capacidad las funciones que dependan de claves X.
-- [ ] Añadir pruebas unitarias del driver y pruebas de integración multi-marca.
-- [ ] Documentar prerrequisitos del equipo, firmwares y limitaciones conocidas.
-- [ ] Actualizar diagnósticos ocultando credenciales, tokens y números de serie sensibles.
+Añade nombres y descripciones visibles a `custom_components/omnibattery/strings.json` y cada archivo bajo `custom_components/omnibattery/translations/`. Reutiliza una clave canónica existente y traducción cuando el significado y unidad sean idénticos.
 
-La aprobación documental autoriza iniciar el driver, pero no sustituye la prueba
-en hardware. Una clave que aparece en el manual puede tener signo invertido,
-escala distinta, latencia, clamp interno o comportamiento diferente según
-firmware; todo ello debe quedar validado antes de declarar soporte estable.
+## Conectar el controlador en la configuración
+
+Un archivo de controlador por sí solo no es soporte seleccionable. Completa cada punto de integración:
+
+1. Exporta la clase de `drivers/__init__.py` y añádela a `__all__`.
+2. Añade la marca a los selectores añadir-batería y editar-batería en `config_flow.py`.
+3. Añade un paso específico de flujo de configuración que valide credenciales o acceso al transporte en hardware real y almacene solo los campos necesarios en tiempo de ejecución.
+4. Construye el controlador en `MarstekVenusDataUpdateCoordinator.__init__()` y pasa límites de modelo probados o identidad cuando sea necesario.
+5. Establece indicadores de control y límite por software desde capacidades y comportamiento hardware real; no inferirlos solo desde el nombre de marca.
+6. Expo solo definiciones de entidad soportadas, luego añade todas las claves de traducción.
+7. Añade cualquier valor C configurado por el usuario, tal como capacidad nominal, con validación y etiquetas claras.
+8. Comprobar la configuración mientras la batería es accesible e inaccesible, luego comprobar recarga, reconexión y eliminación.
+9. Verificar el nuevo dispositivo en una flota de múltiples marcas para que selección, asignación, propiedad manual y apagado no dependan de controladores homogéneos.
+
+Si la configuración requiere una biblioteca nueva, documenta por qué es necesaria, áncoral según política de repositorio e incluye licencia y información de mantenimiento en la solicitud de extracción.
+
+## Probar el controlador
+
+Crea `tests/test_<brand>_driver.py`. Usa un transporte falso, estados falsos de Home Assistant o una capa de servicio falsa para que las pruebas nunca contacten hardware real. Archivos existentes como `test_huawei_driver.py`, `test_zendure_driver.py` y `test_esphome_driver.py` muestran los acoples esperados.
+
+### Pruebas de controlador
+
+Cubre estos comportamientos:
+
+- construcción y valores de capacidad completa;
+- éxito de conexión, fallo de autenticación, conexión repetida, cierre y reconexión;
+- composición de grupos de lectura y ritmo de consulta;
+- decodificación, escalado, conversión de signo, sentinels, respuestas parciales, claves faltantes y lecturas filtradas por clave;
+- expiración de caché de impulso y comprobaciones de vitalidad donde aplicable;
+- setpoints positivos, negativos y cero;
+- clampeo de comandos, potencia mínima fiable y límites específicos del modelo;
+- transiciones carga-a-descarga, descarga-a-carga, activo-a-reposo y reposo-a-activo;
+- orden de escritura y resultado seguro de cada fallo parcial;
+- retroalimentación inmediata, retardada, ausente, obsoleta y no coincidente;
+- campos `SetpointResult` y `net_power_from_data()`;
+- `apply_config()`, `standby()`, cortafuegos, puertas de control externo y controles no compatibles;
+- detección de modelo, variantes de firmware, filtrado de definición de entidad y dependencias de control;
+- fórmulas de telemetría derivadas en límites de signo y rango;
+- persistencia de energía sintética cuando contadores nativos faltan.
+
+### Pruebas de integración
+
+Añade o extiende pruebas para:
+
+- construcción del coordinador y reenvío de capacidades;
+- serialización y edición de flujo de configuración;
+- definiciones de entidad y traducciones;
+- configuración con batería inaccesible y recuperación posterior;
+- selección de múltiples marcas y distribución de potencia;
+- límites de SOC o potencia por software cuando el hardware no los impone;
+- apagado alcanzando reposo y restaurando control del fabricante cuando aplicable;
+- características opcionales desapareciendo limpiamente cuando su telemetría no es compatible.
+
+Ejecuta primero la prueba enfocada, luego la suite completa de unidades:
+
+```bash
+python -m pytest tests/test_<brand>_driver.py
+python -m pytest
+```
+
+Las pruebas que solicitan el fixture `hass` de Home Assistant necesitan habilitado el plugin de pytest de Home Assistant. Sigue el patrón de comando separado en `.github/workflows/tests.yml` y añade el nuevo archivo de prueba allí si la suite predeterminada lo salta:
+
+```bash
+python -m pytest -o addopts="" tests/test_<integration_flow>.py
+```
+
+Antes de abrir la solicitud de extracción, también construye la documentación exactamente como hace la integración continua:
+
+```bash
+python -m mkdocs build --strict
+```
+
+## Validar en hardware
+
+Las pruebas de unidad demuestran lógica de traducción; no demuestran el comportamiento del fabricante. Registra una prueba de hardware para cada modelo y familia de firmware soportados:
+
+- [ ] Conectar, leer identidad y SOC, y cerrar sin recursos filtrados.
+- [ ] Recuperar tras un tiempo agotado, reinicio del dispositivo, recarga de Home Assistant y pérdida temporal de red.
+- [ ] Rechazar respuestas malformadas, sentinels y valores fuera de rango.
+- [ ] Confirmar signo físico de potencia durante carga, descarga y reposo.
+- [ ] Confirmar rango de comando, paso, clamps y potencia mínima estable.
+- [ ] Medir latencia de actuador y retroalimentación normal y en peor caso.
+- [ ] Confirmar que comandos repetidos son idempotentes y no escriben flash persistente innecesariamente.
+- [ ] Interrumpir cada etapa de una secuencia de multi-escritura y verificar el estado seguro documentado.
+- [ ] Confirmar que escrituras fallidas no entran en la caché como estado confirmado.
+- [ ] Ejercitar comportamiento de SOC mínimo y máximo con protecciones BMS aún activas.
+- [ ] Detener Omnibattery y verificar `standby()` más cualquier restauración de control del fabricante.
+- [ ] Ejecutar en una piscina de múltiples marcas y verificar que la entrega medida coincide con la asignación.
+
+Mantén registros o trazas borrados que muestren el comando solicitado, confirmación y respuesta física medida. Estado claramente qué entradas de matriz permanecen sin probar.
+
+## Qué incluir en la solicitud de extracción
+
+Un revisor debería poder juzgar el protocolo, comportamiento de seguridad, superficie del producto y evidencia de prueba sin reconstruir tu investigación. Incluye:
+
+- fabricantes soportados, modelos, regiones y firmware probados;
+- fuente oficial de protocolo y estado de autorización;
+- transporte, autenticación, descubrimiento y comportamiento offline;
+- el mapeo de telemetría y control, incluyendo signo, escalado, unidades, sentinels y persistencia;
+- cada valor `DriverCapabilities` con su evidencia o justificación;
+- secuencia de comando, clampeo, comportamiento de fallo parcial y ruta de reposo seguro;
+- latencia medida de actuador y retroalimentación;
+- características no compatibles y cómo están bloqueadas;
+- todos los archivos añadidos o cambiados a través de exportación del controlador, coordinador, flujo de configuración, entidades, traducciones, pruebas y documentación de usuario;
+- comandos enfocados y completos de prueba con resultados;
+- evidencia de prueba de hardware borrada y modelos y firmware exactos probados;
+- limitaciones conocidas, riesgos restantes y trabajo de seguimiento explícito.
+
+No afirmar soporte basado solo en pruebas simuladas. La marca debe ser seleccionable, la configuración debe completarse, las entidades soportadas deben poblar el control automático debe alcanzar hardware real de forma segura, y la matriz de prueba documentada debe identificar qué fue verificada físicamente.
+
+??? "Fichas de evaluación de protocolo"
+    Usa estas tablas en la incidencia o solicitud de extracción cuando el mapeo sea demasiado grande para el resumen.
+
+    **Transporte y acceso**
+
+    | Aspecto | Valor |
+    |---|---|
+    | Local, nube o ambos | `...` |
+    | Protocolo y versión | `...` |
+    | Dirección, punto final, unidad o tema | `...` |
+    | Método de descubrimiento | `...` |
+    | Autenticación y renovación | `...` |
+    | Encriptación y validación de certificado | `...` |
+    | Tiempo agotado y política de reintento | `...` |
+    | Límite de conexión simultánea | `...` |
+    | Límite de velocidad de lectura/escritura | `...` |
+    | Orden o atomicidad de multi-escritura | `...` |
+    | Marca de tiempo de telemetría, secuencia o TTL | `...` |
+    | Comandos volátiles versus persistentes | `...` |
+    | Comportamiento offline | `...` |
+
+    **Mapeo de telemetría**
+
+    | Clave Omnibattery | B/R/O | Campo del fabricante | R/E | Tipo/orden | Escala y unidad | Rango/sentinels | Ritmo/TTL | N/D/C/X | Evidencia | Probado |
+    |---|---|---|---|---|---|---|---|---|---|---|---|
+    | `battery_soc` | B | `...` | E | `...` | `... → %` | `...` | `...` | `...` | `...` | [ ] |
+    | `battery_power` | B | `...` | E | `...` | `... → W` | `...` | `...` | `...` | `...` | [ ] |
+    | Eco de setpoint | R | `...` | E | `...` | `...` | `...` | `...` | `...` | `...` | [ ] |
+    | `battery_total_energy` | R | `...` | R/C | `...` | `... → kWh` | `...` | `...` | `...` | `...` | [ ] |
+    | Totales de energía | O | `...` | E | `...` | `... → kWh` | `...` | `...` | `...` | `...` | [ ] |
+    | Voltajes de celda | O | `...` | E | `...` | `... → V` | `...` | `...` | `...` | `...` | [ ] |
+    | `internal_temperature` | O | `...` | E | `...` | `... → °C` | `...` | `...` | `...` | `...` | [ ] |
+    | `inverter_state` | O | `...` | E | enum | `map: ...` | `...` | `...` | `...` | `...` | [ ] |
+    | `ac_offgrid_power` | O | `...` | E | `...` | `... → W` | `...` | `...` | `...` | `...` | [ ] |
+    | Alarmas o fallos | O | `...` | E | bitmap/enum | `map: ...` | `...` | `...` | `...` | `...` | [ ] |
+    | Solar o MPPT | O | `...` | E | `...` | `... → W` | `...` | `...` | `...` | `...` | [ ] |
+    | Identidad y firmware | O | `...` | E | string | `...` | `...` | `...` | `...` | `...` | [ ] |
+
+    **Mapeo de control**
+
+    | Operación | B/R/O | Comando del fabricante | Secuencia | Rango/paso | Volátil/persistente | Confirmación/lectura | Latencia | Estado seguro de fallo | Evidencia | Probado |
+    |---|---|---|---|---|---|---|---|---|---|---|---|
+    | Conectar/autenticar | B | `...` | `...` | — | — | `...` | `...` | sin control | `...` | [ ] |
+    | Carga | B | `...` | `...` | `...` | `...` | `...` | `...` | `...` | `...` | [ ] |
+    | Descarga | B | `...` | `...` | `...` | `...` | `...` | `...` | `...` | `...` | [ ] |
+    | Reposo | B | `...` | `...` | `...` | `...` | `...` | `...` | `...` | `...` | [ ] |
+    | Máximos/mínimos de potencia | R | `...` | `...` | `...` | `...` | `...` | `...` | Límite C | `...` | [ ] |
+    | Cortafuegos de SOC | O | `...` | `...` | `...` | `...` | `...` | `...` | límite software | `...` | [ ] |
+    | Habilitar control externo | Condicional | `...` | `...` | `...` | `...` | `...` | `...` | restaurar control | `...` | [ ] |
+    | Restaurar control del fabricante | Condicional | `...` | `...` | — | `...` | `...` | `...` | `...` | `...` | [ ] |
+    | Otros controles de entidad | O | `...` | `...` | `...` | `...` | `...` | `...` | omitir entidad | `...` | [ ] |
+
+??? "Ejemplos de adaptación existentes"
+    Marstek Venus E v3 demuestra una implementación respaldada por registros. Lee `battery_soc` del registro `37005` y `battery_power` firmada del registro `30001`. La carga escribe un límite de carga y modo de carga forzado; la descarga escribe un límite de descarga y modo de descarga forzado; el reposo escribe ambos setpoints direccionales a cero y selecciona ninguna dirección forzada. Los setpoints direccionales exponen un rango de `0–2,500 W` y paso de `50 W`. El controlador declara una potencia operativa mínima fiable de `0 W` porque los registros de comando aceptan valores por debajo de las opciones separadas del tope de potencia de hardware.
+
+    Zendure demuestra sustituciones válidas para un dispositivo basado en propiedades:
+
+    | Diferencia del fabricante | Adaptación del controlador |
+    |---|---|
+    | Sin `battery_power` directo | Derivar potencia de paquete de salida menos potencia de entrada del paquete tras validar signo y simultaneidad. |
+    | Sin contadores de energía nativos | Integrar potencia medida y persistir totales sintéticos. |
+    | Sin capacidad nominal | Requerir `battery_total_energy` configurado por el usuario. |
+    | Sin modo de fuerza Marstek | Traducir potencia neta en modo del fabricante y límites de entrada/salida. |
+    | Tope de carga de hardware solo lectura | Combinar tope del dispositivo con un techo de software del usuario. |
+    | Celdas reportadas por paquete | Derivar extremos globales y exponer claves específicas de paquete solo cuando sea útil. |
+    | Retroalimentación retardada | Declarar confirmación inmediata no fiable y tiempo conservador. |
+    | Preocupación de escritura persistente | Usar setpoints volátiles y reservar escrituras persistentes para cambios de configuración explícitos. |
+
+    Acepta una sustitución solo tras validar su signo, tiempo, rango, persistencia y comportamiento de fallo en hardware. Los valores configurados deben permanecer como valores visibles configurados; no presentarlos como telemetría del dispositivo.
