@@ -380,3 +380,38 @@ def test_clear_runtime_drops_a_live_override():
     status = manager.get_status()
     assert (status["state"], status["reason"]) == (STATE_DISABLED, "unload")
     assert status["target_w"] is None
+
+
+# ----------------------------------------------------------------------
+# The protected horizon after midnight
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("hour", "expected_end"),
+    [
+        # Before sunrise the night being protected ends this morning; asking
+        # for the next day's sunrise needs prices not published until ~13:00.
+        (2, DAY + timedelta(hours=7)),
+        (9, DAY + timedelta(days=1, hours=7)),
+    ],
+)
+def test_horizon_ends_at_the_next_sunrise_not_the_next_days(hour, expected_end):
+    requested: list[datetime] = []
+
+    def export_slots(horizon_end=None):
+        requested.append(horizon_end)
+        return []
+
+    pricing = _pricing(
+        # Mirrors PricingManager: always the sunrise (07:00) of now's date + 1.
+        energy_horizon_end=lambda now: datetime.combine(
+            now.date() + timedelta(days=1), datetime.min.time()
+        ) + timedelta(hours=7),
+        get_future_export_price_slots=export_slots,
+    )
+    manager, _controller, _setpoints = _manager(DAY + timedelta(hours=hour), pricing=pricing)
+
+    manager.refresh_override()
+
+    assert requested == [expected_end]

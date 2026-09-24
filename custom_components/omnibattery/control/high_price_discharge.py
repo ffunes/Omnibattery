@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
@@ -254,7 +254,13 @@ class HighPriceDischargeManager:
 
         now = self._now()
         try:
-            horizon_end = pricing.energy_horizon_end(now)
+            # Between midnight and sunrise the night being protected ends at
+            # *today's* sunrise; ``energy_horizon_end`` always answers the next
+            # day's, which needs prices that are not published until ~13:00
+            # and left the whole night in a coverage-gap fail-safe.
+            horizon_end = pricing.energy_horizon_end(now - timedelta(days=1))
+            if now >= horizon_end:
+                horizon_end = pricing.energy_horizon_end(now)
             slots = self._build_horizon(pricing, now, horizon_end)
             max_power_w, margin = config
             plan = plan_high_price_discharge(
