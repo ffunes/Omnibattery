@@ -1,138 +1,153 @@
-# Solución de problemas
+# Solución de problemas por síntoma
 
-## Precio Dinámico muestra un *shortfall* de plazo
+Empieza por lo que puedes ver en Home Assistant. **Integration Status** y sus atributos de bloqueadores suelen explicar por qué Omnibattery espera, limita potencia o excluye una batería.
 
-Consulta `energy_horizon_end`, `overnight_consumption_kwh`, `deadline_shortfall_kwh`, `earliest_projected_depletion`, `slot_deadlines` y `chronological_plan_reason` en `binary_sensor.omnibattery_predictive_charging_active`. El *shortfall* indica que el mejor plan físicamente realizable no puede entregar toda la energía antes del cruce previsto del SOC mínimo, incluida la demanda desde medianoche hasta el próximo amanecer. Las causas habituales son un techo máximo de precio explícito, ausencia de slots elegibles antes del plazo, potencia de carga insuficiente, falta de hueco o ownership manual/por franja. Un slot barato posterior no se presenta deliberadamente como cobertura de una necesidad anterior. La integración continúa el control normal y nunca ignora límites explícitos de seguridad.
+!!! note "Compatibilidad con la aplicación Marstek"
+    No necesitas cambiar nada en la aplicación Marstek para que Omnibattery funcione, incluido el ajuste de su medidor de energía. Cuando Omnibattery esté funcionando, no cambies el modo de funcionamiento ni ningún ajuste desde la aplicación Marstek: hacerlo rompe la compatibilidad hasta que desactives y vuelvas a activar la integración.
 
-## Compatibilidad con la app de Marstek
+## La batería no hace nada
 
-**No es necesario realizar ningún cambio en la app de Marstek** para que la integración funcione — incluyendo desactivar el medidor de energía o modificar cualquier configuración. La integración opera junto a la app sin requerir ningún ajuste desde ella.
+La batería puede estar en reposo intencionadamente cuando la red ya está cerca del objetivo. Si cambia la carga de casa y la batería sigue sin cargar ni descargar, usa esta tabla.
 
-Sin embargo, **no cambies ningún modo de operación ni configuración desde la app de Marstek mientras la integración de Home Assistant esté en ejecución**. Hacerlo romperá la compatibilidad y necesitarás deshabilitar y volver a habilitar la integración para restaurar el funcionamiento normal.
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| El control automático está pausado | **Manual Mode** y **Manual Battery Control** por batería | Desactiva el control manual cuando quieras control automático |
+| La batería no es apta | **Allow Charge**, **Allow Discharge** y `battery_charge_blockers` / `battery_discharge_blockers` en **Integration Status** | Activa el sentido requerido o elimina el bloqueador indicado |
+| La batería no está disponible o está excluida | Entidades de batería, **Non-Responsive Batteries** y **Repairs** de Home Assistant | Sigue [Las entidades no están disponibles](#las-entidades-no-están-disponibles) |
+| Hay una salida de respaldo activa | **Backup Function**, potencia de respaldo y `backup_cooldown_batteries` | Deja que termine la actividad de respaldo antes de esperar control de red |
+| El medidor de red no es válido | Estado y hora de actualización del sensor de red principal | Sigue [El medidor de red no está disponible o está bloqueado](#el-medidor-de-red-no-está-disponible-o-está-bloqueado) |
 
----
+**Resultado esperado:** **Integration Status** cambia de un estado bloqueado/manual a carga, descarga o reposo cuando cambia el flujo de red. Consulta [varias baterías](features/multi-battery.md) para el control por batería.
 
-## La batería no responde a los comandos
+## La batería no carga
 
-1. Verifica que el conversor Modbus TCP (Elfin-EW11 o similar) está accesible por IP desde Home Assistant.
-2. Comprueba que el puerto configurado es correcto (por defecto `502`).
-3. Revisa que el switch **RS485 Control Mode** está activado.
-4. Asegúrate de que la versión de batería configurada coincide con el hardware real.
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| Se alcanzó el SOC máximo o la histéresis de carga | `battery_charge_blockers`, SOC de corte/objetivo de carga y **Charge Hysteresis** | Reduce el objetivo solo si es intencionado; de lo contrario espera a que baje el SOC |
+| La carga está desactivada para esta batería | **Allow Charge** | Actívalo |
+| Charge Delay espera al sol | **Charge Delay** y **Charge Delay Status** | Revisa el [retraso de carga solar](features/solar-charge-delay.md) |
+| Una franja horaria bloquea la carga | **Discharge Window**, interruptores de franja horaria y `charge_blockers` | Revisa las [franjas horarias](configuration/time-slots.md) |
+| La carga predictiva no encontró déficit | **Predictive Charging Active**, su motivo, previsión y estimación de consumo | Es lo esperado; revisa la [carga predictiva](configuration/predictive-charging/index.md) |
+| La temperatura o la protección de batería limitan la carga | **Integration Status**, estado de temperatura, alarma de batería y entidades de fallo | Revisa el [límite de carga por temperatura](features/temperature-charge-limit.md) y el manual de la batería |
 
-!!! note "Delay para v3/vA/vD"
-    Las baterías v3, vA y vD requieren al menos 150 ms entre mensajes Modbus consecutivos. La integración lo aplica automáticamente según la versión configurada.
+**Resultado esperado:** el bloqueador desaparece y la potencia de carga sube cuando el excedente solar, una solicitud manual o un periodo predictivo apto requieren carga.
 
----
+## La batería no descarga
 
-## El controlador PD oscila
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| Se alcanzó el SOC mínimo | `battery_discharge_blockers` y el SOC mínimo de batería | Espera a cargar o ajusta el límite deliberadamente |
+| La descarga está desactivada | **Allow Discharge** | Actívalo |
+| La franja horaria actual bloquea la descarga | **Discharge Window** e interruptores de franja horaria | Revisa las [franjas horarias](configuration/time-slots.md) |
+| El control de precio o reserva retiene energía | **Integration Status**, **Price-Based Discharge**, **Discharge Reserve** y estados relacionados | Revisa [Precio dinámico](configuration/predictive-charging/dynamic-pricing.md) |
+| La protección de capacidad o lógica de carga excluida posee la respuesta | **Capacity Protection**, dispositivos excluidos activos y bloqueadores | Revisa [protección de capacidad](features/peak-shaving.md) y [exclusión de carga](features/load-exclusion.md) |
+| La batería no está disponible o está excluida | **Non-Responsive Batteries** y **Repairs** de Home Assistant | Sigue [Las entidades no están disponibles](#las-entidades-no-están-disponibles) |
 
-El sistema cambia continuamente entre carga y descarga.
+**Resultado esperado:** la descarga se reanuda cuando existe demanda doméstica y ninguna regla de seguridad, horario, precio o participación la bloquea.
 
-**Posibles causas y soluciones:**
+## Importa o exporta más de lo esperado
 
-| Causa | Solución |
-|---|---|
-| Deadband demasiado pequeño | El ±40 W por defecto es adecuado para la mayoría de instalaciones |
-| Sensor de red con latencia alta | Usa un sensor con actualización frecuente (1–2 s) |
-| Cargas con arranque repentino | Configura la carga como [dispositivo excluido](configuration/excluded-devices.md) |
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| El signo del medidor de red está invertido | Compara el sensor de red configurado con el contador de la compañía mientras importas | Corrige **Invert grid meter** en la [configuración del sensor principal](configuration/main-sensor.md) |
+| El objetivo de red no es cero intencionadamente | **PD Target Grid Power** | Establece el objetivo que corresponda con tu importación o exportación prevista |
+| Las actualizaciones del medidor llegan tarde | `last_updated` del sensor de red y **PD Control Quality** | Usa un medidor local más rápido o ajusta el controlador tras corregir la latencia |
+| Se excluye una carga grande | Estado del dispositivo excluido y sus controles de exclusión | Revisa la [exclusión de carga](features/load-exclusion.md) |
+| La protección de fase limita una o varias baterías | **Three-Phase Protection Status** y asignación de fase | Revisa la [protección trifásica](configuration/three-phase.md) |
+| La potencia CA y de celdas describen puntos distintos | **AC Power**, **Battery Cell Power** y entradas solares | Usa **Home Consumption** y la entidad de potencia correcta para la tarea |
 
----
+**Resultado esperado:** el flujo de red se estabiliza alrededor del objetivo configurado después de que reaccionen el medidor y la batería. Los errores pequeños y breves pueden ser normales.
 
-## Recibo una notificación de alarma o fallo de batería
+## Las entidades no están disponibles
 
-La integración monitoriza los registros `Alarm Status` y `Fault Status` de la batería (solo v2) cada 5 segundos. Cuando se activa un nuevo bit, aparece una notificación persistente en Home Assistant con el nombre exacto de la condición (p. ej. *BAT Overvoltage*, *Fan Abnormal Warning*). La notificación se descarta automáticamente cuando todas las condiciones se resuelven.
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| El host, puerto, ID esclavo o modelo de batería es incorrecto | Entrada de integración y configuración específica de batería | Corrige la conexión en la [guía de batería](configuration/batteries/index.md) pertinente |
+| El control RS-485 de Marstek está desactivado | **RS485 Control Mode** | Actívalo antes de enviar órdenes de control |
+| La pasarela o puente está desconectado | Estado del dispositivo de pasarela, ESPHome, MQTT o API | Restaura la conexión local y recarga la integración si es necesario |
+| El controlador rechazó lecturas o escrituras repetidas | **Repairs** de Home Assistant, registros y **Non-Responsive Batteries** | Sigue las instrucciones de Repair; adjunta diagnósticos si se repite |
+| Una entidad antigua pertenece a un controlador previo | Dispositivo e integración del registro de entidades | Elimina la entidad obsoleta no disponible si el controlador actual ha creado su sustituta |
 
-**Niveles de severidad de la notificación:**
+**Resultado esperado:** el coordinador se actualiza y las entidades admitidas vuelven a estados numéricos o con nombre. Para detalles del protocolo Marstek, consulta el [resumen Modbus](reference/modbus-registers.md).
 
-| Prefijo del título | Significado |
-|---|---|
-| 🚨 Battery Fault | Al menos un bit de fallo está activo — requiere atención inmediata |
-| ⚠️ Battery Warning | Al menos un bit de alarma está activo — conviene monitorizar la situación |
+## El medidor de red no está disponible o está bloqueado
 
-**Qué hacer al recibir una notificación:**
+!!! warning "Un medidor no disponible puede dejar activa la última orden de batería"
+    Cuando el sensor de red pasa a `unavailable` o `unknown`, el bucle de control no envía una orden nueva. Por tanto, una batería puede continuar a su última potencia solicitada —por ejemplo, 2000 W de descarga— hasta que regresen los datos del medidor. No hay un tiempo de espera automático que lleve la batería a reposo; solo siguen aplicándose los límites de SOC y otros de seguridad.
 
-1. Consulta el sensor **`System Alarm Status`** en el dispositivo *Omnibattery System* — sus atributos indican qué batería está afectada y qué condiciones están activas.
-2. Revisa los sensores **Alarm Status** y **Fault Status** individuales en el dispositivo de la batería afectada para ver el estado completo.
-3. Consulta la documentación de Marstek Venus o la app de Marstek para el código de fallo concreto.
-4. Si la condición no se resuelve sola, considera reiniciar la batería o contactar con el soporte de Marstek.
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| Falló la conexión Wi-Fi o del broker | Integración del medidor, broker MQTT y disponibilidad del sensor | Restaura la conectividad antes de depender del control automático |
+| El valor del sensor dejó de cambiar | `last_updated` mientras cambia la potencia doméstica | Reinicia o repara la integración fuente |
+| Se seleccionó la entidad incorrecta | Sensor de red principal configurado | Selecciona la entidad de potencia neta de red descrita en la [configuración del sensor principal](configuration/main-sensor.md) |
+| Shelly publica demasiado despacio | Cadencia de actualización del sensor MQTT | Usa el [script MQTT de Shelly Pro 3EM](hardware/shelly-pro-3em-mqtt-script.md) correspondiente |
 
-!!! note "Solo baterías v2"
-    La monitorización de registros de alarma y fallo solo está disponible para hardware v2. Las baterías v3, vA y vD no exponen estos registros vía Modbus.
+Durante hasta 65 segundos después de la última lectura, el valor bloqueado sigue considerándose autoritativo. Después, el controlador puede realizar un recálculo de seguridad con el término derivativo suprimido, pero sigue usando el valor obsoleto; es más seguro restaurar la fuente rápidamente que depender de esto.
 
----
+## Alterna continuamente entre carga y descarga
 
-## La carga predictiva no se activa
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| El control es demasiado agresivo | **PD Control Quality**, perfil de ajuste, banda muerta y ajuste derivativo | Selecciona un perfil más suave o aumenta la banda muerta en [seguir el consumo de casa](features/pd-controller.md) |
+| El sensor de red tiene ruido o retraso | Gráfica del sensor e intervalos de actualización | Corrige la fuente del medidor antes de seguir ajustando |
+| Una carga pulsante cruza repetidamente el objetivo | Historial de carga y estado de dispositivo excluido | Configúrala mediante [exclusión de carga](features/load-exclusion.md) |
+| La potencia mínima del relé provoca arranques repetidos | Controles de potencia mínima de carga/descarga y temporización del relé | Revisa los ajustes del actuador en [seguir el consumo de casa](features/pd-controller.md) |
 
-1. Verifica que el sensor de previsión solar está disponible y tiene valor.
-2. Comprueba el atributo `price_data_status` del sensor `predictive_charging_active` (modo Precio Dinámico).
-3. Revisa las notificaciones de HA: la evaluación de las 00:05 reporta el resultado.
-4. Asegúrate de que el balance energético realmente requiere carga (puede que haya suficiente energía).
+**Resultado esperado:** **PD Control Quality** pasa a estable tras observar el controlador suficiente funcionamiento normal.
 
-### El origen del consumo indica `legacy_daily`
+## No cargó durante la noche
 
-Es normal mientras el perfil de 28 días está aprendiendo o cuando los intervalos
-solicitados no cumplen su contrato de cobertura. Comprueba
-`sensor.omnibattery_expected_home_consumption_profile` y los diagnósticos de la
-integración. Cambiar la fuente o un ajuste de cargas conserva todos los días
-aprendidos, y un cambio de zona horaria los reubica según el desfase entre ambas
-zonas; después el backfill del Recorder reconstruye en segundo plano lo que siga
-faltando. Los huecos de más de cinco minutos no se interpolan.
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| No se previó déficit de energía | Motivo de **Predictive Charging Active** y energía objetivo | No hace falta actuar si la energía almacenada y la previsión solar cubren la demanda |
+| Faltan datos de precio o previsión | `price_data_status`, previsión solar y disponibilidad de entidad fuente | Restaura la fuente descrita por tu [modo predictivo](configuration/predictive-charging/index.md) |
+| No hay periodo apto antes de la demanda | `chronological_plan_reason`, plazos, franjas seleccionadas e interruptores de franja | Ajusta el horario o el techo de precio |
+| La potencia de carga o capacidad libre es insuficiente | `deadline_shortfall_kwh`, SOC de batería, límite de carga y SOC objetivo | Aumenta un límite intencionado o acepta el déficit informado |
+| Otra función poseía la carga | `charge_blockers`, modo manual, retraso de carga o estado de franja horaria | Elimina la regla en conflicto |
 
-### El perfil solar sigue inmaduro o usa fallback
+**Resultado esperado:** el sensor de diagnóstico muestra un plan de carga de red viable o informa claramente de por qué la carga es innecesaria o físicamente imposible. Consulta [Precio dinámico](configuration/predictive-charging/dynamic-pricing.md) o [modo Franja horaria](configuration/predictive-charging/time-slot.md).
 
-Es seguro y esperado durante los primeros días. El aprendizaje necesita
-potencia FV directa del sensor externo configurado o canales MPPT legibles, al
-menos siete días cerrados de calidad, cobertura reciente y evidencia suficiente
-en el rango futuro solicitado. Se excluyen muestras inválidas, negativas y
-huecos largos. Las señales de curtailment pueden excluir intervalos y un cambio
-de fuente o capacidad inicia otra generación. Revisa `solar_profile` en los
-diagnósticos y `solar_timeline_fallback_reason`; el perfil no corrige una
-previsión meteorológica errónea ni modela curtailment no observable.
+??? "La fuente de consumo muestra `legacy_daily` o el perfil solar recurre a un método alternativo"
+    Una fuente de previsión de consumo `legacy_daily` es esperable mientras el perfil de 28 días sigue aprendiendo, o cuando el intervalo solicitado no cumple su contrato de cobertura. Comprueba **Expected Home Consumption Profile** y los diagnósticos de integración. Cambiar una fuente o ajuste de carga excluida conserva todos los días aprendidos; un cambio de zona horaria los redistribuye según el desplazamiento entre las dos zonas, y el relleno de Recorder reconstruye en segundo plano lo que siga faltando. No se interpola un hueco de más de cinco minutos.
 
----
+    También es esperable que una previsión solar permanezca inmadura o recurra a un método alternativo durante los primeros días. El aprendizaje necesita potencia FV directa del sensor externo configurado o canales MPPT legibles, al menos siete días de calidad cerrados, cobertura reciente y evidencia suficiente en el intervalo futuro solicitado; se excluyen muestras no válidas, negativas y con huecos largos, y las señales de limitación de producción pueden excluir intervalos. Un cambio de fuente o capacidad inicia una generación nueva. Comprueba la sección `solar_profile` de los diagnósticos y `solar_timeline_fallback_reason`; el perfil no puede reparar una previsión meteorológica incorrecta ni modelar una limitación de producción que no puede observar.
 
-## El dispositivo de medida no está disponible o pierde conexión
+## La carga completa semanal o el balance de celdas no terminó
 
-Si el sensor de red (por ejemplo, un medidor con conexión Wi-Fi inestable) se desconecta, el controlador se comporta de forma diferente según cómo falle el sensor.
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| Día incorrecto o función desactivada | **Weekly Full Charge** y **Weekly Full Charge Day** | Activa y programa la [carga completa semanal](features/weekly-full-charge.md) |
+| La carga está retrasada o bloqueada | Estado de carga semanal, `charge_blockers` y control manual | Elimina el bloqueador o desactiva el retraso configurado para esa ejecución |
+| El sistema de gestión de batería paró en la parte superior | SOC, tensión de celda, potencia de carga y entidades de alarma y fallo | Deja que la integración aplique su reducción gradual admitida; inspecciona los fallos persistentes |
+| Falta la telemetría de celda requerida | Tensión máxima/mínima de celda y entidades de balance | Comprueba la compatibilidad en [monitor de balance de celdas](features/cell-balance-monitor.md) |
+| Un blueprint posee la batería | **Manual Battery Control** y traza de automatización | Revisa el [blueprint de balance activo](automations/blueprints.md) |
 
-### El sensor reporta `unavailable` o `unknown`
+## Una batería de un sistema multibatería no participa
 
-El bucle de control sale inmediatamente sin enviar ningún nuevo comando. Las baterías **mantienen el último nivel de potencia comandado** hasta que el sensor vuelva a estar disponible.
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| Su SOC o prioridad hace preferible otra batería | **Active Batteries**, **Primary Battery** y **Charge Priority** | Puede ser esperado; revisa [varias baterías](features/multi-battery.md) |
+| El sentido está desactivado | **Allow Charge** / **Allow Discharge** por batería | Activa el sentido requerido |
+| La batería tiene control manual | **Manual Battery Control** | Libera el control manual tras devolver la batería a reposo |
+| Se alcanzó el límite de potencia o SOC | Bloqueadores y entidades de límite por batería | Ajusta únicamente el límite que pretendes cambiar |
+| Falló la entrega o la comunicación | **Non-Responsive Batteries** y **Repairs** | Sigue la Repair e inspecciona los diagnósticos |
 
-### El sensor se congela (el valor deja de actualizarse)
+## Aparece una alarma o un fallo de batería
 
-La integración detecta que la marca de tiempo del sensor no ha cambiado:
+| Causa probable | Qué comprobar | Acción |
+|---|---|---|
+| La batería informa de una advertencia o protección | **System Alarm Status**, **Alarm Status** y **Fault Status** por batería | Sigue las indicaciones del fabricante de la batería para la condición indicada |
+| La condición ya se ha resuelto | Estado actual y notificación persistente | Confirma que se despeja la notificación; recarga solo si el estado sigue obsoleto |
+| El modelo no expone registros de alarma | Disponibilidad de entidad de ese controlador | Usa la aplicación o interfaz local del fabricante |
 
-- Durante hasta **15 ciclos (~30 segundos)** mantiene el último comando sin cambios.
-- Pasado ese período de gracia, realiza un nuevo cálculo de seguridad usando el valor congelado, con el término derivativo suprimido para evitar picos de potencia.
+Los registros de alarma y fallo (sondeados cada 5 segundos) solo están disponibles en hardware v2; v3, vA y vD no los exponen mediante Modbus. Cuando se establece un bit nuevo, Omnibattery crea una notificación persistente titulada con 🚨 para un fallo o ⚠️ para una alarma, con el nombre exacto de la condición (por ejemplo, *BAT Overvoltage* o *Fan Abnormal Warning*); se descarta automáticamente cuando se borran todos los bits.
 
-### Resumen
+## Antes de pedir ayuda
 
-| Estado del sensor | Comportamiento |
-|---|---|
-| `unavailable` / `unknown` | El bucle de control sale — las baterías mantienen la última potencia |
-| Valor congelado (sin nuevas lecturas) | ~30 s de gracia, luego recalcula con el valor obsoleto |
+1. Abre **Ajustes → Dispositivos y servicios → Omnibattery**.
+2. Abre la entrada de configuración afectada y selecciona **Download diagnostics**.
+3. Revisa el JSON y elimina cualquier cosa que no quieras compartir.
+4. Activa el registro de depuración desde la página de integración, reproduce el problema y después desactiva el registro para descargar el archivo de registro.
+5. Incluye en tu informe el síntoma observado, la hora aproximada, estados de entidades relevantes, diagnósticos y registro.
 
-!!! warning "Sin fallback automático a 0 W"
-    Si el medidor se pierde mientras la batería estaba descargando a, por ejemplo, 2000 W, **seguirá descargando a 2000 W** hasta que el medidor se recupere. No hay ningún temporizador integrado que lleve la batería a reposo. Considera mejorar la fiabilidad del Wi-Fi de tu medidor, o usar una alternativa cableada o Zigbee si los cortes son frecuentes.
-
----
-
-## Reportar un problema — Descargar diagnósticos
-
-Al abrir un informe de error o pedir ayuda, adjunta el JSON generado por la acción **Descargar diagnósticos** de Home Assistant para la entrada de configuración de Omnibattery. El archivo contiene la configuración persistida junto con el estado de conexión de las baterías, las capacidades de los drivers, el seguimiento de baterías sin respuesta y los detalles de ejecución de los precios dinámicos. La integración redacta los campos sensibles de conexión y los identificadores conocidos.
-
-**Cómo descargarlo:**
-
-1. Ve a **Configuración → Dispositivos y servicios**.
-2. Abre la integración **Omnibattery** y su entrada de configuración.
-3. Pulsa **Descargar diagnósticos**.
-4. Adjunta el archivo JSON resultante al caso de soporte.
-
-Revisa el archivo antes de compartirlo y elimina cualquier dato específico de tu instalación que no quieras revelar.
-
----
-
-## Registros de depuración
-
-Activa el nivel de log `debug` para la integración pulsando en "Activar registro de depuración" en la configuración de la integración. Una vez que lo hayas ejecutado durante el tiempo apropiado, desactívalo para no llenar los logs, y se creará un archivo de log con la información de depuración.
+Los diagnósticos ocultan campos de conexión e identificadores conocidos, pero aun así debes revisar el archivo antes de compartirlo.
