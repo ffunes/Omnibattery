@@ -51,6 +51,8 @@ Venus E v2 can use hardware SOC cutoffs. Omnibattery enforces the configured SOC
 ??? "Advanced details"
     Marstek uses native force mode and separate charge/discharge setpoints. The available registers depend on the selected version; Omnibattery derives force mode, solar, alarms, hardware SOC cutoffs, and RS-485 control capability from that map.
 
+    On Venus E v2 and v3, the battery's maximum charge and discharge power registers are the same two-value selector the Marstek app shows: `800 W` or `2,500 W`. Omnibattery writes `800 W` when your **Max Charge Power** or **Max Discharge Power** is `800 W` or less, and `2,500 W` otherwise, then enforces your exact limit in software. Reading those registers directly therefore shows `800` or `2500`, not your setting.
+
     The optional **100% Charge Voltage Taper** is Marstek-specific. At a 100% target, it limits charging to `200 W` when the highest measured cell reaches `3.48 V`. Venus E pauses at `3.60 V` and waits `60 s` before evaluating cell imbalance. Coupled-pack Venus A and D systems continue at the taper power until the battery management system (BMS) ends charging. See [Cell balance monitor](../../features/cell-balance-monitor.md).
 
     A Modbus TCP connection normally uses port `502`; the slave ID accepts the Modbus unit range `1–247`. A serial path such as `/dev/ttyUSB0` or `COM3` selects Modbus RTU instead of the host address.
