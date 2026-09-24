@@ -79,6 +79,7 @@ plugins:
             Anker SOLIX: Anker SOLIX
             Sessy: Sessy
             Hoymiles MQTT: Hoymiles MQTT
+            Huawei: Huawei
             Hoymiles MS-A2 setup: Instalación de Hoymiles MS-A2
             Time slots: Franjas horarias
             Large loads and EV chargers: Cargas grandes y cargadores VE
@@ -169,6 +170,7 @@ nav:
           - Anker SOLIX: configuration/batteries/anker.md
           - Sessy: configuration/batteries/sessy.md
           - Hoymiles MQTT: configuration/batteries/hoymiles.md
+          - Huawei: configuration/batteries/huawei.md
           - Hoymiles MS-A2 setup: configuration/hoymiles-ms-a2.md
       - Time slots: configuration/time-slots.md
       - Large loads and EV chargers:
