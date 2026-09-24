@@ -1,66 +1,69 @@
-# Carga semanal completa
+# Carga completa semanal
 
-Carga las baterías al **100 % una vez por semana** para que el pack llegue a la ventana superior de balanceo LFP y la integración pueda medir el desbalanceo de celdas en condiciones repetibles.
+Una carga completa semanal proporciona a una batería de litio-ferrofosfato (LFP) tiempo regular en la parte alta de su rango de carga y produce una lectura comparable del equilibrio de celdas. Resulta más útil cuando tu estado de carga (SOC) máximo habitual está por debajo del 100%.
 
-## Comportamiento
+## ¿Lo necesito?
 
-1. El día configurado de la semana, si el SOC máximo habitual es inferior al 100 %, la integración eleva temporalmente el límite de corte de carga de la batería al 100 %.
-2. La batería carga hasta que entra la reducción por voltaje en la parte alta.
-3. Desde `max_cell_voltage >= 3.48 V`, la carga se limita a 200 W (si la reducción por voltaje está activada).
-4. Durante la carga semanal **no** se aplica la pausa de 3.60 V: la carga continúa a 200 W hasta el corte del BMS. La medición de 60 s del delta de celdas sigue ejecutándose como diagnóstico, pero ya no determina la finalización; en Venus A/D empieza después de confirmar el corte de la BMS.
-5. En Venus E, la carga se marca como completada solo cuando la batería está realmente llena: SOC reportado al **100 %**, o un **corte del BMS** confirmado (carga ≤10 W en Standby durante 5 ciclos ~10 s, reconocido en la zona de reducción ≥ 3.48 V aunque el SOC esté mal reportado). En Venus A/D con packs acoplados se exige el corte de la BMS después de entrar en la ruta de carga superior, aunque el SOC ya marque 100 %.
-6. Tras finalizar, el límite de SOC máximo (y el registro de corte hardware en v2) vuelve automáticamente al valor configurado por el usuario, y se reactiva la histéresis.
+**Úsalo si** tu batería rara vez llega al 100%, o quieres una comprobación de equilibrio regular sin iniciar tú una carga completa.
 
-En Venus E, la carga semanal completa usa el mismo perfil de voltaje que una
-batería configurada normalmente con `max_soc = 100`. La función semanal solo
-eleva el objetivo a 100 %; no usa un algoritmo de balanceo distinto.
+**No lo necesitas si** la batería ya llega al 100% regularmente. Una carga completa también puede comprar energía de la red, así que elige el día y el comportamiento de retraso solar adecuados para tu tarifa.
 
-En Venus A/D con packs acoplados también se omite la parada normal a 3,60 V y
-un SOC del 100 % reportado por el primer pack no completa el ciclo. La carga
-reducida a 200 W continúa hasta confirmar el corte de la BMS; después espera 60 s
-sin cargar y registra la medición del delta de celdas.
+## Antes de empezar
 
-Para realizar un balanceo activo deliberado, usa el [blueprint de balanceo activo para una batería Marstek](../automations/blueprints.es.md#balanceo-activo-de-una-batería-marstek). Ejecuta una batería cada vez mediante su interruptor Battery Manual Mode y es independiente de esta función semanal.
+- Omnibattery debe poder cargar la batería automáticamente.
+- Mantén activada **Reducción de tensión de carga al 100%** para cada batería compatible si quieres una lectura de equilibrio de celdas estabilizada.
+- Si está activado **Retraso de carga**, decide si el ciclo semanal puede comenzar inmediatamente o debe esperar a la solar prevista.
+- Una batería en **Control manual de batería** queda excluida hasta que se reanude el control automático.
 
-El sensor **Carga semanal completa** expone diagnósticos por batería en su atributo `batteries`: SOC en vivo y contador de ciclos de corte del BMS durante la carga, y una instantánea al completar (`soc_at_completion`, `max_cell_voltage_at_completion`, `completion_reason`, `bms_cutoff_cycles`).
+## Cómo activarlo
 
-!!! note "SOC desviado"
-    Durante la carga semanal la pausa de 3.60 V **no** se aplica: la carga sigue a 200 W hasta que el BMS corta. Si el contador culombimétrico del BMS se ha desviado (celdas realmente llenas pero SOC reportado por debajo del 100 %), la finalización igual se detecta: la firma de corte del BMS (carga ≤10 W con el inversor en Standby durante 5 ciclos) se reconoce siempre que el pack esté en la zona de reducción (≥ 3.48 V), sin importar el SOC reportado. Así la carga semanal puede terminar aunque el pack nunca llegue a leer 100 %, e *intenta* recalibrar el SOC — depende del firmware del BMS. Ver [Recalibración de SOC con tensión alta atascada](cell-balance-monitor.md#recalibracion-de-soc-con-tension-alta-atascada).
+1. Abre el panel lateral de Omnibattery y selecciona **Control**.
+2. En **Carga completa semanal**, activa **Carga completa semanal**.
+3. Elige **Día de carga completa semanal**.
+4. Si usas **Retraso de carga**, activa **Retrasar carga completa semanal** para esperar al sol; déjalo desactivado para iniciar el ciclo semanal sin ese retraso.
 
-## De dónde sale la energía
+![Configura el día de carga completa semanal y el retraso solar](../assets/screenshots/configuration/advanced-weekly-full-charge-config.png){ width="650" style="display: block; margin: 0 auto;"}
 
-El excedente solar llena la batería primero. El día del ciclo semanal, la [carga predictiva](../configuration/predictive-charging/index.md) añade además a su balance energético lo que falta hasta el 100%, igual que hace el SOC mínimo garantizado, de modo que compra de la red lo que la previsión solar no vaya a cubrir: en las horas más baratas con precio dinámico, o en la ventana configurada con tarifa plana. Si el excedente previsto ya cubre la diferencia, no se compra nada.
+## Qué verás
 
-Esto no requiere ninguna configuración adicional más allá de tener activada la carga predictiva: el día del ciclo semanal es el único disparador. Sin carga predictiva el ciclo sigue siendo solo solar y puede no completarse en un día nublado.
+**Carga completa semanal** informa `idle`, `charging` o `complete`. El día elegido, Omnibattery eleva temporalmente el objetivo de carga al 100% para las baterías bajo control automático. Solo marca el ciclo como completo después de considerar llenas todas las baterías participantes; entonces restaura cada límite configurado.
 
-## Configuración desde el dashboard
+Con [carga predictiva](../configuration/predictive-charging/index.md), la energía restante necesaria para el objetivo semanal entra en el plan. Omnibattery puede comprar esa energía durante el periodo de carga configurado cuando la solar prevista no la cubra. Sin carga predictiva, el ciclo depende de la solar disponible y puede no completarse en un día nublado.
 
-La carga semanal completa se configura desde el dashboard de Omnibattery. La única elección obligatoria es el día en el que debe ejecutarse el ciclo.
+El atributo `batteries` del sensor muestra el SOC en directo y la evidencia de finalización de cada batería. En baterías compatibles, **Delta de celdas**, **Estado de equilibrio** y **Última lectura de equilibrio** se actualizan tras la medición en la parte alta de carga. Consulta [¿Está sana mi batería?](cell-balance-monitor.md) para interpretar el resultado.
 
-| Campo | Descripción | Por defecto |
+!!! important "Comportamiento del retraso solar"
+    **Retrasar carga completa semanal** está desactivado de forma predeterminada. Por ello el ciclo semanal evita **Retraso de carga** y puede comenzar el día seleccionado. Activa el interruptor si prefieres que espere a que el retraso solar libere la carga.
+
+## Si no funciona
+
+| Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| **Día de la semana** | Día en el que la batería cargará al 100 % para equilibrar las celdas. | — |
-| **Esperar al retraso de carga solar** | Si se activa, el retraso de carga solar tiene prioridad y la carga semanal espera a que se desbloquee. | Desactivado |
+| El estado permanece `idle` | Hoy no es el día seleccionado o la función está desactivada | **Carga completa semanal** y **Día de carga completa semanal** |
+| El ciclo espera en lugar de cargar | El ciclo semanal respeta el retraso solar | **Retrasar carga completa semanal** y **Retraso de carga** |
+| Una batería no participa | El control manual por batería la controla, o sus datos no están disponibles | **Control manual de batería** y disponibilidad de la batería |
+| El ciclo sigue `charging` cerca de lleno | El sistema de gestión de batería (BMS) no ha confirmado que todas las baterías participantes estén llenas | Los detalles por batería en **Carga completa semanal**; deja que termine el proceso de carga superior |
+| El ciclo termina pero no aparece resultado de equilibrio | La batería no expone ambos extremos de tensión de celda, o no pudo terminar la medición diagnóstica en reposo | Si existe **Delta de celdas** y si ha cambiado **Última lectura de equilibrio** |
 
-![Configuración de carga semanal completa](../assets/screenshots/configuration/advanced-weekly-full-charge-config.png){ width="650" style="display: block; margin: 0 auto;"}
+??? "Detalles avanzados"
+    **Secuencia de carga y finalización**
 
-## Monitor de equilibrio de celdas
+    La función semanal eleva el SOC objetivo al 100%; no usa un algoritmo de equilibrado independiente. Con **Reducción de tensión de carga al 100%** activada, la carga se limita a 200 W después de que la tensión de la celda de control entre en la zona de reducción de 3.48 V. La medición de equilibrio se toma después de detener la carga y de que las celdas reposen 60 segundos.
 
-El **monitor de equilibrio de celdas** está siempre activo. Registra la diferencia de tensión entre la celda más alta y la más baja tras cada medición en tensión alta, y mantiene actualizados los sensores, la tendencia y las alertas.
+    Omnibattery no toma una sola observación de 3.60 V como prueba de que una batería esté llena. Para baterías Venus E, la finalización puede proceder de un SOC informado del 100% o de un corte de BMS confirmado. Se confirma un corte cuando se ordenó cargar a la batería, la potencia entregada cae a 10 W o menos y el inversor permanece en Standby durante cinco ciclos de control consecutivos. La misma ruta de corte cubre un pack cuyo contador de SOC se ha desviado por debajo del 100%.
 
-Consulta [Monitor de equilibrio de celdas](cell-balance-monitor.md) para más detalles. Si la BMS corta por debajo de 3,60 V mientras la batería está en la zona de reducción, la medición de 60 segundos comienza después de confirmar ese corte; así la carga semanal no pierde la lectura en packs que no alcanzan los 3,60 V.
+    Las baterías Venus A/D pueden contener packs acoplados. Su tensión máxima de celda informada puede representar solo un pack, por lo que Omnibattery mantiene la orden reducida de 200 W activa hasta confirmar el corte del BMS. Que un pack alcance el umbral de tensión no puede finalizar por sí solo el ciclo completo.
 
-## Interacción con el retraso de carga solar
+    Participa toda batería con datos actuales salvo las que estén en **Control manual de batería**. Los límites configurados se restauran solo después de completar todas las participantes. La medición de delta de celdas de 60 segundos es diagnóstica y no mantiene abierto el ciclo semanal.
 
-Si el [retraso de carga solar](solar-charge-delay.md) está activo, la carga semanal puede aplazarse mientras la producción solar prevista sea suficiente para alcanzar el 100 %.
+    El atributo `batteries` informa de SOC en directo y recuento de ciclos de corte de BMS de cada batería mientras carga; tras terminar añade `soc_at_completion`, `max_cell_voltage_at_completion`, `completion_reason` y `bms_cutoff_cycles`.
 
-Cuando la carga semanal completa está activa, la integración puede omitir el retraso para que la batería alcance el punto de medición en tensión alta y la lectura de balance no se pierda.
+    **Recalibración de SOC y comportamiento de reintento**
 
-## Registro Modbus implicado
+    Fuera del ciclo semanal, una batería Venus E que alcanza 3.60 V informando menos de 99% de SOC puede mantenerse a la reducción de 200 W hasta que corte su BMS. Si el primer corte ocurre por encima de 3.60 V y el SOC sigue por debajo del 100%, Omnibattery espera a que la celda se relaje a 3.57 V y permite un intento más a 200 W. Es una oportunidad de mejor esfuerzo para que el BMS recalibre su contador de SOC; el firmware decide si se recalibra.
 
-La función manipula el registro **44000** (charging cutoff) de la batería para elevar temporalmente el límite.
+    **Límites de hardware y software**
 
-!!! info
-    Esta función está disponible para todas las versiones de batería compatibles (v2, v3, vA, vD).
+    Marstek Venus E v2 expone el registro de corte de carga `44000`, que el ciclo eleva temporalmente al 100%. Venus E v3 y Venus A/D no tienen registro de corte de SOC de hardware en Omnibattery y usan aplicación por software. Otros controladores usan su capacidad declarada de control por hardware o software. En todos los casos, el límite guardado se restaura cuando el ciclo termina o se detiene.
 
-![Configuración de carga semanal completa](../assets/screenshots/features/weekly-full-charge-config.png){ width="650"  style="display: block; margin: 0 auto;"}
+    Para recuperar un resultado de equilibrio rojo persistente, usa el [blueprint opcional de equilibrado activo Marstek](../automations/blueprints.md#active-cell-balancing-for-one-marstek-battery). Toma el control de una batería mediante **Control manual de batería** y es independiente de la función semanal.
