@@ -1,46 +1,68 @@
-# Protección de corriente trifásica
+# Proteger cada fase de un suministro trifásico
 
-La protección de corriente trifásica es una envolvente de seguridad opcional para instalaciones en las que las baterías comparten una conexión trifásica. Está **desactivada por defecto** y se configura durante el asistente inicial o desde **Ajustes → Integraciones → Omnibattery → Configurar → Sensores**.
+La protección de corriente trifásica limita los comandos automáticos de la batería en la fase donde está conectada cada batería. Ayuda a mantener la carga y descarga de la batería dentro del margen actual que reserva para esa fase.
 
-## Configuración
+## ¿Lo necesito?
 
-Activa la función y selecciona un sensor de corriente RMS con signo en tiempo real y el tamaño/límite del fusible en amperios para cada fase que quieras proteger. Deja ambos campos vacíos para las fases no utilizadas, de modo que una instalación de una o dos fases no necesite valores ficticios para las restantes. Deben ser entidades `sensor` de Home Assistant con unidad `A` o `mA`, usando la misma convención que el sensor global:
+**Úsalo si** tus baterías comparten una instalación trifásica y necesitas un techo de corriente independiente para cada fase física.
 
-- positivo = importación de red
-- negativo = exportación a red
+**No lo necesita si** su instalación es monofásica, su protección eléctrica ya maneja la envolvente operativa requerida sin límites de software, o no puede medir la corriente firmada en cada fase que desea proteger.
 
-El ajuste global **Signo del medidor invertido** se aplica a los medidores de fase configurados y a Grid 0. Configura un límite positivo y simétrico en amperios para cada fase configurada, preferiblemente inferior al valor nominal del fusible para dejar margen. La asignación física puede ser `L1`, `L2`, `L3` o **Sin asignar** para cada batería; Omnibattery no puede descubrir a qué fase está cableada. Una batería sin asignar queda fuera de la envolvente trifásica y sigue funcionando normalmente en automático. Una batería asignada a una fase sin sensor ni límite funciona normalmente, sin límite de protección de fase.
+## Antes de empezar
 
-Una vez configurada la función, el switch de sistema **Protección de corriente trifásica** aparece en el dashboard. Mientras está apagado, los selectores de **Fase de la batería** no están disponibles; se convierten en controles en vivo al activar la protección. El cambio de fase de una batería se guarda inmediatamente y se utiliza en el siguiente ciclo de control automático.
+- Utilice un sensor de corriente cuadrática media (RMS) con signo en `A` o `mA` para cada fase protegida. Positivo debe significar importación de red y negativo debe significar exportación de red después de aplicar la configuración de señal de medidor global.
+- Conozca el límite de corriente para cada fase y deje el margen operativo por debajo de la clasificación de la placa del fusible.
+- Confirme qué fase física utiliza cada batería. Omnibattery no puede descubrir el cableado.
+- Trate esta característica como una protección de software adicional, no como un reemplazo de los disyuntores, la protección del inversor o el diseño eléctrico.
 
-También se crea el sensor de diagnóstico `sensor.omnibattery_three_phase_protection_status`. Su estado es `Desactivada`, `Activa`, `Limitando baterías` o `Degradada / modo seguro`. Los atributos incluyen `limited_batteries` y `limited_battery_details` (baterías y potencia recortada en la última orden automática), `unassigned_batteries`, `degraded_phases` y el detalle completo de cada fase en `phases`, con sensor, lectura, límite, presupuestos y potencia solicitada/asignada.
+## Cómo activarlo
 
-El sensor global de consumo sigue siendo la señal Grid 0 del controlador. Los sensores de fase son solo envolventes de seguridad: no sustituyen Grid 0 ni cambian el objetivo del controlador PD.
+1. Abra **Configuración → Dispositivos y servicios → Omnibattery → Configurar → Sensores** y habilite **Protección de corriente trifásica**.
+2. Para cada fase protegida, seleccione su **sensor de corriente de red L1/L2/L3** e ingrese el **tamaño de fusible L1/L2/L3 (A)** correspondiente. Deje ambos campos vacíos para una fase no utilizada.
+3. En la configuración de cada batería, establezca **Fase física de la batería** en su conductor real. Elija **Sin asignar** solo cuando la batería esté fuera del diseño de fase protegida.
+4. Finalice la configuración, luego active **Protección de corriente trifásica** desde el panel de Omnibattery o la página del dispositivo.
+5. Confirme que el **Estado de protección trifásica** informe **Activo** bajo carga normal.
 
-## Funcionamiento
+## lo que veras
 
-Para cada fase, Omnibattery reconstruye la corriente sin batería y calcula ambos presupuestos direccionales:
+**Estado de protección trifásica** muestra uno de estos estados:
 
-```text
-corriente_base = corriente_de_fase - corriente_de_baterías_de_la_fase
-corriente_batería_mínima = max(-tamaño_fusible, -tamaño_fusible - corriente_base)
-corriente_batería_máxima = min(+tamaño_fusible, +tamaño_fusible - corriente_base)
-presupuesto_carga_corriente = max(0, corriente_batería_máxima)
-presupuesto_descarga_corriente = max(0, -corriente_batería_mínima)
-```
+| Estado | Significado |
+|---|---|
+| **Desactivado** | El interruptor de protección de tiempo de ejecución está apagado |
+| **Activo** | Los sensores de fase configurados están en buen estado y no se está reduciendo ningún comando de batería |
+| **Limitación de baterías** | Se está limitando al menos un comando automático de batería |
+| **Degradado / A prueba de fallos** | Una fase configurada no puede proporcionar una lectura actual válida |
 
-El sensor de corriente debe incluir el signo: positivo significa importación y negativo exportación. La telemetría y los comandos de las baterías usan la convención del controlador (`+` carga, `−` descarga) y siguen expresándose en vatios activos. Internamente, la restricción del contador y la restricción absoluta de la orden de batería se intersectan como un intervalo con signo antes de convertir los presupuestos direccionales a vatios. Los vatios de batería se convierten a corriente y el presupuesto disponible se convierte de nuevo a un límite conservador en vatios usando 230 V nominales y un factor de potencia de 0,90. Primero se ejecutan la selección y el reparto proporcional normales. El resultado se redondea después hacia abajo en pasos de 5 W y se limita de forma independiente por fase. Solo la potencia rechazada por ese límite se mueve a baterías de fases sanas con capacidad disponible, siguiendo la prioridad normal por SOC y energía.
+Cuando el interruptor de protección está activado, el selector **Fase de batería física** de cada batería está disponible para corregir el tiempo de ejecución. Una asignación modificada persiste y se aplica en el siguiente ciclo de control automático. El sensor de energía de la red global sigue siendo la señal de control; Los sensores de fase sólo limitan el resultado.
 
-El límite configurado es un tope absoluto por fase para las órdenes automáticas de batería en ambos sentidos. La corriente base reconstruida puede reducir el presupuesto disponible, pero nunca aumentarlo por encima del límite configurado. El contador de una fase aún puede superar el límite por una carga externa, latencia de medida/actuación o una orden manual; la protección automática no puede eliminar una carga externa.
+## Si no funciona
 
-La envolvente se aplica al PD normal y al seguimiento directo, a la carga predictiva desde red, al PD de franjas automáticas, a los reequilibrios y al último guard común de comandos automáticos. El total asignado vuelve al controlador para evitar windup integral cuando una fase está limitada.
+| Síntoma | Causa probable | Qué comprobar |
+|---|---|---|
+| El estado es **Degradado/A prueba de fallos** | Falta un sensor de corriente configurado, está obsoleto, no está disponible, no es numérico o está en la unidad incorrecta | Compruebe que la entidad informe un valor numérico nuevo en `A` o `mA` |
+| La carga de la batería en una fase permanece en cero | Su fase protegida no tiene lectura actual válida | Verifique el sensor, el límite y la asignación física de esa fase |
+| Una batería nunca está limitada | Está **Sin asignar** o su fase no tiene un par completo de sensor y límite | Establecer la fase física y configurar ambos campos para esa fase |
+| Los límites a las importaciones y exportaciones actúan en la dirección equivocada | El signo de fase-corriente está invertido | Compare una importación de red conocida con el sensor y revise **Señal de medidor invertida** |
+| El medidor de fase aún supera el límite configurado | Una carga externa, latencia de comando o un comando manual causaron el exceso | Reducir el límite operativo configurado y mantener los comandos manuales dentro del envolvente eléctrico |
 
-Si falta el sensor de una fase configurada, no está disponible, no es numérico, tiene una unidad incorrecta o supera los 65 segundos de antigüedad, las baterías asignadas a esa fase reciben 0 W. El sensor debe incluir signo; un sensor de corriente sin signo no puede representar correctamente la exportación y no debe usarse con esta función. Una fase sin configurar no tiene protección de fase, por lo que las baterías asignadas a ella siguen funcionando con los límites normales del controlador y de cada batería. Las demás fases sanas continúan funcionando.
+??? "Detalles avanzados"
+    Para cada fase, Omnibattery reconstruye la corriente que no proviene de la batería y luego cruza el límite del medidor con un límite absoluto de corriente de la batería:
 
-## Limitaciones importantes
+    ```text
+    base_current = phase_current - battery_current_on_phase
+    battery_current_min = max(-phase_limit, -phase_limit - base_current)
+    battery_current_max = min(+phase_limit, +phase_limit - base_current)
+    charge_budget_current = max(0, battery_current_max)
+    discharge_budget_current = max(0, -battery_current_min)
+    ```
 
-Las escrituras manuales de registros y las franjas manuales siguen siendo directas y pueden saltarse esta envolvente. Home Assistant muestra un aviso de Repairs mientras la función está activa; mantén esos comandos dentro del límite eléctrico.
+    Los comandos de batería utilizan vatios positivos para carga y vatios negativos para descarga. Los presupuestos actuales se convierten con un factor de potencia nominal de 230 V y 0,90 y luego se redondean hacia abajo en pasos de 5 W. La selección normal de batería y la asignación proporcional se ejecutan primero. La energía rechazada por un límite de fase puede pasar a fases saludables con capacidad de batería disponible, siguiendo el estado normal de carga (SOC) y la prioridad energética.
 
-Es una protección conservadora de corriente, no sustituye los magnetotérmicos, las protecciones del inversor ni el diseño de un electricista. Usa un sensor RMS real con un signo fiable de importación/exportación y deja margen por debajo del valor nominal del fusible para la latencia de medida y del actuador, cargas externas, tensión, factor de potencia, armónicos y picos transitorios. La conversión interna de 230 V/0,90 es una estimación para traducir los comandos de batería en vatios a un presupuesto de corriente RMS; el sensor de corriente sigue siendo la medida de seguridad de la fase. Una carga externa puede superar por sí sola el límite de una fase y Omnibattery solo puede evitar que las baterías agraven el exceso. El controlador global no ordena carga simultánea en una fase y descarga en otra. Los sensores deben estar instalados y asignados a los conductores reales; una asignación L1/L2/L3 incorrecta no puede detectarse automáticamente.
+    La envolvente se aplica al control proporcional-derivativo (PD), el seguimiento directo, la carga predictiva de la red, el control automático de intervalos de tiempo, el equilibrio activo y la protección final de comando automático compartido. El total aceptado se devuelve al controlador para evitar la liquidación.
 
-El esquema beta usa campos de sensor de corriente y tamaño del fusible. No hay migración intencionada desde los campos anteriores de potencia por fase, por lo que hay que volver a introducir la configuración de protección de fase después de actualizar.
+    Una lectura actual de más de 65 segundos está obsoleta. Si una fase configurada no tiene una lectura válida, la nueva carga en esa fase tiene un límite de 0 W. Se puede mantener una descarga segura medida previamente porque detenerla devolvería la carga doméstica a la red y podría aumentar la corriente de la fase. Las fases saludables continúan. Una fase sin un par de sensor y límite configurado no tiene límite de fase. Una batería **No asignada** también permanece fuera del sobre.
+
+    La entidad de estado expone atributos de diagnóstico que incluyen `limited_batteries`, `limited_battery_details`, `unassigned_batteries`, `degraded_phases` y lecturas, presupuestos y asignaciones por fase en `phases`.
+
+    Las escrituras manuales de registros y los comandos manuales de intervalos de tiempo pueden omitir este sobre. Home Assistant crea una reparación mientras la protección está habilitada para recordarle que mantenga esos comandos dentro de los límites actuales configurados. El protector no puede eliminar la corriente causada por una carga externa, detectar un mapeo incorrecto de conductores o emitir carga simultánea en una fase y descarga en otra.

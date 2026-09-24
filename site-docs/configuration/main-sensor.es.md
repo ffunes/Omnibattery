@@ -1,147 +1,81 @@
-# Sensor principal
+# Conecte su medidor de red y límites eléctricos
 
-El primer paso configura las fuentes de datos globales de la integración.
+Omnibattery utiliza su sensor de energía de la red para decidir cuánto deben cargarse o descargarse las baterías. Esta configuración también define el techo eléctrico y los datos del circuito solar o de respaldo opcionales utilizados por otras funciones.
 
-![Configuración del sensor principal](../assets/screenshots/configuration/main-sensor.png){ width="600"  style="display: block; margin: 0 auto;"}
+## ¿Lo necesito?
 
-## Sensor de consumo de red
+**Úsalo si** estás configurando Omnibattery: cada instalación necesita un sensor de consumo de red y una potencia máxima contratada.
 
-Sensor de Home Assistant que mide el intercambio de potencia con la red (en **W** o **kW**).
+**No necesita** los campos solares, de salida de respaldo o trifásicos opcionales a menos que su instalación utilice la función relacionada.
 
-!!! tip "Sensores compatibles"
-    Cualquier sensor que exponga la potencia de red funciona: Shelly EM, Shelly EM3, Neurio, integraciones de contador inteligente (e.g. `sensor.grid_power`).
+## Antes de empezar
 
-!!! warning "Frecuencia de actualización"
-    El sensor debe actualizarse lo más rápido posible. El controlador es **dirigido por eventos** —recalcula cada vez que este sensor publica un valor nuevo—, así que la frecuencia de actualización del sensor *es* la frecuencia de control: un sensor más rápido implica una respuesta más rápida y precisa. (Un watchdog de 2 segundos sigue ejecutando el ciclo si el sensor se queda en silencio.)
+- Encuentre un Home Assistant `sensor` que informe el intercambio de red en vivo en `W` o `kW`, como Shelly EM/EM3, Neurio o integración de medidores inteligentes.
+- Compruebe si los valores positivos significan importación y los valores negativos significan exportación.
+- Encuentra tu límite de potencia contratada en vatios.
+- Opcional: prepare un pronóstico solar del día restante, un sensor de producción de inversor externo o un medidor de circuito de respaldo separado.
 
-    El consumo del hogar puede variar varios kilovatios en fracciones de segundo (arranque de electrodomésticos, horno, lavadora…). Los sensores lentos son compatibles, pero su retraso puede hacer que el controlador reaccione a una situación que ya ha cambiado, reduciendo la calidad de la regulación.
+## Cómo activarlo
 
-    **Recomendado: actualización cada 1–2 segundos.** Los dispositivos Shelly no ofrecen esta cadencia MQTT de forma nativa. Es necesario ejecutar un script dentro del dispositivo; consulta la [referencia de scripts MQTT para Shelly Pro 3EM](../hardware/shelly-pro-3em-mqtt-script.md) para ver ejemplos.
+1. Abra **Configuración → Dispositivos y servicios → Omnibattery → Configurar → Sensores** y seleccione **Sensor de consumo de red**.
+2. El poder de importación debería ser positivo. Si su medidor informa que la importación es negativa, habilite **Signo de medidor invertido**.
+3. Ingrese **Potencia máxima contratada (W)** para que la carga de la batería no pueda impulsar la importación de red proyectada por encima de ese límite.
+4. Agregue solo las fuentes opcionales que necesita: **Sensor de pronóstico solar restante para hoy (recomendado)** para planificación solar, **Sensor de producción solar (opcional)** para un inversor externo o **Sensor de energía fuera de la red (opcional)** para un circuito de respaldo medido por separado.
+5. Habilite la **Protección de corriente trifásica** solo cuando pueda proporcionar límites y sensores de corriente firmados para las fases físicas que desea proteger.
 
-    Omnibattery sigue siempre el último valor publicado hasta que supera los **65 segundos de antigüedad**, independientemente del polling rate del sensor. Los sensores que actualizan repetidamente cada 10 segundos o más generan un único aviso de Repairs de Home Assistant por ejecución de la integración; no se emiten avisos recurrentes en el log. Si el sensor es rápido después del siguiente reinicio, el Repair persistente se elimina tras tres actualizaciones.
+![Seleccione los principales sensores Omnibattery](../assets/screenshots/configuration/main-sensor.png){ width="600" style="display: block; margin: 0 auto;"}
 
-### Detección automática de kW
+!!! warning "La captura de pantalla necesita actualizarse"
+    El formulario actual también incluye campos separados de pronóstico del día restante, medidor fuera de la red y protección trifásica que no son visibles en esta captura de pantalla.
 
-Si el atributo `unit_of_measurement` del sensor es `kW`, la integración multiplica el valor por 1000 automáticamente.
+## lo que veras
 
-### Signo invertido
+El diagrama de flujo de energía del tablero utiliza el sensor de red y los datos solares y de batería disponibles. Omnibattery también crea **Consumo doméstico** al combinar esas fuentes; no selecciona un sensor de consumo doméstico independiente.
 
-Activa **"Signo del medidor invertido"** si tu sensor usa la convención opuesta:
+La configuración de un medidor de circuito de respaldo crea un **Modo de medidor fuera de la red**. Actívelo para usar ese medidor para control y estadísticas de la red, y apáguelo para regresar al medidor principal. Este interruptor de software no habilita la salida de respaldo física (EPS) de la batería.
 
-| Convención | Importación | Exportación |
+Un pronóstico solar del resto del día estará disponible para predecir la carga y el retraso de la carga solar. La producción solar externa añade el nodo solar al diagrama de flujo de energía cuando los paneles están conectados a un inversor independiente.
+
+## Si no funciona
+
+| Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| Estándar (por defecto) | Valor positivo | Valor negativo |
-| Invertida | Valor negativo | Valor positivo |
+| La batería aleja la energía de la red del objetivo | El signo del metro está invertido | Importe una pequeña cantidad de la red y confirme que el sensor sea positivo; de lo contrario habilite **Signo de medidor invertido** |
+| El control reacciona tarde o sobrepasa las cargas cambiantes | El sensor de red publica demasiado lento | Verificar el historial de la entidad y acortar su intervalo de actualización cuando el medidor lo admita |
+| **Falta el modo de medidor fuera de la red** | No se guardó ningún medidor de circuito de respaldo separado | Configure el **Sensor de energía fuera de la red (opcional)** y asegúrese de que sea diferente del sensor principal |
+| Falta el nodo solar | Omnibattery no tiene fuente externa de producción solar | Configurar **Sensor de producción solar (opcional)** solo para energía solar que no se mide a través de entradas de seguimiento del punto de máxima potencia (MPPT) de la batería |
+| La carga predictiva ignora el pronóstico | Se seleccionó un valor de todo el día como energía restante o la unidad del sensor está equivocada | Prefiera el pronóstico restante de hoy y confírmelo en los informes `Wh` o `kWh` |
+| **Consumo en el hogar** se mantiene brevemente o se convierte en `unknown` durante un cambio de dirección | Las lecturas de red, batería y energía solar describen diferentes instantes | Comprobar que las fuentes se actualizan puntualmente y luego esperar lecturas coherentes |
 
-Déjalo desactivado si no estás seguro.
+??? "Detalles avanzados"
+    **Cadencia del medidor y datos obsoletos**
 
-## Sensor de potencia off-grid *(opcional)*
+    El controlador vuelve a calcular cada vez que el sensor de red publica. También se ejecuta un ciclo de seguridad cada 2 segundos. Se recomienda un intervalo de actualización de 1 a 2 segundos; Los intervalos de 10 segundos o más activan una reparación de Home Assistant después de 3 informes lentos consecutivos. La reparación se borra después de 20 intervalos consecutivos más rápidos. La última lectura sigue teniendo autoridad hasta que tenga más de 65 segundos.
 
-Puedes configurar un segundo sensor W/kW para el circuito respaldado. Debe ser
-una entidad distinta del sensor de consumo de red normal. Al guardarlo aparece
-el switch de sistema **Modo de medidor off-grid**, tanto como entidad de Home
-Assistant como en la pestaña **Controles** del dashboard.
+    La demanda del hogar puede cambiar en varios kilovatios entre lecturas lentas, por lo que el controlador puede responder a una carga que ya ha cambiado.
 
-El ajuste **Signo del medidor off-grid invertido** es independiente del signo
-del medidor principal. Actívalo si el sensor off-grid publica el consumo con
-signo negativo; solo se aplica mientras este modo está activo.
+    Si utiliza un medidor Shelly, consulte los [scripts MQTT de Shelly Pro 3EM](../hardware/shelly-pro-3em-mqtt-script.md) para obtener una cadencia de publicación más rápida.
 
-Mientras el switch está activado, Omnibattery usa ese segundo sensor como fuente
-del PD y de las estadísticas derivadas de consumo e importación/exportación. Al
-desactivarlo vuelve al sensor principal. La conmutación corta el intervalo de
-integración en curso para no contabilizar un salto artificial entre ambos
-medidores. Las baterías que estén suministrando por su propio puerto off-grid
-siguen excluidas del PD; el resto de baterías disponibles usa el sensor alternativo.
+    Los sensores con `unit_of_measurement: kW` se convierten a vatios automáticamente.
 
-Este switch solo cambia la fuente de datos. No habilita el puerto off-grid/EPS,
-no cambia el modo de la batería y no escribe ningún registro relacionado con la
-salida de respaldo; el usuario debe habilitar ese puerto por separado.
+    **Protección de potencia contratada**
 
----
+    El valor de configuración predeterminado es 7000 W y acepta entre 1000 y 20 000 W. Limita la carga de la batería en control normal, objetivos positivos, saldo neto por hora y carga de red predictiva. Durante un intervalo de carga predictiva, Omnibattery primero deja de cargar si la importación alcanza el límite; una vez que la telemetría se estabilice, puede descargar el exceso confirmado. [Protección de capacidad (reducción de picos)](../features/peak-shaving.md) es una estrategia de reserva separada.
 
-## Potencia máxima contratada
+    **Fuentes solares**
 
-La potencia contratada de tu conexión de red, en **W** (por defecto `7000`).
+    Un pronóstico restante de hoy ya es energía futura, por lo que Omnibattery no le resta la producción medida. El campo heredado de todo el día permanece disponible para las entradas existentes; guardar un sensor restante de hoy lo reemplaza. El sensor de producción externo en tiempo real y los canales MPPT de batería legibles ayudan a conocer la forma de producción, pero no reemplazan el pronóstico total.
 
-La integración limita la carga de las baterías para que la **importación de red proyectada nunca supere este límite**, evitando que salte el diferencial. Aplica en **todos los modos** — control normal de setpoint, un objetivo/offset positivo, balance neto horario y carga predictiva desde red — no solo al cargar desde la red de forma programada.
+    Cuando hay períodos de proveedores con fecha disponibles, Omnibattery los utiliza para la línea de tiempo solar. De lo contrario, utiliza un perfil local maduro y luego un retroceso sinusoidal. El perfil no predice la energía total ni corrige el proveedor meteorológico.
 
-`max_contracted_power` protege la instalación de dos formas complementarias:
+    **Consumo derivado de la vivienda**
 
-- Es un techo estricto para la carga de baterías en todos los modos.
-- Mientras una franja de carga predictiva mantiene el control, también es el
-  límite de importación de emergencia. Omnibattery detiene primero la carga y
-  espera telemetría estabilizada; si la importación física continúa por encima,
-  descarga únicamente el exceso confirmado.
+    ```text
+    home consumption = grid power + battery alternating current (AC) power + solar power
+    ```
 
-Esta protección de emergencia **no** necesita que Protección de Capacidad/Peak
-Shaving esté activado. Peak Shaving es una estrategia de reserva opcional e
-independiente, con su propio límite configurable. Fuera de una franja de carga
-predictiva, el PD normal sigue regulando hacia el objetivo de red configurado.
-Consulta [Consumo del hogar durante la carga predictiva](predictive-charging/index.es.md#consumo-del-hogar-durante-una-franja-de-carga).
+    El valor alimenta un historial de consumo de 7 días utilizado por la carga predictiva y el retraso de la carga solar. Se acumula durante el día local, se reinicia a medianoche y sobrevive a los reinicios de Home Assistant. La energía de carga de la batería anula la energía de la red utilizada para cargarla.
 
----
+    Debido a que las fuentes se actualizan de forma independiente, un cambio de dirección puede crear brevemente un equilibrio imposible. **Consumo doméstico** mantiene su último valor coherente durante hasta 15 segundos y luego informa `unknown` si las entradas aún no están de acuerdo. Su acumulador físico de energía diaria rompe ese intervalo en lugar de añadir un falso cero. Las exclusiones de carga externa utilizadas para el control no alteran el total de este panel físico.
 
-## Sensores de previsión solar *(opcional)*
-
-Para configuraciones nuevas, selecciona el sensor que proporciona la producción
-solar **restante de hoy** en **kWh** o **Wh**. Este valor se utiliza directamente
-en las decisiones intradía, sin volver a restar la producción medida.
-
-El campo de previsión del día completo se mantiene para entradas legadas que no
-se han modificado. Al guardar **Restante de hoy**, sustituye y elimina ese campo
-legado, resolviendo el Repair de transición. Las instalaciones existentes pueden
-seguir funcionando hasta que cambien el sensor.
-
-Configurarlo aquí lo pone a disposición de:
-
-- **Carga predictiva** (modos Franja Horaria y Precio Dinámico)
-- **Retraso de carga solar**
-
-También puedes dejarlo en blanco y configurarlo más tarde desde la sección
-**Sensores** de las opciones de la integración.
-
----
-
-## Sensor de producción solar *(optional)*
-
-Sensor de potencia de producción fotovoltaica (W o kW) en tiempo real de un inversor externo que no está conectado mediante las entradas MPPT de la batería. Se utiliza para mostrar el nodo Solar en el diagrama de flujo energético del panel. Déjalo vacío si tus paneles solares alimentan directamente el MPPT de la batería.
-
----
-
-## Consumo del hogar *(derivado automáticamente)*
-
-**No hay campo de sensor de consumo del hogar** en la configuración — la integración deriva el consumo total del hogar de sensores que ya tiene:
-
-**Consumo del hogar = Potencia de red + Potencia AC de baterías + Producción solar**
-
-Es el valor que muestra el diagrama de flujo de energía y el sensor `sensor.marstek_venus_system_home_consumption`, y alimenta el historial de 7 días que usan la carga predictiva y el retraso de carga. La acumulación cubre todo el día local, incluidas las franjas de carga predictiva; la potencia AC negativa de la batería cancela la energía de red usada para cargarla. El contador se reinicia a medianoche y sobrevive reinicios de HA.
-
-La telemetría de red, solar y baterías es independiente y puede no representar
-exactamente el mismo instante. Justo después de cambiar una orden de carga, su
-combinación temporal puede producir un balance doméstico negativo imposible o
-anormalmente pequeño. El sensor de Consumo del Hogar conserva el último valor
-coherente durante un máximo de **15 segundos**; si las entradas siguen sin
-cuadrar, muestra `unknown` en lugar de publicar un `0 W` falso. El acumulador
-físico de energía diaria aplica su propia validación equivalente e interrumpe el
-intervalo de integración en vez de sumar un cero inventado. Tampoco aplica las
-exclusiones de cargas externas predictivas al total físico del panel.
-
-Una telemetría rápida y coherente de red y batería acorta estas transiciones. Un
-valor retenido o `unknown` breve durante un cambio de dirección del inversor es,
-por tanto, una protección de calidad de datos, no una orden para descargar.
-
-### Total de previsión frente al timeline solar
-
-El sensor de previsión es el presupuesto energético. Un sensor de «restante de
-hoy» ya representa energía futura y el acumulador de producción local no lo
-reduce otra vez. Los sensores legados de día completo (`today`) se convierten
-una sola vez a presupuesto restante mediante sus periodos futuros fechados, o
-la parte restante de la curva solar; la producción ya medida nunca se desplaza
-a intervalos futuros. El sensor opcional de producción real, y
-los canales MPPT legibles de las baterías, solo aprenden la forma intradía; no
-sustituyen el total de la previsión.
-
-Cuando está disponible, la prioridad es periodos fechados del proveedor,
-perfil solar local maduro y, finalmente, la curva sinusoidal existente. El
-perfil no predice kWh, no corrige una previsión meteorológica incorrecta, no
-controla el inversor ni garantiza producción cuando hay curtailment.
+    Al seleccionar **Modo de medidor fuera de la red** se interrumpe el intervalo de integración de energía actual, por lo que un salto entre medidores no se cuenta como energía. La configuración del letrero fuera de la red se aplica solo a esa fuente. Las baterías que alimentan su propia salida de respaldo permanecen fuera del control proporcional-derivado (PD), mientras que las otras baterías disponibles usan el medidor seleccionado.
