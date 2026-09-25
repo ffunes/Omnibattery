@@ -1,6 +1,6 @@
 # Is my battery healthy?
 
-The cell balance monitor compares the highest and lowest cell near the top of a full charge. **Balance - Status** gives the plain answer; **Balance - Cell Delta (at 100%)** and its history help you decide whether an unusual result is persistent.
+The cell balance monitor compares the highest and lowest cell near the top of a full charge. **Balance - Status** gives the plain answer; **Balance - Cell Delta at 100% (last full charge)** and its history help you decide whether an unusual result is persistent.
 
 ## Do I need it?
 
@@ -10,7 +10,7 @@ The cell balance monitor compares the highest and lowest cell near the top of a 
 
 ## Before you start
 
-- Look for **Balance - Status**, **Balance - Cell Delta (at 100%)**, and **Balance - Last Reading** on the battery device.
+- Look for **Balance - Status**, **Balance - Cell Delta at 100% (last full charge)**, and **Balance - Last Reading** on the battery device.
 - Cell balance is available for Marstek Venus E v2/v3 and Venus A/D, Zendure batteries that publish cell extremes, and ESPHome/LilyGo devices when the upstream entities exist.
 - Anker, Hoymiles, Huawei, and Sessy drivers do not currently provide both readings required by this monitor.
 - Enable **100% Charge Voltage Taper** on the battery, or use [Weekly full charge](weekly-full-charge.md), to obtain a comparable top-of-charge reading.
@@ -19,7 +19,7 @@ The cell balance monitor compares the highest and lowest cell near the top of a 
 
 This feature is automatic; there is no monitor switch or activation form.
 
-1. Open the battery device in Home Assistant and confirm that **Balance - Cell Delta (at 100%)** and **Balance - Status** exist.
+1. Open the battery device in Home Assistant and confirm that **Balance - Cell Delta at 100% (last full charge)** and **Balance - Status** exist.
 2. In the Omnibattery dashboard, leave **100% Charge Voltage Taper** on for that battery.
 3. Let the battery complete a full charge, then check that **Balance - Last Reading** has updated.
 
@@ -29,7 +29,7 @@ This feature is automatic; there is no monitor switch or activation form.
 
 Read **Balance - Status** first. One orange or red reading does not prove that a cell is degraded; compare readings from completed full charges before drawing a conclusion.
 
-| Status | Balance - Cell Delta (at 100%) | What it means | What to do |
+| Status | Balance - Cell Delta at 100% (last full charge) | What it means | What to do |
 |---|---:|---|---|
 | `green` | Below 200 mV | Within the monitor's normal band | No action |
 | `yellow` | 200–229 mV | Above the normal band | Check the next full-charge reading and the trend |
@@ -39,12 +39,20 @@ Read **Balance - Status** first. One orange or red reading does not prove that a
 
 Also check these entities:
 
-- **Balance - Cell Delta (at 100%)**: the measured spread in millivolts (mV).
+- **Balance - Cell Delta at 100% (last full charge)**: the measured spread in millivolts (mV).
 - **Balance - Last Reading**: when the last comparable measurement completed.
 - **Balance - Trend**: `rising`, `stable`, or `falling` across recent readings.
 - **Balance - Delta Average (4 readings)**: the average of the latest four comparable readings.
 
-On batteries with per-pack data, **Balance - Cell Delta (at 100%)** represents the worst internal pack spread. Its `packs_mV` and `worst_pack` attributes identify the pack behind the result; Omnibattery does not subtract the lowest cell in one pack from the highest cell in another.
+Its `measured_at` and `soc_at_measurement` attributes say when that snapshot was taken and at what SOC; it does not change between full charges.
+
+### Why the delta does not match max minus min cell voltage
+
+**Balance - Cell Delta at 100% (last full charge)** is not live. It is recorded near the top of a full charge, where LFP cells actually separate. **Maximum Cell Voltage** and **Minimum Cell Voltage** are live, and between roughly 20 % and 90 % SOC an LFP cell's voltage is so flat that even an unbalanced pack shows only a few millivolts between them. A stored 243 mV next to a live 3.331 V / 3.328 V at 80 % SOC is therefore normal and both values are correct.
+
+**Balance - Cell Delta (live)** shows that live spread directly (max − min, in mV). Use it to watch a charge approach the top; judge balance by the top-of-charge value. On Venus A/D with per-pack data it is the widest single pack, with the pack number in its `pack` attribute.
+
+On batteries with per-pack data, **Balance - Cell Delta at 100% (last full charge)** represents the worst internal pack spread. Its `packs_mV` and `worst_pack` attributes identify the pack behind the result; Omnibattery does not subtract the lowest cell in one pack from the highest cell in another.
 
 If orange or red persists across full charges, use the [Marstek active-balance blueprint](../automations/blueprints.md#active-cell-balancing-for-one-marstek-battery) for a supported Marstek battery. Run it for one battery at a time and follow its cleanup notifications before returning that battery to automatic control.
 
@@ -55,7 +63,7 @@ If orange or red persists across full charges, use the [Marstek active-balance b
 | Balance entities are missing | The driver does not publish both cell-voltage extremes | Whether **Maximum Cell Voltage** and **Minimum Cell Voltage** exist for that battery |
 | **Balance - Status** stays `unknown` | No comparable full-charge measurement has completed | **100% Charge Voltage Taper**, the charge target, and **Balance - Last Reading** |
 | The latest value looks much higher or lower than usual | The charge ended differently, or the measurement did not come from the same top-of-charge condition | Compare the timestamp and several completed full-charge readings |
-| A Venus A/D value seems inconsistent with the battery-level voltage | Battery-level registers can represent pack 1 while the diagnostic uses available per-pack data | `packs_mV` and `worst_pack` on **Balance - Cell Delta (at 100%)** |
+| A Venus A/D value seems inconsistent with the battery-level voltage | Battery-level registers can represent pack 1 while the diagnostic uses available per-pack data | `packs_mV` and `worst_pack` on **Balance - Cell Delta at 100% (last full charge)** |
 | Orange or red returns after another full charge | The imbalance may be persistent | **Balance - Trend**, recent history, and the active-balance blueprint |
 
 ??? "Advanced details: interpreting mV and imbalance"
@@ -126,11 +134,12 @@ If orange or red persists across full charges, use the [Marstek active-balance b
 
     **Sensor and diagnostic reference**
 
-    Five diagnostic entities are created only when the driver declares both cell-voltage readings:
+    Six diagnostic entities are created only when the driver declares both cell-voltage readings:
 
     | Entity pattern | Purpose |
     |---|---|
-    | `sensor.*_cell_delta` | Last comparable spread in mV, recent history, and optional pack breakdown |
+    | `sensor.*_cell_delta` | Last comparable top-of-charge spread in mV, `measured_at`, `soc_at_measurement`, recent history, and optional pack breakdown |
+    | `sensor.*_cell_delta_live` | Live max − min cell voltage in mV; unavailable while either reading is missing |
     | `sensor.*_balance_status` | `green`, `yellow`, `orange`, `red`, or `unknown` |
     | `sensor.*_delta_trend` | Direction across recent comparable readings |
     | `sensor.*_last_balance_read` | Timestamp of the last reading |
@@ -155,4 +164,4 @@ If orange or red persists across full charges, use the [Marstek active-balance b
 
     These attributes explain the current control path; **Balance - Status** remains the user-facing health result.
 
-    The active-balance blueprint runs outside Omnibattery's normal control loop through **Manual Battery Control**. Its own page is the canonical reference for its charge, rest, retry, and cleanup sequence. Settled measurements published by the blueprint enter the same **Balance - Cell Delta (at 100%)** history with `source: blueprint`.
+    The active-balance blueprint runs outside Omnibattery's normal control loop through **Manual Battery Control**. Its own page is the canonical reference for its charge, rest, retry, and cleanup sequence. Settled measurements published by the blueprint enter the same **Balance - Cell Delta at 100% (last full charge)** history with `source: blueprint`.

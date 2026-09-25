@@ -211,3 +211,24 @@ BATTERY_CELL_POWER_SENSOR_DEFINITIONS = [
         },
     }
 ]
+
+# Per-battery live cell spread (max - min cell voltage, mV). Derived from the two
+# BMS cell registers the coordinator already polls; no extra Modbus read. Not the
+# balance indicator: LFP is flat between ~20 and ~90 % SOC, so mid-charge this is
+# a few mV even on a pack the top-of-charge ``cell_delta`` flags. The key must not
+# end in ``_cell_delta``: the active-balance blueprint discovers the stored sensor
+# with ``^sensor\..*_cell_delta$``.
+CELL_DELTA_LIVE_SENSOR_DEFINITIONS = [
+    {
+        "name": "Cell Delta (live)",
+        "key": "cell_delta_live",
+        "unit": "mV",
+        "state_class": "measurement",
+        "icon": "mdi:delta",
+        "precision": 0,
+        "dependency_keys": {
+            "vmax": "max_cell_voltage",
+            "vmin": "min_cell_voltage",
+        },
+    }
+]

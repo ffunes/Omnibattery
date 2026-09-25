@@ -92,7 +92,7 @@ const I18N = {
     noBatteriesMsg: "No battery devices were detected in this integration.",
     healthCells: "Health & cells",
     mTemp: "Temperature", mVoltage: "Voltage", mSoh: "State of health (SoH)", mCellMax: "Cell max", mCellMin: "Cell min",
-    mCellDelta: "Δ cell", mCycles: "Cycles", mEfficiency: "Efficiency", mHysteresis: "Hysteresis",
+    mCellDelta: "Δ cell @100%", mCellDeltaLive: "Δ cell (live)", mCycles: "Cycles", mEfficiency: "Efficiency", mHysteresis: "Hysteresis",
     solarMppt: "Solar (MPPT)", controls: "Controls", deviceInfo: "Device information",
     acOutput: "AC output", acInput: "AC input", toHomeGrid: "To home / grid", fromAcBus: "From AC bus",
     inverterMode: "Inverter · {state}",
@@ -179,7 +179,7 @@ const I18N = {
     noBatteriesMsg: "No se detectaron dispositivos de batería en esta integración.",
     healthCells: "Salud y celdas",
     mTemp: "Temperatura", mVoltage: "Voltaje", mSoh: "Estado de salud (SoH)", mCellMax: "Celda máx", mCellMin: "Celda mín",
-    mCellDelta: "Δ celda", mCycles: "Ciclos", mEfficiency: "Eficiencia", mHysteresis: "Histéresis",
+    mCellDelta: "Δ celda @100%", mCellDeltaLive: "Δ celda (en vivo)", mCycles: "Ciclos", mEfficiency: "Eficiencia", mHysteresis: "Histéresis",
     solarMppt: "Solar (MPPT)", controls: "Controles", deviceInfo: "Información del dispositivo",
     acOutput: "Salida AC", acInput: "Entrada AC", toHomeGrid: "A casa / red", fromAcBus: "Desde bus AC",
     inverterMode: "Inversor · {state}",
@@ -266,7 +266,7 @@ const I18N = {
     noBatteriesMsg: "No s'han detectat dispositius de bateria en aquesta integració.",
     healthCells: "Salut i cel·les",
     mTemp: "Temperatura", mVoltage: "Voltatge", mSoh: "Estat de salut (SoH)", mCellMax: "Cel·la màx", mCellMin: "Cel·la mín",
-    mCellDelta: "Δ cel·la", mCycles: "Cicles", mEfficiency: "Eficiència", mHysteresis: "Histèresi",
+    mCellDelta: "Δ cel·la @100%", mCellDeltaLive: "Δ cel·la (en directe)", mCycles: "Cicles", mEfficiency: "Eficiència", mHysteresis: "Histèresi",
     solarMppt: "Solar (MPPT)", controls: "Controls", deviceInfo: "Informació del dispositiu",
     acOutput: "Sortida CA", acInput: "Entrada CA", toHomeGrid: "A casa / xarxa", fromAcBus: "Des del bus CA",
     inverterMode: "Inversor · {state}",
@@ -349,7 +349,7 @@ const I18N = {
     noBatteriesMsg: "In dieser Integration wurden keine Batteriegeräte erkannt.",
     healthCells: "Zustand & Zellen",
     mTemp: "Temperatur", mVoltage: "Spannung", mSoh: "Gesundheitszustand (SoH)", mCellMax: "Zelle max", mCellMin: "Zelle min",
-    mCellDelta: "Δ Zelle", mCycles: "Zyklen", mEfficiency: "Effizienz", mHysteresis: "Hysterese",
+    mCellDelta: "Δ Zelle @100%", mCellDeltaLive: "Δ Zelle (live)", mCycles: "Zyklen", mEfficiency: "Effizienz", mHysteresis: "Hysterese",
     solarMppt: "Solar (MPPT)", controls: "Steuerung", deviceInfo: "Geräteinformationen",
     acOutput: "AC-Ausgang", acInput: "AC-Eingang", toHomeGrid: "Zu Haus / Netz", fromAcBus: "Vom AC-Bus",
     inverterMode: "Wechselrichter · {state}",
@@ -432,7 +432,7 @@ const I18N = {
     noBatteriesMsg: "Aucun appareil de batterie n'a été détecté dans cette intégration.",
     healthCells: "Santé et cellules",
     mTemp: "Température", mVoltage: "Tension", mSoh: "État de santé (SoH)", mCellMax: "Cellule max", mCellMin: "Cellule min",
-    mCellDelta: "Δ cellule", mCycles: "Cycles", mEfficiency: "Efficacité", mHysteresis: "Hystérésis",
+    mCellDelta: "Δ cellule @100%", mCellDeltaLive: "Δ cellule (en direct)", mCycles: "Cycles", mEfficiency: "Efficacité", mHysteresis: "Hystérésis",
     solarMppt: "Solaire (MPPT)", controls: "Contrôles", deviceInfo: "Informations sur l'appareil",
     acOutput: "Sortie CA", acInput: "Entrée CA", toHomeGrid: "Vers maison / réseau", fromAcBus: "Depuis bus CA",
     inverterMode: "Onduleur · {state}",
@@ -515,7 +515,7 @@ const I18N = {
     noBatteriesMsg: "Er zijn geen batterijapparaten gedetecteerd in deze integratie.",
     healthCells: "Gezondheid & cellen",
     mTemp: "Temperatuur", mVoltage: "Spanning", mSoh: "Gezondheidsstatus (SoH)", mCellMax: "Cel max", mCellMin: "Cel min",
-    mCellDelta: "Δ cel", mCycles: "Cycli", mEfficiency: "Efficiëntie", mHysteresis: "Hysterese",
+    mCellDelta: "Δ cel @100%", mCellDeltaLive: "Δ cel (live)", mCycles: "Cycli", mEfficiency: "Efficiëntie", mHysteresis: "Hysterese",
     solarMppt: "Solar (MPPT)", controls: "Bediening", deviceInfo: "Apparaatinformatie",
     acOutput: "AC-uitgang", acInput: "AC-ingang", toHomeGrid: "Naar huis / net", fromAcBus: "Vanaf AC-bus",
     inverterMode: "Omvormer · {state}",
@@ -842,7 +842,8 @@ const K = {
   internalTemp: "internal_temperature",
   cellMax: "max_cell_voltage",
   cellMin: "min_cell_voltage",
-  cellDelta: "cell_delta", // measured imbalance (mV) from the balance monitor
+  cellDelta: "cell_delta", // top-of-charge imbalance (mV) from the balance monitor
+  cellDeltaLive: "cell_delta_live", // live max-min (mV); small mid-SOC on LFP
   cycles: "battery_cycle_count",
   cyclesCalc: "battery_cycle_count_calc",
   rte: "round_trip_efficiency_total",
@@ -911,7 +912,7 @@ const MPPT_KEYS = ["mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"];
 
 // translation_keys that change which health-metric rows a battery card renders.
 const BAT_CARD_LAYOUT_KEYS = [
-  K.batterySoh, K.batteryVoltage, K.cellMax, K.cellMin, K.cellDelta,
+  K.batterySoh, K.batteryVoltage, K.cellMax, K.cellMin, K.cellDelta, K.cellDeltaLive,
   K.cycles, K.cyclesCalc, K.rte, K.chargeHysteresisActive,
 ];
 
@@ -1257,6 +1258,7 @@ const DEFAULT_SYS_ORDER = (() => {
 // Shown as a hover title + tap popover. English is the fallback (see _help).
 const SYS_HELP = {
   en: {
+    cell_delta_live: "Live spread between the highest and lowest cell right now. LFP voltage is flat between about 20 % and 90 % SOC, so mid-charge this is only a few mV even on an unbalanced pack. The real balance indicator is Δ cell @100%, measured at the top of a full charge.",
     secPhaseProtection: "Master switch for three-phase current protection. When OFF, phase limits are ignored and battery phase selectors are unavailable. When ON, a battery without a phase remains outside the envelope and continues normal automatic operation.",
     three_phase_protection: "Enable or disable the three-phase current protection envelope.",
     battery_phase: "Select the physical AC phase for this battery. Choose Unassigned when it is not connected to a protected phase; it then remains outside the three-phase envelope and continues normal automatic operation.",
@@ -1341,6 +1343,7 @@ const SYS_HELP = {
     round_trip_efficiency: "Battery round-trip efficiency (kWh out / kWh in) used to value stored energy for the arbitrage margin. Lower values make the gate stricter. Only used when a minimum arbitrage margin is set.",
   },
   es: {
+    cell_delta_live: "Diferencia en vivo entre la celda más alta y la más baja. El voltaje LFP es plano entre aproximadamente el 20 % y el 90 % de SOC, así que a media carga solo marca unos pocos mV incluso en un pack desequilibrado. El indicador real de balance es Δ celda @100%, medido al final de una carga completa.",
     secPhaseProtection: "Interruptor general de la protección de corriente trifásica. Al desactivarlo se ignoran los límites de fase y los selectores de fase de las baterías no están disponibles. Al activarlo, una batería sin fase queda fuera de la envolvente y sigue funcionando normalmente en automático.",
     three_phase_protection: "Activa o desactiva la envolvente de protección de corriente trifásica.",
     battery_phase: "Selecciona la fase física de CA de esta batería. Elige Sin asignar si no está conectada a una fase protegida; quedará fuera de la envolvente trifásica y seguirá funcionando normalmente en automático.",
@@ -1425,6 +1428,7 @@ const SYS_HELP = {
     round_trip_efficiency: "Eficiencia de ciclo completo (kWh de salida / kWh de entrada) usada para valorar la energía almacenada. Valores más bajos endurecen el filtro. Solo se usa si hay un margen mínimo de arbitraje.",
   },
   ca: {
+    cell_delta_live: "Diferència en directe entre la cel·la més alta i la més baixa. El voltatge LFP és pla entre aproximadament el 20 % i el 90 % de SOC, així que a mitja càrrega només marca uns pocs mV fins i tot en un pack desequilibrat. L'indicador real de balanç és Δ cel·la @100%, mesurat al final d'una càrrega completa.",
     secPhaseProtection: "Interruptor general de la protecció de corrent trifàsica. Si es desactiva, s'ignoren els límits de fase i els selectors de fase de les bateries no estan disponibles. Si s'activa, una bateria sense fase queda fora de l'envolupant i continua funcionant normalment en automàtic.",
     three_phase_protection: "Activa o desactiva l'envolupant de protecció de corrent trifàsica.",
     battery_phase: "Fase AC física (L1/L2/L3) on està cablejada aquesta bateria, o Sense assignar si queda fora de l'esquema de fases protegides. Una bateria sense fase queda fora de l'envolupant trifàsica i continua funcionant normalment en automàtic.",
@@ -1509,6 +1513,7 @@ const SYS_HELP = {
     round_trip_efficiency: "Eficiència de cicle complet (kWh de sortida / kWh d'entrada) per valorar l'energia emmagatzemada. Valors més baixos endureixen el filtre. Només s'usa si hi ha un marge mínim d'arbitratge.",
   },
   de: {
+    cell_delta_live: "Aktuelle Spreizung zwischen höchster und niedrigster Zelle. Die LFP-Spannung ist zwischen etwa 20 % und 90 % SOC flach, daher zeigt dieser Wert mitten im Ladezyklus selbst bei einem unausgeglichenen Pack nur wenige mV. Der eigentliche Balance-Indikator ist Δ Zelle @100%, gemessen am Ende einer Vollladung.",
     secPhaseProtection: "Hauptschalter für den Dreiphasen-Stromschutz. Im AUS-Zustand werden Phasengrenzen ignoriert und die Phasenauswahl der Batterien ist nicht verfügbar. Im EIN-Zustand bleibt eine Batterie ohne Phase außerhalb der Schutzhülle und arbeitet im Automatikbetrieb normal weiter.",
     three_phase_protection: "Aktiviert oder deaktiviert die Dreiphasen-Stromschutzhülle.",
     battery_phase: "Physische AC-Phase (L1/L2/L3), an die diese Batterie angeschlossen ist, oder Nicht zugewiesen außerhalb des geschützten Phasenschemas. Eine Batterie ohne Phase liegt außerhalb der Dreiphasen-Schutzhülle und arbeitet im Automatikbetrieb normal weiter.",
@@ -1593,6 +1598,7 @@ const SYS_HELP = {
     round_trip_efficiency: "Round-Trip-Wirkungsgrad der Batterie (kWh raus / kWh rein) zur Bewertung gespeicherter Energie. Niedrigere Werte machen den Filter strenger. Nur bei gesetzter Mindest-Arbitragemarge aktiv.",
   },
   fr: {
+    cell_delta_live: "Écart en direct entre la cellule la plus haute et la plus basse. La tension LFP est plate entre environ 20 % et 90 % de SOC : en milieu de charge, cette valeur ne fait que quelques mV même sur un pack déséquilibré. Le vrai indicateur d'équilibrage est Δ cellule @100%, mesuré en fin de charge complète.",
     secPhaseProtection: "Interrupteur général de la protection de courant triphasé. Désactivé, les limites de phase sont ignorées et les sélecteurs de phase des batteries ne sont pas disponibles. Activé, une batterie sans phase reste hors de l'enveloppe et continue à fonctionner normalement en automatique.",
     three_phase_protection: "Active ou désactive l'enveloppe de protection de courant triphasé.",
     battery_phase: "Phase AC physique (L1/L2/L3) à laquelle cette batterie est raccordée, ou Non assignée hors du schéma de phases protégées. Une batterie sans phase est exclue de l'enveloppe triphasée et continue à fonctionner normalement en automatique.",
@@ -1677,6 +1683,7 @@ const SYS_HELP = {
     round_trip_efficiency: "Rendement aller-retour de la batterie (kWh sortis / kWh entrés) servant à valoriser l'énergie stockée. Des valeurs plus basses rendent le filtre plus strict. Utilisé uniquement si une marge d'arbitrage minimale est définie.",
   },
   nl: {
+    cell_delta_live: "Actueel verschil tussen de hoogste en laagste cel. LFP-spanning is vlak tussen ongeveer 20 % en 90 % SOC, dus halverwege de lading toont dit maar enkele mV, zelfs bij een onevenwichtig pack. De echte balansindicator is Δ cel @100%, gemeten aan het einde van een volledige lading.",
     secPhaseProtection: "Hoofdschakelaar voor de driefasen-stroombeveiliging. UIT: fasegrenzen worden genegeerd en de fasekeuze van de batterijen is niet beschikbaar. AAN: een batterij zonder fase blijft buiten de beveiliging en werkt normaal automatisch verder.",
     three_phase_protection: "Schakelt de driefasen-stroombeveiliging in of uit.",
     battery_phase: "Fysieke AC-fase (L1/L2/L3) waarop deze batterij is aangesloten, of Niet toegewezen buiten het beschermde faseschema. Een batterij zonder fase valt buiten de driefasenbeveiliging en blijft normaal automatisch werken.",
@@ -5563,9 +5570,12 @@ class MarstekVenusPanel extends HTMLElement {
         voltage: this._num(byTk[K.batteryVoltage]),
         cellMax: cmax,
         cellMin: cmin,
-        // measured delta (mV) from the cell_delta balance sensor — NOT the live
-        // max-min, which swings with load. null until the first balance reading.
+        // measured delta (mV) from the cell_delta balance sensor, taken at the
+        // top of a full charge. null until the first balance reading.
         cellDelta: this._num(byTk[K.cellDelta]),
+        // live max-min (mV) from cell_delta_live; swings with SOC and load and
+        // is small mid-charge on LFP, so it gets no balance colouring.
+        cellDeltaLive: this._num(byTk[K.cellDeltaLive]),
         cycles: this._num(byTk[K.cycles]),
         cyclesCalc: this._num(byTk[K.cyclesCalc]),
         rte: this._num(byTk[K.rte]),
@@ -5731,9 +5741,14 @@ class MarstekVenusPanel extends HTMLElement {
     if (b.entIds[K.cellMax]) addMetric("cmax", this._t("mCellMax"), K.cellMax);
     if (b.entIds[K.cellMin]) addMetric("cmin", this._t("mCellMin"), K.cellMin);
     if (b.entIds[K.cellDelta]) addMetric("cdelta", this._t("mCellDelta"), K.cellDelta);
+    if (b.entIds[K.cellDeltaLive]) {
+      // right of the top-of-charge delta, with the LFP flat-curve caveat
+      addMetric("cdeltaLive", this._t("mCellDeltaLive"), K.cellDeltaLive);
+      this._attachHelp(M.cdeltaLive.parentElement.querySelector(".m-k"), this._help("cell_delta_live"));
+    }
     addMetric("cycles", this._t("mCycles"), b.entIds[K.cycles] ? K.cycles : K.cyclesCalc);
     addMetric("rte", this._t("mEfficiency"), K.rte);
-    addMetric("hyst", this._t("mHysteresis"), K.chargeHysteresisActive); // col2 row4: right of Efficiency, below Cycles
+    addMetric("hyst", this._t("mHysteresis"), K.chargeHysteresisActive);
     health.appendChild(hgrid);
     card.appendChild(health);
 
@@ -5964,6 +5979,7 @@ class MarstekVenusPanel extends HTMLElement {
         M.cdelta.style.color = "";
       }
     }
+    if (M.cdeltaLive) M.cdeltaLive.textContent = b.cellDeltaLive != null ? `${Math.round(b.cellDeltaLive)} mV` : "—";
     // cycles: prefer the BMS modbus register; fall back to the calculated sensor
     // when the model exposes no cycle-count register.
     const cyc = b.cycles != null ? b.cycles : b.cyclesCalc;
@@ -7449,6 +7465,7 @@ class MarstekVenusPanel extends HTMLElement {
       .metric { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
       .metric .m-k { color: var(--ink-mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .metric .m-v { flex-shrink: 0; font-size: 14px; }
+      .metric .m-k .card-info { display: inline-grid; margin-left: 4px; vertical-align: middle; }
       /* clickable values open HA more-info (history graph) */
       .clickable { cursor: pointer; }
       .metric.clickable:hover .m-v { color: var(--accent); }

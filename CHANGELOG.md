@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Live cell delta sensor (`cell_delta_live`)**: max minus min cell voltage right now, in mV, from the two cell registers already polled (no extra Modbus read). It goes unavailable rather than reporting 0 when either reading is missing, and on Venus A/D with per-pack data it is the widest single pack. The dashboard's Batteries tab shows it next to the top-of-charge delta, with a help note on why mid-SOC values are small on LFP.
+
+### Changed
+
+- **The stored cell delta is now clearly labelled as a top-of-charge reading**: *Balance - Cell Delta (at 100%)* is now *Balance - Cell Delta at 100% (last full charge)*, and the dashboard shows "Δ cell @100%". Shown next to live min/max cell voltages, a stored 243 mV beside 3.331 V / 3.328 V at 80 % SOC read like a contradiction; both are correct. New `measured_at` and `soc_at_measurement` attributes say when the snapshot was taken. Entity IDs and unique IDs are unchanged, so dashboards and automations keep working.
+
 ## [1.5.0b4] - 2026-09-22
 
 ### Fixed

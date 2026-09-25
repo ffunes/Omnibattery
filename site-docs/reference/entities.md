@@ -122,7 +122,7 @@ Battery entities depend on the driver. A missing entity usually means that the d
 
 ??? "Cell balance monitor sensors"
 
-    When the cell balance monitor is enabled, each supported battery can expose `cell_delta`, `balance_status`, `delta_trend`, `last_balance_read`, and `delta_avg_4w`. See [cell balance monitor](../features/cell-balance-monitor.md).
+    When the cell balance monitor is enabled, each supported battery can expose `cell_delta` (top-of-charge snapshot), `cell_delta_live` (live max − min), `balance_status`, `delta_trend`, `last_balance_read`, and `delta_avg_4w`. See [cell balance monitor](../features/cell-balance-monitor.md).
 
 ??? "Battery binary sensors"
 

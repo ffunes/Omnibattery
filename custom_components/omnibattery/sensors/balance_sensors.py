@@ -131,7 +131,14 @@ class CellDeltaSensor(_BalanceBaseSensor):
             self._coordinator.device_key, self.HISTORY_LIMIT
         )
         # Reverse so attribute order is newest -> oldest, which is friendlier in the UI.
-        attrs: dict[str, Any] = {"history": list(reversed(readings))}
+        # This is a top-of-charge snapshot, not a live value (the live spread is
+        # ``cell_delta_live``), so say when and at what SOC it was taken.
+        latest = readings[-1] if readings else {}
+        attrs: dict[str, Any] = {
+            "measured_at": latest.get("ts"),
+            "soc_at_measurement": latest.get("soc"),
+            "history": list(reversed(readings)),
+        }
         # The state is the worst pack's spread; this is the live breakdown behind
         # it, so a high delta can be attributed to a pack instead of to "the
         # battery" (#439). Read from the coordinator, so it is here whether or

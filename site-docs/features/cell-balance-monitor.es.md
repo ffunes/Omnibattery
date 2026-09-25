@@ -1,6 +1,6 @@
 # ¿Está sana mi batería?
 
-El monitor de equilibrio de celdas compara la celda más alta y la más baja cerca del final de una carga completa. **Balance - Estado** ofrece una respuesta directa; **Balance - Delta de Celda (al 100%)** y su historial te ayudan a decidir si un resultado inusual se mantiene en el tiempo.
+El monitor de equilibrio de celdas compara la celda más alta y la más baja cerca del final de una carga completa. **Balance - Estado** ofrece una respuesta directa; **Balance - Delta de Celda al 100% (última carga completa)** y su historial te ayudan a decidir si un resultado inusual se mantiene en el tiempo.
 
 ## ¿Lo necesito?
 
@@ -10,7 +10,7 @@ El monitor de equilibrio de celdas compara la celda más alta y la más baja cer
 
 ## Antes de empezar
 
-- Busca **Balance - Estado**, **Balance - Delta de Celda (al 100%)** y **Balance - Última Lectura** en el dispositivo de la batería.
+- Busca **Balance - Estado**, **Balance - Delta de Celda al 100% (última carga completa)** y **Balance - Última Lectura** en el dispositivo de la batería.
 - El equilibrio de celdas está disponible para Marstek Venus E v2/v3 y Venus A/D, baterías Zendure que publican los extremos de celda y dispositivos ESPHome/LilyGo cuando existen las entidades de origen.
 - Los controladores de Anker, Hoymiles, Huawei y Sessy no proporcionan actualmente las dos lecturas que requiere este monitor.
 - Activa **Activar reducción por voltaje al cargar al 100%** en la batería, o usa la [carga semanal completa](weekly-full-charge.md), para obtener una lectura comparable cerca del final de carga.
@@ -19,7 +19,7 @@ El monitor de equilibrio de celdas compara la celda más alta y la más baja cer
 
 Esta función es automática; no hay un interruptor de monitorización ni un formulario de activación.
 
-1. Abre el dispositivo de la batería en Home Assistant y confirma que existen **Balance - Delta de Celda (al 100%)** y **Balance - Estado**.
+1. Abre el dispositivo de la batería en Home Assistant y confirma que existen **Balance - Delta de Celda al 100% (última carga completa)** y **Balance - Estado**.
 2. En el panel de Omnibattery, deja activado **Activar reducción por voltaje al cargar al 100%** para esa batería.
 3. Deja que la batería complete una carga completa y comprueba después que se ha actualizado **Balance - Última Lectura**.
 
@@ -29,7 +29,7 @@ Esta función es automática; no hay un interruptor de monitorización ni un for
 
 Lee primero **Balance - Estado**. Una lectura naranja o roja no demuestra que una celda esté degradada; compara lecturas de cargas completas terminadas antes de sacar una conclusión.
 
-| Estado | Balance - Delta de Celda (al 100%) | Qué significa | Qué hacer |
+| Estado | Balance - Delta de Celda al 100% (última carga completa) | Qué significa | Qué hacer |
 |---|---:|---|---|
 | `green` | Por debajo de 200 mV | Dentro de la banda normal del monitor | No es necesario actuar |
 | `yellow` | 200–229 mV | Por encima de la banda normal | Comprueba la siguiente lectura de carga completa y la tendencia |
@@ -39,12 +39,20 @@ Lee primero **Balance - Estado**. Una lectura naranja o roja no demuestra que un
 
 Comprueba también estas entidades:
 
-- **Balance - Delta de Celda (al 100%)**: la diferencia medida en milivoltios (mV).
+- **Balance - Delta de Celda al 100% (última carga completa)**: la diferencia medida en milivoltios (mV).
 - **Balance - Última Lectura**: cuándo terminó la última medición comparable.
 - **Balance - Tendencia**: `rising`, `stable` o `falling` en las lecturas recientes.
 - **Balance - Delta Promedio (4 lecturas)**: la media de las cuatro últimas lecturas comparables.
 
-En baterías con datos por pack, **Balance - Delta de Celda (al 100%)** representa la peor diferencia interna entre los packs. Sus atributos `packs_mV` y `worst_pack` identifican el pack responsable del resultado; Omnibattery no resta la celda más baja de un pack de la celda más alta de otro.
+Sus atributos `measured_at` y `soc_at_measurement` indican cuándo se tomó esa instantánea y con qué SOC; no cambia entre cargas completas.
+
+### Por qué el delta no coincide con la tensión máxima menos la mínima
+
+**Balance - Delta de Celda al 100% (última carga completa)** no es un valor en vivo. Se registra cerca del final de una carga completa, que es donde las celdas LFP realmente se separan. **Tensión Máxima de Celda** y **Tensión Mínima de Celda** son valores en vivo, y entre aproximadamente el 20 % y el 90 % de SOC la tensión de una celda LFP es tan plana que incluso un pack desequilibrado solo muestra unos pocos milivoltios de diferencia. Un valor guardado de 243 mV junto a 3,331 V / 3,328 V en vivo al 80 % de SOC es por tanto normal y ambos valores son correctos.
+
+**Balance - Delta de Celda (en vivo)** muestra esa diferencia en vivo (máx − mín, en mV). Úsalo para seguir una carga hasta el final; juzga el balance por el valor al 100%. En Venus A/D con datos por pack es el pack individual con mayor diferencia, con su número en el atributo `pack`.
+
+En baterías con datos por pack, **Balance - Delta de Celda al 100% (última carga completa)** representa la peor diferencia interna entre los packs. Sus atributos `packs_mV` y `worst_pack` identifican el pack responsable del resultado; Omnibattery no resta la celda más baja de un pack de la celda más alta de otro.
 
 Si el naranja o el rojo persisten tras varias cargas completas, usa el [blueprint de equilibrio activo para Marstek](../automations/blueprints.md#balanceo-activo-de-una-bateria-marstek) con una batería Marstek compatible. Ejecútalo con una sola batería cada vez y sigue sus notificaciones de limpieza antes de devolver esa batería al control automático.
 
@@ -55,7 +63,7 @@ Si el naranja o el rojo persisten tras varias cargas completas, usa el [blueprin
 | Faltan las entidades de equilibrio | El controlador no publica ambos extremos de tensión de celda | Si existen **Maximum Cell Voltage** y **Minimum Cell Voltage** para esa batería |
 | **Balance - Estado** permanece en `unknown` | No ha terminado una medición comparable de carga completa | **Activar reducción por voltaje al cargar al 100%**, el objetivo de carga y **Balance - Última Lectura** |
 | El último valor parece mucho mayor o menor de lo habitual | La carga terminó de otra manera, o la medición no procedía de la misma condición cerca del final de carga | Compara la marca de tiempo y varias lecturas de carga completa terminadas |
-| Un valor de Venus A/D parece incoherente con la tensión a nivel de batería | Los registros a nivel de batería pueden representar el pack 1 mientras que el diagnóstico usa los datos por pack disponibles | `packs_mV` y `worst_pack` en **Balance - Delta de Celda (al 100%)** |
+| Un valor de Venus A/D parece incoherente con la tensión a nivel de batería | Los registros a nivel de batería pueden representar el pack 1 mientras que el diagnóstico usa los datos por pack disponibles | `packs_mV` y `worst_pack` en **Balance - Delta de Celda al 100% (última carga completa)** |
 | El naranja o el rojo reaparecen tras otra carga completa | El desequilibrio podría ser persistente | **Balance - Tendencia**, el historial reciente y el blueprint de equilibrio activo |
 
 ??? "Detalles avanzados: interpretar mV y desequilibrio"
@@ -126,11 +134,12 @@ Si el naranja o el rojo persisten tras varias cargas completas, usa el [blueprin
 
     **Referencia de sensores y diagnóstico**
 
-    Se crean cinco entidades de diagnóstico solo cuando el controlador declara ambas lecturas de tensión de celda:
+    Se crean seis entidades de diagnóstico solo cuando el controlador declara ambas lecturas de tensión de celda:
 
     | Patrón de entidad | Finalidad |
     |---|---|
-    | `sensor.*_cell_delta` | Última diferencia comparable en mV, historial reciente y desglose opcional por pack |
+    | `sensor.*_cell_delta` | Última diferencia comparable al final de carga en mV, `measured_at`, `soc_at_measurement`, historial reciente y desglose opcional por pack |
+    | `sensor.*_cell_delta_live` | Tensión de celda máxima − mínima en vivo, en mV; no disponible mientras falte alguna de las dos lecturas |
     | `sensor.*_balance_status` | `green`, `yellow`, `orange`, `red` o `unknown` |
     | `sensor.*_delta_trend` | Dirección a lo largo de las lecturas comparables recientes |
     | `sensor.*_last_balance_read` | Marca de tiempo de la última lectura |
@@ -155,4 +164,4 @@ Si el naranja o el rojo persisten tras varias cargas completas, usa el [blueprin
 
     Estos atributos explican la ruta de control actual; **Balance - Estado** sigue siendo el resultado de salud mostrado al usuario.
 
-    El blueprint de equilibrio activo se ejecuta fuera del bucle de control normal de Omnibattery mediante **Manual Battery Control**. Su propia página es la referencia canónica de su secuencia de carga, reposo, reintentos y limpieza. Las mediciones estabilizadas publicadas por el blueprint entran en el mismo historial de **Balance - Delta de Celda (al 100%)** con `source: blueprint`.
+    El blueprint de equilibrio activo se ejecuta fuera del bucle de control normal de Omnibattery mediante **Manual Battery Control**. Su propia página es la referencia canónica de su secuencia de carga, reposo, reintentos y limpieza. Las mediciones estabilizadas publicadas por el blueprint entran en el mismo historial de **Balance - Delta de Celda al 100% (última carga completa)** con `source: blueprint`.

@@ -122,7 +122,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
 
 ??? "Sensores del monitor de balance de celdas"
 
-    Cuando se activa el monitor de balance de celdas, cada batería compatible puede exponer `cell_delta`, `balance_status`, `delta_trend`, `last_balance_read` y `delta_avg_4w`. Consulta el [monitor de balance de celdas](../features/cell-balance-monitor.md).
+    Cuando se activa el monitor de balance de celdas, cada batería compatible puede exponer `cell_delta` (instantánea al final de carga), `cell_delta_live` (máx − mín en vivo), `balance_status`, `delta_trend`, `last_balance_read` y `delta_avg_4w`. Consulta el [monitor de balance de celdas](../features/cell-balance-monitor.md).
 
 ??? "Sensores binarios de batería"
 

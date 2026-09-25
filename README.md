@@ -22,6 +22,7 @@
 - **Smart Pre-discharge / Anti-curtailment**: Optional Dynamic Pricing-only planning creates battery headroom before forecast PV surplus at negative-injection prices, then blocks discharge during the protected window while preserving SOC floors and safety ownership.
 - **Time Slots**: Per-battery windows with independent charge/discharge ticks, optional SOC and power overrides, and a manual mode that forces a fixed charge or discharge power. Up to 8 slots per integration.
 - **Weekly Full Charge**: Forces 100% SOC once a week for LFP cell balancing.
+- **Cell balance monitor**: *Balance - Cell Delta at 100% (last full charge)* records the cell spread at the top of each full charge, which is the real balance indicator; *Balance - Cell Delta (live)* shows max − min cell voltage right now. On LFP the live value is only a few mV between ~20 % and 90 % SOC even on an unbalanced pack, so the two are expected to differ. See [Is my battery healthy?](https://ffunes.github.io/Omnibattery/features/cell-balance-monitor/).
 - **Solar-Aware Charge Delay**: Holds back grid charging while solar can still cover the required energy.
 - **Peak Shaving**: Reserves battery capacity to cover demand spikes above a configurable power threshold, keeping energy in reserve rather than covering all consumption.
 - **Load Exclusion**: Mask high-power devices (e.g. EV chargers) so the battery doesn't try to cover them.

@@ -1936,7 +1936,10 @@
         "name": "Batterijcycli (Berekend)"
       },
       "cell_delta": {
-        "name": "Balans - Celdelta (bij 100%)"
+        "name": "Balans - Celdelta bij 100% (laatste volle lading)"
+      },
+      "cell_delta_live": {
+        "name": "Balans - Celdelta (live)"
       },
       "balance_status": {
         "name": "Balans - Status",

@@ -19,6 +19,7 @@ from ..energy import (
     BACKUP_DAILY_DISCHARGING_ENERGY_KEY,
     effective_total_discharging_energy,
 )
+from ..control.pack_soc import worst_pack_delta
 from ..drivers.base import DELIVERED_AC_POWER_KEY
 from ..infra.coordinator import MarstekVenusDataUpdateCoordinator
 from ..infra.entity_naming import english_entity_id
@@ -1067,6 +1068,82 @@ class MarstekVenusBatteryCellPowerSensor(CoordinatorEntity, SensorEntity):
             if value is not None:
                 solar += value
         return round(battery + solar)
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return self.coordinator.battery_device_info
+
+
+class MarstekVenusCellDeltaLiveSensor(CoordinatorEntity, SensorEntity):
+    """Live cell spread (mV): max minus min cell voltage, right now.
+
+    Companion to the balance monitor's ``cell_delta``, which is a snapshot taken
+    at the top of a full charge. LFP voltage is flat through the middle of the
+    charge, so mid-SOC this reads a few mV even when the top-of-charge delta is
+    high; the panel explains that next to both values.
+
+    On a multi-pack Venus A/D it is the widest single pack, not a spread across
+    packs (see ``worst_pack_delta``), so it agrees with what ``cell_delta``
+    records.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self, coordinator: MarstekVenusDataUpdateCoordinator, definition: dict
+    ) -> None:
+        """Initialize the live cell delta sensor."""
+        super().__init__(coordinator)
+        self.definition = definition
+        self._attr_translation_key = definition["key"]
+        self._attr_unique_id = f"{coordinator.device_key}_{definition['key']}"
+        self.entity_id = english_entity_id("sensor", coordinator.name, definition["key"])
+        self._attr_state_class = definition.get("state_class")
+        self._attr_native_unit_of_measurement = definition.get("unit")
+        self._attr_suggested_display_precision = definition.get("precision")
+        self._attr_icon = definition.get("icon")
+        self._vmax_key = definition["dependency_keys"]["vmax"]
+        self._vmin_key = definition["dependency_keys"]["vmin"]
+
+    def _spread(self) -> tuple[float, int | None] | None:
+        """Return ``(delta_mV, pack)``; ``None`` while an input is missing."""
+        worst = worst_pack_delta(self.coordinator)
+        if worst is not None:
+            return worst["delta_mV"], worst["pack"]
+        data = self.coordinator.data or {}
+        vmax = data.get(self._vmax_key)
+        vmin = data.get(self._vmin_key)
+        if not isinstance(vmax, (int, float)) or not isinstance(vmin, (int, float)):
+            return None
+        # Same sanity bound as the per-pack path: a zero or an inverted pair is
+        # not a measurement.
+        if not vmax >= vmin > 0:
+            return None
+        return (vmax - vmin) * 1000, None
+
+    @property
+    def available(self) -> bool:
+        """Unavailable, never 0, while either cell voltage is unknown."""
+        return super().available and self._spread() is not None
+
+    @property
+    def native_value(self):
+        """Return the live spread in mV."""
+        spread = self._spread()
+        if spread is None:
+            return None
+        return round(spread[0])
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        """Name the pack on multi-pack batteries."""
+        spread = self._spread()
+        if spread is None or spread[1] is None:
+            return None
+        return {"pack": spread[1]}
 
     @property
     def device_info(self):

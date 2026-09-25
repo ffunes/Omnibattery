@@ -1936,7 +1936,10 @@
         "name": "Cicles de la Bateria (Calculat)"
       },
       "cell_delta": {
-        "name": "Balanç - Delta de Cel·la (al 100%)"
+        "name": "Balanç - Delta de Cel·la al 100% (última càrrega completa)"
+      },
+      "cell_delta_live": {
+        "name": "Balanç - Delta de Cel·la (en directe)"
       },
       "balance_status": {
         "name": "Balanç - Estat",

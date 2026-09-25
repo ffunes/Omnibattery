@@ -1936,7 +1936,10 @@
         "name": "Ciclos de la Batería (Calculado)"
       },
       "cell_delta": {
-        "name": "Balance - Delta de Celda (al 100%)"
+        "name": "Balance - Delta de Celda al 100% (última carga completa)"
+      },
+      "cell_delta_live": {
+        "name": "Balance - Delta de Celda (en vivo)"
       },
       "balance_status": {
         "name": "Balance - Estado",

@@ -1941,7 +1941,10 @@
         "name": "Cycles Batterie (Calculé)"
       },
       "cell_delta": {
-        "name": "Équilibrage - Delta Cellule (à 100%)"
+        "name": "Équilibrage - Delta Cellule à 100% (dernière charge complète)"
+      },
+      "cell_delta_live": {
+        "name": "Équilibrage - Delta Cellule (en direct)"
       },
       "balance_status": {
         "name": "Équilibrage - État",

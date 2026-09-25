@@ -1936,7 +1936,10 @@
         "name": "Batteriezyklen (Berechnet)"
       },
       "cell_delta": {
-        "name": "Balance - Zellendelta (bei 100%)"
+        "name": "Balance - Zellendelta bei 100% (letzte Vollladung)"
+      },
+      "cell_delta_live": {
+        "name": "Balance - Zellendelta (live)"
       },
       "balance_status": {
         "name": "Balance - Status",

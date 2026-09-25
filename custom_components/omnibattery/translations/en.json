@@ -1938,7 +1938,10 @@
         "name": "Battery Cycle Count (Calc)"
       },
       "cell_delta": {
-        "name": "Balance - Cell Delta (at 100%)"
+        "name": "Balance - Cell Delta at 100% (last full charge)"
+      },
+      "cell_delta_live": {
+        "name": "Balance - Cell Delta (live)"
       },
       "balance_status": {
         "name": "Balance - Status",

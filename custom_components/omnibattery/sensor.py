@@ -32,6 +32,7 @@ from .const import (
     CYCLE_SENSOR_DEFINITIONS,
     SOLAR_POWER_SENSOR_DEFINITIONS,
     BATTERY_CELL_POWER_SENSOR_DEFINITIONS,
+    CELL_DELTA_LIVE_SENSOR_DEFINITIONS,
     CONF_ENABLE_CHARGE_DELAY,
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
     SLOT_BATTERY_SCOPE_ALL,
@@ -53,6 +54,7 @@ from .sensors.calculated_sensors import (
     MarstekVenusCycleSensor,
     MarstekVenusSolarPowerSensor,
     MarstekVenusBatteryCellPowerSensor,
+    MarstekVenusCellDeltaLiveSensor,
     SyntheticEnergySensor,
     CumulativeDailyEnergySensor,
     SyntheticCapacitySensor,
@@ -168,6 +170,13 @@ async def async_setup_entry(
             entities.append(MarstekVenusStoredEnergySensor(coordinator, definition))
         for definition in CYCLE_SENSOR_DEFINITIONS:
             entities.append(MarstekVenusCycleSensor(coordinator, definition))
+        # Live cell spread, next to the balance monitor's top-of-charge delta.
+        # Same gate as the balance sensors: brands without per-cell voltage
+        # telemetry (Anker) get neither.
+        sensor_keys = {d["key"] for d in coordinator.sensor_definitions}
+        if {"max_cell_voltage", "min_cell_voltage"} <= sensor_keys:
+            for definition in CELL_DELTA_LIVE_SENSOR_DEFINITIONS:
+                entities.append(MarstekVenusCellDeltaLiveSensor(coordinator, definition))
         # Drivers without hardware energy counters (Zendure): synthesise the
         # charge/discharge energy totals by integrating power, and expose per-pack
         # telemetry sized to the live pack count (the first refresh already ran).
