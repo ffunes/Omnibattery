@@ -16,6 +16,7 @@
 - **A battery already below the guaranteed minimum SOC now charges instead of reporting "no energy quota"**: the floor deadline only measured the drain still to come, so a battery held by peak shaving or a no-discharge window asked for nothing, and its deficit was deferred to tomorrow's depletion — past the point the sun fills the pack, which no configured window can reach. The existing gap to the floor is now a requirement of its own, due at sunrise, and the band is checked per battery as the reactive trigger does, not against the fleet total. Thanks to @ssorgatem.
 - **Charge delay now leaves enough time for the slowest battery in a mixed fleet** (#498): it divided the whole fleet's missing energy by its combined charge power, as if energy could be shared between inverters, so a 17.92 kWh battery limited to 2.5 kW alongside a 13.8 kWh battery at 7 kW was estimated at 3.9 hours even though the slower battery needed 8.4 hours. The delay therefore released four and a half hours late and the slow battery ran out of daylight before it was full. The window now follows the battery with the longest individual charge time, while still respecting the system-wide power limit when that is tighter. Single-battery estimates are unchanged. Thanks to @sphings79.
 - **Charge Delay is evaluated once per control cycle instead of twice** (#511). Thanks to @syphernl.
+- **Sessy and Hoymiles battery pages now show the configured capacity** instead of a dash.
 
 ## [1.5.0b3] - 2026-09-21
 

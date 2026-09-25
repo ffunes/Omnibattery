@@ -174,10 +174,13 @@ async def async_setup_entry(
         if not coordinator.capabilities.has_energy_counters:
             for definition in SYNTHETIC_ENERGY_SENSOR_DEFINITIONS:
                 entities.append(SyntheticEnergySensor(coordinator, definition))
-            entities.append(SyntheticCapacitySensor(coordinator))
         elif not coordinator.capabilities.has_daily_energy_counters:
             for definition in CUMULATIVE_DAILY_ENERGY_SENSOR_DEFINITIONS:
                 entities.append(CumulativeDailyEnergySensor(coordinator, definition))
+        # User-configured capacity (Zendure, Sessy, Hoymiles): gated on capacity,
+        # not energy counters — Sessy/Hoymiles have counters but no capacity.
+        if not getattr(coordinator.capabilities, "has_nominal_capacity", True):
+            entities.append(SyntheticCapacitySensor(coordinator))
         pack_specs = getattr(coordinator.driver, "pack_field_specs", None)
         if pack_specs:
             data = coordinator.data or {}
