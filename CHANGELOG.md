@@ -4,7 +4,7 @@
 
 ### Added
 
-- **High-price surplus export** (#270, #237): new switch, off by default. Sells stored energy the house won't need before sunrise, in the best-paid export slots, only when tomorrow's forecast solar refills it and the export price beats the solar export that refill forgoes. Needs a solar forecast integration that feeds HA's Energy dashboard (e.g. Solcast).
+- **High-price sale select** (#270, #237): Off / Surplus only / Surplus + arbitrage. *Surplus only* sells energy not needed before sunrise that tomorrow's solar refills (needs an Energy-dashboard solar forecast, e.g. Solcast). Replaces the b3 `high_price_discharge` switch; arbitrage-only setups migrate to *Surplus + arbitrage*.
 - **Lock button on the Control tab**: a padlock next to "Arrange" freezes every slider, switch, button and select, so scrolling on a phone can't change a setting by accident. Remembered per browser.
 
 ### Fixed

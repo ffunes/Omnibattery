@@ -83,7 +83,7 @@ async def test_v13_merges_from_either_provenance(
     original = _register(hass, entry, slug)
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 15
+    assert entry.version == 16
 
     # The ON/OFF the user had set survives under the merged key; the two
     # per-mode keys are gone so nothing can read a stale value.

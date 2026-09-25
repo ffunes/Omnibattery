@@ -12,8 +12,8 @@ Dynamic Pricing reads a future price calendar and buys the calculated energy def
 
 - Configure one supported source: **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **Zonneplan**, or **Tibber**.
 - Select the provider’s current-price entity unless you use Tibber. Tibber uses the official integration’s `tibber.get_prices` service and needs no price sensor.
-- A solar forecast is optional. A remaining-energy forecast improves daytime replanning and avoids counting solar already produced. **High-Price Surplus Export** needs the configured forecast integration to provide forecasts to Home Assistant’s Energy dashboard, such as Solcast or Forecast.Solar.
-- Decide whether you need an export-price source. It is optional and is used by **Surplus Price Hold** and **High-Price Surplus Export**; leave it empty when export is credited at the import price.
+- A solar forecast is optional. A remaining-energy forecast improves daytime replanning and avoids counting solar already produced. **High-Price Sale** set to *Surplus only* or above needs the configured forecast integration to provide forecasts to Home Assistant’s Energy dashboard, such as Solcast or Forecast.Solar.
+- Decide whether you need an export-price source. It is optional and is used by **Surplus Price Hold** and **High-Price Sale**; leave it empty when export is credited at the import price.
 
 ## How to enable it
 
@@ -46,8 +46,8 @@ Optional controls in the **Control** tab solve different problems:
 | Export solar now and absorb it later when feed-in value is lower | **Surplus Price Hold** | Pauses surplus charging outside selected low export-price periods |
 | Save stored energy for dearer household-demand periods | **Discharge Reserve** | Raises an economic discharge floor for future expensive demand |
 | Require a worthwhile buy/sell spread | **Minimum Arbitrage Margin** | Rejects charge or export trades whose spread does not cover losses and the selected margin |
-| Sell stored energy during a qualifying price peak | **High-Price Discharge** | Exports energy only when replacing the household demand it gives up later still saves money |
-| Sell solar-refillable energy during a qualifying price peak | **High-Price Surplus Export** | Exports battery energy that tomorrow’s forecast solar can replace after covering the home until sunrise |
+| Sell solar-refillable energy during a qualifying price peak | **High-Price Sale** → *Surplus only* | Exports battery energy that tomorrow’s forecast solar can replace after covering the home until sunrise |
+| Also sell energy the home needs later, and buy it back | **High-Price Sale** → *Surplus + arbitrage* | Exports energy only when replacing the household demand it gives up later still saves money |
 
 ## If it does not work
 
@@ -61,7 +61,7 @@ Optional controls in the **Control** tab solve different problems:
 | A price feature is enabled but inactive | Its required forecast, profile, export price, battery capacity, or grid reading is unavailable | The feature’s status binary sensor and reason attribute |
 | Solar surplus exports unexpectedly | **Surplus Price Hold** selected a later, cheaper absorption period | **Surplus Price Hold Status** and its next release time |
 | The battery will not discharge | **Price-Based Discharge**, **Discharge Reserve**, operating time slots, or another discharge blocker is active | **Integration Status**, feature status sensors, and [operating time slots](../time-slots.md) |
-| **High-Price Surplus Export** does not run | Tomorrow’s solar forecast cannot refill the battery, the forecast integration does not supply Energy dashboard forecasts, or no profitable export period exists | **High-Price Discharge Status**, its reason attribute, tomorrow’s solar forecast, and export prices |
+| **High-Price Sale** on *Surplus only* does not sell | Tomorrow’s solar forecast cannot refill the battery, the forecast integration does not supply Energy dashboard forecasts, or no profitable export period exists | **High-Price Sale Status**, its reason attribute, tomorrow’s solar forecast, and export prices |
 
 ??? "Advanced details"
     ### Price-source normalization
@@ -194,27 +194,35 @@ Optional controls in the **Control** tab solve different problems:
 
     **Round-Trip Efficiency** defaults to 0.85 and represents marginal AC-to-AC energy efficiency. Lower values require a larger gross spread. It is distinct from lifetime charge/discharge totals, which include standby consumption.
 
-    The same minimum margin applies to **High-Price Discharge**, so the charge and sell decisions use one economic risk preference.
+    The same minimum margin applies to **High-Price Sale**, so the charge and sell decisions use one economic risk preference.
 
-    ### High-Price Discharge
+    ### High-Price Sale
 
-    This opt-in feature sells stored energy in a qualifying expensive period only when doing so still saves money after the household demand that energy would otherwise have covered is bought from the grid. Energy without later household demand is not sold, and export never crosses a battery’s SOC floor.
+    One select, off by default and available only with **Dynamic Pricing**, sets how much stored energy may be sold into expensive export periods. Each level includes the one below it:
+
+    - **Off**: nothing is sold.
+    - **Surplus only**: sells energy the house will not need before sunrise and tomorrow’s solar can refill. It never makes you buy from the grid.
+    - **Surplus + arbitrage**: also sells energy the house needs later, and buys it back from the grid when that is cheaper.
+
+    #### Surplus + arbitrage
+
+    This level also sells stored energy in a qualifying expensive period only when doing so still saves money after the household demand that energy would otherwise have covered is bought from the grid. Energy without later household demand is not sold, and export never crosses a battery’s SOC floor.
 
     When the forecast says the battery will run out before sunrise and **Discharge Reserve** is off, Omnibattery compares the export price with the last household-demand periods that would be bought back because of the sale. It starts with the latest period before sunrise and stops at the first sale that would not pay. For example, if the battery would last until 05:00, selling at 18:00 makes it run out a little earlier, around 04:00. What you buy back is the 04:00–05:00 demand, so the sale is compared with that price—not with the expensive 20:00 period the battery still covers.
 
     If the battery is forecast to last until sunrise, or **Discharge Reserve** is on, the conservative rule remains: the export price must beat the highest later import price, plus **Minimum Arbitrage Margin**. The dearest qualifying export period receives energy first. Deliberate net-grid export uses the fleet’s effective discharge limit; there is no separate high-price export-cap control.
 
-    ### High-Price Surplus Export
+    #### Surplus only
 
-    This separate opt-in switch sells battery energy that the house will not need before tomorrow’s sunrise, but only when tomorrow’s forecast solar can refill it. It is off by default and is available only with **Dynamic Pricing**; it does not turn on or depend on **High-Price Discharge**.
+    This level sells battery energy that the house will not need before tomorrow’s sunrise, but only when tomorrow’s forecast solar can refill it.
 
     Its export budget starts with usable battery energy, then keeps enough for forecast household consumption until sunrise and the **Solar Forecast Safety Margin**. The cost of selling is the export income given up tomorrow while solar refills the battery—not the price originally paid to charge it. It sells only when the current export price is higher than the highest export price expected during tomorrow’s refill, adjusted for **Round-Trip Efficiency** and **Minimum Arbitrage Margin**.
 
     With a flat feed-in tariff it never sells: selling now and refilling later would only lose energy in the battery cycle. It also stays inactive when tomorrow’s solar forecast cannot refill the battery. It uses tomorrow’s forecast from the solar forecast integration already configured in Omnibattery; no extra sensor is needed, but that integration must provide forecasts to Home Assistant’s Energy dashboard.
 
-    The plan is rebuilt every five minutes and withdrawal is checked every control cycle. Missing price coverage, an expired period, anti-curtailment, capacity protection, weekly full charge, an active grid-charge period, manual control, operating-time ownership, an invalid grid meter, or any discharge blocker stops either export policy. Turning off its switch removes that policy on the next control cycle.
+    The plan is rebuilt every five minutes and withdrawal is checked every control cycle. Missing price coverage, an expired period, anti-curtailment, capacity protection, weekly full charge, an active grid-charge period, manual control, operating-time ownership, an invalid grid meter, or any discharge blocker stops either export policy. Lowering the select removes the dropped policy on the next control cycle.
 
-    **High-Price Discharge Status** reports state, reason, target power, protected later demand, usable energy, allocated energy, and per-period allocations with their thresholds. Its surplus-export diagnostics include `trigger_1_budget_kwh`, `refill_price`, `trigger_1_reason`, `surplus_export_enabled`, and `surplus_kwh` for each period.
+    **High-Price Sale Status** reports state, reason, target power, protected later demand, usable energy, allocated energy, and per-period allocations with their thresholds. Its surplus-export diagnostics include `trigger_1_budget_kwh`, `refill_price`, `trigger_1_reason`, `surplus_export_enabled`, and `surplus_kwh` for each period.
 
     ### Diagnostic attributes
 

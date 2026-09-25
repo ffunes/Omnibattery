@@ -24,15 +24,18 @@ from custom_components.omnibattery.const import (
 from custom_components.omnibattery.number import (
     async_setup_entry as async_setup_numbers,
 )
+from custom_components.omnibattery.select import (
+    HighPriceSaleSelect,
+    async_setup_entry as async_setup_selects,
+)
 from custom_components.omnibattery.switch import (
     DischargeReserveSwitch,
-    HighPriceDischargeSwitch,
     SurplusPriceHoldSwitch,
     async_setup_entry as async_setup_switches,
 )
 
 PRICE_SWITCHES = (
-    HighPriceDischargeSwitch,
+    HighPriceSaleSelect,
     SurplusPriceHoldSwitch,
     DischargeReserveSwitch,
 )
@@ -65,6 +68,7 @@ def _setup(mode):
     switches: list = []
     numbers: list = []
     asyncio.run(async_setup_switches(hass, entry, lambda e: switches.extend(e)))
+    asyncio.run(async_setup_selects(hass, entry, lambda e: switches.extend(e)))
     asyncio.run(async_setup_numbers(hass, entry, lambda e: numbers.extend(e)))
     return switches, numbers
 

@@ -1371,12 +1371,6 @@
   },
   "entity": {
     "switch": {
-      "high_price_surplus_export": {
-        "name": "High-Price Surplus Export"
-      },
-      "high_price_discharge": {
-        "name": "High-Price Discharge"
-      },
       "surplus_price_hold": {
         "name": "Surplus Price Hold"
       },
@@ -1612,7 +1606,7 @@
         }
       },
       "high_price_discharge_status": {
-        "name": "High-Price Discharge Status",
+        "name": "High-Price Sale Status",
         "state": {
           "disabled": "Disabled",
           "invalid_configuration": "Invalid configuration",
@@ -2153,6 +2147,14 @@
         "name": "Primary battery",
         "state": {
           "automatic": "Automatic (fullest first)"
+        }
+      },
+      "high_price_sale": {
+        "name": "High-Price Sale",
+        "state": {
+          "off": "Off",
+          "surplus": "Surplus only",
+          "surplus_arbitrage": "Surplus + arbitrage (buy back later)"
         }
       },
       "pd_tuning_profile": {

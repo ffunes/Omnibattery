@@ -1257,7 +1257,7 @@ def _apply_mac_tracking(user_input: dict, merged: dict) -> None:
 class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Omnibattery."""
 
-    VERSION = 15
+    VERSION = 16
 
     def __init__(self):
         """Initialize the config flow."""

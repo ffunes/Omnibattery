@@ -12,8 +12,8 @@ Precio dinámico lee un calendario de precios futuros y compra el déficit energ
 
 - Configura una fuente compatible: **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **Zonneplan** o **Tibber**.
 - Selecciona la entidad de precio actual del proveedor salvo que uses Tibber. Tibber usa el servicio `tibber.get_prices` de la integración oficial y no necesita sensor de precio.
-- La previsión solar es opcional. Una previsión de energía restante mejora la replanificación diurna y evita contar la solar ya producida. **Exportación de excedente almacenado a precio alto** necesita que la integración de previsión configurada proporcione previsiones al panel de Energía de Home Assistant, como Solcast o Forecast.Solar.
-- Decide si necesitas una fuente de precio de exportación. Es opcional y la usan **Retención de excedente por precio** y **Exportación de excedente almacenado a precio alto**; déjala vacía cuando la exportación se remunere al precio de importación.
+- La previsión solar es opcional. Una previsión de energía restante mejora la replanificación diurna y evita contar la solar ya producida. **Venta a precio alto** en *Solo excedente* o superior necesita que la integración de previsión configurada proporcione previsiones al panel de Energía de Home Assistant, como Solcast o Forecast.Solar.
+- Decide si necesitas una fuente de precio de exportación. Es opcional y la usan **Retención de excedente por precio** y **Venta a precio alto**; déjala vacía cuando la exportación se remunere al precio de importación.
 
 ## Cómo activarlo
 
@@ -46,8 +46,8 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 | Exportar solar ahora y absorberla después cuando el valor de inyección es inferior | **Retención de excedente por precio** | Pausa la carga por excedente fuera de los periodos seleccionados de menor precio de exportación |
 | Guardar energía almacenada para periodos de demanda doméstica más caros | **Reserva de descarga** | Eleva un suelo económico de descarga para la futura demanda cara |
 | Exigir un diferencial de compra/venta que merezca la pena | **Margen mínimo de arbitraje** | Rechaza operaciones de carga o exportación cuyo diferencial no cubra pérdidas y el margen seleccionado |
-| Vender energía almacenada durante un pico de precio que cumpla la condición | **Descarga con precio alto** | Exporta energía solo cuando sigue ahorrando dinero al reponer después la demanda de la vivienda que deja de cubrir |
-| Vender energía que la solar de mañana puede reponer durante un pico de precio que cumpla la condición | **Exportación de excedente almacenado a precio alto** | Exporta energía de batería que la solar prevista de mañana puede reponer tras cubrir la vivienda hasta el amanecer |
+| Vender energía que la solar de mañana puede reponer durante un pico de precio que cumpla la condición | **Venta a precio alto** → *Solo excedente* | Exporta energía de batería que la solar prevista de mañana puede reponer tras cubrir la vivienda hasta el amanecer |
+| Vender también energía que la vivienda necesitará después y recomprarla | **Venta a precio alto** → *Excedente + arbitraje* | Exporta energía solo cuando sigue ahorrando dinero al reponer después la demanda de la vivienda que deja de cubrir |
 
 ## Si no funciona
 
@@ -61,7 +61,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 | Una función de precio está activada pero inactiva | No están disponibles su previsión, perfil, precio de exportación, capacidad de batería o lectura de red requeridos | Sensor binario de estado de la función y atributo de motivo |
 | El excedente solar se exporta inesperadamente | **Retención de excedente por precio** seleccionó un periodo posterior de absorción más barato | **Estado de retención de excedente por precio** y su próxima hora de liberación |
 | La batería no descarga | **Descarga basada en precio**, **Reserva de descarga**, franjas horarias de funcionamiento u otro bloqueo de descarga están activos | **Estado de integración**, sensores de estado de funciones y [franjas horarias de funcionamiento](../time-slots.md) |
-| **Exportación de excedente almacenado a precio alto** no funciona | La previsión solar de mañana no puede rellenar la batería, la integración de previsión no proporciona previsiones al panel de Energía o no existe un periodo de exportación rentable | **Estado de descarga con precio alto**, su atributo de motivo, la previsión solar de mañana y los precios de exportación |
+| **Venta a precio alto** en *Solo excedente* no vende | La previsión solar de mañana no puede rellenar la batería, la integración de previsión no proporciona previsiones al panel de Energía o no existe un periodo de exportación rentable | **Estado de venta a precio alto**, su atributo de motivo, la previsión solar de mañana y los precios de exportación |
 
 ??? "Detalles avanzados"
     ### Normalización de fuentes de precio
@@ -194,27 +194,35 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     **Eficiencia de ciclo completo** tiene por defecto 0,85 y representa la eficiencia marginal de energía de CA a CA. Valores inferiores requieren un diferencial bruto mayor. Es distinta de los totales vitalicios de carga/descarga, que incluyen el consumo en reposo.
 
-    El mismo margen mínimo se aplica a **Descarga con precio alto**, de manera que las decisiones de compra y venta usan una sola preferencia de riesgo económico.
+    El mismo margen mínimo se aplica a **Venta a precio alto**, de manera que las decisiones de compra y venta usan una sola preferencia de riesgo económico.
 
-    ### Descarga con precio alto
+    ### Venta a precio alto
 
-    Esta función opcional vende energía almacenada en un periodo caro que cumple la condición solo cuando sigue ahorrando dinero tras comprar de la red la demanda de la vivienda que esa energía habría cubierto. La energía sin demanda doméstica posterior no se vende y la exportación nunca cruza el suelo de SOC de una batería.
+    Un selector, desactivado por defecto y disponible solo con **Precio dinámico**, fija cuánta energía almacenada se puede vender en periodos de exportación caros. Cada nivel incluye el anterior:
+
+    - **Desactivada**: no se vende nada.
+    - **Solo excedente**: vende la energía que la vivienda no necesitará antes del amanecer y que la solar de mañana puede reponer. Nunca te hace comprar de la red.
+    - **Excedente + arbitraje**: vende también energía que la vivienda necesitará después y la recompra de la red cuando sale más barato.
+
+    #### Excedente + arbitraje
+
+    Este nivel vende además energía almacenada en un periodo caro que cumple la condición solo cuando sigue ahorrando dinero tras comprar de la red la demanda de la vivienda que esa energía habría cubierto. La energía sin demanda doméstica posterior no se vende y la exportación nunca cruza el suelo de SOC de una batería.
 
     Cuando la previsión indica que la batería se agotará antes del amanecer y **Reserva de descarga** está desactivada, Omnibattery compara el precio de exportación con los últimos periodos de demanda de la vivienda que se comprarían de la red por la venta. Empieza por el último periodo antes del amanecer y se detiene en la primera venta que no compensaría. Por ejemplo, si la batería iba a durar hasta las 05:00, vender a las 18:00 hace que se agote algo antes, hacia las 04:00. Lo que se vuelve a comprar es la demanda de 04:00 a 05:00, así que la venta se compara con ese precio, no con el periodo caro de las 20:00, que la batería sigue cubriendo.
 
     Si la previsión indica que la batería durará hasta el amanecer, o **Reserva de descarga** está activada, se mantiene la regla conservadora: el precio de exportación debe superar el precio de importación posterior más alto, más el **Margen mínimo de arbitraje**. El periodo de exportación que cumple la condición y tiene el precio más alto recibe primero energía. La exportación deliberada neta a red usa el límite efectivo de descarga de la flota; no existe un control separado de límite de exportación con precio alto.
 
-    ### Exportación de excedente almacenado a precio alto
+    #### Solo excedente
 
-    Este interruptor opcional e independiente vende energía de batería que la vivienda no necesitará antes del amanecer de mañana, pero solo cuando la solar prevista para mañana puede reponerla. Está desactivado de forma predeterminada y solo está disponible con **Precio dinámico**; no activa ni depende de **Descarga con precio alto**.
+    Este nivel vende energía de batería que la vivienda no necesitará antes del amanecer de mañana, pero solo cuando la solar prevista para mañana puede reponerla.
 
     Su presupuesto de exportación parte de la energía utilizable de batería y reserva después lo necesario para el consumo previsto de la vivienda hasta el amanecer y el **Margen de seguridad de previsión solar**. El coste de vender es el ingreso de exportación que se deja de percibir mañana mientras la solar rellena la batería, no el precio pagado originalmente para cargarla. Solo vende cuando el precio de exportación actual es superior al precio de exportación más alto previsto durante la recarga de mañana, ajustado por la **Eficiencia de ciclo completo** y el **Margen mínimo de arbitraje**.
 
     Con una tarifa de inyección plana nunca vende: vender ahora y recargar después solo perdería energía en el ciclo de batería. También permanece inactiva cuando la previsión solar de mañana no puede rellenar la batería. Usa la previsión de mañana de la integración solar ya configurada en Omnibattery; no hace falta configurar otro sensor, pero esa integración debe proporcionar previsiones al panel de Energía de Home Assistant.
 
-    El plan se reconstruye cada cinco minutos y la retirada se comprueba en cada ciclo de control. Cobertura de precio ausente, un periodo caducado, antilimitación de producción, protección de capacidad, carga completa semanal, un periodo activo de carga desde red, control manual, control de franjas horarias, un contador de red no válido o cualquier bloqueo de descarga detienen ambas políticas de exportación. Desactivar su interruptor elimina esa política en el siguiente ciclo de control.
+    El plan se reconstruye cada cinco minutos y la retirada se comprueba en cada ciclo de control. Cobertura de precio ausente, un periodo caducado, antilimitación de producción, protección de capacidad, carga completa semanal, un periodo activo de carga desde red, control manual, control de franjas horarias, un contador de red no válido o cualquier bloqueo de descarga detienen ambas políticas de exportación. Bajar el selector elimina la política retirada en el siguiente ciclo de control.
 
-    **Estado de descarga con precio alto** informa de estado, motivo, potencia objetivo, demanda posterior protegida, energía utilizable, energía asignada y asignaciones por periodo con sus umbrales. Sus diagnósticos de exportación de excedente incluyen `trigger_1_budget_kwh`, `refill_price`, `trigger_1_reason`, `surplus_export_enabled` y `surplus_kwh` para cada periodo.
+    **Estado de venta a precio alto** informa de estado, motivo, potencia objetivo, demanda posterior protegida, energía utilizable, energía asignada y asignaciones por periodo con sus umbrales. Sus diagnósticos de exportación de excedente incluyen `trigger_1_budget_kwh`, `refill_price`, `trigger_1_reason`, `surplus_export_enabled` y `surplus_kwh` para cada periodo.
 
     ### Atributos de diagnóstico
 

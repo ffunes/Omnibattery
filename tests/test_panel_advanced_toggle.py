@@ -36,7 +36,7 @@ NOT_ADV_KEYS = {
     "negative_price_charging",
     "smart_predischarge",
     "surplus_price_hold",
-    "high_price_discharge",
+    "high_price_sale",
     "discharge_reserve",
 }
 

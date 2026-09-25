@@ -1369,12 +1369,6 @@
   },
   "entity": {
     "switch": {
-      "high_price_surplus_export": {
-        "name": "Exportació d’excedent emmagatzemat a preu alt"
-      },
-      "high_price_discharge": {
-        "name": "Descàrrega per Preu Alt"
-      },
       "surplus_price_hold": {
         "name": "Retenció d'excedent per preu"
       },
@@ -1610,7 +1604,7 @@
         }
       },
       "high_price_discharge_status": {
-        "name": "Estat de la Descàrrega per Preu Alt",
+        "name": "Estat de Venda a Preu Alt",
         "state": {
           "disabled": "Desactivat",
           "invalid_configuration": "Configuració invàlida",
@@ -2143,6 +2137,14 @@
         "name": "Bateria principal",
         "state": {
           "automatic": "Automàtica (la més carregada primer)"
+        }
+      },
+      "high_price_sale": {
+        "name": "Venda a preu alt",
+        "state": {
+          "off": "Desactivada",
+          "surplus": "Només excedent",
+          "surplus_arbitrage": "Excedent + arbitratge (recompra després)"
         }
       },
       "pd_tuning_profile": {

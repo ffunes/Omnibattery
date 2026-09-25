@@ -24,19 +24,21 @@ def test_enable_key_is_backfilled_on_existing_entries():
     assert "CONF_HIGH_PRICE_DISCHARGE_ENABLED," in backfill
 
 
-def test_switch_is_gated_on_presence_not_on_value():
-    switch = (COMPONENT / "switch.py").read_text(encoding="utf-8")
+def test_select_is_gated_on_presence_not_on_value():
+    select = (COMPONENT / "select.py").read_text(encoding="utf-8")
 
-    assert "if CONF_HIGH_PRICE_DISCHARGE_ENABLED in entry.data:" in switch
-    assert "entities.append(HighPriceDischargeSwitch(hass, entry, controller))" in switch
-    assert 'self._attr_translation_key = "high_price_discharge"' in switch
+    assert "and CONF_HIGH_PRICE_DISCHARGE_ENABLED in entry.data" in select
+    assert "entities.append(HighPriceSaleSelect(hass, entry, controller))" in select
+    assert 'self._attr_translation_key = "high_price_sale"' in select
 
 
-def test_dashboard_exposes_the_toggle_without_a_power_knob():
+def test_dashboard_exposes_the_select_without_a_power_knob():
     panel = PANEL.read_text(encoding="utf-8")
 
     # A key missing from the allowlist simply never renders.
-    assert '{ key: "high_price_discharge", domain: "switch"' in panel
+    assert '{ key: "high_price_sale", domain: "select"' in panel
+    assert panel.count("highPriceSale:") == 6
+    assert panel.count("    high_price_sale:") == 6
     # The export ceiling is not a knob: the feature uses the fleet's own
     # discharge power, already capped by the system-wide discharge limit.
     assert "high_price_discharge_max_power_w" not in panel
@@ -45,12 +47,13 @@ def test_dashboard_exposes_the_toggle_without_a_power_knob():
     assert '{ key: "min_arbitrage_margin"' in panel
 
 
-def test_switch_is_named_in_every_language():
+def test_select_and_its_options_are_named_in_every_language():
     for name in TRANSLATIONS:
         data = json.loads((COMPONENT / name).read_text(encoding="utf-8"))
-        entry = data["entity"]["switch"]["high_price_discharge"]
+        entry = data["entity"]["select"]["high_price_sale"]
 
         assert entry["name"], name
+        assert set(entry["state"]) == {"off", "surplus", "surplus_arbitrage"}, name
 
 
 def test_unload_releases_the_override():
@@ -60,19 +63,7 @@ def test_unload_releases_the_override():
     assert 'controller._high_price_discharge_mgr.clear_runtime("unload")' in init
 
 
-def test_surplus_export_control_is_present_and_translated():
+def test_both_trigger_keys_are_backfilled():
     setup = (COMPONENT / "__init__.py").read_text(encoding="utf-8")
-    switch = (COMPONENT / "switch.py").read_text(encoding="utf-8")
-    panel = PANEL.read_text(encoding="utf-8")
-    assert "CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED," in setup.split("_backfill = {")[1].split("}")[0]
-    assert "if CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED in entry.data:" in switch
-    assert "entities.append(HighPriceSurplusExportSwitch(hass, entry, controller))" in switch
-    assert 'self._attr_translation_key = "high_price_surplus_export"' in switch
-    assert 'f"{SYSTEM_UNIQUE_ID_PREFIX}high_price_surplus_export"' in switch
-    assert 'system_entity_id("switch", "high_price_surplus_export")' in switch
-    assert '{ key: "high_price_surplus_export", domain: "switch"' in panel
-    assert panel.count("highPriceSurplusExport:") == 6
-    assert panel.count("    high_price_surplus_export:") == 6
-    for name in TRANSLATIONS:
-        data = json.loads((COMPONENT / name).read_text(encoding="utf-8"))
-        assert data["entity"]["switch"]["high_price_surplus_export"]["name"], name
+    backfill = setup.split("_backfill = {")[1].split("}")[0]
+    assert "CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED," in backfill

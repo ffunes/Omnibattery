@@ -111,7 +111,7 @@ async def test_v14_drops_the_key_and_deletes_its_entity(hass: HomeAssistant) -> 
     )
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 15
+    assert entry.version == 16
     assert CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT not in entry.data
     # Deleted, not left behind unavailable: orphans have rendered as dead
     # duplicate controls on the panel before.

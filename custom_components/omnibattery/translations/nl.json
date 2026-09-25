@@ -1369,12 +1369,6 @@
   },
   "entity": {
     "switch": {
-      "high_price_surplus_export": {
-        "name": "Opgeslagen overschot terugleveren bij hoge prijs"
-      },
-      "high_price_discharge": {
-        "name": "Hoogprijs-ontlading"
-      },
       "surplus_price_hold": {
         "name": "Prijsrem zonne-overschot"
       },
@@ -1610,7 +1604,7 @@
         }
       },
       "high_price_discharge_status": {
-        "name": "Status Hoogprijs-ontlading",
+        "name": "Status Verkoop bij hoge prijs",
         "state": {
           "disabled": "Uitgeschakeld",
           "invalid_configuration": "Ongeldige configuratie",
@@ -2143,6 +2137,14 @@
         "name": "Primaire batterij",
         "state": {
           "automatic": "Automatisch (volste eerst)"
+        }
+      },
+      "high_price_sale": {
+        "name": "Verkoop bij hoge prijs",
+        "state": {
+          "off": "Uit",
+          "surplus": "Alleen overschot",
+          "surplus_arbitrage": "Overschot + arbitrage (later terugkopen)"
         }
       },
       "pd_tuning_profile": {

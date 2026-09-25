@@ -9835,8 +9835,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 removed with their number entities, and the 0% pre-discharge
                 reserve the old flow wrote to every entry is dropped so installs
                 that never enabled pre-discharge reach the new default.
+    v15 -> v16: merge the two high-price switches into the high_price_sale
+                select; arbitrage-only folds into surplus + arbitrage.
     """
-    if entry.version >= 15:
+    if entry.version >= 16:
         return True
 
     new_data = dict(entry.data)
@@ -10202,11 +10204,34 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(dropped the export-power knobs; discharge power is now the limit)",
         )
 
+    if entry.version < 16:
+        from homeassistant.helpers import entity_registry as er
+        from .infra.entity_naming import SYSTEM_UNIQUE_ID_PREFIX
+
+        # The two high-price switches became one select (off / surplus /
+        # surplus + arbitrage). Arbitrage alone has no option: fold it into the
+        # full rung so the select shows what actually runs.
+        if new_data.get(CONF_HIGH_PRICE_DISCHARGE_ENABLED):
+            new_data[CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED] = True
+
+        ent_reg = er.async_get(hass)
+        for key in ("high_price_discharge", "high_price_surplus_export"):
+            entity_id = ent_reg.async_get_entity_id(
+                "switch", DOMAIN, f"{SYSTEM_UNIQUE_ID_PREFIX}{key}"
+            )
+            if entity_id:
+                ent_reg.async_remove(entity_id)
+
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 16 "
+            "(high-price switches merged into the high_price_sale select)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
-        version=15,
+        version=16,
     )
     return True
 

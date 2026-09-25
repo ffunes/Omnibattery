@@ -1369,12 +1369,6 @@
   },
   "entity": {
     "switch": {
-      "high_price_surplus_export": {
-        "name": "Exportación de excedente almacenado a precio alto"
-      },
-      "high_price_discharge": {
-        "name": "Descarga por Precio Alto"
-      },
       "surplus_price_hold": {
         "name": "Retención de excedente por precio"
       },
@@ -1610,7 +1604,7 @@
         }
       },
       "high_price_discharge_status": {
-        "name": "Estado de la Descarga por Precio Alto",
+        "name": "Estado de Venta a Precio Alto",
         "state": {
           "disabled": "Desactivado",
           "invalid_configuration": "Configuración inválida",
@@ -2151,6 +2145,14 @@
         "name": "Batería principal",
         "state": {
           "automatic": "Automática (la más cargada primero)"
+        }
+      },
+      "high_price_sale": {
+        "name": "Venta a precio alto",
+        "state": {
+          "off": "Desactivada",
+          "surplus": "Solo excedente",
+          "surplus_arbitrage": "Excedente + arbitraje (recompra después)"
         }
       },
       "pd_tuning_profile": {

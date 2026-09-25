@@ -22,6 +22,10 @@ from .const import (
     PHASE_ASSIGNMENT_VALUES,
     PHASE_UNASSIGNED,
     CONF_PD_TUNING_PROFILE,
+    CONF_HIGH_PRICE_DISCHARGE_ENABLED,
+    CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED,
+    CONF_PREDICTIVE_CHARGING_MODE,
+    PREDICTIVE_MODE_DYNAMIC_PRICING,
     PD_PROFILE_CUSTOM,
     PD_TUNING_PROFILES,
     PD_TUNING_PROFILE_OPTIONS,
@@ -71,6 +75,16 @@ async def async_setup_entry(
     if len(entry.data.get("batteries", [])) > 1:
         entities.append(PrimaryBatterySelect(hass, entry))
         entities.append(ChargePrioritySelect(hass, entry))
+
+    # High-price sale (#270): one ladder over both triggers. Dynamic pricing
+    # only, like the other price-aware export toggles (see switch.py).
+    controller = hass.data[DOMAIN][entry.entry_id].get("controller")
+    if (
+        controller
+        and entry.data.get(CONF_PREDICTIVE_CHARGING_MODE) == PREDICTIVE_MODE_DYNAMIC_PRICING
+        and CONF_HIGH_PRICE_DISCHARGE_ENABLED in entry.data
+    ):
+        entities.append(HighPriceSaleSelect(hass, entry, controller))
 
     async_add_entities(entities)
 
@@ -509,3 +523,71 @@ class MarstekManualForceModeSelect(CoordinatorEntity, SelectEntity):
     def device_info(self):
         """Return device information."""
         return self.coordinator.battery_device_info
+
+
+HIGH_PRICE_SALE_OFF = "off"
+HIGH_PRICE_SALE_SURPLUS = "surplus"
+HIGH_PRICE_SALE_SURPLUS_ARBITRAGE = "surplus_arbitrage"
+# option -> (trigger 1 surplus export, trigger 2 buy-back arbitrage)
+HIGH_PRICE_SALE_TRIGGERS = {
+    HIGH_PRICE_SALE_OFF: (False, False),
+    HIGH_PRICE_SALE_SURPLUS: (True, False),
+    HIGH_PRICE_SALE_SURPLUS_ARBITRAGE: (True, True),
+}
+
+
+class HighPriceSaleSelect(SelectEntity):
+    """Risk ladder for selling stored energy into high export prices (#270).
+
+    Trigger 1 sells only surplus that tomorrow's solar refills; trigger 2 also
+    sells energy the home needs later and buys it back. Arbitrage without the
+    surplus sale is not offered: that surplus has no better use.
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the high-price sale select."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "high_price_sale"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}high_price_sale"
+        self.entity_id = system_entity_id("select", "high_price_sale")
+        self._attr_icon = "mdi:transmission-tower-export"
+        self._attr_options = list(HIGH_PRICE_SALE_TRIGGERS)
+        self._attr_should_poll = False
+
+    @property
+    def current_option(self) -> str:
+        """Return the option matching the controller's trigger flags."""
+        if self.controller.high_price_discharge_enabled:
+            return HIGH_PRICE_SALE_SURPLUS_ARBITRAGE
+        if self.controller.high_price_surplus_export_enabled:
+            return HIGH_PRICE_SALE_SURPLUS
+        return HIGH_PRICE_SALE_OFF
+
+    async def async_select_option(self, option: str) -> None:
+        """Store both trigger flags for the chosen option."""
+        # ponytail: no explicit override removal on the way down.
+        # refresh_override() runs every control cycle and releases on a failed
+        # scope gate, so the export stops on the next cycle.
+        surplus, arbitrage = HIGH_PRICE_SALE_TRIGGERS[option]
+        self.controller.high_price_surplus_export_enabled = surplus
+        self.controller.high_price_discharge_enabled = arbitrage
+        new_data = dict(self.entry.data)
+        new_data[CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED] = surplus
+        new_data[CONF_HIGH_PRICE_DISCHARGE_ENABLED] = arbitrage
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("High-price sale set to %s", option)
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }

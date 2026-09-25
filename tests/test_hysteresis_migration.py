@@ -62,7 +62,7 @@ def _migrate(batteries):
     with _no_registry():
         result = asyncio.run(async_migrate_entry(hass, entry))
     assert result is True
-    assert hass.config_entries.updated["version"] == 15
+    assert hass.config_entries.updated["version"] == 16
     return hass.config_entries.updated["data"]["batteries"]
 
 
