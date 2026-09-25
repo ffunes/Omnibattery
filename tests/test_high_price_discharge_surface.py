@@ -58,3 +58,21 @@ def test_unload_releases_the_override():
     init = (COMPONENT / "__init__.py").read_text(encoding="utf-8")
 
     assert 'controller._high_price_discharge_mgr.clear_runtime("unload")' in init
+
+
+def test_surplus_export_control_is_present_and_translated():
+    setup = (COMPONENT / "__init__.py").read_text(encoding="utf-8")
+    switch = (COMPONENT / "switch.py").read_text(encoding="utf-8")
+    panel = PANEL.read_text(encoding="utf-8")
+    assert "CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED," in setup.split("_backfill = {")[1].split("}")[0]
+    assert "if CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED in entry.data:" in switch
+    assert "entities.append(HighPriceSurplusExportSwitch(hass, entry, controller))" in switch
+    assert 'self._attr_translation_key = "high_price_surplus_export"' in switch
+    assert 'f"{SYSTEM_UNIQUE_ID_PREFIX}high_price_surplus_export"' in switch
+    assert 'system_entity_id("switch", "high_price_surplus_export")' in switch
+    assert '{ key: "high_price_surplus_export", domain: "switch"' in panel
+    assert panel.count("highPriceSurplusExport:") == 6
+    assert panel.count("    high_price_surplus_export:") == 6
+    for name in TRANSLATIONS:
+        data = json.loads((COMPONENT / name).read_text(encoding="utf-8"))
+        assert data["entity"]["switch"]["high_price_surplus_export"]["name"], name

@@ -1374,6 +1374,9 @@
   },
   "entity": {
     "switch": {
+      "high_price_surplus_export": {
+        "name": "Injection du surplus stocké à prix élevé"
+      },
       "high_price_discharge": {
         "name": "Décharge à Prix Élevé"
       },

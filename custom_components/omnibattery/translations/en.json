@@ -1371,6 +1371,9 @@
   },
   "entity": {
     "switch": {
+      "high_price_surplus_export": {
+        "name": "High-Price Surplus Export"
+      },
       "high_price_discharge": {
         "name": "High-Price Discharge"
       },

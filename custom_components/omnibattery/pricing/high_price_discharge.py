@@ -1,10 +1,11 @@
-"""Pure planning helpers for high-price discharge, trigger 2 only (#270).
+"""Pure planning helpers for high-price discharge (#270).
 
-Trigger 2 sells battery energy that is otherwise reserved for household
+Trigger 1 sells only surplus that tomorrow's solar can replace at a profitable
+export price; trigger 2 sells battery energy reserved for household
 consumption, but only when each sold kWh is linked 1:1 to a *later* household
 deficit that can be re-bought from the grid, and the export price strictly
 beats the worst price that later buy-back could cost. It never sells the
-surplus that trigger 1 handles (a later slice) and it never dips below a
+surplus that trigger 1 handles and it never dips below a
 battery's floor.
 
 The module has no Home Assistant dependency. ``now`` and ``horizon_end`` are
@@ -18,15 +19,15 @@ Two invariants hold everywhere in this module:
    invalid horizon, a coverage gap or overlap, a missing price, or a missing
    later import price never falls back to zero, the last known value, or a
    fixed duration - it fails safe with zero allocations.
-2. **A sale must be provably repurchasable.** Trigger 2 may only claim energy
-   that is linked, kWh for kWh, to a specific later deficit slot. That link is
-   kept explicit (``DemandLink``) so a plan can never be shown to have sold
-   energy the house still needs without a matching, unassigned buy-back.
+2. **Protected demand is never sold without a later buy-back.** Trigger 2
+   links each kWh to a specific later deficit (``DemandLink``); trigger 1
+   sells only energy beyond that demand and the safety margin, and requires
+   a proven solar refill.
 """
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Sequence
 
@@ -50,6 +51,8 @@ REASON_COVERAGE_OVERLAP = "coverage_overlap"
 REASON_NO_PROTECTED_DEMAND = "no_protected_demand"
 REASON_NO_USABLE_ENERGY = "no_usable_energy"
 REASON_NO_ELIGIBLE_CANDIDATES = "no_eligible_candidates"
+REASON_NO_SURPLUS = "no_surplus"
+REASON_NO_REFILL_PRICE = "no_refill_price"
 REASON_PLANNED = "high_price_discharge_planned"
 
 
@@ -126,11 +129,13 @@ class TriggerAllocation:
     energy_kwh: float
     power_w: float
     demand_links: tuple[DemandLink, ...] = ()
+    surplus_kwh: float = 0.0
+    surplus_threshold: float | None = None
 
 
 @dataclass(frozen=True)
 class HighPriceDischargePlan:
-    """A trigger-2 plan and the diagnostics needed to explain it."""
+    """A discharge plan and the diagnostics needed to explain it."""
 
     status: str = STATUS_DISABLED
     reason: str = REASON_DISABLED
@@ -140,6 +145,9 @@ class HighPriceDischargePlan:
     usable_energy_kwh: float = 0.0
     allocations: tuple[TriggerAllocation, ...] = ()
     total_allocated_kwh: float = 0.0
+    trigger_1_budget_kwh: float = 0.0
+    refill_price: float | None = None
+    trigger_1_reason: str | None = None
 
     @property
     def is_fail_safe(self) -> bool:
@@ -292,6 +300,49 @@ def _slot_capacity_kwh(
     return slot_export_power_w * duration / 1000.0
 
 
+def _solar_refill_price(
+    fill_slots: Sequence[HorizonSlot],
+    horizon_end: datetime,
+    start_level: float,
+    full_level: float,
+    efficiency: float,
+) -> float | None:
+    """Price of solar displaced while refilling; no proven full refill means no sale."""
+    level = start_level
+    previous_end = horizon_end
+    max_export = 0.0
+    if not (_finite(level) and _finite(full_level)):
+        return None
+    if level >= full_level - EPSILON:
+        return 0.0
+    for slot in fill_slots:
+        try:
+            if not (_aware(slot.start) and _aware(slot.end)
+                    and _finite(slot.solar_kwh) and _finite(slot.consumption_kwh)):
+                return None
+            start, end = _utc(slot.start), _utc(slot.end)
+            if start != previous_end or end <= start:
+                return None
+            net = float(slot.solar_kwh) - float(slot.consumption_kwh)
+            if not _finite(net):
+                return None
+            if net > 0:
+                if not _finite(slot.export_price):
+                    return None
+                max_export = max(max_export, float(slot.export_price))
+                level += net * efficiency
+            else:
+                level += net
+            if not _finite(level) or level < -EPSILON:
+                return None
+            if level >= full_level - EPSILON:
+                return max_export
+            previous_end = end
+        except (TypeError, ValueError, OverflowError):
+            return None
+    return None
+
+
 def plan_high_price_discharge(
     slots: Sequence[HorizonSlot],
     batteries: Sequence[BatterySnapshot] = (),
@@ -299,18 +350,21 @@ def plan_high_price_discharge(
     now: datetime,
     horizon_end: datetime,
     enabled: bool = False,
+    trigger_1_enabled: bool = False,
     additional_cost_per_kwh: float = 0.0,
     max_export_power_w: float | None = None,
     discharge_efficiency: float = 1.0,
+    safety_margin_kwh: float = 0.0,
+    fill_slots: Sequence[HorizonSlot] = (),
 ) -> HighPriceDischargePlan:
-    """Build a trigger-2 plan from a horizon of atomic slots.
+    """Build a discharge plan from a horizon of atomic slots.
 
     ``horizon_end`` is the end of the protected period (the runtime passes
     ``PricingManager.energy_horizon_end(now)``, next day's sunrise). This
     planner treats it as an opaque boundary: it never searches for the
     solar-recovery crossing itself.
     """
-    if not enabled:
+    if not enabled and not trigger_1_enabled:
         return HighPriceDischargePlan(
             status=STATUS_DISABLED, reason=REASON_DISABLED, evaluation_time=now
         )
@@ -340,6 +394,14 @@ def plan_high_price_discharge(
             horizon_end=horizon_end,
         )
     additional_cost = float(additional_cost_per_kwh)
+    if not _finite(safety_margin_kwh) or float(safety_margin_kwh) < 0:
+        return HighPriceDischargePlan(
+            status=STATUS_FAIL_SAFE,
+            reason=REASON_INVALID_CONFIGURATION,
+            evaluation_time=now,
+            horizon_end=horizon_end,
+        )
+    margin = float(safety_margin_kwh)
 
     # ``None`` means "no limit" and is valid; anything else must be a finite,
     # non-negative watt figure (zero legitimately forbids export).
@@ -403,8 +465,67 @@ def plan_high_price_discharge(
         battery.max_discharge_power_w for battery in valid_batteries
     )
 
+    allocations: list[TriggerAllocation] = []
+    surplus_by_start: dict[datetime, TriggerAllocation] = {}
+    budget = 0.0
+    refill_price: float | None = None
+    trigger_1_reason = REASON_DISABLED
+    if trigger_1_enabled:
+        budget = max(0.0, usable_energy_kwh - protected_demand_kwh - margin)
+        if budget <= EPSILON:
+            trigger_1_reason = REASON_NO_SURPLUS
+        else:
+            # A pack below its floor supplies nothing to the sale, but it still
+            # soaks up tomorrow's solar first: its gap to the floor is extra
+            # room, which delays the fill and can only raise the refill price.
+            full_level = sum(
+                max(0.0, (battery.max_soc_pct
+                          - min(battery.soc_pct, battery.floor_soc_pct)) / 100.0
+                    * battery.capacity_kwh) * efficiency
+                for battery in valid_batteries
+            )
+            refill_price = _solar_refill_price(
+                fill_slots, horizon_end,
+                max(0.0, usable_energy_kwh - protected_demand_kwh - budget),
+                full_level, efficiency,
+            )
+            if refill_price is None:
+                trigger_1_reason = REASON_NO_REFILL_PRICE
+            else:
+                trigger_1_reason = REASON_NO_ELIGIBLE_CANDIDATES
+                threshold = refill_price / efficiency + additional_cost
+                budget_left = budget
+                ranked = sorted(
+                    (slot for slot in working if _finite(slot.export_price)
+                     and float(slot.export_price) > threshold),
+                    key=lambda slot: (-float(slot.export_price), slot.start),
+                )
+                for slot in ranked:
+                    if budget_left <= EPSILON:
+                        break
+                    take = min(
+                        _slot_capacity_kwh(slot, ceiling_w, total_discharge_power_w),
+                        budget_left,
+                    )
+                    if take <= EPSILON:
+                        continue
+                    allocation = TriggerAllocation(
+                        start=slot.start,
+                        end=slot.end,
+                        export_price=float(slot.export_price),
+                        threshold=threshold,
+                        energy_kwh=take,
+                        power_w=take / slot.duration_hours * 1000.0,
+                        surplus_kwh=take,
+                        surplus_threshold=threshold,
+                    )
+                    allocations.append(allocation)
+                    surplus_by_start[slot.start] = allocation
+                    budget_left -= take
+                    trigger_1_reason = REASON_PLANNED
+
     candidates: list[tuple[HorizonSlot, float]] = []
-    for index, slot in enumerate(working):
+    for index, slot in enumerate(working if enabled else ()):
         if slot.export_price is None or not _finite(slot.export_price):
             continue
         later_slots = working[index + 1 :]
@@ -426,12 +547,18 @@ def plan_high_price_discharge(
     # reevaluation with the same data always yields the same plan (RF-045).
     candidates.sort(key=lambda item: (-item[0].export_price, item[0].start))
 
-    allocations: list[TriggerAllocation] = []
-    remaining_usable_kwh = usable_energy_kwh
+    remaining_usable_kwh = usable_energy_kwh - sum(
+        allocation.surplus_kwh for allocation in allocations
+    )
     for slot, threshold in candidates:
         if remaining_usable_kwh <= EPSILON:
             break
-        capacity_kwh = _slot_capacity_kwh(slot, ceiling_w, total_discharge_power_w)
+        surplus = surplus_by_start.get(slot.start)
+        capacity_kwh = max(
+            0.0,
+            _slot_capacity_kwh(slot, ceiling_w, total_discharge_power_w)
+            - (surplus.surplus_kwh if surplus else 0.0),
+        )
         if capacity_kwh <= EPSILON:
             continue
 
@@ -460,21 +587,33 @@ def plan_high_price_discharge(
 
         duration = slot.duration_hours
         power_w = assigned_kwh / duration * 1000.0 if duration > EPSILON else 0.0
-        allocations.append(
-            TriggerAllocation(
-                start=slot.start,
-                end=slot.end,
-                export_price=float(slot.export_price),
+        if surplus:
+            merged = replace(
+                surplus,
                 threshold=threshold,
-                energy_kwh=assigned_kwh,
-                power_w=power_w,
+                energy_kwh=surplus.energy_kwh + assigned_kwh,
+                power_w=surplus.power_w + power_w,
                 demand_links=tuple(links),
             )
-        )
+            allocations[allocations.index(surplus)] = merged
+        else:
+            allocations.append(
+                TriggerAllocation(
+                    start=slot.start,
+                    end=slot.end,
+                    export_price=float(slot.export_price),
+                    threshold=threshold,
+                    energy_kwh=assigned_kwh,
+                    power_w=power_w,
+                    demand_links=tuple(links),
+                )
+            )
         remaining_usable_kwh -= assigned_kwh
 
     if allocations:
         status, reason = STATUS_PLANNED, REASON_PLANNED
+    elif not enabled:
+        status, reason = STATUS_NO_OPPORTUNITY, trigger_1_reason
     elif protected_demand_kwh <= EPSILON:
         status, reason = STATUS_NO_OPPORTUNITY, REASON_NO_PROTECTED_DEMAND
     elif usable_energy_kwh <= EPSILON:
@@ -489,6 +628,9 @@ def plan_high_price_discharge(
         horizon_end=horizon_end,
         protected_demand_kwh=protected_demand_kwh,
         usable_energy_kwh=usable_energy_kwh,
-        allocations=tuple(allocations),
+        allocations=tuple(sorted(allocations, key=lambda allocation: allocation.start)),
         total_allocated_kwh=sum(allocation.energy_kwh for allocation in allocations),
+        trigger_1_budget_kwh=budget,
+        refill_price=refill_price,
+        trigger_1_reason=trigger_1_reason,
     )
