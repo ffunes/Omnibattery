@@ -4,9 +4,8 @@ Trigger 1 sells only surplus that tomorrow's solar can replace at a profitable
 export price; trigger 2 sells battery energy reserved for household
 consumption, but only when each sold kWh is linked 1:1 to a *later* household
 deficit that can be re-bought from the grid, and the export price strictly
-beats the worst price that later buy-back could cost. It never sells the
-surplus that trigger 1 handles and it never dips below a
-battery's floor.
+beats the linked buy-back cost. It never sells the surplus that trigger 1
+handles and it never dips below a battery's floor.
 
 The module has no Home Assistant dependency. ``now`` and ``horizon_end`` are
 always injected; the module never calls ``datetime.now()`` and never searches
@@ -175,6 +174,7 @@ class _LedgerEntry:
     start: datetime
     end: datetime
     remaining_kwh: float
+    import_price: float | None
 
 
 def _valid_battery(snapshot: BatterySnapshot) -> bool:
@@ -356,6 +356,7 @@ def plan_high_price_discharge(
     discharge_efficiency: float = 1.0,
     safety_margin_kwh: float = 0.0,
     fill_slots: Sequence[HorizonSlot] = (),
+    chronological_coverage: bool = True,
 ) -> HighPriceDischargePlan:
     """Build a discharge plan from a horizon of atomic slots.
 
@@ -450,7 +451,7 @@ def plan_high_price_discharge(
     )
 
     ledger = [
-        _LedgerEntry(slot.start, slot.end, deficit)
+        _LedgerEntry(slot.start, slot.end, deficit, slot.import_price)
         for slot in working
         if (deficit := max(0.0, slot.consumption_kwh - slot.solar_kwh)) > EPSILON
     ]
@@ -524,6 +525,23 @@ def plan_high_price_discharge(
                     budget_left -= take
                     trigger_1_reason = REASON_PLANNED
 
+    remaining_usable_kwh = usable_energy_kwh - sum(
+        allocation.surplus_kwh for allocation in allocations
+    )
+    tail_coverage = (
+        chronological_coverage
+        and remaining_usable_kwh < protected_demand_kwh - EPSILON
+    )
+    if tail_coverage:
+        # Selling advances run-out: only the latest demand the battery would
+        # have covered becomes a grid purchase, never demand after run-out.
+        covered_left = remaining_usable_kwh
+        for entry in ledger:
+            covered = min(entry.remaining_kwh, max(0.0, covered_left))
+            entry.remaining_kwh = covered
+            covered_left -= covered
+        tail = list(reversed(ledger))
+
     candidates: list[tuple[HorizonSlot, float]] = []
     for index, slot in enumerate(working if enabled else ()):
         if slot.export_price is None or not _finite(slot.export_price):
@@ -539,7 +557,7 @@ def plan_high_price_discharge(
         ):
             continue
         threshold = max(float(later.import_price) for later in later_slots) + additional_cost
-        if not float(slot.export_price) > threshold:
+        if not tail_coverage and not float(slot.export_price) > threshold:
             continue
         candidates.append((slot, threshold))
 
@@ -547,9 +565,6 @@ def plan_high_price_discharge(
     # reevaluation with the same data always yields the same plan (RF-045).
     candidates.sort(key=lambda item: (-item[0].export_price, item[0].start))
 
-    remaining_usable_kwh = usable_energy_kwh - sum(
-        allocation.surplus_kwh for allocation in allocations
-    )
     for slot, threshold in candidates:
         if remaining_usable_kwh <= EPSILON:
             break
@@ -562,28 +577,48 @@ def plan_high_price_discharge(
         if capacity_kwh <= EPSILON:
             continue
 
-        linkable = sorted(
-            (entry for entry in ledger if entry.start >= slot.end and entry.remaining_kwh > EPSILON),
-            key=lambda entry: entry.start,
-        )
-        linkable_demand_kwh = sum(entry.remaining_kwh for entry in linkable)
-        allocation_kwh = min(capacity_kwh, remaining_usable_kwh, linkable_demand_kwh)
-        if allocation_kwh <= EPSILON:
-            continue
-
-        # Consume the earliest unassigned demand first: it preserves later
-        # demand for later (lower-priced) candidates, which cannot reach back
-        # to demand that ends before their own slot.
         links: list[DemandLink] = []
-        left_to_assign = allocation_kwh
-        for entry in linkable:
-            if left_to_assign <= EPSILON:
-                break
-            take = min(left_to_assign, entry.remaining_kwh)
-            entry.remaining_kwh -= take
-            links.append(DemandLink(entry.start, entry.end, take))
-            left_to_assign -= take
-        assigned_kwh = allocation_kwh - left_to_assign
+        if tail_coverage:
+            threshold = -math.inf
+            left_to_assign = min(capacity_kwh, remaining_usable_kwh)
+            for entry in tail:
+                if left_to_assign <= EPSILON:
+                    break
+                if entry.remaining_kwh <= EPSILON:
+                    continue
+                if (entry.start < slot.end or not _finite(entry.import_price)
+                        or float(slot.export_price) <= float(entry.import_price) + additional_cost):
+                    break
+                take = min(left_to_assign, entry.remaining_kwh)
+                entry.remaining_kwh -= take
+                links.append(DemandLink(entry.start, entry.end, take))
+                threshold = max(threshold, float(entry.import_price) + additional_cost)
+                left_to_assign -= take
+            assigned_kwh = sum(link.energy_kwh for link in links)
+            if assigned_kwh <= EPSILON:
+                continue
+        else:
+            linkable = sorted(
+                (entry for entry in ledger if entry.start >= slot.end and entry.remaining_kwh > EPSILON),
+                key=lambda entry: entry.start,
+            )
+            linkable_demand_kwh = sum(entry.remaining_kwh for entry in linkable)
+            allocation_kwh = min(capacity_kwh, remaining_usable_kwh, linkable_demand_kwh)
+            if allocation_kwh <= EPSILON:
+                continue
+
+            # Consume the earliest unassigned demand first: it preserves later
+            # demand for later (lower-priced) candidates, which cannot reach back
+            # to demand that ends before their own slot.
+            left_to_assign = allocation_kwh
+            for entry in linkable:
+                if left_to_assign <= EPSILON:
+                    break
+                take = min(left_to_assign, entry.remaining_kwh)
+                entry.remaining_kwh -= take
+                links.append(DemandLink(entry.start, entry.end, take))
+                left_to_assign -= take
+            assigned_kwh = allocation_kwh - left_to_assign
 
         duration = slot.duration_hours
         power_w = assigned_kwh / duration * 1000.0 if duration > EPSILON else 0.0

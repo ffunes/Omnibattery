@@ -360,6 +360,28 @@ def test_the_plan_is_rebuilt_when_the_configuration_changes():
     assert len(rebuilds) == 2
 
 
+def test_reserve_toggle_passes_coverage_flag_and_rebuilds(monkeypatch):
+    import custom_components.omnibattery.control.high_price_discharge as runtime
+
+    planner = Mock(wraps=runtime.plan_high_price_discharge)
+    monkeypatch.setattr(runtime, "plan_high_price_discharge", planner)
+    manager, controller, _ = _manager()
+    manager.refresh_override()
+    assert planner.call_args.kwargs["chronological_coverage"] is True
+    manager.refresh_override()
+    assert planner.call_count == 1
+
+    controller.discharge_reserve_enabled = True
+    manager.refresh_override()
+    assert planner.call_count == 2
+    assert planner.call_args.kwargs["chronological_coverage"] is False
+
+    controller.discharge_reserve_enabled = False
+    manager.refresh_override()
+    assert planner.call_count == 3
+    assert planner.call_args.kwargs["chronological_coverage"] is True
+
+
 def test_status_carries_the_plan_for_diagnostics():
     manager, _controller, _setpoints = _manager()
 

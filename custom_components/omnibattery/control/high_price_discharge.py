@@ -249,7 +249,7 @@ class HighPriceDischargeManager:
         self._set_status(state, reason)
 
     def _config(self) -> tuple | None:
-        """Return export power, price margin, both flags and safety margin, or None.
+        """Return export power, margin, flags, safety margin and coverage, or None.
 
         RF-040: a positive export power is part of a valid activation, so zero
         is an invalid configuration rather than a silent no-op. ``power`` here
@@ -284,6 +284,7 @@ class HighPriceDischargeManager:
             bool(getattr(controller, "high_price_discharge_enabled", False)),
             bool(getattr(controller, "high_price_surplus_export_enabled", False)),
             safety_margin,
+            not bool(getattr(controller, "discharge_reserve_enabled", False)),
         )
 
     async def _fetch_solar_forecast(self) -> None:
@@ -338,7 +339,7 @@ class HighPriceDischargeManager:
             if now >= horizon_end:
                 horizon_end = pricing.energy_horizon_end(now)
             slots = self._build_horizon(pricing, now, horizon_end)
-            max_power_w, margin, trigger_2, trigger_1, safety_margin = config
+            max_power_w, margin, trigger_2, trigger_1, safety_margin, chronological_coverage = config
             plan = plan_high_price_discharge(
                 slots,
                 pricing._curtailment_battery_snapshots(),
@@ -346,6 +347,7 @@ class HighPriceDischargeManager:
                 horizon_end=self._aware(horizon_end),
                 enabled=trigger_2,
                 trigger_1_enabled=trigger_1,
+                chronological_coverage=chronological_coverage,
                 safety_margin_kwh=safety_margin,
                 fill_slots=self._build_fill_slots(pricing, now, horizon_end) if trigger_1 else (),
                 additional_cost_per_kwh=margin,
