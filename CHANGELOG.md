@@ -2,6 +2,10 @@
 
 ## [1.5.0b4] - 2026-09-22
 
+### Added
+
+- **Lock button on the Control tab**: a padlock next to "Arrange" freezes every slider, switch, button and select, so scrolling on a phone can't change a setting by accident. Remembered per browser.
+
 ### Fixed
 
 - **High price discharge now plans overnight instead of reporting "no data" until tomorrow's prices are published**: between midnight and sunrise it protected the house until the *following* day's sunrise, which needs prices not published until ~13:00. It now protects until this morning's sunrise.

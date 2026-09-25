@@ -104,6 +104,7 @@ const I18N = {
     ctlArrange: "Arrange", ctlArrangeHint: "Drag cards to reorder · controls are locked",
     ctlCols: "Columns", ctlRows: "Rows", ctlAuto: "Auto",
     ctlHide: "Hide card", ctlShow: "Show card", ctlHidden: "Hidden cards",
+    ctlLock: "Lock controls", ctlUnlock: "Unlock controls",
     sysEmptyTitle: "No controls available",
     sysEmptyMsg: "This integration exposes no system controls, or they are disabled. Enable them in Settings → entities.",
     bcAllowCharge: "Allow charge", bcAllowDischarge: "Allow discharge", bcBatteryManual: "Manual battery control",
@@ -191,6 +192,7 @@ const I18N = {
     ctlArrange: "Reordenar", ctlArrangeHint: "Arrastra las tarjetas para reordenar · controles bloqueados",
     ctlCols: "Columnas", ctlRows: "Filas", ctlAuto: "Auto",
     ctlHide: "Ocultar tarjeta", ctlShow: "Mostrar tarjeta", ctlHidden: "Tarjetas ocultas",
+    ctlLock: "Bloquear controles", ctlUnlock: "Desbloquear controles",
     sysEmptyTitle: "Sin controles disponibles",
     sysEmptyMsg: "Esta integración no expone controles de sistema, o están deshabilitados. Actívalos en Ajustes → entidades.",
     bcAllowCharge: "Permitir carga", bcAllowDischarge: "Permitir descarga", bcBatteryManual: "Control manual de batería",
@@ -225,6 +227,7 @@ const I18N = {
   },
   ca: {
     subtitle: "Tauler de control",
+    ctlLock: "Bloqueja els controls", ctlUnlock: "Desbloqueja els controls",
     live: "En directe",
     tabResumen: "Resum", tabBaterias: "Bateries", tabControl: "Control",
     moreInfo: "Veure històric",
@@ -308,6 +311,7 @@ const I18N = {
   },
   de: {
     subtitle: "Bedienfeld",
+    ctlLock: "Steuerelemente sperren", ctlUnlock: "Steuerelemente entsperren",
     live: "Live",
     tabResumen: "Übersicht", tabBaterias: "Batterien", tabControl: "Steuerung",
     moreInfo: "Verlauf anzeigen",
@@ -391,6 +395,7 @@ const I18N = {
   },
   fr: {
     subtitle: "Panneau de contrôle",
+    ctlLock: "Verrouiller les commandes", ctlUnlock: "Déverrouiller les commandes",
     live: "En direct",
     tabResumen: "Résumé", tabBaterias: "Batteries", tabControl: "Contrôle",
     moreInfo: "Voir l'historique",
@@ -474,6 +479,7 @@ const I18N = {
   },
   nl: {
     subtitle: "Bedieningspaneel",
+    ctlLock: "Bediening vergrendelen", ctlUnlock: "Bediening ontgrendelen",
     live: "Live",
     tabResumen: "Overzicht", tabBaterias: "Batterijen", tabControl: "Bediening",
     moreInfo: "Geschiedenis tonen",
@@ -6294,6 +6300,7 @@ class MarstekVenusPanel extends HTMLElement {
       this._buildStepper(this._t("ctlRows"), () => this._loadCtlRows(), (n) => this._saveCtlRows(n), 8, 4),
     );
     bar.appendChild(tools);
+    bar.appendChild(this._buildLockBtn());
     const btn = document.createElement("button");
     btn.className = "ctl-arrange-btn";
     btn.innerHTML = `<ha-icon icon="mdi:drag-variant"></ha-icon><span>${this._t("ctlArrange")}</span>`;
@@ -6343,6 +6350,26 @@ class MarstekVenusPanel extends HTMLElement {
     box.append(lbl, dec, val, inc);
     refresh();
     return box;
+  }
+
+  /** Padlock next to Arrange: while ON, sliders/switches/buttons/selects ignore pointer input so
+   *  a touch-scroll or stray click can't change a setting. Persisted. */
+  _buildLockBtn() {
+    const btn = document.createElement("button");
+    btn.className = "ctl-arrange-btn ctl-lock-btn";
+    const apply = () => {
+      const on = this._loadCtlLocked();
+      if (this._ctlRoot) this._ctlRoot.classList.toggle("sliders-locked", on);
+      btn.classList.toggle("active", on);
+      btn.title = this._t(on ? "ctlUnlock" : "ctlLock");
+      btn.innerHTML = `<ha-icon icon="mdi:lock${on ? "" : "-open-variant"}-outline"></ha-icon>`;
+    };
+    btn.addEventListener("click", () => {
+      this._saveCtlLocked(!this._loadCtlLocked());
+      apply();
+    });
+    apply();
+    return btn;
   }
 
   _applyArrangeMode(stack, btn, hint, tools) {
@@ -6644,6 +6671,16 @@ class MarstekVenusPanel extends HTMLElement {
   }
   _saveCtlHidden(tks) {
     try { localStorage.setItem(this._ctlHiddenKey(), JSON.stringify(tks)); } catch { /* private mode */ }
+  }
+  // --- Control-tab controls lock (padlock in the Control bar, persisted) --------
+  _loadCtlLocked() {
+    try { return localStorage.getItem("omnibattery:control-locked") === "1"; } catch { return false; }
+  }
+  _saveCtlLocked(on) {
+    try {
+      if (on) localStorage.setItem("omnibattery:control-locked", "1");
+      else localStorage.removeItem("omnibattery:control-locked");
+    } catch { /* private mode */ }
   }
   // --- Control-tab advanced settings toggle (per-item `adv` flag, persisted) --
   _ctlAdvKey(tk) { return "omnibattery:control-advanced:" + tk; }
@@ -7508,6 +7545,7 @@ class MarstekVenusPanel extends HTMLElement {
         color: var(--ink-mid); cursor: pointer; font-size: 13px; --mdc-icon-size: 16px; }
       .ctl-arrange-btn:hover { color: var(--ink); }
       .ctl-arrange-btn.active { color: var(--accent); border-color: var(--accent); }
+      .ctl-root.sliders-locked :is(.ctl-num input[type="range"], .ctl-btn, .ctl-toggle, .ctl-select) { pointer-events: none; opacity: 0.5; }
       /* column/row steppers (arrange mode only): pin a fixed grid shape */
       .ctl-tools { display: inline-flex; align-items: center; gap: 16px; }
       .ctl-cols { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-mid); font-size: 13px; }
