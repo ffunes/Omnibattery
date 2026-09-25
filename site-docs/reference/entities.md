@@ -77,7 +77,7 @@ These entities belong to **Omnibattery System** rather than one battery.
 
     - Always available controller choices: `manual_mode`, `no_pd_mode`, `three_phase_protection`, `weekly_full_charge_enabled`, `vacation_mode`
     - Conditional features: `offgrid_mode`, `primary_feedforward`, `system_power_limits`, `predictive_charging`, `min_soc_floor_enabled`, `charge_delay`, `delay_soc_setpoint_enabled`, `weekly_full_charge_delay`, `temp_charge_limit`, `temp_charge_limit_discharge`, `capacity_protection`, `capacity_protection_excluded_devices`, `hourly_balance`
-    - Pricing controls: `price_discharge_control`, `high_price_discharge`, `smart_predischarge`, `negative_price_charging`, `surplus_price_hold`, `discharge_reserve`
+    - Pricing controls: `price_discharge_control`, `high_price_discharge`, `high_price_surplus_export`, `smart_predischarge`, `negative_price_charging`, `surplus_price_hold`, `discharge_reserve`
     - Generated controls: `time_slot` for each configured time slot; `excluded_device_enabled`, `excluded_device_solar_surplus`, `excluded_device_dynamic_power_control`, and `excluded_device_cover_home` for each applicable excluded device
     - External automation compatibility: `automation_charging_active`
 
@@ -168,6 +168,18 @@ Battery entities depend on the driver. A missing entity usually means that the d
     Common attributes include `charging_needed`, `reason`, `price_data_status`, forecast and consumption values, selected price slots, target energy, and current progress.
 
     Dynamic Pricing can also expose `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `energy_deadlines`, `slot_deadlines`, and `chronological_plan_reason`. They describe planning intent; live battery, grid, and safety limits remain authoritative.
+
+??? "High-Price Discharge Status attributes"
+
+    These attributes appear when the corresponding Dynamic Pricing policy has a plan. See [Dynamic Pricing](../configuration/predictive-charging/dynamic-pricing.md) for the decision rules.
+
+    | Attribute | Meaning |
+    |---|---|
+    | `trigger_1_budget_kwh` | Battery energy that **High-Price Surplus Export** may sell after preserving the forecast need before sunrise and the safety margin |
+    | `refill_price` | Export-price reference for solar refilling the battery tomorrow |
+    | `trigger_1_reason` | Why surplus export is active or inactive |
+    | `surplus_export_enabled` | Whether **High-Price Surplus Export** is turned on |
+    | `surplus_kwh` | Energy assigned to surplus export in that price period |
 
 ??? "Other diagnostic attributes"
 
