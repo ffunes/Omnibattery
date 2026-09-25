@@ -77,7 +77,7 @@ Estas entidades pertenecen a **Omnibattery System**, no a una batería.
 
     - Opciones de controlador siempre disponibles: `manual_mode`, `no_pd_mode`, `three_phase_protection`, `weekly_full_charge_enabled`, `vacation_mode`
     - Funciones condicionales: `offgrid_mode`, `primary_feedforward`, `system_power_limits`, `predictive_charging`, `min_soc_floor_enabled`, `charge_delay`, `delay_soc_setpoint_enabled`, `weekly_full_charge_delay`, `temp_charge_limit`, `temp_charge_limit_discharge`, `capacity_protection`, `capacity_protection_excluded_devices`, `hourly_balance`
-    - Controles de precios: `price_discharge_control`, `high_price_discharge`, `smart_predischarge`, `negative_price_charging`, `surplus_price_hold`, `discharge_reserve`
+    - Controles de precios: `price_discharge_control`, `high_price_discharge`, `high_price_surplus_export`, `smart_predischarge`, `negative_price_charging`, `surplus_price_hold`, `discharge_reserve`
     - Controles generados: `time_slot` para cada franja horaria configurada; `excluded_device_enabled`, `excluded_device_solar_surplus`, `excluded_device_dynamic_power_control` y `excluded_device_cover_home` para cada dispositivo excluido aplicable
     - Compatibilidad con automatización externa: `automation_charging_active`
 
@@ -168,6 +168,18 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
     Los atributos comunes incluyen `charging_needed`, `reason`, `price_data_status`, valores de previsión y consumo, franjas de precio seleccionadas, energía objetivo y progreso actual.
 
     Precio dinámico también puede exponer `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `energy_deadlines`, `slot_deadlines` y `chronological_plan_reason`. Describen la intención de planificación; los límites activos de batería, red y seguridad mantienen la autoridad.
+
+??? "Atributos de Estado de descarga con precio alto"
+
+    Estos atributos aparecen cuando la política correspondiente de Precio dinámico tiene un plan. Consulta [Precio dinámico](../configuration/predictive-charging/dynamic-pricing.md) para las reglas de decisión.
+
+    | Atributo | Significado |
+    |---|---|
+    | `trigger_1_budget_kwh` | Energía de batería que **Exportación de excedente almacenado a precio alto** puede vender tras reservar la necesidad prevista hasta el amanecer y el margen de seguridad |
+    | `refill_price` | Precio de exportación de referencia para que la solar rellene la batería mañana |
+    | `trigger_1_reason` | Por qué la exportación de excedente está activa o inactiva |
+    | `surplus_export_enabled` | Si **Exportación de excedente almacenado a precio alto** está activada |
+    | `surplus_kwh` | Energía asignada a exportación de excedente en ese periodo de precio |
 
 ??? "Otros atributos de diagnóstico"
 
