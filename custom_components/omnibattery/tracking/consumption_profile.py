@@ -1630,15 +1630,24 @@ class ConsumptionProfileTracker:
             time.min,
             tzinfo=timezone,
         )
-        local_day_energy = 0.0
         fallback_intervals = forecast.intervals_kwh
-        for segment_start, segment_end, midpoint in _local_segments(day_start, next_day):
-            index = _interval_index(midpoint.timetz().replace(tzinfo=None))
-            local_day_energy += (
-                fallback_intervals[index]
-                * (segment_end - segment_start)
-                / INTERVAL_SECONDS
-            )
+        # A day without a transition traverses every quarter exactly once, so
+        # the segment walk below would just sum the shape.  Skipping it matters:
+        # Charge Delay's unlock search asks for this scale dozens of times per
+        # control cycle.
+        if _as_timestamp(next_day) - _as_timestamp(day_start) == 24 * 3600:
+            local_day_energy = sum(fallback_intervals)
+        else:
+            local_day_energy = 0.0
+            for segment_start, segment_end, midpoint in _local_segments(
+                day_start, next_day
+            ):
+                index = _interval_index(midpoint.timetz().replace(tzinfo=None))
+                local_day_energy += (
+                    fallback_intervals[index]
+                    * (segment_end - segment_start)
+                    / INTERVAL_SECONDS
+                )
 
         if local_day_energy <= 0.0:
             return 0.0
