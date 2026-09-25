@@ -4,6 +4,8 @@
 
 ### Added
 
+- **High-price surplus export** (#270): optional sale of stored energy beyond sunrise demand when tomorrow’s forecast solar can refill it profitably.
+
 - **Lock button on the Control tab**: a padlock next to "Arrange" freezes every slider, switch, button and select, so scrolling on a phone can't change a setting by accident. Remembered per browser.
 
 ### Fixed

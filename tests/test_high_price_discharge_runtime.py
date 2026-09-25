@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
+from unittest.mock import Mock
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -34,6 +36,7 @@ from custom_components.omnibattery.control.high_price_discharge import (
     STATE_NO_DATA,
     STATE_WAITING,
     HighPriceDischargeManager,
+    solar_wh_by_slot,
 )
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.curtailment import BatterySnapshot
@@ -183,6 +186,10 @@ def test_out_of_scope_disables_the_feature(override):
         "reason": GUARD_NOT_ENABLED,
         "enabled": override.get("high_price_discharge_enabled", True),
         "target_w": None,
+        "surplus_export_enabled": False,
+        "trigger_1_budget_kwh": 0.0,
+        "refill_price": None,
+        "trigger_1_reason": None,
     }
     assert OVERRIDE_SOURCE not in setpoints
 
@@ -415,3 +422,156 @@ def test_horizon_ends_at_the_next_sunrise_not_the_next_days(hour, expected_end):
     manager.refresh_override()
 
     assert requested == [expected_end]
+
+
+# Trigger 1 wiring uses a patched planner so these tests are independent of the
+# separate pure-planner implementation.
+def test_surplus_only_flag_and_rebuild_on_toggle(monkeypatch):
+    import custom_components.omnibattery.control.high_price_discharge as runtime
+
+    manager, controller, setpoints = _manager(high_price_discharge_enabled=False)
+    assert not manager.feature_enabled()
+    manager.refresh_override()
+    assert manager.get_status()["state"] == STATE_DISABLED
+    assert OVERRIDE_SOURCE not in setpoints
+
+    planner = Mock(return_value=SimpleNamespace(
+        status="waiting", reason="no_refill_price", allocations=[SimpleNamespace(
+            start=manager._aware(NOW), end=manager._aware(NOW + timedelta(hours=1)),
+            export_price=.5, threshold=.2, energy_kwh=.6, surplus_kwh=.4, power_w=600,
+        )],
+        horizon_end=manager._aware(HORIZON_END), protected_demand_kwh=0,
+        usable_energy_kwh=0, total_allocated_kwh=0, trigger_1_budget_kwh=1.2,
+        refill_price=0.1, trigger_1_reason="ready",
+        allocation_at=lambda now: None,
+    ))
+    monkeypatch.setattr(runtime, "plan_high_price_discharge", planner)
+    controller.high_price_surplus_export_enabled = True
+    controller._predictive_safety_margin_kwh = 0.4
+    manager._solar_wh_fetched_mono = runtime.monotonic()
+    assert manager.feature_enabled()
+    manager.refresh_override()
+    assert planner.call_args.kwargs["enabled"] is False
+    assert planner.call_args.kwargs["trigger_1_enabled"] is True
+    assert planner.call_args.kwargs["safety_margin_kwh"] == 0.4
+    assert manager.get_status()["trigger_1_budget_kwh"] == 1.2
+    assert manager.get_status()["refill_price"] == 0.1
+    assert manager.get_status()["trigger_1_reason"] == "ready"
+    assert manager.get_status()["allocations"][0]["surplus_kwh"] == .4
+    planner.reset_mock()
+    manager.refresh_override()
+    planner.assert_not_called()
+    controller.high_price_discharge_enabled = True
+    manager.refresh_override()
+    planner.assert_called_once()
+    controller.high_price_surplus_export_enabled = False
+    controller.high_price_discharge_enabled = False
+    manager.refresh_override()
+    assert manager.get_status()["state"] == STATE_DISABLED
+    assert OVERRIDE_SOURCE not in setpoints
+
+
+def test_solar_half_hours_map_to_hourly_and_quarter_hour_slots(monkeypatch):
+    import custom_components.omnibattery.control.high_price_discharge as runtime
+
+    monkeypatch.setattr(runtime.dt_util, "as_local", lambda dt: dt.astimezone(ZoneInfo("Europe/Madrid")))
+    start = datetime(2026, 8, 3, 7)
+    keys = {"2026-08-03T05:00:00+00:00": 100,
+            "2026-08-03T05:30:00+00:00": 200,
+            "2026-08-03T07:00:00+00:00": 400}
+    hourly = [PriceSlot(start + timedelta(hours=i), start + timedelta(hours=i+1), .1)
+              for i in range(5)]
+    result = solar_wh_by_slot(hourly, keys, start)
+    assert list(result.values()) == pytest.approx([.3, 0, .4])
+    quarter = [PriceSlot(start + timedelta(minutes=15*i), start + timedelta(minutes=15*(i+1)), .1)
+               for i in range(6)]
+    result = solar_wh_by_slot(quarter, keys, start)
+    # Each half hour is spread over its two quarter hours, not dumped in the first.
+    assert list(result.values()) == pytest.approx([.05, .05, .1, .1, 0, 0])
+    assert solar_wh_by_slot(hourly, {"2026-08-03T04:00:00+00:00": 100}, start) == {}
+
+
+@pytest.mark.asyncio
+async def test_missing_energy_platform_fails_closed(monkeypatch):
+    import custom_components.omnibattery.control.high_price_discharge as runtime
+
+    manager, controller, _ = _manager(solar_forecast_sensor="sensor.forecast")
+    registry = SimpleNamespace(async_get=lambda sensor: SimpleNamespace(config_entry_id="abc"))
+    monkeypatch.setattr(runtime.er, "async_get", lambda hass: registry)
+    manager._hass.config_entries = SimpleNamespace(async_get_entry=lambda id: SimpleNamespace(domain="solar", entry_id=id))
+
+    async def fail(*args):
+        raise ImportError("no energy platform")
+
+    monkeypatch.setattr(runtime, "async_get_integration", fail)
+    await manager._fetch_solar_forecast()
+    assert manager._solar_wh_hours == {}
+    assert manager._build_fill_slots(controller._pricing_mgr, NOW, HORIZON_END) == ()
+    registry.async_get = lambda sensor: SimpleNamespace(config_entry_id=None)
+    await manager._fetch_solar_forecast()
+    assert manager._solar_wh_hours == {}
+
+
+def test_fill_slots_use_tomorrows_window_and_profile(monkeypatch):
+    import custom_components.omnibattery.control.high_price_discharge as runtime
+
+    monkeypatch.setattr(runtime.dt_util, "as_local", lambda dt: dt.astimezone(ZoneInfo("Europe/Madrid")))
+    requested = []
+    starts = [HORIZON_END + timedelta(hours=i) for i in range(3)]
+    slots = [PriceSlot(start, start + timedelta(hours=1), .2) for start in starts]
+
+    def export_slots(horizon_end=None):
+        requested.append(horizon_end)
+        return slots
+
+    profile_calls = []
+    def profile(start, end):
+        profile_calls.append((start, end))
+        return _forecast()
+
+    manager, _, _ = _manager(pricing=_pricing(
+        get_future_export_price_slots=export_slots,
+        _profile_remaining_consumption=profile,
+    ))
+    manager._solar_wh_hours = {"2026-08-03T05:00:00+00:00": 600,
+                               "2026-08-03T06:00:00+00:00": 200}
+    fill = manager._build_fill_slots(manager._controller._pricing_mgr, NOW, HORIZON_END)
+    assert requested == [HORIZON_END + timedelta(hours=24)]
+    assert profile_calls == [(NOW, starts[2])]
+    assert [slot.solar_kwh for slot in fill] == pytest.approx([.6, .2])
+    assert [slot.consumption_kwh for slot in fill] == pytest.approx([.3, .3])
+    assert all(slot.start.tzinfo for slot in fill)
+
+
+def test_fill_window_starts_at_an_unaligned_sunrise(monkeypatch):
+    import custom_components.omnibattery.control.high_price_discharge as runtime
+
+    monkeypatch.setattr(runtime.dt_util, "as_local", lambda dt: dt.astimezone(ZoneInfo("Europe/Madrid")))
+    sunrise = HORIZON_END + timedelta(minutes=30)
+    slots = [PriceSlot(HORIZON_END + timedelta(hours=i), HORIZON_END + timedelta(hours=i + 1), .2)
+             for i in range(3)]
+    manager, _, _ = _manager(pricing=_pricing(
+        get_future_export_price_slots=lambda horizon_end=None: slots))
+    manager._solar_wh_hours = {"2026-08-03T05:00:00+00:00": 600,
+                               "2026-08-03T06:00:00+00:00": 200}
+    fill = manager._build_fill_slots(manager._controller._pricing_mgr, NOW, sunrise)
+    assert fill[0].start == manager._aware(sunrise)
+    assert [slot.solar_kwh for slot in fill] == pytest.approx([.3, .2])
+    assert [slot.consumption_kwh for slot in fill] == pytest.approx([.15, .3])
+
+
+@pytest.mark.asyncio
+async def test_energy_platform_exception_keeps_fill_empty(monkeypatch):
+    import custom_components.omnibattery.control.high_price_discharge as runtime
+
+    manager, _, _ = _manager(solar_forecast_sensor="sensor.forecast")
+    monkeypatch.setattr(runtime.er, "async_get", lambda hass: SimpleNamespace(
+        async_get=lambda sensor: SimpleNamespace(config_entry_id="abc")))
+    manager._hass.config_entries = SimpleNamespace(async_get_entry=lambda id: SimpleNamespace(domain="solar", entry_id=id))
+    async def integration(*args):
+        return SimpleNamespace(async_get_platform=fail)
+    async def fail(*args):
+        raise RuntimeError("platform broken")
+    monkeypatch.setattr(runtime, "async_get_integration", integration)
+    await manager._fetch_solar_forecast()
+    assert manager._solar_wh_hours == {}

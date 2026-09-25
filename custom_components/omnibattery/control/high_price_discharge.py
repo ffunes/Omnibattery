@@ -35,6 +35,8 @@ from datetime import datetime, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.helpers import entity_registry as er
+from homeassistant.loader import async_get_integration
 from homeassistant.util import dt as dt_util
 
 from ..const import PREDICTIVE_MODE_DYNAMIC_PRICING
@@ -89,6 +91,44 @@ REASON_NO_ALLOCATION = "no_allocation_now"
 REASON_PLANNED = "high_price_slot"
 
 _CURTAILMENT_ACTIVE_STATES = frozenset({"protected_window", "predischarging"})
+SOLAR_REFRESH_INTERVAL_S = 1800.0
+
+
+def solar_wh_by_slot(slots: list, wh_hours: dict, horizon_end: datetime) -> dict:
+    """Spread provider periods over the part of each slot after ``horizon_end``.
+
+    Keys are period starts; providers omit zero periods (Solcast), so the
+    period length is the smallest gap between keys and a missing key inside
+    the covered span is zero. Past the last period is unknown, never zero.
+    """
+    entries = []
+    for timestamp, wh in wh_hours.items():
+        try:
+            moment = datetime.fromisoformat(timestamp)
+            if moment.tzinfo is None:
+                continue
+            entries.append((dt_util.as_local(moment).replace(tzinfo=None), float(wh)))
+        except (TypeError, ValueError):
+            continue
+    if not entries:
+        return {}
+    entries.sort()
+    period = min(
+        (b - a for (a, _), (b, _) in zip(entries, entries[1:]) if b > a),
+        default=timedelta(hours=1),
+    )
+    covered_end = entries[-1][0] + period
+    result = {}
+    for slot in slots:
+        start = max(slot.start, horizon_end)
+        if slot.end <= start or start >= covered_end:
+            continue
+        result[slot] = sum(
+            wh * max(0.0, (min(slot.end, moment + period) - max(start, moment))
+                     .total_seconds()) / period.total_seconds()
+            for moment, wh in entries
+        ) / 1000.0
+    return result
 
 
 class HighPriceDischargeManager:
@@ -99,7 +139,10 @@ class HighPriceDischargeManager:
         self._controller = controller
         self._plan: HighPriceDischargePlan | None = None
         self._last_rebuild_mono: float | None = None
-        self._plan_config: tuple[float, float] | None = None
+        self._plan_config: tuple | None = None
+        self._solar_wh_hours: dict = {}
+        self._solar_wh_fetched_mono: float | None = None
+        self._solar_fetch_task = None
         self._status: dict[str, Any] = {
             "state": STATE_DISABLED,
             "reason": GUARD_NOT_ENABLED,
@@ -125,7 +168,8 @@ class HighPriceDischargeManager:
         """
         controller = self._controller
         return bool(
-            getattr(controller, "high_price_discharge_enabled", False)
+            (getattr(controller, "high_price_discharge_enabled", False)
+             or getattr(controller, "high_price_surplus_export_enabled", False))
             and getattr(controller, "predictive_charging_enabled", False)
             and not getattr(controller, "predictive_charging_overridden", False)
             and getattr(controller, "predictive_charging_mode", None)
@@ -204,8 +248,8 @@ class HighPriceDischargeManager:
         self._controller.remove_setpoint_override(OVERRIDE_SOURCE)
         self._set_status(state, reason)
 
-    def _config(self) -> tuple[float, float] | None:
-        """Return ``(max_export_power_w, margin)``, or None if invalid.
+    def _config(self) -> tuple | None:
+        """Return export power, price margin, both flags and safety margin, or None.
 
         RF-040: a positive export power is part of a valid activation, so zero
         is an invalid configuration rather than a silent no-op. ``power`` here
@@ -226,16 +270,48 @@ class HighPriceDischargeManager:
                 getattr(controller, "high_price_discharge_max_power_w", 0.0) or 0.0
             )
             cost = float(getattr(controller, "min_arbitrage_margin", 0.0) or 0.0)
+            safety_margin = float(
+                getattr(controller, "_predictive_safety_margin_kwh", 0.0) or 0.0
+            )
         except (TypeError, ValueError):
             return None
         if not math.isfinite(power) or not math.isfinite(cost):
             return None
         if power <= 0 or cost < 0:
             return None
-        return power, cost
+        return (
+            power, cost,
+            bool(getattr(controller, "high_price_discharge_enabled", False)),
+            bool(getattr(controller, "high_price_surplus_export_enabled", False)),
+            safety_margin,
+        )
 
-    def _maybe_rebuild(self, config: tuple[float, float]) -> None:
+    async def _fetch_solar_forecast(self) -> None:
+        """Refresh the Energy dashboard hourly forecast for the configured sensor."""
+        data = None
+        try:
+            controller = self._controller
+            sensor = (get_configured_solar_forecast_sensor(controller, "remaining")
+                      or get_configured_solar_forecast_sensor(controller, "today"))
+            entry = er.async_get(self._hass).async_get(sensor) if sensor else None
+            config_entry = (self._hass.config_entries.async_get_entry(entry.config_entry_id)
+                            if entry is not None and entry.config_entry_id else None)
+            if config_entry is not None:
+                integration = await async_get_integration(self._hass, config_entry.domain)
+                platform = await integration.async_get_platform("energy")
+                data = await platform.async_get_solar_forecast(self._hass, config_entry.entry_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("High-price discharge: solar forecast unavailable: %s", err)
+        self._solar_wh_hours = data.get("wh_hours", {}) if isinstance(data, dict) else {}
+        self._solar_wh_fetched_mono = monotonic()
+        self._last_rebuild_mono = None
+
+    def _maybe_rebuild(self, config: tuple) -> None:
         """Rebuild the plan when the throttle is due or the config changed."""
+        if config[3] and (self._solar_wh_fetched_mono is None or
+                          monotonic() - self._solar_wh_fetched_mono >= SOLAR_REFRESH_INTERVAL_S):
+            if self._solar_fetch_task is None or self._solar_fetch_task.done():
+                self._solar_fetch_task = self._hass.async_create_task(self._fetch_solar_forecast())
         due = (
             self._plan is None
             or self._last_rebuild_mono is None
@@ -262,13 +338,16 @@ class HighPriceDischargeManager:
             if now >= horizon_end:
                 horizon_end = pricing.energy_horizon_end(now)
             slots = self._build_horizon(pricing, now, horizon_end)
-            max_power_w, margin = config
+            max_power_w, margin, trigger_2, trigger_1, safety_margin = config
             plan = plan_high_price_discharge(
                 slots,
                 pricing._curtailment_battery_snapshots(),
                 now=self._aware(now),
                 horizon_end=self._aware(horizon_end),
-                enabled=True,
+                enabled=trigger_2,
+                trigger_1_enabled=trigger_1,
+                safety_margin_kwh=safety_margin,
+                fill_slots=self._build_fill_slots(pricing, now, horizon_end) if trigger_1 else (),
                 additional_cost_per_kwh=margin,
                 max_export_power_w=max_power_w,
                 # Reuses the arbitrage knob rather than adding a second one.
@@ -352,6 +431,47 @@ class HighPriceDischargeManager:
                 )
             )
         return horizon
+
+    def _build_fill_slots(
+        self, pricing: Any, now: datetime, horizon_end: datetime
+    ) -> tuple[HorizonSlot, ...]:
+        """Build tomorrow's covered solar/refill window from existing sources."""
+        if not self._solar_wh_hours:
+            return ()
+        # Sunrise is not on a slot boundary: the slot straddling it is kept and
+        # clipped to start at the horizon, as the planner clips the one before.
+        slots = sorted(
+            (slot for slot in pricing.get_future_export_price_slots(
+                horizon_end=horizon_end + timedelta(hours=24)
+            ) if slot.end > horizon_end), key=lambda slot: slot.start
+        )
+        solar = solar_wh_by_slot(slots, self._solar_wh_hours, horizon_end)
+        if not solar or slots[0].start > horizon_end:
+            return ()
+        covered = list(solar)
+        if any(previous.end != following.start
+               for previous, following in zip(covered, covered[1:])):
+            return ()
+        forecast = pricing._profile_remaining_consumption(now, covered[-1].end)
+        if forecast is None:
+            return ()
+        consumption = consumption_by_slot(
+            covered,
+            getattr(forecast, "intervals_by_date", None) or {},
+            getattr(forecast, "intervals_kwh", None),
+        )
+        if not consumption:
+            return ()
+        def share(slot):
+            start = max(slot.start, horizon_end)
+            return (slot.end - start) / (slot.end - slot.start)
+
+        return tuple(HorizonSlot(
+            start=self._aware(max(slot.start, horizon_end)), end=self._aware(slot.end),
+            export_price=slot.price, import_price=None,
+            consumption_kwh=float(consumption.get(slot, 0.0) or 0.0) * share(slot),
+            solar_kwh=solar[slot],
+        ) for slot in covered)
 
     @staticmethod
     def _import_price(import_slots: list, slot: Any) -> float | None:
@@ -463,6 +583,12 @@ class HighPriceDischargeManager:
             "enabled": bool(
                 getattr(self._controller, "high_price_discharge_enabled", False)
             ),
+            "surplus_export_enabled": bool(getattr(
+                self._controller, "high_price_surplus_export_enabled", False
+            )),
+            "trigger_1_budget_kwh": round(getattr(plan, "trigger_1_budget_kwh", 0.0), 3) if plan else 0.0,
+            "refill_price": getattr(plan, "refill_price", None) if plan else None,
+            "trigger_1_reason": getattr(plan, "trigger_1_reason", None) if plan else None,
             "target_w": round(power_w, 1) if power_w is not None else None,
         }
         if plan is not None:
@@ -483,6 +609,7 @@ class HighPriceDischargeManager:
                             "export_price": round(allocation.export_price, 5),
                             "threshold": round(allocation.threshold, 5),
                             "energy_kwh": round(allocation.energy_kwh, 3),
+                            "surplus_kwh": round(getattr(allocation, "surplus_kwh", 0.0), 3),
                             "power_w": round(allocation.power_w, 1),
                         }
                         for allocation in plan.allocations

@@ -32,6 +32,7 @@ EXPECTED = [
     ("surplus_hold_min_saving", "surplus"),
     ("surplus_price_hold_status", "surplus"),
     ("high_price_discharge", "highPrice"),
+    ("high_price_surplus_export", "highPrice"),
     ("high_price_discharge_status", "highPrice"),
     ("discharge_reserve", "reserve"),
     ("discharge_reserve_min_saving", "reserve"),

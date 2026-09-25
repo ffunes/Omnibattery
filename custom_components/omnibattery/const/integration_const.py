@@ -949,6 +949,8 @@ DEFAULT_DISCHARGE_RESERVE_MIN_SAVING = 0.05
 # importing what it just sold.  Dynamic pricing only, off by default.
 CONF_HIGH_PRICE_DISCHARGE_ENABLED = "high_price_discharge_enabled"
 DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED = False
+CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED = "high_price_surplus_export_enabled"
+DEFAULT_HIGH_PRICE_SURPLUS_EXPORT_ENABLED = False
 # Ceiling for the deliberate export, measured net at the connection point.
 # There is no knob for it: it is always the fleet's own discharge power, already
 # narrowed by the system-wide discharge cap (see

@@ -173,6 +173,8 @@ from .const import (
     DEFAULT_SURPLUS_PRICE_HOLD_ENABLED,
     CONF_HIGH_PRICE_DISCHARGE_ENABLED,
     DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED,
+    CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED,
+    DEFAULT_HIGH_PRICE_SURPLUS_EXPORT_ENABLED,
     CONF_HIGH_PRICE_DISCHARGE_MAX_POWER,
     default_high_price_discharge_max_power,
     CONF_SURPLUS_HOLD_MIN_SAVING,
@@ -1002,6 +1004,9 @@ class ChargeDischargeController:
         )
         self.high_price_discharge_enabled = config_entry.data.get(
             CONF_HIGH_PRICE_DISCHARGE_ENABLED, DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED
+        )
+        self.high_price_surplus_export_enabled = config_entry.data.get(
+            CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED, DEFAULT_HIGH_PRICE_SURPLUS_EXPORT_ENABLED
         )
         # Not a stored setting: the export ceiling is the fleet's own discharge
         # power, already narrowed by the system-wide cap. See the const helper.
@@ -2957,6 +2962,9 @@ class ChargeDischargeController:
         )
         self.high_price_discharge_enabled = self.config_entry.data.get(
             CONF_HIGH_PRICE_DISCHARGE_ENABLED, DEFAULT_HIGH_PRICE_DISCHARGE_ENABLED
+        )
+        self.high_price_surplus_export_enabled = self.config_entry.data.get(
+            CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED, DEFAULT_HIGH_PRICE_SURPLUS_EXPORT_ENABLED
         )
         self.high_price_discharge_max_power_w = default_high_price_discharge_max_power(
             self.config_entry.data
@@ -10555,6 +10563,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES,
             CONF_ENABLE_HOURLY_BALANCE,
             CONF_HIGH_PRICE_DISCHARGE_ENABLED,
+            CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED,
             CONF_SURPLUS_PRICE_HOLD_ENABLED,
             CONF_DISCHARGE_RESERVE_ENABLED,
         )
