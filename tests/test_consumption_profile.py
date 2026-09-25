@@ -574,6 +574,29 @@ def test_legacy_fallback_preserves_daily_total_across_dst(local_date):
     assert result.energy_kwh == pytest.approx(30.0)
 
 
+def test_legacy_fallback_scale_skips_the_segment_walk_on_a_regular_day(
+    monkeypatch,
+):
+    import custom_components.omnibattery.tracking.consumption_profile as module
+
+    profile = _profile(fallback_daily=30.0)
+    local_date = date(2026, 9, 24)
+    forecast = profile.forecast_for_date(local_date, fallback="legacy_daily")
+    assert forecast.source == "legacy_daily"
+
+    def _no_walk(*_args, **_kwargs):
+        raise AssertionError("a 24-hour day must not walk its segments")
+
+    # Charge Delay's unlock search asks for this scale dozens of times per
+    # control cycle, and the walk made it the hottest path on immature
+    # profiles (#511).  Only the DST days above may still pay for it.
+    monkeypatch.setattr(module, "_local_segments", _no_walk)
+
+    assert profile._legacy_fallback_day_scale(local_date, forecast) == (
+        pytest.approx(forecast.energy_kwh / sum(forecast.intervals_kwh))
+    )
+
+
 @pytest.mark.parametrize(
     "local_date",
     [date(2026, 3, 29), date(2026, 10, 25)],
