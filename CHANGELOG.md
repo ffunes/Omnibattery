@@ -10,6 +10,7 @@
 
 ### Fixed
 
+- **High price discharge uses the price of demand actually bought back**, not the earlier peak the battery would cover anyway.
 - **High price discharge now plans overnight instead of reporting "no data" until tomorrow's prices are published**: between midnight and sunrise it protected the house until the *following* day's sunrise, which needs prices not published until ~13:00. It now protects until this morning's sunrise.
 - **A Marstek block read the battery refuses no longer drops its registers silently** (#501): when the battery answers a block read with an exception — the span covers an address its firmware does not implement — those registers are now read one at a time and the span is never grouped again. A timeout still skips the span, on purpose: N doomed requests per cycle is what grouping (#361) exists to avoid. Both cases now name the affected entities in the log. Thanks to @sphings79.
 - **A battery already below the guaranteed minimum SOC now charges instead of reporting "no energy quota"**: the floor deadline only measured the drain still to come, so a battery held by peak shaving or a no-discharge window asked for nothing, and its deficit was deferred to tomorrow's depletion — past the point the sun fills the pack, which no configured window can reach. The existing gap to the floor is now a requirement of its own, due at sunrise, and the band is checked per battery as the reactive trigger does, not against the fleet total. Thanks to @ssorgatem.
