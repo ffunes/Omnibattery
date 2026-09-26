@@ -61,7 +61,6 @@ def test_energy_horizon_uses_target_dates_dst_offset(now, expected_offset):
 
     assert result.utcoffset() == expected_offset
     assert result.date() == now.date() + timedelta(days=1)
-    assert now.date() + timedelta(days=1) in tracker._solar_noon_cache
 
 
 def test_solar_noon_cache_is_keyed_by_date_across_dst_change():
@@ -70,7 +69,8 @@ def test_solar_noon_cache_is_keyed_by_date_across_dst_change():
     before = tracker.calculate_solar_noon(date(2026, 3, 28))
     after = tracker.calculate_solar_noon(date(2026, 3, 29))
 
-    assert after - before == pytest.approx(1.0)
+    # The DST hour dominates; the sun itself drifts by seconds per day.
+    assert after - before == pytest.approx(1.0, abs=0.01)
     assert set(tracker._solar_noon_cache) == {
         date(2026, 3, 28),
         date(2026, 3, 29),
@@ -133,3 +133,21 @@ def test_energy_horizon_is_clamped_to_first_twelve_hours(sunrise, expected_hour)
     result = manager.energy_horizon_end(now)
 
     assert result == datetime(2026, 4, 11, expected_hour, tzinfo=MADRID)
+
+
+@pytest.mark.parametrize(
+    "for_date, expected",
+    [
+        # Tiel, NL. Reference times from the astral/NOAA almanac (HA's sun.sun).
+        # The declination-only formula put these at 07:51 and 08:03.
+        (date(2026, 9, 27), time(7, 32)),
+        (date(2026, 11, 3), time(7, 36)),
+    ],
+)
+def test_sunrise_matches_the_almanac(for_date, expected):
+    tracker = _tracker(latitude=51.89, longitude=5.43)
+    tracker._hass.config.time_zone = "Europe/Amsterdam"
+
+    sunrise = tracker.calculate_sunrise(for_date)
+
+    assert sunrise == pytest.approx(expected.hour + expected.minute / 60, abs=1 / 60)

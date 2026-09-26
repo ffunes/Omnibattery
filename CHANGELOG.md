@@ -17,6 +17,7 @@
 - **Charge Delay is evaluated once per control cycle instead of twice** (#511). Thanks to @syphernl.
 - **Sessy and Hoymiles battery pages now show the configured capacity** instead of a dash.
 - **Charge Delay no longer loads the CPU while the consumption profile is still learning** (#511). Thanks to @syphernl.
+- **Sunrise and solar noon now match the almanac** (#410): both came from a declination-only formula without the equation of time or atmospheric refraction, so in the Netherlands the overnight horizon ended 19 minutes after the real sunrise in late September and 27 minutes after it in early November. They now come from `astral`, the library behind Home Assistant's `sun.sun`, so the plan budgets to the actual sunrise. Thanks to @syphernl.
 
 ## [1.5.0b3] - 2026-09-21
 
