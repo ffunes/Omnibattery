@@ -22,6 +22,10 @@ import statistics
 from datetime import date, datetime, time, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any, Optional
+from zoneinfo import ZoneInfo
+
+from astral import Observer
+from astral.sun import noon as astral_noon, sunrise as astral_sunrise
 
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
@@ -1761,60 +1765,55 @@ class ConsumptionTracker:
     # ------------------------------------------------------------------
 
     def calculate_solar_noon(self, for_date: date | None = None) -> float:
-        """Calculate local solar noon from HA longitude and timezone.
+        """Calculate local solar noon from HA location and timezone.
 
         Returns solar noon as a float hour (e.g. 13.25 = 13:15).
         Cached per date to handle DST transitions.
         """
-        from zoneinfo import ZoneInfo
-
         target_date = for_date or datetime.now().date()
         if target_date in self._solar_noon_cache:
             return self._solar_noon_cache[target_date]
 
-        tz = ZoneInfo(self._hass.config.time_zone)
-        local_noon = datetime.combine(target_date, time(12), tzinfo=tz)
-        utc_offset = local_noon.utcoffset().total_seconds() / 3600
-        solar_noon = 12.0 - (self._hass.config.longitude / 15.0) + utc_offset
+        config = self._hass.config
+        # Noon does not depend on latitude; fall back to the equator when unset.
+        observer = Observer(latitude=config.latitude or 0.0, longitude=config.longitude)
+        solar_noon = self._local_hours(
+            astral_noon(observer, target_date, tzinfo=ZoneInfo(config.time_zone)),
+            target_date,
+        )
         self._solar_noon_cache[target_date] = solar_noon
         _LOGGER.info(
-            "Weekly Full Charge Delay: Solar noon calculated at %.2fh (longitude=%.2f, UTC offset=%.1f)",
-            solar_noon, self._hass.config.longitude, utc_offset,
+            "Weekly Full Charge Delay: Solar noon calculated at %.2fh (longitude=%.2f)",
+            solar_noon, config.longitude,
         )
         return solar_noon
 
     def calculate_sunrise(self, for_date: date | None = None) -> Optional[float]:
-        """Estimate local sunrise time from HA latitude/longitude and day of year.
+        """Return local sunrise from HA latitude/longitude via astral.
 
-        Uses the standard solar declination + hour-angle formula.
         Returns sunrise as a float hour (e.g. 7.5 = 07:30), or None if the
         sun never rises on the requested date (polar night/day) or if HA location
         is not configured.
         """
         try:
-            latitude = self._hass.config.latitude
-            if latitude is None:
+            config = self._hass.config
+            if config.latitude is None:
                 return None
 
             target_date = for_date or datetime.now().date()
-            day_of_year = target_date.timetuple().tm_yday
-            lat_rad = math.radians(latitude)
-
-            # Solar declination (degrees → radians)
-            declination_rad = math.radians(
-                -23.45 * math.cos(math.radians(360 / 365 * (day_of_year + 10)))
+            observer = Observer(latitude=config.latitude, longitude=config.longitude)
+            return self._local_hours(
+                astral_sunrise(observer, target_date, tzinfo=ZoneInfo(config.time_zone)),
+                target_date,
             )
-
-            # Hour angle at sunrise: cos(H) = -tan(lat) * tan(dec)
-            cos_h = -math.tan(lat_rad) * math.tan(declination_rad)
-            if cos_h < -1 or cos_h > 1:
-                return None  # Polar day / polar night
-
-            hour_angle_deg = math.degrees(math.acos(cos_h))
-            solar_noon = self.calculate_solar_noon(target_date)
-            return solar_noon - hour_angle_deg / 15.0
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 - astral raises ValueError at polar night/day
             return None
+
+    @staticmethod
+    def _local_hours(moment: datetime, target_date: date) -> float:
+        """Wall-clock hours of ``moment`` since local midnight of ``target_date``."""
+        days = (moment.date() - target_date).days
+        return days * 24 + moment.hour + moment.minute / 60 + moment.second / 3600
 
     def detect_solar_t_start(self) -> None:
         """Detect start of solar production via grid sensor and battery state.
