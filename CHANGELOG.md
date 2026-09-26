@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Dynamic Pricing stops once the planned energy is in, instead of charging through a long run of cheap slots**: each slot's stop-SOC adds the planned grid energy to the live SOC, but that plan is only refreshed an hour before a slot, which never happens for slots that follow one another closely. Every slot after the first bought the same energy again: a 0.72 kWh deficit charged a 10 kWh battery from 28% to 95% over thirty quarter-hour slots. The plan is now refreshed when a slot follows a charge, and slots with nothing left to buy are skipped.
+
 ## [1.5.0b4] - 2026-09-22
 
 ### Added
