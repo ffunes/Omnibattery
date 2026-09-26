@@ -66,6 +66,8 @@ from ..solar_forecast import (
     solar_forecast_local_timezone,
     solar_forecast_period_energy_between,
 )
+from ..control.max_soc_charge import MaxSocChargeManager
+from ..control.pack_soc import soc_vs_ceiling
 from ..drivers.base import has_connected_mppt_pv
 from ..tracking.consumption_profile import adjust_remaining_fallback_energy
 from . import (
@@ -3894,11 +3896,12 @@ class PricingManager:
         if next_slot.start in self._controller._dp_pre_evaluated_slots:
             return
 
-        # Skip re-evaluation if we're currently charging — the battery hasn't
-        # benefited from the ongoing charge yet, so the result would be the same
-        # as the original 00:05 evaluation (misleading and noisy).
+        # Skip re-evaluation while a slot is charging: the balance would be
+        # taken mid-charge and be stale again by the time this slot starts.
         # This covers back-to-back slots where the pre-eval window of slot B
-        # coincides with the active charging window of slot A.
+        # coincides with the active charging window of slot A. Such a slot is
+        # re-evaluated when it is entered instead, once the energy delivered
+        # before it is known (see _refresh_spent_decision).
         if self._controller._current_price_slot_active:
             return
 
@@ -3906,6 +3909,17 @@ class PricingManager:
             "Dynamic pricing: running pre-slot re-evaluation for slot at %s",
             next_slot.start.strftime("%H:%M")
         )
+        await self._reevaluate_slot_purpose(next_slot, now)
+
+    async def _reevaluate_slot_purpose(
+        self,
+        next_slot: PriceSlot,
+        now: datetime,
+        *,
+        notify: bool = True,
+        rearm_triggers: bool = True,
+    ) -> None:
+        """Refresh the remaining balance and record what ``next_slot`` may do."""
         schedule = self._controller._dynamic_pricing_schedule
         purpose = (
             schedule.purpose_for(next_slot)
@@ -3918,19 +3932,6 @@ class PricingManager:
             SLOT_PURPOSE_COMBINED,
         }
 
-        # Do not turn a temporarily full solar reserve into a permanent
-        # ``purpose=None`` decision.  A later under-production update may free
-        # space during the risk slot, so the live gate must retain authority.
-        curtailment_plan = getattr(self._controller, "_curtailment_plan", None)
-        if (
-            has_opportunity
-            and curtailment_plan is not None
-            and self._slot_overlaps_curtailment_risk(next_slot)
-            and getattr(curtailment_plan, "solar_reserve_by_slot", {})
-            and self._curtailment_opportunistic_space(curtailment_plan) <= 1e-6
-        ):
-            return
-
         decision = None
         deficit_needed = False
         if has_deficit and bool(
@@ -3938,10 +3939,12 @@ class PricingManager:
         ):
             decision = await self._evaluate_remaining_grid_charging(now=now)
             self._controller._last_decision_data = decision
-            # This plan already accounts for the current claim (#341); re-arm the
-            # trigger so it does not immediately ask for another re-evaluation.
-            self._refresh_excluded_demand_reference()
-            self._refresh_solar_forecast_reference(now)
+            if rearm_triggers:
+                # This plan already accounts for the current claim (#341);
+                # re-arm the trigger so it does not immediately ask for
+                # another re-evaluation.
+                self._refresh_excluded_demand_reference()
+                self._refresh_solar_forecast_reference(now)
             deficit_needed = bool(decision["should_charge"])
             if (
                 getattr(schedule, "chronological_planning_active", False)
@@ -3952,6 +3955,23 @@ class PricingManager:
                 # after this deadline. It is not evidence that the urgent slot
                 # became unnecessary.
                 deficit_needed = True
+
+        # Do not turn a temporarily full solar reserve into a permanent
+        # ``purpose=None`` decision.  A later under-production update may free
+        # space during the risk slot, so the live gate must retain authority.
+        # Only the deficit verdict is recorded: a combined slot still sizes its
+        # deficit part from the balance above, and the record keeps this gate
+        # from evaluating it again on every cycle of its window.
+        curtailment_plan = getattr(self._controller, "_curtailment_plan", None)
+        if (
+            has_opportunity
+            and curtailment_plan is not None
+            and self._slot_overlaps_curtailment_risk(next_slot)
+            and getattr(curtailment_plan, "solar_reserve_by_slot", {})
+            and self._curtailment_opportunistic_space(curtailment_plan) <= 1e-6
+        ):
+            self._controller._dp_pre_evaluated_slots[next_slot.start] = deficit_needed
+            return
 
         opportunity_needed = False
         if has_opportunity and self._negative_price_feature_enabled():
@@ -3990,7 +4010,7 @@ class PricingManager:
         if has_opportunity and not self._opportunistic_target_pending():
             self._prune_completed_opportunities()
 
-        if deficit_needed and decision is not None:
+        if notify and deficit_needed and decision is not None:
             await self._send_dp_pre_slot_reevaluation_notification(next_slot, decision)
 
     async def _send_dp_pre_slot_reevaluation_notification(
@@ -5056,16 +5076,184 @@ class PricingManager:
                 continue
         return False
 
-    async def _stop_dynamic_price_slot(
-        self, reason: str, *, write_idle: bool = True
-    ) -> None:
-        """Stop a live price-slot charge and return battery ownership safely."""
+    def _mark_decision_spent(self) -> None:
+        """Record that a charge ran to the target sized from its decision.
+
+        Compared by identity: every evaluation assigns a new decision dict, so
+        one taken after the target was built never matches. That newer
+        decision saw the delivered energy and is not spent, which is also why
+        the marker needs no reset at midnight or on disable.
+        """
         controller = self._controller
-        active_slot = getattr(controller, "_active_dynamic_price_slot", None)
+        controller._dp_spent_decision = getattr(
+            controller, "_predictive_target_decision", None
+        )
+
+    def _decision_already_charged(self, slot: PriceSlot) -> bool:
+        """Return whether a charge already spent the decision ``slot`` would use.
+
+        A slot without its own quota targets the live SOC plus the decision's
+        ``planned_grid_charge_kwh``, which was sized from the SOC at evaluation
+        time. Once a charge has run to a target built from that decision,
+        adding the same figure to the now higher SOC would buy it again.
+        """
+        controller = self._controller
+        schedule = getattr(controller, "_dynamic_pricing_schedule", None)
+        if schedule is None:
+            return False
+        if getattr(schedule, "chronological_planning_active", False) and (
+            slot in getattr(schedule, "slot_energy_targets_kwh", {})
+        ):
+            return False
+        decision = getattr(controller, "_last_decision_data", None)
+        return decision is not None and decision is getattr(
+            controller, "_dp_spent_decision", None
+        )
+
+    async def _refresh_spent_decision(self, slot: PriceSlot, now: datetime) -> None:
+        """Re-run the pre-slot gate for a deficit slot whose decision is spent.
+
+        The regular gate runs an hour ahead and skips while a slot charges, so
+        a slot that follows another closely is otherwise entered on a balance
+        taken before that energy was delivered.
+        """
+        schedule = getattr(self._controller, "_dynamic_pricing_schedule", None)
+        if schedule is None or not getattr(schedule, "charging_needed", False):
+            return
+        if not getattr(schedule, "deficit_charging_needed", schedule.charging_needed):
+            return
+        if schedule.purpose_for(slot) not in {
+            SLOT_PURPOSE_DEFICIT,
+            SLOT_PURPOSE_COMBINED,
+        }:
+            return
+        if not self._decision_already_charged(slot):
+            return
+        # ponytail: the #341 and solar-forecast triggers are not re-armed here.
+        # This refresh never rebuilds the calendar, so leaving their references
+        # alone keeps a slow drift during a long run able to trigger the
+        # rebuild that can add or withdraw slots.
+        await self._reevaluate_slot_purpose(
+            slot, now, notify=False, rearm_triggers=False
+        )
+        _LOGGER.info(
+            "Dynamic pricing: remaining balance re-evaluated for slot %s, "
+            "%.2f kWh still planned",
+            slot.start.strftime("%H:%M"),
+            float(
+                (self._controller._last_decision_data or {}).get(
+                    "planned_grid_charge_kwh", 0.0
+                )
+                or 0.0
+            ),
+        )
+
+    def _deficit_slot_has_work(self) -> bool:
+        """Return whether a battery is still below the active deficit target.
+
+        A probe: the target is built quietly and discarded, so the handler
+        still builds its own when the slot is taken. A slot sized from a
+        balance that needs nothing would otherwise start, stop on its first
+        cycle and write an idle command in between. Judged like
+        ``_get_available_batteries``: on the least full pack, and toward the
+        charge ceiling when there is no deficit target.
+        """
+        controller = self._controller
+        compute = getattr(controller, "_compute_predictive_target_soc", None)
+        if not callable(compute):
+            # Lightweight controller stand-ins; the handler decides as before.
+            return True
+        sized_from = getattr(controller, "_predictive_target_decision", None)
+        targets = compute(log=False)
+        controller._predictive_deficit_target_soc = None
+        controller._predictive_target_decision = sized_from
+        # Called unbound on the lightweight stand-ins, like ``compute`` above.
+        ceiling = getattr(controller, "_charge_ceiling_soc", None)
+        for coordinator in getattr(controller, "coordinators", []):
+            if not self._opportunistic_battery_eligible(coordinator):
+                continue
+            if targets is None:
+                target = float(
+                    ceiling(coordinator) if callable(ceiling) else coordinator.max_soc
+                )
+            elif coordinator in targets:
+                target = float(targets[coordinator])
+            else:
+                continue
+            if (
+                target >= 100.0
+                and MaxSocChargeManager._uses_bms_cutoff_at_top(coordinator)
+                and MaxSocChargeManager._taper_enabled(coordinator)
+            ):
+                # ponytail: at a 100% ceiling a Venus A/D may keep charging to
+                # its BMS cutoff past a reported full SOC. That check prepares
+                # retry state, so the probe cannot ask it; the handler decides.
+                # Charge hysteresis, per-battery blockers and a detected BMS
+                # cutoff are not mirrored either: each only makes the probe
+                # take a slot the handler then stops, as before this check.
+                return True
+            try:
+                soc = float(coordinator.data.get("battery_soc", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if soc_vs_ceiling(coordinator, soc) < target:
+                return True
+        return False
+
+    async def _hand_over_dynamic_price_slot(
+        self, slot: PriceSlot, now: datetime
+    ) -> None:
+        """Move a running charge into the directly following selected slot.
+
+        Only the per-slot runtime state is renewed: the charge keeps its
+        physical ownership and controller state, so the boundary sends no idle
+        command. When the new slot has nothing left to do, the slot stops the
+        way it would at the end of a selected run.
+        """
+        controller = self._controller
+        self._carry_over_slot_shortfall(
+            getattr(controller, "_active_dynamic_price_slot", None),
+            incoming=slot,
+        )
+        self._mark_decision_spent()
+        completed = slot.start in getattr(controller, "_dp_completed_slots", set())
+        if not completed:
+            await self._refresh_spent_decision(slot, now)
+        purpose = None if completed else self._effective_slot_purpose(slot)
+        if purpose is not None:
+            controller._active_dynamic_price_slot = slot
+            controller._active_dynamic_slot_purpose = purpose
+            controller._predictive_charge_target_soc = None
+            controller._predictive_deficit_target_soc = None
+            controller._curtailment_opportunistic_target_soc = None
+            controller._curtailment_opportunity_limited = False
+            if purpose == SLOT_PURPOSE_DEFICIT and not self._deficit_slot_has_work():
+                controller._dp_completed_slots.add(slot.start)
+                purpose = None
+        if purpose is None:
+            await self._stop_dynamic_price_slot("next_slot_not_needed", write_idle=False)
+            return
+        _LOGGER.info(
+            "Dynamic pricing: continuing into %s slot %s",
+            purpose,
+            slot.start.strftime("%H:%M"),
+        )
+
+    def _carry_over_slot_shortfall(
+        self,
+        active_slot: PriceSlot | None,
+        *,
+        incoming: PriceSlot | None = None,
+    ) -> None:
+        """Move a finished slot's undelivered quota to later slots before its deadline.
+
+        ``incoming`` is the slot a running charge is handed to: it has already
+        started, but can still take the energy.
+        """
+        controller = self._controller
         schedule = getattr(controller, "_dynamic_pricing_schedule", None)
         if (
-            reason == "slot_ended"
-            and active_slot is not None
+            active_slot is not None
             and schedule is not None
             and getattr(schedule, "chronological_planning_active", False)
             and active_slot in schedule.slot_energy_targets_kwh
@@ -5086,7 +5274,10 @@ class PricingManager:
                 ) / 1000.0
                 for slot in sorted(schedule.selected_slots, key=lambda item: item.start):
                     if (
-                        slot.start < datetime.now()
+                        (
+                            slot.start < datetime.now()
+                            and (incoming is None or slot.start != incoming.start)
+                        )
                         or slot == active_slot
                         or (deadline is not None and slot.end > deadline)
                     ):
@@ -5115,6 +5306,17 @@ class PricingManager:
                     remaining,
                     deadline.isoformat() if deadline is not None else "unknown",
                 )
+
+    async def _stop_dynamic_price_slot(
+        self, reason: str, *, write_idle: bool = True
+    ) -> None:
+        """Stop a live price-slot charge and return battery ownership safely."""
+        controller = self._controller
+        if reason == "slot_ended":
+            self._carry_over_slot_shortfall(
+                getattr(controller, "_active_dynamic_price_slot", None)
+            )
+        self._mark_decision_spent()
         controller._current_price_slot_active = False
         controller._grid_charging_initialized = False
         controller.grid_charging_active = False
@@ -5405,16 +5607,32 @@ class PricingManager:
                 None,
             )
 
+            # Adjacent selected slots leave in_slot true across the boundary,
+            # so neither branch below would notice it. Hand the charge over
+            # explicitly, or the first slot's target and balance stay in
+            # force for the whole run.
+            active_slot = getattr(self._controller, "_active_dynamic_price_slot", None)
+            if (
+                self._controller._current_price_slot_active
+                and current_slot is not None
+                and active_slot is not None
+                and current_slot.start != active_slot.start
+            ):
+                await self._hand_over_dynamic_price_slot(current_slot, now)
+
             if in_slot and not self._controller._current_price_slot_active:
+                completed = (
+                    current_slot is not None
+                    and current_slot.start in getattr(self._controller, "_dp_completed_slots", set())
+                )
+                if current_slot is not None and not completed:
+                    await self._refresh_spent_decision(current_slot, now)
                 effective_purpose = (
                     self._effective_slot_purpose(current_slot)
                     if current_slot is not None
                     else None
                 )
-                if (
-                    current_slot is not None
-                    and current_slot.start in getattr(self._controller, "_dp_completed_slots", set())
-                ):
+                if completed:
                     effective_purpose = None
 
                 # Informational/completed schedule — no grid charging needed.
@@ -5432,19 +5650,33 @@ class PricingManager:
                     # Fall through to discharge control below (do not return early)
 
                 else:
-                    # Entering an authorised typed slot.
-                    self._controller._current_price_slot_active = True
-                    self._controller._grid_charging_initialized = False
                     self._controller._active_dynamic_slot_purpose = effective_purpose
-                    self._controller._active_dynamic_price_slot = current_slot
-                    self._controller.grid_charging_active = True
-                    if current_slot:
-                        await self._send_dynamic_pricing_slot_start_notification(current_slot)
-                    _LOGGER.info(
-                        "Dynamic pricing: entering %s slot %s",
-                        effective_purpose,
-                        current_slot.start.strftime("%H:%M") if current_slot else "unknown",
-                    )
+                    if (
+                        effective_purpose == SLOT_PURPOSE_DEFICIT
+                        and not self._deficit_slot_has_work()
+                    ):
+                        # Nothing left to buy: taking the slot would only stop
+                        # it again on the first cycle, with an idle write and
+                        # a start notification in between.
+                        self._controller._active_dynamic_slot_purpose = None
+                        self._controller._dp_completed_slots.add(current_slot.start)
+                        _LOGGER.debug(
+                            "Dynamic pricing: slot %s has no deficit left — skipping",
+                            current_slot.start.strftime("%H:%M"),
+                        )
+                    else:
+                        # Entering an authorised typed slot.
+                        self._controller._current_price_slot_active = True
+                        self._controller._grid_charging_initialized = False
+                        self._controller._active_dynamic_price_slot = current_slot
+                        self._controller.grid_charging_active = True
+                        if current_slot:
+                            await self._send_dynamic_pricing_slot_start_notification(current_slot)
+                        _LOGGER.info(
+                            "Dynamic pricing: entering %s slot %s",
+                            effective_purpose,
+                            current_slot.start.strftime("%H:%M") if current_slot else "unknown",
+                        )
 
             elif not in_slot and self._controller._current_price_slot_active:
                 # Normal PD takes ownership later in this same cycle; avoid an

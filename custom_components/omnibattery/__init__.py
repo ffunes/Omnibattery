@@ -1057,6 +1057,8 @@ class ChargeDischargeController:
         self._dp_pre_evaluated_slots: dict = {}  # slot.start (datetime) → should_charge (bool)
         self._dp_pre_evaluated_purposes: dict = {}  # slot.start → effective typed purpose
         self._dp_completed_slots: set = set()  # slot.start values completed in this plan
+        self._predictive_target_decision = None  # decision the live deficit target was sized from
+        self._dp_spent_decision = None  # that decision once a slot charged to it (see engine)
         self._active_dynamic_slot_purpose: Optional[str] = None
         self._price_data_status = "not_evaluated"
         self._price_health_last_check = None      # monotonic ts of last health poll
@@ -5504,7 +5506,7 @@ class ChargeDischargeController:
         return self._check_time_window()
 
     def _compute_deficit_target_soc(
-        self, planned_kwh: float | None = None
+        self, planned_kwh: float | None = None, *, log: bool = True
     ) -> Optional[dict]:
         """Calculate per-battery grid-only SOC targets for a forecast deficit.
 
@@ -5522,6 +5524,9 @@ class ChargeDischargeController:
         (callers fall back to max_soc behaviour when None is returned).
         """
         decision_data = self._last_decision_data
+        # The pricing engine uses this to tell whether a charge has already
+        # spent the decision a later slot would otherwise be sized from.
+        self._predictive_target_decision = decision_data
         if not decision_data:
             return None
 
@@ -5587,7 +5592,8 @@ class ChargeDischargeController:
                 target = min(ceiling, max(target, floor_soc))
             targets[c] = max(target, current_soc)  # never go below current SOC
 
-        _LOGGER.info(
+        _LOGGER.log(
+            logging.INFO if log else logging.DEBUG,
             "Predictive charging: per-battery grid-only targets "
             "(deficit=%.2f kWh, grid_charge=%.2f kWh / total_gap=%.2f kWh): %s",
             energy_deficit_kwh, grid_charge_kwh, total_gap_kwh,
@@ -5625,7 +5631,7 @@ class ChargeDischargeController:
             targets[coordinator] = target
         return targets or None
 
-    def _compute_predictive_target_soc(self) -> Optional[dict]:
+    def _compute_predictive_target_soc(self, *, log: bool = True) -> Optional[dict]:
         """Return the SOC target authorized by the active typed price slot.
 
         Deficit targets remain authoritative in ordinary slots.  The
@@ -5652,7 +5658,7 @@ class ChargeDischargeController:
             if active_slot is not None:
                 planned_kwh = schedule.slot_energy_targets_kwh.get(active_slot)
         deficit_targets = ChargeDischargeController._compute_deficit_target_soc(
-            self, planned_kwh=planned_kwh
+            self, planned_kwh=planned_kwh, log=log
         )
         self._predictive_deficit_target_soc = (
             deficit_targets
