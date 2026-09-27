@@ -844,3 +844,36 @@ def test_venus_a_d_at_one_hundred_percent_is_left_to_the_handler(clock):
 
     assert ctrl._current_price_slot_active is True
     assert manager.notifications == [slot.start]
+
+
+def test_full_solar_reserve_verdict_is_not_shadowed_by_an_earlier_purpose(clock):
+    # The curtailment-risk branch of the gate records only a deficit verdict.
+    # A typed purpose recorded by an earlier run for the same slot must not
+    # outrank it: here "opportunity only" was recorded while the balance
+    # needed nothing, and would hide the deficit the house has created since.
+    battery = _Battery(60.0)
+    (slot,) = _slots(_at(10, 30), [-0.05])
+    ctrl = _controller(battery, _decision(0.0), _schedule({slot: SLOT_PURPOSE_COMBINED}))
+    ctrl._curtailment_plan = SimpleNamespace(solar_reserve_by_slot={slot: 1.0})
+    manager = _manager(ctrl, _balance(battery, 4.0))
+    space = {"kwh": 1.0}
+    manager._slot_overlaps_curtailment_risk = lambda _slot: True
+    manager._curtailment_opportunistic_space = lambda _plan: space["kwh"]
+
+    clock.value = _at(9, 25)
+    asyncio.run(manager._reevaluate_slot_purpose(slot, clock.value))
+    assert ctrl._dp_pre_evaluated_purposes[slot.start] == SLOT_PURPOSE_NEGATIVE_PRICE
+
+    battery.soc = 20.0
+    space["kwh"] = 0.0
+    clock.value = _at(10, 25)
+    asyncio.run(manager._reevaluate_slot_purpose(slot, clock.value))
+
+    assert ctrl._dp_pre_evaluated_slots[slot.start] is True
+    assert manager._effective_slot_purpose(slot) == SLOT_PURPOSE_DEFICIT
+
+    clock.value = slot.start
+    _run(manager)
+
+    assert ctrl._current_price_slot_active is True
+    assert ctrl._predictive_charge_target_soc[battery] == pytest.approx(40.0)
