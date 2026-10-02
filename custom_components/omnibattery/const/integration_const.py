@@ -1004,6 +1004,10 @@ def default_high_price_discharge_max_power(data) -> float:
 # separate sensor matters where export is paid differently from import.
 CONF_EXPORT_PRICE_SENSOR = "export_price_sensor"
 CONF_EXPORT_PRICE_INTEGRATION_TYPE = "export_price_integration_type"
+CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED = "zonneplan_export_bonus_enabled"
+DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED = True
+ZONNEPLAN_EXPORT_BONUS_RATE = 0.10
+ZONNEPLAN_EXPORT_BONUS_FIXED_EUR_PER_KWH = 0.02
 
 PREDICTIVE_MODE_TIME_SLOT = "time_slot"
 PREDICTIVE_MODE_DYNAMIC_PRICING = "dynamic_pricing"

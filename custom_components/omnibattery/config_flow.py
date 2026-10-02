@@ -109,6 +109,8 @@ from .const import (
     CONF_PRICE_INTEGRATION_TYPE,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_EXPORT_PRICE_INTEGRATION_TYPE,
+    CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+    DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
     CONF_AVERAGE_PRICE_SENSOR,
     PREDICTIVE_MODE_TIME_SLOT,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
@@ -2608,6 +2610,13 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     self.config_data[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = user_input.get(
                         CONF_EXPORT_PRICE_INTEGRATION_TYPE
                     )
+                    self.config_data[CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED] = user_input.get(
+                        CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                        existing_config.get(
+                            CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                            DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                        ),
+                    )
                     return await self._finish_setup()
             except Exception as e:
                 _LOGGER.error("Error validating dynamic pricing config: %s", e)
@@ -2617,6 +2626,11 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         default_sensor = existing_config.get(CONF_PRICE_SENSOR, "")
         default_export_sensor = existing_config.get(CONF_EXPORT_PRICE_SENSOR)
         default_export_type = existing_config.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
+        effective_export_type = (
+            default_export_type or default_integration
+            if default_export_sensor
+            else default_integration
+        )
 
         schema_dict: dict = {
             vol.Required(CONF_PRICE_INTEGRATION_TYPE, default=default_integration):
@@ -2635,6 +2649,14 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             CONF_EXPORT_PRICE_INTEGRATION_TYPE,
             description={"suggested_value": default_export_type} if default_export_type else {},
         )] = _price_integration_type_selector(_price_integration_export_options())
+        if effective_export_type == PRICE_INTEGRATION_ZONNEPLAN:
+            schema_dict[vol.Optional(
+                CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                default=existing_config.get(
+                    CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                    DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                ),
+            )] = BooleanSelector()
         if not _has_global_forecast_sensor(existing_config):
             default_forecast = existing_config.get("solar_forecast_sensor", "")
             schema_dict[vol.Optional(
@@ -5314,6 +5336,13 @@ class OptionsFlowHandler(OptionsFlow):
                     self.config_data[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = user_input.get(
                         CONF_EXPORT_PRICE_INTEGRATION_TYPE
                     )
+                    self.config_data[CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED] = user_input.get(
+                        CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                        existing_config.get(
+                            CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                            DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                        ),
+                    )
                     return await self._save_and_finish()
             except Exception as e:
                 _LOGGER.error("Error validating dynamic pricing config: %s", e)
@@ -5323,6 +5352,11 @@ class OptionsFlowHandler(OptionsFlow):
         default_sensor = existing_config.get(CONF_PRICE_SENSOR, "")
         default_export_sensor = existing_config.get(CONF_EXPORT_PRICE_SENSOR)
         default_export_type = existing_config.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
+        effective_export_type = (
+            default_export_type or default_integration
+            if default_export_sensor
+            else default_integration
+        )
 
         schema_dict: dict = {
             vol.Required(CONF_PRICE_INTEGRATION_TYPE, default=default_integration):
@@ -5341,6 +5375,14 @@ class OptionsFlowHandler(OptionsFlow):
             CONF_EXPORT_PRICE_INTEGRATION_TYPE,
             description={"suggested_value": default_export_type} if default_export_type else {},
         )] = _price_integration_type_selector(_price_integration_export_options())
+        if effective_export_type == PRICE_INTEGRATION_ZONNEPLAN:
+            schema_dict[vol.Optional(
+                CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                default=existing_config.get(
+                    CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                    DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                ),
+            )] = BooleanSelector()
         if not _has_global_forecast_sensor(existing_config):
             default_forecast = existing_config.get("solar_forecast_sensor", "")
             schema_dict[vol.Optional(

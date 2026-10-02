@@ -181,6 +181,8 @@ from .const import (
     DEFAULT_SURPLUS_HOLD_MIN_SAVING,
     CONF_EXPORT_PRICE_SENSOR,
     CONF_EXPORT_PRICE_INTEGRATION_TYPE,
+    CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+    DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
     CONF_AVERAGE_PRICE_SENSOR,
     CONF_DP_PRICE_DISCHARGE_CONTROL,
     CONF_RT_PRICE_DISCHARGE_CONTROL,
@@ -1030,6 +1032,10 @@ class ChargeDischargeController:
         self.export_price_sensor = config_entry.data.get(CONF_EXPORT_PRICE_SENSOR, None)
         self.export_price_integration_type = config_entry.data.get(
             CONF_EXPORT_PRICE_INTEGRATION_TYPE, None
+        )
+        self.zonneplan_export_bonus_enabled = config_entry.data.get(
+            CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+            DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
         )
         # Single switch backing both DP and RT gating (they are mutually exclusive
         # modes). dp_price_discharge_control / rt_price_discharge_control stay
@@ -2962,6 +2968,7 @@ class ChargeDischargeController:
             self.surplus_price_hold_enabled,
             self.export_price_sensor,
             self.export_price_integration_type,
+            self.zonneplan_export_bonus_enabled,
         )
         self.surplus_price_hold_enabled = self.config_entry.data.get(
             CONF_SURPLUS_PRICE_HOLD_ENABLED, DEFAULT_SURPLUS_PRICE_HOLD_ENABLED
@@ -2989,6 +2996,10 @@ class ChargeDischargeController:
         self.export_price_integration_type = self.config_entry.data.get(
             CONF_EXPORT_PRICE_INTEGRATION_TYPE, None
         )
+        self.zonneplan_export_bonus_enabled = self.config_entry.data.get(
+            CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+            DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+        )
         # A stale plan built against the old price curve, or one left behind by
         # a feature that was just switched off, must never keep charging blocked.
         if (
@@ -2997,6 +3008,7 @@ class ChargeDischargeController:
                 self.surplus_price_hold_enabled,
                 self.export_price_sensor,
                 self.export_price_integration_type,
+                self.zonneplan_export_bonus_enabled,
             )
             or not self.surplus_price_hold_enabled
             or self.predictive_charging_mode != PREDICTIVE_MODE_DYNAMIC_PRICING
