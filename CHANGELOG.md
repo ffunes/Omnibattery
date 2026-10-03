@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- **Backup Function no longer keeps a Venus excluded while the grid is present**: in Bypass the grid is passed through to the backup port, so a constant load there read as an outage above the threshold and refreshed the 5-minute cooldown forever. The port is now treated as idle while the inverter reports Bypass; a real outage (backup state) is unchanged.
 - **LilyGo/ESPHome: Backup Function no longer keeps the battery excluded forever** (#534): the driver now reads **AC Offgrid Power** (register 32302); the stock YAML lacks it, so the docs give the block to add, and a warning names it when missing. Thanks to @Reinvented0.
 - **High Price Sale no longer goes unavailable from sunrise until the next day's prices are published** (#530): the night after the last published price now counts as protected demand with no price — never sold into or used as a buy-back — so trigger 2 can still sell a morning peak against cheaper demand later the same day. Trigger 1 still waits for tomorrow's prices. Thanks to @RobtoCopter.
 - **Re-evaluate button no longer fails with a template-recalculated Nordpool sensor**: `raw_today`/`raw_tomorrow` start/end rendered as text crashed with `'>' not supported between 'str' and 'datetime'`; they are now parsed as datetimes.
