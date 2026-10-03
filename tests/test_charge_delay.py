@@ -967,8 +967,12 @@ def test_genuine_deficit_unlocks_without_consulting_prices(monkeypatch):
 
 
 def test_cushion_hold_window_never_passes_bare_balance_edge(monkeypatch):
-    # The edge handed to the price scorer is the BARE (x1.0) balance crossing,
-    # never the factored one, so the hold cannot eat into the target itself.
+    # The edge handed to the price scorer is bounded by every bare (x1.0)
+    # balance crossing in play — both the whole-day one (cushion_edge_h) and
+    # the deadline-bounded one (solar_feasible_unlock_h, added so the delay
+    # unlocks early enough for solar-only charging to still make the safety
+    # margin) — never the factored one, so the hold cannot eat into the
+    # target itself.
     _at_hour(monkeypatch, 9)
     mgr = _cushion_mgr(4.85)
     edges = []
@@ -985,10 +989,22 @@ def test_cushion_hold_window_never_passes_bare_balance_edge(monkeypatch):
     mgr._should_delay_charge(80)
 
     bare = [p for p in projections if p[1].get("safety_factor") == 1.0]
-    assert len(bare) == 1, "the bare-balance projection must be requested exactly once"
-    bare_edge = bare[0][2]
-    time_backup_h = 16.0 - mgr._controller._charge_delay_status["charge_time_h"] - 0.5
-    assert edges == [pytest.approx(min(bare_edge, time_backup_h))]
+    assert len(bare) == 2, "expected the deadline-bounded and whole-day bare projections"
+    deadline_bounded = [p for p in bare if "horizon_h" in p[1]]
+    whole_day = [p for p in bare if "horizon_h" not in p[1]]
+    assert len(deadline_bounded) == 1 and len(whole_day) == 1
+    solar_feasible_edge = deadline_bounded[0][2]
+    cushion_edge = whole_day[0][2]
+    nominal_time_backup_h = 16.0 - mgr._controller._charge_delay_status["charge_time_h"] - 0.5
+    time_backup_h = (
+        min(nominal_time_backup_h, solar_feasible_edge)
+        if solar_feasible_edge is not None
+        else nominal_time_backup_h
+    )
+    expected_edge = (
+        min(time_backup_h, cushion_edge) if cushion_edge is not None else time_backup_h
+    )
+    assert edges == [pytest.approx(expected_edge)]
     assert edges[0] > 9.0  # there was room to wait at all
 
 
@@ -1000,6 +1016,130 @@ def test_estimate_bare_edge_is_later_than_factored_edge():
     factored = mgr._estimate_energy_balance_unlock_h(10.0, 1.0, 8.0, 16.0, 8.0)
     bare = mgr._estimate_energy_balance_unlock_h(10.0, 1.0, 8.0, 16.0, 8.0, safety_factor=1.0)
     assert bare > factored
+
+
+# ----------------------------------------------------------------------
+# Deadline-bounded solar feasibility (time_backup should reflect realistic
+# solar-only pacing, not just a full-hardware-power assumption)
+# ----------------------------------------------------------------------
+
+def test_horizon_h_shrinks_the_window_without_reshaping_the_curve():
+    """A tighter horizon must only cut off late-day production, not distort
+    the sinusoidal shape (which stays keyed to the true t_start/t_end).
+    """
+    mgr = _make_mgr(_controller())
+    full = mgr._estimate_energy_balance_unlock_h(
+        10.0, 5.0, 8.0, 16.0, 8.0, safety_factor=1.0,
+    )
+    bounded = mgr._estimate_energy_balance_unlock_h(
+        10.0, 5.0, 8.0, 16.0, 8.0, safety_factor=1.0, horizon_h=12.0,
+    )
+    # Less production is countable within the shorter window, so the
+    # bounded edge (if any) must be no later than the full-window edge, and
+    # a bounded run can turn a previously-safe (None) day into a real edge.
+    assert bounded is not None
+    assert full is None or bounded <= full + 1e-9
+
+
+def test_horizon_h_matching_t_end_reproduces_original_behavior():
+    mgr = _make_mgr(_controller())
+    args = (10.0, 5.0, 8.0, 16.0, 8.0)
+    kwargs = dict(safety_factor=1.0, forecast_is_remaining=True)
+    baseline = mgr._estimate_energy_balance_unlock_h(*args, **kwargs)
+    explicit = mgr._estimate_energy_balance_unlock_h(*args, horizon_h=16.0, **kwargs)
+    assert explicit == baseline
+
+
+def test_solar_feasible_unlock_triggers_time_backup_before_nominal_would(monkeypatch):
+    """At a large safety margin, the naive full-power formula alone
+    (``nominal_time_backup_unlock_h``) is not yet due, but the deadline-bounded
+    solar-only projection (``solar_feasible_unlock_h``) already is -> the gate
+    must unlock now, with reason ``time_backup``. Without the
+    ``min(nominal, solar_feasible)`` this stays delayed until 13:25, so this
+    fails if that call is ever dropped (unlike a bare ``unlock_h <= nominal``
+    check, which holds trivially either way).
+
+    This mirrors the original bug report (4.5 h margin, delay unlocking far
+    later than the configured "hours before sunset" deadline): a large
+    margin is exactly where the naive full-power estimate is too optimistic.
+    """
+    now = dt_util.now().replace(hour=13, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
+    ctrl = _controller(
+        # 40% -> 60% of 10 kWh = 2 kWh needed.
+        coordinators=[_coord(soc=40, total_energy=10.0, min_soc=20)],
+        _consumption_tracker=_tracker(
+            estimate_t_end=lambda: 18.0,
+            get_avg_daily_consumption=lambda: 0.5,
+        ),
+        _solar_t_start=8.0,
+        _delay_safety_margin_h=4.0,
+        _effective_system_capacity=lambda coords, is_charging: 4000.0,
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(6.0)})
+
+    mgr._should_delay_charge(60)
+    status = ctrl._charge_delay_status
+
+    nominal = 18.0 - status["charge_time_h"] - 4.0
+    assert nominal > 13.0 + 1e-6, "scenario must not already unlock via nominal alone"
+    assert status["unlock_reason"] == "time_backup"
+    assert _hhmm_to_h(status["estimated_unlock_time"]) <= 13.0 + 1e-6
+
+
+def test_solar_feasible_unlock_is_discarded_when_it_disagrees_with_measured_balance(monkeypatch):
+    """Mirrors the existing guard on ``energy_balance_unlock_h``: if the
+    sinusoid model claims the bare deadline balance is already broken right
+    now, but the measured remaining-solar tally says otherwise, the estimate
+    must be discarded rather than force an immediate same-day unlock.
+    """
+    now = dt_util.now().replace(hour=14, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(charge_delay_module, "_decision_now", lambda: now)
+    ctrl = _controller(
+        # 50% -> 80% of 10 kWh = 3 kWh needed.
+        coordinators=[_coord(soc=50, total_energy=10.0, min_soc=20)],
+        _consumption_tracker=_tracker(
+            estimate_t_end=lambda: 18.0,
+            get_avg_daily_consumption=lambda: 0.3,
+        ),
+        _solar_t_start=8.0,
+        _delay_safety_margin_h=0.5,
+        _effective_system_capacity=lambda coords, is_charging: 1500.0,
+    )
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(5.0)})
+
+    # Sanity-check the disagreement this test relies on: the raw (unguarded)
+    # sinusoid projection reads "already insufficient right now".
+    raw_sf = mgr._estimate_energy_balance_unlock_h(
+        5.0, 3.0, 8.0, 18.0, 14.0,
+        safety_factor=1.0, horizon_h=17.5,
+    )
+    assert raw_sf == 14.0
+
+    assert mgr._should_delay_charge(80) is True
+    status = ctrl._charge_delay_status
+    assert status["net_solar_kwh"] >= status["energy_needed_kwh"]
+    assert status.get("unlock_reason") is None
+
+
+def test_horizon_collapse_at_short_winter_day_does_not_force_an_immediate_unlock():
+    """A large safety margin on a short day can push the deadline to/before
+    sunrise (``t_end - margin <= t_start``). ``horizon`` would then collapse
+    to ``t_start``, an empty window with nothing meaningful to project - the
+    estimator must return ``None`` there instead of manufacturing a bogus
+    "insufficient right now" edge.
+    """
+    mgr = _make_mgr(_controller())
+    # t_start=8, t_end=9.5 (short winter day), deadline = 9.5 - 4.0 = 5.5 < t_start.
+    result = mgr._estimate_energy_balance_unlock_h(
+        3.0, 2.0, 8.0, 9.5, 8.0, safety_factor=1.0, horizon_h=5.5,
+    )
+    assert result is None
+
+
+def _hhmm_to_h(value):
+    h, m = value.split(":")
+    return int(h) + int(m) / 60.0
 
 
 def test_late_provider_zero_unlocks_without_latching_then_rearms(monkeypatch):
