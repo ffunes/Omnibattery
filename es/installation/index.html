@@ -15,10 +15,10 @@
         <link rel="canonical" href="https://ffunes.github.io/omnibattery/es/installation/">
       
       
-        <link rel="prev" href="../">
+        <link rel="prev" href="../compatibility/">
       
       
-        <link rel="next" href="../configuration/hoymiles-ms-a2/">
+        <link rel="next" href="../upgrading-from-marstek-vem/">
       
       
         
@@ -84,7 +84,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#instalacion" class="md-skip">
+        <a href="#instala-omnibattery" class="md-skip">
           Saltar a contenido
         </a>
       
@@ -279,11 +279,11 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+        <a href="../compatibility/" class="md-tabs__link">
           
   
   
-  Instalación
+  Empezar
 
         </a>
       </li>
@@ -303,7 +303,7 @@
           
   
   
-  Configuración
+  Configurar
 
         </a>
       </li>
@@ -346,17 +346,18 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../blueprints/" class="md-tabs__link">
-        
-  
-  
     
+    
+      <li class="md-tabs__item">
+        <a href="../hardware/shelly-pro-3em-mqtt-script/" class="md-tabs__link">
+          
   
-  Blueprints
+  
+  Hardware y medidores
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -365,17 +366,38 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="../troubleshooting/" class="md-tabs__link">
+    
+    
+      <li class="md-tabs__item">
+        <a href="../automations/blueprints/" class="md-tabs__link">
+          
+  
+  
+  Automatizaciones
+
+        </a>
+      </li>
+    
+  
+
+      
         
   
   
-    
   
-  Solución de problemas
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../troubleshooting/" class="md-tabs__link">
+          
+  
+  
+  Soporte
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -411,30 +433,11 @@
           
   
   
-  Para colaboradores
+  Contribuir
 
         </a>
       </li>
     
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="../changelog/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  Changelog
-
-      </a>
-    </li>
   
 
       
@@ -550,7 +553,7 @@
   <span class="md-ellipsis">
     
   
-    Instalación
+    Empezar
   
 
     
@@ -566,11 +569,39 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Instalación
+    Empezar
   
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compatibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ¿Es compatible mi batería?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -639,44 +670,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#requisitos" class="md-nav__link">
+  <a href="#before-you-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Requisitos
+        Antes de empezar
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Requisitos">
+    <nav class="md-nav" aria-label="Antes de empezar">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#hardware" class="md-nav__link">
+  <a href="#informacion-opcional" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hardware
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#software" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Software
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#red" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Red
+        Información opcional
       
     </span>
   </a>
@@ -689,10 +698,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#instalacion-con-hacs-recomendado" class="md-nav__link">
+  <a href="#instalar-con-hacs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Instalación con HACS (recomendado)
+        Instalar con HACS
       
     </span>
   </a>
@@ -700,10 +709,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#instalacion-manual" class="md-nav__link">
+  <a href="#instalar-manualmente" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Instalación manual
+        Instalar manualmente
       
     </span>
   </a>
@@ -722,41 +731,24 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#instalacion-de-blueprints" class="md-nav__link">
+  <a href="#comprueba-el-resultado" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comprueba el resultado
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blueprint-installation" class="md-nav__link">
     <span class="md-ellipsis">
       
         Instalación de blueprints
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Instalación de blueprints">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#instalacion-desde-la-interfaz-de-home-assistant" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Instalación desde la interfaz de Home Assistant
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#instalacion-manual_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Instalación manual
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -775,72 +767,15 @@
   
   
   
-    
-    
-    
-    
-      
-      
-        
-          
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
-        
-          
-          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Configuración específica por batería
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_2">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Configuración específica por batería
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
     <li class="md-nav__item">
-      <a href="../configuration/hoymiles-ms-a2/" class="md-nav__link">
+      <a href="../upgrading-from-marstek-vem/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Instalación de Hoymiles MS-A2
+    Actualizar desde Marstek VEM
   
 
     
@@ -849,14 +784,6 @@
   
 
       </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
     </li>
   
 
@@ -901,7 +828,7 @@
   <span class="md-ellipsis">
     
   
-    Configuración
+    Configurar
   
 
     
@@ -917,7 +844,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Configuración
+    Configurar
   
 
           </label>
@@ -937,7 +864,7 @@
   <span class="md-ellipsis">
     
   
-    Resumen
+    Empieza aquí
   
 
     
@@ -950,6 +877,60 @@
   
 
               
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensores y límites eléctricos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Sensores y límites eléctricos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
             
               
                 
@@ -1007,6 +988,14 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
               
                 
   
@@ -1029,17 +1018,17 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
         
           
-          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
     
   
-    Baterías
+    Tu batería
   
 
     
@@ -1050,12 +1039,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_4">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Baterías
+    Tu batería
   
 
           </label>
@@ -1075,7 +1064,7 @@
   <span class="md-ellipsis">
     
   
-    Resumen
+    Elegir marca
   
 
     
@@ -1104,6 +1093,34 @@
     
   
     Marstek
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/batteries/esphome-lilygo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESPHome / LilyGo
   
 
     
@@ -1180,34 +1197,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/batteries/huawei/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Huawei
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../configuration/batteries/sessy/" class="md-nav__link">
         
   
@@ -1244,6 +1233,62 @@
     
   
     Hoymiles MQTT
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/batteries/huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/hoymiles-ms-a2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Instalación de Hoymiles MS-A2
   
 
     
@@ -1299,6 +1344,60 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cargas grandes y cargadores VE
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Cargas grandes y cargadores VE
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../configuration/excluded-devices/" class="md-nav__link">
         
@@ -1327,6 +1426,42 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../features/load-exclusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exclusión de cargas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
     
@@ -1343,10 +1478,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
         
           
-          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
             
   
   
@@ -1364,8 +1499,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_7">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1389,7 +1524,7 @@
   <span class="md-ellipsis">
     
   
-    Resumen
+    ¿Qué modo elijo?
   
 
     
@@ -1588,7 +1723,7 @@
   <span class="md-ellipsis">
     
   
-    Control de red
+    Seguir el consumo de casa
   
 
     
@@ -1604,7 +1739,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Control de red
+    Seguir el consumo de casa
   
 
           </label>
@@ -1706,7 +1841,7 @@
   <span class="md-ellipsis">
     
   
-    Gestión energética
+    Aprovechar el sol
   
 
     
@@ -1722,7 +1857,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Gestión energética
+    Aprovechar el sol
   
 
           </label>
@@ -1763,34 +1898,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../features/daily-operation-timeline/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Daily operation timeline
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../features/solar-charge-delay/" class="md-nav__link">
         
   
@@ -1799,62 +1906,6 @@
     
   
     Retraso de carga solar
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../features/peak-shaving/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Peak shaving
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../features/load-exclusion/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Exclusión de cargas
   
 
     
@@ -1908,7 +1959,7 @@
   <span class="md-ellipsis">
     
   
-    Salud y protección de la batería
+    Proteger la instalación
   
 
     
@@ -1924,7 +1975,125 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Salud y protección de la batería
+    Proteger la instalación
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../features/peak-shaving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peak shaving
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../features/temperature-charge-limit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Límite de carga por temperatura
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cuidar la batería
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Cuidar la batería
   
 
           </label>
@@ -1986,6 +2155,14 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
               
                 
   
@@ -1993,14 +2170,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../features/temperature-charge-limit/" class="md-nav__link">
+      <a href="../features/multi-battery/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Límite de carga por temperatura
+    Varias baterías
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cronología diaria
   
 
     
@@ -2020,6 +2225,87 @@
     </li>
   
 
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hardware y medidores
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Hardware y medidores
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hardware/shelly-pro-3em-mqtt-script/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts MQTT para Shelly Pro 3EM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
           </ul>
@@ -2035,8 +2321,62 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatizaciones
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Automatizaciones
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
-      <a href="../blueprints/" class="md-nav__link">
+      <a href="../automations/blueprints/" class="md-nav__link">
         
   
   
@@ -2055,30 +2395,11 @@
     </li>
   
 
-    
+              
+            
+          </ul>
+        </nav>
       
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../troubleshooting/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Solución de problemas
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2115,7 +2436,7 @@
   <span class="md-ellipsis">
     
   
-    Referencia
+    Soporte
   
 
     
@@ -2128,6 +2449,123 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Soporte
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solución de problemas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Referencia
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2171,62 +2609,6 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../features/multi-battery/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Gestión multi-batería
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../reference/shelly-pro-3em-mqtt-script/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Scripts MQTT para Shelly Pro 3EM
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
     
     
     
@@ -2243,10 +2625,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7_4" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8_2" >
         
           
-          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_8_2" id="__nav_8_2_label" tabindex="0">
             
   
   
@@ -2264,8 +2646,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7_4">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_8_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8_2">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2368,17 +2750,17 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
         
           
-          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
             
   
   
   <span class="md-ellipsis">
     
   
-    Para colaboradores
+    Contribuir
   
 
     
@@ -2389,12 +2771,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_8">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Para colaboradores
+    Contribuir
   
 
           </label>
@@ -2456,64 +2838,9 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../reference/driver-assessment-huawei/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Driver assessment · Huawei
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../changelog/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Changelog
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2545,44 +2872,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#requisitos" class="md-nav__link">
+  <a href="#before-you-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Requisitos
+        Antes de empezar
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Requisitos">
+    <nav class="md-nav" aria-label="Antes de empezar">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#hardware" class="md-nav__link">
+  <a href="#informacion-opcional" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Hardware
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#software" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Software
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#red" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Red
+        Información opcional
       
     </span>
   </a>
@@ -2595,10 +2900,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#instalacion-con-hacs-recomendado" class="md-nav__link">
+  <a href="#instalar-con-hacs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Instalación con HACS (recomendado)
+        Instalar con HACS
       
     </span>
   </a>
@@ -2606,10 +2911,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#instalacion-manual" class="md-nav__link">
+  <a href="#instalar-manualmente" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Instalación manual
+        Instalar manualmente
       
     </span>
   </a>
@@ -2628,41 +2933,24 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#instalacion-de-blueprints" class="md-nav__link">
+  <a href="#comprueba-el-resultado" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comprueba el resultado
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blueprint-installation" class="md-nav__link">
     <span class="md-ellipsis">
       
         Instalación de blueprints
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Instalación de blueprints">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#instalacion-desde-la-interfaz-de-home-assistant" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Instalación desde la interfaz de Home Assistant
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#instalacion-manual_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Instalación manual
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2691,144 +2979,119 @@
   
 
 
-<h1 id="instalacion">Instalación<a class="headerlink" href="#instalacion" title="Permanent link">&para;</a></h1>
-<h2 id="requisitos">Requisitos<a class="headerlink" href="#requisitos" title="Permanent link">&para;</a></h2>
-<h3 id="hardware">Hardware<a class="headerlink" href="#hardware" title="Permanent link">&para;</a></h3>
-<p>La tabla muestra la vía de conexión que usa Omnibattery para cada batería
-compatible. Los adaptadores y puentes solo son necesarios cuando se indican.</p>
+<h1 id="instala-omnibattery">Instala Omnibattery<a class="headerlink" href="#instala-omnibattery" title="Permanent link">&para;</a></h1>
+<p>Instala la integración, conecta una batería compatible y elige el sensor de Home Assistant que mide el intercambio de red de tu casa. Puedes terminar primero una configuración básica y añadir más tarde previsiones, horarios y carga basada en precios.</p>
+<p>¿Ya usas <strong>Marstek Venus Energy Manager</strong>? Detente aquí y sigue <a href="../upgrading-from-marstek-vem/">Actualizar desde Marstek VEM</a> para conservar tu configuración e historial.</p>
+<p>Comprueba <a href="../compatibility/">si tu batería exacta es compatible</a> antes de instalar.</p>
+<h2 id="before-you-start">Antes de empezar<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
+<p>Necesitas:</p>
+<ul>
+<li>Home Assistant <strong>2024.4.1</strong> o posterior</li>
+<li>una <a href="../configuration/batteries/">batería compatible</a> accesible desde Home Assistant</li>
+<li>un sensor de potencia de Home Assistant que mida la importación y exportación total de red en vatios o kilovatios</li>
+</ul>
+<p>La batería o su puente deben ser accesibles mediante la conexión local correspondiente. El sensor de red es obligatorio porque Omnibattery lo usa para decidir cuánto deben cargar o descargar las baterías.</p>
 <table>
 <thead>
 <tr>
-<th>Batería / componente</th>
-<th>Conexión soportada</th>
-<th>Requisito adicional</th>
+<th>Si tienes</th>
+<th>Prepara esto antes de configurar</th>
+<th>Conexión</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Marstek Venus E/C (v2/v3), Venus A, Venus D</strong></td>
-<td>Modbus TCP; Modbus RTU por USB–RS485; o puente LilyGo RS485/ESPHome <em>(Venus E v2)</em></td>
-<td><strong>Modbus TCP:</strong> Venus E v2 necesita un conversor RS485 → TCP (p. ej. Elfin-EW11); Venus E v3, Venus A y Venus D usan Ethernet nativo. <strong>Modbus RTU:</strong> adaptador USB–RS485. <strong>ESPHome:</strong> el puente LilyGo debe exponer sus entidades requeridas en Home Assistant.</td>
+<td><strong>Marstek Venus E v2/v3, Venus A o Venus D</strong></td>
+<td>Activa o añade la conexión descrita en la <a href="../configuration/batteries/marstek/">guía de Marstek</a>.</td>
+<td>Modbus TCP, Modbus RTU mediante USB–RS-485 o un puente LilyGo RS-485/ESPHome para Venus E v2</td>
 </tr>
 <tr>
-<td><strong>Zendure SolarFlow 4000 Mix Pro, 4000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus, 800</strong></td>
+<td><strong>Zendure SolarFlow 800, 800 Plus, 800 Pro, 1600 AC+, 2400 AC+, 2400 AC Pro, 3000 Mix AC+, 4000 Mix AC+ o 4000 Mix Pro</strong></td>
+<td>Mantén desactivado el control <strong>HEMS</strong> del fabricante para que no sustituya la orden de potencia de Omnibattery.</td>
 <td>API HTTP local</td>
-<td>Mantén <strong>HEMS desactivado</strong> en la aplicación de Zendure. Si está activo, HEMS sobrescribe la consigna manual de potencia de Omnibattery.</td>
 </tr>
 <tr>
-<td><strong>Anker SOLIX Solarbank Max AC, 4 E5000 Pro</strong></td>
+<td><strong>Anker SOLIX Solarbank Max AC, Solarbank 4 E5000 Pro o Solarbank XE AC</strong></td>
+<td>Activa <strong>Third-Party Control</strong> en la aplicación de Anker y desconecta cualquier otro cliente Modbus.</td>
 <td>Modbus TCP</td>
-<td>Activa <strong>Third-Party Control</strong> en la aplicación de Anker. Solo puede conectarse un cliente Modbus a la vez.</td>
 </tr>
 <tr>
 <td><strong>Huawei SUN2000 + LUNA2000</strong></td>
-<td>Modbus TCP a través del inversor SUN2000</td>
-<td>La vía de control predeterminada necesita la integración Huawei Solar y un proxy Modbus compartido. Las escrituras directas son opcionales. Consulta la <a href="../configuration/batteries/huawei/">guía de instalación de Huawei</a>.</td>
+<td>Prepara la conexión Modbus del inversor. El método de control predeterminado también necesita la integración Huawei Solar.</td>
+<td>Modbus TCP a través del inversor o un proxy compartido</td>
 </tr>
 <tr>
 <td><strong>Sessy Home Battery</strong></td>
-<td>API HTTP local mediante el dongle de Sessy</td>
-<td>El dongle debe ser accesible desde Home Assistant. Introduce su IP/nombre de host, puerto y credenciales; el puerto predeterminado es <code>80</code>.</td>
+<td>Ten disponibles las credenciales locales impresas en el dongle Sessy.</td>
+<td>API HTTP local</td>
 </tr>
 <tr>
-<td><strong>Hoymiles MS-A2 / HiBattery</strong></td>
-<td>MQTT mediante la integración MQTT configurada en Home Assistant</td>
-<td>Hace falta un broker MQTT local operativo (por ejemplo, Mosquitto; se puede reutilizar uno existente). Activa <strong>MQTT Service</strong> en S-Miles Home y asegúrate de que la batería puede alcanzar el broker.</td>
-</tr>
-<tr>
-<td><strong>Sensor de red</strong></td>
-<td>Entidad de Home Assistant</td>
-<td>Sensor que mida el consumo total de la red (p. ej. Shelly EM3, Neurio o integración de contador inteligente).</td>
-</tr>
-<tr>
-<td><strong>Medidor de producción solar</strong> <em>(opcional)</em></td>
-<td>Entidad de Home Assistant</td>
-<td>Sensor de producción fotovoltaica en tiempo real, en W o kW. Permite derivar con precisión el consumo del hogar y mostrar el nodo Solar en el dashboard de la integración. Déjalo vacío si los paneles alimentan directamente las entradas MPPT de la batería.</td>
+<td><strong>Hoymiles MS-A2 o HiBattery</strong></td>
+<td>Configura la integración MQTT de Home Assistant y un broker MQTT local; después activa <strong>MQTT Service</strong> en S-Miles Home.</td>
+<td>MQTT a través de Home Assistant</td>
 </tr>
 </tbody>
 </table>
 <div class="admonition warning">
-<p class="admonition-title">Frecuencia de actualización del contador</p>
-<p>El contador/sensor de red debe publicar un valor nuevo en <strong>menos de 10
-segundos</strong>. Se recomienda un intervalo de actualización de <strong>1–2 segundos</strong>,
-porque el controlador es dirigido por eventos y utiliza cada publicación
-para ajustar la potencia de la batería.</p>
+<p class="admonition-title">Usa un sensor de red con respuesta rápida</p>
+<p>Se recomienda una actualización cada <strong>1–2 segundos</strong>. Se aceptan sensores que publican cada <strong>10 segundos o más</strong>, pero Omnibattery muestra una advertencia de Reparaciones porque las lecturas retrasadas reducen la calidad del control. La última lectura sigue siendo válida hasta <strong>65 segundos</strong>.</p>
+<p>Consulta <a href="../configuration/main-sensor/">Sensor principal</a> para las convenciones de signo, unidades y guía específica de medidores.</p>
 </div>
-<h3 id="software">Software<a class="headerlink" href="#software" title="Permanent link">&para;</a></h3>
+<h3 id="informacion-opcional">Información opcional<a class="headerlink" href="#informacion-opcional" title="Permanent link">&para;</a></h3>
+<p>Puedes dejar estos campos vacíos o desactivados durante la primera configuración y añadirlos después en <strong>Ajustes → Dispositivos y servicios → Omnibattery → Configurar</strong>:</p>
 <ul>
-<li>Home Assistant <strong>2024.1.0</strong> o superior</li>
-<li>Solo para <strong>baterías Hoymiles mediante MQTT</strong>: la integración MQTT de Home Assistant y un broker MQTT local operativo. Omnibattery usa el broker a través de Home Assistant; no instala uno.</li>
-<li>Para el método de control <strong>Huawei</strong> predeterminado: la integración Huawei Solar. No es necesaria si se activan las escrituras Modbus directas.</li>
-<li>(Opcional) Sensor de previsión solar para la carga predictiva (Solcast, Forecast.Solar, etc.)</li>
+<li><strong>Previsión solar restante hoy</strong> para la carga predictiva y el retraso de carga solar</li>
+<li><strong>Sensor de producción solar</strong> cuando un inversor externo mide paneles que no alimentan las propias entradas solares de la batería</li>
+<li><strong>Sensor de potencia aislada de la red</strong> cuando un medidor independiente mide el circuito respaldado</li>
+<li><strong>Protección de corriente trifásica</strong> cuando hay sensores de corriente por fase; consulta <a href="../configuration/three-phase/">Protección de corriente trifásica</a></li>
 </ul>
-<h3 id="red">Red<a class="headerlink" href="#red" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Para Modbus TCP y HTTP local, la batería o el puente debe ser accesible desde Home Assistant por IP en el mismo segmento de red o mediante enrutamiento.</li>
-<li>Para Modbus RTU, conecta el adaptador USB al equipo donde se ejecuta Home Assistant.</li>
-<li>Para LilyGo/ESPHome, añade el puente a Home Assistant.</li>
-<li>Para baterías basadas en MQTT, la batería debe poder alcanzar el broker MQTT en la red local.</li>
-</ul>
-<hr />
-<h2 id="instalacion-con-hacs-recomendado">Instalación con HACS (recomendado)<a class="headerlink" href="#instalacion-con-hacs-recomendado" title="Permanent link">&para;</a></h2>
+<p>Establece <strong>Potencia máxima contratada</strong> en el límite de importación real de tu casa. Omnibattery la usa como techo de seguridad de carga.</p>
+<details>
+<summary>Detalles de conexión por tipo de batería</summary>
+<p><strong>Marstek:</strong> Venus E v2 necesita una conexión RS-485, como un adaptador USB o un convertidor RS-485 a TCP. Venus E v3, Venus A y Venus D pueden usar su conexión de red. La vía LilyGo necesita el firmware ESPHome compatible y sus entidades estándar de Home Assistant.</p>
+<p><strong>Zendure y Sessy:</strong> Home Assistant debe poder alcanzar el punto final HTTP local del dispositivo. Omnibattery se comunica localmente, en lugar de mediante una cuenta en la nube del fabricante.</p>
+<p><strong>Anker:</strong> su servidor Modbus acepta un cliente cada vez. Cierra otra integración o herramienta antes de que Omnibattery pruebe la conexión.</p>
+<p><strong>Huawei:</strong> Omnibattery lee a través del inversor SUN2000. De forma predeterminada, las órdenes de control usan servicios Huawei Solar; las escrituras Modbus directas son una opción de configuración opcional.</p>
+<p><strong>Hoymiles:</strong> Omnibattery usa el broker MQTT configurado en Home Assistant. No instala ni gestiona un broker.</p>
+</details>
+<h2 id="instalar-con-hacs">Instalar con HACS<a class="headerlink" href="#instalar-con-hacs" title="Permanent link">&para;</a></h2>
+<p>Home Assistant Community Store (HACS) es el método de instalación recomendado.</p>
 <ol>
 <li>
-<p>Haz clic en el botón para añadir el repositorio a HACS:</p>
-<p><a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=ffunes&amp;repository=Omnibattery&amp;category=integration"><img alt="Añadir a HACS" src="https://my.home-assistant.io/badges/hacs_repository.svg" /></a></p>
+<p>Usa el botón siguiente para añadir el repositorio a HACS.</p>
+<p><a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=ffunes&amp;repository=Omnibattery&amp;category=integration"><img alt="Añadir Omnibattery a HACS" src="https://my.home-assistant.io/badges/hacs_repository.svg" /></a></p>
 </li>
 <li>
-<p>Busca <strong>"Omnibattery"</strong> e instala.</p>
+<p>En HACS, busca <strong>Omnibattery</strong> y selecciona <strong>Descargar</strong>.</p>
 </li>
-<li>Reinicia Home Assistant.</li>
+<li>Reinicia Home Assistant cuando HACS te lo pida.</li>
 </ol>
-<p><img alt="Búsqueda en HACS" src="../../assets/screenshots/installation/hacs-search.png" style="display: block; margin: 0 auto;" width="700" /></p>
-<hr />
-<h2 id="instalacion-manual">Instalación manual<a class="headerlink" href="#instalacion-manual" title="Permanent link">&para;</a></h2>
+<h2 id="instalar-manualmente">Instalar manualmente<a class="headerlink" href="#instalar-manualmente" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Descarga el zip de la última release desde <a href="https://github.com/ffunes/Omnibattery/releases">GitHub Releases</a>.</li>
-<li>Extrae la carpeta <code>omnibattery</code>.</li>
-<li>Cópiala en el directorio <code>custom_components/</code> de Home Assistant.</li>
+<li>Descarga el archivo zip de la <a href="https://github.com/ffunes/Omnibattery/releases">última versión de Omnibattery</a>.</li>
+<li>Extrae la carpeta <code>omnibattery</code> en el directorio <code>custom_components</code> de Home Assistant.</li>
+<li>Confirma que la ruta resultante es <code>custom_components/omnibattery/manifest.json</code>.</li>
 <li>Reinicia Home Assistant.</li>
 </ol>
-<hr />
 <h2 id="anadir-la-integracion">Añadir la integración<a class="headerlink" href="#anadir-la-integracion" title="Permanent link">&para;</a></h2>
-<p>Después de instalar y reiniciar:</p>
 <ol>
-<li>Ve a <strong>Ajustes</strong> → <strong>Dispositivos y servicios</strong>.</li>
-<li>Pulsa <strong>+ AÑADIR INTEGRACIÓN</strong>.</li>
-<li>Busca <strong>Omnibattery</strong>.</li>
-<li>Sigue el <a href="../configuration/">asistente de configuración</a>.</li>
+<li>Abre <strong>Ajustes → Dispositivos y servicios</strong>.</li>
+<li>Selecciona <strong>Añadir integración</strong> y busca <strong>Omnibattery</strong>.</li>
+<li>Elige el sensor de red e introduce los ajustes eléctricos de tu instalación.</li>
+<li>Añade cada batería y, después, termina o configura las secciones opcionales de franjas horarias, dispositivos excluidos y carga predictiva.</li>
 </ol>
-<p><img alt="Añadir integración en HA" src="../../assets/screenshots/installation/add-integration.png" style="display: block; margin: 0 auto;" width="600" /></p>
-<hr />
-<h2 id="instalacion-de-blueprints">Instalación de blueprints<a class="headerlink" href="#instalacion-de-blueprints" title="Permanent link">&para;</a></h2>
-<p>Los blueprints son opcionales y se instalan en la carpeta de configuración de Home Assistant, no dentro de <code>custom_components/</code>.</p>
-<p>La carpeta de blueprints de tu Home Assistant es:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/config/blueprints/automation/omnibattery/
-</code></pre></div>
-<p>Si accedes a Home Assistant mediante Samba, Studio Code Server o File Editor, la misma ruta suele verse como:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>config/blueprints/automation/omnibattery/
-</code></pre></div>
-<h3 id="instalacion-desde-la-interfaz-de-home-assistant">Instalación desde la interfaz de Home Assistant<a class="headerlink" href="#instalacion-desde-la-interfaz-de-home-assistant" title="Permanent link">&para;</a></h3>
-<ol>
-<li>Ve a <strong>Ajustes</strong> → <strong>Automatizaciones y escenas</strong> → <strong>Blueprints</strong>.</li>
-<li>Pulsa <strong>Importar blueprint</strong>.</li>
-<li>
-<p>Pega la URL del blueprint que quieras importar, por ejemplo:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/different_grid_target_blueprint.yaml
-</code></pre></div>
-</li>
-<li>
-<p>Pulsa <strong>Previsualizar blueprint</strong> y después <strong>Importar blueprint</strong>.</p>
-</li>
-<li>Crea una automatización nueva desde el blueprint importado y configura sus entradas. Para el blueprint de balanceo activo de Marstek, selecciona el dispositivo de batería de Omnibattery; sus entidades estándar se descubren automáticamente.</li>
-</ol>
-<h3 id="instalacion-manual_1">Instalación manual<a class="headerlink" href="#instalacion-manual_1" title="Permanent link">&para;</a></h3>
-<ol>
-<li>Crea la carpeta <code>/config/blueprints/automation/omnibattery/</code> si no existe.</li>
-<li>Copia dentro los archivos <code>.yaml</code> de la carpeta <code>blueprints/</code> de este repositorio.</li>
-<li>En Home Assistant, ve a <strong>Ajustes</strong> → <strong>Automatizaciones y escenas</strong> → <strong>Blueprints</strong> y pulsa <strong>Recargar blueprints</strong>. Si no aparece la opción, reinicia Home Assistant.</li>
-<li>Crea una automatización nueva desde el blueprint instalado.</li>
-</ol>
+<p><img alt="Añadir Omnibattery desde el diálogo de integración de Home Assistant" src="../../assets/screenshots/installation/add-integration.png" style="display: block; margin: 0 auto;" width="600" /></p>
+<p>La <a href="../configuration/">guía de configuración</a> explica cada página del asistente de configuración.</p>
+<h2 id="comprueba-el-resultado">Comprueba el resultado<a class="headerlink" href="#comprueba-el-resultado" title="Permanent link">&para;</a></h2>
+<p>Cuando termine el asistente:</p>
+<ul>
+<li>abre el panel lateral de Omnibattery y confirma que <strong>Red</strong>, <strong>Casa</strong> y <strong>Batería</strong> muestran valores de potencia plausibles</li>
+<li>abre <strong>Baterías</strong> y confirma que cada batería informa de su estado de carga (SOC) y potencia</li>
+<li>abre <strong>Control</strong> para activar solo las funciones opcionales que quieras</li>
+</ul>
+<p>Si la batería no está disponible o sus valores tienen el signo equivocado, utiliza la <a href="../configuration/batteries/">guía de configuración de batería</a> correspondiente y <a href="../troubleshooting/">Solución de problemas</a> antes de activar el control automático.</p>
+<h2 id="blueprint-installation">Instalación de blueprints<a class="headerlink" href="#blueprint-installation" title="Permanent link">&para;</a></h2>
+<p>Los blueprints son opcionales y se instalan por separado de la integración. Omnibattery funciona sin ellos. Cuando la integración básica funcione correctamente, consulta <a href="../automations/blueprints/">Blueprints</a> para los pasos de instalación manual y desde Home Assistant.</p>
 
 
 
@@ -2866,7 +3129,7 @@ para ajustar la potencia de la batería.</p>
       <nav class="md-footer__inner md-grid" aria-label="Pie" >
         
           
-          <a href="../" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Inicio">
+          <a href="../compatibility/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: ¿Es compatible mi batería?">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2876,20 +3139,20 @@ para ajustar la potencia de la batería.</p>
                 Anterior
               </span>
               <div class="md-ellipsis">
-                Inicio
+                ¿Es compatible mi batería?
               </div>
             </div>
           </a>
         
         
           
-          <a href="../configuration/hoymiles-ms-a2/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Instalación de Hoymiles MS-A2">
+          <a href="../upgrading-from-marstek-vem/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Actualizar desde Marstek VEM">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Siguiente
               </span>
               <div class="md-ellipsis">
-                Instalación de Hoymiles MS-A2
+                Actualizar desde Marstek VEM
               </div>
             </div>
             <div class="md-footer__button md-icon">
