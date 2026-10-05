@@ -4186,8 +4186,16 @@ class MarstekVenusPanel extends HTMLElement {
     this._linkMoreInfo(rows[3], this._sysEntityId(K.sysDailyHome));
     this._linkMoreInfo(rows[4], this._sysEntityId(K.sysDailyGridImport));
     this._linkMoreInfo(rows[5], this._sysEntityId(K.sysDailyGridExport));
-    this._linkMoreInfo(rows[6], this._sysEntityId(K.predictiveActive));
-    this._linkMoreInfo(rows[7], this._sysEntityId(K.predictiveActive));
+    this._linkMoreInfo(
+      rows[6],
+      this._panelConfig.solar_forecast_entity ||
+        this._panelConfig.solar_forecast_remaining_entity
+    );
+    this._linkMoreInfo(
+      rows[7],
+      this._panelConfig.solar_forecast_remaining_entity ||
+        this._panelConfig.solar_forecast_entity
+    );
     this._linkMoreInfo(rows[8], this._sysEntityId(K.consumptionProfile));
     this._r.dChV = body.querySelector(".daily-ch-v");
     this._r.dChBar = body.querySelector(".daily-ch-bar");
