@@ -3298,7 +3298,7 @@ class MarstekVenusPanel extends HTMLElement {
     const solarOpportunity = !snapshot.isSkipped[index]
       && ((mask || 0) & 1) === 0
       && (projectedSolarChargePending || solarSurplus);
-    const delayState = snapshot.delayInfo && String(snapshot.delayInfo.state || snapshot.delayInfo.status || "").toLowerCase();
+    const delayState = String(snapshot.delayInfo?.state || snapshot.delayInfo?.status || "").toLowerCase();
     // Missing means an older payload, which remains compatible. An explicit
     // false is authoritative and suppresses stale stored boundaries/statuses.
     const delayEnabled = !snapshot.delayInfo || snapshot.delayInfo.enabled == null
