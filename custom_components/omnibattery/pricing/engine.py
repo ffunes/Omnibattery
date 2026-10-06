@@ -902,8 +902,13 @@ class PricingManager:
         self._future_price_slots_cache = tuple(slots)
         return list(slots)
 
-    def get_future_export_price_slots(self, horizon_end=None) -> list:
+    def get_future_export_price_slots(
+        self, horizon_end=None, *, solar_bonus: bool = True
+    ) -> list:
         """Return future slots from the export/feed-in curve.
+
+        ``solar_bonus=False`` omits Zonneplan's sun bonus, which pays for solar
+        production only, so battery export must not be valued with it.
 
         Falls back to the import curve when no export sensor is configured,
         which is both the historical behaviour and the economically correct one
@@ -935,23 +940,63 @@ class PricingManager:
             entity_id, integration_type, quiet=True
         )
         slots = self._filter_future_slots(raw_slots, horizon_end)
-        return self._apply_zonneplan_export_bonus(slots, integration_type)
+        if not solar_bonus:
+            return slots
+        return self._apply_zonneplan_export_bonus(slots, integration_type, entity_id)
 
-    def _apply_zonneplan_export_bonus(self, slots: list, integration_type: str) -> list:
-        """Apply Zonneplan's optional export bonus without changing imports."""
+    def _apply_zonneplan_export_bonus(
+        self, slots: list, integration_type: str, entity_id: str | None = None
+    ) -> list:
+        """Apply Zonneplan's optional sun bonus to export slots, never imports.
+
+        The bonus is computed on the tax-excluded price, then only its uplift is
+        added to the tax-inclusive price. It applies only between sunrise and
+        sunset; other slots keep their regular price. Zonneplan pays no bonus
+        when the tax-excluded price plus the fixed part is not positive.
+        """
         controller = self._controller
         if (
             integration_type != PRICE_INTEGRATION_ZONNEPLAN
+            or not entity_id
             or not getattr(controller, "zonneplan_export_bonus_enabled", False)
         ):
             return slots
-        return [
-            slot._replace(
-                price=(
-                    slot.price * (1 + ZONNEPLAN_EXPORT_BONUS_RATE)
-                    + ZONNEPLAN_EXPORT_BONUS_FIXED_EUR_PER_KWH
-                )
+        state = self._hass.states.get(entity_id)
+        attrs = getattr(state, "attributes", None)
+        if not attrs:
+            return slots
+        excluded = {
+            slot.start: slot.price
+            for slot in calculations.parse_zonneplan_prices(attrs, tax_excluded=True)
+        }
+        tracker = getattr(controller, "_consumption_tracker", None)
+        calculate_sunrise = getattr(tracker, "calculate_sunrise", None)
+        calculate_sunset = getattr(tracker, "calculate_sunset", None)
+        if not callable(calculate_sunrise) or not callable(calculate_sunset):
+            return slots
+
+        def in_daylight(slot) -> bool:
+            day = slot.start.date()
+            sunrise, sunset = calculate_sunrise(day), calculate_sunset(day)
+            if sunrise is None or sunset is None:
+                return False
+            midpoint = slot.start + (slot.end - slot.start) / 2
+            hour = midpoint.hour + midpoint.minute / 60 + midpoint.second / 3600
+            return float(sunrise) <= hour < float(sunset)
+
+        def bonus(excl: float) -> float:
+            return (
+                (excl + ZONNEPLAN_EXPORT_BONUS_FIXED_EUR_PER_KWH)
+                * (1 + ZONNEPLAN_EXPORT_BONUS_RATE)
+                - excl
             )
+
+        return [
+            slot._replace(price=slot.price + bonus(excluded[slot.start]))
+            if slot.start in excluded
+            and excluded[slot.start] + ZONNEPLAN_EXPORT_BONUS_FIXED_EUR_PER_KWH > 0
+            and in_daylight(slot)
+            else slot
             for slot in slots
         ]
 
@@ -2040,6 +2085,20 @@ class PricingManager:
         controller._curtailment_last_auto_replan = now
         return True
 
+    def _curtailment_risk_prices(self, slots: list[PriceSlot]) -> dict | None:
+        """Return the price solar power is exported at, by slot start.
+
+        Curtailment risk is about what exported solar earns, which differs from
+        the import price when a separate export curve (or the Zonneplan sun
+        bonus) is configured. None keeps the import price.
+        """
+        if not getattr(self._controller, "export_price_sensor", None) or not slots:
+            return None
+        export_slots = self.get_future_export_price_slots(
+            horizon_end=max(slot.end for slot in slots)
+        )
+        return {slot.start: slot.price for slot in export_slots} or None
+
     def _build_curtailment_plan(
         self,
         slots: list[PriceSlot],
@@ -2103,6 +2162,7 @@ class PricingManager:
                 solar_forecast_is_remaining=is_remaining,
                 consumption_forecast_is_remaining=is_remaining,
                 reserved_slots=reserved,
+                risk_price_by_start=self._curtailment_risk_prices(daily_slots),
                 now=evaluated_at,
             )
         except Exception as err:  # noqa: BLE001

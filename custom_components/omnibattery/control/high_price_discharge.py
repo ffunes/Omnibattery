@@ -381,7 +381,9 @@ class HighPriceDischargeManager:
         The export curve provides the timeline; consumption and solar are
         integrated onto it, and the import price is sampled from its own curve.
         """
-        slots = pricing.get_future_export_price_slots(horizon_end=horizon_end)
+        slots = pricing.get_future_export_price_slots(
+            horizon_end=horizon_end, solar_bonus=False
+        )
         if not slots:
             return []
         import_slots = pricing.get_future_price_slots(horizon_end=horizon_end)

@@ -13,6 +13,8 @@
 - **Multi-battery: a battery flipped between Discharge and idle at low load**: the surplus guard now needs a surplus to last a few seconds before blocking discharge, so a battery reading that lags its last command (or another battery's oscillation) no longer cuts it to 0.
 - **Grid charging in pulses with every battery blocked from discharging** (min SOC or Allow Discharge off): the PD's derivative no longer winds up while no battery can discharge, which used to push it into 400-1300 W charge pulses from the grid while the house was importing.
 - **Three-phase protection: PD Quality flickered to Battery Limited** (#559): the 5 W rounding of each battery's share no longer reads as a phase cap. Thanks to @dirkvanhoutert.
+- **Zonneplan export bonus (zonnebonus) now follows Zonneplan's rules**: solar power only, on top of the tax-excluded price (+€0.02, then +10%), added to the tax-inclusive export price, between sunrise and sunset, and only when the tax-excluded price plus €0.02 is positive. Battery export is never valued with the bonus.
+- **Smart pre-discharge judges curtailment risk on the solar export price** when an export price sensor is configured (including the Zonneplan sun bonus), instead of the import price. Without an export sensor nothing changes; the discharge slots are still ranked on the import price.
 
 ### Changed
 

@@ -390,7 +390,7 @@
           "price_sensor": "Sensor, der stündliche Strompreise enthält (z.B. sensor.nordpool_kwh_de_eur_3_10_025)",
           "export_price_sensor": "Sensor, der die Einspeisevergütung liefert. Leer lassen, um die Importpreiskurve zu verwenden — das ist korrekt, wenn die Einspeisung zum Importpreis vergütet wird (Net Metering).",
           "export_price_integration_type": "Attributaufbau des Exportpreis-Sensors. Leer lassen, um die Import-Integration zu übernehmen. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve.",
-          "zonneplan_export_bonus_enabled": "Addiert ausschließlich zu Zonneplan-Einspeisepreisen 0,02 €/kWh und 10 %. Hat keine Wirkung, wenn die tatsächlich verwendete Exportpreisintegration nicht Zonneplan ist.",
+          "zonneplan_export_bonus_enabled": "Addiert den Zonneplan-Sonnenbonus zum Einspeisepreis von Solarstrom inkl. Steuern: der Bonus sind 0,02 €/kWh auf den Preis ohne Steuern, danach +10 %. Gilt nur zwischen Sonnenaufgang und Sonnenuntergang und nur, wenn dieser Preis plus 0,02 € positiv ist. Einspeisung aus dem Akku wird nie mit dem Bonus bewertet. Hat keine Wirkung, wenn die tatsächlich verwendete Exportpreisintegration nicht Zonneplan ist.",
           "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
         }
       },
@@ -1113,7 +1113,7 @@
           "price_sensor": "Sensor, der stündliche Strompreise enthält (z.B. sensor.nordpool_kwh_de_eur_3_10_025)",
           "export_price_sensor": "Sensor, der die Einspeisevergütung liefert. Leer lassen, um die Importpreiskurve zu verwenden — das ist korrekt, wenn die Einspeisung zum Importpreis vergütet wird (Net Metering).",
           "export_price_integration_type": "Attributaufbau des Exportpreis-Sensors. Leer lassen, um die Import-Integration zu übernehmen. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve.",
-          "zonneplan_export_bonus_enabled": "Addiert ausschließlich zu Zonneplan-Einspeisepreisen 10 % und 0,02 €/kWh. Hat keine Wirkung, wenn die tatsächlich verwendete Exportpreisintegration nicht Zonneplan ist.",
+          "zonneplan_export_bonus_enabled": "Addiert den Zonneplan-Sonnenbonus zum Einspeisepreis von Solarstrom inkl. Steuern: der Bonus sind 0,02 €/kWh auf den Preis ohne Steuern, danach +10 %. Gilt nur zwischen Sonnenaufgang und Sonnenuntergang und nur, wenn dieser Preis plus 0,02 € positiv ist. Einspeisung aus dem Akku wird nie mit dem Bonus bewertet. Hat keine Wirkung, wenn die tatsächlich verwendete Exportpreisintegration nicht Zonneplan ist.",
           "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
         }
       },

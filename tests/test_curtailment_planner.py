@@ -101,6 +101,32 @@ def test_threshold_is_inclusive_and_hourly_slots_are_supported():
     assert plan.selected_discharge_slots
 
 
+def test_risk_follows_the_solar_export_price_not_the_import_price():
+    candidates = [_slot(8, 0.30), _slot(9, 0.0), _slot(10, -0.01)]
+    kwargs = dict(
+        solar_forecast_kwh=3.0,
+        daily_consumption_kwh=1.0,
+        batteries=[_battery(soc=95.0)],
+        charge_power_w=2000.0,
+        max_export_power_w=2000.0,
+        solar_by_slot={candidates[0]: 0.0, candidates[1]: 0.0, candidates[2]: 2.0},
+        consumption_by_slot={slot: 0.0 for slot in candidates},
+        now=DAY,
+    )
+    # A positive export price (e.g. with the sun bonus) means no dimming.
+    bonus = plan_curtailment(
+        candidates, **kwargs, risk_price_by_start={candidates[2].start: 0.009}
+    )
+    assert bonus.risk_slots == []
+    # A negative export price on a positive import price is a risk.
+    negative = plan_curtailment(
+        candidates,
+        **{**kwargs, "solar_by_slot": {candidates[0]: 1.0, candidates[1]: 0.0, candidates[2]: 0.0}},
+        risk_price_by_start={candidates[0].start: -0.05},
+    )
+    assert negative.risk_slots == [candidates[0]]
+
+
 def test_no_solar_surplus_is_not_a_risk():
     slots = [_slot(9, -0.20), _slot(10, 0.10)]
     plan = plan_curtailment(

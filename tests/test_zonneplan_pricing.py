@@ -12,8 +12,11 @@ from custom_components.omnibattery.pricing import calculations
 from custom_components.omnibattery.pricing.engine import PricingManager
 
 
-def entry(start="2999-01-01T12:00:00", end="2999-01-01T12:15:00", amount=3579015):
-    return dict(start_date=start, end_date=end, price_tax_included={"amount": amount})
+def entry(start="2999-01-01T12:00:00", end="2999-01-01T12:15:00", amount=3579015, excluded=None):
+    result = dict(start_date=start, end_date=end, price_tax_included={"amount": amount})
+    if excluded is not None:
+        result["price_tax_excluded"] = {"amount": excluded}
+    return result
 
 
 @pytest.mark.parametrize("minutes", [15, 60])
@@ -103,7 +106,7 @@ def test_shared_dispatch_and_stringified_forecast():
 
 
 @pytest.mark.parametrize("explicit_export_type", [None, "zonneplan"])
-@pytest.mark.parametrize("bonus_enabled, expected_export_price", [(False, 0.1), (True, 0.13)])
+@pytest.mark.parametrize("bonus_enabled, expected_export_price", [(False, 0.2), (True, 0.232)])
 def test_independent_export_curve_uses_shared_dispatch(
     explicit_export_type, bonus_enabled, expected_export_price
 ):
@@ -111,16 +114,98 @@ def test_independent_export_curve_uses_shared_dispatch(
         price_integration_type="zonneplan", price_sensor="sensor.import",
         export_price_sensor="sensor.export", export_price_integration_type=explicit_export_type,
         zonneplan_export_bonus_enabled=bonus_enabled,
+        _consumption_tracker=SimpleNamespace(
+            calculate_sunrise=lambda _day: 8.0, calculate_sunset=lambda _day: 18.0
+        ),
         _price_data_status="ok",
     )
     states = {
         "sensor.import": SimpleNamespace(state="0.3579015", attributes={"forecast": [entry()]}),
-        "sensor.export": SimpleNamespace(state="0.1", attributes={"forecast": [entry(amount=1000000)]}),
+        "sensor.export": SimpleNamespace(
+            state="0.1", attributes={"forecast": [entry(amount=2000000, excluded=1000000)]}
+        ),
     }
     manager = PricingManager(SimpleNamespace(states=SimpleNamespace(get=states.get)), controller)
-    assert manager.get_future_export_price_slots(datetime(2999, 1, 2))[0].price == expected_export_price
+    assert manager.get_future_export_price_slots(datetime(2999, 1, 2))[0].price == pytest.approx(
+        expected_export_price
+    )
     assert controller._price_data_status == "ok"
     assert manager.get_future_price_slots(datetime(2999, 1, 2))[0].price == pytest.approx(0.3579015)
+
+
+@pytest.mark.parametrize(
+    "start, end, expected",
+    [
+        ("2999-01-01T07:00:00", "2999-01-01T07:15:00", 0.2),
+        ("2999-01-01T12:00:00", "2999-01-01T12:15:00", 0.232),
+        ("2999-01-01T19:00:00", "2999-01-01T19:15:00", 0.2),
+    ],
+)
+def test_export_bonus_only_applies_between_sunrise_and_sunset(start, end, expected):
+    controller = SimpleNamespace(
+        price_integration_type="zonneplan", price_sensor="sensor.import",
+        export_price_sensor="sensor.export", export_price_integration_type="zonneplan",
+        zonneplan_export_bonus_enabled=True,
+        _consumption_tracker=SimpleNamespace(
+            calculate_sunrise=lambda _day: 8.0, calculate_sunset=lambda _day: 18.0
+        ),
+        _price_data_status="ok",
+    )
+    state = SimpleNamespace(
+        state="0.2", attributes={"forecast": [entry(start, end, 2000000, excluded=1000000)]}
+    )
+    manager = PricingManager(
+        SimpleNamespace(states=SimpleNamespace(get=lambda _: state)), controller
+    )
+    assert manager.get_future_export_price_slots(datetime(2999, 1, 2))[0].price == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "incl, excl, expected",
+    [
+        (-120000, -100000, 0.009),  # -1 ct excl: bonus makes the net price positive
+        (-360000, -300000, -0.036),  # excl + 2 ct is negative: no bonus
+        (-200000, -200000, -0.02),  # excl + 2 ct is zero: no bonus
+    ],
+)
+def test_export_bonus_requires_positive_excluded_price_plus_fixed_part(incl, excl, expected):
+    controller = SimpleNamespace(
+        price_integration_type="zonneplan", price_sensor="sensor.import",
+        export_price_sensor="sensor.export", export_price_integration_type="zonneplan",
+        zonneplan_export_bonus_enabled=True,
+        _consumption_tracker=SimpleNamespace(
+            calculate_sunrise=lambda _day: 8.0, calculate_sunset=lambda _day: 18.0
+        ),
+        _price_data_status="ok",
+    )
+    state = SimpleNamespace(
+        state="0", attributes={"forecast": [entry(amount=incl, excluded=excl)]}
+    )
+    manager = PricingManager(
+        SimpleNamespace(states=SimpleNamespace(get=lambda _: state)), controller
+    )
+    assert manager.get_future_export_price_slots(datetime(2999, 1, 2))[0].price == pytest.approx(expected)
+
+
+def test_battery_export_curve_never_includes_the_solar_bonus():
+    controller = SimpleNamespace(
+        price_integration_type="zonneplan", price_sensor="sensor.import",
+        export_price_sensor="sensor.export", export_price_integration_type="zonneplan",
+        zonneplan_export_bonus_enabled=True,
+        _consumption_tracker=SimpleNamespace(
+            calculate_sunrise=lambda _day: 8.0, calculate_sunset=lambda _day: 18.0
+        ),
+        _price_data_status="ok",
+    )
+    state = SimpleNamespace(
+        state="0.2", attributes={"forecast": [entry(amount=2000000, excluded=1000000)]}
+    )
+    manager = PricingManager(
+        SimpleNamespace(states=SimpleNamespace(get=lambda _: state)), controller
+    )
+    horizon = datetime(2999, 1, 2)
+    assert manager.get_future_export_price_slots(horizon)[0].price == pytest.approx(0.232)
+    assert manager.get_future_export_price_slots(horizon, solar_bonus=False)[0].price == pytest.approx(0.2)
 
 
 def test_missing_export_sensor_falls_back_to_import_without_export_bonus():

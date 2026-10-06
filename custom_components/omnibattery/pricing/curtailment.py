@@ -431,6 +431,7 @@ def plan_curtailment(
     solar_by_slot: Mapping[PriceSlot, float] | None = None,
     consumption_by_slot: Mapping[PriceSlot, float] | None = None,
     reserved_slots: Iterable[PriceSlot] = (),
+    risk_price_by_start: Mapping[datetime, float] | None = None,
     now: datetime | None = None,
 ) -> CurtailmentPlan:
     """Build an anti-curtailment plan from normalized prices and live capacity."""
@@ -503,7 +504,10 @@ def plan_curtailment(
         slot_solar = max(0.0, float(solar.get(slot, 0.0) or 0.0))
         slot_consumption = max(0.0, float(consumption.get(slot, 0.0) or 0.0))
         surplus = max(0.0, slot_solar - slot_consumption)
-        if float(slot.price) <= threshold and surplus > EPSILON:
+        if (
+            float((risk_price_by_start or {}).get(slot.start, slot.price)) <= threshold
+            and surplus > EPSILON
+        ):
             risk_slots.append(slot)
             surplus_kwh += surplus
             # The export cap applies while creating headroom before the risk

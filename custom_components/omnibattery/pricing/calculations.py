@@ -284,7 +284,7 @@ def parse_epex_prices(attrs: dict) -> list:
     return slots
 
 
-def parse_zonneplan_prices(attrs: dict) -> list:
+def parse_zonneplan_prices(attrs: dict, *, tax_excluded: bool = False) -> list:
     """Parse zonneplan_one hourly, quarter-hourly and legacy forecasts.
 
     Forecast amounts are tax-inclusive EUR/kWh multiplied by 10,000,000;
@@ -292,6 +292,8 @@ def parse_zonneplan_prices(attrs: dict) -> list:
     Modern entries have explicit start_date/end_date. Legacy electricity_price
     entries are hourly, with only datetime/start_date. Never bridge missing
     intervals by inferring an end from the next available price.
+    With ``tax_excluded`` the ``price_tax_excluded`` amount is used instead and
+    legacy entries (which carry no such amount) are skipped.
     """
     from homeassistant.util import dt as dt_util
 
@@ -310,12 +312,14 @@ def parse_zonneplan_prices(attrs: dict) -> list:
             if not isinstance(start, datetime):
                 continue
             if "price_tax_included" in entry:
-                amount = entry["price_tax_included"]["amount"]
+                amount = entry["price_tax_excluded" if tax_excluded else "price_tax_included"]["amount"]
                 end = entry.get("end_date")
                 if isinstance(end, str):
                     end = datetime.fromisoformat(end)
                 if not isinstance(end, datetime):
                     continue
+            elif tax_excluded:
+                continue
             else:
                 amount = entry["electricity_price"]
                 # Add elapsed time in UTC across daylight-saving changes.
