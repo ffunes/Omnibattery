@@ -1820,6 +1820,7 @@ class MarstekVenusPanel extends HTMLElement {
     // Home Assistant may assign/refresh `panel` after `hass`. Recompute now so
     // payload-backed sources (notably excluded devices) do not remain hidden
     // until an unrelated entity state update happens to arrive.
+    this._linkForecastRows();
     if (this._hass) this._update();
   }
   set narrow(v) {
@@ -4186,8 +4187,9 @@ class MarstekVenusPanel extends HTMLElement {
     this._linkMoreInfo(rows[3], this._sysEntityId(K.sysDailyHome));
     this._linkMoreInfo(rows[4], this._sysEntityId(K.sysDailyGridImport));
     this._linkMoreInfo(rows[5], this._sysEntityId(K.sysDailyGridExport));
-    this._linkMoreInfo(rows[6], this._sysEntityId(K.predictiveActive));
-    this._linkMoreInfo(rows[7], this._sysEntityId(K.predictiveActive));
+    this._r.dForecastRow = rows[6];
+    this._r.dRemainingRow = rows[7];
+    this._linkForecastRows();
     this._linkMoreInfo(rows[8], this._sysEntityId(K.consumptionProfile));
     this._r.dChV = body.querySelector(".daily-ch-v");
     this._r.dChBar = body.querySelector(".daily-ch-bar");
@@ -7198,13 +7200,35 @@ class MarstekVenusPanel extends HTMLElement {
   // Mark an element as a more-info trigger (cursor + tooltip + click). No-op when
   // the entity is absent, so missing sensors stay non-clickable.
   _linkMoreInfo(el, entityId) {
-    if (!el || !entityId) return;
+    if (!el) return;
+    if (!entityId) {
+      // The sensor disappeared: drop the stale listener so the row stops opening it.
+      if (el._moreInfoHandler) {
+        el.removeEventListener("click", el._moreInfoHandler);
+        el._moreInfoHandler = null;
+      }
+      el._moreInfoEntity = null;
+      el.classList.remove("clickable");
+      el.title = "";
+      return;
+    }
     el.classList.add("clickable");
     el.title = this._t("moreInfo");
-    el.addEventListener("click", (e) => {
+    // Re-linking only swaps the target; the listener is attached once.
+    el._moreInfoEntity = entityId;
+    if (el._moreInfoHandler) return;
+    el._moreInfoHandler = (e) => {
       e.stopPropagation();
-      this._moreInfo(entityId);
-    });
+      this._moreInfo(el._moreInfoEntity);
+    };
+    el.addEventListener("click", el._moreInfoHandler);
+  }
+
+  _linkForecastRows() {
+    const cfg = this._panelConfig || {};
+    // Each row opens only its own sensor; a missing one stays unlinked.
+    this._linkMoreInfo(this._r.dForecastRow, cfg.solar_forecast_entity);
+    this._linkMoreInfo(this._r.dRemainingRow, cfg.solar_forecast_remaining_entity);
   }
 
   // --- styles ----------------------------------------------------------------

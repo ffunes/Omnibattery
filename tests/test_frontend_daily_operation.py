@@ -97,6 +97,18 @@ def test_solar_forecast_needs_a_sustained_zero_run_before_erasing_the_day():
     assert "if (zeroIntervals < 1 || !priorProduction)" not in panel
 
 
+def test_daily_forecast_rows_open_the_configured_forecast_entities():
+    panel = PANEL.read_text(encoding="utf-8")
+
+    assert "this._r.dForecastRow = rows[6];" in panel
+    assert "this._r.dRemainingRow = rows[7];" in panel
+    assert "this._linkMoreInfo(this._r.dForecastRow, cfg.solar_forecast_entity);" in panel
+    assert (
+        "this._linkMoreInfo(this._r.dRemainingRow, cfg.solar_forecast_remaining_entity);"
+        in panel
+    )
+
+
 def test_solar_phase_skips_an_open_cell_without_a_minute_of_coverage():
     panel = PANEL.read_text(encoding="utf-8")
 
