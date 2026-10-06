@@ -10722,6 +10722,131 @@ def _async_register_services(hass: HomeAssistant) -> None:
     )
 
 
+async def _async_connect_and_configure(
+    coordinator: MarstekVenusDataUpdateCoordinator,
+    battery_config: dict,
+) -> None:
+    """Connect one battery, apply its initial configuration and read it once.
+
+    Runs once per battery, concurrently with the others, so the start-up time
+    is set by the slowest battery instead of the sum over all of them. A
+    battery that does not answer is left unreachable (see below); only a failed
+    first configuration raises ConfigEntryNotReady.
+    """
+    # Connect and fetch initial data
+    try:
+        connected = await coordinator.connect()
+        if not connected:
+            # V3 batteries / Modbus bridges (e.g. EW11B) accept only one TCP
+            # connection; the slot from the previous session may not be released
+            # yet on restart. Retry with escalating delays before giving up.
+            for _delay in (2.0, 5.0, 10.0):
+                _LOGGER.warning(
+                    "Initial connection to %s failed, retrying in %.0fs...",
+                    coordinator.host, _delay,
+                )
+                await asyncio.sleep(_delay)
+                connected = await coordinator.connect()
+                if connected:
+                    break
+    except Exception as e:
+        # A driver whose connect() raises (an HTTP session, an entity lookup)
+        # is no different from one returning False: the battery is not there.
+        _LOGGER.warning(
+            "Connecting to %s at %s:%s raised %s",
+            battery_config[CONF_NAME], coordinator.host, coordinator.port, e,
+        )
+        # A close on a link that never came up can raise in its own right
+        # (an MQTT publish, a second client). Letting that escape would put
+        # the entry in ERROR with no retry, which is the failure this whole
+        # branch exists to avoid.
+        with contextlib.suppress(Exception):
+            await coordinator.disconnect()
+        connected = False
+
+    if not connected:
+        # A battery that does not answer is set up unreachable instead of
+        # failing the config entry. Raising ConfigEntryNotReady here tore the
+        # whole system down over one switched-off battery: every other
+        # battery, the controller and the dashboard went with it, and the
+        # entry stayed in a setup-retry loop for as long as the device stayed
+        # off. This battery instead starts unreachable, and the coordinator
+        # reloads the entry once the device answers (the connect-time entity
+        # definitions and the initial hardware configuration write can only
+        # be redone by re-running setup) — see the coordinator's
+        # _schedule_setup_reload_if_deferred.
+        _LOGGER.warning(
+            "Battery %s at %s:%s did not answer during setup; it starts unreachable "
+            "and the integration reloads once it responds",
+            battery_config[CONF_NAME], coordinator.host, coordinator.port,
+        )
+        coordinator.reload_entry_when_reachable = True
+        # _consecutive_failures is what every consumer gates on to tell an
+        # unreachable battery from an idle one (non_responsive_battery_names,
+        # the non_responsive_batteries sensor, diagnostics). A battery that
+        # never answered starts counted, so it is visibly unreachable before
+        # the first poll instead of looking healthy until then.
+        coordinator._consecutive_failures = 1
+        # Every consumer of coordinator.data assumes setup ran a first
+        # refresh, so hand them the same empty snapshot a battery whose reads
+        # all failed produces. Assigned rather than pushed through
+        # async_set_updated_data: nothing was read, so this is not an update.
+        coordinator.data = {}
+        return
+
+    try:
+        # Enable RS485 Control Mode first (required to apply configuration changes)
+        # Only done during integration setup/reload, not repeated during runtime
+        # Skip if the user explicitly disabled RS485 via the switch.
+        if coordinator.rs485_user_disabled:
+            _LOGGER.info("Skipping RS485 enable for %s (user disabled)", battery_config[CONF_NAME])
+        else:
+            _LOGGER.info("Enabling RS485 Control Mode for %s (only on initial setup)", battery_config[CONF_NAME])
+            if coordinator.capabilities.has_rs485_control:
+                await coordinator.set_rs485_control(True)
+                await asyncio.sleep(0.1)
+
+        # Write initial configuration values to the battery: hardware SOC
+        # cut-offs (v2 only) + max charge/discharge power caps. The driver
+        # owns which registers exist for this version and the scaling.
+        #
+        # Registerless drivers (Zendure) are skipped: their SOC limits live
+        # in device flash and are written directly by the soc_set/min_soc
+        # number entities, which do NOT round-trip through battery_config.
+        # So battery_config still holds the config-flow defaults (max_soc=100,
+        # min_soc=12); re-asserting them here would clobber the user's
+        # device-set values on every restart and re-arm the full-charge
+        # taper/hysteresis machinery. The device is the source of truth and
+        # the coordinator syncs soc_set/min_soc back from the poll.
+        if _device_owns_initial_config(coordinator.brand):
+            _LOGGER.info("Skipping initial SOC config write for %s (registerless driver; device flash holds the user values)",
+                       battery_config[CONF_NAME])
+        else:
+            max_charge_power = int(battery_config["max_charge_power"])
+            max_discharge_power = int(battery_config["max_discharge_power"])
+
+            _LOGGER.info("Writing initial configuration for %s (%s): max_soc=%d%%, min_soc=%d%%, max_charge=%dW, max_discharge=%dW",
+                       battery_config[CONF_NAME], coordinator.battery_version,
+                       battery_config["max_soc"], battery_config["min_soc"],
+                       max_charge_power, max_discharge_power)
+
+            await coordinator.apply_config(
+                max_soc_pct=battery_config["max_soc"],
+                min_soc_pct=battery_config["min_soc"],
+                max_charge_power_w=max_charge_power,
+                max_discharge_power_w=max_discharge_power,
+            )
+
+        # Manually trigger first refresh and wait for it
+        await coordinator.async_request_refresh()
+        # Give a moment for the data to be processed
+        await asyncio.sleep(0.5)
+    except Exception as e:
+        # Disconnect on any setup error
+        await coordinator.disconnect()
+        raise ConfigEntryNotReady(f"Failed to set up {coordinator.host}: {e}") from e
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Omnibattery from a config entry."""
     _async_register_services(hass)
@@ -10890,121 +11015,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if k.startswith("shadow_select_")
         }
 
-        # Connect and fetch initial data
-        try:
-            connected = await coordinator.connect()
-            if not connected:
-                # V3 batteries / Modbus bridges (e.g. EW11B) accept only one TCP
-                # connection; the slot from the previous session may not be released
-                # yet on restart. Retry with escalating delays before giving up.
-                for _delay in (2.0, 5.0, 10.0):
-                    _LOGGER.warning(
-                        "Initial connection to %s failed, retrying in %.0fs...",
-                        coordinator.host, _delay,
-                    )
-                    await asyncio.sleep(_delay)
-                    connected = await coordinator.connect()
-                    if connected:
-                        break
-        except Exception as e:
-            # A driver whose connect() raises (an HTTP session, an entity lookup)
-            # is no different from one returning False: the battery is not there.
-            _LOGGER.warning(
-                "Connecting to %s at %s:%s raised %s",
-                battery_config[CONF_NAME], coordinator.host, coordinator.port, e,
-            )
-            # A close on a link that never came up can raise in its own right
-            # (an MQTT publish, a second client). Letting that escape would put
-            # the entry in ERROR with no retry, which is the failure this whole
-            # branch exists to avoid.
+        coordinators.append(coordinator)
+
+    # Connect, configure and first-read every battery at the same time. Doing it
+    # one after another made the start-up time grow with the number of
+    # batteries, and Home Assistant waits for this setup before it finishes
+    # booting.
+    results = await asyncio.gather(
+        *(
+            _async_connect_and_configure(coordinator, battery_config)
+            for coordinator, battery_config in zip(coordinators, entry.data["batteries"])
+        ),
+        return_exceptions=True,
+    )
+    failures = [result for result in results if isinstance(result, BaseException)]
+    if failures:
+        # One battery failing its setup fails the entry, as before. The batteries
+        # that did connect meanwhile must not be left holding their sockets.
+        for coordinator in coordinators:
             with contextlib.suppress(Exception):
                 await coordinator.disconnect()
-            connected = False
-
-        if not connected:
-            # A battery that does not answer is set up unreachable instead of
-            # failing the config entry. Raising ConfigEntryNotReady here tore the
-            # whole system down over one switched-off battery: every other
-            # battery, the controller and the dashboard went with it, and the
-            # entry stayed in a setup-retry loop for as long as the device stayed
-            # off. This battery instead starts unreachable, and the coordinator
-            # reloads the entry once the device answers (the connect-time entity
-            # definitions and the initial hardware configuration write can only
-            # be redone by re-running setup) — see the coordinator's
-            # _schedule_setup_reload_if_deferred.
-            _LOGGER.warning(
-                "Battery %s at %s:%s did not answer during setup; it starts unreachable "
-                "and the integration reloads once it responds",
-                battery_config[CONF_NAME], coordinator.host, coordinator.port,
-            )
-            coordinator.reload_entry_when_reachable = True
-            # _consecutive_failures is what every consumer gates on to tell an
-            # unreachable battery from an idle one (non_responsive_battery_names,
-            # the non_responsive_batteries sensor, diagnostics). A battery that
-            # never answered starts counted, so it is visibly unreachable before
-            # the first poll instead of looking healthy until then.
-            coordinator._consecutive_failures = 1
-            # Every consumer of coordinator.data assumes setup ran a first
-            # refresh, so hand them the same empty snapshot a battery whose reads
-            # all failed produces. Assigned rather than pushed through
-            # async_set_updated_data: nothing was read, so this is not an update.
-            coordinator.data = {}
-            coordinators.append(coordinator)
-            continue
-
-        try:
-            # Enable RS485 Control Mode first (required to apply configuration changes)
-            # Only done during integration setup/reload, not repeated during runtime
-            # Skip if the user explicitly disabled RS485 via the switch.
-            if coordinator.rs485_user_disabled:
-                _LOGGER.info("Skipping RS485 enable for %s (user disabled)", battery_config[CONF_NAME])
-            else:
-                _LOGGER.info("Enabling RS485 Control Mode for %s (only on initial setup)", battery_config[CONF_NAME])
-                if coordinator.capabilities.has_rs485_control:
-                    await coordinator.set_rs485_control(True)
-                    await asyncio.sleep(0.1)
-
-            # Write initial configuration values to the battery: hardware SOC
-            # cut-offs (v2 only) + max charge/discharge power caps. The driver
-            # owns which registers exist for this version and the scaling.
-            #
-            # Registerless drivers (Zendure) are skipped: their SOC limits live
-            # in device flash and are written directly by the soc_set/min_soc
-            # number entities, which do NOT round-trip through battery_config.
-            # So battery_config still holds the config-flow defaults (max_soc=100,
-            # min_soc=12); re-asserting them here would clobber the user's
-            # device-set values on every restart and re-arm the full-charge
-            # taper/hysteresis machinery. The device is the source of truth and
-            # the coordinator syncs soc_set/min_soc back from the poll.
-            if _device_owns_initial_config(coordinator.brand):
-                _LOGGER.info("Skipping initial SOC config write for %s (registerless driver; device flash holds the user values)",
-                           battery_config[CONF_NAME])
-            else:
-                max_charge_power = int(battery_config["max_charge_power"])
-                max_discharge_power = int(battery_config["max_discharge_power"])
-
-                _LOGGER.info("Writing initial configuration for %s (%s): max_soc=%d%%, min_soc=%d%%, max_charge=%dW, max_discharge=%dW",
-                           battery_config[CONF_NAME], coordinator.battery_version,
-                           battery_config["max_soc"], battery_config["min_soc"],
-                           max_charge_power, max_discharge_power)
-
-                await coordinator.apply_config(
-                    max_soc_pct=battery_config["max_soc"],
-                    min_soc_pct=battery_config["min_soc"],
-                    max_charge_power_w=max_charge_power,
-                    max_discharge_power_w=max_discharge_power,
-                )
-
-            # Manually trigger first refresh and wait for it
-            await coordinator.async_request_refresh()
-            # Give a moment for the data to be processed
-            await asyncio.sleep(0.5)
-        except Exception as e:
-            # Disconnect on any setup error
-            await coordinator.disconnect()
-            raise ConfigEntryNotReady(f"Failed to set up {coordinator.host}: {e}") from e
-
-        coordinators.append(coordinator)
+        raise failures[0]
 
     # Set up the charge/discharge controller BEFORE storing in hass.data
     # This allows the controller to register itself in hass.data[DOMAIN]["pid_controller"]
