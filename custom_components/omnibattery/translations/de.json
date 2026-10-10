@@ -1431,6 +1431,9 @@
       "predictive_charging": {
         "name": "Prädiktives Laden"
       },
+      "predictive_charging_notifications": {
+        "name": "Benachrichtigungen Prädiktives Laden"
+      },
       "vacation_mode": {
         "name": "Urlaubsmodus"
       },

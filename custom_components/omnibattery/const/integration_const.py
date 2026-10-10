@@ -117,6 +117,12 @@ CONF_ENABLE_PREDICTIVE_CHARGING = "enable_predictive_charging"
 # measured overnight baseline live in ConsumptionTracker's Store; this flag is
 # kept in the entry so the switch restores before the first control cycle.
 CONF_VACATION_MODE_ENABLED = "vacation_mode_enabled"
+# Whether predictive-charging evaluations (daily/dynamic-pricing evaluation,
+# price-slot start, pre-slot and evening re-evaluations) are announced as
+# persistent notifications. Absent means True so existing installs keep the
+# current behaviour. Battery alarm, cell-balance, manual-mode and the
+# predictive-charging "disabled" confirmation are not affected.
+CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED = "predictive_charging_notifications_enabled"
 CONF_CHARGING_TIME_SLOT = "charging_time_slot"
 CONF_SOLAR_FORECAST_SENSOR = "solar_forecast_sensor"
 # Explicit post-now forecast.  The old key remains a whole-day ``today`` value

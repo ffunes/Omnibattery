@@ -45,6 +45,7 @@ from .const import (
     NOTIFICATION_ID_PREFIX,
     CONF_ENABLE_PREDICTIVE_CHARGING,
     CONF_VACATION_MODE_ENABLED,
+    CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED,
     CONF_CHARGING_TIME_SLOT,
     CONF_SOLAR_FORECAST_SENSOR,
     CONF_SOLAR_FORECAST_REMAINING_SENSOR,
@@ -925,6 +926,9 @@ class ChargeDischargeController:
         # Predictive Grid Charging state
         self.predictive_charging_enabled = config_entry.data.get(CONF_ENABLE_PREDICTIVE_CHARGING, False)
         self.vacation_mode_enabled = config_entry.data.get(CONF_VACATION_MODE_ENABLED, False)
+        self.predictive_charging_notifications_enabled = config_entry.data.get(
+            CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED, True
+        )
         # Predictive charging windows: list of {start_time, end_time, days} dicts.
         # Legacy configs stored a single dict — normalize to a one-element list.
         _raw_slots = config_entry.data.get(CONF_CHARGING_TIME_SLOT, None)
@@ -2872,6 +2876,9 @@ class ChargeDischargeController:
         self.meter_inverted = self.config_entry.data.get(CONF_METER_INVERTED, False)
         self.vacation_mode_enabled = self.config_entry.data.get(
             CONF_VACATION_MODE_ENABLED, False
+        )
+        self.predictive_charging_notifications_enabled = self.config_entry.data.get(
+            CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED, True
         )
         if self._phase_power_limiter is not None:
             self._phase_power_limiter.refresh_config()

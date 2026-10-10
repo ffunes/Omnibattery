@@ -1446,6 +1446,9 @@
       "predictive_charging": {
         "name": "Carga Predictiva"
       },
+      "predictive_charging_notifications": {
+        "name": "Notificaciones de Carga Predictiva"
+      },
       "vacation_mode": {
         "name": "Modo vacaciones"
       },

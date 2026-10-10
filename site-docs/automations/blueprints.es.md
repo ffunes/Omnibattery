@@ -111,6 +111,8 @@ Envía el título, ID y mensaje de la notificación escapando HTML de forma segu
 
 La notificación puede ser visible brevemente antes de que Home Assistant ejecute la automatización. Desactiva la automatización en cualquier momento para volver a recibir notificaciones de carga predictiva.
 
+Para evitarlas directamente en el origen, desactiva el interruptor **Notificaciones de Carga Predictiva**; consulta [Carga predictiva](../configuration/predictive-charging/index.md).
+
 ## Reserva de descarga según previsión solar
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/solar_forecast_reserve_discharge_blueprint.yaml)
