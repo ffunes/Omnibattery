@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Predictive Charging Notifications switch** (#141): `switch.omnibattery_predictive_charging_notifications` (on by default) mutes the predictive-charging evaluation notifications at the source: daily and dynamic-pricing evaluations, slot starts, pre-slot and evening re-evaluations. Evaluations, schedules and diagnostics are unchanged; turning it off also dismisses an evaluation notification that is currently shown. Battery alarm, cell-balance and manual-mode notifications are not affected. Shown on the predictive-charging card of the dashboard.
+
 ## [1.5.0] - 2026-10-04
 
 ### Added

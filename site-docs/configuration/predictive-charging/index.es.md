@@ -123,4 +123,6 @@ Desactiva **Carga predictiva** para pausar toda la carga predictiva desde red y 
 
     Franja horaria puede notificar una hora antes de un periodo configurado y cuando empieza a cargar. Precio dinámico también comprueba antes de futuros periodos seleccionados, durante la evaluación de final del día, tras una caída importante de SOC y cuando están disponibles los precios de mañana. Las páginas de cada modo describen el comportamiento exacto.
 
+    Para dejar de recibir estas notificaciones, desactiva **Notificaciones de Carga Predictiva** (`switch.omnibattery_predictive_charging_notifications`) en la tarjeta de carga predictiva. Las evaluaciones, la planificación y los atributos de decisión siguen funcionando; solo se omiten las notificaciones persistentes y se descarta cualquier notificación de evaluación visible. Las notificaciones de alarmas de batería, balanceo de celdas y modo manual, y la confirmación que aparece al desactivar la carga predictiva, no se ven afectadas. El interruptor está activado por defecto.
+
     ![Notificación de carga predictiva](../../assets/screenshots/configuration/predictive-charging/notification-example.png){ width="500" style="display: block; margin: 0 auto;" }

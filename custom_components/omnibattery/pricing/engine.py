@@ -3836,13 +3836,33 @@ class PricingManager:
             max_charge_capacity=self._controller.max_charge_capacity,
             peak_limit=self._peak_shaving_limit(),
         )
+        await self._async_create_predictive_notification(
+            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
+        )
+
+    async def _async_create_predictive_notification(
+        self, title: str, message: str, notification_id: str
+    ) -> None:
+        """Create a predictive-charging persistent notification unless muted.
+
+        The ``predictive_charging_notifications`` switch only silences the
+        announcement: the evaluation itself, its schedule and its diagnostics
+        are unaffected and stay visible on the dashboard and sensors.
+        """
+        if not getattr(self._controller, "predictive_charging_notifications_enabled", True):
+            _LOGGER.debug(
+                "Predictive charging notification suppressed (%s): %s",
+                notification_id,
+                title,
+            )
+            return
         await self._hass.services.async_call(
             "persistent_notification",
             "create",
             {
                 "title": title,
                 "message": message,
-                "notification_id": f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation",
+                "notification_id": notification_id,
             },
         )
 
@@ -3881,14 +3901,8 @@ class PricingManager:
             max_contracted_power=self._controller.max_contracted_power,
             peak_limit=self._peak_shaving_limit(),
         )
-        await self._hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": title,
-                "message": message,
-                "notification_id": f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation",
-            },
+        await self._async_create_predictive_notification(
+            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
         )
 
     async def _check_dp_pre_slot_reevaluation(self) -> None:
@@ -4051,14 +4065,8 @@ class PricingManager:
             decision,
             unit=self._get_price_unit(),
         )
-        await self._hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": title,
-                "message": message,
-                "notification_id": f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation",
-            },
+        await self._async_create_predictive_notification(
+            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
         )
 
     def _is_evening_reevaluation_time(self) -> bool:
@@ -5072,14 +5080,8 @@ class PricingManager:
             unit=self._get_price_unit(),
             avg_soc=avg_soc,
         )
-        await self._hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": title,
-                "message": message,
-                "notification_id": f"{NOTIFICATION_ID_PREFIX}predictive_charging_evening_reeval",
-            },
+        await self._async_create_predictive_notification(
+            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evening_reeval"
         )
 
     # =========================================================================
@@ -6235,14 +6237,8 @@ class PricingManager:
         )
 
         # Send the notification
-        await self._hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": title,
-                "message": message,
-                "notification_id": f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation",
-            },
+        await self._async_create_predictive_notification(
+            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
         )
 
     # =========================================================================

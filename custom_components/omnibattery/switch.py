@@ -35,6 +35,7 @@ from .const import (
     CONF_OFFGRID_MODE_ENABLED,
     CONF_PRIMARY_FEEDFORWARD_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
+    CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED,
     CONF_PREDICTIVE_CHARGING_MODE,
     CONF_PRICE_DISCHARGE_CONTROL,
     CONF_SMART_PREDISCHARGE_ENABLED,
@@ -125,6 +126,9 @@ async def async_setup_entry(
     # leaving orphaned settings with no toggle (#68).
     if controller and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data:
         entities.append(PredictiveChargingSwitch(hass, entry, controller))
+        # Mute toggle for the evaluation notifications (#141); lives next to the
+        # master switch so it exists on every install that can produce them.
+        entities.append(PredictiveChargingNotificationsSwitch(hass, entry, controller))
 
     # Add capacity protection switch (system-level, when configured, regardless of enabled state)
     if controller and CONF_CAPACITY_PROTECTION_ENABLED in entry.data:
@@ -675,6 +679,78 @@ class PredictiveChargingSwitch(SwitchEntity):
     @property
     def device_info(self):
         """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+# Notification IDs created by the pricing engine for predictive-charging
+# evaluations. The "disabled" confirmation (``predictive_charging_override``) is
+# direct feedback to a user action and is deliberately not muted.
+_PREDICTIVE_EVALUATION_NOTIFICATION_IDS = (
+    f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation",
+    f"{NOTIFICATION_ID_PREFIX}predictive_charging_evening_reeval",
+)
+
+
+class PredictiveChargingNotificationsSwitch(SwitchEntity):
+    """Mute or unmute predictive-charging evaluation notifications (#141).
+
+    ON (default) = the daily/dynamic-pricing evaluation, price-slot start,
+    pre-slot and evening re-evaluation results are posted as persistent
+    notifications, as before.
+    OFF = those notifications are not created. Evaluations, schedules and
+    diagnostics run unchanged; battery alarm, cell-balance and manual-mode
+    notifications are unaffected. Turning it off also dismisses any
+    predictive-charging evaluation notification that is currently shown.
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "predictive_charging_notifications"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}predictive_charging_notifications"
+        self.entity_id = system_entity_id("switch", "predictive_charging_notifications")
+        self._attr_icon = "mdi:bell-ring-outline"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        return bool(
+            getattr(self.controller, "predictive_charging_notifications_enabled", True)
+        )
+
+    async def _set_enabled(self, enabled: bool) -> None:
+        self.controller.predictive_charging_notifications_enabled = enabled
+        data = dict(self.entry.data)
+        data[CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=data)
+        if not enabled:
+            for notification_id in _PREDICTIVE_EVALUATION_NOTIFICATION_IDS:
+                await self.hass.services.async_call(
+                    "persistent_notification",
+                    "dismiss",
+                    {"notification_id": notification_id},
+                )
+        _LOGGER.info(
+            "Predictive charging notifications %s",
+            "enabled" if enabled else "muted",
+        )
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._set_enabled(False)
+
+    @property
+    def device_info(self):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",

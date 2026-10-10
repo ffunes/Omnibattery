@@ -123,4 +123,6 @@ Turn off **Predictive Charging** to pause all predictive grid charging and its D
 
     Time Slot can notify one hour before a configured period and when charging starts. Dynamic Pricing also checks before future selected periods, during the late-day assessment, after a material SOC drop, and when tomorrow's prices become available. The active mode pages describe the exact behavior.
 
+    To stop these notifications, turn off **Predictive Charging Notifications** (`switch.omnibattery_predictive_charging_notifications`) on the predictive-charging card. Evaluations, the schedule and the decision attributes keep working; only the persistent notifications are skipped, and any evaluation notification currently shown is dismissed. Battery alarm, cell-balance and manual-mode notifications, and the confirmation shown when you turn predictive charging off, are not affected. The switch is on by default.
+
     ![Predictive charging notification](../../assets/screenshots/configuration/predictive-charging/notification-example.png){ width="500" style="display: block; margin: 0 auto;" }
