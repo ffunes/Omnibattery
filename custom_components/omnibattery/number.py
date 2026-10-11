@@ -43,6 +43,7 @@ from .const import (
     MIN_CHARGE_HYSTERESIS_PERCENT,
     MAX_CHARGE_HYSTERESIS_PERCENT,
     DOMAIN,
+    CONF_MAX_CONTRACTED_POWER,
     effective_system_power,
     total_battery_power,
 )
@@ -384,7 +385,9 @@ def config_number_bounds(definition: dict, data) -> tuple[float, float]:
 
     Entries without a ``dynamic_bounds`` marker keep their authored min/max.
     The system-power marker derives target-grid bounds from the configured
-    per-battery limits, narrowed by the optional system cap. The system-cap
+    per-battery limits, narrowed by the optional system cap; the import side is
+    widened to the contracted power when that is set (the house draws from the
+    same meter, see below). The system-cap
     marker derives each cap's own maximum from the configured sum for that
     direction:
 
@@ -415,6 +418,22 @@ def config_number_bounds(definition: dict, data) -> tuple[float, float]:
         return static_min, static_max
 
     charge_w, discharge_w = effective_system_power(data)
+    # A positive target is grid IMPORT, and the house draws from the same meter:
+    # during a grid charge the packs get whatever the house leaves of the target,
+    # so a ceiling at the battery sum starves them whenever the house draws
+    # (2 x 3000 W packs, a 6000 W target, a car at 2.3 kW plus a washer: 1.8 kW
+    # into the packs). The ceiling on the import side is the grid connection,
+    # which the user configures as the contracted power; use it when it is set
+    # and larger than the battery sum. The per-battery limits still clip what
+    # each pack is told, so the packs never exceed their own ceilings, and a
+    # target the house no longer needs simply imports less. The export side
+    # keeps the battery sum: the house helps there, it never starves a sale.
+    try:
+        contracted_w = max(0, int(float(data.get(CONF_MAX_CONTRACTED_POWER, 0) or 0)))
+    except (TypeError, ValueError):
+        contracted_w = 0
+    if contracted_w > charge_w:
+        charge_w = contracted_w
     step = definition.get("step", 1)
     scale = definition.get("scale", 1) or 1
     hi = _floor_to_step(charge_w, step)

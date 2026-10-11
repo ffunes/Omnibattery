@@ -23,6 +23,7 @@ import pytest
 from custom_components.omnibattery.const import (
     CONFIG_NUMBER_DEFINITIONS,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
+    CONF_MAX_CONTRACTED_POWER,
     CONF_SYSTEM_MAX_CHARGE_POWER,
     CONF_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_TARGET_GRID_POWER,
@@ -150,6 +151,39 @@ def test_system_cap_cannot_widen():
         CONF_SYSTEM_MAX_DISCHARGE_POWER: 15000,
     }
     assert _bounds(data) == (-2500, 2500)
+
+
+def test_contracted_power_widens_the_import_bound():
+    """Positive targets are grid import and the house draws from the same meter."""
+    data = {"batteries": [_bat(3000, 3000)] * 2, CONF_MAX_CONTRACTED_POWER: 17250}
+    assert _bounds(data) == (-6000, 17250)
+
+
+def test_contracted_power_below_the_battery_sum_keeps_the_sum():
+    data = {"batteries": [_bat(3000, 3000)] * 2, CONF_MAX_CONTRACTED_POWER: 4000}
+    assert _bounds(data) == (-6000, 6000)
+
+
+def test_contracted_power_ignores_the_system_cap_on_the_import_side():
+    """The cap bounds the packs, not the meter; the controller clips the packs anyway."""
+    data = {
+        "batteries": [_bat(3000, 3000)] * 2,
+        CONF_ENABLE_SYSTEM_POWER_LIMITS: True,
+        CONF_SYSTEM_MAX_CHARGE_POWER: 5000,
+        CONF_SYSTEM_MAX_DISCHARGE_POWER: 5000,
+        CONF_MAX_CONTRACTED_POWER: 17250,
+    }
+    assert _bounds(data) == (-5000, 17250)
+
+
+def test_contracted_power_snaps_to_the_step_grid():
+    data = {"batteries": [_bat(3000, 3000)] * 2, CONF_MAX_CONTRACTED_POWER: 17255}
+    assert _bounds(data) == (-6000, 17250)
+
+
+def test_unparseable_contracted_power_is_ignored():
+    data = {"batteries": [_bat(3000, 3000)] * 2, CONF_MAX_CONTRACTED_POWER: "n/a"}
+    assert _bounds(data) == (-6000, 6000)
 
 
 def test_legacy_entry_without_enable_key_derives_from_cap_values():
