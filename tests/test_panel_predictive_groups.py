@@ -20,7 +20,9 @@ EXPECTED = [
     ("min_soc_floor_enabled", "base"),
     ("predictive_min_soc_floor", "base"),
     ("price_discharge_control", "price"),
+    ("max_price_threshold_enabled", "price"),
     ("max_price_threshold", "price"),
+    ("discharge_price_threshold_enabled", "price"),
     ("discharge_price_threshold", "price"),
     ("min_arbitrage_margin", "price"),
     ("round_trip_efficiency", "price"),
@@ -67,3 +69,17 @@ def test_renderer_draws_a_divider_on_group_change():
     assert 'rows.filter((x) => x.item.grp === g).every((x) => x.item.adv)) sep.classList.add("adv-row")' in body
     assert "gatedNodes.push(sep);" in body
     assert ".sys-sep { grid-column: 1 / -1;" in panel
+
+
+def test_price_thresholds_hide_behind_their_manual_switch():
+    # #612: each threshold row names its manual switch as `dep`, and that switch
+    # is a row of the same card (the renderer only links deps within a card).
+    panel = PANEL.read_text(encoding="utf-8")
+    start = panel.index('tk: "diagPredictive"')
+    card = panel[start : panel.index('tk: "diagChargeDelay"', start)]
+    for key in ("max_price_threshold", "discharge_price_threshold"):
+        row = re.search(rf'\{{ key: "{key}",[^}}]*\}}', card).group(0)
+        assert f'dep: "{key}_enabled"' in row
+        assert f'key: "{key}_enabled", domain: "switch"' in card
+    assert 'n.classList?.toggle("sub-off", !shown)' in panel
+    assert ".card .sub-off { display: none; }" in panel

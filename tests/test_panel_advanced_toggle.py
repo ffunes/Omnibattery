@@ -16,7 +16,9 @@ PANEL = COMPONENT / "frontend" / "marstek-panel.js"
 
 # Items the plan asks to move behind "Advanced settings" (T3, diagPredictive).
 ADV_KEYS = {
+    "max_price_threshold_enabled",
     "max_price_threshold",
+    "discharge_price_threshold_enabled",
     "discharge_price_threshold",
     "min_arbitrage_margin",
     "round_trip_efficiency",

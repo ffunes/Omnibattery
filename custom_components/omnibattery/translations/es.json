@@ -1440,6 +1440,12 @@
       "min_soc_floor_enabled": {
         "name": "SOC Mínimo Garantizado"
       },
+      "max_price_threshold_enabled": {
+        "name": "Precio máximo de carga manual"
+      },
+      "discharge_price_threshold_enabled": {
+        "name": "Precio mínimo de descarga manual"
+      },
       "system_power_limits": {
         "name": "Límites de Potencia del Sistema"
       },

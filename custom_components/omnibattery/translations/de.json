@@ -1425,6 +1425,12 @@
       "min_soc_floor_enabled": {
         "name": "Garantierter Mindest-SOC"
       },
+      "max_price_threshold_enabled": {
+        "name": "Manuelle Lade-Preisobergrenze"
+      },
+      "discharge_price_threshold_enabled": {
+        "name": "Manuelle Entlade-Preisuntergrenze"
+      },
       "system_power_limits": {
         "name": "System-Leistungsgrenzen"
       },

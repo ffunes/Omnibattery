@@ -153,6 +153,9 @@ from .const import (
     CONF_PRICE_INTEGRATION_TYPE,
     CONF_MAX_PRICE_THRESHOLD,
     CONF_DISCHARGE_PRICE_THRESHOLD,
+    CONF_MAX_PRICE_THRESHOLD_ENABLED,
+    CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED,
+    effective_price_threshold,
     CONF_MIN_ARBITRAGE_MARGIN,
     CONF_ROUND_TRIP_EFFICIENCY,
     DEFAULT_ROUND_TRIP_EFFICIENCY,
@@ -1027,8 +1030,12 @@ class ChargeDischargeController:
         self.predictive_charging_mode = config_entry.data.get(CONF_PREDICTIVE_CHARGING_MODE, PREDICTIVE_MODE_TIME_SLOT)
         self.price_sensor = config_entry.data.get(CONF_PRICE_SENSOR, None)
         self.price_integration_type = config_entry.data.get(CONF_PRICE_INTEGRATION_TYPE, PRICE_INTEGRATION_NORDPOOL)
-        self.max_price_threshold = config_entry.data.get(CONF_MAX_PRICE_THRESHOLD, None)
-        self.discharge_price_threshold = config_entry.data.get(CONF_DISCHARGE_PRICE_THRESHOLD, None)
+        self.max_price_threshold = effective_price_threshold(
+            config_entry.data, CONF_MAX_PRICE_THRESHOLD, CONF_MAX_PRICE_THRESHOLD_ENABLED
+        )
+        self.discharge_price_threshold = effective_price_threshold(
+            config_entry.data, CONF_DISCHARGE_PRICE_THRESHOLD, CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED
+        )
         self.min_arbitrage_margin = config_entry.data.get(CONF_MIN_ARBITRAGE_MARGIN, None)
         self.round_trip_efficiency = config_entry.data.get(
             CONF_ROUND_TRIP_EFFICIENCY, DEFAULT_ROUND_TRIP_EFFICIENCY
@@ -2993,8 +3000,12 @@ class ChargeDischargeController:
         self.predictive_charging_mode = self.config_entry.data.get(CONF_PREDICTIVE_CHARGING_MODE, PREDICTIVE_MODE_TIME_SLOT)
         self.price_sensor = self.config_entry.data.get(CONF_PRICE_SENSOR, None)
         self.price_integration_type = self.config_entry.data.get(CONF_PRICE_INTEGRATION_TYPE, PRICE_INTEGRATION_NORDPOOL)
-        self.max_price_threshold = self.config_entry.data.get(CONF_MAX_PRICE_THRESHOLD, None)
-        self.discharge_price_threshold = self.config_entry.data.get(CONF_DISCHARGE_PRICE_THRESHOLD, None)
+        self.max_price_threshold = effective_price_threshold(
+            self.config_entry.data, CONF_MAX_PRICE_THRESHOLD, CONF_MAX_PRICE_THRESHOLD_ENABLED
+        )
+        self.discharge_price_threshold = effective_price_threshold(
+            self.config_entry.data, CONF_DISCHARGE_PRICE_THRESHOLD, CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED
+        )
         self.min_arbitrage_margin = self.config_entry.data.get(CONF_MIN_ARBITRAGE_MARGIN, None)
         self.round_trip_efficiency = self.config_entry.data.get(
             CONF_ROUND_TRIP_EFFICIENCY, DEFAULT_ROUND_TRIP_EFFICIENCY
