@@ -1431,6 +1431,9 @@
       "predictive_charging": {
         "name": "Voorspellend Laden"
       },
+      "predictive_charging_notifications": {
+        "name": "Meldingen Voorspellend Laden"
+      },
       "vacation_mode": {
         "name": "Vakantiemodus"
       },

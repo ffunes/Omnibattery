@@ -111,6 +111,8 @@ It sends the notification title, ID, and message with HTML-safe escaping.
 
 The notification may be visible briefly before Home Assistant executes the automation. Disable the automation at any time to receive predictive-charging notifications again.
 
+To stop these notifications at the source instead, turn off the **Predictive Charging Notifications** switch; see [Predictive charging](../configuration/predictive-charging/index.md).
+
 ## Solar forecast reserve discharge
 
 [Import blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/solar_forecast_reserve_discharge_blueprint.yaml)

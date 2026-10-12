@@ -15,6 +15,7 @@ PANEL = Path("custom_components/omnibattery/frontend/marstek-panel.js")
 # feature keeps its switch, its sliders and its status row in one group.
 EXPECTED = [
     ("predictive_charging", "base"),
+    ("predictive_charging_notifications", "base"),
     ("predictive_safety_margin_kwh", "base"),
     ("min_soc_floor_enabled", "base"),
     ("predictive_min_soc_floor", "base"),
