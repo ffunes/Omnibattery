@@ -1425,6 +1425,12 @@
       "min_soc_floor_enabled": {
         "name": "Gegarandeerd Minimum SOC"
       },
+      "max_price_threshold_enabled": {
+        "name": "Handmatig laadprijsplafond"
+      },
+      "discharge_price_threshold_enabled": {
+        "name": "Handmatige ontlaad-prijsondergrens"
+      },
       "system_power_limits": {
         "name": "Systeemvermogenslimieten"
       },

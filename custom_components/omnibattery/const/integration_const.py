@@ -803,6 +803,16 @@ def system_power_limits_enabled(data) -> bool:
     )
 
 
+def effective_price_threshold(data, conf_key: str, enabled_key: str) -> float | None:
+    """Return the price threshold the engine should use, or None (automatic).
+
+    Entries predating the enable key had the threshold active iff a value was
+    set, so that stays the default for the missing key.
+    """
+    value = data.get(conf_key)
+    return value if data.get(enabled_key, value is not None) else None
+
+
 def effective_system_power(data) -> tuple[int, int]:
     """Return (charge_w, discharge_w) after the optional system-wide cap.
 
@@ -924,6 +934,11 @@ CONF_MAX_PRICE_THRESHOLD = "max_price_threshold"
 # while price <= this value; unset → falls back to max_price_threshold so
 # existing single-threshold installs keep identical behavior.
 CONF_DISCHARGE_PRICE_THRESHOLD = "discharge_price_threshold"
+# Per-threshold manual/automatic toggle (#612). A number entity cannot be
+# cleared from the UI, so OFF makes the engine see None (automatic fallback)
+# while the stored value is kept for when it is turned back on.
+CONF_MAX_PRICE_THRESHOLD_ENABLED = "max_price_threshold_enabled"
+CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED = "discharge_price_threshold_enabled"
 # Minimum arbitrage margin (currency/kWh) required before a slot is eligible for
 # grid charging. Unset (None) → disabled, and slot selection behaves exactly as
 # before. When set, a candidate slot must satisfy

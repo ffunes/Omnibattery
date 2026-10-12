@@ -45,6 +45,10 @@ from .const import (
     CONF_SYSTEM_MAX_CHARGE_POWER,
     CONF_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_ENABLE_MIN_SOC_FLOOR,
+    CONF_MAX_PRICE_THRESHOLD,
+    CONF_DISCHARGE_PRICE_THRESHOLD,
+    CONF_MAX_PRICE_THRESHOLD_ENABLED,
+    CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED,
     CONF_ENABLE_PREDICTIVE_CHARGING,
     CONF_VACATION_MODE_ENABLED,
     CONF_THREE_PHASE_ENABLED,
@@ -115,6 +119,16 @@ async def async_setup_entry(
             entities.append(NegativePriceChargingSwitch(hass, entry, controller))
         elif mode == PREDICTIVE_MODE_REALTIME_PRICE:
             entities.append(PriceDischargeControlSwitch(hass, entry, controller))
+
+    # Manual/automatic toggle for each price threshold (#612). Same gate as the
+    # threshold numbers in number.py so each switch appears exactly with its number.
+    if (
+        controller
+        and entry.data.get(CONF_ENABLE_PREDICTIVE_CHARGING)
+        and entry.data.get(CONF_PREDICTIVE_CHARGING_MODE) == PREDICTIVE_MODE_DYNAMIC_PRICING
+    ):
+        entities.append(PriceThresholdEnabledSwitch(hass, entry, "charge"))
+        entities.append(PriceThresholdEnabledSwitch(hass, entry, "discharge"))
 
     # Add predictive charging switch (system-level, not per-battery). Shown
     # whenever predictive charging has been through config (the key is always
@@ -2269,6 +2283,66 @@ class PriceDischargeControlSwitch(SwitchEntity):
     @property
     def device_info(self):
         """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class PriceThresholdEnabledSwitch(SwitchEntity):
+    """Manual (ON) vs automatic (OFF) for one dynamic-pricing threshold (#612).
+
+    A number entity cannot be cleared from the UI, so OFF is how a user returns
+    to the automatic fallback. The stored value is kept; the controller reads
+    both through effective_price_threshold on the entry update this triggers.
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, kind: str) -> None:
+        """kind = 'charge' (max_price_threshold) or 'discharge' (discharge floor)."""
+        self.hass = hass
+        self.entry = entry
+        self._kind = kind
+        if kind == "charge":
+            self._value_key, self._conf_key = CONF_MAX_PRICE_THRESHOLD, CONF_MAX_PRICE_THRESHOLD_ENABLED
+        else:
+            self._value_key, self._conf_key = CONF_DISCHARGE_PRICE_THRESHOLD, CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED
+        self._attr_has_entity_name = True
+        self._attr_translation_key = self._conf_key
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}{self._conf_key}"
+        self.entity_id = system_entity_id("switch", self._conf_key)
+        self._attr_icon = "mdi:cash-plus" if kind == "charge" else "mdi:cash-minus"
+        self._attr_should_poll = False
+
+    async def async_added_to_hass(self) -> None:
+        """Refresh state when config_entry.data changes (e.g. first value typed)."""
+        self.async_on_remove(self.entry.add_update_listener(self._handle_entry_update))
+
+    async def _handle_entry_update(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def is_on(self) -> bool:
+        # Missing key: legacy entries were manual iff a value was set.
+        return bool(self.entry.data.get(self._conf_key, self.entry.data.get(self._value_key) is not None))
+
+    def _set_enabled(self, enabled: bool) -> None:
+        new_data = dict(self.entry.data)
+        new_data[self._conf_key] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Dynamic pricing %s price threshold %s",
+                     self._kind, "MANUAL" if enabled else "AUTOMATIC")
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        self._set_enabled(False)
+
+    @property
+    def device_info(self):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",

@@ -18,6 +18,9 @@ from .const import (
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
     CONF_MAX_PRICE_THRESHOLD,
     CONF_DISCHARGE_PRICE_THRESHOLD,
+    CONF_MAX_PRICE_THRESHOLD_ENABLED,
+    CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED,
+    effective_price_threshold,
     CONF_MIN_ARBITRAGE_MARGIN,
     CONF_ROUND_TRIP_EFFICIENCY,
     DEFAULT_ROUND_TRIP_EFFICIENCY,
@@ -617,8 +620,9 @@ class MarstekPriceThresholdNumber(NumberEntity):
     automation can rewrite it via ``number.set_value``. ``update_pd_parameters``
     re-reads both thresholds on every entry update (the same hot-reload hook the
     options flow uses), so changes take effect on the next control cycle. The
-    value may be unset (``None`` → ``unknown`` state); the engine then falls back
-    (discharge → charge ceiling → daily average).
+    value may be unset (``None`` → ``unknown`` state) or disabled by its sibling
+    switch (#612); the engine then falls back (discharge → charge ceiling →
+    daily average).
     """
 
     _attr_has_entity_name = True
@@ -658,9 +662,17 @@ class MarstekPriceThresholdNumber(NumberEntity):
         return self.entry.data.get(self._conf_key)
 
     async def async_set_native_value(self, value: float) -> None:
-        """Persist after enforcing charge ceiling <= discharge floor (#408)."""
-        max_price = self.entry.data.get(CONF_MAX_PRICE_THRESHOLD)
-        discharge_price = self.entry.data.get(CONF_DISCHARGE_PRICE_THRESHOLD)
+        """Persist after enforcing charge ceiling <= discharge floor (#408).
+
+        Only an active sibling constrains the value: a stored-but-disabled one
+        (#612) is ignored by the engine, so it must not block edits here.
+        """
+        max_price = effective_price_threshold(
+            self.entry.data, CONF_MAX_PRICE_THRESHOLD, CONF_MAX_PRICE_THRESHOLD_ENABLED
+        )
+        discharge_price = effective_price_threshold(
+            self.entry.data, CONF_DISCHARGE_PRICE_THRESHOLD, CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED
+        )
         if self._kind == "charge" and discharge_price is not None and value > discharge_price:
             raise ServiceValidationError(
                 f"Charge threshold ({value}) cannot exceed the discharge floor ({discharge_price})."

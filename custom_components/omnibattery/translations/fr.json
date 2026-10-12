@@ -1425,6 +1425,12 @@
       "min_soc_floor_enabled": {
         "name": "SOC Minimum Garanti"
       },
+      "max_price_threshold_enabled": {
+        "name": "Plafond de prix de charge manuel"
+      },
+      "discharge_price_threshold_enabled": {
+        "name": "Plancher de prix de décharge manuel"
+      },
       "system_power_limits": {
         "name": "Limites de Puissance du Système"
       },

@@ -1420,6 +1420,12 @@
       "min_soc_floor_enabled": {
         "name": "Guaranteed Minimum SOC"
       },
+      "max_price_threshold_enabled": {
+        "name": "Manual Charge Price Ceiling"
+      },
+      "discharge_price_threshold_enabled": {
+        "name": "Manual Discharge Price Floor"
+      },
       "system_power_limits": {
         "name": "System Power Limits"
       },

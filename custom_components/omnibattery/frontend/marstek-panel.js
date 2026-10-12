@@ -120,7 +120,7 @@ const I18N = {
     secTempLimit: "Temperature charge limit", itemTempLimitC: "Temperature limit", itemTempLimitBand: "Ramp band", itemTempLimitFloor: "Minimum charge power", itemTempApplyDischarge: "Also throttle discharge",
     itemMaxContracted: "Max contracted power", itemSolarSafety: "Solar safety margin", itemMinSocFloorEnable: "SOC floor", itemMinSocFloor: "Guaranteed minimum SOC",
     itemSocThreshold: "SOC threshold", itemPeakLimit: "Peak limit", itemExcludedPeakShaving: "Peak shaving for excluded devices",
-    itemArbitrageMargin: "Min. arbitrage margin", itemRoundTripEfficiency: "Round-trip efficiency", itemMaxPrice: "Max price (charge)", itemDischargePrice: "Discharge price floor", itemPriceDischarge: "Discharge only above price", itemReevaluatePrices: "Re-evaluate now", itemNegativePriceCharging: "Charge at negative prices", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Smart pre-discharge", itemNegativeThreshold: "Negative injection threshold", itemPredischargeReserve: "Pre-discharge reserve SOC", itemSurplusHoldSaving: "Surplus hold min. saving", itemDischargeReserveSaving: "Discharge reserve min. saving",
+    itemArbitrageMargin: "Min. arbitrage margin", itemRoundTripEfficiency: "Round-trip efficiency", itemMaxPrice: "Max price (charge)", itemDischargePrice: "Discharge price floor", itemMaxPriceManual: "Manual charge price", itemDischargePriceManual: "Manual discharge price", itemPriceDischarge: "Discharge only above price", itemReevaluatePrices: "Re-evaluate now", itemNegativePriceCharging: "Charge at negative prices", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Smart pre-discharge", itemNegativeThreshold: "Negative injection threshold", itemPredischargeReserve: "Pre-discharge reserve SOC", itemSurplusHoldSaving: "Surplus hold min. saving", itemDischargeReserveSaving: "Discharge reserve min. saving",
     itemDelaySafety: "Safety margin", itemDelaySoc: "Delay target SOC", itemDelaySocEnable: "Delay target SOC enabled", itemDelayDeadband: "Balance deadband",
     secHourly: "Hourly balance", hourlyEsOnly: "Only useful in Spain (RD 244/2019) · detected country: {c}", secWeeklyFull: "Weekly full charge", itemWeeklyDay: "Full charge day", itemWeeklyDelay: "Wait for solar charge delay", itemHourlyTarget: "Target net balance", itemHourlyMaxOffset: "Max power offset", itemHourlyDeadband: "Deadband", itemHourlyHysteresis: "Hysteresis",
     secSlots: "Configured slots", itemSlot: "Slot",
@@ -210,7 +210,7 @@ const I18N = {
     secTempLimit: "Límite de carga por temperatura", itemTempLimitC: "Límite de temperatura", itemTempLimitBand: "Banda de reducción", itemTempLimitFloor: "Potencia de carga mínima", itemTempApplyDischarge: "Reducir también la descarga",
     itemMaxContracted: "Potencia contratada máx.", itemSolarSafety: "Margen de seguridad solar", itemMinSocFloorEnable: "Suelo de SOC", itemMinSocFloor: "SOC mínimo garantizado",
     itemSocThreshold: "Umbral de SOC", itemPeakLimit: "Límite de pico", itemExcludedPeakShaving: "Reducción de picos para dispositivos excluidos",
-    itemArbitrageMargin: "Margen mínimo de arbitraje", itemRoundTripEfficiency: "Eficiencia de ciclo completo", itemMaxPrice: "Precio máximo (carga)", itemDischargePrice: "Precio mínimo de descarga", itemPriceDischarge: "Descargar solo si precio alto", itemReevaluatePrices: "Reevaluar ahora", itemNegativePriceCharging: "Cargar con precios negativos", itemPredictiveNotifications: "Notificaciones", itemSmartPredischarge: "Predescarga inteligente", itemNegativeThreshold: "Umbral de inyección negativa", itemPredischargeReserve: "SOC de reserva de predescarga", itemSurplusHoldSaving: "Ahorro mínimo para retener excedente", itemDischargeReserveSaving: "Ahorro mínimo de reserva de descarga",
+    itemArbitrageMargin: "Margen mínimo de arbitraje", itemRoundTripEfficiency: "Eficiencia de ciclo completo", itemMaxPrice: "Precio máximo (carga)", itemDischargePrice: "Precio mínimo de descarga", itemMaxPriceManual: "Precio de carga manual", itemDischargePriceManual: "Precio de descarga manual", itemPriceDischarge: "Descargar solo si precio alto", itemReevaluatePrices: "Reevaluar ahora", itemNegativePriceCharging: "Cargar con precios negativos", itemPredictiveNotifications: "Notificaciones", itemSmartPredischarge: "Predescarga inteligente", itemNegativeThreshold: "Umbral de inyección negativa", itemPredischargeReserve: "SOC de reserva de predescarga", itemSurplusHoldSaving: "Ahorro mínimo para retener excedente", itemDischargeReserveSaving: "Ahorro mínimo de reserva de descarga",
     itemDelaySafety: "Margen de seguridad", itemDelaySoc: "SOC objetivo de retardo", itemDelaySocEnable: "SOC objetivo de retardo activo", itemDelayDeadband: "Banda muerta de balance",
     secHourly: "Balance horario", hourlyEsOnly: "Solo útil en España (RD 244/2019) · país detectado: {c}", secWeeklyFull: "Carga semanal completa", itemWeeklyDay: "Día de carga completa", itemWeeklyDelay: "Esperar al retraso por solar", itemHourlyTarget: "Objetivo de balance neto", itemHourlyMaxOffset: "Offset máx. de potencia", itemHourlyDeadband: "Banda muerta", itemHourlyHysteresis: "Histéresis",
     secSlots: "Franjas configuradas", itemSlot: "Franja",
@@ -296,7 +296,7 @@ const I18N = {
     secTempLimit: "Límit de càrrega per temperatura", itemTempLimitC: "Límit de temperatura", itemTempLimitBand: "Banda de reducció", itemTempLimitFloor: "Potència de càrrega mínima", itemTempApplyDischarge: "Redueix també la descàrrega",
     itemMaxContracted: "Potència contractada màx.", itemSolarSafety: "Marge de seguretat solar", itemMinSocFloorEnable: "SOC Mínim", itemMinSocFloor: "SOC mínim garantit",
     itemSocThreshold: "Llindar de SOC", itemPeakLimit: "Límit de pic", itemExcludedPeakShaving: "Reducció de pics per a dispositius exclosos",
-    itemArbitrageMargin: "Marge mínim d'arbitratge", itemRoundTripEfficiency: "Eficiència de cicle complet", itemMaxPrice: "Preu màxim (càrrega)", itemDischargePrice: "Preu mínim de descàrrega", itemPriceDischarge: "Descarregar només si preu alt", itemReevaluatePrices: "Reavaluar ara", itemNegativePriceCharging: "Carregar amb preus negatius", itemPredictiveNotifications: "Notificacions", itemSmartPredischarge: "Predescàrrega intel·ligent", itemNegativeThreshold: "Llindar d'injecció negativa", itemPredischargeReserve: "SOC de reserva de predescàrrega", itemSurplusHoldSaving: "Estalvi mínim per retenir excedent", itemDischargeReserveSaving: "Estalvi mínim de reserva de descàrrega",
+    itemArbitrageMargin: "Marge mínim d'arbitratge", itemRoundTripEfficiency: "Eficiència de cicle complet", itemMaxPrice: "Preu màxim (càrrega)", itemDischargePrice: "Preu mínim de descàrrega", itemMaxPriceManual: "Preu de càrrega manual", itemDischargePriceManual: "Preu de descàrrega manual", itemPriceDischarge: "Descarregar només si preu alt", itemReevaluatePrices: "Reavaluar ara", itemNegativePriceCharging: "Carregar amb preus negatius", itemPredictiveNotifications: "Notificacions", itemSmartPredischarge: "Predescàrrega intel·ligent", itemNegativeThreshold: "Llindar d'injecció negativa", itemPredischargeReserve: "SOC de reserva de predescàrrega", itemSurplusHoldSaving: "Estalvi mínim per retenir excedent", itemDischargeReserveSaving: "Estalvi mínim de reserva de descàrrega",
     itemDelaySafety: "Marge de seguretat", itemDelaySoc: "SOC objectiu de retard", itemDelaySocEnable: "SOC objectiu de retard actiu", itemDelayDeadband: "Banda morta de balanç",
     secHourly: "Balanç horari", hourlyEsOnly: "Només útil a Espanya (RD 244/2019) · país detectat: {c}", secWeeklyFull: "Càrrega setmanal completa", itemWeeklyDay: "Dia de càrrega completa", itemWeeklyDelay: "Espera el retard per solar", itemHourlyTarget: "Objectiu de balanç net", itemHourlyMaxOffset: "Offset màx. de potència", itemHourlyDeadband: "Banda morta", itemHourlyHysteresis: "Histèresi",
     secSlots: "Franges configurades", itemSlot: "Franja",
@@ -382,7 +382,7 @@ const I18N = {
     secTempLimit: "Temperaturbasierte Ladebegrenzung", itemTempLimitC: "Temperaturgrenze", itemTempLimitBand: "Drosselbereich", itemTempLimitFloor: "Minimale Ladeleistung", itemTempApplyDischarge: "Auch Entladung drosseln",
     itemMaxContracted: "Max. Vertragsleistung", itemSolarSafety: "Sicherheitspuffer Solar", itemMinSocFloorEnable: "SOC-Untergrenze", itemMinSocFloor: "Garantierter Mindest-SOC",
     itemSocThreshold: "SOC-Schwelle", itemPeakLimit: "Spitzenlimit", itemExcludedPeakShaving: "Spitzenlastkappung für ausgeschlossene Geräte",
-    itemArbitrageMargin: "Min. Arbitragemarge", itemRoundTripEfficiency: "Round-Trip-Wirkungsgrad", itemMaxPrice: "Max. Preis (Laden)", itemDischargePrice: "Entlade-Preisuntergrenze", itemPriceDischarge: "Nur über Preis entladen", itemReevaluatePrices: "Jetzt neu bewerten", itemNegativePriceCharging: "Bei negativen Preisen laden", itemPredictiveNotifications: "Benachrichtigungen", itemSmartPredischarge: "Intelligente Vorentladung", itemNegativeThreshold: "Schwelle für negative Einspeisung", itemPredischargeReserve: "Vorentlade-Reserve-SOC", itemSurplusHoldSaving: "Min. Ersparnis für Überschussbremse", itemDischargeReserveSaving: "Min. Ersparnis für Entladereserve",
+    itemArbitrageMargin: "Min. Arbitragemarge", itemRoundTripEfficiency: "Round-Trip-Wirkungsgrad", itemMaxPrice: "Max. Preis (Laden)", itemDischargePrice: "Entlade-Preisuntergrenze", itemMaxPriceManual: "Manueller Ladepreis", itemDischargePriceManual: "Manueller Entladepreis", itemPriceDischarge: "Nur über Preis entladen", itemReevaluatePrices: "Jetzt neu bewerten", itemNegativePriceCharging: "Bei negativen Preisen laden", itemPredictiveNotifications: "Benachrichtigungen", itemSmartPredischarge: "Intelligente Vorentladung", itemNegativeThreshold: "Schwelle für negative Einspeisung", itemPredischargeReserve: "Vorentlade-Reserve-SOC", itemSurplusHoldSaving: "Min. Ersparnis für Überschussbremse", itemDischargeReserveSaving: "Min. Ersparnis für Entladereserve",
     itemDelaySafety: "Sicherheitspuffer", itemDelaySoc: "Verzögerungs-Ziel-SOC", itemDelaySocEnable: "Verzögerungs-Ziel-SOC aktiv", itemDelayDeadband: "Bilanz-Totband",
     secHourly: "Stündliche Balance", hourlyEsOnly: "Nur in Spanien sinnvoll (RD 244/2019) · erkanntes Land: {c}", secWeeklyFull: "Wöchentliche Vollladung", itemWeeklyDay: "Tag der Vollladung", itemWeeklyDelay: "Auf Solar-Ladeverzögerung warten", itemHourlyTarget: "Ziel-Nettobalance", itemHourlyMaxOffset: "Max. Leistungs-Offset", itemHourlyDeadband: "Totband", itemHourlyHysteresis: "Hysterese",
     secSlots: "Konfigurierte Zeitfenster", itemSlot: "Zeitfenster",
@@ -468,7 +468,7 @@ const I18N = {
     secTempLimit: "Limite de charge par température", itemTempLimitC: "Limite de température", itemTempLimitBand: "Plage de réduction", itemTempLimitFloor: "Puissance de charge minimale", itemTempApplyDischarge: "Réduire aussi la décharge",
     itemMaxContracted: "Puissance contractuelle max.", itemSolarSafety: "Marge de sécurité solaire", itemMinSocFloorEnable: "Plancher SOC", itemMinSocFloor: "SOC minimum garanti",
     itemSocThreshold: "Seuil SOC", itemPeakLimit: "Limite de pointe", itemExcludedPeakShaving: "Écrêtement des pointes pour appareils exclus",
-    itemArbitrageMargin: "Marge d'arbitrage min.", itemRoundTripEfficiency: "Rendement aller-retour", itemMaxPrice: "Prix max. (charge)", itemDischargePrice: "Prix plancher de décharge", itemPriceDischarge: "Décharger si prix élevé", itemReevaluatePrices: "Réévaluer maintenant", itemNegativePriceCharging: "Charger aux prix négatifs", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Pré-décharge intelligente", itemNegativeThreshold: "Seuil d'injection négative", itemPredischargeReserve: "SOC de réserve de pré-décharge", itemSurplusHoldSaving: "Économie min. pour retenir le surplus", itemDischargeReserveSaving: "Économie min. pour réserve de décharge",
+    itemArbitrageMargin: "Marge d'arbitrage min.", itemRoundTripEfficiency: "Rendement aller-retour", itemMaxPrice: "Prix max. (charge)", itemDischargePrice: "Prix plancher de décharge", itemMaxPriceManual: "Prix de charge manuel", itemDischargePriceManual: "Prix de décharge manuel", itemPriceDischarge: "Décharger si prix élevé", itemReevaluatePrices: "Réévaluer maintenant", itemNegativePriceCharging: "Charger aux prix négatifs", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Pré-décharge intelligente", itemNegativeThreshold: "Seuil d'injection négative", itemPredischargeReserve: "SOC de réserve de pré-décharge", itemSurplusHoldSaving: "Économie min. pour retenir le surplus", itemDischargeReserveSaving: "Économie min. pour réserve de décharge",
     itemDelaySafety: "Marge de sécurité", itemDelaySoc: "SOC cible du délai", itemDelaySocEnable: "SOC cible du délai actif", itemDelayDeadband: "Bande morte de bilan",
     secHourly: "Bilan horaire", hourlyEsOnly: "Utile uniquement en Espagne (RD 244/2019) · pays détecté : {c}", secWeeklyFull: "Charge complète hebdomadaire", itemWeeklyDay: "Jour de charge complète", itemWeeklyDelay: "Attendre le délai de charge solaire", itemHourlyTarget: "Cible bilan net", itemHourlyMaxOffset: "Décalage max. puissance", itemHourlyDeadband: "Bande morte", itemHourlyHysteresis: "Hystérésis",
     secSlots: "Créneaux configurés", itemSlot: "Créneau",
@@ -554,7 +554,7 @@ const I18N = {
     secTempLimit: "Temperatuurbegrenzing laden", itemTempLimitC: "Temperatuurlimiet", itemTempLimitBand: "Afbouwband", itemTempLimitFloor: "Minimaal laadvermogen", itemTempApplyDischarge: "Ook ontladen terugregelen",
     itemMaxContracted: "Max. gecontracteerd vermogen", itemSolarSafety: "Veiligheidsmarge zon", itemMinSocFloorEnable: "SOC-vloer", itemMinSocFloor: "Gegarandeerde min. SOC",
     itemSocThreshold: "SOC-drempel", itemPeakLimit: "Pieklimiet", itemExcludedPeakShaving: "Piekbegrenzing voor uitgesloten apparaten",
-    itemArbitrageMargin: "Min. arbitragemarge", itemRoundTripEfficiency: "Retourrendement", itemMaxPrice: "Max. prijs (laden)", itemDischargePrice: "Ontlaad-prijsondergrens", itemPriceDischarge: "Alleen ontladen bij hoge prijs", itemReevaluatePrices: "Nu herberekenen", itemNegativePriceCharging: "Laden bij negatieve prijzen", itemPredictiveNotifications: "Meldingen", itemSmartPredischarge: "Slim voorontladen", itemNegativeThreshold: "Drempel negatieve injectie", itemPredischargeReserve: "Reserve-SOC voorontladen", itemSurplusHoldSaving: "Min. besparing voor prijsrem", itemDischargeReserveSaving: "Min. besparing voor ontlaadreserve",
+    itemArbitrageMargin: "Min. arbitragemarge", itemRoundTripEfficiency: "Retourrendement", itemMaxPrice: "Max. prijs (laden)", itemDischargePrice: "Ontlaad-prijsondergrens", itemMaxPriceManual: "Handmatige laadprijs", itemDischargePriceManual: "Handmatige ontlaadprijs", itemPriceDischarge: "Alleen ontladen bij hoge prijs", itemReevaluatePrices: "Nu herberekenen", itemNegativePriceCharging: "Laden bij negatieve prijzen", itemPredictiveNotifications: "Meldingen", itemSmartPredischarge: "Slim voorontladen", itemNegativeThreshold: "Drempel negatieve injectie", itemPredischargeReserve: "Reserve-SOC voorontladen", itemSurplusHoldSaving: "Min. besparing voor prijsrem", itemDischargeReserveSaving: "Min. besparing voor ontlaadreserve",
     itemDelaySafety: "Veiligheidsmarge", itemDelaySoc: "Doel-SOC vertraging", itemDelaySocEnable: "Doel-SOC vertraging actief", itemDelayDeadband: "Balans dode band",
     secHourly: "Uurbalans", hourlyEsOnly: "Alleen nuttig in Spanje (RD 244/2019) · gedetecteerd land: {c}", secWeeklyFull: "Wekelijkse volledige lading", itemWeeklyDay: "Dag volledige lading", itemWeeklyDelay: "Wachten op zonne-laadvertraging", itemHourlyTarget: "Doel nettosaldo", itemHourlyMaxOffset: "Max. vermogensoffset", itemHourlyDeadband: "Dodeband", itemHourlyHysteresis: "Hysterese",
     secSlots: "Geconfigureerde tijdvakken", itemSlot: "Tijdvak",
@@ -1162,8 +1162,10 @@ const SYS_SECTIONS = [
       // price-based (price_discharge_control switch; thresholds are dynamic-pricing
       // only), so on time-slot installs these rows simply don't render.
       { key: "price_discharge_control", domain: "switch", lk: "itemPriceDischarge", icon: "mdi:cash-clock", grp: "price" },
-      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus", adv: true, grp: "price" },
-      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus", adv: true, grp: "price" },
+      { key: "max_price_threshold_enabled", domain: "switch", lk: "itemMaxPriceManual", icon: "mdi:cash-plus", adv: true, grp: "price" },
+      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus", adv: true, grp: "price", dep: "max_price_threshold_enabled" },
+      { key: "discharge_price_threshold_enabled", domain: "switch", lk: "itemDischargePriceManual", icon: "mdi:cash-minus", adv: true, grp: "price" },
+      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus", adv: true, grp: "price", dep: "discharge_price_threshold_enabled" },
       { key: "min_arbitrage_margin", lk: "itemArbitrageMargin", icon: "mdi:scale-balance", adv: true, grp: "price" },
       { key: "round_trip_efficiency", lk: "itemRoundTripEfficiency", icon: "mdi:battery-sync", adv: true, grp: "price" },
       { key: "negative_price_charging", domain: "switch", lk: "itemNegativePriceCharging", icon: "mdi:battery-charging-100", grp: "price" },
@@ -1355,8 +1357,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperature range above the limit over which charge power ramps down to the minimum.",
     temp_charge_limit_floor_pct: "Charge power at the limit plus the band, as a percentage of the normal charge ceiling. 0% stops charging entirely when very hot.",
     temp_charge_limit_discharge: "Apply the same temperature derate to discharge power. Discharge tolerates heat better, so this shares the charge threshold as a compromise; mainly it keeps discharge under the BMS hard cutoff.",
-    max_price_threshold: "Charge ceiling for dynamic pricing: the battery only grid-charges when the price is at or below this. Leave empty to fall back to the daily-average price. Must stay ≤ the discharge floor.",
-    discharge_price_threshold: "Discharge floor for dynamic pricing: the battery only discharges when the price is at or above this. Leave empty to fall back (charge ceiling, else daily average). Must stay ≥ the charge ceiling.",
+    max_price_threshold_enabled: "On: grid charging uses the charge ceiling below. Off (automatic): no fixed ceiling; the cheapest slots are picked (still subject to the arbitrage margin, if set). The value is kept.",
+    discharge_price_threshold_enabled: "On: discharge uses the floor below. Off (automatic): falls back to the charge ceiling, else the daily-average price. The value is kept.",
+    max_price_threshold: "Charge ceiling for dynamic pricing: the battery only grid-charges when the price is at or below this. Only applies while its manual switch is on. Must stay ≤ the discharge floor.",
+    discharge_price_threshold: "Discharge floor for dynamic pricing: the battery only discharges when the price is at or above this. Only applies while its manual switch is on. Must stay ≥ the charge ceiling.",
     min_arbitrage_margin: "Minimum profit per kWh required before grid charging. 0 or empty = off, and the charge ceiling alone decides. When set, the ceiling follows the day's spread: charging is skipped when the expensive hours are not far enough above the cheap ones to repay conversion losses. The same margin works the other way round: with high-price discharge on, a sale must beat the later buy-back price by at least this much.",
     round_trip_efficiency: "Battery round-trip efficiency (kWh out / kWh in) used to value stored energy for the arbitrage margin. Lower values make the gate stricter. Only used when a minimum arbitrage margin is set.",
   },
@@ -1440,8 +1444,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Rango de temperatura por encima del límite a lo largo del cual la potencia de carga baja hasta el mínimo.",
     temp_charge_limit_floor_pct: "Potencia de carga en el límite más la banda, como porcentaje del techo de carga normal. 0 % detiene la carga por completo cuando hace mucho calor.",
     temp_charge_limit_discharge: "Aplica la misma reducción por temperatura a la potencia de descarga. La descarga tolera mejor el calor, así que comparte el umbral de carga como compromiso; sobre todo mantiene la descarga por debajo del corte duro del BMS.",
-    max_price_threshold: "Techo de carga para precios dinámicos: la batería solo carga de red cuando el precio está en o por debajo de este valor. Vacío = precio medio diario. Debe mantenerse ≤ el suelo de descarga.",
-    discharge_price_threshold: "Suelo de descarga para precios dinámicos: la batería solo descarga cuando el precio está en o por encima de este valor. Vacío = techo de carga o precio medio diario. Debe mantenerse ≥ el techo de carga.",
+    max_price_threshold_enabled: "Activado: la carga de red usa el techo de carga de abajo. Desactivado (automático): sin techo fijo; se eligen las horas más baratas (con el margen de arbitraje, si está fijado). El valor se conserva.",
+    discharge_price_threshold_enabled: "Activado: la descarga usa el suelo de abajo. Desactivado (automático): usa el techo de carga o, si no hay, el precio medio diario. El valor se conserva.",
+    max_price_threshold: "Techo de carga para precios dinámicos: la batería solo carga de red cuando el precio está en o por debajo de este valor. Solo se aplica con su interruptor manual activado. Debe mantenerse ≤ el suelo de descarga.",
+    discharge_price_threshold: "Suelo de descarga para precios dinámicos: la batería solo descarga cuando el precio está en o por encima de este valor. Solo se aplica con su interruptor manual activado. Debe mantenerse ≥ el techo de carga.",
     min_arbitrage_margin: "Beneficio mínimo por kWh exigido antes de cargar de red. 0 o vacío = desactivado. Si se define, el techo sigue el diferencial del día: no se carga cuando las horas caras no superan lo suficiente a las baratas para compensar las pérdidas de conversión. El mismo margen actúa en sentido contrario: con la descarga por precio alto activa, una venta debe superar el precio de recompra posterior al menos en esta cantidad.",
     round_trip_efficiency: "Eficiencia de ciclo completo (kWh de salida / kWh de entrada) usada para valorar la energía almacenada. Valores más bajos endurecen el filtro. Solo se usa si hay un margen mínimo de arbitraje.",
   },
@@ -1525,8 +1531,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Rang de temperatura per sobre del límit al llarg del qual la potència de càrrega baixa fins al mínim.",
     temp_charge_limit_floor_pct: "Potència de càrrega al límit més la banda, com a percentatge del sostre de càrrega normal. 0 % atura la càrrega del tot quan fa molta calor.",
     temp_charge_limit_discharge: "Aplica la mateixa reducció per temperatura a la potència de descàrrega. La descàrrega tolera millor la calor, així que comparteix el llindar de càrrega com a compromís; sobretot manté la descàrrega per sota del tall dur del BMS.",
-    max_price_threshold: "Sostre de càrrega per a preus dinàmics: la bateria només carrega de xarxa quan el preu està en o per sota d'aquest valor. Buit = preu mitjà diari. S'ha de mantenir ≤ el terra de descàrrega.",
-    discharge_price_threshold: "Terra de descàrrega per a preus dinàmics: la bateria només descarrega quan el preu està en o per sobre d'aquest valor. Buit = sostre de càrrega o preu mitjà diari. S'ha de mantenir ≥ el sostre de càrrega.",
+    max_price_threshold_enabled: "Activat: la càrrega de xarxa fa servir el sostre de càrrega de sota. Desactivat (automàtic): sense sostre fix; es trien les hores més barates (amb el marge d'arbitratge, si està fixat). El valor es conserva.",
+    discharge_price_threshold_enabled: "Activat: la descàrrega fa servir el terra de sota. Desactivat (automàtic): fa servir el sostre de càrrega o, si no n'hi ha, el preu mitjà diari. El valor es conserva.",
+    max_price_threshold: "Sostre de càrrega per a preus dinàmics: la bateria només carrega de xarxa quan el preu està en o per sota d'aquest valor. Només s'aplica amb el seu interruptor manual activat. S'ha de mantenir ≤ el terra de descàrrega.",
+    discharge_price_threshold: "Terra de descàrrega per a preus dinàmics: la bateria només descarrega quan el preu està en o per sobre d'aquest valor. Només s'aplica amb el seu interruptor manual activat. S'ha de mantenir ≥ el sostre de càrrega.",
     min_arbitrage_margin: "Benefici mínim per kWh exigit abans de carregar de xarxa. 0 o buit = desactivat. Si es defineix, el sostre segueix el diferencial del dia: no es carrega quan les hores cares no superen prou les barates per compensar les pèrdues de conversió. El mateix marge actua en sentit contrari: amb la descàrrega per preu alt activa, una venda ha de superar el preu de recompra posterior com a mínim en aquesta quantitat.",
     round_trip_efficiency: "Eficiència de cicle complet (kWh de sortida / kWh d'entrada) per valorar l'energia emmagatzemada. Valors més baixos endureixen el filtre. Només s'usa si hi ha un marge mínim d'arbitratge.",
   },
@@ -1610,8 +1618,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperaturbereich oberhalb der Grenze, über den die Ladeleistung bis zum Minimum absinkt.",
     temp_charge_limit_floor_pct: "Ladeleistung an der Grenze plus Bereich, als Prozentsatz der normalen Ladeobergrenze. 0 % stoppt die Ladung bei großer Hitze vollständig.",
     temp_charge_limit_discharge: "Wendet dieselbe temperaturabhängige Drosselung auf die Entladeleistung an. Die Entladung verträgt Hitze besser, daher teilt sie sich als Kompromiss die Ladeschwelle; vor allem hält sie die Entladung unter der harten BMS-Abschaltung.",
-    max_price_threshold: "Lade-Obergrenze für dynamische Preise: die Batterie lädt nur aus dem Netz, wenn der Preis auf oder unter diesem Wert liegt. Leer = Tagesdurchschnittspreis. Muss ≤ der Entlade-Untergrenze bleiben.",
-    discharge_price_threshold: "Entlade-Untergrenze für dynamische Preise: die Batterie entlädt nur, wenn der Preis auf oder über diesem Wert liegt. Leer = Lade-Obergrenze oder Tagesdurchschnitt. Muss ≥ der Lade-Obergrenze bleiben.",
+    max_price_threshold_enabled: "Ein: die Netzladung nutzt die Lade-Obergrenze darunter. Aus (automatisch): keine feste Obergrenze; die günstigsten Stunden werden gewählt (mit Arbitragemarge, falls gesetzt). Der Wert bleibt erhalten.",
+    discharge_price_threshold_enabled: "Ein: die Entladung nutzt die Untergrenze darunter. Aus (automatisch): nutzt die Lade-Obergrenze, sonst den Tagesdurchschnittspreis. Der Wert bleibt erhalten.",
+    max_price_threshold: "Lade-Obergrenze für dynamische Preise: die Batterie lädt nur aus dem Netz, wenn der Preis auf oder unter diesem Wert liegt. Gilt nur, solange der manuelle Schalter an ist. Muss ≤ der Entlade-Untergrenze bleiben.",
+    discharge_price_threshold: "Entlade-Untergrenze für dynamische Preise: die Batterie entlädt nur, wenn der Preis auf oder über diesem Wert liegt. Gilt nur, solange der manuelle Schalter an ist. Muss ≥ der Lade-Obergrenze bleiben.",
     min_arbitrage_margin: "Mindestgewinn pro kWh, der vor dem Netzladen erforderlich ist. 0 oder leer = aus. Wenn gesetzt, folgt die Obergrenze der Tagesspreizung: es wird nicht geladen, wenn die teuren Stunden nicht weit genug über den günstigen liegen, um die Umwandlungsverluste zu decken. Dieselbe Marge gilt in der Gegenrichtung: Bei aktivierter Hochpreis-Entladung muss ein Verkauf den späteren Rückkaufpreis um mindestens diesen Betrag übertreffen.",
     round_trip_efficiency: "Round-Trip-Wirkungsgrad der Batterie (kWh raus / kWh rein) zur Bewertung gespeicherter Energie. Niedrigere Werte machen den Filter strenger. Nur bei gesetzter Mindest-Arbitragemarge aktiv.",
   },
@@ -1695,8 +1705,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Plage de température au-dessus de la limite sur laquelle la puissance de charge diminue jusqu'au minimum.",
     temp_charge_limit_floor_pct: "Puissance de charge à la limite plus la plage, en pourcentage du plafond de charge normal. 0 % arrête complètement la charge en cas de forte chaleur.",
     temp_charge_limit_discharge: "Applique la même réduction liée à la température à la puissance de décharge. La décharge tolère mieux la chaleur, elle partage donc le seuil de charge par compromis ; surtout, elle maintient la décharge sous la coupure dure du BMS.",
-    max_price_threshold: "Plafond de charge pour la tarification dynamique : la batterie ne charge depuis le réseau que si le prix est à ce niveau ou en dessous. Vide = prix moyen journalier. Doit rester ≤ au plancher de décharge.",
-    discharge_price_threshold: "Plancher de décharge pour la tarification dynamique : la batterie ne décharge que si le prix est à ce niveau ou au-dessus. Vide = plafond de charge ou prix moyen journalier. Doit rester ≥ au plafond de charge.",
+    max_price_threshold_enabled: "Activé : la charge réseau utilise le plafond de charge ci-dessous. Désactivé (automatique) : pas de plafond fixe ; les heures les moins chères sont choisies (avec la marge d'arbitrage, si définie). La valeur est conservée.",
+    discharge_price_threshold_enabled: "Activé : la décharge utilise le plancher ci-dessous. Désactivé (automatique) : utilise le plafond de charge, sinon le prix moyen journalier. La valeur est conservée.",
+    max_price_threshold: "Plafond de charge pour la tarification dynamique : la batterie ne charge depuis le réseau que si le prix est à ce niveau ou en dessous. S'applique uniquement si son interrupteur manuel est activé. Doit rester ≤ au plancher de décharge.",
+    discharge_price_threshold: "Plancher de décharge pour la tarification dynamique : la batterie ne décharge que si le prix est à ce niveau ou au-dessus. S'applique uniquement si son interrupteur manuel est activé. Doit rester ≥ au plafond de charge.",
     min_arbitrage_margin: "Profit minimal par kWh exigé avant la charge réseau. 0 ou vide = désactivé. Si défini, le plafond suit l'écart du jour : la charge est ignorée lorsque les heures chères ne dépassent pas assez les heures creuses pour couvrir les pertes de conversion. La même marge joue dans l'autre sens : avec la décharge à prix élevé active, une vente doit dépasser le prix de rachat ultérieur d'au moins autant.",
     round_trip_efficiency: "Rendement aller-retour de la batterie (kWh sortis / kWh entrés) servant à valoriser l'énergie stockée. Des valeurs plus basses rendent le filtre plus strict. Utilisé uniquement si une marge d'arbitrage minimale est définie.",
   },
@@ -1780,8 +1792,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperatuurbereik boven de limiet waarover het laadvermogen tot het minimum afbouwt.",
     temp_charge_limit_floor_pct: "Laadvermogen op de limiet plus de band, als percentage van het normale laadplafond. 0 % stopt het laden volledig bij grote hitte.",
     temp_charge_limit_discharge: "Past dezelfde temperatuurterugregeling toe op het ontlaadvermogen. Ontladen verdraagt warmte beter, dus deelt het als compromis de laaddrempel; vooral houdt het het ontladen onder de harde BMS-uitschakeling.",
-    max_price_threshold: "Laadplafond voor dynamische prijzen: de batterij laadt alleen van het net wanneer de prijs op of onder deze waarde ligt. Leeg = daggemiddelde prijs. Moet ≤ de ontlaadondergrens blijven.",
-    discharge_price_threshold: "Ontlaadondergrens voor dynamische prijzen: de batterij ontlaadt alleen wanneer de prijs op of boven deze waarde ligt. Leeg = laadplafond of daggemiddelde. Moet ≥ het laadplafond blijven.",
+    max_price_threshold_enabled: "Aan: het laden van het net gebruikt het laadplafond hieronder. Uit (automatisch): geen vast plafond; de goedkoopste uren worden gekozen (met de arbitragemarge, indien ingesteld). De waarde blijft bewaard.",
+    discharge_price_threshold_enabled: "Aan: het ontladen gebruikt de ondergrens hieronder. Uit (automatisch): gebruikt het laadplafond, anders de daggemiddelde prijs. De waarde blijft bewaard.",
+    max_price_threshold: "Laadplafond voor dynamische prijzen: de batterij laadt alleen van het net wanneer de prijs op of onder deze waarde ligt. Geldt alleen zolang de handmatige schakelaar aan staat. Moet ≤ de ontlaadondergrens blijven.",
+    discharge_price_threshold: "Ontlaadondergrens voor dynamische prijzen: de batterij ontlaadt alleen wanneer de prijs op of boven deze waarde ligt. Geldt alleen zolang de handmatige schakelaar aan staat. Moet ≥ het laadplafond blijven.",
     min_arbitrage_margin: "Minimale winst per kWh die vereist is voordat er van het net geladen wordt. 0 of leeg = uit, dan beslist alleen het laadplafond. Ingesteld laat het plafond de dagspreiding volgen: er wordt niet geladen wanneer de dure uren niet ver genoeg boven de goedkope liggen om de omzettingsverliezen terug te verdienen. Dezelfde marge werkt ook andersom: met hoogprijs-ontlading aan moet een verkoop de latere terugkoopprijs met minstens dit bedrag overtreffen.",
     round_trip_efficiency: "Retourrendement van de batterij (kWh eruit / kWh erin) om opgeslagen energie te waarderen. Lagere waarden maken het filter strenger. Alleen gebruikt als er een minimale arbitragemarge is ingesteld.",
   },
@@ -6585,6 +6599,10 @@ class MarstekVenusPanel extends HTMLElement {
       // It's gated like a normal row, and marked `adv` when every live row of the
       // group it opens is advanced, so it can't linger alone with Advanced off.
       let lastGrp = null;
+      // `dep: "<switch key>"` hides a row while that switch in the same card is
+      // OFF (e.g. a threshold behind its manual switch). It toggles the `sub-off`
+      // class rather than inline display, so it composes with the section gate.
+      const depNodes = {};
       for (const r of rows) {
         const g = r.item.grp;
         if (g && lastGrp && g !== lastGrp) {
@@ -6598,6 +6616,7 @@ class MarstekVenusPanel extends HTMLElement {
         const frag = this._buildSysControl(r.item, r.id, store, r.multi);
         const nodes = [...frag.childNodes];
         if (r.item.adv) for (const n of nodes) n.classList?.add("adv-row");
+        if (r.item.dep) (depNodes[r.item.dep] ||= []).push(...nodes);
         grid.appendChild(frag);
         if (r.item.gate) gateKey = this._sysStoreKey(r.item, r.id);
         else gatedNodes.push(...nodes);
@@ -6608,6 +6627,13 @@ class MarstekVenusPanel extends HTMLElement {
         const on = (this._hass.states[w.realId || gateKey] || {}).state === "on";
         const shown = w.invert ? !on : on;
         for (const n of gatedNodes) n.style.display = shown ? "" : "none";
+      }
+      for (const r of rows) {
+        const w = depNodes[r.item.key] && store[this._sysStoreKey(r.item, r.id)];
+        if (!w) continue;
+        w.depNodes = depNodes[r.item.key];
+        const on = (this._hass.states[r.id] || {}).state === "on";
+        for (const n of w.depNodes) n.classList?.toggle("sub-off", !on);
       }
       if (sec.tk === "secHourly") {
         const warn = this._hourlyWarnEl();
@@ -7078,6 +7104,7 @@ class MarstekVenusPanel extends HTMLElement {
       w.el.classList.toggle("on", shown);
       // gated feature switch: show/hide its sibling param rows when toggled
       if (w.gatedNodes) for (const n of w.gatedNodes) n.style.display = shown ? "" : "none";
+      if (w.depNodes) for (const n of w.depNodes) n.classList?.toggle("sub-off", !shown);
     } else if (w.type === "select") {
       const opts = Array.isArray(state.attributes.options) ? state.attributes.options : [];
       const sig = opts.join("|");
@@ -7722,6 +7749,7 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-adv-btn:hover { color: var(--ink); }
       .ctl-adv-btn.active { color: var(--accent); }
       .card.adv-off .adv-row { display: none; }
+      .card .sub-off { display: none; }
       .card-head .ctl-adv-btn + .card-info, .card-head .ctl-adv-btn + .ctl-hide-btn { margin-left: 8px; }
       .ctl-root.arranging .ctl-hide-btn { display: grid; }
       .card-head .card-info + .ctl-hide-btn, .card-head .ctl-hide-btn + .card-info { margin-left: 8px; }
