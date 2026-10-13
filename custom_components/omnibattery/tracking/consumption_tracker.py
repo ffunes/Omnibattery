@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from zoneinfo import ZoneInfo
 
 from astral import Observer
-from astral.sun import noon as astral_noon, sunrise as astral_sunrise
+from astral.sun import noon as astral_noon, sunrise as astral_sunrise, sunset as astral_sunset
 
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
@@ -1804,6 +1804,22 @@ class ConsumptionTracker:
             observer = Observer(latitude=config.latitude, longitude=config.longitude)
             return self._local_hours(
                 astral_sunrise(observer, target_date, tzinfo=ZoneInfo(config.time_zone)),
+                target_date,
+            )
+        except Exception:  # noqa: BLE001 - astral raises ValueError at polar night/day
+            return None
+
+    def calculate_sunset(self, for_date: date | None = None) -> Optional[float]:
+        """Return local sunset as a float hour, or None when unavailable."""
+        try:
+            config = self._hass.config
+            if config.latitude is None:
+                return None
+
+            target_date = for_date or datetime.now().date()
+            observer = Observer(latitude=config.latitude, longitude=config.longitude)
+            return self._local_hours(
+                astral_sunset(observer, target_date, tzinfo=ZoneInfo(config.time_zone)),
                 target_date,
             )
         except Exception:  # noqa: BLE001 - astral raises ValueError at polar night/day

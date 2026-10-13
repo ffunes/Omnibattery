@@ -390,7 +390,7 @@
           "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
           "export_price_sensor": "Sensor met de terugleverprijzen. Laat leeg om de importprijscurve te gebruiken; dat klopt wanneer teruglevering tegen de importprijs wordt vergoed (salderen).",
           "export_price_integration_type": "Attribuutindeling van de exportprijssensor. Laat leeg om de importintegratie te hergebruiken. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve.",
-          "zonneplan_export_bonus_enabled": "Telt alleen bij Zonneplan-exportprijzen €0,02/kWh en 10% op. Heeft geen effect tenzij de effectieve exportprijsintegratie Zonneplan is.",
+          "zonneplan_export_bonus_enabled": "Telt de Zonneplan-zonnebonus op bij de exportprijs van zonnestroom inclusief belastingen: de bonus is €0,02/kWh bovenop de prijs exclusief belastingen, daarna +10%. Geldt alleen tussen zonsopkomst en zonsondergang en alleen als die prijs plus €0,02 positief is. Export vanuit de accu wordt nooit met de bonus gewaardeerd. Heeft geen effect tenzij de effectieve exportprijsintegratie Zonneplan is.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt."
         }
       },
@@ -1113,7 +1113,7 @@
           "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
           "export_price_sensor": "Sensor met de terugleverprijzen. Laat leeg om de importprijscurve te gebruiken; dat klopt wanneer teruglevering tegen de importprijs wordt vergoed (salderen).",
           "export_price_integration_type": "Attribuutindeling van de exportprijssensor. Laat leeg om de importintegratie te hergebruiken. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve.",
-          "zonneplan_export_bonus_enabled": "Telt alleen bij Zonneplan-exportprijzen 10% en €0,02/kWh op. Heeft geen effect tenzij de effectieve exportprijsintegratie Zonneplan is.",
+          "zonneplan_export_bonus_enabled": "Telt de Zonneplan-zonnebonus op bij de exportprijs van zonnestroom inclusief belastingen: de bonus is €0,02/kWh bovenop de prijs exclusief belastingen, daarna +10%. Geldt alleen tussen zonsopkomst en zonsondergang en alleen als die prijs plus €0,02 positief is. Export vanuit de accu wordt nooit met de bonus gewaardeerd. Heeft geen effect tenzij de effectieve exportprijsintegratie Zonneplan is.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt."
         }
       },

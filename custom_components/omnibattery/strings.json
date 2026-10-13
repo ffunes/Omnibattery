@@ -419,7 +419,7 @@
           "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
-          "zonneplan_export_bonus_enabled": "Adds €0.02/kWh and 10% to Zonneplan export prices only. Has no effect unless the effective export price integration is Zonneplan.",
+          "zonneplan_export_bonus_enabled": "Adds the Zonneplan sun bonus to the tax-inclusive export price of solar power: the bonus is €0.02/kWh on top of the tax-excluded price, then +10%. Only applies between sunrise and sunset and only when that price plus €0.02 is positive. Battery export is never valued with the bonus. Has no effect unless the effective export price integration is Zonneplan.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },
@@ -1104,7 +1104,7 @@
           "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
-          "zonneplan_export_bonus_enabled": "Adds 10% and €0.02/kWh to Zonneplan export prices only. Has no effect unless the effective export price integration is Zonneplan.",
+          "zonneplan_export_bonus_enabled": "Adds the Zonneplan sun bonus to the tax-inclusive export price of solar power: the bonus is €0.02/kWh on top of the tax-excluded price, then +10%. Only applies between sunrise and sunset and only when that price plus €0.02 is positive. Battery export is never valued with the bonus. Has no effect unless the effective export price integration is Zonneplan.",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },

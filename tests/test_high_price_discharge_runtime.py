@@ -76,8 +76,8 @@ def _forecast():
 def _pricing(**overrides):
     base = SimpleNamespace(
         energy_horizon_end=lambda now: HORIZON_END,
-        get_future_export_price_slots=lambda horizon_end=None: _price_slots(True),
-        get_future_price_slots=lambda horizon_end=None: _price_slots(False),
+        get_future_export_price_slots=lambda horizon_end=None, **_: _price_slots(True),
+        get_future_price_slots=lambda horizon_end=None, **_: _price_slots(False),
         _profile_remaining_consumption=lambda start, end: _forecast(),
         _curtailment_forecast_model=lambda now: (0.0, None, 0.0),
         _curtailment_battery_snapshots=lambda: [
@@ -223,9 +223,9 @@ def test_arbitrage_margin_above_the_spread_stops_the_sale():
 @pytest.mark.parametrize(
     "pricing_override",
     [
-        {"get_future_export_price_slots": lambda horizon_end=None: []},
+        {"get_future_export_price_slots": lambda horizon_end=None, **_: []},
         {"_profile_remaining_consumption": lambda start, end: None},
-        {"get_future_price_slots": lambda horizon_end=None: []},
+        {"get_future_price_slots": lambda horizon_end=None, **_: []},
     ],
 )
 def test_missing_inputs_never_export(pricing_override):
@@ -343,7 +343,7 @@ def test_the_override_is_withdrawn_when_the_slot_ends():
 def test_the_plan_is_rebuilt_when_the_configuration_changes():
     rebuilds = []
 
-    def _slots(horizon_end=None):
+    def _slots(horizon_end=None, **_):
         rebuilds.append(1)
         return _price_slots(True)
 
@@ -428,7 +428,7 @@ def test_clear_runtime_drops_a_live_override():
 def test_horizon_ends_at_the_next_sunrise_not_the_next_days(hour, expected_end):
     requested: list[datetime] = []
 
-    def export_slots(horizon_end=None):
+    def export_slots(horizon_end=None, **_):
         requested.append(horizon_end)
         return []
 
@@ -459,8 +459,8 @@ def test_unpublished_night_becomes_an_unpriced_tail_not_a_coverage_gap():
         ]
 
     pricing = _pricing(
-        get_future_export_price_slots=lambda horizon_end=None: slots(True),
-        get_future_price_slots=lambda horizon_end=None: slots(False),
+        get_future_export_price_slots=lambda horizon_end=None, **_: slots(True),
+        get_future_price_slots=lambda horizon_end=None, **_: slots(False),
     )
     manager, _controller, _setpoints = _manager(now, pricing=pricing)
 
@@ -570,7 +570,7 @@ def test_fill_slots_use_tomorrows_window_and_profile(monkeypatch):
     starts = [HORIZON_END + timedelta(hours=i) for i in range(3)]
     slots = [PriceSlot(start, start + timedelta(hours=1), .2) for start in starts]
 
-    def export_slots(horizon_end=None):
+    def export_slots(horizon_end=None, **_):
         requested.append(horizon_end)
         return slots
 
@@ -601,7 +601,7 @@ def test_fill_window_starts_at_an_unaligned_sunrise(monkeypatch):
     slots = [PriceSlot(HORIZON_END + timedelta(hours=i), HORIZON_END + timedelta(hours=i + 1), .2)
              for i in range(3)]
     manager, _, _ = _manager(pricing=_pricing(
-        get_future_export_price_slots=lambda horizon_end=None: slots))
+        get_future_export_price_slots=lambda horizon_end=None, **_: slots))
     manager._solar_wh_hours = {"2026-08-03T05:00:00+00:00": 600,
                                "2026-08-03T06:00:00+00:00": 200}
     fill = manager._build_fill_slots(manager._controller._pricing_mgr, NOW, sunrise)

@@ -390,7 +390,7 @@
           "price_sensor": "Capteur contenant les prix horaires de l'électricité (ex : sensor.nordpool_kwh_fr_eur_3_10_025)",
           "export_price_sensor": "Capteur fournissant les prix d'injection. Laisser vide pour utiliser la courbe des prix d'import, ce qui est correct lorsque l'injection est rémunérée au prix d'import (net metering).",
           "export_price_integration_type": "Disposition des attributs du capteur de prix d'export. Laisser vide pour réutiliser l'intégration d'import. Tibber n'est pas disponible ici : il repose sur un service et son cache appartient à la courbe d'import.",
-          "zonneplan_export_bonus_enabled": "Ajoute 0,02 €/kWh et 10 % aux prix d'export Zonneplan uniquement. Sans effet si l'intégration de prix d'export réellement utilisée n'est pas Zonneplan.",
+          "zonneplan_export_bonus_enabled": "Ajoute le bonus solaire Zonneplan au prix d'export TTC de l'énergie solaire : le bonus est de 0,02 €/kWh sur le prix hors taxes, puis +10 %. S'applique uniquement entre le lever et le coucher du soleil, et seulement si ce prix plus 0,02 € est positif. L'export depuis la batterie n'est jamais valorisé avec le bonus. Sans effet si l'intégration de prix d'export réellement utilisée n'est pas Zonneplan.",
           "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement."
         }
       },
@@ -1113,7 +1113,7 @@
           "price_sensor": "Capteur contenant les prix horaires de l'électricité (ex : sensor.nordpool_kwh_fr_eur_3_10_025)",
           "export_price_sensor": "Capteur fournissant les prix d'injection. Laisser vide pour utiliser la courbe des prix d'import, ce qui est correct lorsque l'injection est rémunérée au prix d'import (net metering).",
           "export_price_integration_type": "Disposition des attributs du capteur de prix d'export. Laisser vide pour réutiliser l'intégration d'import. Tibber n'est pas disponible ici : il repose sur un service et son cache appartient à la courbe d'import.",
-          "zonneplan_export_bonus_enabled": "Ajoute 10 % et 0,02 €/kWh aux prix d'export Zonneplan uniquement. Sans effet si l'intégration de prix d'export réellement utilisée n'est pas Zonneplan.",
+          "zonneplan_export_bonus_enabled": "Ajoute le bonus solaire Zonneplan au prix d'export TTC de l'énergie solaire : le bonus est de 0,02 €/kWh sur le prix hors taxes, puis +10 %. S'applique uniquement entre le lever et le coucher du soleil, et seulement si ce prix plus 0,02 € est positif. L'export depuis la batterie n'est jamais valorisé avec le bonus. Sans effet si l'intégration de prix d'export réellement utilisée n'est pas Zonneplan.",
           "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement."
         }
       },

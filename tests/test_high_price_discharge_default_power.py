@@ -102,8 +102,8 @@ def _forecast():
 def _pricing():
     return SimpleNamespace(
         energy_horizon_end=lambda now: HORIZON_END,
-        get_future_export_price_slots=lambda horizon_end=None: _price_slots(True),
-        get_future_price_slots=lambda horizon_end=None: _price_slots(False),
+        get_future_export_price_slots=lambda horizon_end=None, **_: _price_slots(True),
+        get_future_price_slots=lambda horizon_end=None, **_: _price_slots(False),
         _profile_remaining_consumption=lambda start, end: _forecast(),
         _curtailment_forecast_model=lambda now: (0.0, None, 0.0),
         _curtailment_battery_snapshots=lambda: [
