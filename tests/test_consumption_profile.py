@@ -998,7 +998,8 @@ def test_backfill_merge_rebuilds_the_aggregate_for_a_day_it_had_never_seen():
 
 
 def test_pruning_a_future_dated_day_rebuilds_the_aggregate():
-    today = date.today()
+    # The profile's local date (Madrid), not the runner's: they differ 22-24 UTC.
+    today = _profile()._today()
     days = _mature_days(today)
     # A clock that ran a day ahead and was then corrected leaves a *complete*
     # day dated after today. Its age clamps to 0, so it trains at full weight
