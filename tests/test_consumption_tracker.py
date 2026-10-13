@@ -131,11 +131,10 @@ def test_vacation_period_marks_a_partial_legacy_day_as_excluded():
 @pytest.mark.asyncio
 async def test_exclude_dates_drops_the_day_and_blocks_its_rebuild():
     """A bad day must leave learning and never come back from a backfill."""
-    history = [
-        (date(2026, 9, 6), 18.0),
-        (date(2026, 9, 7), 49.71),
-        (date(2026, 9, 8), 19.34),
-    ]
+    # Relative to today: the save prunes periods older than the retention.
+    bad = date.today() - timedelta(days=2)
+    before, after = bad - timedelta(days=1), bad + timedelta(days=1)
+    history = [(before, 18.0), (bad, 49.71), (after, 19.34)]
     tracker = _make_tracker(history)
     tracker._controller._daily_grid_at_min_soc_kwh = 0.0
     tracker._hass = SimpleNamespace(config=SimpleNamespace(time_zone="Europe/Madrid"))
@@ -149,19 +148,19 @@ async def test_exclude_dates_drops_the_day_and_blocks_its_rebuild():
         set_excluded_periods=excluded.append
     )
 
-    await tracker.async_exclude_dates(date(2026, 9, 7), date(2026, 9, 7))
+    await tracker.async_exclude_dates(bad, bad)
 
     assert [day for day, _ in tracker._controller._daily_consumption_history] == [
-        date(2026, 9, 6), date(2026, 9, 8),
+        before, after,
     ]
     # The persisted period is what a later Recorder rebuild honours.
     madrid = ZoneInfo("Europe/Madrid")
-    assert tracker._period_intersects(
-        datetime(2026, 9, 7, tzinfo=madrid), datetime(2026, 9, 8, tzinfo=madrid)
-    )
-    assert not tracker._period_intersects(
-        datetime(2026, 9, 8, tzinfo=madrid), datetime(2026, 9, 9, tzinfo=madrid)
-    )
+
+    def midnight(day):
+        return datetime.combine(day, datetime.min.time(), tzinfo=madrid)
+
+    assert tracker._period_intersects(midnight(bad), midnight(after))
+    assert not tracker._period_intersects(midnight(after), midnight(after + timedelta(days=1)))
     assert excluded and excluded[-1] == tracker._vacation_periods
     assert tracker._vacation_store._data["periods"] == tracker._vacation_periods
 
