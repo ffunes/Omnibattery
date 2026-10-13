@@ -1110,6 +1110,9 @@ def _validate_slot_step_a(user_input: dict) -> dict:
     if user_input.get("mode") == SLOT_MODE_MANUAL and not user_input.get("power_override_enabled"):
         errors["base"] = "manual_requires_power"
         return errors
+    if user_input.get("mode") == SLOT_MODE_MANUAL and allow_c and allow_d:
+        errors["base"] = "manual_requires_single_direction"
+        return errors
     if user_input["start_time"] >= user_input["end_time"]:
         errors["base"] = "midnight_crossing"
         return errors
