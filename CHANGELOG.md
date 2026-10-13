@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.1b2] - 2026-10-13
+
+### Fixed
+
+- **Time Slot: Manual mode with both charge and discharge allowed** (#614): the form now rejects it. Such a slot silently fell back to PD and never forced the configured power. Thanks to @UsiuO.
+
 ## [1.5.1b1] - 2026-10-12
 
 ### Added
@@ -28,7 +34,6 @@
 - **Venus A/D with several packs: discharge stopped when the first pack reached Min SOC** (#545): the floor follows the total SOC again, which is where the BMS itself stops. A battery that stops delivering below 20 % SOC for a minute is now left out of discharge until it recovers 2 %, instead of being commanded for hours. Thanks to @FrankieV040, @Slashir and @sphings79.
 - **Zonneplan sun bonus (zonnebonus) follows Zonneplan's rules** (#553): solar export only, between sunrise and sunset, computed on the tax-excluded price (+€0.02, then +10%) and only when that is positive. High Price Sale no longer values battery export with it. Legacy-format forecasts (no tax-excluded price) get no bonus. Thanks to @JonavdBrink.
 - **Smart pre-discharge judges the negative-injection risk on the export price** (#553) when an export price sensor is configured, instead of the import price (lowest overlapping export price when the curves differ in granularity). It never exports the battery deliberately in a slot whose export price is itself at or below the threshold. Without an export sensor nothing changes.
-- **Time Slot: Manual mode with both charge and discharge allowed** (#614): the form now rejects it. Such a slot silently fell back to PD and never forced the configured power. Thanks to @UsiuO.
 - **Dashboard panels: the Solar forecast and Solar remaining rows now open their sensor when the panel config arrives after Home Assistant's state**; they used to stay unlinked for the whole session. Each row opens only its own sensor, and a row without a configured sensor is no longer linked to the other one (#567). Thanks to @JonavdBrink.
 
 ### Changed
