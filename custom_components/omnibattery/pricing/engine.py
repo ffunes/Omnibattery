@@ -2085,19 +2085,18 @@ class PricingManager:
         controller._curtailment_last_auto_replan = now
         return True
 
-    def _curtailment_risk_prices(self, slots: list[PriceSlot]) -> dict | None:
-        """Return the price solar power is exported at, by slot start.
+    def _curtailment_export_slots(self, slots: list[PriceSlot]) -> list[PriceSlot]:
+        """Return the curve solar power is exported at over ``slots``.
 
         Curtailment risk is about what exported solar earns, which differs from
         the import price when a separate export curve (or the Zonneplan sun
-        bonus) is configured. None keeps the import price.
+        bonus) is configured. Empty keeps the import price.
         """
         if not getattr(self._controller, "export_price_sensor", None) or not slots:
-            return None
-        export_slots = self.get_future_export_price_slots(
+            return []
+        return self.get_future_export_price_slots(
             horizon_end=max(slot.end for slot in slots)
         )
-        return {slot.start: slot.price for slot in export_slots} or None
 
     def _build_curtailment_plan(
         self,
@@ -2162,7 +2161,7 @@ class PricingManager:
                 solar_forecast_is_remaining=is_remaining,
                 consumption_forecast_is_remaining=is_remaining,
                 reserved_slots=reserved,
-                risk_price_by_start=self._curtailment_risk_prices(daily_slots),
+                export_slots=self._curtailment_export_slots(daily_slots),
                 now=evaluated_at,
             )
         except Exception as err:  # noqa: BLE001
@@ -2381,7 +2380,7 @@ class PricingManager:
             self._set_curtailment_runtime("shortfall", "no_live_discharge_capacity")
             return
         needed_export_w = min(max_power, remaining_kwh / hours_left * 1000.0)
-        if export_mode == EXPORT_MODE_SELF_CONSUMPTION:
+        if export_mode == EXPORT_MODE_SELF_CONSUMPTION or not active_slot.export_allowed:
             # Zero means domestic self-consumption only.  A target of 0 W lets
             # normal PD cover household load but never deliberately export.
             target_export = 0.0

@@ -26,8 +26,8 @@
 - **Dynamic Pricing with PVPC: tomorrow's prices ignored** (#568): the `price_next_day_*` attributes are now read, so an evening re-evaluation can book cheap overnight hours and the publication re-evaluation fires. Thanks to @falberdi.
 - **Zendure: wrong Internal Temperature and pack temperatures** (#566): `hyperTmp` and `maxTemp` are deci-Kelvin, now converted as `(raw - 2731) / 10`. Thanks to @EricRx.
 - **Venus A/D with several packs: discharge stopped when the first pack reached Min SOC** (#545): the floor follows the total SOC again, which is where the BMS itself stops. A battery that stops delivering below 20 % SOC for a minute is now left out of discharge until it recovers 2 %, instead of being commanded for hours. Thanks to @FrankieV040, @Slashir and @sphings79.
-- **Zonneplan export bonus (zonnebonus) now follows Zonneplan's rules**: solar power only, on top of the tax-excluded price (+€0.02, then +10%), added to the tax-inclusive export price, between sunrise and sunset, and only when the tax-excluded price plus €0.02 is positive. Battery export is never valued with the bonus.
-- **Smart pre-discharge judges curtailment risk on the solar export price** when an export price sensor is configured (including the Zonneplan sun bonus), instead of the import price. Without an export sensor nothing changes; the discharge slots are still ranked on the import price.
+- **Zonneplan sun bonus (zonnebonus) follows Zonneplan's rules** (#553): solar export only, between sunrise and sunset, computed on the tax-excluded price (+€0.02, then +10%) and only when that is positive. High Price Sale no longer values battery export with it. Legacy-format forecasts (no tax-excluded price) get no bonus. Thanks to @JonavdBrink.
+- **Smart pre-discharge judges the negative-injection risk on the export price** (#553) when an export price sensor is configured, instead of the import price (lowest overlapping export price when the curves differ in granularity). It never exports the battery deliberately in a slot whose export price is itself at or below the threshold. Without an export sensor nothing changes.
 
 ### Changed
 

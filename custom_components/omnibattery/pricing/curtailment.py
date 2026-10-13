@@ -9,7 +9,7 @@ constraints.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Callable, Iterable, Mapping, Sequence
 
@@ -105,6 +105,8 @@ class PreDischargeSlot:
     planned_energy_kwh: float = 0.0
     power_w: float = 0.0
     export_target_w: float = 0.0
+    # False when the slot's export price is inside the risk zone.
+    export_allowed: bool = True
 
     @property
     def duration_hours(self) -> float:
@@ -178,6 +180,16 @@ def _duration_hours(slot: PriceSlot) -> float:
 
 def _overlaps(left: PriceSlot | PreDischargeSlot, right: PriceSlot | PreDischargeSlot) -> bool:
     return left.start < right.end and right.start < left.end
+
+
+def _export_price(slot: PriceSlot, export_slots: Sequence[PriceSlot]) -> float:
+    """Lowest export price overlapping ``slot``; its import price without one.
+
+    The minimum is the conservative choice when the curves differ in
+    granularity: any part of the slot exporting at a bad price is a risk.
+    """
+    prices = [float(other.price) for other in export_slots if _overlaps(slot, other)]
+    return min(prices) if prices else float(slot.price)
 
 
 def _finite(value: object) -> bool:
@@ -431,7 +443,7 @@ def plan_curtailment(
     solar_by_slot: Mapping[PriceSlot, float] | None = None,
     consumption_by_slot: Mapping[PriceSlot, float] | None = None,
     reserved_slots: Iterable[PriceSlot] = (),
-    risk_price_by_start: Mapping[datetime, float] | None = None,
+    export_slots: Sequence[PriceSlot] = (),
     now: datetime | None = None,
 ) -> CurtailmentPlan:
     """Build an anti-curtailment plan from normalized prices and live capacity."""
@@ -505,7 +517,7 @@ def plan_curtailment(
         slot_consumption = max(0.0, float(consumption.get(slot, 0.0) or 0.0))
         surplus = max(0.0, slot_solar - slot_consumption)
         if (
-            float((risk_price_by_start or {}).get(slot.start, slot.price)) <= threshold
+            _export_price(slot, export_slots) <= threshold
             and surplus > EPSILON
         ):
             risk_slots.append(slot)
@@ -625,7 +637,11 @@ def plan_curtailment(
         # mode adds exactly its deliberate-export limit.  Automatic mode has no
         # fixed export cap: it may use the battery power needed to create the
         # calculated headroom, but never more than that need is selected.
-        if normalized_export_mode == EXPORT_MODE_AUTOMATIC:
+        # Exporting the battery at a price inside the risk zone frees room
+        # for solar worth no more, so it only costs round-trip losses.
+        if _export_price(slot, export_slots) <= threshold:
+            deliberate_export = 0.0
+        elif normalized_export_mode == EXPORT_MODE_AUTOMATIC:
             deliberate_export = max_discharge_power_w * slot_duration / 1000.0
         else:
             deliberate_export = export_limit_w * slot_duration / 1000.0
@@ -638,6 +654,11 @@ def plan_curtailment(
         export_mode=normalized_export_mode,
         available_energy_by_slot=available_energy_by_slot,
     )
+    selected = [
+        slot if _export_price(slot, export_slots) > threshold
+        else replace(slot, export_target_w=0.0, export_allowed=False)
+        for slot in selected
+    ]
     planned_kwh = min(
         min(extra_needed, available_discharge_kwh),
         sum(slot.planned_energy_kwh for slot in selected),

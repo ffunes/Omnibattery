@@ -2668,6 +2668,54 @@ def test_remaining_forecast_is_not_scaled_against_daily_solar_accumulator():
     assert plan.opportunistic_space_kwh == pytest.approx(2.5)
 
 
+@pytest.mark.parametrize("export_allowed, exports", [(True, True), (False, False)])
+def test_smart_predischarge_runtime_exports_only_when_the_slot_allows_it(
+    export_allowed, exports
+):
+    now = datetime.now()
+    active_pre_slot = PreDischargeSlot(
+        now - timedelta(minutes=1), now + timedelta(minutes=10), 0.40,
+        export_allowed=export_allowed,
+    )
+    future_risk = PriceSlot(now + timedelta(hours=1), now + timedelta(hours=2), -0.10)
+    calls = []
+    state = SimpleNamespace(state="0.0", attributes={})
+    hass = SimpleNamespace(states=SimpleNamespace(get=lambda _entity_id: state))
+    coordinator = SimpleNamespace(data={"battery_soc": 80.0}, is_available=True, name="b1")
+    ctrl = _controller(
+        smart_predischarge_enabled=True,
+        predictive_charging_enabled=True,
+        predictive_charging_mode=PREDICTIVE_MODE_DYNAMIC_PRICING,
+        predischarge_export_mode=EXPORT_MODE_AUTOMATIC,
+        coordinators=[coordinator],
+        consumption_sensor="sensor.grid",
+        _curtailment_plan=CurtailmentPlan(
+            status="planned",
+            reason="headroom_required",
+            risk_slots=[future_risk],
+            selected_discharge_slots=[active_pre_slot],
+            required_headroom_kwh=3.0,
+        ),
+        remove_setpoint_override=lambda source: None,
+        set_setpoint_override=lambda source, value, priority=0: calls.append(value),
+        remove_discharge_block=lambda source, coordinator=None: None,
+        set_discharge_block=lambda source, reason, details=None, coordinator=None: None,
+        _apply_meter_transform=lambda _state: 0.0,
+        _curtailment_active=False,
+        _curtailment_active_export_target_w=0.0,
+    )
+    manager = PricingManager(hass, ctrl)
+    manager._get_current_price = lambda: 0.30
+    manager._curtailment_battery_snapshots = lambda: [
+        BatterySnapshot("b1", 80.0, 10.0, 100.0, 10.0, 2000.0)
+    ]
+
+    manager.refresh_curtailment_runtime()
+
+    assert ctrl._curtailment_runtime_status == "predischarging"
+    assert (calls[-1] < 0) is exports
+
+
 def test_curtailment_export_settings_keep_legacy_compatibility_and_modes():
     legacy_zero = _controller(predischarge_max_export_power_w=0.0)
     legacy_custom = _controller(predischarge_max_export_power_w=750.0)
