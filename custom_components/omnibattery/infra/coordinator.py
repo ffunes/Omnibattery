@@ -25,6 +25,8 @@ from ..drivers.marstek import MarstekModbusDriver
 from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
 from ..drivers.anker import AnkerModbusDriver
 from ..drivers.sessy import SessyLocalDriver
+from ..drivers.indevolt import IndevoltDriver
+from .indevolt_notify import IndevoltNotifier
 from ..drivers.hoymiles import HoymilesMqttDriver
 from ..drivers.huawei import HuaweiSolarDriver
 from ..drivers.base import SetpointResult
@@ -371,7 +373,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.brand = brand
         self.ems_version = ems_version
         self.zendure_model = zendure_model
-        if self.brand in ("zendure", "anker", "hoymiles", "huawei"):
+        if self.brand in ("zendure", "anker", "hoymiles", "huawei", "indevolt"):
             full_charge_voltage_taper_enabled = False
 
         # Validate and store battery version
@@ -540,6 +542,16 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 password=password,
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
+            )
+        elif self.brand == "indevolt":
+            # The driver paces all device traffic itself; polls read its cache.
+            self.driver = IndevoltDriver(
+                self.host, port=self.port,
+                max_charge_power_w=self.configured_max_charge_power,
+                max_discharge_power_w=self.configured_max_discharge_power,
+                notifier=IndevoltNotifier(hass, name, f"{self.host}_{self.port}"),
+                core_min_soc=lambda: self.min_soc,
+                name=name,
             )
         elif self.brand == "huawei":
             # Telemetry is read natively over Modbus; set-points go out through
@@ -897,6 +909,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Sessy" if self.brand == "sessy"
                 else "Hoymiles" if self.brand == "hoymiles"
                 else "Huawei" if self.brand == "huawei"
+                else "Indevolt" if self.brand == "indevolt"
                 else "Marstek"
             ),
             "model": self.driver.model_label or (
@@ -904,6 +917,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Solarbank Max AC" if self.brand == "anker"
                 else "Sessy" if self.brand == "sessy"
                 else "MS-A2" if self.brand == "hoymiles"
+                else "Indevolt" if self.brand == "indevolt"
                 else "Venus"
             ),
         }

@@ -11,6 +11,7 @@ Elige la vía que coincida con tu batería y con cómo está conectada a Home As
 | Zendure SolarFlow 800, 800 Plus, 800 Pro, 1600 AC+, 2400 AC Pro/+, 3000 Mix AC+, 4000 Mix AC+ o 4000 Mix Pro | La dirección IP local del dispositivo y HEMS desactivado | **Zendure SolarFlow** | [Zendure](zendure.md) |
 | Anker SOLIX Solarbank Max AC, 4 E5000 Pro o XE AC | Modbus TCP y Third-Party Control activados | **Anker SOLIX Solarbank Max AC / 4 E5000 Pro** (también detecta XE AC) | [Anker SOLIX](anker.md) |
 | Sessy Home Battery | Un dongle Sessy accesible y sus credenciales | **Sessy** | [Sessy](sessy.md) |
+| Indevolt SolidFlex o PowerFlex | La API local activada y el modo Tiempo real elegido en la app de Indevolt | **Indevolt SolidFlex / PowerFlex** | [Indevolt](indevolt.md) |
 | Hoymiles MS-A2 o HiBattery compatible | MQTT configurado en Home Assistant y el ID completo del dispositivo | **Hoymiles MQTT** | [Hoymiles MQTT](hoymiles.md) |
 | Huawei SUN2000 con LUNA2000 | Un extremo Modbus TCP y Huawei Solar o escrituras Modbus directas | **Huawei SUN2000 + LUNA2000** | [Huawei](huawei.md) |
 

@@ -600,6 +600,20 @@
         "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
         "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
       },
+      "reconfigure_battery_indevolt": {
+        "title": "Batterie {battery_num} neu konfigurieren — Verbindung (Indevolt)",
+        "description": "Aktualisiere die Verbindungsdaten der Indevolt-Batterie {battery_num}. Alle anderen Einstellungen bleiben erhalten.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "HTTP-Port"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse der Indevolt-Batterie im lokalen Netzwerk",
+          "port": "HTTP-Port der lokalen API (Standard 8080)"
+        }
+      },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
         "description": "Update connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. All other settings are preserved.",
@@ -674,6 +688,24 @@
         "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
         "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
       },
+      "battery_connection_indevolt": {
+        "title": "Batterie {battery_num} konfigurieren — Verbindung (Indevolt)",
+        "description": "Gib die IP-Adresse der Indevolt-Batterie {battery_num} ein. Aktiviere in der Indevolt-App die lokale API mit dem Protokoll **HTTP** (nicht HTTP Digest). Omnibattery steuert die Batterie nur im Modus **Echtzeit** (Realtime), den du in der Indevolt-App wählst; den Modus selbst ändert Omnibattery nie.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "HTTP-Port"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse der Indevolt-Batterie im lokalen Netzwerk",
+          "port": "HTTP-Port der lokalen API (Standard 8080)"
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batterie {battery_num} — Echtzeitmodus erforderlich",
+        "description": "Die Batterie ist nicht im Echtzeitmodus. Die Einrichtung geht weiter und Omnibattery überwacht die Batterie, steuert sie aber erst, wenn du in der Indevolt-App **Echtzeit** (Realtime) wählst. Die Steuerung startet dann automatisch."
+      },
       "battery_connection_huawei": {
         "title": "Batterie {battery_num} einrichten — Verbindung (Huawei)",
         "description": "Omnibattery liest diese Batterie über Modbus und schickt die Sollwerte über die Huawei-Solar-Integration. Deshalb werden beide Angaben gebraucht: ein Modbus-Zugang und das Batteriegerät. Trage als Modbus-Adresse besser einen Modbus-Proxy ein statt des Wechselrichters selbst — die Huawei-Solar-Integration hält dort bereits eine Verbindung.\n\nEin Huawei-Wechselrichter nimmt jeweils nur EINE Modbus-Verbindung an. Wenn außer Omnibattery noch etwas anderes darauf zugreift — etwa die Huawei-Solar-Integration, evcc oder ein anderes System — brauchst du einen Modbus-Proxy davor, der die Verbindung auf mehrere Clients aufteilt, zum Beispiel {proxy_url}. Trage dann Adresse und Port des Proxys ein statt die des Wechselrichters. Die Slave-ID wird automatisch gesucht, wenn die eingetragene nicht antwortet.",
@@ -706,6 +738,7 @@
       "invalid_mac": "Das sieht nicht wie eine MAC-Adresse aus. Erwartet werden sechs Paare hexadezimaler Ziffern, zum Beispiel dc:04:5a:14:6b:33.",
       "cannot_connect": "Verbindung zur Batterie nicht möglich. Überprüfen Sie die IP-Adresse und dass die Batterie im Netzwerk erreichbar ist.",
       "hoymiles_no_power_ctrl": "Diese MQTT-Geräte-ID sendet Telemetrie, aber keine Leistungssteuerung. In einem gekoppelten Hoymiles-System ist nur der Master steuerbar: Füge die Geräte-ID des Masters einmal hinzu, nicht die des Slaves.",
+      "indevolt_http_digest": "Die Batterie verlangt ein Passwort: Die lokale API steht auf HTTP Digest. Wähle in der Indevolt-App HTTP und versuche es erneut.",
       "no_battery": "Wechselrichter erreichbar, meldet aber keine Batterie. Prüfe, ob die LUNA2000 angeschlossen ist und die Modbus-Slave-ID auf den Wechselrichter zeigt.",
       "huawei_device_required": "Ohne direkte Modbus-Schreibzugriffe steuert Omnibattery die Batterie über die Dienste der Huawei-Solar-Integration, und die sprechen das Batteriegerät an. Wähle also entweder das Gerät aus oder aktiviere die direkten Schreibzugriffe.",
       "huawei_solar_missing": "Ohne direkte Modbus-Schreibzugriffe steuert Omnibattery die Batterie über die Dienste der Huawei-Solar-Integration — die ist hier aber nicht eingerichtet. Installiere sie über HACS und richte sie ein, oder aktiviere die direkten Schreibzugriffe.",
@@ -1290,6 +1323,24 @@
         "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
         "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
       },
+      "battery_connection_indevolt": {
+        "title": "Batterie {battery_num} konfigurieren — Verbindung (Indevolt)",
+        "description": "Ändere die Verbindungsdaten der Indevolt-Batterie {battery_num}.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "HTTP-Port"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse der Indevolt-Batterie im lokalen Netzwerk",
+          "port": "HTTP-Port der lokalen API (Standard 8080)"
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batterie {battery_num} — Echtzeitmodus erforderlich",
+        "description": "Die Batterie ist nicht im Echtzeitmodus. Die Einrichtung geht weiter und Omnibattery überwacht die Batterie, steuert sie aber erst, wenn du in der Indevolt-App **Echtzeit** (Realtime) wählst. Die Steuerung startet dann automatisch."
+      },
       "battery_connection_huawei": {
         "title": "Batterie {battery_num} einrichten — Verbindung (Huawei)",
         "description": "Modbus-Zugang und Huawei-Solar-Batteriegerät für Batterie {battery_num} ändern.\n\nEin Huawei-Wechselrichter nimmt jeweils nur EINE Modbus-Verbindung an. Wenn außer Omnibattery noch etwas anderes darauf zugreift — etwa die Huawei-Solar-Integration, evcc oder ein anderes System — brauchst du einen Modbus-Proxy davor, der die Verbindung auf mehrere Clients aufteilt, zum Beispiel {proxy_url}. Trage dann Adresse und Port des Proxys ein statt die des Wechselrichters. Die Slave-ID wird automatisch gesucht, wenn die eingetragene nicht antwortet.",
@@ -1322,6 +1373,7 @@
       "invalid_mac": "Das sieht nicht wie eine MAC-Adresse aus. Erwartet werden sechs Paare hexadezimaler Ziffern, zum Beispiel dc:04:5a:14:6b:33.",
       "cannot_connect": "Verbindung zur Batterie nicht möglich. Überprüfen Sie die IP-Adresse und dass die Batterie im Netzwerk erreichbar ist.",
       "hoymiles_no_power_ctrl": "Diese MQTT-Geräte-ID sendet Telemetrie, aber keine Leistungssteuerung. In einem gekoppelten Hoymiles-System ist nur der Master steuerbar: Füge die Geräte-ID des Masters einmal hinzu, nicht die des Slaves.",
+      "indevolt_http_digest": "Die Batterie verlangt ein Passwort: Die lokale API steht auf HTTP Digest. Wähle in der Indevolt-App HTTP und versuche es erneut.",
       "no_battery": "Wechselrichter erreichbar, meldet aber keine Batterie. Prüfe, ob die LUNA2000 angeschlossen ist und die Modbus-Slave-ID auf den Wechselrichter zeigt.",
       "huawei_device_required": "Ohne direkte Modbus-Schreibzugriffe steuert Omnibattery die Batterie über die Dienste der Huawei-Solar-Integration, und die sprechen das Batteriegerät an. Wähle also entweder das Gerät aus oder aktiviere die direkten Schreibzugriffe.",
       "huawei_solar_missing": "Ohne direkte Modbus-Schreibzugriffe steuert Omnibattery die Batterie über die Dienste der Huawei-Solar-Integration — die ist hier aber nicht eingerichtet. Installiere sie über HACS und richte sie ein, oder aktiviere die direkten Schreibzugriffe.",
@@ -1874,6 +1926,45 @@
       },
       "software_version": {
         "name": "Softwareversion"
+      },
+      "energy_mode": {
+        "name": "Arbeitsmodus"
+      },
+      "control_status": {
+        "name": "Steuerungsstatus"
+      },
+      "native_min_soc": {
+        "name": "Batteriereserve"
+      },
+      "realtime_power": {
+        "name": "Echtzeit-Sollleistung"
+      },
+      "realtime_target_soc": {
+        "name": "Echtzeit-Ziel-SOC"
+      },
+      "grid_charging_allowed": {
+        "name": "Netzladen"
+      },
+      "inverter_battery_temperature": {
+        "name": "Temperatur Wechselrichterbatterie"
+      },
+      "transformer_temperature": {
+        "name": "Temperatur Transformator"
+      },
+      "expansion_battery_1_temperature": {
+        "name": "Temperatur Erweiterungsbatterie 1"
+      },
+      "expansion_battery_2_temperature": {
+        "name": "Temperatur Erweiterungsbatterie 2"
+      },
+      "expansion_battery_3_temperature": {
+        "name": "Temperatur Erweiterungsbatterie 3"
+      },
+      "expansion_battery_4_temperature": {
+        "name": "Temperatur Erweiterungsbatterie 4"
+      },
+      "expansion_battery_5_temperature": {
+        "name": "Temperatur Erweiterungsbatterie 5"
       },
       "pv1_voltage": {
         "name": "PV1 Spannung"

@@ -600,6 +600,20 @@
         "data": {"name": "Nom", "host": "Adresse IP", "port": "Port HTTP", "username": "Nom d’utilisateur", "password": "Mot de passe"},
         "data_description": {"name": "Nom descriptif permettant identifier cette batterie", "host": "Adresse IP du dispositif Sessy sur le réseau local", "port": "Port HTTP (80 par défaut)", "username": "Nom d’utilisateur local imprimé sur le dongle Sessy", "password": "Mot de passe local imprimé sur le dongle Sessy"}
       },
+      "reconfigure_battery_indevolt": {
+        "title": "Reconfigurer la batterie {battery_num} — Connexion (Indevolt)",
+        "description": "Mettez à jour les paramètres de connexion de la batterie Indevolt {battery_num}. Les autres réglages sont conservés.",
+        "data": {
+          "name": "Nom",
+          "host": "Adresse IP",
+          "port": "Port HTTP"
+        },
+        "data_description": {
+          "name": "Nom descriptif pour identifier cette batterie",
+          "host": "Adresse IP de la batterie Indevolt sur votre réseau local",
+          "port": "Port HTTP de l'API locale (8080 par défaut)"
+        }
+      },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
         "description": "Update connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. All other settings are preserved.",
@@ -674,6 +688,24 @@
         "data": {"name": "Nom", "host": "Adresse IP", "port": "Port HTTP", "username": "Nom d’utilisateur", "password": "Mot de passe"},
         "data_description": {"name": "Nom descriptif permettant identifier cette batterie", "host": "Adresse IP du dispositif Sessy sur le réseau local", "port": "Port HTTP (80 par défaut)", "username": "Nom d’utilisateur local imprimé sur le dongle Sessy", "password": "Mot de passe local imprimé sur le dongle Sessy"}
       },
+      "battery_connection_indevolt": {
+        "title": "Configurer la batterie {battery_num} — Connexion (Indevolt)",
+        "description": "Saisissez l'adresse IP de la batterie Indevolt {battery_num}. Dans l'application Indevolt, activez l'API locale avec le protocole **HTTP** (pas HTTP Digest). Omnibattery ne pilote la batterie qu'en mode **Temps réel** (Realtime), que vous choisissez dans l'application Indevolt ; il ne change jamais le mode lui-même.",
+        "data": {
+          "name": "Nom",
+          "host": "Adresse IP",
+          "port": "Port HTTP"
+        },
+        "data_description": {
+          "name": "Nom descriptif pour identifier cette batterie",
+          "host": "Adresse IP de la batterie Indevolt sur votre réseau local",
+          "port": "Port HTTP de l'API locale (8080 par défaut)"
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batterie {battery_num} — Mode Temps réel requis",
+        "description": "La batterie n'est pas en mode Temps réel. La configuration continue et Omnibattery surveille la batterie, mais ne la pilote qu'une fois **Temps réel** (Realtime) choisi dans l'application Indevolt. Le pilotage démarre alors automatiquement."
+      },
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
         "description": "Omnibattery reads this battery over Modbus and sends its set-points through the Huawei Solar integration, so it needs both: a Modbus endpoint and the battery device. Point the Modbus address at a Modbus proxy rather than straight at the inverter — the Huawei Solar integration already holds a connection to it.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
@@ -706,6 +738,7 @@
       "invalid_mac": "Cela ne ressemble pas à une adresse MAC. Six paires de chiffres hexadécimaux sont attendues, par exemple dc:04:5a:14:6b:33.",
       "cannot_connect": "Impossible de se connecter à la batterie. Vérifiez l'adresse IP et que la batterie est accessible sur le réseau.",
       "hoymiles_no_power_ctrl": "Cet ID d'appareil MQTT publie de la télémétrie mais aucun contrôle de puissance. Dans un système Hoymiles appairé, seul le maître est pilotable : ajoutez une seule fois l'ID du maître, pas celui de l'esclave.",
+      "indevolt_http_digest": "La batterie demande un mot de passe : son API locale est en HTTP Digest. Choisissez HTTP dans l'application Indevolt et réessayez.",
       "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
       "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
@@ -1290,6 +1323,24 @@
         "data": {"name": "Nom", "host": "Adresse IP", "port": "Port HTTP", "username": "Nom d’utilisateur", "password": "Mot de passe"},
         "data_description": {"name": "Nom descriptif permettant identifier cette batterie", "host": "Adresse IP du dispositif Sessy sur le réseau local", "port": "Port HTTP (80 par défaut)", "username": "Nom d’utilisateur local imprimé sur le dongle Sessy", "password": "Mot de passe local imprimé sur le dongle Sessy"}
       },
+      "battery_connection_indevolt": {
+        "title": "Configurer la batterie {battery_num} — Connexion (Indevolt)",
+        "description": "Modifiez les paramètres de connexion de la batterie Indevolt {battery_num}.",
+        "data": {
+          "name": "Nom",
+          "host": "Adresse IP",
+          "port": "Port HTTP"
+        },
+        "data_description": {
+          "name": "Nom descriptif pour identifier cette batterie",
+          "host": "Adresse IP de la batterie Indevolt sur votre réseau local",
+          "port": "Port HTTP de l'API locale (8080 par défaut)"
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batterie {battery_num} — Mode Temps réel requis",
+        "description": "La batterie n'est pas en mode Temps réel. La configuration continue et Omnibattery surveille la batterie, mais ne la pilote qu'une fois **Temps réel** (Realtime) choisi dans l'application Indevolt. Le pilotage démarre alors automatiquement."
+      },
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
         "description": "Modify the Modbus endpoint and the Huawei Solar battery device used for battery {battery_num}.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
@@ -1322,6 +1373,7 @@
       "invalid_mac": "Cela ne ressemble pas à une adresse MAC. Six paires de chiffres hexadécimaux sont attendues, par exemple dc:04:5a:14:6b:33.",
       "cannot_connect": "Impossible de se connecter à la batterie. Vérifiez l'adresse IP et que la batterie est accessible sur le réseau.",
       "hoymiles_no_power_ctrl": "Cet ID d'appareil MQTT publie de la télémétrie mais aucun contrôle de puissance. Dans un système Hoymiles appairé, seul le maître est pilotable : ajoutez une seule fois l'ID du maître, pas celui de l'esclave.",
+      "indevolt_http_digest": "La batterie demande un mot de passe : son API locale est en HTTP Digest. Choisissez HTTP dans l'application Indevolt et réessayez.",
       "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
       "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
@@ -1874,6 +1926,45 @@
       },
       "software_version": {
         "name": "Version Logiciel"
+      },
+      "energy_mode": {
+        "name": "Mode de fonctionnement"
+      },
+      "control_status": {
+        "name": "État du pilotage"
+      },
+      "native_min_soc": {
+        "name": "Réserve de batterie"
+      },
+      "realtime_power": {
+        "name": "Puissance de consigne temps réel"
+      },
+      "realtime_target_soc": {
+        "name": "SOC cible temps réel"
+      },
+      "grid_charging_allowed": {
+        "name": "Charge depuis le réseau"
+      },
+      "inverter_battery_temperature": {
+        "name": "Température de la batterie de l'onduleur"
+      },
+      "transformer_temperature": {
+        "name": "Température du transformateur"
+      },
+      "expansion_battery_1_temperature": {
+        "name": "Température de la batterie d'extension 1"
+      },
+      "expansion_battery_2_temperature": {
+        "name": "Température de la batterie d'extension 2"
+      },
+      "expansion_battery_3_temperature": {
+        "name": "Température de la batterie d'extension 3"
+      },
+      "expansion_battery_4_temperature": {
+        "name": "Température de la batterie d'extension 4"
+      },
+      "expansion_battery_5_temperature": {
+        "name": "Température de la batterie d'extension 5"
       },
       "pv1_voltage": {
         "name": "Tension PV1"
