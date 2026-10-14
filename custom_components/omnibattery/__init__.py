@@ -580,8 +580,10 @@ def _async_unregister_frontend_panel(hass: HomeAssistant) -> None:
         hass.data[DOMAIN][_PANEL_REGISTERED_KEY] = False
 
 
-def _apply_driver_dynamic_limit(coordinator, current_limit: int) -> int:
-    """Narrow a discharge limit to the live headroom the driver reports.
+def _apply_driver_dynamic_limit(
+    coordinator, current_limit: int, *, charging: bool = False
+) -> int:
+    """Narrow a charge or discharge limit to the live headroom the driver reports.
 
     Only DC-coupled hybrids report one: battery and PV share an inverter there,
     so the reachable discharge power falls as PV rises. Every other driver
@@ -590,25 +592,35 @@ def _apply_driver_dynamic_limit(coordinator, current_limit: int) -> int:
     Applied in the control path rather than on the coordinator's power
     properties on purpose — those also drive the user-facing power sliders, and
     a bound that moved with the sun would be unusable.
+
+    ``charging`` asks the driver's ``dynamic_charge_limit_w`` instead. Only a
+    driver that cannot take commands at the moment (Indevolt outside Realtime
+    mode) reports one; every other driver returns None.
     """
     driver = getattr(coordinator, "driver", None)
-    limiter = getattr(driver, "dynamic_discharge_limit_w", None)
+    limiter = getattr(
+        driver,
+        "dynamic_charge_limit_w" if charging else "dynamic_discharge_limit_w",
+        None,
+    )
     if limiter is None:
         return current_limit
     try:
         dynamic = limiter(getattr(coordinator, "data", None) or {})
     except Exception:  # a driver must never break the control cycle
         _LOGGER.debug(
-            "[%s] dynamic discharge limit raised; keeping static limit",
+            "[%s] dynamic %s limit raised; keeping static limit",
             getattr(coordinator, "name", "?"),
+            "charge" if charging else "discharge",
             exc_info=True,
         )
         return current_limit
     if dynamic is None or dynamic >= current_limit:
         return current_limit
     _LOGGER.debug(
-        "[%s] discharge limit narrowed %dW -> %dW by inverter AC headroom",
-        getattr(coordinator, "name", "?"), current_limit, dynamic,
+        "[%s] %s limit narrowed %dW -> %dW by the driver",
+        getattr(coordinator, "name", "?"),
+        "charge" if charging else "discharge", current_limit, dynamic,
     )
     return max(0, int(dynamic))
 
@@ -3048,6 +3060,7 @@ class ChargeDischargeController:
         )
         if coordinator.data is None:
             return self._apply_slot_power_ceiling(coordinator, True, limit)
+        limit = _apply_driver_dynamic_limit(coordinator, limit, charging=True)
         limit = self._max_soc_mgr.apply_charge_taper(coordinator, limit)
         limit = self._temp_limit_mgr.apply_temperature_limit(coordinator, limit)
         return self._apply_slot_power_ceiling(coordinator, True, limit)
