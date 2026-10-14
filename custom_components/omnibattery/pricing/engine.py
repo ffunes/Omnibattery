@@ -5533,6 +5533,8 @@ class PricingManager:
         if self._controller._dynamic_pricing_evaluated_date is not None:
             if today > self._controller._dynamic_pricing_evaluated_date:
                 _LOGGER.info("Dynamic pricing: new day — resetting schedule")
+                if self._controller._current_price_slot_active:
+                    await self._stop_dynamic_price_slot("slot_ended", write_idle=False)
                 midnight = now.replace(
                     hour=0, minute=0, second=0, microsecond=0
                 )
