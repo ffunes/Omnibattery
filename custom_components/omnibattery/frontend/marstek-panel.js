@@ -71,7 +71,8 @@ const I18N = {
     dailyOperationSinusoidal: "Sinusoidal fallback", dailyOperationGenericFallback: "Fallback estimate", dailyOperationZeroFallback: "Zero-solar fallback", dailyOperationFallback: "Fallback: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Observed", dailyOperationProjected: "Projected", dailyOperationPrevious: "Previous",
     dailyOperationNext: "Next", dailyOperationNow: "Now", dailyOperationCoverage: "Coverage", dailyOperationMode: "Mode",
-    dailyOperationSource: "Source", dailyOperationDSTSkipped: "DST interval skipped", dailyOperationDSTRepeated: "Repeated local hour",
+    dailyOperationSource: "Source", dailyOperationCommanded: "Commanded", dailyOperationRuntimeCommand: "Commanded setpoint, not measured", dailyOperationRuntimeMeasured: "Measured",
+    dailyOperationDSTSkipped: "DST interval skipped", dailyOperationDSTRepeated: "Repeated local hour",
     dailyOperationProvider: "Provider forecast", dailyOperationConsumptionProfile: "Consumption profile", dailyOperationLegacyDaily: "Daily estimate", dailyOperationDynamicSchedule: "Dynamic schedule", dailyOperationTimeSlot: "Time slot", dailyOperationProfileProjection: "Profile projection", dailyOperationUnavailable: "Unavailable",
     dailyOperationRealtimeNoFuture: "Real-time price has no future calendar", dailyOperationUnknown: "Unknown",
     forecastToday: "Solar forecast · 00:05", solarRemaining: "Solar remaining", expectedConsumption: "Expected consumption",
@@ -161,7 +162,8 @@ const I18N = {
     dailyOperationSinusoidal: "Curva sinusoidal alternativa", dailyOperationGenericFallback: "Estimación alternativa", dailyOperationZeroFallback: "Previsión solar nula", dailyOperationFallback: "Estimación alternativa: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Observado", dailyOperationProjected: "Previsto", dailyOperationPrevious: "Anterior",
     dailyOperationNext: "Siguiente", dailyOperationNow: "Ahora", dailyOperationCoverage: "Cobertura", dailyOperationMode: "Modo",
-    dailyOperationSource: "Fuente", dailyOperationDSTSkipped: "Intervalo DST omitido", dailyOperationDSTRepeated: "Hora local repetida",
+    dailyOperationSource: "Fuente", dailyOperationCommanded: "Comandado", dailyOperationRuntimeCommand: "Consigna enviada, sin medir", dailyOperationRuntimeMeasured: "Medido",
+    dailyOperationDSTSkipped: "Intervalo DST omitido", dailyOperationDSTRepeated: "Hora local repetida",
     dailyOperationProvider: "Previsión del proveedor", dailyOperationConsumptionProfile: "Perfil de consumo", dailyOperationLegacyDaily: "Estimación diaria", dailyOperationDynamicSchedule: "Plan dinámico", dailyOperationTimeSlot: "Franja horaria", dailyOperationProfileProjection: "Proyección del perfil", dailyOperationUnavailable: "No disponible",
     dailyOperationRealtimeNoFuture: "El precio en tiempo real no tiene calendario futuro", dailyOperationUnknown: "Desconocido",
     forecastToday: "Previsión solar · 00:05", solarRemaining: "Solar restante", expectedConsumption: "Consumo esperado",
@@ -252,7 +254,8 @@ const I18N = {
     dailyOperationSinusoidal: "Corba sinusoidal alternativa", dailyOperationGenericFallback: "Estimació alternativa", dailyOperationZeroFallback: "Previsió solar nul·la", dailyOperationFallback: "Estimació alternativa: {reason}", dailyOperationPlan: "Pla",
     dailyOperationObserved: "Observat", dailyOperationProjected: "Previst", dailyOperationPrevious: "Anterior",
     dailyOperationNext: "Següent", dailyOperationNow: "Ara", dailyOperationCoverage: "Cobertura", dailyOperationMode: "Mode",
-    dailyOperationSource: "Font", dailyOperationDSTSkipped: "Interval DST omès", dailyOperationDSTRepeated: "Hora local repetida",
+    dailyOperationSource: "Font", dailyOperationCommanded: "Comandat", dailyOperationRuntimeCommand: "Consigna enviada, sense mesurar", dailyOperationRuntimeMeasured: "Mesurat",
+    dailyOperationDSTSkipped: "Interval DST omès", dailyOperationDSTRepeated: "Hora local repetida",
     dailyOperationProvider: "Previsió del proveïdor", dailyOperationConsumptionProfile: "Perfil de consum", dailyOperationLegacyDaily: "Estimació diària", dailyOperationDynamicSchedule: "Pla dinàmic", dailyOperationTimeSlot: "Franja horària", dailyOperationProfileProjection: "Projecció del perfil", dailyOperationUnavailable: "No disponible",
     dailyOperationRealtimeNoFuture: "El preu en temps real no té calendari futur", dailyOperationUnknown: "Desconegut",
     forecastToday: "Previsió solar · 00:05", solarRemaining: "Solar restant", expectedConsumption: "Consum esperat",
@@ -338,7 +341,8 @@ const I18N = {
     dailyOperationSinusoidal: "Sinusförmige Ersatzkurve", dailyOperationGenericFallback: "Ersatzprognose", dailyOperationZeroFallback: "Solarprognose ohne Ertrag", dailyOperationFallback: "Ersatzprognose: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Beobachtet", dailyOperationProjected: "Prognostiziert", dailyOperationPrevious: "Zurück",
     dailyOperationNext: "Weiter", dailyOperationNow: "Jetzt", dailyOperationCoverage: "Abdeckung", dailyOperationMode: "Modus",
-    dailyOperationSource: "Quelle", dailyOperationDSTSkipped: "DST-Intervall übersprungen", dailyOperationDSTRepeated: "Wiederholte Ortszeit",
+    dailyOperationSource: "Quelle", dailyOperationCommanded: "Angesteuert", dailyOperationRuntimeCommand: "Vorgegebener Sollwert, nicht gemessen", dailyOperationRuntimeMeasured: "Gemessen",
+    dailyOperationDSTSkipped: "DST-Intervall übersprungen", dailyOperationDSTRepeated: "Wiederholte Ortszeit",
     dailyOperationProvider: "Anbieterprognose", dailyOperationConsumptionProfile: "Verbrauchsprofil", dailyOperationLegacyDaily: "Tagesschätzung", dailyOperationDynamicSchedule: "Dynamischer Zeitplan", dailyOperationTimeSlot: "Zeitfenster", dailyOperationProfileProjection: "Profilprojektion", dailyOperationUnavailable: "Nicht verfügbar",
     dailyOperationRealtimeNoFuture: "Echtzeitpreis hat keinen Zukunftskalender", dailyOperationUnknown: "Unbekannt",
     forecastToday: "Solarprognose · 00:05", solarRemaining: "Verbleibende Solarenergie", expectedConsumption: "Erwarteter Verbrauch",
@@ -424,7 +428,8 @@ const I18N = {
     dailyOperationSinusoidal: "Courbe sinusoïdale de secours", dailyOperationGenericFallback: "Estimation de secours", dailyOperationZeroFallback: "Prévision solaire nulle", dailyOperationFallback: "Estimation de secours : {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Observé", dailyOperationProjected: "Prévu", dailyOperationPrevious: "Précédent",
     dailyOperationNext: "Suivant", dailyOperationNow: "Maintenant", dailyOperationCoverage: "Couverture", dailyOperationMode: "Mode",
-    dailyOperationSource: "Source", dailyOperationDSTSkipped: "Intervalle DST ignoré", dailyOperationDSTRepeated: "Heure locale répétée",
+    dailyOperationSource: "Source", dailyOperationCommanded: "Commandé", dailyOperationRuntimeCommand: "Consigne envoyée, non mesurée", dailyOperationRuntimeMeasured: "Mesuré",
+    dailyOperationDSTSkipped: "Intervalle DST ignoré", dailyOperationDSTRepeated: "Heure locale répétée",
     dailyOperationProvider: "Prévision du fournisseur", dailyOperationConsumptionProfile: "Profil de consommation", dailyOperationLegacyDaily: "Estimation quotidienne", dailyOperationDynamicSchedule: "Plan dynamique", dailyOperationTimeSlot: "Créneau horaire", dailyOperationProfileProjection: "Projection du profil", dailyOperationUnavailable: "Indisponible",
     dailyOperationRealtimeNoFuture: "Le prix en temps réel n'a pas de calendrier futur", dailyOperationUnknown: "Inconnu",
     forecastToday: "Prévision solaire · 00:05", solarRemaining: "Solaire restant", expectedConsumption: "Consommation prévue",
@@ -510,7 +515,8 @@ const I18N = {
     dailyOperationSinusoidal: "Alternatieve sinuscurve", dailyOperationGenericFallback: "Alternatieve prognose", dailyOperationZeroFallback: "Zonneprognose zonder opbrengst", dailyOperationFallback: "Alternatieve prognose: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Geobserveerd", dailyOperationProjected: "Verwacht", dailyOperationPrevious: "Vorige",
     dailyOperationNext: "Volgende", dailyOperationNow: "Nu", dailyOperationCoverage: "Dekking", dailyOperationMode: "Modus",
-    dailyOperationSource: "Bron", dailyOperationDSTSkipped: "DST-interval overgeslagen", dailyOperationDSTRepeated: "Herhaalde lokale tijd",
+    dailyOperationSource: "Bron", dailyOperationCommanded: "Aangestuurd", dailyOperationRuntimeCommand: "Aangestuurd setpoint, niet gemeten", dailyOperationRuntimeMeasured: "Gemeten",
+    dailyOperationDSTSkipped: "DST-interval overgeslagen", dailyOperationDSTRepeated: "Herhaalde lokale tijd",
     dailyOperationProvider: "Prognose van aanbieder", dailyOperationConsumptionProfile: "Verbruiksprofiel", dailyOperationLegacyDaily: "Dagelijkse schatting", dailyOperationDynamicSchedule: "Dynamische planning", dailyOperationTimeSlot: "Tijdvak", dailyOperationProfileProjection: "Profielprojectie", dailyOperationUnavailable: "Niet beschikbaar",
     dailyOperationRealtimeNoFuture: "Realtimeprijs heeft geen toekomstige kalender", dailyOperationUnknown: "Onbekend",
     forecastToday: "Zonneverwachting · 00:05", solarRemaining: "Resterende zonne-energie", expectedConsumption: "Verwacht verbruik",
@@ -3199,6 +3205,8 @@ class MarstekVenusPanel extends HTMLElement {
       unavailable: "dailyOperationUnavailable",
       zero_fallback: "dailyOperationZeroFallback",
       fallback: "dailyOperationGenericFallback",
+      runtime_command: "dailyOperationRuntimeCommand",
+      runtime_measured: "dailyOperationRuntimeMeasured",
     };
     if (sourceKeys[normalized]) return this._t(sourceKeys[normalized]);
     if (normalized.includes("learned")) return this._t("dailyOperationLearned");
@@ -3209,6 +3217,18 @@ class MarstekVenusPanel extends HTMLElement {
   _dailyOperationSourceIsObserved(value) {
     if (!value) return true; // Preserve the legacy contract when no per-cell source exists.
     return !/(?:^|[_ -])(command|unavailable|unknown|error)(?:$|[_ -])/i.test(String(value));
+  }
+
+  _dailyOperationActionKind(item) {
+    if (item.status === "forecast") return this._t("dailyOperationPlan");
+    return item.observationTrusted ? this._t("dailyOperationObserved") : this._t("dailyOperationCommanded");
+  }
+
+  _dailyOperationUntrustedSourceLabel(item) {
+    if (item.observationTrusted || !item.operationSource) return null;
+    // "Commanded" on the action row already says the quarter was not measured.
+    if (/(?:^|[_ -])command(?:$|[_ -])/i.test(String(item.operationSource))) return null;
+    return this._dailyOperationSourceLabel(item.operationSource);
   }
 
   _dailyOperationReasonDict() {
@@ -3423,17 +3443,14 @@ class MarstekVenusPanel extends HTMLElement {
     if (item.socForecast != null) parts.push(`${this._t("dailyOperationSoc")} (${this._t("dailyOperationForecast")}): ${this._nf(item.socForecast, 1)} %`);
     if (item.coverage != null) parts.push(`${this._t("dailyOperationCoverage")}: ${Math.round(item.coverage)} s`);
     if (item.actions.length) {
-      const actionKind = item.status === "forecast"
-        ? this._t("dailyOperationPlan")
-        : item.observationTrusted ? this._t("dailyOperationObserved") : this._t("dailyOperationSource");
+      const actionKind = this._dailyOperationActionKind(item);
       parts.push(`${actionKind}: ${item.actions.map((key) => this._dailyOperationActionLabel(key === "solar" ? 1 : key === "grid" ? 2 : 4)).join(", ")}`);
     }
     else if (item.solarWindow) parts.push(this._t("dailyOperationSolarWindow"));
     else if (item.decision === "not_needed") parts.push(this._t("dailyOperationNotNeeded"));
     else parts.push(this._t("dailyOperationNoAction"));
-    if (!item.observationTrusted && item.operationSource) {
-      parts.push(`${this._t("dailyOperationSource")}: ${this._dailyOperationSourceLabel(item.operationSource)}`);
-    }
+    const untrustedSource = this._dailyOperationUntrustedSourceLabel(item);
+    if (untrustedSource) parts.push(`${this._t("dailyOperationSource")}: ${untrustedSource}`);
     if (item.hourlyBalance) {
       parts.push(`${this._t("dailyOperationCause")}: ${this._t("dailyOperationHourlyBalance")}`);
     }
@@ -3489,13 +3506,9 @@ class MarstekVenusPanel extends HTMLElement {
       ? item.actions.map((key) => this._dailyOperationActionLabel(key === "solar" ? 1 : key === "grid" ? 2 : 4)).join(", ")
       : item.solarWindow ? this._t("dailyOperationSolarWindow")
         : item.decision === "not_needed" ? this._t("dailyOperationNotNeeded") : this._t("dailyOperationNoAction");
-    const actionKind = useForecast
-      ? this._t("dailyOperationPlan")
-      : item.observationTrusted ? this._t("dailyOperationObserved") : this._t("dailyOperationSource");
-    rows.push(row(actionKind, actionLabels));
-    if (!item.observationTrusted && item.operationSource) {
-      rows.push(row(this._t("dailyOperationSource"), this._dailyOperationSourceLabel(item.operationSource)));
-    }
+    rows.push(row(this._dailyOperationActionKind(item), actionLabels));
+    const untrustedSource = this._dailyOperationUntrustedSourceLabel(item);
+    if (untrustedSource) rows.push(row(this._t("dailyOperationSource"), untrustedSource));
     if (item.hourlyBalance) {
       rows.push(row(this._t("dailyOperationCause"), this._t("dailyOperationHourlyBalance")));
     }
