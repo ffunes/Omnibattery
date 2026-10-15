@@ -9,6 +9,8 @@ its own files:
   notifications
 - `custom_components/omnibattery/drivers/indevolt.py`: the driver and its
   control state machine
+- `custom_components/omnibattery/drivers/indevolt_settings.py`: the two-way sync
+  of the three user settings (min SOC, max charge and max discharge power)
 
 A change elsewhere is allowed only when Indevolt cannot work without it. Every
 such change must be generic, keep other brands' behaviour unchanged by default,
@@ -21,8 +23,8 @@ These are the same touchpoints every brand has (compare Sessy and Huawei):
 | File | Change |
 |---|---|
 | `drivers/__init__.py` | Export `IndevoltDriver`. |
-| `infra/coordinator.py` | Factory branch for `brand == "indevolt"`, manufacturer and model labels, and `indevolt` in the existing voltage-taper exclusion tuple. |
-| `config_flow.py` | Brand option, connection step (read-only probe), Realtime-mode notice step, reconfigure step, power ceilings in the existing limits step, SOC selector bounds, and `indevolt` in the existing taper tuples. |
+| `infra/coordinator.py` | Factory branch for `brand == "indevolt"` (it hands the driver `persist_battery_config` and a reader of this battery's config, so the settings sync can store what it adopted or wrote), manufacturer and model labels, and `indevolt` in the existing voltage-taper exclusion tuple. |
+| `config_flow.py` | Brand option, connection step (read-only probe), Realtime-mode notice step, reconfigure step, power ceilings in the existing limits step, SOC selector bounds (5–50%, the same range as the min-SOC number, so saving the form unchanged never clamps and rewrites the battery's reserve), and `indevolt` in the existing taper tuples. |
 | `switch.py` | The per-battery "100% Charge Voltage Taper" switch now uses the config flow's taper brand list, so it is no longer shown for Indevolt (or for Sessy, Hoymiles and Huawei, where it also had no effect). Covered by `tests/test_taper_switch_brands.py`. |
 | `strings.json`, `translations/*.json` | Texts for the new steps and the new sensor names. |
 
@@ -46,6 +48,21 @@ These are the same touchpoints every brand has (compare Sessy and Huawei):
   `test_other_drivers_keep_their_limits` pins that, and the full suite is
   unchanged.
 
+### `number.py`: a register-backed SOC number replaces its software twin
+
+- **File:** `number.py`, `async_setup_entry` (about 6 lines).
+- **Why:** batteries without hardware SOC cut-offs (`hardware_soc_cutoff=False`)
+  get two software sliders, `charging_cutoff_capacity` and
+  `discharging_cutoff_capacity`. Indevolt has no max-SOC setting (software, as
+  before), but its reserve *is* the min SOC, which the driver now exposes as a
+  register-style number so it is written to and adopted from the battery. Both
+  entities would share one unique ID. The software slider is now skipped when
+  the driver's `number_definitions` already provide that key.
+- **Proof:** `tests/test_indevolt_registration.py::test_the_device_backed_min_soc_replaces_its_software_twin`.
+- **Other brands:** no other driver defines either key while reporting
+  `hardware_soc_cutoff=False`, so they keep both sliders;
+  `test_other_software_soc_brands_keep_both_sliders` pins that for Marstek v3.
+
 Everything else was met with existing mechanisms:
 
 - **Pacing whatever the core polls.** The driver serves `read_telemetry` from
@@ -60,12 +77,20 @@ Everything else was met with existing mechanisms:
   arrives (for example from a manual slot) is refused visibly. A 0 W command
   is accepted without sending anything, because no command of Omnibattery's
   runs on the battery; the core's manual-control handoff relies on that.
-- **SOC limits.** `hardware_soc_cutoff=False`: the core enforces min/max SOC in
-  software (like Marstek v3). Nothing is written to the device.
-- **Device power limits.** The driver publishes its device ceilings under the
-  existing `max_charge_power` / `max_discharge_power` telemetry keys, which the
-  coordinator already adopts as the device envelope for drivers without a
-  writable limit.
+- **User settings, both ways.** Min SOC, max charge and max discharge power
+  are flash settings on the battery (1142 → 6105, 1138 → 11009, 1147 → 11011).
+  The driver exposes them as register-style numbers
+  (`discharging_cutoff_capacity`, `max_charge_power`, `max_discharge_power`):
+  the core already writes those through `write_control` and adopts the polled
+  values back into `min_soc` and the configured power ceilings, as for Marstek
+  and Zendure. The driver writes only on that user action (and on setup after
+  an options-flow change), debounced, compared first and within a daily
+  budget; nothing periodic can reach the config channel. Max SOC has no device
+  setting: `hardware_soc_cutoff=False`, so the core enforces it in software and
+  weekly full charge needs no write (`set_charge_cutoff` returns False).
+- **Hardware power ceilings.** The config-flow probe reports 114/115, which the
+  coordinator keeps as the device envelope; the number entities use them as
+  their maximum.
 - **Why control is paused.** The driver's own `control_status` sensor and a
   persistent notification. Showing it in the panel's warning chip would be a
   separate, optional follow-up.

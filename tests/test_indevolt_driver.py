@@ -49,7 +49,7 @@ async def test_monitoring_serves_decoded_telemetry_from_cache():
     assert snapshot["battery_soc"] == 60
     assert snapshot["energy_mode"] == 1
     assert snapshot["max_charge_power"] == 2400
-    assert snapshot["native_min_soc"] == 15
+    assert snapshot["discharging_cutoff_capacity"] == 15
     assert snapshot["battery_total_energy"] == 7.18
     assert snapshot["control_status"] == "realtime_mode_required"
     assert set(await driver.read_telemetry(["battery_soc", "nope"])) == {"battery_soc"}
@@ -348,19 +348,13 @@ async def test_lost_telemetry_pauses_and_recovers_through_stop():
     await driver.close()
 
 
-async def test_floor_and_firmware_advisories_are_raised_once():
+async def test_firmware_advisory_is_raised_once():
     clock = VirtualClock()
     device = FakeIndevoltDevice(clock, f_ver="V1405.07.002E")
     notifier = RecordingNotifier()
-    core_min = {"value": 10}
-    driver = await connected_driver(clock, device, notifier=notifier,
-                                    core_min_soc=lambda: core_min["value"])
+    driver = await connected_driver(clock, device, notifier=notifier)
     await _hold(clock, driver, 60)
     assert notifier.count("firmware") == 1
-    assert notifier.count("floor", 10.0, 15.0) == 1
-    core_min["value"] = 20
-    await _hold(clock, driver, 10)
-    assert notifier.count("floor_ok") == 1
     await driver.close()
 
 

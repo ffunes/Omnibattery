@@ -51,15 +51,21 @@ def test_throttle_names_the_official_integration_only_when_loaded(calls):
     assert "official Indevolt integration" not in calls[-1][3]
     IndevoltNotifier(_hass(ConfigEntryState.LOADED), "Garage", "k").throttled(20)
     assert "official Indevolt integration" in calls[-1][3]
-    assert "20 s" in calls[-1][3]
+    assert "20s" in calls[-1][3]
 
 
-def test_floor_mismatch_text(calls):
+def test_setting_texts_name_the_setting_and_value(calls):
     notifier = IndevoltNotifier(_hass(), "Garage", "k")
-    notifier.floor_mismatch(10, 15)
-    assert "15%" in calls[-1][3] and "10%" in calls[-1][3]
-    notifier.floor_ok()
+    notifier.setting_failed("discharging_cutoff_capacity", 20)
+    kind, notification_id, _title, message = calls[-1]
+    assert notification_id.endswith("setting_discharging_cutoff_capacity")
+    assert "minimum SOC" in message and "20%" in message
+    notifier.setting_budget_exhausted("max_charge_power", 10)
+    assert "maximum charge power" in calls[-1][3] and "10 times" in calls[-1][3]
+    notifier.setting_ok("max_charge_power")
     assert calls[-1][0] == "dismiss"
+    notifier.setting_failed("max_discharge_power", 1800)
+    assert "1800 W" in calls[-1][3]
 
 
 @pytest.mark.parametrize("language, needle", [("nl", "Realtime"), ("nl-BE", "werkmodus"), ("de", "working mode")])
@@ -69,7 +75,7 @@ def test_dutch_texts_and_english_fallback(calls, language, needle):
     notifier = IndevoltNotifier(hass, "Garage", "k")
     notifier.paused("realtime_mode_required")
     assert needle in calls[-1][3]
-    notifier.floor_mismatch(10, 15)
+    notifier.setting_failed("discharging_cutoff_capacity", 15)
     assert "15%" in calls[-1][3]
     notifier.throttled(20)
     notifier.firmware_outdated("V1", "V2")

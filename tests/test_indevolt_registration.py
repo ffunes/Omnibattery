@@ -174,7 +174,9 @@ def test_coordinator_builds_the_indevolt_driver(monkeypatch):
     assert driver.capabilities.hardware_soc_cutoff is False
     assert driver.capabilities.has_force_mode is False
     assert driver.capabilities.readback_latency_s > 1.5  # the core's slow-device path
-    assert driver._core_min_soc() == 20
+    # The settings sync stores into this battery's config through the coordinator.
+    assert driver._settings._persist == coordinator.persist_battery_config
+    assert driver._settings._stored("min_soc") is None  # no config entry attached
     assert coordinator.battery_device_info["manufacturer"] == "Indevolt"
     assert getattr(coordinator, "full_charge_voltage_taper_enabled") is False
 
@@ -195,3 +197,50 @@ def test_every_new_string_exists_in_every_language():
         names = data["entity"]["sensor"]
         missing = sorted(k for k in sensor_keys if not names.get(k, {}).get("name"))
         assert missing == [], (path, missing)
+
+
+async def _numbers_for(coordinator):
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.const import DOMAIN
+    from custom_components.omnibattery.number import async_setup_entry as setup_numbers
+
+    entry = SimpleNamespace(entry_id="e", data={})
+    hass = SimpleNamespace(data={DOMAIN: {"e": {"coordinators": [coordinator]}}})
+    numbers: list = []
+    await setup_numbers(hass, entry, numbers.extend)
+    return numbers
+
+
+async def test_the_device_backed_min_soc_replaces_its_software_twin(monkeypatch):
+    """Indevolt's reserve is the min SOC: one entity, written to the device. Max SOC
+    has no device setting and keeps the software slider."""
+    from custom_components.omnibattery.number import MarstekVenusNumber, SoftSocLimitNumber
+
+    monkeypatch.setattr(DataUpdateCoordinator, "__init__", lambda *_args, **_kwargs: None)
+    coordinator = MarstekVenusDataUpdateCoordinator(
+        MagicMock(), "Garage Indevolt", "192.0.2.50", 8080, "sensor.grid_power",
+        brand="indevolt", max_charge_power=2400, max_discharge_power=2400, min_soc=20,
+    )
+    numbers = await _numbers_for(coordinator)
+    ids = [n.unique_id for n in numbers]
+    assert len(ids) == len(set(ids))
+    by_id = {n.unique_id: n for n in numbers}
+    key = coordinator.device_key
+    assert isinstance(by_id[f"{key}_discharging_cutoff_capacity"], MarstekVenusNumber)
+    assert isinstance(by_id[f"{key}_charging_cutoff_capacity"], SoftSocLimitNumber)
+    for power in ("max_charge_power", "max_discharge_power"):
+        assert isinstance(by_id[f"{key}_{power}"], MarstekVenusNumber)
+
+
+async def test_other_software_soc_brands_keep_both_sliders(monkeypatch):
+    from custom_components.omnibattery.number import SoftSocLimitNumber
+
+    monkeypatch.setattr(DataUpdateCoordinator, "__init__", lambda *_args, **_kwargs: None)
+    coordinator = MarstekVenusDataUpdateCoordinator(
+        MagicMock(), "Venus", "192.0.2.20", 502, "sensor.grid_power",
+        battery_version="v3", max_charge_power=2500, max_discharge_power=2500, min_soc=12,
+    )
+    assert coordinator.capabilities.hardware_soc_cutoff is False
+    soft = [n for n in await _numbers_for(coordinator) if isinstance(n, SoftSocLimitNumber)]
+    assert sorted(n._kind for n in soft) == ["max", "min"]

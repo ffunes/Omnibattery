@@ -94,9 +94,12 @@ def _indevolt_no_flash_writes():
     """No Indevolt fake device may receive a write outside the RAM tuple 47015.
 
     Applies to every test, so a new Indevolt test is covered without opting in.
+    A test of the user-settings channel opts in per device
+    (``allow_config_writes``), and even then only 1142/1138/1147 may arrive.
     See tests/test_indevolt_no_flash_writes.py for why this matters.
     """
-    from tests.indevolt_fake import FLASH_WEAR_MESSAGE, FakeIndevoltDevice, flash_writes
+    from tests.indevolt_fake import FLASH_WEAR_MESSAGE, FakeIndevoltDevice
+    from tests.indevolt_fake import unexpected_flash_writes as flash_writes
 
     FakeIndevoltDevice.instances.clear()
     yield

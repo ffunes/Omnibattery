@@ -100,9 +100,17 @@ async def async_setup_entry(
         # software-enforced max/min SOC as live-editable entities. The PD controller
         # already enforces these in software; previously they were only changeable
         # through the options flow.
+        #
+        # A driver may still back one of the two with a device setting (Indevolt:
+        # its reserve is the min SOC, there is no max-SOC setting). Its register
+        # number then owns that limit, with the same unique ID, so the software
+        # twin is skipped.
         if not coordinator.capabilities.hardware_soc_cutoff:
-            entities.append(SoftSocLimitNumber(coordinator, "max"))
-            entities.append(SoftSocLimitNumber(coordinator, "min"))
+            register_keys = {d["key"] for d in coordinator.number_definitions}
+            if "charging_cutoff_capacity" not in register_keys:
+                entities.append(SoftSocLimitNumber(coordinator, "max"))
+            if "discharging_cutoff_capacity" not in register_keys:
+                entities.append(SoftSocLimitNumber(coordinator, "min"))
 
         if coordinator.enable_charge_hysteresis:
             entities.append(MarstekChargeHysteresisNumber(coordinator))

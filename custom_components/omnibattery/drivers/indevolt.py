@@ -24,10 +24,16 @@ The core sends signed power only and enforces its SOC limits in software, so the
 tuple's target SOC is a failsafe: a few percent beyond the current SOC in the
 commanded direction, refreshed by the driver itself before the battery gets
 there. If Home Assistant disappears mid-command, the battery stops within ~5%.
+
+Three user settings (min SOC, max charge and max discharge power) are flash on
+the device. They are synced both ways by :mod:`.indevolt_settings`, written only
+on a direct user action and never from the control path. Max SOC has no device
+setting and stays software-only.
 """
 
 from __future__ import annotations
 
+import asyncio
 import enum
 import logging
 import math
@@ -55,6 +61,8 @@ from ..infra.indevolt_client import (
     Tier,
     Transport,
 )
+from .indevolt_settings import BY_KEY as SETTING_BY_KEY
+from .indevolt_settings import MAX_CHARGE, MAX_DISCHARGE, MIN_SOC, SETTINGS, IndevoltSettings
 from .base import (
     DELIVERED_AC_POWER_KEY,
     BatteryDriver,
@@ -76,7 +84,9 @@ P_ENERGY_MODE = 7101  # 1 self-consumption, 4 realtime, 5 schedule
 P_RT_STATUS = 6107
 P_RT_TARGET = 6108
 P_RT_POWER = 6109
-P_NATIVE_MIN_SOC = 6105
+P_NATIVE_MIN_SOC = 6105  # the reserve; written via 1142 (see indevolt_settings)
+P_HW_MAX_CHARGE = 114  # hardware ceilings; did not move when the settings changed
+P_HW_MAX_DISCHARGE = 115
 
 ENERGY_MODE_REALTIME = 4
 
@@ -237,11 +247,6 @@ SENSOR_DEFINITIONS = [
                 diagnostic=True),
     _definition("solar_power", "Solar Power", unit="W", device_class="power", scan="low",
                 enabled=False),
-    _definition("max_charge_power", "Max Charge Power", unit="W", device_class="power",
-                scan="medium", diagnostic=True),
-    _definition("max_discharge_power", "Max Discharge Power", unit="W", device_class="power",
-                scan="medium", diagnostic=True),
-    _definition("native_min_soc", "Battery Reserve", unit="%", scan="medium", diagnostic=True),
     _definition("energy_mode", "Working Mode", state_class=None, scan="medium", diagnostic=True,
                 icon="mdi:cog-transfer",
                 states={0: "Outdoor portable", 1: "Self-consumption", 4: "Realtime",
@@ -263,8 +268,9 @@ SENSOR_DEFINITIONS = [
 ]
 
 _HIGH_KEYS = ("battery_power", "ac_power", DELIVERED_AC_POWER_KEY)
+_SETTING_KEYS = tuple(s.key for s in SETTINGS)
 _MEDIUM_KEYS = ("battery_soc", "energy_mode", "inverter_state", "control_status",
-                "max_charge_power", "max_discharge_power", "native_min_soc")
+                *_SETTING_KEYS)
 # One temperature sensor per expansion battery that is present (see PACKS).
 PACK_TEMPERATURE_DEFINITIONS = [
     _definition(f"expansion_battery_{n}_temperature", f"Expansion Battery {n} Temperature", unit="°C",
@@ -284,8 +290,9 @@ class Notifier(Protocol):
     def paused(self, reason: str, *, model: str | None = None) -> None: ...
     def resumed(self) -> None: ...
     def firmware_outdated(self, firmware: str, minimum: str) -> None: ...
-    def floor_mismatch(self, core_min_soc: float, native_floor: float) -> None: ...
-    def floor_ok(self) -> None: ...
+    def setting_failed(self, key: str, value: int) -> None: ...
+    def setting_budget_exhausted(self, key: str, budget: int) -> None: ...
+    def setting_ok(self, key: str) -> None: ...
     def throttled(self, interval_s: float) -> None: ...
     def throttle_cleared(self) -> None: ...
 
@@ -302,7 +309,8 @@ class IndevoltDriver(BatteryDriver):
         max_discharge_power_w: int = DEFAULT_MAX_POWER_W,
         control_enabled: bool = True,
         notifier: Notifier | None = None,
-        core_min_soc: Callable[[], float | None] | None = None,
+        persist: Callable[[str, Any], None] | None = None,
+        stored: Callable[[str], Any] | None = None,
         transport: Transport | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Awaitable[Any]] | None = None,
@@ -318,7 +326,6 @@ class IndevoltDriver(BatteryDriver):
         self._name = name
         self._control_enabled = control_enabled
         self._notifier = notifier
-        self._core_min_soc = core_min_soc
         self._client: IndevoltClient | None = None
         self._scheduler: IndevoltScheduler | None = None
         self._connected = False
@@ -361,7 +368,17 @@ class IndevoltDriver(BatteryDriver):
         self._handover_failures = 0
         self._next_acquire_at = 0.0
         self._throttle_notified = False
-        self._floor_notified: tuple[float, float] | None = None
+        self._settings = IndevoltSettings(
+            client=lambda: self._client,
+            read=self._setting_device_value,
+            expedite=self._expedite_limits,
+            clock=clock,
+            sleep=sleep or asyncio.sleep,
+            persist=persist,
+            stored=stored,
+            notifier=notifier,
+            name=name,
+        )
 
     # --- identity ------------------------------------------------------------------
 
@@ -414,7 +431,27 @@ class IndevoltDriver(BatteryDriver):
     @property
     def sensor_definitions(self) -> list[dict]: return SENSOR_DEFINITIONS + self._pack_definitions()
     @property
-    def number_definitions(self) -> list[dict]: return []
+    def number_definitions(self) -> list[dict]:
+        """The three device settings, as register-style numbers.
+
+        The core writes them through :meth:`write_control` and adopts the polled
+        values back (``discharging_cutoff_capacity`` -> min SOC, the power keys
+        -> the configured ceilings), which is the two-way sync. Built after
+        connect, so the power maxima are this battery's hardware ceilings.
+        """
+        charge_cap, discharge_cap = self._hardware_ceilings()
+        low, high = self._capabilities.discharge_cutoff_range
+        return [
+            {"key": MIN_SOC.key, "name": "Discharge Cutoff", "unit": "%", "min": low,
+             "max": high, "step": 1, "scale": 1, "icon": "mdi:battery-arrow-down",
+             "scan_interval": "medium"},
+            {"key": MAX_CHARGE.key, "name": "Max Charge Power", "unit": "W", "min": 100,
+             "max": charge_cap, "step": 10, "scale": 1, "icon": "mdi:battery-arrow-up-outline",
+             "scan_interval": "medium"},
+            {"key": MAX_DISCHARGE.key, "name": "Max Discharge Power", "unit": "W", "min": 0,
+             "max": discharge_cap, "step": 10, "scale": 1,
+             "icon": "mdi:battery-arrow-down-outline", "scan_interval": "medium"},
+        ]
     @property
     def select_definitions(self) -> list[dict]: return []
     @property
@@ -424,7 +461,7 @@ class IndevoltDriver(BatteryDriver):
     @property
     def button_definitions(self) -> list[dict]: return []
     @property
-    def all_definitions(self) -> list[dict]: return self.sensor_definitions
+    def all_definitions(self) -> list[dict]: return self.sensor_definitions + self.number_definitions
 
     def _present_packs(self) -> list[int]:
         """Numbers (1-5) of the expansion batteries that report a serial number."""
@@ -438,7 +475,10 @@ class IndevoltDriver(BatteryDriver):
 
     @property
     def control_dependency_keys(self) -> frozenset:
-        return frozenset({"battery_power", "battery_soc", DELIVERED_AC_POWER_KEY, "ac_power"})
+        # The settings too: the core adopts them from data even when their
+        # entities are disabled.
+        return frozenset({"battery_power", "battery_soc", DELIVERED_AC_POWER_KEY, "ac_power",
+                          *_SETTING_KEYS})
 
     # --- connection ------------------------------------------------------------------
 
@@ -489,6 +529,7 @@ class IndevoltDriver(BatteryDriver):
 
     async def close(self) -> None:
         self._connected = False
+        await self._settings.close()
         if self._scheduler is not None:
             await self._scheduler.close()
             self._scheduler = None
@@ -534,7 +575,7 @@ class IndevoltDriver(BatteryDriver):
         dtype = str(device.get("type", ""))
         if _num(data.get(str(P_SOC)), 0, 100) is None:
             return None
-        charge, discharge = _native_limits({int(k): v for k, v in data.items() if k.isdigit()})
+        charge, discharge = _hardware_limits({int(k): v for k, v in data.items() if k.isdigit()})
         model = MODELS.get(dtype)
         return {
             "type": dtype,
@@ -608,16 +649,13 @@ class IndevoltDriver(BatteryDriver):
 
         limits_age = self._tier_max_age(LIMITS_TIER)
         limits = {p: c(p, limits_age) for p in LIMITS_TIER.points}
-        # The device's own ceilings. The coordinator adopts these keys as the
-        # device envelope; the user's lower limit stays the coordinator's.
-        charge, discharge = _native_limits(limits)
-        if charge:
-            out["max_charge_power"] = charge
-        if discharge:
-            out["max_discharge_power"] = discharge
-        floor = _num(limits[P_NATIVE_MIN_SOC], 0, 100)
-        if floor is not None:
-            out["native_min_soc"] = floor
+        # The user settings. The coordinator adopts these as min SOC and the
+        # configured power ceilings; a value Omnibattery is writing is shown
+        # until the device reports it back.
+        for key in _SETTING_KEYS:
+            value = self._settings.published(key)
+            if value is not None and (key == MIN_SOC.key or value > 0):
+                out[key] = value
         capacity = _num(limits[142], 0.01, 1000)
         if capacity is not None:
             out["battery_total_energy"] = capacity
@@ -670,18 +708,38 @@ class IndevoltDriver(BatteryDriver):
     # --- control -----------------------------------------------------------------------
 
     def _limits(self) -> tuple[int, int]:
-        """Device power ceilings; the configured ones until the device reported its own.
+        """What the device itself allows: its settings and hardware ceilings.
 
-        The user's (lower) limit is applied by the coordinator before
-        apply_setpoint, so it can change at runtime without a reload.
+        The configured ones until the device reported its own. The user's limit
+        is applied by the coordinator before apply_setpoint.
         """
         charge, discharge = self._capabilities.max_charge_power_w, self._capabilities.max_discharge_power_w
         if self._scheduler is not None:
-            age = self._tier_max_age(LIMITS_TIER)
-            native_c, native_d = _native_limits({p: self._fresh_value(p, age) for p in LIMITS_TIER.points})
+            native_c, native_d = _native_limits(self._limit_values())
             charge = native_c or charge
             discharge = native_d or discharge
         return charge, discharge
+
+    def _limit_values(self) -> dict[int, Any]:
+        if self._scheduler is None:
+            return {}
+        age = self._tier_max_age(LIMITS_TIER)
+        return {p: self._fresh_value(p, age) for p in LIMITS_TIER.points}
+
+    def _hardware_ceilings(self) -> tuple[int, int]:
+        """The power maxima of this battery (114/115), for the number entities."""
+        charge, discharge = _hardware_limits(self._limit_values())
+        return (charge or self._capabilities.max_charge_power_w or DEFAULT_MAX_POWER_W,
+                discharge or self._capabilities.max_discharge_power_w or DEFAULT_MAX_POWER_W)
+
+    def _setting_device_value(self, point: int) -> float | None:
+        if self._scheduler is None:
+            return None
+        return _num(self._fresh_value(point, self._tier_max_age(LIMITS_TIER)), 0, MAX_REALTIME_POWER_W)
+
+    def _expedite_limits(self) -> None:
+        if self._scheduler is not None:
+            self._scheduler.expedite("limits")
 
     def _floor(self) -> int:
         native = _num(self._fresh_value(P_NATIVE_MIN_SOC, math.inf), 0, 100)
@@ -755,15 +813,25 @@ class IndevoltDriver(BatteryDriver):
         return await self._scheduler.write_now(STOP_TUPLE, timeout)
 
     async def write_control(self, key: str, value: int) -> bool:
-        # No writable controls: everything except 47015 is flash.
-        return False
+        """A number entity changed a device setting: a direct user action.
+
+        Hands it to the settings sync (debounced, compared, budgeted); True
+        means it will be applied. Only the three settings are writable.
+        """
+        if key not in SETTING_BY_KEY:
+            return False
+        return self._settings.request(key, int(value), origin="entity")
 
     async def apply_config(self, **kwargs) -> bool:
-        # SOC limits are enforced in software by the core and never written to
-        # the device (flash); there is nothing else to configure.
+        """Setup passes the battery config; only an options-flow change is written.
+
+        Max SOC has no device setting and stays software-only.
+        """
+        self._settings.apply_config(kwargs)
         return True
 
     async def set_charge_cutoff(self, soc_pct: float) -> bool:
+        # No max-SOC setting on the device: weekly full charge stays in software.
         return False
 
     async def set_rs485_control(self, enable: bool) -> bool:
@@ -781,6 +849,8 @@ class IndevoltDriver(BatteryDriver):
             and P_RT_STATUS in updated
         ):
             self._handover_reads += 1
+        if any(s.read_point in updated for s in SETTINGS):
+            self._settings.on_telemetry()
         self._evaluate(updated)
 
     def _on_write(self, values: tuple[int, int, int], outcome: str) -> None:
@@ -949,26 +1019,24 @@ class IndevoltDriver(BatteryDriver):
         elif not throttled and self._scheduler.backoff_factor == 1 and self._throttle_notified:
             self._throttle_notified = False
             self._notifier.throttle_cleared()
-        native = _num(self._fresh_value(P_NATIVE_MIN_SOC, math.inf), 0, 100)
-        core = self._core_min_soc() if self._core_min_soc is not None else None
-        if native is None or core is None:
-            return
-        pair = (float(core), float(native))
-        if core < native:
-            if self._floor_notified != pair:
-                self._floor_notified = pair
-                self._notifier.floor_mismatch(*pair)
-        elif self._floor_notified is not None:
-            self._floor_notified = None
-            self._notifier.floor_ok()
+
+
+def _lowest(values: dict[int, Any], points: tuple[int, ...]) -> int:
+    found = [_num(values.get(p), 1, MAX_REALTIME_POWER_W) for p in points]
+    known = [int(v) for v in found if v is not None]
+    return min(known) if known else 0
 
 
 def _native_limits(values: dict[int, Any]) -> tuple[int, int]:
-    """Device power ceilings (charge, discharge) from the limits tier; 0 = unknown."""
+    """What the device allows (charge, discharge): its settings and hardware; 0 = unknown.
 
-    def lowest(points: tuple[int, ...]) -> int:
-        found = [_num(values.get(p), 1, MAX_REALTIME_POWER_W) for p in points]
-        known = [int(v) for v in found if v is not None]
-        return min(known) if known else 0
+    The feed-in limit (11010) is deliberately not a discharge limit: it caps
+    export to the grid, not what the battery delivers to the house.
+    """
+    return (_lowest(values, (MAX_CHARGE.read_point, P_HW_MAX_CHARGE)),
+            _lowest(values, (MAX_DISCHARGE.read_point, 11032, P_HW_MAX_DISCHARGE)))
 
-    return lowest((11009, 114)), lowest((11011, 11010, 11032, 115))
+
+def _hardware_limits(values: dict[int, Any]) -> tuple[int, int]:
+    """The hardware ceilings (114/115); 0 = unknown."""
+    return _lowest(values, (P_HW_MAX_CHARGE,)), _lowest(values, (P_HW_MAX_DISCHARGE,))

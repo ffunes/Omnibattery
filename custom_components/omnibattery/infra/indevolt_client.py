@@ -13,8 +13,8 @@ Two layers live here:
   in a timestamped cache that the driver serves to the coordinator, so however
   often Omnibattery polls, the device sees one request per slot.
 
-Pacing follows the vendor's guidance (≥ 5 s between requests) and
-measurements on a CMS-SF2000 (batches of up to 38 points and spacing down to 2 s
+Pacing follows the vendor's guidance (≥5s between requests) and
+measurements on a CMS-SF2000 (batches of up to 38 points and spacing down to 2s
 were clean). Batched reads contradict one vendor reply, so an incomplete batch
 reply makes the scheduler fall back to smaller batches on its own.
 """
@@ -42,7 +42,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_PORT = 8080
 
-# Request pacing. SLOT_S is the profile constant (5 s first; a 3 s experiment
+# Request pacing. SLOT_S is the profile constant (5s first; a 3s experiment
 # follows the acceptance test). MIN_SLOT_S is a hard floor that no constructor
 # argument, backoff state or caller can undercut.
 SLOT_S = 5.0
@@ -73,21 +73,48 @@ MAX_RESPONSE_BYTES = 65536
 # SOC; Modbus 1150-1152) lives in RAM. EVERY other writable point is stored in
 # flash/EEPROM, including the work mode (47005 / 4), the backup reserve
 # (6505 / 1142), the feed-in and AC output limits (11010 / 1146, 1147) and grid
-# charging (2618 / 1143). Flash survives a limited number of write cycles; a
-# control loop that writes one of those points every few seconds wears out the
-# battery's controller.
+# charging (2618 / 1143). Flash survives a limited number of write cycles. Wear
+# comes from how OFTEN a point is written: a control loop that writes a flash
+# point every few seconds wears out the battery's controller within days, while
+# a setting the user changes a few times a year costs nothing.
 #
-# Omnibattery therefore writes 47015 and nothing else, ever:
-#   1. ``set_realtime`` and ``stop`` are the only write methods. There is no
-#      generic set_data.
-#   2. ``_submit`` re-checks every request just before it is sent: the endpoint
-#      must be in ALLOWED_ENDPOINTS, and a SetData must target RAM_WRITE_POINTS.
-#   3. tests/test_indevolt_no_flash_writes.py fails if either set changes.
+# So there are two write channels, kept strictly apart:
 #
-# DO NOT add a point to RAM_WRITE_POINTS or an endpoint to ALLOWED_ENDPOINTS
-# without written confirmation from Indevolt that the point is RAM-backed.
+#   CONTROL (RAM): ``set_realtime`` and ``stop`` write 47015 and nothing else.
+#     The scheduler, the control loop, the handover and every other periodic or
+#     automatic path use only this channel. This must never change.
+#
+#   CONFIG (flash): ``set_config`` writes one user setting (CONFIG_WRITE_POINTS:
+#     min SOC, max charge and max discharge power), and only on explicit user
+#     intent: a number entity or the options flow. Never at startup, never on a
+#     timer, never from the control loop. The driver adds read-compare-skip, a
+#     debounce and a per-point daily budget on top (drivers/indevolt_settings.py).
+#
+# ``_submit`` re-checks every request just before it is sent: the endpoint must
+# be in ALLOWED_ENDPOINTS, 47015 must carry the 3-value tuple and may never be
+# written from the config channel, and a config point is refused unless the
+# request comes from ``set_config``. tests/test_indevolt_no_flash_writes.py
+# fails if either set changes or a periodic path reaches the config channel.
+#
+# DO NOT add a point to RAM_WRITE_POINTS without written confirmation from
+# Indevolt that it is RAM-backed. DO NOT add a point to CONFIG_WRITE_POINTS, or
+# call ``set_config`` from anything but a direct user action.
 # ─────────────────────────────────────────────────────────────────────────────
 RAM_WRITE_POINTS = frozenset({47015})
+# Flash-backed user settings: write point -> accepted value range. Write IDs and
+# ranges follow the official indevolt-api library (1142 discharge limit, 1138
+# inverter input limit, 1147 max AC output); each reads back on another point
+# (6105, 11009, 11011), confirmed on a CMS-SF2000.
+CONFIG_WRITE_POINTS = MappingProxyType(
+    {
+        1142: (5, 100),
+        1138: (100, 10800),
+        1147: (0, 10800),
+    }
+)
+# Set only while ``set_config`` builds and sends its request, so a config point
+# can never ride along on a request from the scheduler or the control path.
+_CONFIG_WRITE: ContextVar[bool] = ContextVar("indevolt_config_write", default=False)
 ALLOWED_ENDPOINTS = MappingProxyType(
     {
         "Sys.GetConfig": "GET",
@@ -255,9 +282,27 @@ class IndevoltClient:
     async def set_realtime(self, action: int, power_w: int, target_soc: int) -> bool:
         """Write the realtime RAM tuple. True means the device accepted it.
 
-        This and :meth:`stop` are the only write methods (see FLASH WEAR).
+        This and :meth:`stop` are the only control-channel writes (see FLASH WEAR).
         """
         return await self._write_realtime(self.realtime_config(action, power_w, target_soc))
+
+    async def set_config(self, point: int, value: int) -> bool:
+        """Write one flash-backed user setting. Only for a direct user action.
+
+        See FLASH WEAR: this is the config channel. It waits for its pacing slot
+        like every other request. True means the device accepted the value.
+        """
+        config = self.config_write(point, value)
+        token = _CONFIG_WRITE.set(True)
+        try:
+            data = await self._submit("Indevolt.SetData", config)
+        finally:
+            _CONFIG_WRITE.reset(token)
+        if data.get("result") is not True:
+            raise IndevoltProtocolError(
+                f"Indevolt did not accept setting {point}", may_have_applied=True
+            )
+        return True
 
     async def stop(self) -> bool:
         """Write STOP ``[0, 0, 0]`` to the realtime tuple."""
@@ -307,6 +352,19 @@ class IndevoltClient:
         return {"f": 16, "t": REALTIME_POINT, "v": list(values)}
 
     @staticmethod
+    def config_write(point: int, value: int) -> dict[str, Any]:
+        """Validate and build the SetData payload for one config-channel setting."""
+        if type(point) is not int or point not in CONFIG_WRITE_POINTS:
+            raise IndevoltFlashWriteForbidden(
+                f"Refusing to write Indevolt point {point!r}: only the user settings "
+                f"{sorted(CONFIG_WRITE_POINTS)} may be written on the config channel"
+            )
+        low, high = CONFIG_WRITE_POINTS[point]
+        if type(value) is not int or not low <= value <= high:
+            raise ValueError(f"Indevolt setting {point} takes {low}-{high}, not {value!r}")
+        return {"f": 16, "t": point, "v": [value]}
+
+    @staticmethod
     def _read_points(points: Sequence[int]) -> list[int]:
         if isinstance(points, (str, bytes)) or not 1 <= len(points) <= MAX_POINTS:
             raise ValueError("Indevolt reads take one to fifty points")
@@ -352,22 +410,34 @@ class IndevoltClient:
         if endpoint == "Indevolt.SetData":
             point = config.get("t") if isinstance(config, dict) else None
             values = config.get("v") if isinstance(config, dict) else None
-            if type(point) is not int or point not in RAM_WRITE_POINTS:
+            config_channel = _CONFIG_WRITE.get()
+            if type(point) is not int or not (
+                (point in RAM_WRITE_POINTS and not config_channel)
+                or (point in CONFIG_WRITE_POINTS and config_channel)
+            ):
                 raise IndevoltFlashWriteForbidden(
                     f"Refusing to write Indevolt point {point!r}: only "
-                    f"{sorted(RAM_WRITE_POINTS)} is RAM-backed; every other point "
-                    "is flash and wears out with each write"
+                    f"{sorted(RAM_WRITE_POINTS)} is RAM-backed and may be written "
+                    "by the control channel; the user settings "
+                    f"{sorted(CONFIG_WRITE_POINTS)} are flash and may only be "
+                    "written by set_config on a direct user action"
                 )
             if (
                 set(config) != {"f", "t", "v"}
                 or config["f"] != 16
                 or not isinstance(values, list)
-                or len(values) != 3
+                or len(values) != (1 if config_channel else 3)
                 or any(type(v) is not int for v in values)
             ):
                 raise IndevoltFlashWriteForbidden(
                     "Refusing a malformed Indevolt SetData request"
                 )
+            if config_channel:
+                low, high = CONFIG_WRITE_POINTS[point]
+                if not low <= values[0] <= high:
+                    raise IndevoltFlashWriteForbidden(
+                        f"Refusing out-of-range value {values[0]} for Indevolt setting {point}"
+                    )
         elif endpoint == "Sys.GetConfig":
             if config is not None:
                 raise IndevoltForbiddenEndpoint("Sys.GetConfig takes no parameters")
@@ -918,7 +988,7 @@ class IndevoltScheduler:
         if self._factor < MAX_BACKOFF_FACTOR:
             self._factor *= 2
             _LOGGER.info(
-                "[%s] Indevolt slow or failing; request spacing now %.0f s",
+                "[%s] Indevolt slow or failing; request spacing now %.0fs",
                 self._name, self.interval_s,
             )
         if self._throttled_since is None:

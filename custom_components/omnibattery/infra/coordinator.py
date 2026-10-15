@@ -26,6 +26,7 @@ from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
 from ..drivers.anker import AnkerModbusDriver
 from ..drivers.sessy import SessyLocalDriver
 from ..drivers.indevolt import IndevoltDriver
+from ..drivers.indevolt_settings import stored_battery_value
 from .indevolt_notify import IndevoltNotifier
 from ..drivers.hoymiles import HoymilesMqttDriver
 from ..drivers.huawei import HuaweiSolarDriver
@@ -550,7 +551,10 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
                 notifier=IndevoltNotifier(hass, name, f"{self.host}_{self.port}"),
-                core_min_soc=lambda: self.min_soc,
+                # The settings sync stores what it adopted from or wrote to the
+                # device in this battery's config.
+                persist=self.persist_battery_config,
+                stored=lambda key: stored_battery_value(self, key),
                 name=name,
             )
         elif self.brand == "huawei":

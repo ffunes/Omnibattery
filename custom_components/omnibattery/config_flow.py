@@ -571,9 +571,11 @@ def _soc_selector_limits(
     elif brand == "sessy":
         min_lo, min_hi, min_default = 0, 30, _SESSY_DEFAULT_MIN_SOC
     elif brand == "indevolt":
-        # 5 % is the API's hard minimum; the battery's own reserve (often 15 %)
-        # still applies, and the driver warns when the minimum is below it.
-        min_lo, min_hi, min_default = 5, 30, _INDEVOLT_DEFAULT_MIN_SOC
+        # The minimum SOC is the battery's own reserve, kept in sync both ways
+        # (drivers/indevolt_settings.py). 5% is the API's hard minimum; the
+        # upper bound matches the driver's discharge_cutoff_range, so saving the
+        # form unchanged never clamps (and so rewrites) the device's value.
+        min_lo, min_hi, min_default = 5, 50, _INDEVOLT_DEFAULT_MIN_SOC
     elif brand == "hoymiles":
         min_lo, min_hi, min_default = 0, 30, 10
     elif brand == "huawei":

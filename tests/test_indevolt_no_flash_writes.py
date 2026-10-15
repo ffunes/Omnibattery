@@ -2,8 +2,11 @@
 
 Indevolt R&D: only the realtime tuple 47015 is RAM-backed. Every other writable
 point (work mode, reserve, limits, grid charging, ...) lives in flash, which
-wears out with each write. These tests pin the guards that keep Omnibattery away
-from flash. Every assertion carries FLASH_WEAR_MESSAGE.
+wears out with each write. Wear comes from frequency, so there are two channels:
+control writes 47015 only, and every periodic or automatic path uses it; the
+config channel writes three user settings, only on a direct user action. These
+tests pin the guards that keep the two apart. Every assertion carries
+FLASH_WEAR_MESSAGE.
 
 DO NOT relax these tests without written confirmation from Indevolt.
 """
@@ -18,10 +21,11 @@ from pathlib import Path
 
 import pytest
 
-from custom_components.omnibattery.drivers.indevolt import IndevoltDriver
+from custom_components.omnibattery.drivers.indevolt import ControlState, IndevoltDriver
 from custom_components.omnibattery.infra import indevolt_client
 from custom_components.omnibattery.infra.indevolt_client import (
     ALLOWED_ENDPOINTS,
+    CONFIG_WRITE_POINTS,
     RAM_WRITE_POINTS,
     IndevoltClient,
     IndevoltFlashWriteForbidden,
@@ -32,11 +36,14 @@ from tests.indevolt_fake import (
     KNOWN_FLASH_POINTS,
     FakeIndevoltDevice,
     VirtualClock,
+    connected_driver,
     flash_writes,
 )
 
 PACKAGE = Path(__file__).resolve().parents[1] / "custom_components" / "omnibattery"
 CLIENT_FILE = PACKAGE / "infra" / "indevolt_client.py"
+SETTINGS_FILE = PACKAGE / "drivers" / "indevolt_settings.py"
+DRIVER_FILE = PACKAGE / "drivers" / "indevolt.py"
 
 
 def _client(clock: VirtualClock) -> tuple[IndevoltClient, FakeIndevoltDevice]:
@@ -48,6 +55,14 @@ def test_ram_allowlist_is_exactly_47015():
     assert RAM_WRITE_POINTS == frozenset({47015}), FLASH_WEAR_MESSAGE
 
 
+def test_config_allowlist_is_exactly_the_three_user_settings():
+    """Min SOC (1142), max AC input (1138), max AC output (1147), with their ranges."""
+    assert dict(CONFIG_WRITE_POINTS) == {
+        1142: (5, 100), 1138: (100, 10800), 1147: (0, 10800),
+    }, FLASH_WEAR_MESSAGE
+    assert not set(CONFIG_WRITE_POINTS) & RAM_WRITE_POINTS, FLASH_WEAR_MESSAGE
+
+
 def test_endpoint_allowlist_is_exactly_the_three_rpc_calls():
     assert dict(ALLOWED_ENDPOINTS) == {
         "Sys.GetConfig": "GET",
@@ -57,11 +72,58 @@ def test_endpoint_allowlist_is_exactly_the_three_rpc_calls():
 
 
 @pytest.mark.parametrize("point", KNOWN_FLASH_POINTS)
-async def test_submit_refuses_every_known_flash_point(point):
+async def test_the_control_channel_refuses_every_known_flash_point(point):
+    """Outside set_config no flash point gets through, not even a user setting."""
+    clock = VirtualClock()
+    client, device = _client(clock)
+    for values in ([1, 0, 0], [20]):
+        with pytest.raises(IndevoltFlashWriteForbidden):
+            await client._submit("Indevolt.SetData", {"f": 16, "t": point, "v": values})
+    assert device.requests == [], FLASH_WEAR_MESSAGE
+
+
+@pytest.mark.parametrize("point", sorted(set(KNOWN_FLASH_POINTS) - set(CONFIG_WRITE_POINTS)))
+async def test_the_config_channel_refuses_every_other_flash_point(point):
     clock = VirtualClock()
     client, device = _client(clock)
     with pytest.raises(IndevoltFlashWriteForbidden):
-        await client._submit("Indevolt.SetData", {"f": 16, "t": point, "v": [1, 0, 0]})
+        await client.set_config(point, 1)
+    token = indevolt_client._CONFIG_WRITE.set(True)
+    try:
+        with pytest.raises(IndevoltFlashWriteForbidden):
+            await client._submit("Indevolt.SetData", {"f": 16, "t": point, "v": [1]})
+    finally:
+        indevolt_client._CONFIG_WRITE.reset(token)
+    assert device.requests == [], FLASH_WEAR_MESSAGE
+
+
+async def test_the_config_channel_cannot_write_the_realtime_tuple():
+    clock = VirtualClock()
+    client, device = _client(clock)
+    with pytest.raises(IndevoltFlashWriteForbidden):
+        await client.set_config(47015, 0)
+    token = indevolt_client._CONFIG_WRITE.set(True)
+    try:
+        with pytest.raises(IndevoltFlashWriteForbidden):
+            await client._submit("Indevolt.SetData", {"f": 16, "t": 47015, "v": [0, 0, 0]})
+    finally:
+        indevolt_client._CONFIG_WRITE.reset(token)
+    assert device.requests == [], FLASH_WEAR_MESSAGE
+
+
+@pytest.mark.parametrize("point, value", [(1142, 4), (1142, 101), (1138, 99), (1147, -1),
+                                          (1147, 10801), (1142, 20.0), (1142, True)])
+async def test_config_values_outside_their_range_are_refused(point, value):
+    clock = VirtualClock()
+    client, device = _client(clock)
+    with pytest.raises(ValueError):
+        await client.set_config(point, value)
+    token = indevolt_client._CONFIG_WRITE.set(True)
+    try:
+        with pytest.raises(IndevoltFlashWriteForbidden):
+            await client._submit("Indevolt.SetData", {"f": 16, "t": point, "v": [value, 0]})
+    finally:
+        indevolt_client._CONFIG_WRITE.reset(token)
     assert device.requests == [], FLASH_WEAR_MESSAGE
 
 
@@ -145,14 +207,17 @@ def test_no_setdata_outside_the_client():
 
 
 def test_indevolt_files_name_no_writable_point():
-    """No Indevolt file outside the client mentions a writable (flash) point."""
+    """No Indevolt file names a flash point, except the client and the settings
+    module, which may name only the three user settings."""
     writable_only = set(KNOWN_FLASH_POINTS) - {11010, 2618, 4}  # 11010/2618 are also read
     offenders = []
     for path in _source_files():
         if "indevolt" not in path.name or path == CLIENT_FILE:
             continue
+        allowed = set(CONFIG_WRITE_POINTS) if path == SETTINGS_FILE else set()
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Constant) and type(node.value) is int and node.value in writable_only:
+            if (isinstance(node, ast.Constant) and type(node.value) is int
+                    and node.value in writable_only - allowed):
                 offenders.append(f"{path.name}:{node.lineno} {node.value}")
     assert offenders == [], f"{FLASH_WEAR_MESSAGE}\n{offenders}"
 
@@ -161,8 +226,69 @@ def test_client_has_no_generic_write_method():
     public = {name for name, _ in inspect.getmembers(IndevoltClient) if not name.startswith("_")}
     assert public <= {
         "get_config", "get_data", "set_realtime", "stop", "exchange", "close",
-        "realtime_config", "slot_s", "closed",
+        "realtime_config", "config_write", "set_config", "slot_s", "closed",
     }, f"{FLASH_WEAR_MESSAGE}\nUnexpected client API: {sorted(public)}"
+
+
+def _calls(path: Path, attribute: str) -> list[tuple[str, int]]:
+    """(enclosing function, line) of every ``.attribute(...)`` call in ``path``."""
+    found = []
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for function in ast.walk(tree):
+        if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for node in ast.walk(function):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == attribute):
+                found.append((function.name, node.lineno))
+    return found
+
+
+def test_only_user_intent_reaches_the_config_channel():
+    """set_config is called only by the settings sync's write step, and the sync is
+    asked to write only from write_control (number entities) and apply_config
+    (setup after an options-flow save). The scheduler and control path never."""
+    callers = {(p.name, f) for p in _source_files() for f, _ in _calls(p, "set_config")}
+    assert callers == {("indevolt_settings.py", "_write")}, f"{FLASH_WEAR_MESSAGE}\n{callers}"
+    requests = {f for f, _ in _calls(DRIVER_FILE, "request")}
+    assert requests == {"write_control"}, f"{FLASH_WEAR_MESSAGE}\n{requests}"
+    applies = {f for f, _ in _calls(DRIVER_FILE, "apply_config")}
+    assert applies <= {"apply_config"}, f"{FLASH_WEAR_MESSAGE}\n{applies}"
+    inside_settings = {f for f, _ in _calls(SETTINGS_FILE, "request")}
+    assert inside_settings <= {"apply_config"}, f"{FLASH_WEAR_MESSAGE}\n{inside_settings}"
+    for path in _source_files():
+        if path not in (CLIENT_FILE, SETTINGS_FILE, DRIVER_FILE) and "indevolt" in path.name:
+            assert not _calls(path, "set_config"), f"{FLASH_WEAR_MESSAGE}\n{path.name}"
+
+
+async def test_periodic_paths_never_write_flash():
+    """Hours of control, target refreshes, a weekly-full-charge cutoff, a restart and
+    a setup that passes unchanged settings: not one flash write."""
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, soc=50.0)
+    store: dict[str, object] = {}
+
+    def build_kwargs():
+        return {"persist": store.__setitem__, "stored": store.get}
+
+    driver = await connected_driver(clock, device, **build_kwargs())
+    for step in range(2 * 3600 // 5):
+        await driver.apply_setpoint((-1) ** (step // 120) * 900)
+        await clock.run(5)
+    assert await driver.set_charge_cutoff(100) is False
+    assert await driver.apply_config(max_soc_pct=100, min_soc_pct=store["min_soc"],
+                                     max_charge_power_w=store["max_charge_power"],
+                                     max_discharge_power_w=store["max_discharge_power"])
+    await clock.run(120)
+    await driver.close()
+    driver = await connected_driver(clock, device, **build_kwargs())
+    assert await driver.apply_config(max_soc_pct=90, min_soc_pct=15,
+                                     max_charge_power_w=2400, max_discharge_power_w=2400)
+    await driver.apply_setpoint(-700)
+    await clock.run(600)
+    assert driver.control_state is ControlState.OWNED
+    assert flash_writes(device) == [], FLASH_WEAR_MESSAGE
+    await driver.close()
 
 
 async def test_driver_offers_no_way_to_change_work_mode():

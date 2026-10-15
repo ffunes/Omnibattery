@@ -26,6 +26,12 @@ _LOGGER = logging.getLogger(__name__)
 OFFICIAL_INTEGRATION_DOMAIN = "indevolt"
 
 PAUSE_TOPICS = ("realtime_mode_required", "handover_failed", "unknown_model")
+# Setting key (see drivers/indevolt_settings.py) -> its name in the texts.
+_SETTING_LABELS = {
+    "discharging_cutoff_capacity": "min_soc",
+    "max_charge_power": "max_charge_power",
+    "max_discharge_power": "max_discharge_power",
+}
 
 _TEXTS = {
     "en": {
@@ -52,17 +58,25 @@ _TEXTS = {
             "`{minimum}` for the local API. Monitoring works; update the battery in "
             "the Indevolt app if control misbehaves."
         ),
-        "floor_title": "Indevolt reserve above Omnibattery minimum: {name}",
-        "floor": (
-            "**{name}** stops discharging at its own reserve of {native:.0f}%, but "
-            "Omnibattery's minimum SOC is {core:.0f}%. Between those values "
-            "Omnibattery asks for power the battery will not deliver. Lower the reserve "
-            "in the Indevolt app, or raise Omnibattery's minimum SOC to {native:.0f}%."
+        "setting_title": "Indevolt setting not applied: {name}",
+        "setting_failed": (
+            "Omnibattery could not set the {setting} of **{name}** to {value}. The "
+            "battery keeps its current value, and Omnibattery shows and uses that "
+            "value again. Try again later, or change it in the Indevolt app."
         ),
+        "setting_budget": (
+            "The {setting} of **{name}** was changed {budget} times in the last 24 "
+            "hours. The battery stores this setting in flash memory, which wears with "
+            "every write, so Omnibattery accepts no more changes for now. Changes made "
+            "in the Indevolt app are still picked up."
+        ),
+        "min_soc": "minimum SOC",
+        "max_charge_power": "maximum charge power",
+        "max_discharge_power": "maximum discharge power",
         "throttled_title": "Indevolt battery slow: {name}",
         "throttled": (
             "**{name}** answers slowly or not at all, so Omnibattery now waits "
-            "{interval:.0f} s between requests."
+            "{interval:.0f}s between requests."
         ),
         "official": (
             "\n\nThe official Indevolt integration is also polling this battery. "
@@ -94,17 +108,24 @@ _TEXTS = {
             "minimaal `{minimum}` aan. Uitlezen werkt; werk de batterij bij in de "
             "Indevolt-app als de aansturing niet goed werkt."
         ),
-        "floor_title": "Indevolt-reserve hoger dan Omnibattery-minimum: {name}",
-        "floor": (
-            "**{name}** stopt met ontladen bij zijn eigen reserve van {native:.0f}%, "
-            "maar het minimale SOC van Omnibattery is {core:.0f}%. Daartussen vraagt "
-            "Omnibattery vermogen dat de batterij niet levert. Verlaag de reserve in de "
-            "Indevolt-app, of verhoog het minimale SOC van Omnibattery naar "
-            "{native:.0f}%."
+        "setting_title": "Indevolt-instelling niet toegepast: {name}",
+        "setting_failed": (
+            "Omnibattery kon het {setting} van **{name}** niet op {value} zetten. De "
+            "batterij houdt haar huidige waarde, en Omnibattery toont en gebruikt die "
+            "waarde weer. Probeer het later opnieuw, of wijzig het in de Indevolt-app."
         ),
+        "setting_budget": (
+            "Het {setting} van **{name}** is de afgelopen 24 uur {budget} keer gewijzigd. "
+            "De batterij bewaart deze instelling in flashgeheugen, dat bij elke "
+            "schrijfactie slijt, dus Omnibattery accepteert voorlopig geen nieuwe "
+            "wijzigingen. Wijzigingen in de Indevolt-app worden nog wel overgenomen."
+        ),
+        "min_soc": "minimale SOC",
+        "max_charge_power": "maximale laadvermogen",
+        "max_discharge_power": "maximale ontlaadvermogen",
         "throttled_title": "Indevolt-batterij traag: {name}",
         "throttled": (
-            "**{name}** reageert traag of niet, dus Omnibattery wacht nu {interval:.0f} s "
+            "**{name}** reageert traag of niet, dus Omnibattery wacht nu {interval:.0f}s "
             "tussen verzoeken."
         ),
         "official": (
@@ -183,15 +204,26 @@ class IndevoltNotifier:
             self._text("firmware", firmware=firmware, minimum=minimum),
         )
 
-    def floor_mismatch(self, core_min_soc: float, native_floor: float) -> None:
+    def _setting_name(self, key: str) -> str:
+        return self._text(_SETTING_LABELS.get(key, "min_soc"))
+
+    def setting_failed(self, key: str, value: int) -> None:
+        unit = "%" if key == "discharging_cutoff_capacity" else " W"
         self._create(
-            "floor",
-            self._text("floor_title"),
-            self._text("floor", core=core_min_soc, native=native_floor),
+            f"setting_{key}",
+            self._text("setting_title"),
+            self._text("setting_failed", setting=self._setting_name(key), value=f"{value}{unit}"),
         )
 
-    def floor_ok(self) -> None:
-        self._dismiss("floor")
+    def setting_budget_exhausted(self, key: str, budget: int) -> None:
+        self._create(
+            f"setting_{key}",
+            self._text("setting_title"),
+            self._text("setting_budget", setting=self._setting_name(key), budget=budget),
+        )
+
+    def setting_ok(self, key: str) -> None:
+        self._dismiss(f"setting_{key}")
 
     def throttled(self, interval_s: float) -> None:
         message = self._text("throttled", interval=interval_s)

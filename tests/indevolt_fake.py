@@ -35,7 +35,8 @@ SF2000_SAMPLE = {
 }
 
 # Writable points named in Indevolt's tables and the official library. Every one
-# of them except 47015 is flash-backed.
+# of them except 47015 is flash-backed. 1142, 1138 and 1147 are the user settings
+# Omnibattery may write on the config channel, on a direct user action only.
 KNOWN_FLASH_POINTS = (
     47005, 4, 6505, 1142, 11010, 1146, 1147, 2618, 1143, 2802, 8646, 8647,
     35001, 35002, 1138, 7265, 7266, 47016, 47017,
@@ -106,8 +107,16 @@ class FakeIndevoltDevice:
     energy_mode: int = 4
     soc: float = 60.0
     capacity_kwh: float = 7.18
-    native_min_soc: int = 15
-    limit_w: int = 2400
+    native_min_soc: int = 15  # the reserve: read 6105, written via 1142
+    limit_w: int = 2400  # hardware ceiling (114/115)
+    charge_setting_w: int | None = None  # max AC input: read 11009, written via 1138
+    discharge_setting_w: int | None = None  # max AC output: read 11011/11032, written via 1147
+    feedin_w: int | None = None  # feed-in limit 11010 (never written by Omnibattery)
+    # Config-channel writes are a test failure unless a test opts in here.
+    allow_config_writes: bool = False
+    reject_config: bool = False  # the device answers {result: false} to a setting
+    config_apply_delay_s: float = 0.0  # a setting reads back only this long after the write
+    _config_due: list = field(default_factory=list)
     ramp_w_per_s: float = 1000.0
     loss_w: float = 0.0
     status_family: int = 1000  # 1000-family echo (this firmware) or 0 (documented 0/1/2)
@@ -200,8 +209,19 @@ class FakeIndevoltDevice:
     def status(self) -> int:
         return self.status_family + self.effective_action()
 
+    def _apply_setting(self, point: int, value: int) -> None:
+        if point == 1142:
+            self.native_min_soc = value
+        elif point == 1138:
+            self.charge_setting_w = value
+        else:
+            self.discharge_setting_w = value
+
     def values(self) -> dict[str, Any]:
         self._advance()
+        for due in [d for d in self._config_due if d[0] <= self.clock.now]:
+            self._config_due.remove(due)
+            self._apply_setting(due[1], due[2])
         data = dict(SF2000_SAMPLE)
         battery_native = -round(self.power_w)  # + discharging
         ac = round(self.power_w + (self.loss_w if self.power_w > 0 else -self.loss_w if self.power_w < 0 else 0))
@@ -216,8 +236,11 @@ class FakeIndevoltDevice:
             "6107": self.status,
             "6108": self.rt_target,
             "6109": self.rt_power,
-            "11009": self.limit_w, "11011": self.limit_w, "11010": self.limit_w,
-            "11032": self.limit_w, "114": self.limit_w, "115": self.limit_w,
+            "11009": self._setting(self.charge_setting_w),
+            "11011": self._setting(self.discharge_setting_w),
+            "11032": self._setting(self.discharge_setting_w),
+            "11010": self._setting(self.feedin_w),
+            "114": self.limit_w, "115": self.limit_w,
             "142": self.capacity_kwh,
             "11005": 45,
         })
@@ -234,11 +257,18 @@ class FakeIndevoltDevice:
                 data.pop(str(temp), None)
         return data
 
+    def _setting(self, value: int | None) -> int:
+        return self.limit_w if value is None else value
+
     # --- transport -------------------------------------------------------------------
 
     @property
     def set_data_requests(self) -> list[Request]:
         return [r for r in self.requests if r.endpoint == "Indevolt.SetData"]
+
+    @property
+    def config_writes(self) -> list[tuple[int, list[int]]]:
+        return [w for w in self.writes if w[0] != 47015]
 
     @property
     def writes(self) -> list[tuple[int, list[int]]]:
@@ -284,22 +314,32 @@ class FakeIndevoltDevice:
                 self.action, self.rt_power, self.rt_target = action, power, target
                 self.action_state = None
                 self._advance()
+            elif config.get("t") in (1142, 1138, 1147) and not self.reject_config:
+                if self.config_apply_delay_s > 0:
+                    self._config_due.append(
+                        (self.clock.now + self.config_apply_delay_s, config["t"], config["v"][0]))
+                else:
+                    self._apply_setting(config["t"], config["v"][0])
             # Any other point would be written to flash on a real device. The
             # fake accepts it so the guard tests can prove it never gets here.
-            body = {"result": True}
+            body = {"result": not (self.reject_config and config.get("t") != 47015)}
         else:
             return 404, b""
         return 200, json.dumps(body).encode()
 
 
 FLASH_WEAR_MESSAGE = (
-    "FLASH WEAR: Omnibattery may only ever write the Indevolt realtime RAM tuple "
-    "47015. Indevolt R&D confirmed that every other writable point (work mode "
-    "47005/4, backup reserve, feed-in and output limits, grid charging, ...) is "
-    "stored in flash, which wears out with every write. A failure here means a "
-    "code change opened a path to a flash write. DO NOT relax this test without "
-    "written confirmation from Indevolt."
+    "FLASH WEAR: control and every other periodic or automatic path may only ever "
+    "write the Indevolt realtime RAM tuple 47015. Indevolt R&D confirmed that every "
+    "other writable point (work mode 47005/4, backup reserve, feed-in and output "
+    "limits, grid charging, ...) is stored in flash, which wears out with every "
+    "write. Only the user settings 1142/1138/1147 may be written, and only on a "
+    "direct user action (a number entity or the options flow). A failure here "
+    "means a code change opened a path to a flash write. DO NOT relax this test "
+    "without written confirmation from Indevolt."
 )
+
+CONFIG_SETTING_POINTS = frozenset({1142, 1138, 1147})
 
 
 def flash_writes(device: FakeIndevoltDevice) -> list[Request]:
@@ -307,6 +347,15 @@ def flash_writes(device: FakeIndevoltDevice) -> list[Request]:
     return [
         r for r in device.set_data_requests
         if not (isinstance(r.config, dict) and r.config.get("t") == 47015)
+    ]
+
+
+def unexpected_flash_writes(device: FakeIndevoltDevice) -> list[Request]:
+    """Flash writes the test did not allow: every one, or any non-setting point."""
+    return [
+        r for r in flash_writes(device)
+        if not (device.allow_config_writes and isinstance(r.config, dict)
+                and r.config.get("t") in CONFIG_SETTING_POINTS)
     ]
 
 
@@ -325,11 +374,14 @@ class RecordingNotifier:
     def firmware_outdated(self, firmware: str, minimum: str) -> None:
         self.events.append(("firmware", firmware, minimum))
 
-    def floor_mismatch(self, core_min_soc: float, native_floor: float) -> None:
-        self.events.append(("floor", core_min_soc, native_floor))
+    def setting_failed(self, key: str, value: int) -> None:
+        self.events.append(("setting_failed", key, value))
 
-    def floor_ok(self) -> None:
-        self.events.append(("floor_ok",))
+    def setting_budget_exhausted(self, key: str, budget: int) -> None:
+        self.events.append(("setting_budget", key, budget))
+
+    def setting_ok(self, key: str) -> None:
+        self.events.append(("setting_ok", key))
 
     def throttled(self, interval_s: float) -> None:
         self.events.append(("throttled", interval_s))

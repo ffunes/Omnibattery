@@ -11,8 +11,8 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 ## Before you start
 
 - In the Indevolt app, enable the **local API** with the **HTTP** protocol (not HTTP Digest), and give the battery a stable IP address.
-- In the Indevolt app, set the working mode to **Realtime**. Omnibattery controls the battery only in Realtime mode and never switches the mode itself (see [why](#why-omnibattery-never-changes-battery-settings)).
-- In the Indevolt app, set the battery **reserve** (backup SOC) you want. Omnibattery's minimum SOC should not be lower than this reserve.
+- In the Indevolt app, set the working mode to **Realtime**. Omnibattery controls the battery only in Realtime mode and never switches the mode itself (see [why](#why-omnibattery-writes-settings-only-when-you-change-them)).
+- The battery's **reserve** (backup SOC), **max AC input** and **max AC output** are the same settings as Omnibattery's minimum SOC, max charge power and max discharge power. Omnibattery keeps them in sync, so you can change them in either place.
 - Disable the official Indevolt integration for this battery.
 
 ## How to add it
@@ -22,26 +22,31 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 3. Keep **HTTP port** at `8080`.
 4. Omnibattery reads the battery's identity, working mode and power limits. It does not change anything on the battery.
 5. If the battery is not in Realtime mode, a notice says so. Setup continues; control starts once you select Realtime in the app.
-6. Choose the common power and state-of-charge limits.
+6. Choose the common power and state-of-charge limits. The first time Omnibattery starts, it takes over the battery's own reserve and power settings instead of writing yours; change them afterwards in either place.
 
 ## What you will see
 
 - **Control starts by itself.** As soon as the battery is in Realtime mode, Omnibattery sends a stop command, checks that the battery is idle and then takes over. The same happens after every Home Assistant restart.
 - **Control Status** shows what the driver is doing: `active`, `starting`, `realtime_mode_required`, `handover_failed`, `telemetry_stale` or `unknown_model`.
 - **Switching modes in the app is safe.** If you select another working mode, Omnibattery pauses, shows a notification and leaves the battery alone. Switch back to Realtime and it resumes automatically.
-- **Response time.** Omnibattery sends at most one request every 5 s, as Indevolt recommends. A new setpoint goes out in the next slot, and the battery follows within seconds.
-- **Sensors:** state of charge, battery power, AC power, energy counters, working mode, battery reserve, power limits and firmware version. Temperatures: **Inverter Battery Temperature** for the battery built into the inverter unit, and **Expansion Battery N Temperature** for each expansion battery that is present; **Internal Temperature**, which Omnibattery's optional temperature charge limit uses to reduce charging when the battery is hot, is the warmest of those. A transformer temperature sensor is available but disabled by default.
+- **Response time.** Omnibattery sends at most one request every 5s, as Indevolt recommends. A new setpoint goes out in the next slot, and the battery follows within seconds.
+- **Settings:** **Discharge Cutoff** (the battery's reserve, which is Omnibattery's minimum SOC), **Max Charge Power** and **Max Discharge Power**. A change here is written to the battery; a change in the Indevolt app shows up here within a few minutes. The power sliders go up to the battery's hardware maximum. **Charge Cutoff** (maximum SOC) has no battery setting and is applied by Omnibattery only.
+- **Sensors:** state of charge, battery power, AC power, energy counters, working mode and firmware version. Temperatures: **Inverter Battery Temperature** for the battery built into the inverter unit, and **Expansion Battery N Temperature** for each expansion battery that is present; **Internal Temperature**, which Omnibattery's optional temperature charge limit uses to reduce charging when the battery is hot, is the warmest of those. A transformer temperature sensor is available but disabled by default.
 
-## Why Omnibattery never changes battery settings
+## Why Omnibattery writes settings only when you change them
 
-!!! info "Only realtime commands, never stored settings"
+!!! info "Realtime commands in working memory, settings only on request"
     A battery keeps two kinds of data. Its settings, such as the working mode, the reserve and the power limits, are stored in flash memory, so they survive a power cut. Flash wears out after a limited number of writes. Realtime commands are kept in working memory (RAM), which can be written as often as needed.
 
-    A controller like Omnibattery may send a new command every few seconds, far more often than anyone changes a setting in an app. If those commands were written to flash, they could wear out the battery's controller long before the end of its normal life.
+    What wears flash out is how often it is written. A controller like Omnibattery may send a new command every few seconds; if those commands went to flash, they could wear out the battery's controller long before the end of its normal life. A setting you change a few times a year costs nothing.
 
-    We checked this with Indevolt's developers. They confirmed that only the realtime command (charge, discharge or stop, with a power and a target SOC) is kept in working memory, and that every other setting is stored in flash. Omnibattery therefore only ever writes the realtime command. Safeguards in the code and automated tests block any other write, so a future change cannot add one by accident.
+    We checked this with Indevolt's developers. They confirmed that only the realtime command (charge, discharge or stop, with a power and a target SOC) is kept in working memory, and that every other setting is stored in flash. So:
 
-    Change the working mode, the reserve and other settings in the Indevolt app.
+    - Control only ever writes the realtime command, however often it runs.
+    - The reserve and the two power limits are written only when you change them, in Omnibattery's settings or on the device page. Omnibattery waits 3s for you to finish, skips the write when the battery already has the value, and accepts at most 10 changes per setting per 24h. Nothing is written at startup.
+    - The working mode and every other setting are never written. Change them in the Indevolt app.
+
+    Safeguards in the code and automated tests enforce this, so a future change cannot add a write by accident.
 
 Omnibattery enforces its own minimum and maximum SOC in software. Each command also carries a target SOC a few percent beyond the current charge in the commanded direction, which Omnibattery moves along as the battery charges or discharges. If Home Assistant stops in the middle of a command, the battery stops by itself within about 5% of state of charge.
 
@@ -53,14 +58,15 @@ Omnibattery enforces its own minimum and maximum SOC in software. Each command a
 | The wizard says the battery asks for a password | The local API is set to HTTP Digest | Select **HTTP** for the local API in the Indevolt app |
 | Control Status is `realtime_mode_required` | The battery is in another working mode | Select **Realtime** in the Indevolt app; control resumes automatically |
 | A notification says the battery is slow | Another client is polling it too, or the Wi-Fi link is weak | Disable the official Indevolt integration for this battery and check the signal |
-| A notification says the reserve is above Omnibattery's minimum | The battery stops discharging at its own reserve first | Lower the reserve in the app, or raise Omnibattery's minimum SOC |
+| A notification says a setting was not applied | The battery did not accept the value | The battery keeps its value; try again later, or change it in the Indevolt app |
+| A notification says a setting was changed too often | More than 10 changes to one setting in 24h, often from an automation | Wait a day, and check automations that set these numbers |
 | Control Status is `unknown_model` | The battery reports a device type Omnibattery does not know yet | Open a GitHub issue with the device type from the notification |
 | Control Status is `handover_failed` | The battery did not confirm idle after the stop command | Check the battery in the Indevolt app; Omnibattery retries automatically |
 
 ??? "Advanced details"
-    All requests to one battery share a single budget: one request at a time, at least 5 s apart, measured from start to start. Omnibattery's own polling only reads a cache, so it never adds requests. A pending command takes the next slot. When the battery answers slowly or not at all, the interval grows to up to 20 s and returns to 5 s once replies are healthy again; a single timeout does not pause control.
+    All requests to one battery share a single budget: one request at a time, at least 5s apart, measured from start to start. Omnibattery's own polling only reads a cache, so it never adds requests. A pending command takes the next slot. When the battery answers slowly or not at all, the interval grows to up to 20s and returns to 5s once replies are healthy again; a single timeout does not pause control.
 
-    Telemetry is read in batches: power, AC power, working mode and SOC in every slot, the realtime status about every 30 s, limits every few minutes and energy counters every minute. If the battery ever returns an incomplete batch, Omnibattery reads smaller batches until complete replies return.
+    Telemetry is read in batches: power, AC power, working mode and SOC in every slot, the realtime status about every 30s, limits every few minutes and energy counters every minute. If the battery ever returns an incomplete batch, Omnibattery reads smaller batches until complete replies return.
 
     The delivered AC power is the battery's total AC power minus the power on its bypass port, so a load or microinverter on that port is not counted as battery output.
 
