@@ -23,6 +23,7 @@ These are the same touchpoints every brand has (compare Sessy and Huawei):
 | `drivers/__init__.py` | Export `IndevoltDriver`. |
 | `infra/coordinator.py` | Factory branch for `brand == "indevolt"`, manufacturer and model labels, and `indevolt` in the existing voltage-taper exclusion tuple. |
 | `config_flow.py` | Brand option, connection step (read-only probe), Realtime-mode notice step, reconfigure step, power ceilings in the existing limits step, SOC selector bounds, and `indevolt` in the existing taper tuples. |
+| `switch.py` | The per-battery "100% Charge Voltage Taper" switch now uses the config flow's taper brand list, so it is no longer shown for Indevolt (or for Sessy, Hoymiles and Huawei, where it also had no effect). Covered by `tests/test_taper_switch_brands.py`. |
 | `strings.json`, `translations/*.json` | Texts for the new steps and the new sensor names. |
 
 ## Core changes beyond registration
