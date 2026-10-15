@@ -63,6 +63,23 @@ These are the same touchpoints every brand has (compare Sessy and Huawei):
   `hardware_soc_cutoff=False`, so they keep both sliders;
   `test_other_software_soc_brands_keep_both_sliders` pins that for Marstek v3.
 
+### `number.py`: a register number shows its written value at once
+
+- **File:** `number.py`, `MarstekVenusNumber.async_set_native_value` (about 5
+  lines).
+- **Why:** the entity reads `coordinator.data`, which only catches up when the
+  key's read group is next polled (up to 5s for "medium"). Home Assistant's own
+  device page then snapped the slider back to the old value and jumped to the
+  new one seconds later, which looks like a failed write. The Omnibattery panel
+  hid this with its own pending state. Found when the Indevolt settings became
+  writable; Marstek and Zendure register sliders had the same jump.
+- **Change:** after a write the driver accepted, the entity stores the written
+  value in `coordinator.data` and reports its state; a refused write keeps the
+  old value. The next poll corrects either way.
+- **Proof:** `tests/test_marstek_number.py::test_a_refused_register_write_keeps_showing_the_old_value`
+  and the extended `test_zendure_inverse_max_power_updates_effective_discharge_limit`.
+- **Other brands:** they gain the same immediate update; nothing else changes.
+
 Everything else was met with existing mechanisms:
 
 - **Pacing whatever the core polls.** The driver serves `read_telemetry` from
