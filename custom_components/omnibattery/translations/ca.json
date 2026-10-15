@@ -1951,6 +1951,18 @@
       "transformer_temperature": {
         "name": "Temperatura del transformador"
       },
+      "request_interval": {
+        "name": "Interval de sol·licituds"
+      },
+      "read_latency": {
+        "name": "Latència de lectura (P95)"
+      },
+      "write_latency": {
+        "name": "Latència d'escriptura (P95)"
+      },
+      "request_failures": {
+        "name": "Sol·licituds fallides"
+      },
       "expansion_battery_1_temperature": {
         "name": "Temperatura de la bateria d'expansió 1"
       },

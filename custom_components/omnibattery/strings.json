@@ -1946,6 +1946,18 @@
       "transformer_temperature": {
         "name": "Transformer temperature"
       },
+      "request_interval": {
+        "name": "Request interval"
+      },
+      "read_latency": {
+        "name": "Read latency (P95)"
+      },
+      "write_latency": {
+        "name": "Write latency (P95)"
+      },
+      "request_failures": {
+        "name": "Request failures"
+      },
       "expansion_battery_1_temperature": {
         "name": "Expansion battery 1 temperature"
       },

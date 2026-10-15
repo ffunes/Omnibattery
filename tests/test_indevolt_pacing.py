@@ -1,4 +1,4 @@
-"""Pacing, write priority, coalescing and batch fallback of the Indevolt scheduler.
+"""Pacing, writes on demand, coalescing and batch fallback of the Indevolt scheduler.
 
 All on a virtual clock against the fake device: spacing is exact, so the
 assertions use the real constants without tolerance fudging.
@@ -26,6 +26,16 @@ def _gaps(times: list[float]) -> list[float]:
     return [round(b - a, 6) for a, b in zip(times, times[1:])]
 
 
+def _assert_paced(requests) -> None:
+    """The pacing contract: the floor between any two requests, a slot between
+    two reads and between two writes."""
+    assert min(_gaps([r.at for r in requests])) >= MIN_SLOT_S
+    for endpoint in ("Indevolt.GetData", "Indevolt.SetData"):
+        times = [r.at for r in requests if r.endpoint == endpoint]
+        if len(times) > 1:
+            assert min(_gaps(times)) >= SLOT_S
+
+
 async def _coordinator_like_load(driver, clock: VirtualClock, seconds: float, setpoints=None):
     """Poll read_telemetry every second and push a setpoint every 1.5 s."""
     end = clock.now + seconds
@@ -38,15 +48,15 @@ async def _coordinator_like_load(driver, clock: VirtualClock, seconds: float, se
         await clock.run(0.5)
 
 
-async def test_requests_never_closer_than_one_slot_under_heavy_core_polling():
+async def test_requests_stay_paced_under_heavy_core_polling():
     clock = VirtualClock()
     device = FakeIndevoltDevice(clock)
     driver = await connected_driver(clock, device)
     await _coordinator_like_load(driver, clock, 600, setpoints=lambda i: -300 - 50 * (i % 7))
-    gaps = _gaps(device.request_times())
-    assert min(gaps) >= SLOT_S
-    # The core polled ~1200 times; the device saw one request per slot.
-    assert len(device.requests) <= 600 / SLOT_S + 10
+    _assert_paced(device.requests)
+    # The core polls ~1200 times; the device sees at most one read and one
+    # write per slot.
+    assert len(device.requests) <= 2 * 600 / SLOT_S + 10
     assert device.max_in_flight == 1
     await driver.close()
 
@@ -65,9 +75,8 @@ async def test_a_one_second_meter_does_not_raise_the_request_rate():
         await driver.apply_setpoint(-400 if second % 2 else -900)
         await clock.run(1.0)
     requests = device.requests[start:]
-    gaps = _gaps([r.at for r in requests])
-    assert min(gaps) >= SLOT_S
-    assert len(requests) <= seconds / SLOT_S + 1
+    _assert_paced(requests)
+    assert len(requests) <= seconds / MIN_SLOT_S + 1
     assert device.max_in_flight == 1
     # A write is pending all the time, yet the control reads keep their share.
     reads = [r for r in requests if r.endpoint == "Indevolt.GetData"]
@@ -93,6 +102,27 @@ async def test_a_write_waits_at_most_one_slot():
     await driver.close()
 
 
+async def test_a_write_goes_out_at_the_floor_not_at_the_next_read():
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock)
+    driver = await connected_driver(clock, device)
+    await clock.run(30)  # idle: reads only, the last write is long ago
+    last_read = device.requests[-1]
+    assert last_read.endpoint == "Indevolt.GetData"
+    await clock.run(0.2)
+    issued = clock.now
+    await driver.apply_setpoint(-650)
+    assert await clock.run_until(lambda: device.requests[-1].endpoint == "Indevolt.SetData", SLOT_S, step=0.05)
+    sent = device.requests[-1].at
+    # Not the next read slot (SLOT_S after the read), but the floor.
+    assert sent == pytest.approx(last_read.at + MIN_SLOT_S)
+    assert sent - issued < SLOT_S - 1
+    # The read rhythm carries on after the write, at least the floor later.
+    await clock.run(2 * SLOT_S)
+    _assert_paced(device.requests)
+    await driver.close()
+
+
 async def test_a_slot_below_the_floor_is_raised_to_two_seconds():
     clock = VirtualClock()
     device = FakeIndevoltDevice(clock)
@@ -107,19 +137,41 @@ async def test_a_slot_below_the_floor_is_raised_to_two_seconds():
     assert gaps and min(gaps) == MIN_SLOT_S
 
 
-async def test_backoff_never_shortens_and_the_floor_holds_under_exchange_interval():
+async def test_an_exchange_spacing_never_undercuts_the_floor_and_others_wait_a_slot():
     clock = VirtualClock()
     device = FakeIndevoltDevice(clock)
     client = IndevoltClient("192.0.2.3", slot_s=3, transport=device, clock=clock, sleep=clock.sleep)
 
-    async def two():
+    async def calls():
         for _ in range(2):
             await client.exchange(lambda: ("Indevolt.GetData", {"t": [6002]}), interval_s=0.01)
+        # A request that names no spacing (probe, config channel) waits a slot.
+        await client.get_data([6002])
 
-    task = asyncio.ensure_future(two())
-    await clock.run(10)
+    task = asyncio.ensure_future(calls())
+    await clock.run(20)
     await task
-    assert _gaps(device.request_times()) == [3.0]
+    # A spacing below the floor is raised to it.
+    assert _gaps(device.request_times()) == [MIN_SLOT_S, 3.0]
+
+
+async def test_a_pick_that_sends_nothing_does_not_count_as_a_request():
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock)
+    client = IndevoltClient("192.0.2.4", slot_s=3, transport=device, clock=clock, sleep=clock.sleep)
+
+    async def calls():
+        await client.exchange(lambda: ("Indevolt.GetData", {"t": [6002]}))
+        await clock.sleep(2.5)
+        assert await client.exchange(lambda: None, interval_s=MIN_SLOT_S) is None
+        await client.exchange(lambda: ("Indevolt.GetData", {"t": [6002]}), interval_s=MIN_SLOT_S)
+
+    task = asyncio.ensure_future(calls())
+    await clock.run(20)
+    await task
+    # Spaced from the first real request (its reply took latency_s), not from
+    # the empty pick, which would have pushed it to 2.5 + floor.
+    assert _gaps(device.request_times()) == [pytest.approx(device.latency_s + 2.5)]
 
 
 async def test_no_request_starts_while_one_is_in_flight():
@@ -151,7 +203,7 @@ async def test_spacing_survives_reload_and_a_concurrent_probe():
     assert probe.result() is not None
     await clock.run(30)
     assert device.max_in_flight == 1
-    assert min(_gaps(device.request_times())) >= SLOT_S
+    assert min(_gaps(device.request_times())) >= MIN_SLOT_S
     await second.close()
 
 

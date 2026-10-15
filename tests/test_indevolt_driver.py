@@ -57,6 +57,32 @@ async def test_monitoring_serves_decoded_telemetry_from_cache():
     await driver.close()
 
 
+async def test_the_pacing_sensors_show_how_the_device_keeps_up():
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock)
+    driver = await connected_driver(clock, device)
+    await clock.run(30)
+    data = await driver.read_telemetry()
+    assert data["request_interval"] == SLOT_S
+    assert data["read_latency"] == pytest.approx(device.latency_s * 1000, abs=1)
+    # The handover's STOP is the first write, so write latency already has a
+    # sample. A slower write below shows apart from the reads.
+    assert data["write_latency"] == pytest.approx(device.latency_s * 1000, abs=1)
+    device.latency_s = 0.4
+    await driver.apply_setpoint(-500)
+    await clock.run(2 * SLOT_S)
+    data = await driver.read_telemetry()
+    assert data["write_latency"] == pytest.approx(400, abs=1)
+    assert data["request_failures"] == 0
+    # Two timeouts in a row: the scheduler backs off and the sensors show it.
+    device.timeouts = 2
+    await clock.run(30)
+    data = await driver.read_telemetry()
+    assert data["request_failures"] == 2
+    assert data["request_interval"] > SLOT_S
+    await driver.close()
+
+
 async def test_sign_conventions_live_in_one_place():
     clock = VirtualClock()
     device = FakeIndevoltDevice(clock, loss_w=50)

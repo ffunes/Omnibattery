@@ -28,6 +28,7 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 
 - **Control starts by itself.** As soon as the battery is in Realtime mode, Omnibattery sends a stop command, checks that the battery is idle and then takes over. The same happens after every Home Assistant restart.
 - **Control Status** shows what the driver is doing: `active`, `starting`, `realtime_mode_required`, `handover_failed`, `telemetry_stale` or `unknown_model`.
+- **Request Interval**, **Read Latency (P95)**, **Write Latency (P95)** and **Request Failures** (diagnostic) show how the battery keeps up. The interval is normally 5s and grows when Omnibattery gives a slow battery more time; each latency is the slowest 5% of the last 200 reads or writes (reads usually take tens of milliseconds, writes a few hundred); failures count timeouts and errors since Home Assistant started.
 - **Switching modes in the app is safe.** If you select another working mode, Omnibattery pauses, shows a notification and leaves the battery alone. Switch back to Realtime and it resumes automatically.
 - **Response time.** Omnibattery sends at most one request every 5s, as Indevolt recommends. A new setpoint goes out in the next slot, and the battery follows within seconds.
 - **Settings:** **Discharge Cutoff** (the battery's reserve, which is Omnibattery's minimum SOC), **Max Charge Power** and **Max Discharge Power**. A change here is written to the battery; a change in the Indevolt app shows up here within a few minutes. The power sliders go up to the battery's hardware maximum. **Charge Cutoff** (maximum SOC) has no battery setting and is applied by Omnibattery only.
@@ -57,7 +58,7 @@ Omnibattery enforces its own minimum and maximum SOC in software. Each command a
 | The wizard cannot connect | The local API is off, or the address or port is wrong | Enable the local API in the Indevolt app and check the IP address and port `8080` |
 | The wizard says the battery asks for a password | The local API is set to HTTP Digest | Select **HTTP** for the local API in the Indevolt app |
 | Control Status is `realtime_mode_required` | The battery is in another working mode | Select **Realtime** in the Indevolt app; control resumes automatically |
-| A notification says the battery is slow | Another client is polling it too, or the Wi-Fi link is weak | Disable the official Indevolt integration for this battery and check the signal |
+| A notification says the battery is slow, or Request Interval is above 5s | Another client is polling it too, or the Wi-Fi link is weak | Disable the official Indevolt integration for this battery and check the signal |
 | A notification says a setting was not applied | The battery did not accept the value | The battery keeps its value; try again later, or change it in the Indevolt app |
 | A notification says a setting was changed too often | More than 10 changes to one setting in 24h, often from an automation | Wait a day, and check automations that set these numbers |
 | Control Status is `unknown_model` | The battery reports a device type Omnibattery does not know yet | Open a GitHub issue with the device type from the notification |

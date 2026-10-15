@@ -4,14 +4,18 @@ Two layers live here:
 
 * :class:`IndevoltClient` sends one RPC at a time to one device. Every request,
   whoever makes it (driver, config-flow probe, a reloaded entry), passes the same
-  per-device gate: at most one request in flight, and request starts at least one
-  slot apart, measured start to start and never below :data:`MIN_SLOT_S`. The
-  flash guard lives here too (see the FLASH WEAR block).
-* :class:`IndevoltScheduler` owns all routine traffic for one driver. Per slot it
-  sends the pending realtime write or, if there is none, one batched telemetry
-  read: the control tier plus whichever slower tier is most overdue. Replies land
-  in a timestamped cache that the driver serves to the coordinator, so however
-  often Omnibattery polls, the device sees one request per slot.
+  per-device gate: at most one request in flight, and request starts never closer
+  than :data:`MIN_SLOT_S`, measured start to start. A request that names no
+  spacing (probe, config channel) waits a full slot. The flash guard lives here
+  too (see the FLASH WEAR block).
+* :class:`IndevoltScheduler` owns all routine traffic for one driver. It reads
+  the control tier, plus whichever slower tier is most overdue, once per slot.
+  A queued realtime write does not wait for the next read slot: it goes out as
+  soon as the hard floor allows (write on demand), but two writes are always at
+  least a slot apart, and after MAX_CONSECUTIVE_WRITES writes a read comes first.
+  Replies land in a timestamped cache that the driver serves to the coordinator,
+  so however often Omnibattery polls, the device sees one read per slot and at
+  most one write per slot.
 
 Pacing follows the vendor's guidance (≥5s between requests) and
 measurements on a CMS-SF2000 (batches of up to 38 points and spacing down to 2s
@@ -43,9 +47,10 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_PORT = 8080
 
 # Request pacing. SLOT_S is the profile constant (5s first; a 3s experiment
-# follows the acceptance test). MIN_SLOT_S is a hard floor that no constructor
-# argument, backoff state or caller can undercut.
-SLOT_S = 5.0
+# follows the acceptance test): the read interval, and the minimum spacing
+# between two writes. MIN_SLOT_S is the hard floor between any two requests,
+# which no constructor argument, backoff state or caller can undercut.
+SLOT_S = 3.0  # one read per slot; writes go out on demand in between
 MIN_SLOT_S = 2.0
 REQUEST_TIMEOUT_S = 5.0
 # Adaptive backoff: the interval doubles after a timeout, an error or a reply
@@ -54,9 +59,12 @@ REQUEST_TIMEOUT_S = 5.0
 LATENCY_SPIKE_S = 2.5
 MAX_BACKOFF_FACTOR = 4
 HEALTHY_STREAK = 10
-# A pending write takes the next slot, but never more than this many slots in a
-# row, so a core that changes its setpoint every slot cannot starve the reads.
+# A pending write goes before a due read, but never more than this many writes
+# in a row, so a core that changes its setpoint all the time cannot starve the
+# reads.
 MAX_CONSECUTIVE_WRITES = 2
+# Clock slack when comparing scheduled times (float sums of the same constants).
+_EPSILON_S = 1e-6
 # Batch fallback: an incomplete reply halves the batch size; this many complete
 # replies in a row double it again.
 MAX_POINTS = 50
@@ -314,15 +322,17 @@ class IndevoltClient:
         *,
         interval_s: float | None = None,
     ) -> tuple[tuple[str, dict[str, Any] | None], dict[str, Any]] | None:
-        """Wait for the next slot, then send whatever ``pick`` chooses at that moment.
+        """Wait for the gate, then send whatever ``pick`` chooses at that moment.
 
-        Choosing inside the slot lets a write that arrived while waiting take
-        this slot. ``interval_s`` lets the scheduler stretch the spacing
-        (backoff); it can never shorten it below the configured slot.
+        Choosing inside the gate lets a write that arrived while waiting go
+        first. ``interval_s`` is the spacing since the previous request start;
+        the scheduler sets it, never below the hard floor. When ``pick`` sends
+        nothing, the gate is left as if this call never happened.
         """
-        async with self._slot(interval_s):
+        async with self._slot(interval_s) as slot:
             request = pick()
             if request is None:
+                slot.unstamp()
                 return None
             endpoint, config = request
             return request, await self._submit(endpoint, config)
@@ -391,9 +401,10 @@ class IndevoltClient:
         return _SlotContext(self, interval_s)
 
     def _spacing(self, interval_s: float | None) -> float:
+        """A full slot unless the caller names a spacing; never below the floor."""
         spacing = self._slot_s
         if interval_s is not None and math.isfinite(interval_s):
-            spacing = max(spacing, float(interval_s))
+            spacing = float(interval_s)
         return max(MIN_SLOT_S, spacing)
 
     # --- the wire ------------------------------------------------------------
@@ -511,8 +522,14 @@ class _SlotContext:
         self._interval_s = interval_s
         self._gate: _Gate | None = None
         self._token: Any = None
+        self._previous_start: float | None = None
 
-    async def __aenter__(self) -> None:
+    def unstamp(self) -> None:
+        """Nothing was sent: the next request is spaced from the previous one."""
+        assert self._gate is not None
+        self._gate.last_start = self._previous_start
+
+    async def __aenter__(self) -> "_SlotContext":
         client = self._client
         if client._closed:
             raise IndevoltClosedError("Indevolt client closed")
@@ -528,11 +545,13 @@ class _SlotContext:
             if client._closed:
                 raise IndevoltClosedError("Indevolt client closed")
             # Start-to-start spacing: stamp the start before the request runs.
+            self._previous_start = self._gate.last_start
             self._gate.last_start = client._clock()
             self._token = _HELD_GATE.set(self._gate)
         except BaseException:
             self._gate.lock.release()
             raise
+        return self
 
     async def __aexit__(self, *exc: object) -> None:
         _HELD_GATE.reset(self._token)
@@ -558,12 +577,22 @@ class Tier:
     interval_s: float = 0.0
 
 
+def _p95(values: Sequence[float]) -> float | None:
+    """The 95th percentile (nearest rank), or None without samples.
+
+    Nearest rank keeps a slow sample visible while there are only a few, where
+    rounding the index down would report the fastest one.
+    """
+    ordered = sorted(values)
+    return ordered[math.ceil(0.95 * len(ordered)) - 1] if ordered else None
+
+
 WRITE_ACCEPTED = "accepted"
 WRITE_FAILED = "failed"
 
 
 class IndevoltScheduler:
-    """Owns all routine requests to one device: one per slot, writes first."""
+    """Owns all routine requests to one device: a read per slot, writes on demand."""
 
     def __init__(
         self,
@@ -599,6 +628,10 @@ class IndevoltScheduler:
         self._last_accepted: tuple[int, int, int] | None = None
         self._write_waiters: list[tuple[tuple[int, int, int], asyncio.Future[bool]]] = []
         self._consecutive_writes = 0
+        self._last_read_start: float | None = None
+        self._last_write_start: float | None = None
+        # Set when a write is queued (or on close) to cut a wait for the next read.
+        self._wake = asyncio.Event()
         self._max_batch = MAX_POINTS
         self._complete_streak = 0
         self._factor = 1
@@ -615,6 +648,10 @@ class IndevoltScheduler:
         self.errors = 0
         self.writes = 0
         self.latencies_ms: deque[float] = deque(maxlen=200)
+        # Per kind: reads answer in tens of ms, writes in hundreds, so mixed
+        # they would hide a read slowdown behind the write latency.
+        self.read_latencies_ms: deque[float] = deque(maxlen=200)
+        self.write_latencies_ms: deque[float] = deque(maxlen=200)
 
     # --- lifecycle -----------------------------------------------------------
 
@@ -632,6 +669,7 @@ class IndevoltScheduler:
 
     async def close(self) -> None:
         self._closed = True
+        self._wake.set()
         self._fail_waiters(IndevoltClosedError("Indevolt scheduler closed"))
         if self._task is not None:
             self._task.cancel()
@@ -641,7 +679,7 @@ class IndevoltScheduler:
     # --- writes --------------------------------------------------------------
 
     def queue_write(self, values: tuple[int, int, int], *, force: bool = False) -> bool:
-        """Queue the realtime tuple for the next slot. The newest tuple wins.
+        """Queue the realtime tuple; it goes out as soon as pacing allows. The newest wins.
 
         Returns False when ``values`` is identical to the last tuple the device
         accepted; any different pending tuple is then dropped as well, because
@@ -655,6 +693,7 @@ class IndevoltScheduler:
             return False
         self._pending = values
         self._pending_force = force
+        self._wake.set()
         return True
 
     def cancel_write(self) -> None:
@@ -711,8 +750,13 @@ class IndevoltScheduler:
 
     @property
     def interval_s(self) -> float:
-        """Current spacing including backoff; never below the hard floor."""
+        """Read interval and write spacing, including backoff; never below the floor."""
         return max(MIN_SLOT_S, self._client.slot_s * self._factor)
+
+    @property
+    def floor_s(self) -> float:
+        """Spacing between any two requests, stretched by backoff like the interval."""
+        return min(self.interval_s, MIN_SLOT_S * self._factor)
 
     @property
     def control_max_age_s(self) -> float:
@@ -750,9 +794,9 @@ class IndevoltScheduler:
 
     def stats(self) -> dict[str, Any]:
         latencies = sorted(self.latencies_ms)
-        p95 = latencies[int(0.95 * (len(latencies) - 1))] if latencies else None
         return {
             "interval_s": self.interval_s,
+            "floor_s": self.floor_s,
             "backoff_factor": self._factor,
             "max_batch": self._max_batch,
             "requests": self.requests,
@@ -760,7 +804,9 @@ class IndevoltScheduler:
             "timeouts": self.timeouts,
             "errors": self.errors,
             "latency_median_ms": latencies[len(latencies) // 2] if latencies else None,
-            "latency_p95_ms": p95,
+            "latency_p95_ms": _p95(self.latencies_ms),
+            "read_latency_p95_ms": _p95(self.read_latencies_ms),
+            "write_latency_p95_ms": _p95(self.write_latencies_ms),
             "unsupported_points": sorted(self._unsupported),
         }
 
@@ -768,8 +814,14 @@ class IndevoltScheduler:
 
     async def _run(self) -> None:
         while not self._closed:
+            # Clear before deciding: a write queued from here on wakes the wait.
+            self._wake.clear()
+            delay = self._until_next_request()
+            if delay > 0:
+                await self._wait(delay)
+                continue
             try:
-                result = await self._client.exchange(self._pick, interval_s=self.interval_s)
+                result = await self._client.exchange(self._pick, interval_s=self.floor_s)
             except asyncio.CancelledError:
                 raise
             except IndevoltClosedError:
@@ -790,18 +842,56 @@ class IndevoltScheduler:
             if result is not None:
                 self._after_success(*result)
 
+    def _write_allowed_at(self) -> float | None:
+        """When the pending write may go, or None if there is nothing to write."""
+        if self._pending is None or self._consecutive_writes >= MAX_CONSECUTIVE_WRITES:
+            return None
+        if self._last_write_start is None:
+            return -math.inf
+        return self._last_write_start + self.interval_s
+
+    def _read_due_at(self) -> float:
+        if self._last_read_start is None:
+            return -math.inf
+        return self._last_read_start + self.interval_s
+
+    def _until_next_request(self) -> float:
+        """Seconds until a write may go or a read is due (the gate adds the floor)."""
+        due = self._read_due_at()
+        write_at = self._write_allowed_at()
+        if write_at is not None:
+            due = min(due, write_at)
+        return max(0.0, due - self._clock())
+
+    async def _wait(self, delay: float) -> None:
+        """Sleep ``delay`` seconds, or less if a write is queued meanwhile."""
+        sleeper = asyncio.ensure_future(self._client._sleep(delay))
+        waker = asyncio.ensure_future(self._wake.wait())
+        try:
+            await asyncio.wait({sleeper, waker}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for task in (sleeper, waker):
+                task.cancel()
+            await asyncio.gather(sleeper, waker, return_exceptions=True)
+
     def _pick(self) -> tuple[str, dict[str, Any] | None] | None:
-        """Choose the request for this slot (called inside the slot)."""
+        """Choose the request now that the gate allows one (called inside the gate)."""
         self._current = None
-        if self._pending is not None and self._consecutive_writes < MAX_CONSECUTIVE_WRITES:
+        now = self._clock()
+        write_at = self._write_allowed_at()
+        if write_at is not None and write_at <= now + _EPSILON_S:
             values = self._pending
+            assert values is not None
             self._pending = None
             self._pending_force = False
             self._consecutive_writes += 1
+            self._last_write_start = now
             self._current = ("write", values)
             return "Indevolt.SetData", IndevoltClient.realtime_config(*values)
+        if self._read_due_at() > now + _EPSILON_S:
+            return None  # woken for a write that is gone or not allowed yet
         self._consecutive_writes = 0
-        now = self._clock()
+        self._last_read_start = now
         if self._verify and (
             self._last_verify is None or now - self._last_verify >= VERIFY_SPACING_S
         ):
@@ -871,11 +961,13 @@ class IndevoltScheduler:
         current = self._current
         self.requests += 1
         latency = self._client.last_latency_s or 0.0
-        self.latencies_ms.append(round(latency * 1000, 1))
+        latency_ms = round(latency * 1000, 1)
+        self.latencies_ms.append(latency_ms)
         self._record_health(latency <= LATENCY_SPIKE_S)
         if current is None:
             return
         kind, payload = current
+        (self.write_latencies_ms if kind == "write" else self.read_latencies_ms).append(latency_ms)
         if kind == "write":
             self.writes += 1
             self._last_accepted = payload

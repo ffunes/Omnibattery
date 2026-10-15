@@ -255,6 +255,18 @@ SENSOR_DEFINITIONS = [
                 diagnostic=True, icon="mdi:state-machine",
                 states={1: "Standby", 2: "Charging", 3: "Discharging"}),
     _text("control_status", "Control Status", icon="mdi:remote", scan="medium"),
+    # How the device keeps up with the pacing: the interval grows when the
+    # scheduler backs off, the latencies are the 95th percentile of the last
+    # 200 reads and of the last 200 writes (kept apart: reads take tens of ms,
+    # writes hundreds), and failures count timeouts and errors since start.
+    _definition("request_interval", "Request Interval", unit="s", device_class="duration",
+                scan="medium", diagnostic=True, icon="mdi:timer-sand"),
+    _definition("read_latency", "Read Latency (P95)", unit="ms", device_class="duration",
+                scan="medium", diagnostic=True, icon="mdi:timer-outline"),
+    _definition("write_latency", "Write Latency (P95)", unit="ms", device_class="duration",
+                scan="medium", diagnostic=True, icon="mdi:timer-cog-outline"),
+    _definition("request_failures", "Request Failures", state_class="total_increasing",
+                scan="medium", diagnostic=True, icon="mdi:alert-circle-outline"),
     _definition("realtime_power", "Realtime Command Power", unit="W", device_class="power",
                 scan="low", enabled=False, diagnostic=True),
     _definition("realtime_target_soc", "Realtime Target SOC", unit="%", scan="low",
@@ -270,6 +282,7 @@ SENSOR_DEFINITIONS = [
 _HIGH_KEYS = ("battery_power", "ac_power", DELIVERED_AC_POWER_KEY)
 _SETTING_KEYS = tuple(s.key for s in SETTINGS)
 _MEDIUM_KEYS = ("battery_soc", "energy_mode", "inverter_state", "control_status",
+                "request_interval", "read_latency", "write_latency", "request_failures",
                 *_SETTING_KEYS)
 # One temperature sensor per expansion battery that is present (see PACKS).
 PACK_TEMPERATURE_DEFINITIONS = [
@@ -635,6 +648,13 @@ class IndevoltDriver(BatteryDriver):
             out["energy_mode"] = int(mode)
         if out:
             out["control_status"] = self.control_status
+        stats = self._scheduler.stats()
+        out["request_interval"] = stats["interval_s"]
+        for key, stat in (("read_latency", "read_latency_p95_ms"),
+                          ("write_latency", "write_latency_p95_ms")):
+            if stats[stat] is not None:
+                out[key] = stats[stat]
+        out["request_failures"] = stats["timeouts"] + stats["errors"]
 
         echo_age = self._tier_max_age(ECHO_TIER)
         state = _num(c(P_BATTERY_STATE, echo_age))

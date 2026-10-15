@@ -1951,6 +1951,18 @@
       "transformer_temperature": {
         "name": "Temperatuur transformator"
       },
+      "request_interval": {
+        "name": "Verzoekinterval"
+      },
+      "read_latency": {
+        "name": "Leeslatentie (P95)"
+      },
+      "write_latency": {
+        "name": "Schrijflatentie (P95)"
+      },
+      "request_failures": {
+        "name": "Mislukte verzoeken"
+      },
       "expansion_battery_1_temperature": {
         "name": "Temperatuur uitbreidingsbatterij 1"
       },

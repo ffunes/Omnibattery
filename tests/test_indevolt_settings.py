@@ -13,7 +13,7 @@ from custom_components.omnibattery.drivers.indevolt_settings import (
     DEBOUNCE_S,
     SYNCED_PREFIX,
 )
-from custom_components.omnibattery.infra.indevolt_client import SLOT_S
+from custom_components.omnibattery.infra.indevolt_client import MIN_SLOT_S, SLOT_S
 from tests.indevolt_fake import FakeIndevoltDevice, RecordingNotifier, VirtualClock, connected_driver
 
 MIN = "discharging_cutoff_capacity"
@@ -53,7 +53,7 @@ async def test_an_entity_change_is_written_once_after_the_debounce():
     assert device.config_writes == [(1142, [20])]
     assert (await driver.read_telemetry())[MIN] == 20
     times = device.request_times()
-    assert min(b - a for a, b in zip(times, times[1:])) >= SLOT_S  # shares the pacing
+    assert min(b - a for a, b in zip(times, times[1:])) >= MIN_SLOT_S  # shares the gate
     await driver.close()
 
 
