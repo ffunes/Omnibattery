@@ -41,7 +41,7 @@ async def test_removes_first_battery_and_its_device():
     assert (await flow.async_step_batteries())["menu_options"] == ["battery_count", "remove_battery"]
 
     dev_reg = MagicMock()
-    dev_reg.async_get_device.return_value = SimpleNamespace(id="dev-venus-1")
+    dev_reg.async_get_device_by_identifier.return_value = SimpleNamespace(id="dev-venus-1")
     with (
         patch.object(OptionsFlowHandler, "_save_and_finish", AsyncMock(return_value={"type": "create_entry"})),
         patch("custom_components.omnibattery.config_flow.dr.async_get", return_value=dev_reg),
@@ -50,5 +50,8 @@ async def test_removes_first_battery_and_its_device():
 
     assert [b["name"] for b in flow.config_data["batteries"]] == ["Zendure", "Venus 2"]
     assert flow.config_data["primary_battery"] == ""
-    dev_reg.async_get_device.assert_called_once_with(identifiers={(DOMAIN, "10.0.0.1_502")})
+    dev_reg.async_get_device_by_identifier.assert_called_once_with(
+        (DOMAIN, "10.0.0.1_502"), "test-entry"
+    )
+    dev_reg.async_get_device.assert_not_called()
     dev_reg.async_remove_device.assert_called_once_with("dev-venus-1")

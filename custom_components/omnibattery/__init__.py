@@ -254,6 +254,7 @@ from .control.high_price_discharge import HighPriceDischargeManager
 from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
+from .infra.device_lookup import get_entry_device
 from .tracking.hourly_balance import HourlyBalanceManager
 from .tracking.non_responsive_tracker import NonResponsiveTracker
 from .tracking.daily_timeline import (
@@ -10110,7 +10111,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         dev_reg = dr.async_get(hass)
         for h, p in pairs:
-            device = dev_reg.async_get_device(identifiers={(DOMAIN, h)})
+            device = get_entry_device(dev_reg, (DOMAIN, h), entry.entry_id)
             if device:
                 dev_reg.async_update_device(device.id, new_identifiers={(DOMAIN, f"{h}_{p}")})
 
