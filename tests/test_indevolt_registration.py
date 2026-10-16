@@ -23,7 +23,11 @@ from custom_components.omnibattery.drivers.indevolt import (
     SENSOR_DEFINITIONS,
     IndevoltDriver,
 )
-from custom_components.omnibattery.infra.indevolt_client import IndevoltAuthenticationError
+from custom_components.omnibattery.infra.indevolt_client import (
+    REQUEST_SPEED_SLOT_S,
+    SLOT_S,
+    IndevoltAuthenticationError,
+)
 from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
 )
@@ -56,6 +60,7 @@ async def test_setup_flow_probes_read_only_and_notes_realtime_mode(monkeypatch):
 
     form = await flow.async_step_battery_brand({"brand": "indevolt"})
     assert form["step_id"] == "battery_connection_indevolt"
+    fields = _fields(form)
     assert set(_fields(form)) == {"name", "host", "port"}  # plain HTTP, no password
 
     probe = AsyncMock(return_value=None)
@@ -72,7 +77,16 @@ async def test_setup_flow_probes_read_only_and_notes_realtime_mode(monkeypatch):
         "device_max_charge_power": 2400, "device_max_discharge_power": 1800,
     }
 
-    limits = await flow.async_step_indevolt_mode_notice({})
+    form = await flow.async_step_indevolt_mode_notice({})
+    assert form["step_id"] == "indevolt_request_speed"
+    fields = _fields(form)
+    assert set(fields) == {"indevolt_request_speed"}
+    assert fields["indevolt_request_speed"].config["options"] == ["maximum", "fast", "normal", "conservative"]
+    markers = {marker.schema: marker for marker in form["data_schema"].schema}
+    assert markers["indevolt_request_speed"].default() == "conservative"
+
+    limits = await flow.async_step_indevolt_request_speed({"indevolt_request_speed": "fast"})
+    assert flow._current_battery_data["indevolt_request_speed"] == "fast"
     assert limits["step_id"] == "battery_limits"
     fields = _fields(limits)
     assert fields["max_charge_power"].config["max"] == 2400
@@ -112,11 +126,14 @@ async def test_setup_flow_skips_the_notice_in_realtime_mode(monkeypatch):
     flow._current_battery_data = {"brand": "indevolt"}
     monkeypatch.setattr(IndevoltDriver, "probe", AsyncMock(return_value={**_PROBE, "realtime_mode": True}))
     form = await flow.async_step_battery_connection_indevolt(dict(_INPUT))
-    assert form["step_id"] == "battery_limits"
+    assert form["step_id"] == "indevolt_request_speed"
 
 
 async def test_options_flow_offers_and_configures_indevolt(monkeypatch):
-    entry = SimpleNamespace(entry_id="test-entry", data={"batteries": []})
+    entry = SimpleNamespace(entry_id="test-entry", data={"batteries": [
+        {"brand": "indevolt", "name": "Garage Indevolt", "host": "192.0.2.50", "port": 8080,
+         "indevolt_request_speed": "fast"},
+    ]})
     flow = OptionsFlowHandler(entry)
     flow.hass = SimpleNamespace(
         config_entries=SimpleNamespace(
@@ -134,8 +151,14 @@ async def test_options_flow_offers_and_configures_indevolt(monkeypatch):
     flow.async_step_battery_limits = AsyncMock(return_value={"type": "form", "step_id": "battery_limits"})
     form = await flow.async_step_battery_connection_indevolt(dict(_INPUT))
     assert form["step_id"] == "indevolt_mode_notice"
-    assert (await flow.async_step_indevolt_mode_notice({}))["step_id"] == "battery_limits"
+    form = await flow.async_step_indevolt_mode_notice({})
+    assert form["step_id"] == "indevolt_request_speed"
+    markers = {marker.schema: marker for marker in form["data_schema"].schema}
+    assert markers["indevolt_request_speed"].default() == "fast"  # the stored speed
+    form = await flow.async_step_indevolt_request_speed({"indevolt_request_speed": "maximum"})
+    assert form["step_id"] == "battery_limits"
     assert flow._current_battery_data["device_max_discharge_power"] == 1800
+    assert flow._current_battery_data["indevolt_request_speed"] == "maximum"
 
 
 async def test_reconfigure_routes_indevolt_to_its_form(monkeypatch):
@@ -154,13 +177,37 @@ async def test_reconfigure_routes_indevolt_to_its_form(monkeypatch):
 
     monkeypatch.setattr(IndevoltDriver, "probe", AsyncMock(return_value=dict(_PROBE)))
     flow.async_update_reload_and_abort = MagicMock(return_value={"type": "abort"})
-    result = await flow.async_step_reconfigure_battery_indevolt(dict(_INPUT))
+    form = await flow.async_step_reconfigure_battery_indevolt(dict(_INPUT))
+    assert form["step_id"] == "reconfigure_battery_indevolt_request_speed"
+    # Nothing is migrated yet: leaving the flow on the speed screen changes nothing.
+    flow._migrate_battery_registry_ids.assert_not_called()
+    result = await flow.async_step_reconfigure_battery_indevolt_request_speed({"indevolt_request_speed": "normal"})
     assert result == {"type": "abort"}
     flow._migrate_battery_registry_ids.assert_called_once_with(
         entry, "old", 8080, "192.0.2.50", 8080
     )
     assert flow._reconfigure_batteries[0]["min_soc"] == 20  # other settings kept
     assert flow._reconfigure_batteries[0]["host"] == "192.0.2.50"
+    assert flow._reconfigure_batteries[0]["indevolt_request_speed"] == "normal"
+
+
+async def test_reconfigure_shows_and_keeps_the_request_speed(monkeypatch):
+    battery = {"brand": "indevolt", "name": "Garage Indevolt", "host": "192.0.2.50",
+               "port": 8080, "indevolt_request_speed": "fast"}
+    entry = SimpleNamespace(entry_id="test-entry", data={"batteries": [battery]})
+    flow = MarstekVenusConfigFlow()
+    flow.battery_index = 0
+    flow._reconfigure_batteries = []
+    flow._get_reconfigure_entry = lambda: entry
+    flow._migrate_battery_registry_ids = MagicMock()
+    monkeypatch.setattr(IndevoltDriver, "probe", AsyncMock(return_value=dict(_PROBE)))
+    flow.async_update_reload_and_abort = MagicMock(return_value={"type": "abort"})
+    form = await flow.async_step_reconfigure_battery_indevolt(dict(_INPUT))
+    markers = {marker.schema: marker for marker in form["data_schema"].schema}
+    assert markers["indevolt_request_speed"].default() == "fast"
+
+    await flow.async_step_reconfigure_battery_indevolt_request_speed({"indevolt_request_speed": "conservative"})
+    assert flow._reconfigure_batteries[0]["indevolt_request_speed"] == "conservative"
 
 
 def test_coordinator_builds_the_indevolt_driver(monkeypatch):
@@ -179,6 +226,19 @@ def test_coordinator_builds_the_indevolt_driver(monkeypatch):
     assert driver._settings._stored("min_soc") is None  # no config entry attached
     assert coordinator.battery_device_info["manufacturer"] == "Indevolt"
     assert getattr(coordinator, "full_charge_voltage_taper_enabled") is False
+    assert driver._slot_s == SLOT_S  # a battery config without a speed gets the default
+
+
+@pytest.mark.parametrize(("speed", "slot_s"), [("maximum", 1.0), ("fast", 2.0), ("normal", 3.0),
+                                                ("conservative", 5.0), ("warp", SLOT_S)])
+def test_the_coordinator_hands_the_chosen_speed_to_the_driver(monkeypatch, speed, slot_s):
+    monkeypatch.setattr(DataUpdateCoordinator, "__init__", lambda *_args, **_kwargs: None)
+    coordinator = MarstekVenusDataUpdateCoordinator(
+        MagicMock(), "Garage Indevolt", "192.0.2.50", 8080, "sensor.grid_power",
+        brand="indevolt", max_charge_power=2400, max_discharge_power=2400, min_soc=20,
+        indevolt_request_speed=speed,
+    )
+    assert coordinator.driver._slot_s == slot_s
 
 
 def test_every_new_string_exists_in_every_language():
@@ -187,13 +247,30 @@ def test_every_new_string_exists_in_every_language():
         glob.glob("custom_components/omnibattery/translations/*.json")
     ):
         data = json.load(open(path, encoding="utf-8"))
-        for step in ("battery_connection_indevolt", "indevolt_mode_notice", "reconfigure_battery_indevolt"):
+        for step in ("battery_connection_indevolt", "indevolt_mode_notice", "indevolt_request_speed",
+                     "reconfigure_battery_indevolt", "reconfigure_battery_indevolt_request_speed"):
             assert data["config"]["step"][step]["title"], (path, step)
-        for step in ("battery_connection_indevolt", "indevolt_mode_notice"):
+        for step in ("battery_connection_indevolt", "indevolt_mode_notice", "indevolt_request_speed"):
             assert data["options"]["step"][step]["title"], (path, step)
         for section in ("config", "options"):
             assert data[section]["error"]["indevolt_http_digest"], (path, section)
         assert "password" not in data["config"]["step"]["battery_connection_indevolt"]["data"]
+        for section, step in (("config", "indevolt_request_speed"),
+                              ("config", "reconfigure_battery_indevolt_request_speed"),
+                              ("options", "indevolt_request_speed")):
+            texts = data[section]["step"][step]
+            assert texts["description"], (path, section, step)
+            assert texts["data"]["indevolt_request_speed"], (path, section, step)
+            assert texts["data_description"]["indevolt_request_speed"], (path, section, step)
+        speeds = data["selector"]["indevolt_request_speed"]["options"]
+        assert sorted(speeds) == sorted(REQUEST_SPEED_SLOT_S), path
+        for speed, slot_s in REQUEST_SPEED_SLOT_S.items():
+            assert f"{slot_s:.0f}s" in speeds[speed], (path, speed)
+        # The Request Speed sensor reports the speed key; every language names it.
+        states = data["entity"]["sensor"]["request_speed"]["state"]
+        assert sorted(states) == sorted(REQUEST_SPEED_SLOT_S), path
+        for speed, slot_s in REQUEST_SPEED_SLOT_S.items():
+            assert f"({slot_s:.0f}s)" in states[speed], (path, speed)
         names = data["entity"]["sensor"]
         missing = sorted(k for k in sensor_keys if not names.get(k, {}).get("name"))
         assert missing == [], (path, missing)

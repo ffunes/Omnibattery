@@ -95,6 +95,7 @@ class Request:
     method: str
     endpoint: str
     config: dict[str, Any] | None
+    done_at: float | None = None  # when the reply (or the timeout) went back
 
 
 @dataclass
@@ -132,6 +133,10 @@ class FakeIndevoltDevice:
     # this long after the write; a real SF2000 takes 10–15 s.
     start_delay_s: float = 0.0
     _starting_until: float = 0.0
+    # The echo (6107–6109) shows a written tuple only this long after the
+    # write; a real SF2000 echoes an accepted STOP 9–19 s late.
+    echo_lag_s: float = 0.0
+    _tuples: list = field(default_factory=list)  # (written at, action, power, target)
     standby_events: list[float] = field(default_factory=list)
     # fault injection
     latency_s: float = 0.08
@@ -149,6 +154,7 @@ class FakeIndevoltDevice:
 
     def __post_init__(self) -> None:
         FakeIndevoltDevice.instances.append(self)
+        self._tuples.append((float("-inf"), self.action, self.rt_power, self.rt_target))
 
     # --- physics ----------------------------------------------------------------
 
@@ -209,6 +215,14 @@ class FakeIndevoltDevice:
     def status(self) -> int:
         return self.status_family + self.effective_action()
 
+    def echo(self) -> tuple[int, int, int]:
+        """(6107, 6108, 6109) as read now: the tuple written echo_lag_s ago."""
+        shown = [t for t in self._tuples if t[0] <= self.clock.now - self.echo_lag_s]
+        if shown[-1] is self._tuples[-1]:
+            return self.status, self.rt_target, self.rt_power
+        _, action, power, target = shown[-1]
+        return self.status_family + action, target, power
+
     def _apply_setting(self, point: int, value: int) -> None:
         if point == 1142:
             self.native_min_soc = value
@@ -233,9 +247,7 @@ class FakeIndevoltDevice:
             "2101": max(ac, 0), "2108": max(-ac, 0),
             "7101": self.energy_mode,
             "6105": self.native_min_soc,
-            "6107": self.status,
-            "6108": self.rt_target,
-            "6109": self.rt_power,
+            **dict(zip(("6107", "6108", "6109"), self.echo())),
             "11009": self._setting(self.charge_setting_w),
             "11011": self._setting(self.discharge_setting_w),
             "11032": self._setting(self.discharge_setting_w),
@@ -282,13 +294,15 @@ class FakeIndevoltDevice:
         endpoint = parts.path.rsplit("/", 1)[-1]
         query = parse_qs(parts.query)
         config = json.loads(unquote(query["config"][0])) if "config" in query else None
-        self.requests.append(Request(self.clock.now, method, endpoint, config))
+        request = Request(self.clock.now, method, endpoint, config)
+        self.requests.append(request)
         self.in_flight += 1
         self.max_in_flight = max(self.max_in_flight, self.in_flight)
         try:
             return await self._handle(method, endpoint, config)
         finally:
             self.in_flight -= 1
+            request.done_at = self.clock.now
 
     async def _handle(self, method: str, endpoint: str, config: Any) -> tuple[int, bytes]:
         if self.timeouts > 0:
@@ -312,6 +326,7 @@ class FakeIndevoltDevice:
                 if action != 0 and self.effective_action() == 0:
                     self._starting_until = self.clock.now + self.start_delay_s
                 self.action, self.rt_power, self.rt_target = action, power, target
+                self._tuples.append((self.clock.now, action, power, target))
                 self.action_state = None
                 self._advance()
             elif config.get("t") in (1142, 1138, 1147) and not self.reject_config:
@@ -364,6 +379,7 @@ class RecordingNotifier:
 
     def __init__(self) -> None:
         self.events: list[tuple] = []
+        self.suggest_slower: list[bool] = []
 
     def paused(self, reason: str, *, model: str | None = None) -> None:
         self.events.append(("paused", reason))
@@ -383,8 +399,9 @@ class RecordingNotifier:
     def setting_ok(self, key: str) -> None:
         self.events.append(("setting_ok", key))
 
-    def throttled(self, interval_s: float) -> None:
+    def throttled(self, interval_s: float, *, suggest_slower: bool = False) -> None:
         self.events.append(("throttled", interval_s))
+        self.suggest_slower.append(suggest_slower)
 
     def throttle_cleared(self) -> None:
         self.events.append(("throttle_cleared",))

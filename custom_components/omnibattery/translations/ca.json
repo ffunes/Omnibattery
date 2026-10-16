@@ -614,6 +614,16 @@
           "port": "Port HTTP de l'API local (per defecte 8080)"
         }
       },
+      "reconfigure_battery_indevolt_request_speed": {
+        "title": "Reconfigura la bateria {battery_num} — Velocitat de sol·licituds (Indevolt)",
+        "description": "Una velocitat més alta fa que la bateria reaccioni abans als canvis del comptador, cosa que pot millorar el balanç net zero. Les opcions:\n\n- **Conservadora** (5s) és la recomanació d'Indevolt i la predeterminada. És adequada per a un comptador que s'actualitza cada 5s, el ritme habitual a Home Assistant: amb un comptador així, una velocitat més alta no fa que la bateria reaccioni abans.\n- **Normal** (3s) és adequada per a un comptador que s'actualitza cada 3s.\n- **Ràpida** (2s) és adequada per a un comptador que s'actualitza cada 2s. Amb un comptador que s'actualitza cada segon és l'opció segura: la bateria rep llavors una ordre nova com a molt cada 2s.\n- **Màxima** (1s) envia una ordre fins a cada segon i ja no espera 1s entre sol·licituds, cosa que queda per sota del mínim documentat per Indevolt. Només ajuda amb un comptador que s'actualitza cada segon; amb un comptador més lent, tria **Ràpida**. Amb **Màxima**, posa també PD Interval Mínim de Cicle a 0 si totes les bateries d'Omnibattery són Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Velocitat de sol·licituds"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Qualsevol velocitat més ràpida que 5s és sota la teva responsabilitat: et correspon comprovar que la bateria, Home Assistant i la xarxa ho poden aguantar. A la pàgina del dispositiu, Interval de sol·licituds (efectiu) ha de continuar coincidint amb la teva elecció, i Latència de lectura (P95) i Latència d'escriptura (P95) s'han de mantenir molt per sota d'1s.\n\nPots provar-ho: si la bateria respon lentament o no respon, el driver d'Indevolt d'Omnibattery torna automàticament a un ritme més tranquil fins que el temps de resposta es recupera."
+        }
+      },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
         "description": "Update connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. All other settings are preserved.",
@@ -700,6 +710,16 @@
           "name": "Nom descriptiu per identificar aquesta bateria",
           "host": "Adreça IP de la bateria Indevolt a la xarxa local",
           "port": "Port HTTP de l'API local (per defecte 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Configura la bateria {battery_num} — Velocitat de sol·licituds (Indevolt)",
+        "description": "Una velocitat més alta fa que la bateria reaccioni abans als canvis del comptador, cosa que pot millorar el balanç net zero. Les opcions:\n\n- **Conservadora** (5s) és la recomanació d'Indevolt i la predeterminada. És adequada per a un comptador que s'actualitza cada 5s, el ritme habitual a Home Assistant: amb un comptador així, una velocitat més alta no fa que la bateria reaccioni abans.\n- **Normal** (3s) és adequada per a un comptador que s'actualitza cada 3s.\n- **Ràpida** (2s) és adequada per a un comptador que s'actualitza cada 2s. Amb un comptador que s'actualitza cada segon és l'opció segura: la bateria rep llavors una ordre nova com a molt cada 2s.\n- **Màxima** (1s) envia una ordre fins a cada segon i ja no espera 1s entre sol·licituds, cosa que queda per sota del mínim documentat per Indevolt. Només ajuda amb un comptador que s'actualitza cada segon; amb un comptador més lent, tria **Ràpida**. Amb **Màxima**, posa també PD Interval Mínim de Cicle a 0 si totes les bateries d'Omnibattery són Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Velocitat de sol·licituds"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Qualsevol velocitat més ràpida que 5s és sota la teva responsabilitat: et correspon comprovar que la bateria, Home Assistant i la xarxa ho poden aguantar. A la pàgina del dispositiu, Interval de sol·licituds (efectiu) ha de continuar coincidint amb la teva elecció, i Latència de lectura (P95) i Latència d'escriptura (P95) s'han de mantenir molt per sota d'1s.\n\nPots provar-ho: si la bateria respon lentament o no respon, el driver d'Indevolt d'Omnibattery torna automàticament a un ritme més tranquil fins que el temps de resposta es recupera."
         }
       },
       "indevolt_mode_notice": {
@@ -1337,6 +1357,16 @@
           "port": "Port HTTP de l'API local (per defecte 8080)"
         }
       },
+      "indevolt_request_speed": {
+        "title": "Configura la bateria {battery_num} — Velocitat de sol·licituds (Indevolt)",
+        "description": "Una velocitat més alta fa que la bateria reaccioni abans als canvis del comptador, cosa que pot millorar el balanç net zero. Les opcions:\n\n- **Conservadora** (5s) és la recomanació d'Indevolt i la predeterminada. És adequada per a un comptador que s'actualitza cada 5s, el ritme habitual a Home Assistant: amb un comptador així, una velocitat més alta no fa que la bateria reaccioni abans.\n- **Normal** (3s) és adequada per a un comptador que s'actualitza cada 3s.\n- **Ràpida** (2s) és adequada per a un comptador que s'actualitza cada 2s. Amb un comptador que s'actualitza cada segon és l'opció segura: la bateria rep llavors una ordre nova com a molt cada 2s.\n- **Màxima** (1s) envia una ordre fins a cada segon i ja no espera 1s entre sol·licituds, cosa que queda per sota del mínim documentat per Indevolt. Només ajuda amb un comptador que s'actualitza cada segon; amb un comptador més lent, tria **Ràpida**. Amb **Màxima**, posa també PD Interval Mínim de Cicle a 0 si totes les bateries d'Omnibattery són Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Velocitat de sol·licituds"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Qualsevol velocitat més ràpida que 5s és sota la teva responsabilitat: et correspon comprovar que la bateria, Home Assistant i la xarxa ho poden aguantar. A la pàgina del dispositiu, Interval de sol·licituds (efectiu) ha de continuar coincidint amb la teva elecció, i Latència de lectura (P95) i Latència d'escriptura (P95) s'han de mantenir molt per sota d'1s.\n\nPots provar-ho: si la bateria respon lentament o no respon, el driver d'Indevolt d'Omnibattery torna automàticament a un ritme més tranquil fins que el temps de resposta es recupera."
+        }
+      },
       "indevolt_mode_notice": {
         "title": "Bateria {battery_num} — Cal el mode Temps real",
         "description": "La bateria no està en mode Temps real. La configuració continua i Omnibattery supervisa la bateria, però només la controla quan tries **Temps real** (Realtime) a l'app d'Indevolt. Llavors el control comença automàticament."
@@ -1412,6 +1442,14 @@
     }
   },
   "selector": {
+    "indevolt_request_speed": {
+      "options": {
+        "maximum": "Màxima: 1s",
+        "fast": "Ràpida: 2s",
+        "normal": "Normal: 3s",
+        "conservative": "Conservadora: 5s (predeterminada, recomanada per Indevolt)"
+      }
+    },
     "hoymiles_model": {
       "options": {
         "auto": "Detecció automàtica (recomanat)",
@@ -1952,7 +1990,16 @@
         "name": "Temperatura del transformador"
       },
       "request_interval": {
-        "name": "Interval de sol·licituds"
+        "name": "Interval de sol·licituds (efectiu)"
+      },
+      "request_speed": {
+        "name": "Velocitat de sol·licituds",
+        "state": {
+          "maximum": "Màxima (1s)",
+          "fast": "Ràpida (2s)",
+          "normal": "Normal (3s)",
+          "conservative": "Conservadora (5s)"
+        }
       },
       "read_latency": {
         "name": "Latència de lectura (P95)"

@@ -76,12 +76,21 @@ _TEXTS = {
         "throttled_title": "Indevolt battery slow: {name}",
         "throttled": (
             "**{name}** answers slowly or not at all, so Omnibattery now waits "
-            "{interval:.0f}s between requests."
+            "{interval:.0f}s between requests. Something else may be polling the battery "
+            "too (another Home Assistant integration, EVCC, Node-RED or a script), or its "
+            "Wi-Fi link may be weak."
         ),
         "official": (
             "\n\nThe official Indevolt integration is also polling this battery. "
             "Omnibattery is meant to replace it: disable the Indevolt integration for "
-            "this device to free the battery's request budget."
+            "this device to free the battery's request budget. Its controls (energy "
+            "mode, discharge limit, feed-in limit) also write to the battery's flash "
+            "memory whenever they are used."
+        ),
+        "slower": (
+            "\n\nIf this keeps happening, set the request speed of **{name}** to "
+            "**Conservative (5s)**: in Settings → Devices & services, choose Reconfigure on "
+            "Omnibattery."
         ),
     },
     "nl": {
@@ -126,12 +135,21 @@ _TEXTS = {
         "throttled_title": "Indevolt-batterij traag: {name}",
         "throttled": (
             "**{name}** reageert traag of niet, dus Omnibattery wacht nu {interval:.0f}s "
-            "tussen verzoeken."
+            "tussen verzoeken. Mogelijk vraagt iets anders de batterij ook uit (een andere "
+            "Home Assistant-integratie, EVCC, Node-RED of een script), of is de "
+            "wifi-verbinding zwak."
         ),
         "official": (
             "\n\nDe officiële Indevolt-integratie vraagt deze batterij ook uit. "
             "Omnibattery is bedoeld als vervanging: schakel de Indevolt-integratie voor "
-            "dit apparaat uit, zodat de batterij haar verzoeken niet hoeft te delen."
+            "dit apparaat uit, zodat de batterij haar verzoeken niet hoeft te delen. De "
+            "bediening van die integratie (werkmodus, ontlaadlimiet, terugleverlimiet) "
+            "schrijft bovendien naar het flashgeheugen van de batterij zodra je die gebruikt."
+        ),
+        "slower": (
+            "\n\nGebeurt dit vaker, zet de verzoeksnelheid van **{name}** dan op "
+            "**Conservatief (5s)**: kies in Instellingen → Apparaten & diensten bij "
+            "Omnibattery voor Opnieuw configureren."
         ),
     },
 }
@@ -225,10 +243,12 @@ class IndevoltNotifier:
     def setting_ok(self, key: str) -> None:
         self._dismiss(f"setting_{key}")
 
-    def throttled(self, interval_s: float) -> None:
+    def throttled(self, interval_s: float, *, suggest_slower: bool = False) -> None:
         message = self._text("throttled", interval=interval_s)
         if self.official_integration_loaded():
             message += self._text("official")
+        if suggest_slower:
+            message += self._text("slower")
         self._create("throttled", self._text("throttled_title"), message)
 
     def throttle_cleared(self) -> None:

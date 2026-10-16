@@ -13,11 +13,12 @@ import pytest
 
 from custom_components.omnibattery.drivers.base import DELIVERED_AC_POWER_KEY
 from custom_components.omnibattery.drivers.indevolt import (
+    HANDOVER_CONFIRM_S,
     ControlState,
     IndevoltDriver,
     firmware_below,
 )
-from custom_components.omnibattery.infra.indevolt_client import SLOT_S
+from custom_components.omnibattery.infra.indevolt_client import REQUEST_SPEED_SLOT_S, SLOT_S, pacing_levels
 from tests.indevolt_fake import (
     FakeIndevoltDevice,
     RecordingNotifier,
@@ -64,6 +65,7 @@ async def test_the_pacing_sensors_show_how_the_device_keeps_up():
     await clock.run(30)
     data = await driver.read_telemetry()
     assert data["request_interval"] == SLOT_S
+    assert data["request_speed"] == "conservative"  # the default
     assert data["read_latency"] == pytest.approx(device.latency_s * 1000, abs=1)
     # The handover's STOP is the first write, so write latency already has a
     # sample. A slower write below shows apart from the reads.
@@ -80,7 +82,17 @@ async def test_the_pacing_sensors_show_how_the_device_keeps_up():
     data = await driver.read_telemetry()
     assert data["request_failures"] == 2
     assert data["request_interval"] > SLOT_S
+    assert data["request_speed"] == "conservative"  # the chosen speed stays; only the interval grows
     await driver.close()
+
+
+def test_the_request_speed_sensor_reports_the_speed_key():
+    from custom_components.omnibattery.drivers.indevolt import SENSOR_DEFINITIONS
+
+    # The state is the speed key; the translations name it (entity.sensor.state).
+    speed = next(d for d in SENSOR_DEFINITIONS if d["key"] == "request_speed")
+    assert speed["data_type"] == "char" and "states" not in speed
+    assert speed["category"] == "diagnostic" and "state_class" not in speed
 
 
 async def test_sign_conventions_live_in_one_place():
@@ -148,6 +160,52 @@ async def test_handover_fails_when_the_device_keeps_running_and_retries_later():
     device.ramp_w_per_s = 1000.0
     assert await clock.run_until(lambda: driver.control_state is ControlState.OWNED, 180)
     assert notifier.count("resumed") == 1
+    await driver.close()
+
+
+def _stop_sent_at(device: FakeIndevoltDevice) -> float:
+    return next(r.at for r in device.set_data_requests if r.config["v"] == [0, 0, 0])
+
+
+@pytest.mark.parametrize("slot_s", sorted(REQUEST_SPEED_SLOT_S.values()))
+async def test_handover_waits_for_a_lagging_echo_at_every_speed(slot_s):
+    # Idle at its reserve, the battery can keep echoing the old discharge for
+    # up to 19 s after a STOP it already obeyed. The handover waits for the
+    # echo at every speed, so a battery that stopped is not reported as failed.
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, soc=15.0, action=2, rt_power=1525, rt_target=15,
+                                echo_lag_s=19.0)
+    notifier = RecordingNotifier()
+    driver = await connected_driver(clock, device, own=False, notifier=notifier, slot_s=slot_s)
+    assert await clock.run_until(lambda: driver.control_state is ControlState.OWNED, 60)
+    assert notifier.count("paused", "handover_failed") == 0
+    assert clock.now - _stop_sent_at(device) >= 19.0  # confirmed by the echo, not early
+    await driver.close()
+
+
+@pytest.mark.parametrize("slot_s", sorted(REQUEST_SPEED_SLOT_S.values()))
+async def test_handover_gives_up_after_the_same_time_at_every_speed(slot_s):
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, ramp_w_per_s=0.0, power_w=-900)  # never ramps down
+    driver = await connected_driver(clock, device, own=False, slot_s=slot_s)
+    assert await clock.run_until(lambda: driver.paused_reason == "handover_failed", 120, step=0.1)
+    waited = clock.now - _stop_sent_at(device)
+    # Judged on the reads: at most two read intervals late.
+    assert HANDOVER_CONFIRM_S <= waited <= HANDOVER_CONFIRM_S + 2 * pacing_levels(slot_s)[0].read_s
+    await driver.close()
+
+
+async def test_a_gap_in_the_reads_does_not_fail_the_handover():
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, soc=15.0, action=2, rt_power=1525, rt_target=15,
+                                echo_lag_s=19.0)
+    notifier = RecordingNotifier()
+    driver = await connected_driver(clock, device, own=False, notifier=notifier,
+                                    slot_s=REQUEST_SPEED_SLOT_S["fast"])
+    assert await clock.run_until(lambda: device.set_data_requests, 30, step=0.1)
+    device.timeouts = 3  # ~15 s of timed-out reads, then a backed-off pace
+    assert await clock.run_until(lambda: driver.control_state is ControlState.OWNED, 120)
+    assert notifier.count("paused", "handover_failed") == 0
     await driver.close()
 
 

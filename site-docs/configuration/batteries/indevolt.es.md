@@ -10,7 +10,7 @@ Omnibattery controla una batería Indevolt a través de la API HTTP local de la 
 
 ## Antes de empezar
 
-- En la app de Indevolt, activa la **API local** con el protocolo **HTTP** (no HTTP Digest) y da a la batería una dirección IP fija.
+- En la app de Indevolt, activa la **API local** con el protocolo **HTTP** (no HTTP Digest) y da a la batería una dirección IP fija. Omnibattery no usa **Modbus TCP**, así que puedes dejarlo desactivado. En las pruebas, la batería respondió a las peticiones Modbus mucho más despacio que a las peticiones HTTP, y la conexión Modbus era menos estable y requería reconexiones frecuentes.
 - En la app de Indevolt, pon el modo de trabajo en **Tiempo real** (Realtime). Omnibattery solo controla la batería en modo Tiempo real y nunca cambia el modo por sí mismo (ver [por qué](#por-que-omnibattery-solo-escribe-ajustes-cuando-los-cambias)).
 - La **reserva** de la batería (SOC de respaldo), la **entrada AC máxima** y la **salida AC máxima** son los mismos ajustes que el SOC mínimo, la potencia máxima de carga y la potencia máxima de descarga de Omnibattery. Omnibattery los mantiene sincronizados, así que puedes cambiarlos en cualquiera de los dos sitios.
 - Desactiva la integración oficial de Indevolt para esta batería.
@@ -19,7 +19,7 @@ Omnibattery controla una batería Indevolt a través de la API HTTP local de la 
 
 1. En el asistente de Omnibattery, elige **Indevolt SolidFlex / PowerFlex**.
 2. Introduce un **Nombre** descriptivo y la **dirección IP** de la batería.
-3. Deja el **Puerto HTTP** en `8080`.
+3. Deja el **Puerto HTTP** en `8080` y la **Velocidad de solicitudes** en **Conservadora (5s)** (consulta [Elegir la velocidad de solicitudes](#elegir-la-velocidad-de-solicitudes)).
 4. Omnibattery lee la identidad, el modo de trabajo y los límites de potencia de la batería. No cambia nada en la batería.
 5. Si la batería no está en modo Tiempo real, un aviso lo indica. La configuración continúa; el control empieza cuando eliges Tiempo real en la app.
 6. Elige los límites comunes de potencia y estado de carga. La primera vez que arranca, Omnibattery adopta la reserva y los límites de potencia de la batería en lugar de escribir los tuyos; después puedes cambiarlos en cualquiera de los dos sitios.
@@ -28,11 +28,31 @@ Omnibattery controla una batería Indevolt a través de la API HTTP local de la 
 
 - **El control empieza solo.** En cuanto la batería está en modo Tiempo real, Omnibattery envía una orden de parada, comprueba que la batería está en reposo y toma el control. Lo mismo ocurre tras cada reinicio de Home Assistant.
 - **Control Status** muestra qué hace el driver: `active`, `starting`, `realtime_mode_required`, `handover_failed`, `telemetry_stale` o `unknown_model`.
-- **Request Interval**, **Read Latency (P95)**, **Write Latency (P95)** y **Request Failures** (diagnóstico) muestran cómo responde la batería. El intervalo es normalmente de 5s y aumenta cuando Omnibattery da más tiempo a una batería lenta; cada latencia es el 5% más lento de las últimas 200 lecturas o escrituras (las lecturas suelen tardar decenas de milisegundos, las escrituras unos cientos); los fallos cuentan los tiempos de espera agotados y los errores desde que se inició Home Assistant.
+- **Request Interval (Effective)**, **Read Latency (P95)**, **Write Latency (P95)** y **Request Failures** (diagnóstico) muestran cómo responde la batería. **Request Speed** (diagnóstico) muestra la velocidad de solicitudes elegida. El intervalo normalmente coincide con ella y aumenta cuando Omnibattery da más tiempo a una batería lenta; cada latencia es el 5% más lento (P95, es decir, el 95% de las respuestas son más rápidas) de las últimas 200 lecturas o escrituras, y muestra lo rápido que la batería responde a las peticiones de Omnibattery, no lo rápido que cambia su potencia, que tarda unos segundos (las lecturas suelen tardar decenas de milisegundos, las escrituras unos cientos); los fallos cuentan los tiempos de espera agotados y los errores desde que se inició Home Assistant.
 - **Cambiar de modo en la app es seguro.** Si eliges otro modo de trabajo, Omnibattery se pausa, muestra una notificación y deja la batería en paz. Vuelve a Tiempo real y retoma el control automáticamente.
-- **Tiempo de respuesta.** Omnibattery envía como mucho una petición cada 5s, como recomienda Indevolt. Una nueva consigna sale en el siguiente hueco y la batería la sigue en pocos segundos.
+- **Tiempo de respuesta.** Omnibattery lee la batería una vez por intervalo de la velocidad de solicitudes (5s por defecto, 2s en Máxima). Una nueva consigna sale en cuanto han pasado 2s desde la petición anterior (1s en Normal y Rápida; en Máxima 0.2s después de la respuesta anterior, como mucho una consigna por segundo), y la batería la sigue en pocos segundos.
 - **Ajustes:** **Discharge Cutoff** (la reserva de la batería, que es el SOC mínimo de Omnibattery), **Max Charge Power** y **Max Discharge Power**. Un cambio aquí se escribe en la batería; un cambio en la app de Indevolt aparece aquí en pocos minutos. Los controles de potencia llegan hasta el máximo de hardware de la batería. **Charge Cutoff** (SOC máximo) no tiene ajuste en la batería y lo aplica solo Omnibattery.
 - **Sensores:** estado de carga, potencia de batería, potencia AC, contadores de energía, modo de trabajo y versión de firmware. Temperaturas: **Inverter Battery Temperature** para la batería integrada en la unidad del inversor y **Expansion Battery N Temperature** para cada batería de expansión presente; **Internal Temperature**, que el límite de carga por temperatura opcional de Omnibattery usa para reducir la carga cuando la batería está caliente, es la más alta de ellas. Hay un sensor de temperatura del transformador, desactivado por defecto.
+
+## Elegir la velocidad de solicitudes
+
+La **Velocidad de solicitudes** fija con qué frecuencia Omnibattery habla con la batería. La eliges por batería al añadirla y puedes cambiarla después con **Reconfigurar** en Omnibattery, en **Ajustes → Dispositivos y servicios**.
+
+| Velocidad | Intervalo | Cuándo usarla |
+|---|---|---|
+| Máxima | 1s | Por debajo del mínimo documentado por Indevolt, bajo tu responsabilidad. Solo sirve con un contador de red que se actualiza cada segundo: puede salir una consigna cada segundo, y una lectura sigue a una respuesta a los 0.2s en lugar de esperar 1s. Las lecturas siguen cada 2s; como mucho 1.5 peticiones por segundo. Pon también **PD Min Cycle Interval** a 0 (consulta el consejo más abajo). |
+| Rápida | 2s | Una conexión fuerte y estable, y quieres la reacción más rápida. Envía un 50% más de peticiones que Normal. |
+| Normal | 3s | Un contador de red que se actualiza cada 3s: reacciona antes que Conservadora con poca carga adicional. |
+| Conservadora (por defecto) | 5s | Recomendada por Indevolt, y suficiente para un contador de red que se actualiza cada 5s, el ritmo habitual en Home Assistant. También es la opción con Wi-Fi débil, si otras apps también consultan la batería o si Omnibattery avisa de que la batería va lenta. |
+
+Todo lo que sea más rápido que los 5s de Indevolt va bajo tu responsabilidad, y te corresponde comprobar que tu batería, Home Assistant y tu red pueden dar abasto. En la página del dispositivo de la batería, **Request Interval (Effective)** debe seguir coincidiendo con tu elección, y **Read Latency (P95)** y **Write Latency (P95)** deben quedarse muy por debajo de 1s (las lecturas suelen tardar decenas de milisegundos, las escrituras unos cientos). Si el intervalo sigue por encima de tu elección o aparece una notificación de batería lenta, elige una velocidad más lenta. Puedes probar una velocidad mayor: si la batería responde despacio o no responde, el driver de Indevolt de Omnibattery vuelve automáticamente a un ritmo más tranquilo hasta que el tiempo de respuesta se recupera.
+
+Una velocidad mayor hace llegar antes cada nueva consigna a la batería, así que reacciona antes a los cambios del contador, lo que puede mejorar el balance neto cero. No hace que la propia batería suba o baje su potencia más rápido, y la batería solo actualiza su potencia AC cada 6s aproximadamente. Una velocidad más rápida que tu contador de red no gana nada: con un contador que se actualiza cada 2s, elige Rápida en lugar de Máxima. Salvo en Máxima, Omnibattery nunca envía dos peticiones con menos de 1s de separación, el mínimo que documenta Indevolt (2s en Conservadora). En Máxima espera 0.2s después de cada respuesta, siempre con una sola petición cada vez, y vuelve a Rápida con la separación de 1s cuando la batería responde despacio. Elijas lo que elijas, reduce el ritmo por sí mismo cuando la batería responde despacio o no responde.
+
+!!! tip "¿Solo baterías Indevolt? Pon PD Min Cycle Interval a 0"
+    El **PD Min Cycle Interval** de Omnibattery (1.0s por defecto) descarta una actualización del contador que llega demasiado pronto tras la ejecución de control anterior, para que un contador rápido no sature de órdenes un puente Modbus lento, como un Elfin EW11. El driver de Indevolt ya marca su propio ritmo de peticiones y solo envía la consigna más reciente, así que para una Indevolt este intervalo no protege nada. Solo añade retraso: una actualización descartada espera a la siguiente ejecución de control, hasta 2s más tarde.
+
+    Si todas las baterías de Omnibattery son Indevolt, ponlo a `0`: abre el panel lateral de Omnibattery, selecciona **Control** y, en **Controlador PD (avanzado)**, pon **Intervalo mín. de ciclo** a 0. Se aplica al momento. La batería no recibe más peticiones, porque la velocidad de solicitudes sigue marcando el ritmo. Mantén el valor por defecto si Omnibattery también controla una batería detrás de un puente Modbus lento. Los demás ajustes PD se explican en [seguir el consumo de casa](../../features/pd-controller.md).
 
 ## Por qué Omnibattery solo escribe ajustes cuando los cambias
 
@@ -58,14 +78,16 @@ Omnibattery aplica su propio SOC mínimo y máximo por software. Cada orden llev
 | El asistente no conecta | La API local está desactivada, o la dirección o el puerto no son correctos | Activa la API local en la app de Indevolt y revisa la dirección IP y el puerto `8080` |
 | El asistente dice que la batería pide una contraseña | La API local está en HTTP Digest | Elige **HTTP** para la API local en la app de Indevolt |
 | Control Status es `realtime_mode_required` | La batería está en otro modo de trabajo | Elige **Tiempo real** en la app de Indevolt; el control se reanuda solo |
-| Una notificación dice que la batería va lenta, o Request Interval supera 5s | Otro cliente también la consulta, o la señal Wi-Fi es débil | Desactiva la integración oficial de Indevolt para esta batería y revisa la señal |
+| Una notificación dice que la batería va lenta, o Request Interval (Effective) se mantiene por encima de la velocidad elegida | Otro cliente también la consulta, o la señal Wi-Fi es débil | Desactiva la integración oficial de Indevolt para esta batería, revisa la señal o elige la velocidad de solicitudes **Conservadora (5s)** |
 | Una notificación dice que un ajuste no se aplicó | La batería no aceptó el valor | La batería conserva su valor; inténtalo más tarde o cámbialo en la app de Indevolt |
 | Una notificación dice que un ajuste se cambió demasiadas veces | Más de 10 cambios de un ajuste en 24h, a menudo por una automatización | Espera un día y revisa las automatizaciones que fijan estos valores |
 | Control Status es `unknown_model` | La batería indica un tipo de dispositivo que Omnibattery aún no conoce | Abre un issue en GitHub con el tipo de dispositivo de la notificación |
 | Control Status es `handover_failed` | La batería no confirmó el reposo tras la orden de parada | Revisa la batería en la app de Indevolt; Omnibattery lo reintenta solo |
 
 ??? "Detalles avanzados"
-    Todas las peticiones a una batería comparten un único presupuesto: una petición cada vez, con al menos 5s entre el inicio de una y el de la siguiente. El sondeo propio de Omnibattery solo lee una caché, así que nunca añade peticiones. Una orden pendiente ocupa el siguiente hueco. Si la batería responde despacio o no responde, el intervalo crece hasta 20s y vuelve a 5s cuando las respuestas son normales; un solo tiempo de espera agotado no pausa el control.
+    Todas las peticiones a una batería comparten un único presupuesto: una petición cada vez, con al menos 1s entre el inicio de una y el de la siguiente (2s en Conservadora y mientras va más despacio, a 5s o 10s). Máxima cuenta desde la respuesta anterior: al menos 0.2s después, con órdenes separadas al menos 1s y lecturas cada 2s. Las lecturas llegan una vez por intervalo de la velocidad de solicitudes. Una orden pendiente va antes que una lectura pendiente, al menos esa separación después de la petición anterior y al menos un intervalo después de la orden anterior. El sondeo propio de Omnibattery solo lee una caché, así que nunca añade peticiones.
+
+    Cuando la batería tiene problemas, el intervalo recorre una escala fija: 2s, 3s, 5s, 10s (desde Máxima, el primer escalón es Rápida con la separación de 1s). Dos respuestas malas en 30s (un tiempo de espera agotado, un error, una lectura de más de 1s o una escritura de más de 2s) lo suben un escalón, como mucho un escalón cada 10s; una sola respuesta mala se trata como un fallo puntual. Tras 30s sin respuestas malas baja un escalón, nunca por debajo de la velocidad elegida. 10s es el último escalón: más lento solo haría que el control trabajara con datos más antiguos durante más tiempo. Un solo tiempo de espera agotado no pausa el control.
 
     La telemetría se lee por lotes: potencia, potencia AC, modo de trabajo y SOC en cada hueco, el estado en tiempo real cada unos 30s, los límites cada pocos minutos y los contadores de energía cada minuto. Si la batería devuelve alguna vez un lote incompleto, Omnibattery lee lotes más pequeños hasta que las respuestas vuelvan a estar completas.
 

@@ -614,6 +614,16 @@
           "port": "Port HTTP de l'API locale (8080 par défaut)"
         }
       },
+      "reconfigure_battery_indevolt_request_speed": {
+        "title": "Reconfigurer la batterie {battery_num} — Vitesse des requêtes (Indevolt)",
+        "description": "Une vitesse plus élevée permet à votre batterie de réagir plus tôt aux variations du compteur, ce qui peut améliorer le zéro injection. Les options :\n\n- **Prudent** (5s) est la recommandation d'Indevolt et le choix par défaut. Il convient à un compteur mis à jour toutes les 5s, le rythme habituel dans Home Assistant : avec un tel compteur, une vitesse plus élevée ne fait pas réagir la batterie plus tôt.\n- **Normal** (3s) convient à un compteur mis à jour toutes les 3s.\n- **Rapide** (2s) convient à un compteur mis à jour toutes les 2s. Avec un compteur mis à jour chaque seconde, c'est le choix sûr : la batterie reçoit alors une nouvelle commande au plus toutes les 2s.\n- **Maximum** (1s) envoie une commande jusqu'à chaque seconde et n'attend plus 1s entre les requêtes, ce qui est sous le minimum documenté par Indevolt. Il n'aide qu'avec un compteur mis à jour chaque seconde ; avec un compteur plus lent, choisissez **Rapide**. Avec **Maximum**, réglez aussi PD Intervalle Min. de Cycle sur 0 si toutes les batteries d'Omnibattery sont des Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Vitesse des requêtes"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Toute vitesse plus rapide que 5s est à vos risques : c'est à vous de vérifier que votre batterie, Home Assistant et votre réseau peuvent suivre. Sur la page de l'appareil, Intervalle des requêtes (effectif) doit continuer à correspondre à votre choix, et Latence de lecture (P95) et Latence d'écriture (P95) doivent rester bien en dessous de 1s.\n\nVous pouvez essayer : si la batterie répond lentement ou plus du tout, le pilote Indevolt d'Omnibattery revient automatiquement à un rythme plus calme, jusqu'à ce que le temps de réponse soit rétabli."
+        }
+      },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
         "description": "Update connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. All other settings are preserved.",
@@ -700,6 +710,16 @@
           "name": "Nom descriptif pour identifier cette batterie",
           "host": "Adresse IP de la batterie Indevolt sur votre réseau local",
           "port": "Port HTTP de l'API locale (8080 par défaut)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Configurer la batterie {battery_num} — Vitesse des requêtes (Indevolt)",
+        "description": "Une vitesse plus élevée permet à votre batterie de réagir plus tôt aux variations du compteur, ce qui peut améliorer le zéro injection. Les options :\n\n- **Prudent** (5s) est la recommandation d'Indevolt et le choix par défaut. Il convient à un compteur mis à jour toutes les 5s, le rythme habituel dans Home Assistant : avec un tel compteur, une vitesse plus élevée ne fait pas réagir la batterie plus tôt.\n- **Normal** (3s) convient à un compteur mis à jour toutes les 3s.\n- **Rapide** (2s) convient à un compteur mis à jour toutes les 2s. Avec un compteur mis à jour chaque seconde, c'est le choix sûr : la batterie reçoit alors une nouvelle commande au plus toutes les 2s.\n- **Maximum** (1s) envoie une commande jusqu'à chaque seconde et n'attend plus 1s entre les requêtes, ce qui est sous le minimum documenté par Indevolt. Il n'aide qu'avec un compteur mis à jour chaque seconde ; avec un compteur plus lent, choisissez **Rapide**. Avec **Maximum**, réglez aussi PD Intervalle Min. de Cycle sur 0 si toutes les batteries d'Omnibattery sont des Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Vitesse des requêtes"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Toute vitesse plus rapide que 5s est à vos risques : c'est à vous de vérifier que votre batterie, Home Assistant et votre réseau peuvent suivre. Sur la page de l'appareil, Intervalle des requêtes (effectif) doit continuer à correspondre à votre choix, et Latence de lecture (P95) et Latence d'écriture (P95) doivent rester bien en dessous de 1s.\n\nVous pouvez essayer : si la batterie répond lentement ou plus du tout, le pilote Indevolt d'Omnibattery revient automatiquement à un rythme plus calme, jusqu'à ce que le temps de réponse soit rétabli."
         }
       },
       "indevolt_mode_notice": {
@@ -1337,6 +1357,16 @@
           "port": "Port HTTP de l'API locale (8080 par défaut)"
         }
       },
+      "indevolt_request_speed": {
+        "title": "Configurer la batterie {battery_num} — Vitesse des requêtes (Indevolt)",
+        "description": "Une vitesse plus élevée permet à votre batterie de réagir plus tôt aux variations du compteur, ce qui peut améliorer le zéro injection. Les options :\n\n- **Prudent** (5s) est la recommandation d'Indevolt et le choix par défaut. Il convient à un compteur mis à jour toutes les 5s, le rythme habituel dans Home Assistant : avec un tel compteur, une vitesse plus élevée ne fait pas réagir la batterie plus tôt.\n- **Normal** (3s) convient à un compteur mis à jour toutes les 3s.\n- **Rapide** (2s) convient à un compteur mis à jour toutes les 2s. Avec un compteur mis à jour chaque seconde, c'est le choix sûr : la batterie reçoit alors une nouvelle commande au plus toutes les 2s.\n- **Maximum** (1s) envoie une commande jusqu'à chaque seconde et n'attend plus 1s entre les requêtes, ce qui est sous le minimum documenté par Indevolt. Il n'aide qu'avec un compteur mis à jour chaque seconde ; avec un compteur plus lent, choisissez **Rapide**. Avec **Maximum**, réglez aussi PD Intervalle Min. de Cycle sur 0 si toutes les batteries d'Omnibattery sont des Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Vitesse des requêtes"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Toute vitesse plus rapide que 5s est à vos risques : c'est à vous de vérifier que votre batterie, Home Assistant et votre réseau peuvent suivre. Sur la page de l'appareil, Intervalle des requêtes (effectif) doit continuer à correspondre à votre choix, et Latence de lecture (P95) et Latence d'écriture (P95) doivent rester bien en dessous de 1s.\n\nVous pouvez essayer : si la batterie répond lentement ou plus du tout, le pilote Indevolt d'Omnibattery revient automatiquement à un rythme plus calme, jusqu'à ce que le temps de réponse soit rétabli."
+        }
+      },
       "indevolt_mode_notice": {
         "title": "Batterie {battery_num} — Mode Temps réel requis",
         "description": "La batterie n'est pas en mode Temps réel. La configuration continue et Omnibattery surveille la batterie, mais ne la pilote qu'une fois **Temps réel** (Realtime) choisi dans l'application Indevolt. Le pilotage démarre alors automatiquement."
@@ -1412,6 +1442,14 @@
     }
   },
   "selector": {
+    "indevolt_request_speed": {
+      "options": {
+        "maximum": "Maximum : 1s",
+        "fast": "Rapide : 2s",
+        "normal": "Normal : 3s",
+        "conservative": "Prudent : 5s (par défaut, recommandé par Indevolt)"
+      }
+    },
     "hoymiles_model": {
       "options": {
         "auto": "Détection automatique (recommandé)",
@@ -1952,7 +1990,16 @@
         "name": "Température du transformateur"
       },
       "request_interval": {
-        "name": "Intervalle des requêtes"
+        "name": "Intervalle des requêtes (effectif)"
+      },
+      "request_speed": {
+        "name": "Vitesse des requêtes",
+        "state": {
+          "maximum": "Maximum (1s)",
+          "fast": "Rapide (2s)",
+          "normal": "Normal (3s)",
+          "conservative": "Prudent (5s)"
+        }
       },
       "read_latency": {
         "name": "Latence de lecture (P95)"

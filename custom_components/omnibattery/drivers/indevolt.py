@@ -50,6 +50,7 @@ from ..infra.indevolt_client import (
     DEFAULT_PORT,
     MAX_REALTIME_POWER_W,
     MIN_TARGET_SOC,
+    REQUEST_SPEED_SLOT_S,
     REQUEST_TIMEOUT_S,
     SLOT_S,
     STOP_TUPLE,
@@ -60,6 +61,8 @@ from ..infra.indevolt_client import (
     IndevoltScheduler,
     Tier,
     Transport,
+    normal_slot,
+    pacing_levels,
 )
 from .indevolt_settings import BY_KEY as SETTING_BY_KEY
 from .indevolt_settings import MAX_CHARGE, MAX_DISCHARGE, MIN_SOC, SETTINGS, IndevoltSettings
@@ -123,7 +126,13 @@ ECHO_INTERVAL_IDLE_S = 60.0
 # --- control policy ---------------------------------------------------------------
 TARGET_STEP_PCT = 5  # target SOC = current SOC ± this
 REFRESH_MARGIN_PCT = 2  # refresh the target when SOC is this close to it
-HANDOVER_MAX_READS = 6
+# The realtime echo (6107–6109) trails an accepted STOP by 9–19s, so the
+# handover waits this long, not a number of reads: at the 2s slot six reads
+# take only 11s, too short for a battery that obeys. At least this many echo
+# reads must have come in before it gives up, so a gap in the reads alone
+# cannot fail it.
+HANDOVER_CONFIRM_S = 30.0
+HANDOVER_MIN_READS = 2
 HANDOVER_RETRY_S = (60.0, 120.0, 300.0, 600.0)
 IDLE_TOLERANCE_W = 100
 RAMP_S = 2.0
@@ -259,8 +268,12 @@ SENSOR_DEFINITIONS = [
     # scheduler backs off, the latencies are the 95th percentile of the last
     # 200 reads and of the last 200 writes (kept apart: reads take tens of ms,
     # writes hundreds), and failures count timeouts and errors since start.
-    _definition("request_interval", "Request Interval", unit="s", device_class="duration",
+    _definition("request_interval", "Request Interval (Effective)", unit="s", device_class="duration",
                 scan="medium", diagnostic=True, icon="mdi:timer-sand"),
+    # The request speed chosen in the connection step, next to the interval it
+    # actually gets, so the choice shows on the device page. The state is the
+    # speed key; its label comes from the translations (entity.sensor.state).
+    _text("request_speed", "Request Speed", icon="mdi:speedometer", scan="medium"),
     _definition("read_latency", "Read Latency (P95)", unit="ms", device_class="duration",
                 scan="medium", diagnostic=True, icon="mdi:timer-outline"),
     _definition("write_latency", "Write Latency (P95)", unit="ms", device_class="duration",
@@ -280,9 +293,12 @@ SENSOR_DEFINITIONS = [
 ]
 
 _HIGH_KEYS = ("battery_power", "ac_power", DELIVERED_AC_POWER_KEY)
+# The request speed a slot belongs to, for the Request Speed sensor.
+_SPEED_FOR_SLOT = {slot: speed for speed, slot in REQUEST_SPEED_SLOT_S.items()}
 _SETTING_KEYS = tuple(s.key for s in SETTINGS)
 _MEDIUM_KEYS = ("battery_soc", "energy_mode", "inverter_state", "control_status",
-                "request_interval", "read_latency", "write_latency", "request_failures",
+                "request_interval", "request_speed", "read_latency", "write_latency",
+                "request_failures",
                 *_SETTING_KEYS)
 # One temperature sensor per expansion battery that is present (see PACKS).
 PACK_TEMPERATURE_DEFINITIONS = [
@@ -306,7 +322,7 @@ class Notifier(Protocol):
     def setting_failed(self, key: str, value: int) -> None: ...
     def setting_budget_exhausted(self, key: str, budget: int) -> None: ...
     def setting_ok(self, key: str) -> None: ...
-    def throttled(self, interval_s: float) -> None: ...
+    def throttled(self, interval_s: float, *, suggest_slower: bool = False) -> None: ...
     def throttle_cleared(self) -> None: ...
 
 
@@ -345,6 +361,7 @@ class IndevoltDriver(BatteryDriver):
         self._shutting_down = False
         self._config: dict[str, Any] = {}
         self._model: _Model | None = None
+        pace = pacing_levels(normal_slot(slot_s))[0]
         self._capabilities = DriverCapabilities(
             hardware_soc_cutoff=False,
             has_force_mode=False,
@@ -356,10 +373,10 @@ class IndevoltDriver(BatteryDriver):
             has_rs485_control=False,
             has_solar_telemetry=True,
             setpoint_confirm_reliable=False,
-            # A write waits at most one slot, then the battery ramps; the effect
-            # shows up in the read slot after that.
-            actuator_latency_s=slot_s + RAMP_S,
-            readback_latency_s=2 * slot_s + RAMP_S,
+            # A write waits at most one write interval, then the battery ramps;
+            # the effect shows up in the read after that.
+            actuator_latency_s=pace.write_s + RAMP_S,
+            readback_latency_s=pace.write_s + pace.read_s + RAMP_S,
             telemetry_liveness_checked=True,
             discharge_cutoff_range=(float(MIN_TARGET_SOC), 50.0),
         )
@@ -536,7 +553,8 @@ class IndevoltDriver(BatteryDriver):
         )
         self._scheduler.set_tier_interval("echo", ECHO_INTERVAL_IDLE_S)
         self._scheduler.start()
-        first = await self._scheduler.wait_first_read(2 * self._client.slot_s + REQUEST_TIMEOUT_S + 1)
+        first = await self._scheduler.wait_first_read(
+            2 * self._scheduler.read_interval_s + REQUEST_TIMEOUT_S + 1)
         self._connected = first
         return first
 
@@ -650,6 +668,7 @@ class IndevoltDriver(BatteryDriver):
             out["control_status"] = self.control_status
         stats = self._scheduler.stats()
         out["request_interval"] = stats["interval_s"]
+        out["request_speed"] = _SPEED_FOR_SLOT.get(self._client.slot_s)
         for key, stat in (("read_latency", "read_latency_p95_ms"),
                           ("write_latency", "write_latency_p95_ms")):
             if stats[stat] is not None:
@@ -972,9 +991,11 @@ class IndevoltDriver(BatteryDriver):
         quiet = (battery is not None and abs(battery) <= IDLE_TOLERANCE_W) or (
             None not in delivered and abs(delivered[0] - delivered[1]) <= IDLE_TOLERANCE_W  # type: ignore[operator]
         )
+        waited = self._clock() - self._stop_accepted_at
         if echo is not None and echo[0] == ACTION_STOP and quiet:
             assert self._scheduler is not None
-            _LOGGER.info("[%s] Indevolt confirmed standby; control active", self._name)
+            _LOGGER.info("[%s] Indevolt confirmed standby %.0fs after STOP; control active",
+                         self._name, waited)
             self._state, self._reason = ControlState.OWNED, None
             self._handover_failures = 0
             self._command, self._command_net = STOP_TUPLE, 0
@@ -982,9 +1003,9 @@ class IndevoltDriver(BatteryDriver):
             self._scheduler.set_tier_interval("echo", ECHO_INTERVAL_OWNED_S)
             if self._notifier is not None:
                 self._notifier.resumed()
-        elif self._handover_reads >= HANDOVER_MAX_READS:
-            _LOGGER.warning("[%s] Indevolt did not confirm standby after STOP (echo %s)",
-                            self._name, echo)
+        elif waited >= HANDOVER_CONFIRM_S and self._handover_reads >= HANDOVER_MIN_READS:
+            _LOGGER.warning("[%s] Indevolt did not confirm standby %.0fs after STOP (echo %s)",
+                            self._name, waited, echo)
             self._handover_failed()
 
     def _maintain_command(self, updated: frozenset[int]) -> None:
@@ -1035,8 +1056,13 @@ class IndevoltDriver(BatteryDriver):
         )
         if throttled and not self._throttle_notified:
             self._throttle_notified = True
-            self._notifier.throttled(self._scheduler.interval_s)
-        elif not throttled and self._scheduler.backoff_factor == 1 and self._throttle_notified:
+            # Faster than Conservative the user chose the extra speed, so the text
+            # names the slower setting as the lasting fix.
+            self._notifier.throttled(
+                self._scheduler.interval_s,
+                suggest_slower=self._slot_s < REQUEST_SPEED_SLOT_S["conservative"],
+            )
+        elif not throttled and self._scheduler.backoff_level == 0 and self._throttle_notified:
             self._throttle_notified = False
             self._notifier.throttle_cleared()
 

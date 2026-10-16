@@ -27,6 +27,7 @@ from ..drivers.anker import AnkerModbusDriver
 from ..drivers.sessy import SessyLocalDriver
 from ..drivers.indevolt import IndevoltDriver
 from ..drivers.indevolt_settings import stored_battery_value
+from .indevolt_client import slot_for_request_speed
 from .indevolt_notify import IndevoltNotifier
 from ..drivers.hoymiles import HoymilesMqttDriver
 from ..drivers.huawei import HuaweiSolarDriver
@@ -332,6 +333,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  hoymiles_model: str | None = None,
                  serial_port: str | None = None,
                  rs485_gateway: bool = False,
+                 indevolt_request_speed: str | None = None,
                  esphome_device_id: str | None = None,
                  huawei_battery_device_id: str | None = None,
                  huawei_direct_write: bool = False,
@@ -370,6 +372,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # Marstek reached through an RS485 gateway instead of its own Modbus
         # TCP server: drops the inter-message wait (issue #411).
         self.rs485_gateway = bool(rs485_gateway)
+        # Indevolt request speed (infra/indevolt_client.REQUEST_SPEED_SLOT_S); None or an
+        # unknown value gets the driver's default slot.
+        self.indevolt_request_speed = indevolt_request_speed
         self.consumption_sensor = consumption_sensor
         self.brand = brand
         self.ems_version = ems_version
@@ -555,6 +560,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 # device in this battery's config.
                 persist=self.persist_battery_config,
                 stored=lambda key: stored_battery_value(self, key),
+                slot_s=slot_for_request_speed(self.indevolt_request_speed),
                 name=name,
             )
         elif self.brand == "huawei":

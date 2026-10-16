@@ -5,22 +5,40 @@ Two layers live here:
 * :class:`IndevoltClient` sends one RPC at a time to one device. Every request,
   whoever makes it (driver, config-flow probe, a reloaded entry), passes the same
   per-device gate: at most one request in flight, and request starts never closer
-  than :data:`MIN_SLOT_S`, measured start to start. A request that names no
-  spacing (probe, config channel) waits a full slot. The flash guard lives here
-  too (see the FLASH WEAR block).
+  than :data:`MIN_SPACING_S`, measured start to start. Only the Maximum speed's
+  scheduler measures its gap from the previous reply instead, and never less
+  than :data:`MIN_REPLY_GAP_S`. A request that names no spacing (probe, config
+  channel) waits a full slot. The flash guard lives here too (see the FLASH
+  WEAR block).
 * :class:`IndevoltScheduler` owns all routine traffic for one driver. It reads
-  the control tier, plus whichever slower tier is most overdue, once per slot.
-  A queued realtime write does not wait for the next read slot: it goes out as
-  soon as the hard floor allows (write on demand), but two writes are always at
-  least a slot apart, and after MAX_CONSECUTIVE_WRITES writes a read comes first.
-  Replies land in a timestamped cache that the driver serves to the coordinator,
-  so however often Omnibattery polls, the device sees one read per slot and at
-  most one write per slot.
+  the control tier, plus whichever slower tier is most overdue, once per read
+  interval. A queued realtime write does not wait for the next read: it goes
+  out as soon as the floor of the current pacing level allows (write on
+  demand), but two writes are always at least a write interval apart, and
+  after MAX_CONSECUTIVE_WRITES writes a read comes first. Replies land in a
+  timestamped cache that the driver serves to the coordinator, so however often
+  Omnibattery polls, the device sees one read per read interval and at most one
+  write per write interval. When the device struggles, the scheduler steps up a
+  ladder of slower pacing levels and back down once it has recovered (see
+  PACING_LADDER).
 
-Pacing follows the vendor's guidance (≥5s between requests) and
-measurements on a CMS-SF2000 (batches of up to 38 points and spacing down to 2s
-were clean). Batched reads contradict one vendor reply, so an incomplete batch
-reply makes the scheduler fall back to smaller batches on its own.
+Pacing follows the vendor's documentation (at least 1s between requests,
+5s recommended) and measurements on a CMS-SF2000 (batches of up to 38 points
+and spacing down to 2s were clean; 2s pacing with a 1s floor ran 16 hours
+without trouble). The Maximum speed is the one exception, chosen by the user
+at their own risk: reads take tens of milliseconds, so it lets a read follow a
+write's reply (and a write a read's reply) after a short gap instead of a full
+second.
+Batched reads contradict one vendor reply, so an incomplete batch reply makes
+the scheduler fall back to smaller batches on its own.
+
+Why HTTP and not Modbus TCP, which the battery also offers (port 8899): a
+Modbus read takes about half a second and returns one register, while one
+HTTP request returns the whole telemetry batch in tens of milliseconds, and
+the device drops the Modbus connection every ten or so requests. Modbus
+reports the battery's power a few seconds fresher, but control follows the
+grid meter, not the battery's own reading, so that does not improve net-zero
+tracking. The official Home Assistant integration uses HTTP as well.
 """
 
 from __future__ import annotations
@@ -46,19 +64,67 @@ _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_PORT = 8080
 
-# Request pacing. SLOT_S is the profile constant (5s first; a 3s experiment
-# follows the acceptance test): the read interval, and the minimum spacing
-# between two writes. MIN_SLOT_S is the hard floor between any two requests,
-# which no constructor argument, backoff state or caller can undercut.
-SLOT_S = 3.0  # one read per slot; writes go out on demand in between
-MIN_SLOT_S = 2.0
+
+@dataclass(frozen=True)
+class PacingLevel:
+    """How often the scheduler talks to the device at one rung of the ladder.
+
+    ``read_s`` is the read interval, ``write_s`` the minimum spacing between two
+    writes, and ``floor_s`` the minimum spacing between any two requests:
+    measured from the previous start, or from the previous reply when
+    ``from_reply`` is set (the Maximum speed only).
+    """
+
+    read_s: float
+    write_s: float
+    floor_s: float
+    from_reply: bool = False
+
+
+# Request pacing. The user picks the starting level per battery as a request
+# speed. The 1s floor is Indevolt's documented minimum; Conservative keeps 2s,
+# as it follows Indevolt's 5s recommendation. 10s is the last resort of the
+# backoff: slower only makes control steer on older data for longer.
+PACING_LADDER: tuple[PacingLevel, ...] = (
+    PacingLevel(2.0, 2.0, 1.0),
+    PacingLevel(3.0, 3.0, 1.0),
+    PacingLevel(5.0, 5.0, 2.0),
+    PacingLevel(10.0, 10.0, 2.0),
+)
+# The hard floor between any two request starts, which no speed, constructor
+# argument, backoff state or caller can undercut. The Maximum level's floor
+# runs from the previous reply instead and is never shorter than
+# MIN_REPLY_GAP_S.
+MIN_SPACING_S = 1.0
+MIN_REPLY_GAP_S = 0.2
+# Maximum, below Indevolt's documented minimum and only at the user's own
+# risk: a write may go every second, and since reads take tens of milliseconds
+# a read may follow a write's reply (and a write a read's reply) after a short
+# gap instead of a full second. Reads stay at 2s, as at Fast. Its first step
+# back is Fast, with the 1s floor.
+MAXIMUM_LEVEL = PacingLevel(2.0, 1.0, MIN_REPLY_GAP_S, from_reply=True)
+# The slot of a speed is its write interval and, for every speed but Maximum,
+# also its read interval. The speed names describe the pace, not the default:
+# the default can move to another speed later without renaming what users
+# have stored.
+REQUEST_SPEED_SLOT_S = {"maximum": 1.0, "fast": 2.0, "normal": 3.0, "conservative": 5.0}
+DEFAULT_REQUEST_SPEED = "conservative"
+SLOT_S = REQUEST_SPEED_SLOT_S[DEFAULT_REQUEST_SPEED]
+# The fastest slot; anything faster is raised to it.
+MIN_SLOT_S = MAXIMUM_LEVEL.write_s
 REQUEST_TIMEOUT_S = 5.0
-# Adaptive backoff: the interval doubles after a timeout, an error or a reply
-# slower than LATENCY_SPIKE_S, up to MAX_BACKOFF_FACTOR, and halves again after
-# HEALTHY_STREAK good requests in a row.
-LATENCY_SPIKE_S = 2.5
-MAX_BACKOFF_FACTOR = 4
-HEALTHY_STREAK = 10
+# Backoff. A bad reply is a timeout, an error, a read slower than READ_SLOW_S or
+# a write slower than WRITE_SLOW_S (reads normally take tens of milliseconds,
+# writes a few hundred). TROUBLE_REPLIES bad replies within TROUBLE_WINDOW_S
+# move one level up the ladder, at most once per STEP_UP_SPACING_S; a single
+# bad reply is jitter. After CLEAN_PERIOD_S without a bad reply the scheduler
+# moves one level back down, never below the user's speed.
+READ_SLOW_S = 1.0
+WRITE_SLOW_S = 2.0
+TROUBLE_REPLIES = 2
+TROUBLE_WINDOW_S = 30.0
+STEP_UP_SPACING_S = 10.0
+CLEAN_PERIOD_S = 30.0
 # A pending write goes before a due read, but never more than this many writes
 # in a row, so a core that changes its setpoint all the time cannot starve the
 # reads.
@@ -141,6 +207,33 @@ MAX_REALTIME_POWER_W = 10800
 MIN_TARGET_SOC = 5
 
 
+def slot_for_request_speed(speed: object) -> float:
+    """Slot length for a request speed; a missing or unknown speed gets the default."""
+    return REQUEST_SPEED_SLOT_S.get(speed, SLOT_S) if isinstance(speed, str) else SLOT_S
+
+
+def normal_slot(slot_s: object) -> float:
+    """A slot as the client uses it: the default if not a number, never below the fastest."""
+    if not isinstance(slot_s, (int, float)) or not math.isfinite(slot_s):
+        return SLOT_S
+    return max(MIN_SLOT_S, float(slot_s))
+
+
+def pacing_levels(slot_s: float) -> list[PacingLevel]:
+    """The backoff ladder from ``slot_s`` up: its own level first, then every slower one.
+
+    The fastest slot starts at the Maximum level. A slot between two ladder
+    levels gets the floor of the next slower level.
+    """
+    if slot_s <= MAXIMUM_LEVEL.write_s:
+        return [MAXIMUM_LEVEL, *PACING_LADDER]
+    floor = next((level.floor_s for level in PACING_LADDER if level.read_s >= slot_s),
+                 PACING_LADDER[-1].floor_s)
+    return [PacingLevel(slot_s, slot_s, floor)] + [
+        level for level in PACING_LADDER if level.read_s > slot_s
+    ]
+
+
 class IndevoltError(Exception):
     """A redacted transport failure. ``may_have_applied`` is honest for writes."""
 
@@ -188,11 +281,13 @@ Transport = Callable[[str, str], Awaitable[tuple[int, bytes]]]
 class _Gate:
     """Per-device pacing state shared by every client of that device."""
 
-    __slots__ = ("lock", "last_start")
+    __slots__ = ("lock", "last_start", "last_end")
 
     def __init__(self) -> None:
         self.lock = asyncio.Lock()
         self.last_start: float | None = None
+        # When the reply (or the failure) of the last request came in.
+        self.last_end: float | None = None
 
 
 # Keyed by event loop, then "host:port", so a reloaded entry or a config-flow
@@ -255,9 +350,7 @@ class IndevoltClient:
         self._port = port
         self._base = f"http://{self._host}:{port}/rpc/"
         self._endpoint_key = f"{self._host.lower()}:{port}"
-        if not isinstance(slot_s, (int, float)) or not math.isfinite(slot_s):
-            slot_s = SLOT_S
-        self._slot_s = max(MIN_SLOT_S, float(slot_s))
+        self._slot_s = normal_slot(slot_s)
         self._transport = transport
         self._session: aiohttp.ClientSession | None = None
         self._clock = clock
@@ -321,15 +414,17 @@ class IndevoltClient:
         pick: Callable[[], tuple[str, dict[str, Any] | None] | None],
         *,
         interval_s: float | None = None,
+        from_reply: bool = False,
     ) -> tuple[tuple[str, dict[str, Any] | None], dict[str, Any]] | None:
         """Wait for the gate, then send whatever ``pick`` chooses at that moment.
 
         Choosing inside the gate lets a write that arrived while waiting go
-        first. ``interval_s`` is the spacing since the previous request start;
-        the scheduler sets it, never below the hard floor. When ``pick`` sends
-        nothing, the gate is left as if this call never happened.
+        first. ``interval_s`` is the spacing since the previous request start,
+        or since the previous reply with ``from_reply``; the scheduler sets it,
+        never below the hard floor for that kind of spacing. When ``pick``
+        sends nothing, the gate is left as if this call never happened.
         """
-        async with self._slot(interval_s) as slot:
+        async with self._slot(interval_s, from_reply) as slot:
             request = pick()
             if request is None:
                 slot.unstamp()
@@ -397,15 +492,15 @@ class IndevoltClient:
 
     # --- pacing --------------------------------------------------------------
 
-    def _slot(self, interval_s: float | None = None) -> "_SlotContext":
-        return _SlotContext(self, interval_s)
+    def _slot(self, interval_s: float | None = None, from_reply: bool = False) -> "_SlotContext":
+        return _SlotContext(self, interval_s, from_reply)
 
-    def _spacing(self, interval_s: float | None) -> float:
-        """A full slot unless the caller names a spacing; never below the floor."""
+    def _spacing(self, interval_s: float | None, from_reply: bool = False) -> float:
+        """A full slot unless the caller names a spacing; never below the hard floor."""
         spacing = self._slot_s
         if interval_s is not None and math.isfinite(interval_s):
             spacing = float(interval_s)
-        return max(MIN_SLOT_S, spacing)
+        return max(MIN_REPLY_GAP_S if from_reply else MIN_SPACING_S, spacing)
 
     # --- the wire ------------------------------------------------------------
 
@@ -517,17 +612,20 @@ class IndevoltClient:
 class _SlotContext:
     """Hold the device gate and wait until the next request may start."""
 
-    def __init__(self, client: IndevoltClient, interval_s: float | None) -> None:
+    def __init__(self, client: IndevoltClient, interval_s: float | None, from_reply: bool) -> None:
         self._client = client
         self._interval_s = interval_s
+        self._from_reply = from_reply
         self._gate: _Gate | None = None
         self._token: Any = None
         self._previous_start: float | None = None
+        self._sent = True
 
     def unstamp(self) -> None:
         """Nothing was sent: the next request is spaced from the previous one."""
         assert self._gate is not None
         self._gate.last_start = self._previous_start
+        self._sent = False
 
     async def __aenter__(self) -> "_SlotContext":
         client = self._client
@@ -536,9 +634,12 @@ class _SlotContext:
         self._gate = _gate_for(client._endpoint_key)
         await self._gate.lock.acquire()
         try:
-            spacing = client._spacing(self._interval_s)
-            while self._gate.last_start is not None:
-                remaining = self._gate.last_start + spacing - client._clock()
+            spacing = client._spacing(self._interval_s, self._from_reply)
+            # The lock is free only once the previous request has its reply, so
+            # last_end is set whenever last_start is.
+            since = self._gate.last_end if self._from_reply else self._gate.last_start
+            while since is not None:
+                remaining = since + spacing - client._clock()
                 if remaining <= 0:
                     break
                 await client._sleep(remaining)
@@ -556,6 +657,8 @@ class _SlotContext:
     async def __aexit__(self, *exc: object) -> None:
         _HELD_GATE.reset(self._token)
         assert self._gate is not None
+        if self._sent:
+            self._gate.last_end = self._client._clock()
         self._gate.lock.release()
 
 
@@ -634,8 +737,13 @@ class IndevoltScheduler:
         self._wake = asyncio.Event()
         self._max_batch = MAX_POINTS
         self._complete_streak = 0
-        self._factor = 1
-        self._healthy_streak = 0
+        # Backoff state: the current rung of the pacing ladder (0 = the user's
+        # speed), recent bad replies, and when the level last changed.
+        self._levels = pacing_levels(client.slot_s)
+        self._level = 0
+        self._bad_replies: deque[float] = deque()
+        self._last_bad: float | None = None
+        self._last_step: float | None = None
         self._consecutive_failures = 0
         self._throttled_since: float | None = None
         self._auth_warned = False
@@ -750,13 +858,25 @@ class IndevoltScheduler:
 
     @property
     def interval_s(self) -> float:
-        """Read interval and write spacing, including backoff; never below the floor."""
-        return max(MIN_SLOT_S, self._client.slot_s * self._factor)
+        """Write spacing of the current pacing level, shown as the request interval.
+
+        Also its read interval, except at Maximum (see read_interval_s).
+        """
+        return self._levels[self._level].write_s
+
+    @property
+    def read_interval_s(self) -> float:
+        return self._levels[self._level].read_s
 
     @property
     def floor_s(self) -> float:
-        """Spacing between any two requests, stretched by backoff like the interval."""
-        return min(self.interval_s, MIN_SLOT_S * self._factor)
+        """Spacing between any two requests at the current pacing level."""
+        return self._levels[self._level].floor_s
+
+    @property
+    def floor_from_reply(self) -> bool:
+        """True when the floor runs from the previous reply (Maximum) instead of its start."""
+        return self._levels[self._level].from_reply
 
     @property
     def control_max_age_s(self) -> float:
@@ -771,12 +891,13 @@ class IndevoltScheduler:
         chunks = math.ceil(control / self._max_batch)
         if control >= self._max_batch:
             chunks += 1  # the slot a due tier gets after each full pass
-        cycle = self.interval_s * chunks * (MAX_CONSECUTIVE_WRITES + 1)
+        cycle = self.read_interval_s * chunks * (MAX_CONSECUTIVE_WRITES + 1)
         return 2 * cycle + REQUEST_TIMEOUT_S
 
     @property
-    def backoff_factor(self) -> int:
-        return self._factor
+    def backoff_level(self) -> int:
+        """Rungs above the user's speed; 0 when the battery keeps up."""
+        return self._level
 
     @property
     def throttled_for_s(self) -> float:
@@ -796,8 +917,10 @@ class IndevoltScheduler:
         latencies = sorted(self.latencies_ms)
         return {
             "interval_s": self.interval_s,
+            "read_interval_s": self.read_interval_s,
             "floor_s": self.floor_s,
-            "backoff_factor": self._factor,
+            "floor_from_reply": self.floor_from_reply,
+            "backoff_level": self._level,
             "max_batch": self._max_batch,
             "requests": self.requests,
             "writes": self.writes,
@@ -821,7 +944,9 @@ class IndevoltScheduler:
                 await self._wait(delay)
                 continue
             try:
-                result = await self._client.exchange(self._pick, interval_s=self.floor_s)
+                result = await self._client.exchange(
+                    self._pick, interval_s=self.floor_s, from_reply=self.floor_from_reply,
+                )
             except asyncio.CancelledError:
                 raise
             except IndevoltClosedError:
@@ -853,7 +978,7 @@ class IndevoltScheduler:
     def _read_due_at(self) -> float:
         if self._last_read_start is None:
             return -math.inf
-        return self._last_read_start + self.interval_s
+        return self._last_read_start + self.read_interval_s
 
     def _until_next_request(self) -> float:
         """Seconds until a write may go or a read is due (the gate adds the floor)."""
@@ -963,7 +1088,8 @@ class IndevoltScheduler:
         latency = self._client.last_latency_s or 0.0
         latency_ms = round(latency * 1000, 1)
         self.latencies_ms.append(latency_ms)
-        self._record_health(latency <= LATENCY_SPIKE_S)
+        kind = current[0] if current is not None else "read"
+        self._record_health(latency <= (WRITE_SLOW_S if kind == "write" else READ_SLOW_S))
         if current is None:
             return
         kind, payload = current
@@ -1066,25 +1192,46 @@ class IndevoltScheduler:
             self._notify(self._on_telemetry, frozenset())
 
     def _record_health(self, healthy: bool) -> None:
+        """Move along the pacing ladder: up on trouble, down after a clean period."""
+        now = self._clock()
+        while self._bad_replies and now - self._bad_replies[0] > TROUBLE_WINDOW_S:
+            self._bad_replies.popleft()
         if healthy:
             self._consecutive_failures = 0
-            self._healthy_streak += 1
-            if self._factor > 1 and self._healthy_streak >= HEALTHY_STREAK:
-                self._factor //= 2
-                self._healthy_streak = 0
-                if self._factor == 1:
-                    self._throttled_since = None
+            if self._level > 0:
+                # Above the user's speed there was a step, so _last_step is set.
+                quiet_since = max(t for t in (self._last_bad, self._last_step) if t is not None)
+                if now - quiet_since >= CLEAN_PERIOD_S:
+                    self._step(-1, now)
             return
         self._consecutive_failures += 1
-        self._healthy_streak = 0
-        if self._factor < MAX_BACKOFF_FACTOR:
-            self._factor *= 2
+        self._last_bad = now
+        self._bad_replies.append(now)
+        if (
+            len(self._bad_replies) >= TROUBLE_REPLIES
+            and self._level < len(self._levels) - 1
+            and (self._last_step is None or now - self._last_step >= STEP_UP_SPACING_S)
+        ):
+            self._step(+1, now)
+
+    def _step(self, direction: int, now: float) -> None:
+        self._level += direction
+        self._last_step = now
+        # Judge the new level on its own replies.
+        self._bad_replies.clear()
+        if self._level == 0:
+            self._throttled_since = None
             _LOGGER.info(
-                "[%s] Indevolt slow or failing; request spacing now %.0fs",
+                "[%s] Indevolt keeps up again; request interval back to %.0fs",
                 self._name, self.interval_s,
             )
+            return
         if self._throttled_since is None:
-            self._throttled_since = self._clock()
+            self._throttled_since = now
+        _LOGGER.info(
+            "[%s] Indevolt %s; request interval now %.0fs",
+            self._name, "slow or failing" if direction > 0 else "recovering", self.interval_s,
+        )
 
     def _notify(self, callback: Callable[..., None] | None, *args: Any) -> None:
         """Run a driver callback; its bugs must not count as device failures."""

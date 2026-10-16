@@ -23,8 +23,10 @@ These are the same touchpoints every brand has (compare Sessy and Huawei):
 | File | Change |
 |---|---|
 | `drivers/__init__.py` | Export `IndevoltDriver`. |
-| `infra/coordinator.py` | Factory branch for `brand == "indevolt"` (it hands the driver `persist_battery_config` and a reader of this battery's config, so the settings sync can store what it adopted or wrote), manufacturer and model labels, and `indevolt` in the existing voltage-taper exclusion tuple. |
-| `config_flow.py` | Brand option, connection step (read-only probe), Realtime-mode notice step, reconfigure step, power ceilings in the existing limits step, SOC selector bounds (5–50%, the same range as the min-SOC number, so saving the form unchanged never clamps and rewrites the battery's reserve), and `indevolt` in the existing taper tuples. |
+| `infra/coordinator.py` | Factory branch for `brand == "indevolt"` (it hands the driver `persist_battery_config` and a reader of this battery's config, so the settings sync can store what it adopted or wrote), manufacturer and model labels, `indevolt` in the existing voltage-taper exclusion tuple, and an `indevolt_request_speed` argument whose slot it hands to the driver (like Marstek's `rs485_gateway`). |
+| `__init__.py` | Passes the battery's `indevolt_request_speed` to the coordinator, next to `rs485_gateway`. |
+| `const/integration_const.py` | `CONF_INDEVOLT_REQUEST_SPEED`, the per-battery request-speed key. Optional: a battery config without it gets the default speed, so there is no config-entry migration. |
+| `config_flow.py` | Brand option, connection step (read-only probe), Realtime-mode notice step, request-speed step (its own screen, so the explanation of the speeds fits around the dropdown), reconfigure steps for the connection and the request speed, power ceilings in the existing limits step, SOC selector bounds (5–50%, the same range as the min-SOC number, so saving the form unchanged never clamps and rewrites the battery's reserve), and `indevolt` in the existing taper tuples. |
 | `switch.py` | The per-battery "100% Charge Voltage Taper" switch now uses the config flow's taper brand list, so it is no longer shown for Indevolt (or for Sessy, Hoymiles and Huawei, where it also had no effect). Covered by `tests/test_taper_switch_brands.py`. |
 | `strings.json`, `translations/*.json` | Texts for the new steps and the new sensor names. |
 

@@ -102,6 +102,7 @@ from .const import (
     DEFAULT_SLAVE_ID,
     CONF_SERIAL_PORT,
     CONF_RS485_GATEWAY,
+    CONF_INDEVOLT_REQUEST_SPEED,
     DEFAULT_VERSION,
     REGISTER_MAP,
     MAX_POWER_BY_VERSION,
@@ -159,7 +160,7 @@ from .drivers.zendure import (
 from .drivers.anker import AnkerModbusDriver
 from .drivers.sessy import SessyLocalDriver
 from .drivers.indevolt import IndevoltDriver
-from .infra.indevolt_client import IndevoltAuthenticationError
+from .infra.indevolt_client import DEFAULT_REQUEST_SPEED, REQUEST_SPEED_SLOT_S, IndevoltAuthenticationError
 from .drivers.huawei import HuaweiSolarDriver
 from .drivers.hoymiles import (
     DEFAULT_HOYMILES_MODEL,
@@ -603,6 +604,29 @@ def _indevolt_connection_schema(defaults: dict, battery_num: int) -> vol.Schema:
         vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): str,
         vol.Optional(CONF_PORT, default=defaults.get(CONF_PORT, _INDEVOLT_DEFAULT_PORT)): int,
     })
+
+
+def _indevolt_request_speed_schema(defaults: dict) -> vol.Schema:
+    """Request speed form, the screen after the connection.
+
+    It has a screen of its own so the explanation of the speeds fits above the
+    field instead of disappearing below the fold.
+    """
+    return vol.Schema({
+        vol.Required(CONF_INDEVOLT_REQUEST_SPEED, default=_indevolt_request_speed(defaults)): SelectSelector(
+            SelectSelectorConfig(
+                options=list(REQUEST_SPEED_SLOT_S),
+                translation_key="indevolt_request_speed",
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
+    })
+
+
+def _indevolt_request_speed(values: dict) -> str:
+    """The battery's request speed; an older entry without one gets the default."""
+    speed = values.get(CONF_INDEVOLT_REQUEST_SPEED)
+    return speed if speed in REQUEST_SPEED_SLOT_S else DEFAULT_REQUEST_SPEED
 
 
 async def _indevolt_probe(user_input: dict) -> tuple[dict, dict] | str:
@@ -1918,7 +1942,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 self._current_battery_data.update(data)
                 if not info["realtime_mode"]:
                     return await self.async_step_indevolt_mode_notice()
-                return await self.async_step_battery_limits()
+                return await self.async_step_indevolt_request_speed()
         return self.async_show_form(
             step_id="battery_connection_indevolt",
             data_schema=_indevolt_connection_schema(user_input or {}, battery_num),
@@ -1929,10 +1953,21 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
     async def async_step_indevolt_mode_notice(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Realtime mode is required; setup continues and control starts once it is set."""
         if user_input is not None:
-            return await self.async_step_battery_limits()
+            return await self.async_step_indevolt_request_speed()
         return self.async_show_form(
             step_id="indevolt_mode_notice",
             data_schema=vol.Schema({}),
+            description_placeholders={"battery_num": str(self.battery_index + 1)},
+        )
+
+    async def async_step_indevolt_request_speed(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Choose how fast Omnibattery may send requests to the Indevolt battery."""
+        if user_input is not None:
+            self._current_battery_data[CONF_INDEVOLT_REQUEST_SPEED] = _indevolt_request_speed(user_input)
+            return await self.async_step_battery_limits()
+        return self.async_show_form(
+            step_id="indevolt_request_speed",
+            data_schema=_indevolt_request_speed_schema(self._current_battery_data),
             description_placeholders={"battery_num": str(self.battery_index + 1)},
         )
 
@@ -3313,27 +3348,46 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 errors["base"] = probed
             else:
                 data, _info = probed
-                old_host = current.get(CONF_HOST)
-                old_port = current.get(CONF_PORT)
-                if old_host and old_port and (old_host != data[CONF_HOST] or old_port != data[CONF_PORT]):
-                    self._migrate_battery_registry_ids(
-                        entry, old_host, old_port, data[CONF_HOST], data[CONF_PORT]
-                    )
-                updated = dict(current)
-                updated.update(data)
-                self._reconfigure_batteries.append(updated)
-                self.battery_index += 1
-                if self.battery_index >= len(current_batteries):
-                    return self.async_update_reload_and_abort(
-                        entry, data_updates={"batteries": self._reconfigure_batteries}
-                    )
-                return await self.async_step_reconfigure_battery()
+                self._reconfigure_indevolt = {**current, **data}
+                return await self.async_step_reconfigure_battery_indevolt_request_speed()
 
         return self.async_show_form(
             step_id="reconfigure_battery_indevolt",
             data_schema=_indevolt_connection_schema(user_input or current, battery_num),
             errors=errors,
             description_placeholders={"battery_num": str(battery_num)},
+        )
+
+    async def async_step_reconfigure_battery_indevolt_request_speed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Update the request speed of an Indevolt battery during reconfiguration."""
+        entry = self._get_reconfigure_entry()
+        current_batteries = entry.data.get("batteries", [])
+        current = current_batteries[self.battery_index]
+        updated = self._reconfigure_indevolt
+
+        if user_input is not None:
+            updated[CONF_INDEVOLT_REQUEST_SPEED] = _indevolt_request_speed(user_input)
+            # Migrated only now, so leaving the flow on this screen changes nothing.
+            old_host = current.get(CONF_HOST)
+            old_port = current.get(CONF_PORT)
+            if old_host and old_port and (old_host != updated[CONF_HOST] or old_port != updated[CONF_PORT]):
+                self._migrate_battery_registry_ids(
+                    entry, old_host, old_port, updated[CONF_HOST], updated[CONF_PORT]
+                )
+            self._reconfigure_batteries.append(updated)
+            self.battery_index += 1
+            if self.battery_index >= len(current_batteries):
+                return self.async_update_reload_and_abort(
+                    entry, data_updates={"batteries": self._reconfigure_batteries}
+                )
+            return await self.async_step_reconfigure_battery()
+
+        return self.async_show_form(
+            step_id="reconfigure_battery_indevolt_request_speed",
+            data_schema=_indevolt_request_speed_schema(updated),
+            description_placeholders={"battery_num": str(self.battery_index + 1)},
         )
 
     async def async_step_reconfigure_battery_esphome(
@@ -4566,7 +4620,7 @@ class OptionsFlowHandler(OptionsFlow):
                 self._current_battery_data.update(data)
                 if not info["realtime_mode"]:
                     return await self.async_step_indevolt_mode_notice()
-                return await self.async_step_battery_limits()
+                return await self.async_step_indevolt_request_speed()
         return self.async_show_form(
             step_id="battery_connection_indevolt",
             data_schema=_indevolt_connection_schema(user_input or current_battery, battery_num),
@@ -4577,10 +4631,27 @@ class OptionsFlowHandler(OptionsFlow):
     async def async_step_indevolt_mode_notice(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Realtime mode is required; setup continues and control starts once it is set."""
         if user_input is not None:
-            return await self.async_step_battery_limits()
+            return await self.async_step_indevolt_request_speed()
         return self.async_show_form(
             step_id="indevolt_mode_notice",
             data_schema=vol.Schema({}),
+            description_placeholders={"battery_num": str(self.battery_index + 1)},
+        )
+
+    async def async_step_indevolt_request_speed(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Choose how fast Omnibattery may send requests to the Indevolt battery."""
+        if user_input is not None:
+            self._current_battery_data[CONF_INDEVOLT_REQUEST_SPEED] = _indevolt_request_speed(user_input)
+            return await self.async_step_battery_limits()
+        current_batteries = self.config_entry.data.get("batteries", [])
+        current_battery = (
+            current_batteries[self.battery_index]
+            if self.battery_index < len(current_batteries)
+            else {}
+        )
+        return self.async_show_form(
+            step_id="indevolt_request_speed",
+            data_schema=_indevolt_request_speed_schema(current_battery),
             description_placeholders={"battery_num": str(self.battery_index + 1)},
         )
 
