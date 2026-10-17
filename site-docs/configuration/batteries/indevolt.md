@@ -6,7 +6,7 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 
 **Use it if** you own an Indevolt SolidFlex or PowerFlex battery and Home Assistant can reach it on your local network. The SolidFlex 2000 has been tested. The PowerFlex 2000, the SolidFlex and PowerFlex 3000 and the SolidFlex 1200 use the same API; please report your model and firmware if you use one of them.
 
-**Use Omnibattery instead of the official Indevolt integration.** Both poll the same battery, and the battery answers requests one at a time. Omnibattery shows the same measurements, so disable the official integration for a battery that Omnibattery controls.
+**Use Omnibattery instead of the official Indevolt integration.** Both poll the same battery, and the battery answers requests one at a time. Omnibattery shows the same measurements, including the AC energy counters for the Energy dashboard, so disable or remove the official integration for a battery that Omnibattery controls (see [Moving from the official Indevolt integration](#moving-from-the-official-indevolt-integration)).
 
 ## Before you start
 
@@ -32,7 +32,39 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 - **Switching modes in the app is safe.** If you select another working mode, Omnibattery pauses, shows a notification and leaves the battery alone. Switch back to Realtime and it resumes automatically.
 - **Response time.** Omnibattery reads the battery once per interval of the request speed (5s by default, 2s at Maximum). A new setpoint goes out as soon as 2s have passed since the previous request (1s at Normal and Fast; at Maximum 0.2s after the previous reply, at most one setpoint per second), and the battery follows within seconds.
 - **Settings:** **Discharge Cutoff** (the battery's reserve, which is Omnibattery's minimum SOC), **Max Charge Power** and **Max Discharge Power**. A change here is written to the battery; a change in the Indevolt app shows up here within a few minutes. The power sliders go up to the battery's hardware maximum. **Charge Cutoff** (maximum SOC) has no battery setting and is applied by Omnibattery only.
-- **Sensors:** state of charge, battery power, AC power, energy counters, working mode and firmware version. Temperatures: **Inverter Battery Temperature** for the battery built into the inverter unit, and **Expansion Battery N Temperature** for each expansion battery that is present; **Internal Temperature**, which Omnibattery's optional temperature charge limit uses to reduce charging when the battery is hot, is the warmest of those. A transformer temperature sensor is available but disabled by default.
+- **Sensors:** state of charge, battery power, AC power, working mode and firmware version, plus:
+    - **AC Input Power** and **AC Output Power** at the battery's AC connection (read every 10s), and **Bypass Power** through the bypass socket.
+    - Energy counters on two sides. **Total AC Input Energy** and **Total AC Output Energy** count at the AC connection: use these for the battery in the Energy dashboard. **Total Charging Energy**, **Total Discharging Energy** and the daily counters count on the battery side, after conversion losses. **Off-Grid Output Energy** and **Bypass Input Energy** count what went through the backup and bypass sockets.
+    - For a battery with solar panels connected: **Solar Output Power**, **Daily Solar Energy** and **Total Solar Energy**. Power, voltage and current per PV input are available but disabled by default.
+    - Temperatures: **Inverter Battery Temperature** for the battery built into the inverter unit, and **Expansion Battery N Temperature** for each expansion battery that is present; **Internal Temperature**, which Omnibattery's optional temperature charge limit uses to reduce charging when the battery is hot, is the warmest of those. A transformer temperature sensor is available but disabled by default.
+- **Diagnostics:** **Realtime Command** shows what the battery's Realtime mode is doing (standby, charging or discharging). **Feed-in Limit** and **Grid Charging** show those battery settings; change them in the Indevolt app. Disabled by default: grid voltage and frequency, remaining charging and discharging time, device mode (standalone or cluster), and for each battery that is present (the one in the inverter unit and each expansion battery) its SOC, charge cycles, MOS temperature, voltage, current and serial number. Omnibattery reads those battery details only for the batteries that are present.
+- **Indevolt Meter Power** (disabled by default) is the grid power reported by the meter that is paired with the battery in the Indevolt app. It lags your grid meter by 10–20s, so do not use it as Omnibattery's grid sensor.
+
+## Moving from the official Indevolt integration
+
+Omnibattery shows the measurements of the official Indevolt integration under its own names, read in the requests it already makes. Point your dashboards, helpers and the Energy dashboard at the Omnibattery sensors, then remove the official integration.
+
+| Official integration | Omnibattery | Note |
+|---|---|---|
+| Battery SOC | Battery SOC | |
+| Battery power | Battery Power | Opposite sign: positive while charging |
+| AC input power, AC output power | AC Input Power, AC Output Power | |
+| | AC Power | Output minus input: positive while discharging, as the Energy dashboard expects for battery power |
+| Bypass power | Bypass Power | |
+| Total AC input energy, Total AC output energy | Total AC Input Energy, Total AC Output Energy | The Energy dashboard's energy going in to and coming out of the battery |
+| Battery daily and total charging and discharging energy | Total Daily Charging Energy, Total Daily Discharging Energy, Total Charging Energy, Total Discharging Energy | |
+| Off-grid output energy, Bypass input energy | Off-Grid Output Energy, Bypass Input Energy | Bypass input energy in kWh instead of Wh |
+| DC output power, Daily production, Cumulative production | Solar Output Power, Daily Solar Energy, Total Solar Energy | Total solar energy in kWh instead of Wh |
+| Meter power, Meter connected | Indevolt Meter Power, Indevolt Meter Connected | Disabled by default |
+| Battery charge/discharge state | Inverter State | Standby, Charging or Discharging |
+| Energy mode | Working Mode | Read only |
+| Real-time mode, Real-time target SOC, Real-time power limit | Realtime Command, Realtime Target SOC, Realtime Command Power | |
+| Rated capacity | Battery Total Energy | |
+| Discharge limit, Max AC output power, Inverter input limit | Discharge Cutoff, Max Discharge Power, Max Charge Power | Settings, kept in sync with the battery |
+| Feed-in power limit, Allow grid charging | Feed-in Limit, Grid Charging | Read only |
+| Grid voltage and frequency, remaining charging and discharging time, device mode, PV input power, voltage and current, and per battery SOC, cycles, temperatures, voltage, current and serial number | Same names | Disabled by default, as in the official integration |
+
+Omnibattery does not change the working mode, the LED indicator, the bypass socket, grid charging or the feed-in limit from Home Assistant: each is a permanent setting in the battery, so change it in the Indevolt app (see [why](#why-omnibattery-writes-settings-only-when-you-change-them)). The official integration's stop button and charge and discharge actions would compete with Omnibattery's control; use Omnibattery's manual mode instead. The official integration's **Equivalent full cycles** shows the battery's full-charge interval in days, not a cycle count; the per-battery **Cycles** sensors are the battery's own cycle counts.
 
 ## Choosing the request speed
 

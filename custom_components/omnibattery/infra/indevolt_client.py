@@ -850,6 +850,28 @@ class IndevoltScheduler:
     def set_tier_interval(self, name: str, interval_s: float) -> None:
         self._tier_intervals[name] = interval_s
 
+    def set_tier_points(self, name: str, points: Sequence[int]) -> None:
+        """Replace the points of a ride-along tier; a changed tier is due at once.
+
+        For points that depend on what the device reported, such as the details
+        of the expansion batteries that are present. The control tier is fixed.
+        """
+        for index, tier in enumerate(self._tiers):
+            if tier.name != name:
+                continue
+            if index == 0:
+                raise ValueError("The control tier's points are fixed")
+            points = tuple(points)
+            if points != tier.points:
+                self._tiers[index] = Tier(name, points, tier.interval_s)
+                self._tier_cursor.pop(name, None)
+                self._tier_done.pop(name, None)
+            return
+        raise KeyError(name)
+
+    def tier_points(self, name: str) -> tuple[int, ...]:
+        return next(tier.points for tier in self._tiers if tier.name == name)
+
     def expedite(self, name: str) -> None:
         """Make a tier due in the next read slot."""
         self._tier_done.pop(name, None)

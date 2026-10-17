@@ -1992,6 +1992,202 @@
       "request_interval": {
         "name": "Intervalle des requêtes (effectif)"
       },
+      "ac_input_power": {
+        "name": "Puissance d'entrée CA"
+      },
+      "ac_output_power": {
+        "name": "Puissance de sortie CA"
+      },
+      "bypass_power": {
+        "name": "Puissance de bypass"
+      },
+      "indevolt_meter_power": {
+        "name": "Puissance du compteur Indevolt"
+      },
+      "solar_output_power": {
+        "name": "Puissance de sortie solaire"
+      },
+      "total_ac_input_energy": {
+        "name": "Énergie d'entrée CA totale"
+      },
+      "total_ac_output_energy": {
+        "name": "Énergie de sortie CA totale"
+      },
+      "off_grid_output_energy": {
+        "name": "Énergie de sortie hors réseau"
+      },
+      "bypass_input_energy": {
+        "name": "Énergie d'entrée bypass"
+      },
+      "daily_solar_energy": {
+        "name": "Énergie solaire journalière"
+      },
+      "total_solar_energy": {
+        "name": "Énergie solaire totale"
+      },
+      "feed_in_limit": {
+        "name": "Limite d'injection"
+      },
+      "grid_voltage": {
+        "name": "Tension du réseau"
+      },
+      "grid_frequency": {
+        "name": "Fréquence du réseau"
+      },
+      "remaining_charging_time": {
+        "name": "Temps de charge restant"
+      },
+      "remaining_discharging_time": {
+        "name": "Temps de décharge restant"
+      },
+      "realtime_command": {
+        "name": "Commande temps réel",
+        "state": {
+          "standby": "Veille",
+          "charging": "Charge",
+          "discharging": "Décharge"
+        }
+      },
+      "device_mode": {
+        "name": "Mode de l'appareil",
+        "state": {
+          "cluster_main": "Cluster (principal)",
+          "cluster_sub": "Cluster (secondaire)",
+          "standalone": "Autonome"
+        }
+      },
+      "pv1_power": {
+        "name": "Puissance PV1"
+      },
+      "pv1_current": {
+        "name": "Courant PV1"
+      },
+      "pv2_power": {
+        "name": "Puissance PV2"
+      },
+      "pv2_current": {
+        "name": "Courant PV2"
+      },
+      "pv3_power": {
+        "name": "Puissance PV3"
+      },
+      "pv3_current": {
+        "name": "Courant PV3"
+      },
+      "pv4_power": {
+        "name": "Puissance PV4"
+      },
+      "pv4_current": {
+        "name": "Courant PV4"
+      },
+      "inverter_battery_soc": {
+        "name": "SOC de la batterie de l'onduleur"
+      },
+      "inverter_battery_cycles": {
+        "name": "Cycles de la batterie de l'onduleur"
+      },
+      "inverter_battery_mos_temperature": {
+        "name": "Température MOS de la batterie de l'onduleur"
+      },
+      "inverter_battery_voltage": {
+        "name": "Tension de la batterie de l'onduleur"
+      },
+      "inverter_battery_current": {
+        "name": "Courant de la batterie de l'onduleur"
+      },
+      "inverter_battery_serial_number": {
+        "name": "Numéro de série de la batterie de l'onduleur"
+      },
+      "expansion_battery_1_soc": {
+        "name": "SOC de la batterie d'extension 1"
+      },
+      "expansion_battery_1_cycles": {
+        "name": "Cycles de la batterie d'extension 1"
+      },
+      "expansion_battery_1_mos_temperature": {
+        "name": "Température MOS de la batterie d'extension 1"
+      },
+      "expansion_battery_1_voltage": {
+        "name": "Tension de la batterie d'extension 1"
+      },
+      "expansion_battery_1_current": {
+        "name": "Courant de la batterie d'extension 1"
+      },
+      "expansion_battery_1_serial_number": {
+        "name": "Numéro de série de la batterie d'extension 1"
+      },
+      "expansion_battery_2_soc": {
+        "name": "SOC de la batterie d'extension 2"
+      },
+      "expansion_battery_2_cycles": {
+        "name": "Cycles de la batterie d'extension 2"
+      },
+      "expansion_battery_2_mos_temperature": {
+        "name": "Température MOS de la batterie d'extension 2"
+      },
+      "expansion_battery_2_voltage": {
+        "name": "Tension de la batterie d'extension 2"
+      },
+      "expansion_battery_2_current": {
+        "name": "Courant de la batterie d'extension 2"
+      },
+      "expansion_battery_2_serial_number": {
+        "name": "Numéro de série de la batterie d'extension 2"
+      },
+      "expansion_battery_3_soc": {
+        "name": "SOC de la batterie d'extension 3"
+      },
+      "expansion_battery_3_cycles": {
+        "name": "Cycles de la batterie d'extension 3"
+      },
+      "expansion_battery_3_mos_temperature": {
+        "name": "Température MOS de la batterie d'extension 3"
+      },
+      "expansion_battery_3_voltage": {
+        "name": "Tension de la batterie d'extension 3"
+      },
+      "expansion_battery_3_current": {
+        "name": "Courant de la batterie d'extension 3"
+      },
+      "expansion_battery_3_serial_number": {
+        "name": "Numéro de série de la batterie d'extension 3"
+      },
+      "expansion_battery_4_soc": {
+        "name": "SOC de la batterie d'extension 4"
+      },
+      "expansion_battery_4_cycles": {
+        "name": "Cycles de la batterie d'extension 4"
+      },
+      "expansion_battery_4_mos_temperature": {
+        "name": "Température MOS de la batterie d'extension 4"
+      },
+      "expansion_battery_4_voltage": {
+        "name": "Tension de la batterie d'extension 4"
+      },
+      "expansion_battery_4_current": {
+        "name": "Courant de la batterie d'extension 4"
+      },
+      "expansion_battery_4_serial_number": {
+        "name": "Numéro de série de la batterie d'extension 4"
+      },
+      "expansion_battery_5_soc": {
+        "name": "SOC de la batterie d'extension 5"
+      },
+      "expansion_battery_5_cycles": {
+        "name": "Cycles de la batterie d'extension 5"
+      },
+      "expansion_battery_5_mos_temperature": {
+        "name": "Température MOS de la batterie d'extension 5"
+      },
+      "expansion_battery_5_voltage": {
+        "name": "Tension de la batterie d'extension 5"
+      },
+      "expansion_battery_5_current": {
+        "name": "Courant de la batterie d'extension 5"
+      },
+      "expansion_battery_5_serial_number": {
+        "name": "Numéro de série de la batterie d'extension 5"
+      },
       "request_speed": {
         "name": "Vitesse des requêtes",
         "state": {
@@ -2198,6 +2394,9 @@
       }
     },
     "binary_sensor": {
+      "indevolt_meter_connected": {
+        "name": "Compteur Indevolt connecté"
+      },
       "capacity_protection_active": {
         "name": "Écrêtement de Pointe Actif"
       },

@@ -6,7 +6,7 @@ Omnibattery controla una batería Indevolt a través de la API HTTP local de la 
 
 **Úsalo si** tienes una batería Indevolt SolidFlex o PowerFlex y Home Assistant puede alcanzarla en tu red local. La SolidFlex 2000 está probada. La PowerFlex 2000, las SolidFlex y PowerFlex 3000 y la SolidFlex 1200 usan la misma API; si usas una de ellas, indica tu modelo y firmware.
 
-**Usa Omnibattery en lugar de la integración oficial de Indevolt.** Ambas consultan la misma batería, y la batería atiende las peticiones de una en una. Omnibattery muestra las mismas medidas, así que desactiva la integración oficial para una batería que controle Omnibattery.
+**Usa Omnibattery en lugar de la integración oficial de Indevolt.** Ambas consultan la misma batería, y la batería atiende las peticiones de una en una. Omnibattery muestra las mismas medidas, incluidos los contadores de energía AC para el panel de Energía, así que desactiva o elimina la integración oficial para una batería que controle Omnibattery (consulta [Pasar desde la integración oficial de Indevolt](#pasar-desde-la-integracion-oficial-de-indevolt)).
 
 ## Antes de empezar
 
@@ -32,7 +32,39 @@ Omnibattery controla una batería Indevolt a través de la API HTTP local de la 
 - **Cambiar de modo en la app es seguro.** Si eliges otro modo de trabajo, Omnibattery se pausa, muestra una notificación y deja la batería en paz. Vuelve a Tiempo real y retoma el control automáticamente.
 - **Tiempo de respuesta.** Omnibattery lee la batería una vez por intervalo de la velocidad de solicitudes (5s por defecto, 2s en Máxima). Una nueva consigna sale en cuanto han pasado 2s desde la petición anterior (1s en Normal y Rápida; en Máxima 0.2s después de la respuesta anterior, como mucho una consigna por segundo), y la batería la sigue en pocos segundos.
 - **Ajustes:** **Discharge Cutoff** (la reserva de la batería, que es el SOC mínimo de Omnibattery), **Max Charge Power** y **Max Discharge Power**. Un cambio aquí se escribe en la batería; un cambio en la app de Indevolt aparece aquí en pocos minutos. Los controles de potencia llegan hasta el máximo de hardware de la batería. **Charge Cutoff** (SOC máximo) no tiene ajuste en la batería y lo aplica solo Omnibattery.
-- **Sensores:** estado de carga, potencia de batería, potencia AC, contadores de energía, modo de trabajo y versión de firmware. Temperaturas: **Inverter Battery Temperature** para la batería integrada en la unidad del inversor y **Expansion Battery N Temperature** para cada batería de expansión presente; **Internal Temperature**, que el límite de carga por temperatura opcional de Omnibattery usa para reducir la carga cuando la batería está caliente, es la más alta de ellas. Hay un sensor de temperatura del transformador, desactivado por defecto.
+- **Sensores:** estado de carga, potencia de batería, potencia AC, modo de trabajo y versión de firmware, y además:
+    - **AC Input Power** y **AC Output Power** en la conexión AC de la batería (leídas cada 10s), y **Bypass Power** a través de la toma bypass.
+    - Contadores de energía en dos lados. **Total AC Input Energy** y **Total AC Output Energy** cuentan en la conexión AC: usa estos para la batería en el panel de Energía. **Total Charging Energy**, **Total Discharging Energy** y los contadores diarios cuentan en el lado de la batería, después de las pérdidas de conversión. **Off-Grid Output Energy** y **Bypass Input Energy** cuentan lo que pasó por las tomas de respaldo y bypass.
+    - Para una batería con paneles solares conectados: **Solar Output Power**, **Daily Solar Energy** y **Total Solar Energy**. La potencia, la tensión y la corriente por entrada PV están disponibles, pero desactivadas por defecto.
+    - Temperaturas: **Inverter Battery Temperature** para la batería integrada en la unidad del inversor y **Expansion Battery N Temperature** para cada batería de expansión presente; **Internal Temperature**, que el límite de carga por temperatura opcional de Omnibattery usa para reducir la carga cuando la batería está caliente, es la más alta de ellas. Hay un sensor de temperatura del transformador, desactivado por defecto.
+- **Diagnóstico:** **Realtime Command** muestra qué hace el modo Realtime de la batería (en espera, cargando o descargando). **Feed-in Limit** y **Grid Charging** muestran esos ajustes de la batería; cámbialos en la app de Indevolt. Desactivados por defecto: tensión y frecuencia de red, tiempo restante de carga y de descarga, modo del dispositivo (independiente o clúster) y, para cada batería presente (la de la unidad del inversor y cada batería de expansión), su SOC, ciclos de carga, temperatura MOS, tensión, corriente y número de serie. Omnibattery solo lee esos detalles de las baterías presentes.
+- **Indevolt Meter Power** (desactivado por defecto) es la potencia de red que indica el medidor emparejado con la batería en la app de Indevolt. Va 10–20s por detrás de tu medidor de red, así que no lo uses como sensor de red de Omnibattery.
+
+## Pasar desde la integración oficial de Indevolt
+
+Omnibattery muestra las medidas de la integración oficial de Indevolt con sus propios nombres, leídas en las peticiones que ya hace. Apunta tus paneles, ayudantes y el panel de Energía a los sensores de Omnibattery y después elimina la integración oficial.
+
+| Integración oficial | Omnibattery | Nota |
+|---|---|---|
+| Battery SOC | Battery SOC | |
+| Battery power | Battery Power | Signo opuesto: positivo mientras carga |
+| AC input power, AC output power | AC Input Power, AC Output Power | |
+| | AC Power | Salida menos entrada: positivo mientras descarga, como espera el panel de Energía para la potencia de la batería |
+| Bypass power | Bypass Power | |
+| Total AC input energy, Total AC output energy | Total AC Input Energy, Total AC Output Energy | La energía que entra y sale de la batería en el panel de Energía |
+| Battery daily and total charging and discharging energy | Total Daily Charging Energy, Total Daily Discharging Energy, Total Charging Energy, Total Discharging Energy | |
+| Off-grid output energy, Bypass input energy | Off-Grid Output Energy, Bypass Input Energy | Bypass input energy en kWh en lugar de Wh |
+| DC output power, Daily production, Cumulative production | Solar Output Power, Daily Solar Energy, Total Solar Energy | Total solar energy en kWh en lugar de Wh |
+| Meter power, Meter connected | Indevolt Meter Power, Indevolt Meter Connected | Desactivados por defecto |
+| Battery charge/discharge state | Inverter State | Standby, Charging o Discharging |
+| Energy mode | Working Mode | Solo lectura |
+| Real-time mode, Real-time target SOC, Real-time power limit | Realtime Command, Realtime Target SOC, Realtime Command Power | |
+| Rated capacity | Battery Total Energy | |
+| Discharge limit, Max AC output power, Inverter input limit | Discharge Cutoff, Max Discharge Power, Max Charge Power | Ajustes, sincronizados con la batería |
+| Feed-in power limit, Allow grid charging | Feed-in Limit, Grid Charging | Solo lectura |
+| Tensión y frecuencia de red, tiempo restante de carga y de descarga, modo del dispositivo, potencia, tensión y corriente por entrada PV y, por batería, SOC, ciclos, temperaturas, tensión, corriente y número de serie | Los mismos nombres | Desactivados por defecto, como en la integración oficial |
+
+Omnibattery no cambia desde Home Assistant el modo de trabajo, el indicador LED, la toma bypass, la carga desde la red ni el límite de inyección: cada uno es un ajuste permanente de la batería, así que cámbialo en la app de Indevolt (consulta [por qué](#por-que-omnibattery-solo-escribe-ajustes-cuando-los-cambias)). El botón de parada y las acciones de carga y descarga de la integración oficial competirían con el control de Omnibattery; usa el modo manual de Omnibattery. **Equivalent full cycles** de la integración oficial muestra el intervalo de carga completa de la batería en días, no un número de ciclos; los sensores **Cycles** por batería son los contadores de ciclos de la propia batería.
 
 ## Elegir la velocidad de solicitudes
 

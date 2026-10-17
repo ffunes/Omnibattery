@@ -19,6 +19,10 @@ from custom_components.omnibattery.config_flow import (
     OptionsFlowHandler,
 )
 from custom_components.omnibattery.drivers.indevolt import (
+    _DEVICE_MODE,
+    _REALTIME_COMMAND,
+    BINARY_SENSOR_DEFINITIONS,
+    PACK_DETAIL_DEFINITIONS,
     PACK_TEMPERATURE_DEFINITIONS,
     SENSOR_DEFINITIONS,
     IndevoltDriver,
@@ -243,6 +247,7 @@ def test_the_coordinator_hands_the_chosen_speed_to_the_driver(monkeypatch, speed
 
 def test_every_new_string_exists_in_every_language():
     sensor_keys = {d["key"] for d in SENSOR_DEFINITIONS + PACK_TEMPERATURE_DEFINITIONS}
+    sensor_keys |= {d["key"] for definitions in PACK_DETAIL_DEFINITIONS for d in definitions}
     for path in ["custom_components/omnibattery/strings.json"] + sorted(
         glob.glob("custom_components/omnibattery/translations/*.json")
     ):
@@ -274,6 +279,11 @@ def test_every_new_string_exists_in_every_language():
         names = data["entity"]["sensor"]
         missing = sorted(k for k in sensor_keys if not names.get(k, {}).get("name"))
         assert missing == [], (path, missing)
+        for definition in BINARY_SENSOR_DEFINITIONS:
+            assert data["entity"]["binary_sensor"][definition["key"]]["name"], (path, definition["key"])
+        # Sensors whose state is a key: every language names every state.
+        for key, states in (("realtime_command", _REALTIME_COMMAND), ("device_mode", _DEVICE_MODE)):
+            assert sorted(names[key]["state"]) == sorted(set(states.values())), (path, key)
 
 
 async def _numbers_for(coordinator):

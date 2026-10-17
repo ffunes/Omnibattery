@@ -8,6 +8,7 @@ once-per-episode standby re-send and the cache-only telemetry path.
 from __future__ import annotations
 
 import asyncio
+import re
 
 import pytest
 
@@ -500,9 +501,10 @@ async def test_temperatures_follow_the_packs_that_are_present(packs, style):
     device = FakeIndevoltDevice(clock, packs=packs, absent_pack_style=style)
     driver = await connected_driver(clock, device, own=False)
     data = await driver.read_telemetry()
-    pack_keys = sorted(k for k in data if k.startswith("expansion_battery_"))
+    pack_keys = sorted(k for k in data if re.fullmatch(r"expansion_battery_\d_temperature", k))
     assert pack_keys == [f"expansion_battery_{n}_temperature" for n in range(1, packs + 1)]
-    assert [d["key"] for d in driver.sensor_definitions if d["key"].startswith("expansion_battery_")] == pack_keys
+    assert [d["key"] for d in driver.sensor_definitions
+            if re.fullmatch(r"expansion_battery_\d_temperature", d["key"])] == pack_keys
     assert any(set(pack_keys) <= set(g.keys) for g in driver.read_groups) or not pack_keys
     # The thermal derate uses the warmest battery, never the transformer (45 °C).
     assert data["inverter_battery_temperature"] == 41

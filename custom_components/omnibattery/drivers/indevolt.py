@@ -106,20 +106,75 @@ PACKS = (  # (serial point, temperature point)
     (9032, 9030), (9051, 9049), (9070, 9068), (9165, 9163), (9218, 9216),
 )
 P_TRANSFORMER_TEMPERATURE = 11005
+P_FEED_IN_LIMIT = 11010
+P_DEVICE_MODE = 606  # 1000 cluster main, 1001 cluster sub, 1002 standalone
+# Per PV input 1-4. The power points also make up the Solar Power sum.
+P_PV_POWER = (1664, 1665, 1666, 1667)
+P_PV_VOLTAGE = (1600, 1601, 1602, 1603)
+P_PV_CURRENT = (1632, 1633, 1634, 1635)
+P_NO_REMAINING_TIME = 9999  # what 11019/11020 report when they do not apply
+
+# Read-only parity with the official Indevolt integration, so its dashboards
+# and Energy dashboard entries can move here: AC input/output power, PV output,
+# and the AC-side energy counters (the battery-side ones are 6004-6007).
+# (key, point) pairs; the values are published as the device reports them, except
+# the two Wh counters, which become kWh like every other energy sensor here.
+# 11016 is the grid power from the meter the battery itself is paired with. It
+# follows the P1 meter with the same sign (+ import) but trails it by 10-20s,
+# hence a name that does not suggest the grid meter.
+POWER_POINTS = (("ac_input_power", 2101), ("ac_output_power", 2108),
+                ("indevolt_meter_power", 11016), ("solar_output_power", 1501))
+ENERGY_POINTS = (("total_ac_input_energy", 2107), ("total_ac_output_energy", 2104),
+                 ("off_grid_output_energy", 2105), ("daily_solar_energy", 1502))
+WH_ENERGY_POINTS = (("bypass_input_energy", 11034), ("total_solar_energy", 1505))
+GRID_POINTS = (("grid_voltage", 2600), ("grid_frequency", 2612))
+REMAINING_TIME_POINTS = (("remaining_charging_time", 11019), ("remaining_discharging_time", 11020))
+P_METER_CONNECTED = 7120  # 1000 connected, 1001 not connected
+
+# Details per battery: the one in the inverter unit, then each expansion
+# battery (in PACKS order). Only the batteries that are present are read. On a
+# CMS-SF2000 voltage x current per battery adds up to the battery power (6000),
+# although the voltage reads about 6.5 V.
+INVERTER_BATTERY_DETAILS = {"soc": 9000, "cycles": 9003, "mos_temperature": 11042,
+                            "voltage": 9004, "current": 9013}
+P_INVERTER_BATTERY_SERIAL = 9008
+PACK_DETAILS = (
+    {"soc": 9016, "cycles": 9019, "mos_temperature": 9085, "voltage": 9020, "current": 19173},
+    {"soc": 9035, "cycles": 9038, "mos_temperature": 9101, "voltage": 9039, "current": 19174},
+    {"soc": 9054, "cycles": 9057, "mos_temperature": 9117, "voltage": 9058, "current": 19175},
+    {"soc": 9149, "cycles": 9152, "mos_temperature": 9133, "voltage": 9153, "current": 19176},
+    {"soc": 9202, "cycles": 9205, "mos_temperature": 9270, "voltage": 9206, "current": 19177},
+)
+# (field, name, unit, device class, state class, precision, low, high)
+BATTERY_DETAIL_FIELDS = (
+    ("soc", "SOC", "%", None, "measurement", 0, 0, 100),
+    ("cycles", "Cycles", None, None, "total_increasing", 0, 0, 1e6),
+    ("mos_temperature", "MOS Temperature", "°C", "temperature", "measurement", 1, -40, 150),
+    ("voltage", "Voltage", "V", "voltage", "measurement", 2, 0, 1000),
+    ("current", "Current", "A", "current", "measurement", 2, -1000, 1000),
+)
 
 LIMITS_TIER = Tier(
     "limits",
-    (11009, 11011, 11010, 11032, 114, 115, 2618, P_NATIVE_MIN_SOC, 606, 142,
+    (11009, 11011, P_FEED_IN_LIMIT, 11032, 114, 115, 2618, P_NATIVE_MIN_SOC, P_DEVICE_MODE, 142,
      *(serial for serial, _ in PACKS)),
     180.0,
 )
+# The dashboard power points. The device itself refreshes them every 5-16s,
+# so reading them more often gains nothing.
+POWER_TIER = Tier("power", tuple(point for _, point in POWER_POINTS), 10.0)
 SLOW_TIER = Tier(
     "slow",
     (6006, 6007, 6004, 6005, P_INVERTER_BATTERY_TEMPERATURE, *(temp for _, temp in PACKS),
-     P_TRANSFORMER_TEMPERATURE, 1664, 1665, 1666, 1667, 2275),
+     P_TRANSFORMER_TEMPERATURE, *P_PV_POWER, 2275,
+     *(point for _, point in ENERGY_POINTS + WH_ENERGY_POINTS + GRID_POINTS + REMAINING_TIME_POINTS),
+     P_METER_CONNECTED, *P_PV_VOLTAGE, *P_PV_CURRENT),
     60.0,
 )
-TIERS = (CONTROL_TIER, ECHO_TIER, LIMITS_TIER, SLOW_TIER)
+# Starts with the inverter-unit battery; the expansion batteries are added once
+# their serial numbers (LIMITS_TIER) show which are present (see _sync_pack_points).
+PACKS_TIER = Tier("packs", (*INVERTER_BATTERY_DETAILS.values(), P_INVERTER_BATTERY_SERIAL), 120.0)
+TIERS = (CONTROL_TIER, ECHO_TIER, POWER_TIER, LIMITS_TIER, SLOW_TIER, PACKS_TIER)
 ECHO_INTERVAL_OWNED_S = 30.0
 ECHO_INTERVAL_IDLE_S = 60.0
 
@@ -148,6 +203,10 @@ _STATUS_ACTION = {0: ACTION_STOP, 1: ACTION_CHARGE, 2: ACTION_DISCHARGE,
 # 6001 battery state -> the core's inverter_state convention (1 standby,
 # 2 charging, 3 discharging).
 _BATTERY_STATE = {1000: 1, 1001: 2, 1002: 3}
+# 6107 as the Realtime Command sensor: the state is a key, its label comes from
+# the translations. Both status families map (see _STATUS_ACTION).
+_REALTIME_COMMAND = {0: "standby", 1: "charging", 2: "discharging",
+                     1000: "standby", 1001: "charging", 1002: "discharging"}
 
 
 class ControlState(enum.Enum):
@@ -286,19 +345,86 @@ SENSOR_DEFINITIONS = [
                 enabled=False, diagnostic=True),
     _definition("inverter_ac_power", "Inverter AC Power", unit="W", device_class="power",
                 scan="low", enabled=False, diagnostic=True),
+    # Read only: the device setting is changed in the Indevolt app.
     _definition("grid_charging_allowed", "Grid Charging", state_class=None, scan="low",
-                enabled=False, diagnostic=True, states={1000: "Off", 1001: "On"}),
+                diagnostic=True, states={1000: "Off", 1001: "On"}),
     _text("software_version", "Software Version", icon="mdi:ticket-confirmation-outline",
           scan="very_low"),
+    # Read-only parity with the official integration (see POWER_POINTS).
+    _definition("ac_input_power", "AC Input Power", unit="W", device_class="power"),
+    _definition("ac_output_power", "AC Output Power", unit="W", device_class="power"),
+    _definition("bypass_power", "Bypass Power", unit="W", device_class="power"),
+    _definition("indevolt_meter_power", "Indevolt Meter Power", unit="W", device_class="power",
+                enabled=False),
+    _definition("solar_output_power", "Solar Output Power", unit="W", device_class="power"),
+    _definition("total_ac_input_energy", "Total AC Input Energy", unit="kWh", device_class="energy",
+                state_class="total_increasing", precision=2, scan="low"),
+    _definition("total_ac_output_energy", "Total AC Output Energy", unit="kWh",
+                device_class="energy", state_class="total_increasing", precision=2, scan="low"),
+    _definition("off_grid_output_energy", "Off-Grid Output Energy", unit="kWh",
+                device_class="energy", state_class="total_increasing", precision=2, scan="low"),
+    _definition("bypass_input_energy", "Bypass Input Energy", unit="kWh", device_class="energy",
+                state_class="total_increasing", precision=3, scan="low"),
+    _definition("daily_solar_energy", "Daily Solar Energy", unit="kWh", device_class="energy",
+                state_class="total_increasing", precision=2, scan="low"),
+    _definition("total_solar_energy", "Total Solar Energy", unit="kWh", device_class="energy",
+                state_class="total_increasing", precision=3, scan="low"),
+    # 6107 as a key (standby/charging/discharging); the label is translated.
+    _text("realtime_command", "Realtime Command", icon="mdi:swap-vertical", scan="medium"),
+    _definition("feed_in_limit", "Feed-in Limit", unit="W", device_class="power", state_class=None,
+                scan="low", diagnostic=True, icon="mdi:transmission-tower-import"),
+    *(_definition(f"pv{n}_power", f"PV{n} Power", unit="W", device_class="power", scan="low",
+                  enabled=False) for n in range(1, len(P_PV_POWER) + 1)),
+    *(_definition(f"pv{n}_voltage", f"PV{n} Voltage", unit="V", device_class="voltage",
+                  precision=1, scan="low", enabled=False, diagnostic=True)
+      for n in range(1, len(P_PV_VOLTAGE) + 1)),
+    *(_definition(f"pv{n}_current", f"PV{n} Current", unit="A", device_class="current",
+                  precision=2, scan="low", enabled=False, diagnostic=True)
+      for n in range(1, len(P_PV_CURRENT) + 1)),
+    _definition("grid_voltage", "Grid Voltage", unit="V", device_class="voltage", precision=1,
+                scan="low", enabled=False, diagnostic=True),
+    _definition("grid_frequency", "Grid Frequency", unit="Hz", device_class="frequency",
+                precision=2, scan="low", enabled=False, diagnostic=True),
+    _definition("remaining_charging_time", "Remaining Charging Time", unit="min",
+                device_class="duration", scan="low", enabled=False),
+    _definition("remaining_discharging_time", "Remaining Discharging Time", unit="min",
+                device_class="duration", scan="low", enabled=False),
+    # 606 as a key (cluster_main/cluster_sub/standalone); the label is translated.
+    _text("device_mode", "Device Mode", icon="mdi:server-network", scan="very_low", enabled=False),
+]
+_DEVICE_MODE = {1000: "cluster_main", 1001: "cluster_sub", 1002: "standalone"}
+
+
+def _battery_detail_definitions(prefix: str, label: str) -> list[dict]:
+    """SOC, cycles, MOS temperature, voltage, current and serial of one battery."""
+    return [
+        *(_definition(f"{prefix}_{field}", f"{label} {name}", unit=unit, device_class=device_class,
+                      state_class=state_class, precision=precision, scan="low", enabled=False,
+                      diagnostic=True)
+          for field, name, unit, device_class, state_class, precision, _, _ in BATTERY_DETAIL_FIELDS),
+        _text(f"{prefix}_serial_number", f"{label} Serial Number", icon="mdi:barcode",
+              scan="very_low", enabled=False),
+    ]
+
+
+INVERTER_BATTERY_DETAIL_DEFINITIONS = _battery_detail_definitions("inverter_battery",
+                                                                  "Inverter Battery")
+SENSOR_DEFINITIONS += INVERTER_BATTERY_DETAIL_DEFINITIONS
+
+BINARY_SENSOR_DEFINITIONS = [
+    {"key": "indevolt_meter_connected", "name": "Indevolt Meter Connected",
+     "device_class": "connectivity", "category": "diagnostic", "scan_interval": "low",
+     "enabled_by_default": False},
 ]
 
-_HIGH_KEYS = ("battery_power", "ac_power", DELIVERED_AC_POWER_KEY)
+_HIGH_KEYS = ("battery_power", "ac_power", DELIVERED_AC_POWER_KEY, "bypass_power",
+              *(key for key, _ in POWER_POINTS))
 # The request speed a slot belongs to, for the Request Speed sensor.
 _SPEED_FOR_SLOT = {slot: speed for speed, slot in REQUEST_SPEED_SLOT_S.items()}
 _SETTING_KEYS = tuple(s.key for s in SETTINGS)
 _MEDIUM_KEYS = ("battery_soc", "energy_mode", "inverter_state", "control_status",
                 "request_interval", "request_speed", "read_latency", "write_latency",
-                "request_failures",
+                "request_failures", "realtime_command",
                 *_SETTING_KEYS)
 # One temperature sensor per expansion battery that is present (see PACKS).
 PACK_TEMPERATURE_DEFINITIONS = [
@@ -306,13 +432,24 @@ PACK_TEMPERATURE_DEFINITIONS = [
                 device_class="temperature", precision=1, scan="low", diagnostic=True)
     for n in range(1, len(PACKS) + 1)
 ]
+# The details of each expansion battery that is present (see PACK_DETAILS).
+PACK_DETAIL_DEFINITIONS = [
+    _battery_detail_definitions(f"expansion_battery_{n}", f"Expansion Battery {n}")
+    for n in range(1, len(PACKS) + 1)
+]
 
 _LOW_KEYS = ("total_charging_energy", "total_discharging_energy", "total_daily_charging_energy",
              "total_daily_discharging_energy", "battery_total_energy", "internal_temperature",
              "inverter_battery_temperature", "transformer_temperature",
              "solar_power", "realtime_power", "realtime_target_soc", "inverter_ac_power",
-             "grid_charging_allowed")
-_VERY_LOW_KEYS = ("software_version",)
+             "grid_charging_allowed", "feed_in_limit", "indevolt_meter_connected",
+             *(key for key, _ in ENERGY_POINTS + WH_ENERGY_POINTS + GRID_POINTS + REMAINING_TIME_POINTS),
+             *(f"pv{n}_{kind}" for kind in ("power", "voltage", "current")
+               for n in range(1, len(P_PV_POWER) + 1)),
+             *(d["key"] for d in INVERTER_BATTERY_DETAIL_DEFINITIONS if d["scan_interval"] == "low"))
+_VERY_LOW_KEYS = ("software_version", "device_mode",
+                  *(d["key"] for d in INVERTER_BATTERY_DETAIL_DEFINITIONS
+                    if d["scan_interval"] == "very_low"))
 
 
 class Notifier(Protocol):
@@ -456,8 +593,10 @@ class IndevoltDriver(BatteryDriver):
 
     @property
     def read_groups(self) -> list[ReadGroup]:
-        packs = tuple(d["key"] for d in self._pack_definitions())
-        return [*self._read_groups, ReadGroup("low", packs)] if packs else self._read_groups
+        packs: dict[str, list[str]] = {}
+        for definition in self._pack_definitions():
+            packs.setdefault(definition["scan_interval"], []).append(definition["key"])
+        return [*self._read_groups, *(ReadGroup(scan, tuple(keys)) for scan, keys in packs.items())]
     @property
     def sensor_definitions(self) -> list[dict]: return SENSOR_DEFINITIONS + self._pack_definitions()
     @property
@@ -487,11 +626,12 @@ class IndevoltDriver(BatteryDriver):
     @property
     def switch_definitions(self) -> list[dict]: return []
     @property
-    def binary_sensor_definitions(self) -> list[dict]: return []
+    def binary_sensor_definitions(self) -> list[dict]: return BINARY_SENSOR_DEFINITIONS
     @property
     def button_definitions(self) -> list[dict]: return []
     @property
-    def all_definitions(self) -> list[dict]: return self.sensor_definitions + self.number_definitions
+    def all_definitions(self) -> list[dict]:
+        return self.sensor_definitions + self.number_definitions + self.binary_sensor_definitions
 
     def _present_packs(self) -> list[int]:
         """Numbers (1-5) of the expansion batteries that report a serial number."""
@@ -501,7 +641,22 @@ class IndevoltDriver(BatteryDriver):
                 if self._scheduler.value(serial) not in (None, "", 0)]
 
     def _pack_definitions(self) -> list[dict]:
-        return [PACK_TEMPERATURE_DEFINITIONS[n - 1] for n in self._present_packs()]
+        present = self._present_packs()
+        return ([PACK_TEMPERATURE_DEFINITIONS[n - 1] for n in present]
+                + [d for n in present for d in PACK_DETAIL_DEFINITIONS[n - 1]])
+
+    def _batteries(self) -> list[tuple[str, dict[str, int], int]]:
+        """(key prefix, detail points, serial point) of each battery that is present."""
+        return [("inverter_battery", INVERTER_BATTERY_DETAILS, P_INVERTER_BATTERY_SERIAL),
+                *((f"expansion_battery_{n}", PACK_DETAILS[n - 1], PACKS[n - 1][0])
+                  for n in self._present_packs())]
+
+    def _sync_pack_points(self) -> None:
+        """Read the details of the batteries that are present, and only those."""
+        if self._scheduler is None:
+            return
+        points = [p for _, details, _ in self._batteries() for p in details.values()]
+        self._scheduler.set_tier_points("packs", (*points, P_INVERTER_BATTERY_SERIAL))
 
     @property
     def control_dependency_keys(self) -> frozenset:
@@ -658,6 +813,8 @@ class IndevoltDriver(BatteryDriver):
             delivered = total - bypass
             out[DELIVERED_AC_POWER_KEY] = delivered
             out["ac_power"] = -delivered  # core convention: + discharging
+        if bypass is not None:
+            out["bypass_power"] = bypass
         soc = _num(c(P_SOC), 0, 100)
         if soc is not None:
             out["battery_soc"] = soc
@@ -679,6 +836,9 @@ class IndevoltDriver(BatteryDriver):
         state = _num(c(P_BATTERY_STATE, echo_age))
         if state is not None and int(state) in _BATTERY_STATE:
             out["inverter_state"] = _BATTERY_STATE[int(state)]
+        rt_status = _num(c(P_RT_STATUS, echo_age))
+        if rt_status is not None and int(rt_status) in _REALTIME_COMMAND:
+            out["realtime_command"] = _REALTIME_COMMAND[int(rt_status)]
         rt_power = _num(c(P_RT_POWER, echo_age), 0, MAX_REALTIME_POWER_W)
         if rt_power is not None:
             out["realtime_power"] = rt_power
@@ -701,6 +861,18 @@ class IndevoltDriver(BatteryDriver):
         grid = _num(limits[2618])
         if grid is not None:
             out["grid_charging_allowed"] = int(grid)
+        feed_in = _num(limits[P_FEED_IN_LIMIT], 0, 100000)
+        if feed_in is not None:
+            out["feed_in_limit"] = feed_in
+        device_mode = _num(limits[P_DEVICE_MODE])  # the device sends it as a string
+        if device_mode is not None and int(device_mode) in _DEVICE_MODE:
+            out["device_mode"] = _DEVICE_MODE[int(device_mode)]
+
+        power_age = self._tier_max_age(POWER_TIER)
+        for key, point in POWER_POINTS:
+            value = _num(c(point, power_age), -100000, 100000)
+            if value is not None:
+                out[key] = value
 
         slow_age = self._tier_max_age(SLOW_TIER)
         for key, point in (("total_charging_energy", 6006), ("total_discharging_energy", 6007),
@@ -709,6 +881,25 @@ class IndevoltDriver(BatteryDriver):
             value = _num(c(point, slow_age), 0, 1e9)
             if value is not None:
                 out[key] = value
+        for key, point in ENERGY_POINTS:
+            value = _num(c(point, slow_age), 0, 1e9)
+            if value is not None:
+                out[key] = value
+        for key, point in WH_ENERGY_POINTS:
+            value = _num(c(point, slow_age), 0, 1e12)
+            if value is not None:
+                out[key] = value / 1000
+        for key, point in GRID_POINTS:
+            value = _num(c(point, slow_age), 0, 1000)
+            if value is not None:
+                out[key] = value
+        for key, point in REMAINING_TIME_POINTS:
+            value = _num(c(point, slow_age), 0, P_NO_REMAINING_TIME - 1)
+            if value is not None:
+                out[key] = value
+        meter = _num(c(P_METER_CONNECTED, slow_age))
+        if meter in (1000, 1001):
+            out["indevolt_meter_connected"] = meter == 1000
         # The core derates charging on internal_temperature: use the warmest
         # battery (inverter unit and present expansion batteries), not the transformer.
         inverter_battery = _num(c(P_INVERTER_BATTERY_TEMPERATURE, slow_age), -40, 100)
@@ -725,15 +916,38 @@ class IndevoltDriver(BatteryDriver):
         transformer = _num(c(P_TRANSFORMER_TEMPERATURE, slow_age), -40, 150)
         if transformer is not None:
             out["transformer_temperature"] = transformer
-        pv = [_num(c(p, slow_age), 0, 10000) for p in (1664, 1665, 1666, 1667)]
+        pv = [_num(c(p, slow_age), 0, 10000) for p in P_PV_POWER]
+        for n, value in enumerate(pv, start=1):
+            if value is not None:
+                out[f"pv{n}_power"] = value
         if all(v is not None for v in pv):
             out["solar_power"] = sum(pv)  # type: ignore[arg-type]
+        for kind, points, high in (("voltage", P_PV_VOLTAGE, 1000), ("current", P_PV_CURRENT, 100)):
+            for n, point in enumerate(points, start=1):
+                value = _num(c(point, slow_age), 0, high)
+                if value is not None:
+                    out[f"pv{n}_{kind}"] = value
+        self._decode_batteries(out, limits_age)
         inverter_ac = _num(c(2275, slow_age))
         if inverter_ac is not None:
             out["inverter_ac_power"] = inverter_ac
         if self.firmware and out:
             out["software_version"] = self.firmware
         return out
+
+    def _decode_batteries(self, out: dict[str, Any], limits_age: float) -> None:
+        """The details of each battery that is present (see PACKS_TIER)."""
+        age = self._tier_max_age(PACKS_TIER)
+        for prefix, details, serial_point in self._batteries():
+            for field, _, _, _, _, _, low, high in BATTERY_DETAIL_FIELDS:
+                value = _num(self._fresh_value(details[field], age), low, high)
+                if value is not None:
+                    out[f"{prefix}_{field}"] = value
+            # The expansion battery serials are read with the limits.
+            serial_age = age if serial_point == P_INVERTER_BATTERY_SERIAL else limits_age
+            serial = self._fresh_value(serial_point, serial_age)
+            if serial not in (None, "", 0):
+                out[f"{prefix}_serial_number"] = str(serial).strip()
 
     async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:
         """Serve the scheduler's cache. Never causes a device request."""
@@ -890,6 +1104,8 @@ class IndevoltDriver(BatteryDriver):
             self._handover_reads += 1
         if any(s.read_point in updated for s in SETTINGS):
             self._settings.on_telemetry()
+        if any(serial in updated for serial, _ in PACKS):
+            self._sync_pack_points()
         self._evaluate(updated)
 
     def _on_write(self, values: tuple[int, int, int], outcome: str) -> None:

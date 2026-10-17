@@ -1992,6 +1992,202 @@
       "request_interval": {
         "name": "Anfrageintervall (effektiv)"
       },
+      "ac_input_power": {
+        "name": "AC-Eingangsleistung"
+      },
+      "ac_output_power": {
+        "name": "AC-Ausgangsleistung"
+      },
+      "bypass_power": {
+        "name": "Bypass-Leistung"
+      },
+      "indevolt_meter_power": {
+        "name": "Indevolt-Zählerleistung"
+      },
+      "solar_output_power": {
+        "name": "Solar-Ausgangsleistung"
+      },
+      "total_ac_input_energy": {
+        "name": "Gesamte AC-Eingangsenergie"
+      },
+      "total_ac_output_energy": {
+        "name": "Gesamte AC-Ausgangsenergie"
+      },
+      "off_grid_output_energy": {
+        "name": "Off-Grid-Ausgangsenergie"
+      },
+      "bypass_input_energy": {
+        "name": "Bypass-Eingangsenergie"
+      },
+      "daily_solar_energy": {
+        "name": "Tägliche Solarenergie"
+      },
+      "total_solar_energy": {
+        "name": "Gesamte Solarenergie"
+      },
+      "feed_in_limit": {
+        "name": "Einspeiselimit"
+      },
+      "grid_voltage": {
+        "name": "Netzspannung"
+      },
+      "grid_frequency": {
+        "name": "Netzfrequenz"
+      },
+      "remaining_charging_time": {
+        "name": "Verbleibende Ladezeit"
+      },
+      "remaining_discharging_time": {
+        "name": "Verbleibende Entladezeit"
+      },
+      "realtime_command": {
+        "name": "Echtzeit-Befehl",
+        "state": {
+          "standby": "Standby",
+          "charging": "Laden",
+          "discharging": "Entladen"
+        }
+      },
+      "device_mode": {
+        "name": "Gerätemodus",
+        "state": {
+          "cluster_main": "Cluster (Haupt)",
+          "cluster_sub": "Cluster (Neben)",
+          "standalone": "Eigenständig"
+        }
+      },
+      "pv1_power": {
+        "name": "PV1 Leistung"
+      },
+      "pv1_current": {
+        "name": "PV1 Strom"
+      },
+      "pv2_power": {
+        "name": "PV2 Leistung"
+      },
+      "pv2_current": {
+        "name": "PV2 Strom"
+      },
+      "pv3_power": {
+        "name": "PV3 Leistung"
+      },
+      "pv3_current": {
+        "name": "PV3 Strom"
+      },
+      "pv4_power": {
+        "name": "PV4 Leistung"
+      },
+      "pv4_current": {
+        "name": "PV4 Strom"
+      },
+      "inverter_battery_soc": {
+        "name": "SOC Wechselrichterbatterie"
+      },
+      "inverter_battery_cycles": {
+        "name": "Zyklen Wechselrichterbatterie"
+      },
+      "inverter_battery_mos_temperature": {
+        "name": "MOS-Temperatur Wechselrichterbatterie"
+      },
+      "inverter_battery_voltage": {
+        "name": "Spannung Wechselrichterbatterie"
+      },
+      "inverter_battery_current": {
+        "name": "Strom Wechselrichterbatterie"
+      },
+      "inverter_battery_serial_number": {
+        "name": "Seriennummer Wechselrichterbatterie"
+      },
+      "expansion_battery_1_soc": {
+        "name": "SOC Erweiterungsbatterie 1"
+      },
+      "expansion_battery_1_cycles": {
+        "name": "Zyklen Erweiterungsbatterie 1"
+      },
+      "expansion_battery_1_mos_temperature": {
+        "name": "MOS-Temperatur Erweiterungsbatterie 1"
+      },
+      "expansion_battery_1_voltage": {
+        "name": "Spannung Erweiterungsbatterie 1"
+      },
+      "expansion_battery_1_current": {
+        "name": "Strom Erweiterungsbatterie 1"
+      },
+      "expansion_battery_1_serial_number": {
+        "name": "Seriennummer Erweiterungsbatterie 1"
+      },
+      "expansion_battery_2_soc": {
+        "name": "SOC Erweiterungsbatterie 2"
+      },
+      "expansion_battery_2_cycles": {
+        "name": "Zyklen Erweiterungsbatterie 2"
+      },
+      "expansion_battery_2_mos_temperature": {
+        "name": "MOS-Temperatur Erweiterungsbatterie 2"
+      },
+      "expansion_battery_2_voltage": {
+        "name": "Spannung Erweiterungsbatterie 2"
+      },
+      "expansion_battery_2_current": {
+        "name": "Strom Erweiterungsbatterie 2"
+      },
+      "expansion_battery_2_serial_number": {
+        "name": "Seriennummer Erweiterungsbatterie 2"
+      },
+      "expansion_battery_3_soc": {
+        "name": "SOC Erweiterungsbatterie 3"
+      },
+      "expansion_battery_3_cycles": {
+        "name": "Zyklen Erweiterungsbatterie 3"
+      },
+      "expansion_battery_3_mos_temperature": {
+        "name": "MOS-Temperatur Erweiterungsbatterie 3"
+      },
+      "expansion_battery_3_voltage": {
+        "name": "Spannung Erweiterungsbatterie 3"
+      },
+      "expansion_battery_3_current": {
+        "name": "Strom Erweiterungsbatterie 3"
+      },
+      "expansion_battery_3_serial_number": {
+        "name": "Seriennummer Erweiterungsbatterie 3"
+      },
+      "expansion_battery_4_soc": {
+        "name": "SOC Erweiterungsbatterie 4"
+      },
+      "expansion_battery_4_cycles": {
+        "name": "Zyklen Erweiterungsbatterie 4"
+      },
+      "expansion_battery_4_mos_temperature": {
+        "name": "MOS-Temperatur Erweiterungsbatterie 4"
+      },
+      "expansion_battery_4_voltage": {
+        "name": "Spannung Erweiterungsbatterie 4"
+      },
+      "expansion_battery_4_current": {
+        "name": "Strom Erweiterungsbatterie 4"
+      },
+      "expansion_battery_4_serial_number": {
+        "name": "Seriennummer Erweiterungsbatterie 4"
+      },
+      "expansion_battery_5_soc": {
+        "name": "SOC Erweiterungsbatterie 5"
+      },
+      "expansion_battery_5_cycles": {
+        "name": "Zyklen Erweiterungsbatterie 5"
+      },
+      "expansion_battery_5_mos_temperature": {
+        "name": "MOS-Temperatur Erweiterungsbatterie 5"
+      },
+      "expansion_battery_5_voltage": {
+        "name": "Spannung Erweiterungsbatterie 5"
+      },
+      "expansion_battery_5_current": {
+        "name": "Strom Erweiterungsbatterie 5"
+      },
+      "expansion_battery_5_serial_number": {
+        "name": "Seriennummer Erweiterungsbatterie 5"
+      },
       "request_speed": {
         "name": "Anfragegeschwindigkeit",
         "state": {
@@ -2198,6 +2394,9 @@
       }
     },
     "binary_sensor": {
+      "indevolt_meter_connected": {
+        "name": "Indevolt-Zähler verbunden"
+      },
       "capacity_protection_active": {
         "name": "Spitzenlastkappung Aktiv"
       },

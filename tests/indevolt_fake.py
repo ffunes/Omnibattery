@@ -34,6 +34,24 @@ SF2000_SAMPLE = {
     "11011": 2400, "11032": 2400, "11034": 0,
 }
 
+# The points read for parity with the official integration, from the same
+# device (Realtime mode, discharging ~300 W): the
+# Indevolt meter, PV, grid, remaining times and the inverter-unit battery's
+# details. 11019 reports 9999 while it does not apply.
+SF2000_PARITY_SAMPLE = {
+    "11016": -7, "1501": 0, "1502": 0, "1505": 0, "11019": 9999, "11020": 374,
+    "2600": 240.1, "2612": 49.99, "7120": 1000,
+    "1600": 0.8, "1601": 0.8, "1602": 0.8, "1603": 0.9,
+    "1632": 0, "1633": 0, "1634": 0, "1635": 0,
+    "9000": 31, "9003": 178, "11042": 35, "9004": 6.55, "9013": 11.3, "9008": "022509270193",
+}
+# Per expansion battery: (soc, cycles, MOS temperature, voltage, current) points.
+PACK_DETAIL_POINTS = (
+    (9016, 9019, 9085, 9020, 19173), (9035, 9038, 9101, 9039, 19174),
+    (9054, 9057, 9117, 9058, 19175), (9149, 9152, 9133, 9153, 19176),
+    (9202, 9205, 9270, 9206, 19177),
+)
+
 # Writable points named in Indevolt's tables and the official library. Every one
 # of them except 47015 is flash-backed. 1142, 1138 and 1147 are the user settings
 # Omnibattery may write on the config channel, on a direct user action only.
@@ -143,6 +161,7 @@ class FakeIndevoltDevice:
     timeouts: int = 0  # the next N requests time out
     batch_limit: int | None = None  # replies carry at most this many points
     missing_points: set[int] = field(default_factory=set)
+    extra_points: dict[str, Any] = field(default_factory=dict)  # override or add point values
     requests: list[Request] = field(default_factory=list)
     in_flight: int = 0
     max_in_flight: int = 0
@@ -236,7 +255,7 @@ class FakeIndevoltDevice:
         for due in [d for d in self._config_due if d[0] <= self.clock.now]:
             self._config_due.remove(due)
             self._apply_setting(due[1], due[2])
-        data = dict(SF2000_SAMPLE)
+        data = {**SF2000_SAMPLE, **SF2000_PARITY_SAMPLE}
         battery_native = -round(self.power_w)  # + discharging
         ac = round(self.power_w + (self.loss_w if self.power_w > 0 else -self.loss_w if self.power_w < 0 else 0))
         data.update({
@@ -258,15 +277,19 @@ class FakeIndevoltDevice:
         })
         pack_points = ((9032, 9030), (9051, 9049), (9070, 9068), (9165, 9163), (9218, 9216))
         for n, (serial, temp) in enumerate(pack_points, start=1):
+            details = PACK_DETAIL_POINTS[n - 1]
             if n <= self.packs:
                 data[str(serial)] = f"PACK{n}SN"
                 data[str(temp)] = 30 + n
+                data.update(zip(map(str, details), (30 + n, 170 + n, 30 + n, 6.5, 11.0 + n)))
             elif self.absent_pack_style == "empty":
                 data[str(serial)] = ""
                 data[str(temp)] = 0
+                data.update((str(point), 0) for point in details)
             else:
-                data.pop(str(serial), None)
-                data.pop(str(temp), None)
+                for point in (serial, temp, *details):
+                    data.pop(str(point), None)
+        data.update(self.extra_points)
         return data
 
     def _setting(self, value: int | None) -> int:

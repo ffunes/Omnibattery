@@ -1992,6 +1992,202 @@
       "request_interval": {
         "name": "Interval de sol·licituds (efectiu)"
       },
+      "ac_input_power": {
+        "name": "Potència d'entrada CA"
+      },
+      "ac_output_power": {
+        "name": "Potència de sortida CA"
+      },
+      "bypass_power": {
+        "name": "Potència de bypass"
+      },
+      "indevolt_meter_power": {
+        "name": "Potència del comptador Indevolt"
+      },
+      "solar_output_power": {
+        "name": "Potència de sortida solar"
+      },
+      "total_ac_input_energy": {
+        "name": "Energia total d'entrada CA"
+      },
+      "total_ac_output_energy": {
+        "name": "Energia total de sortida CA"
+      },
+      "off_grid_output_energy": {
+        "name": "Energia de sortida fora de xarxa"
+      },
+      "bypass_input_energy": {
+        "name": "Energia d'entrada bypass"
+      },
+      "daily_solar_energy": {
+        "name": "Energia solar diària"
+      },
+      "total_solar_energy": {
+        "name": "Energia solar total"
+      },
+      "feed_in_limit": {
+        "name": "Límit d'injecció"
+      },
+      "grid_voltage": {
+        "name": "Tensió de xarxa"
+      },
+      "grid_frequency": {
+        "name": "Freqüència de xarxa"
+      },
+      "remaining_charging_time": {
+        "name": "Temps de càrrega restant"
+      },
+      "remaining_discharging_time": {
+        "name": "Temps de descàrrega restant"
+      },
+      "realtime_command": {
+        "name": "Ordre en temps real",
+        "state": {
+          "standby": "En espera",
+          "charging": "Carregant",
+          "discharging": "Descarregant"
+        }
+      },
+      "device_mode": {
+        "name": "Mode del dispositiu",
+        "state": {
+          "cluster_main": "Clúster (principal)",
+          "cluster_sub": "Clúster (secundari)",
+          "standalone": "Independent"
+        }
+      },
+      "pv1_power": {
+        "name": "Potència PV1"
+      },
+      "pv1_current": {
+        "name": "Corrent PV1"
+      },
+      "pv2_power": {
+        "name": "Potència PV2"
+      },
+      "pv2_current": {
+        "name": "Corrent PV2"
+      },
+      "pv3_power": {
+        "name": "Potència PV3"
+      },
+      "pv3_current": {
+        "name": "Corrent PV3"
+      },
+      "pv4_power": {
+        "name": "Potència PV4"
+      },
+      "pv4_current": {
+        "name": "Corrent PV4"
+      },
+      "inverter_battery_soc": {
+        "name": "SOC de la bateria de l'inversor"
+      },
+      "inverter_battery_cycles": {
+        "name": "Cicles de la bateria de l'inversor"
+      },
+      "inverter_battery_mos_temperature": {
+        "name": "Temperatura MOS de la bateria de l'inversor"
+      },
+      "inverter_battery_voltage": {
+        "name": "Tensió de la bateria de l'inversor"
+      },
+      "inverter_battery_current": {
+        "name": "Corrent de la bateria de l'inversor"
+      },
+      "inverter_battery_serial_number": {
+        "name": "Número de sèrie de la bateria de l'inversor"
+      },
+      "expansion_battery_1_soc": {
+        "name": "SOC de la bateria d'expansió 1"
+      },
+      "expansion_battery_1_cycles": {
+        "name": "Cicles de la bateria d'expansió 1"
+      },
+      "expansion_battery_1_mos_temperature": {
+        "name": "Temperatura MOS de la bateria d'expansió 1"
+      },
+      "expansion_battery_1_voltage": {
+        "name": "Tensió de la bateria d'expansió 1"
+      },
+      "expansion_battery_1_current": {
+        "name": "Corrent de la bateria d'expansió 1"
+      },
+      "expansion_battery_1_serial_number": {
+        "name": "Número de sèrie de la bateria d'expansió 1"
+      },
+      "expansion_battery_2_soc": {
+        "name": "SOC de la bateria d'expansió 2"
+      },
+      "expansion_battery_2_cycles": {
+        "name": "Cicles de la bateria d'expansió 2"
+      },
+      "expansion_battery_2_mos_temperature": {
+        "name": "Temperatura MOS de la bateria d'expansió 2"
+      },
+      "expansion_battery_2_voltage": {
+        "name": "Tensió de la bateria d'expansió 2"
+      },
+      "expansion_battery_2_current": {
+        "name": "Corrent de la bateria d'expansió 2"
+      },
+      "expansion_battery_2_serial_number": {
+        "name": "Número de sèrie de la bateria d'expansió 2"
+      },
+      "expansion_battery_3_soc": {
+        "name": "SOC de la bateria d'expansió 3"
+      },
+      "expansion_battery_3_cycles": {
+        "name": "Cicles de la bateria d'expansió 3"
+      },
+      "expansion_battery_3_mos_temperature": {
+        "name": "Temperatura MOS de la bateria d'expansió 3"
+      },
+      "expansion_battery_3_voltage": {
+        "name": "Tensió de la bateria d'expansió 3"
+      },
+      "expansion_battery_3_current": {
+        "name": "Corrent de la bateria d'expansió 3"
+      },
+      "expansion_battery_3_serial_number": {
+        "name": "Número de sèrie de la bateria d'expansió 3"
+      },
+      "expansion_battery_4_soc": {
+        "name": "SOC de la bateria d'expansió 4"
+      },
+      "expansion_battery_4_cycles": {
+        "name": "Cicles de la bateria d'expansió 4"
+      },
+      "expansion_battery_4_mos_temperature": {
+        "name": "Temperatura MOS de la bateria d'expansió 4"
+      },
+      "expansion_battery_4_voltage": {
+        "name": "Tensió de la bateria d'expansió 4"
+      },
+      "expansion_battery_4_current": {
+        "name": "Corrent de la bateria d'expansió 4"
+      },
+      "expansion_battery_4_serial_number": {
+        "name": "Número de sèrie de la bateria d'expansió 4"
+      },
+      "expansion_battery_5_soc": {
+        "name": "SOC de la bateria d'expansió 5"
+      },
+      "expansion_battery_5_cycles": {
+        "name": "Cicles de la bateria d'expansió 5"
+      },
+      "expansion_battery_5_mos_temperature": {
+        "name": "Temperatura MOS de la bateria d'expansió 5"
+      },
+      "expansion_battery_5_voltage": {
+        "name": "Tensió de la bateria d'expansió 5"
+      },
+      "expansion_battery_5_current": {
+        "name": "Corrent de la bateria d'expansió 5"
+      },
+      "expansion_battery_5_serial_number": {
+        "name": "Número de sèrie de la bateria d'expansió 5"
+      },
       "request_speed": {
         "name": "Velocitat de sol·licituds",
         "state": {
@@ -2198,6 +2394,9 @@
       }
     },
     "binary_sensor": {
+      "indevolt_meter_connected": {
+        "name": "Comptador Indevolt connectat"
+      },
       "capacity_protection_active": {
         "name": "Reducció de Pics Activa"
       },
