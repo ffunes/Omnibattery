@@ -1,5 +1,9 @@
 {
   "issues": {
+    "recorder_excluded_sensors": {
+      "title": "Sensoren vom Recorder ausgeschlossen",
+      "description": "Der Recorder schließt diese Sensoren aus, die Omnibattery zur Wiederherstellung der Solar- und Haushaltsverbrauchsprofile verwendet: {sensors}. Passen Sie die include/exclude-Regeln des Recorders an und starten Sie Home Assistant neu, um die Konfiguration anzuwenden. Die Warnung verschwindet automatisch, sobald die Sensoren eingeschlossen sind. Fehlende frühere Messwerte können nicht wiederhergestellt werden; das Lernen aus aktuellen Werten und vorhandene gespeicherte Profile funktionieren weiterhin."
+    },
     "excluded_device_ev_type": {
       "title": "E-Auto-Ladegerät unter den ausgeschlossenen Geräten markieren",
       "description": "Das neue Energieflussdiagramm (über die Schaltfläche im Kopf der Fluss-Karte einschalten) zeichnet E-Auto-Ladegeräte auf einer eigenen Leitung neben dem Auto. Omnibattery kann nicht erkennen, welches ausgeschlossene Gerät das Ladegerät ist; bis du es markierst, erscheint seine Leistung auf der Leitung der übrigen ausgeschlossenen Geräte (Außeneinheit) und die E-Auto-Leitung bleibt leer. Öffne Optionen → Ausgeschlossene Geräte und speichere deine Geräte erneut; aktiviere dabei \"E-Auto-Ladegerät\" beim Ladegerät (bei den anderen deaktiviert lassen). Betrifft nur die Darstellung des Diagramms, nicht die Batteriesteuerung. Der Hinweis verschwindet, sobald die Geräte gespeichert sind."
