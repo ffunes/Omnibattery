@@ -9378,6 +9378,12 @@ class ChargeDischargeController:
             # streak, so a much later flip must start its own settle window instead
             # of inheriting a stale timestamp that would let it pass instantly.
             self._zero_cross_since = None
+            # Feed the quality metric here too: time on target is part of how
+            # well the loop controls. Without it the metric only averages the
+            # cycles outside the deadband and overstates the error.
+            self._update_pd_quality_metrics(
+                sensor_actual - active_target, False, active_target, False
+            )
             # NOTE: Do NOT clear load sharing state here. Batteries keep executing
             # their last command during deadband, so the active battery lists must
             # remain accurate for the diagnostic sensor.
