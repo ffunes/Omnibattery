@@ -50,6 +50,27 @@ These are the same touchpoints every brand has (compare Sessy and Huawei):
   `test_other_drivers_keep_their_limits` pins that, and the full suite is
   unchanged.
 
+### Panel: the battery card shows a paused control status
+
+- **Files:** `frontend/marstek-panel.js` (a second header chip on the battery
+  card, and `flex-wrap` on the header so two chips fit at phone width),
+  `strings.json` and `translations/*.json` (state labels for the
+  `control_status` sensor, which showed the raw key before).
+- **Why:** the card's inverter chip shows what the battery itself does. In its
+  own self-consumption mode a paused Indevolt may well be discharging, so the
+  card said "Discharging" with nothing showing that Omnibattery was not
+  steering it.
+- **Change:** while `control_status` is anything but `active` or `starting`,
+  the card shows its translated state (for example "Paused: not in Realtime
+  mode") as a warning chip, neutral for "Monitoring only".
+- **Other brands:** no other driver has a `control_status` entity, so their
+  cards are unchanged.
+- **Known lag, left on purpose:** when control pauses while the grid sits in
+  the deadband, the controller keeps its last command on display (Integration
+  Status, Active Batteries, Force Mode) until the grid leaves the deadband,
+  seen live for about two and a half minutes. Nothing is sent to the battery meanwhile. A fix
+  belongs in the controller, not the driver, so it is not part of this work.
+
 ### `repairs.py` and `BatteryDriver.async_fix_issue`: a driver fixes its own Repairs issue
 
 - **Files:** `repairs.py` (new, about 50 lines: Home Assistant's fix-flow
@@ -132,6 +153,5 @@ Everything else was met with existing mechanisms:
 - **Hardware power ceilings.** The config-flow probe reports 114/115, which the
   coordinator keeps as the device envelope; the number entities use them as
   their maximum.
-- **Why control is paused.** The driver's own `control_status` sensor and a
-  persistent notification. Showing it in the panel's warning chip would be a
-  separate, optional follow-up.
+- **Why control is paused.** The driver's own `control_status` sensor, a
+  persistent notification and the battery card's chip (see above).

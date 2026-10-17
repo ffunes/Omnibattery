@@ -1983,7 +1983,16 @@
         "name": "Modo de trabajo"
       },
       "control_status": {
-        "name": "Estado del control"
+        "name": "Estado del control",
+        "state": {
+          "active": "Activo",
+          "starting": "Tomando el control",
+          "realtime_mode_required": "En pausa: no está en modo Realtime",
+          "not_configured": "Solo supervisión",
+          "telemetry_stale": "En pausa: sin datos recientes",
+          "handover_failed": "En pausa: no se pudo tomar el control",
+          "unknown_model": "Solo supervisión: modelo desconocido"
+        }
       },
       "native_min_soc": {
         "name": "Reserva de batería"

@@ -1983,7 +1983,16 @@
         "name": "Mode de treball"
       },
       "control_status": {
-        "name": "Estat del control"
+        "name": "Estat del control",
+        "state": {
+          "active": "Actiu",
+          "starting": "Prenent el control",
+          "realtime_mode_required": "En pausa: no és en mode Realtime",
+          "not_configured": "Només supervisió",
+          "telemetry_stale": "En pausa: sense dades recents",
+          "handover_failed": "En pausa: no s'ha pogut prendre el control",
+          "unknown_model": "Només supervisió: model desconegut"
+        }
       },
       "native_min_soc": {
         "name": "Reserva de bateria"

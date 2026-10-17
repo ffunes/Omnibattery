@@ -1983,7 +1983,16 @@
         "name": "Arbeitsmodus"
       },
       "control_status": {
-        "name": "Steuerungsstatus"
+        "name": "Steuerungsstatus",
+        "state": {
+          "active": "Aktiv",
+          "starting": "Übernahme",
+          "realtime_mode_required": "Pausiert: nicht im Realtime-Modus",
+          "not_configured": "Nur Überwachung",
+          "telemetry_stale": "Pausiert: keine aktuellen Daten",
+          "handover_failed": "Pausiert: Übernahme fehlgeschlagen",
+          "unknown_model": "Nur Überwachung: unbekanntes Modell"
+        }
       },
       "native_min_soc": {
         "name": "Batteriereserve"

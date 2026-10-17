@@ -1983,7 +1983,16 @@
         "name": "Mode de fonctionnement"
       },
       "control_status": {
-        "name": "État du pilotage"
+        "name": "État du pilotage",
+        "state": {
+          "active": "Actif",
+          "starting": "Prise de contrôle",
+          "realtime_mode_required": "En pause : pas en mode Realtime",
+          "not_configured": "Surveillance seule",
+          "telemetry_stale": "En pause : pas de données récentes",
+          "handover_failed": "En pause : prise de contrôle échouée",
+          "unknown_model": "Surveillance seule : modèle inconnu"
+        }
       },
       "native_min_soc": {
         "name": "Réserve de batterie"

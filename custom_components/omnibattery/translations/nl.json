@@ -1983,7 +1983,16 @@
         "name": "Werkmodus"
       },
       "control_status": {
-        "name": "Regelstatus"
+        "name": "Regelstatus",
+        "state": {
+          "active": "Actief",
+          "starting": "Overnemen",
+          "realtime_mode_required": "Gepauzeerd: niet in Realtime-modus",
+          "not_configured": "Alleen uitlezen",
+          "telemetry_stale": "Gepauzeerd: geen actuele gegevens",
+          "handover_failed": "Gepauzeerd: overname mislukt",
+          "unknown_model": "Alleen uitlezen: onbekend model"
+        }
       },
       "native_min_soc": {
         "name": "Batterijreserve"

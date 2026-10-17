@@ -861,6 +861,7 @@ const K = {
   storedEnergy: "stored_energy", // kWh
   batteryTotalEnergy: "battery_total_energy", // capacity kWh
   inverterState: "inverter_state",
+  controlStatus: "control_status", // Indevolt: whether Omnibattery is steering it
   dailyCharge: "total_daily_charging_energy",
   dailyDischarge: "total_daily_discharging_energy",
   maxChargePower: "max_charge_power",
@@ -5883,6 +5884,7 @@ class MarstekVenusPanel extends HTMLElement {
         stored: this._num(byTk[K.storedEnergy]),
         capacity: this._num(byTk[K.batteryTotalEnergy]),
         inverter,
+        controlStatus: byTk[K.controlStatus] || null,
         temp: this._num(byTk[K.internalTemp]),
         soh: this._num(byTk[K.batterySoh]),
         voltage: this._num(byTk[K.batteryVoltage]),
@@ -5988,7 +5990,8 @@ class MarstekVenusPanel extends HTMLElement {
     head.innerHTML =
       `<div class="bat-title"><span class="ic"><ha-icon icon="mdi:battery-high"></ha-icon></span>` +
       `<span class="bat-name"></span></div>` +
-      `<div class="bat-chips"><span class="chip bat-state">—</span></div>`;
+      `<div class="bat-chips"><span class="chip bat-control" style="display:none"></span>` +
+      `<span class="chip bat-state">—</span></div>`;
     card.appendChild(head);
 
     // ----- top: SOC ring + power readout -----
@@ -6106,6 +6109,7 @@ class MarstekVenusPanel extends HTMLElement {
       card,
       name: head.querySelector(".bat-name"),
       state: head.querySelector(".bat-state"),
+      control: head.querySelector(".bat-control"),
       ringFg: ring.fg,
       ringCirc: ring.circ,
       ringVal: ring.val,
@@ -6193,6 +6197,21 @@ class MarstekVenusPanel extends HTMLElement {
       r.state.style.display = "";
     } else {
       r.state.style.display = "none";
+    }
+
+    // control-status chip: only while Omnibattery is not steering the battery.
+    // The inverter chip above still shows what the battery itself is doing
+    // (in its own self-consumption mode it may well be discharging).
+    const ctlState = this._sval(b.controlStatus);
+    if (ctlState && ctlState !== "active" && ctlState !== "starting") {
+      const disp =
+        typeof this._hass.formatEntityState === "function"
+          ? this._hass.formatEntityState(b.controlStatus)
+          : ctlState;
+      this._setChip(r.control, disp, ctlState === "not_configured" ? "neutral" : "warn");
+      r.control.style.display = "";
+    } else if (r.control) {
+      r.control.style.display = "none";
     }
 
     // SOC ring
@@ -7864,12 +7883,12 @@ class MarstekVenusPanel extends HTMLElement {
       /* ===== Baterías tab ===== */
       .bat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: var(--gap); align-items: start; }
       .bat-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-      .bat-head { display: flex; align-items: center; gap: 10px; }
+      .bat-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
       .bat-title { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 auto; --mdc-icon-size: 18px; }
       .bat-title .ic { color: var(--ink-dim); display: grid; place-items: center; flex-shrink: 0; }
       .bat-name { font-family: var(--font-display); font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .bat-head .chip { flex-shrink: 0; }
-      .bat-chips { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+      .bat-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-shrink: 0; max-width: 100%; }
       .bat-top { display: flex; align-items: center; gap: 18px; }
       .bat-ring { flex: 0 0 auto; }
       .bat-ring .ring-val { font-size: 30px; font-weight: 600; line-height: 1; }
