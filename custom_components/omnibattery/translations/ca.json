@@ -1,5 +1,9 @@
 {
   "issues": {
+    "recorder_excluded_sensors": {
+      "title": "Sensors exclosos de Recorder",
+      "description": "Recorder exclou aquests sensors que Omnibattery utilitza per recuperar els perfils solars i de consum domèstic: {sensors}. Ajusta les regles include/exclude de Recorder per incloure’ls i reinicia Home Assistant per aplicar la configuració. L’avís desapareix automàticament quan estiguin inclosos. Les mostres històriques que falten no es poden recuperar; l’aprenentatge en directe i els perfils ja desats continuen funcionant."
+    },
     "excluded_device_ev_type": {
       "title": "Marca el teu carregador de VE entre els dispositius exclosos",
       "description": "El nou diagrama de fluxos d'energia (activa'l amb el botó de la capçalera de la targeta de flux) dibuixa els carregadors de VE al seu propi cable, al costat del cotxe. Omnibattery no pot saber quin dispositiu exclòs és el carregador, així que fins que el marquis la seva potència es mostra al cable dels altres dispositius exclosos (la unitat exterior) i el cable del VE queda buit. Obre Opcions → Dispositius exclosos i torna a desar els dispositius, marcant \"Carregador de VE\" al carregador (deixa-ho sense marcar als altres). Només afecta com es dibuixa el diagrama, no el control de la bateria. L'avís desapareix en desar els dispositius."
