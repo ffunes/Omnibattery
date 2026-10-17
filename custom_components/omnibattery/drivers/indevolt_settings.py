@@ -7,8 +7,8 @@ action (see FLASH WEAR in ``infra/indevolt_client.py``):
 
 * **Omnibattery -> device:** a number entity or an options-flow save requests a
   value. After a debounce the value is compared with what the device holds and
-  written only if it differs, within a per-setting daily budget. Every flash
-  write is logged at INFO.
+  written only if it differs, within a yearly allowance shared by the three
+  settings. Every flash write is logged at INFO.
 * **Device -> Omnibattery:** a value changed elsewhere (the Indevolt app, the
   official integration) is adopted and stored in the battery's config, without
   writing anything.
@@ -26,8 +26,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
-from collections import deque
-from collections.abc import Awaitable, Callable
+import time
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -61,11 +61,22 @@ assert all(s.write_point in CONFIG_WRITE_POINTS for s in SETTINGS)
 # automation firing in a burst collapse to one write: the newest value wins
 # once nothing changed for this long.
 DEBOUNCE_S = 3.0
-# At most this many flash writes per setting per rolling day. Above it the
-# request is refused and the user is told why. In memory: user actions are rare,
-# and a restart loop never writes (nothing is written at startup).
-DAILY_BUDGET = 10
-BUDGET_WINDOW_S = 86400.0
+# Flash wear guard. The three settings count together (they most likely share
+# one flash block), and every write that may have reached the device counts,
+# also one that failed: a battery can store a value and still not answer. Once
+# this many writes fall within a rolling year, writing stays off until the user
+# turns it back on in Repairs, which starts a new allowance; changes made on the
+# device are still adopted. Without a person stepping in, Omnibattery therefore
+# writes the battery's flash at most 100 times a year, whatever goes wrong. A
+# person changing settings stays far below it; an automation that changes them
+# every day reaches it after 100 days, and the Repairs issue says why.
+YEARLY_ALLOWANCE = 100
+ALLOWANCE_WINDOW_S = 365 * 86400.0
+# The guard lives in the battery config, with wall-clock times, so neither a
+# restart nor a reload loop resets it: {"times": [...], "total": n, "paused": b}.
+FLASH_WRITES_KEY = "indevolt_flash_writes"
+# The Repairs issue that turns writing back on (raised by the notifier).
+FLASH_WRITES_ISSUE = "indevolt_flash_writes_paused"
 # A written value is shown until the device reports it back, at most this long.
 CONFIRM_TIMEOUT_S = 600.0
 SYNCED_PREFIX = "indevolt_synced_"
@@ -73,17 +84,21 @@ SYNCED_PREFIX = "indevolt_synced_"
 
 class SettingsNotifier(Protocol):
     def setting_failed(self, key: str, value: int) -> None: ...
-    def setting_budget_exhausted(self, key: str, budget: int) -> None: ...
     def setting_ok(self, key: str) -> None: ...
+    def flash_writes_paused(self, allowance: int) -> None: ...
+    def flash_writes_resumed(self) -> None: ...
 
 
 def stored_battery_value(coordinator: Any, key: str) -> Any:
     """Read one key of this coordinator's battery config (None when unknown)."""
     entry = getattr(coordinator, "_config_entry", None)
     data = getattr(entry, "data", None)
-    if not isinstance(data, dict):
+    # Home Assistant hands out entry data as a read-only MappingProxyType, not a dict.
+    if not isinstance(data, Mapping):
         return None
     for battery in data.get("batteries", []):
+        if not isinstance(battery, Mapping):
+            continue
         if (
             battery.get("host") == coordinator.host
             and battery.get("port") == coordinator.port
@@ -108,11 +123,15 @@ class IndevoltSettings:
         stored: Callable[[str], Any] | None = None,
         notifier: SettingsNotifier | None = None,
         name: str = "Indevolt",
+        wall_clock: Callable[[], float] = time.time,
     ) -> None:
         self._client = client
         self._read = read
         self._expedite = expedite
         self._clock = clock
+        # ``clock`` may be monotonic, which restarts with Home Assistant; the
+        # yearly allowance is persisted, so it needs wall-clock time.
+        self._wall_clock = wall_clock
         self._sleep = sleep
         self._persist = persist
         self._stored = stored
@@ -120,14 +139,17 @@ class IndevoltSettings:
         self._name = name
         self._pending: dict[str, tuple[int, str, float]] = {}  # key -> (value, origin, changed at)
         self._written: dict[str, tuple[int, float]] = {}  # accepted, not yet read back
-        self._writes: dict[str, deque[float]] = {s.key: deque() for s in SETTINGS}
         # Last value both sides agreed on, per setting. Loaded on first use: the
         # config entry is attached to the coordinator after the driver is built.
         self._synced_store: dict[str, int | None] | None = None
         self._synced_at_start: dict[str, int | None] = {}
+        # The flash wear guard (see YEARLY_ALLOWANCE), loaded on first use too.
+        self._guard_loaded = False
+        self._write_times: list[float] = []  # wall clock, within the window
+        self._writes_total = 0
+        self._paused = False
         self._task: asyncio.Task[None] | None = None
         self._closed = False
-        self.flash_writes = 0
 
     # --- reading --------------------------------------------------------------------
 
@@ -144,9 +166,29 @@ class IndevoltSettings:
             return self._written[key][0]
         return self.device_value(BY_KEY[key])
 
-    def writes_today(self, key: str) -> int:
-        self._prune(key)
-        return len(self._writes[key])
+    @property
+    def flash_writes(self) -> int:
+        """Every write that may have reached the battery's flash, ever (the sensor)."""
+        self._load_guard()
+        return self._writes_total
+
+    def writes_this_year(self) -> int:
+        self._load_guard()
+        self._prune()
+        return len(self._write_times)
+
+    def resume_flash_writes(self) -> None:
+        """The user turned writing back on in Repairs: a new allowance starts."""
+        self._load_guard()
+        if not self._paused:
+            return
+        _LOGGER.info("[%s] Indevolt setting writes turned back on; a new allowance of %d starts",
+                     self._name, YEARLY_ALLOWANCE)
+        self._paused = False
+        self._write_times.clear()
+        self._save_guard()
+        if self._notifier is not None:
+            self._notifier.flash_writes_resumed()
 
     # --- user intent ------------------------------------------------------------------
 
@@ -160,8 +202,7 @@ class IndevoltSettings:
             _LOGGER.warning("[%s] Indevolt %s %r is outside %d-%d; not written",
                             self._name, key, value, low, high)
             return False
-        if self.writes_today(key) >= DAILY_BUDGET:
-            self._budget_exhausted(setting)
+        if not self._flash_writes_allowed():
             return False
         self._pending[key] = (value, origin, self._clock())
         if self._task is None or self._task.done():
@@ -197,6 +238,7 @@ class IndevoltSettings:
 
     def on_telemetry(self) -> None:
         """Confirm written values and adopt values changed outside Omnibattery."""
+        self._load_guard()  # raises the Repairs issue again after a restart
         now = self._clock()
         for setting in SETTINGS:
             key = setting.key
@@ -254,28 +296,26 @@ class IndevoltSettings:
                 self._written[setting.key] = unconfirmed  # still to be confirmed
             self._agree(setting, value)
             return
-        if self.writes_today(setting.key) >= DAILY_BUDGET:
-            self._budget_exhausted(setting)
+        if not self._flash_writes_allowed():
             return
         client = self._client()
         if client is None:
             self._fail(setting, value)
             return
+        # Counted before sending: a write that errors may still have reached flash.
+        self._count_write()
         try:
             await client.set_config(setting.write_point, value)
         except IndevoltError as err:
             _LOGGER.warning("[%s] Indevolt %s = %d not written: %s", self._name, setting.key, value, err)
             self._fail(setting, value)
             return
-        now = self._clock()
-        self._writes[setting.key].append(now)
-        self.flash_writes += 1
         _LOGGER.info(
-            "[%s] Indevolt flash write (%s): %s %s -> %d, point %d, %d/%d today",
+            "[%s] Indevolt flash write (%s): %s %s -> %d, point %d, %d/%d this year",
             self._name, origin, setting.key, "?" if device is None else device, value,
-            setting.write_point, self.writes_today(setting.key), DAILY_BUDGET,
+            setting.write_point, self.writes_this_year(), YEARLY_ALLOWANCE,
         )
-        self._written[setting.key] = (value, now)
+        self._written[setting.key] = (value, self._clock())
         self._agree(setting, value)
         self._expedite()
 
@@ -296,7 +336,7 @@ class IndevoltSettings:
         """Put the agreed value back into the battery config.
 
         A number entity stores the requested value right after asking for it,
-        also when the request was refused (budget) or the write failed. Left
+        also when the request was refused (writes paused) or the write failed. Left
         there, the next setup would take it for an options-flow change and
         write it after all.
         """
@@ -310,18 +350,74 @@ class IndevoltSettings:
         if self._notifier is not None:
             self._notifier.setting_failed(setting.key, value)
 
-    def _budget_exhausted(self, setting: Setting) -> None:
-        _LOGGER.warning(
-            "[%s] Indevolt %s changed %d times in 24h; refusing more flash writes for now",
-            self._name, setting.key, DAILY_BUDGET,
-        )
-        if self._notifier is not None:
-            self._notifier.setting_budget_exhausted(setting.key, DAILY_BUDGET)
+    # --- flash wear guard ------------------------------------------------------------------
 
-    def _prune(self, key: str) -> None:
-        writes, now = self._writes[key], self._clock()
-        while writes and now - writes[0] >= BUDGET_WINDOW_S:
-            writes.popleft()
+    def _flash_writes_allowed(self) -> bool:
+        """False once the yearly allowance is used up; then writing stays off."""
+        self._load_guard()
+        if not self._paused:
+            self._prune()
+            if len(self._write_times) < YEARLY_ALLOWANCE:
+                return True
+            self._paused = True
+            self._save_guard()
+            _LOGGER.warning(
+                "[%s] Indevolt settings written %d times in the past year; flash writes "
+                "stay off until they are turned back on in Repairs",
+                self._name, YEARLY_ALLOWANCE,
+            )
+        else:
+            _LOGGER.warning("[%s] Indevolt flash writes are off (see Repairs); not written",
+                            self._name)
+        if self._notifier is not None:
+            self._notifier.flash_writes_paused(YEARLY_ALLOWANCE)
+        return False
+
+    def _count_write(self) -> None:
+        self._write_times.append(self._wall_clock())
+        self._writes_total += 1
+        self._save_guard()
+
+    def _prune(self) -> None:
+        now = self._wall_clock()
+        # A time ahead of the clock (the clock was set back) stays: it errs on
+        # the side of fewer writes.
+        self._write_times = [t for t in self._write_times if now - t < ALLOWANCE_WINDOW_S]
+
+    def _load_guard(self) -> None:
+        if self._guard_loaded:
+            return
+        self._guard_loaded = True
+        stored = self._stored(FLASH_WRITES_KEY) if self._stored is not None else None
+        if not isinstance(stored, Mapping):
+            return
+        times = stored.get("times")
+        if isinstance(times, (list, tuple)):
+            self._write_times = [
+                float(t) for t in times
+                if isinstance(t, (int, float)) and not isinstance(t, bool) and math.isfinite(t)
+            ]
+        total = stored.get("total")
+        if isinstance(total, int) and not isinstance(total, bool):
+            self._writes_total = max(total, len(self._write_times))
+        else:
+            self._writes_total = len(self._write_times)
+        self._paused = stored.get("paused") is True
+        if self._paused:
+            _LOGGER.warning("[%s] Indevolt flash writes are off until turned back on in Repairs",
+                            self._name)
+            if self._notifier is not None:
+                self._notifier.flash_writes_paused(YEARLY_ALLOWANCE)
+
+    def _save_guard(self) -> None:
+        if self._persist is None:
+            return
+        # A new dict every time: the config entry only saves a changed value.
+        self._persist(FLASH_WRITES_KEY, {
+            "times": [int(t) for t in self._write_times],
+            "total": self._writes_total,
+            "paused": self._paused,
+        })
 
     @property
     def _synced(self) -> dict[str, int | None]:

@@ -162,7 +162,8 @@ MAX_RESPONSE_BYTES = 65536
 #     min SOC, max charge and max discharge power), and only on explicit user
 #     intent: a number entity or the options flow. Never at startup, never on a
 #     timer, never from the control loop. The driver adds read-compare-skip, a
-#     debounce and a per-point daily budget on top (drivers/indevolt_settings.py).
+#     debounce and a yearly allowance of 100 writes on top, after which writing
+#     stays off until the user turns it back on (drivers/indevolt_settings.py).
 #
 # ``_submit`` re-checks every request just before it is sent: the endpoint must
 # be in ALLOWED_ENDPOINTS, 47015 must carry the 3-value tuple and may never be

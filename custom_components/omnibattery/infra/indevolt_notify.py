@@ -6,6 +6,10 @@ again replaces the text, and it is dismissed once the condition clears.
 
 Texts follow Home Assistant's language for English and Dutch (many Indevolt
 owners are Dutch); every other language falls back to English.
+
+One topic is a Repairs issue instead: setting writes that stopped at the yearly
+allowance (see drivers/indevolt_settings.py). Only the user can turn them back
+on, through its fix flow (repairs.py), and its texts live in the translations.
 """
 
 from __future__ import annotations
@@ -16,8 +20,10 @@ from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 
 from ..const import DOMAIN, NOTIFICATION_ID_PREFIX
+from ..drivers.indevolt_settings import FLASH_WRITES_ISSUE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,12 +69,6 @@ _TEXTS = {
             "Omnibattery could not set the {setting} of **{name}** to {value}. The "
             "battery keeps its current value, and Omnibattery shows and uses that "
             "value again. Try again later, or change it in the Indevolt app."
-        ),
-        "setting_budget": (
-            "The {setting} of **{name}** was changed {budget} times in the last 24 "
-            "hours. The battery stores this setting in flash memory, which wears with "
-            "every write, so Omnibattery accepts no more changes for now. Changes made "
-            "in the Indevolt app are still picked up."
         ),
         "min_soc": "minimum SOC",
         "max_charge_power": "maximum charge power",
@@ -122,12 +122,6 @@ _TEXTS = {
             "Omnibattery kon het {setting} van **{name}** niet op {value} zetten. De "
             "batterij houdt haar huidige waarde, en Omnibattery toont en gebruikt die "
             "waarde weer. Probeer het later opnieuw, of wijzig het in de Indevolt-app."
-        ),
-        "setting_budget": (
-            "Het {setting} van **{name}** is de afgelopen 24 uur {budget} keer gewijzigd. "
-            "De batterij bewaart deze instelling in flashgeheugen, dat bij elke "
-            "schrijfactie slijt, dus Omnibattery accepteert voorlopig geen nieuwe "
-            "wijzigingen. Wijzigingen in de Indevolt-app worden nog wel overgenomen."
         ),
         "min_soc": "minimale SOC",
         "max_charge_power": "maximale laadvermogen",
@@ -233,15 +227,31 @@ class IndevoltNotifier:
             self._text("setting_failed", setting=self._setting_name(key), value=f"{value}{unit}"),
         )
 
-    def setting_budget_exhausted(self, key: str, budget: int) -> None:
-        self._create(
-            f"setting_{key}",
-            self._text("setting_title"),
-            self._text("setting_budget", setting=self._setting_name(key), budget=budget),
-        )
-
     def setting_ok(self, key: str) -> None:
         self._dismiss(f"setting_{key}")
+
+    @property
+    def flash_issue_id(self) -> str:
+        return f"{FLASH_WRITES_ISSUE}_{self._device_key}"
+
+    def flash_writes_paused(self, allowance: int) -> None:
+        """Setting writes stopped at the yearly allowance: a fixable Repairs issue."""
+        ir.async_create_issue(
+            self._hass,
+            DOMAIN,
+            self.flash_issue_id,
+            is_fixable=True,
+            # Raised again from the persisted state after a restart.
+            is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=FLASH_WRITES_ISSUE,
+            translation_placeholders={"name": self.display_name, "allowance": str(allowance)},
+            # repairs.py finds the battery by this key and lets its driver fix it.
+            data={"device_key": self._device_key},
+        )
+
+    def flash_writes_resumed(self) -> None:
+        ir.async_delete_issue(self._hass, DOMAIN, self.flash_issue_id)
 
     def throttled(self, interval_s: float, *, suggest_slower: bool = False) -> None:
         message = self._text("throttled", interval=interval_s)

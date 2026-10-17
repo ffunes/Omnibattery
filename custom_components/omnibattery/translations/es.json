@@ -4,6 +4,20 @@
       "title": "Sensores excluidos de Recorder",
       "description": "Recorder excluye estos sensores que Omnibattery utiliza para recuperar los perfiles solares y de consumo doméstico: {sensors}. Ajusta las reglas include/exclude de Recorder para incluirlos y reinicia Home Assistant para aplicar la configuración. El aviso desaparece automáticamente cuando estén incluidos. Las muestras históricas que faltan no se pueden recuperar; el aprendizaje en directo y los perfiles ya guardados siguen funcionando."
     },
+    "indevolt_flash_writes_paused": {
+      "title": "Escritura de ajustes de Indevolt en pausa para proteger la batería: {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Volver a permitir la escritura de ajustes de Indevolt",
+            "description": "Omnibattery ha escrito el SOC mínimo y los límites de potencia de **{name}** {allowance} veces en el último año, así que ha pausado su escritura. Es una red de seguridad, no una limitación para ti: evita que una automatización o un script que cambia estos ajustes demasiado a menudo desgaste sin que nadie lo note la memoria flash de la batería, que se desgasta un poco con cada escritura. Los cambios hechos en la app de Indevolt se siguen adoptando.\n\nRevisa tus automatizaciones y scripts en busca de algo que cambie estos ajustes a menudo. Después confirma aquí para volver a permitir la escritura; empieza un nuevo margen de {allowance} escrituras. Si los cambios eran intencionados, simplemente confirma."
+          }
+        },
+        "abort": {
+          "battery_unavailable": "La batería no está cargada ahora mismo. Inténtalo de nuevo cuando Omnibattery esté conectado a ella."
+        }
+      }
+    },
     "excluded_device_ev_type": {
       "title": "Marca tu cargador de VE entre los dispositivos excluidos",
       "description": "El nuevo diagrama de flujos de energía (actívalo con el botón de la cabecera de la tarjeta de flujo) dibuja los cargadores de VE en su propio cable, junto al coche. Omnibattery no puede saber qué dispositivo excluido es el cargador, así que hasta que lo marques su potencia se muestra en el cable de los demás dispositivos excluidos (la unidad exterior) y el cable del VE queda vacío. Abre Opciones → Dispositivos excluidos y vuelve a guardar tus dispositivos, marcando \"Cargador de VE\" en el cargador (déjalo sin marcar en los demás). Solo afecta a cómo se dibuja el diagrama, no al control de la batería. El aviso desaparece al guardar los dispositivos."
@@ -2205,6 +2219,9 @@
       },
       "request_failures": {
         "name": "Solicitudes fallidas"
+      },
+      "flash_writes": {
+        "name": "Escrituras en flash"
       },
       "expansion_battery_1_temperature": {
         "name": "Temperatura de la batería de expansión 1"

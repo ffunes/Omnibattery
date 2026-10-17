@@ -4,6 +4,20 @@
       "title": "Sensors excluded from Recorder",
       "description": "Recorder excludes these sensors used by Omnibattery to recover solar and household consumption profiles: {sensors}. Include them in Recorder by adjusting its include/exclude rules, then restart Home Assistant to apply the configuration. The warning clears automatically once they are included. Missing past samples cannot be recovered; live learning and existing stored profiles continue to work."
     },
+    "indevolt_flash_writes_paused": {
+      "title": "Indevolt setting writes paused to protect the battery: {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Turn Indevolt setting writes back on",
+            "description": "Omnibattery has written the minimum SOC and power limits of **{name}** {allowance} times in the past year, so it paused writing them. This is a safety net, not a limit on you: it keeps an automation or script that changes these settings too often from quietly wearing out the battery's flash memory, which wears a little with every write. Changes made in the Indevolt app are still picked up.\n\nCheck your automations and scripts for anything that changes these settings often. Then confirm here to turn writing back on; a new allowance of {allowance} writes starts. If the changes were intended, just confirm."
+          }
+        },
+        "abort": {
+          "battery_unavailable": "The battery is not loaded right now. Try again once Omnibattery is connected to it."
+        }
+      }
+    },
     "excluded_device_ev_type": {
       "title": "Mark your EV charger among excluded devices",
       "description": "The new energy-flow diagram (switch it on with the button in the flow card header) draws EV chargers on their own cable, next to the car. Omnibattery cannot tell which excluded device is the EV charger, so until you mark it, its power is shown on the other excluded-devices cable (the outdoor unit) and the EV cable stays empty. Open Options → Excluded devices and save your devices again, ticking \"EV charger\" on the charger (leave it unticked on the others). This only affects how the diagram is drawn, not battery control. The notice disappears once the devices have been saved."
@@ -2200,6 +2214,9 @@
       },
       "request_failures": {
         "name": "Request failures"
+      },
+      "flash_writes": {
+        "name": "Flash writes"
       },
       "expansion_battery_1_temperature": {
         "name": "Expansion battery 1 temperature"

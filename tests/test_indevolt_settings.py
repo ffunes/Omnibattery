@@ -8,11 +8,18 @@ other flash point.
 
 from __future__ import annotations
 
+from types import MappingProxyType, SimpleNamespace
+
 from custom_components.omnibattery.drivers.indevolt_settings import (
-    DAILY_BUDGET,
+    ALLOWANCE_WINDOW_S,
     DEBOUNCE_S,
+    FLASH_WRITES_ISSUE,
+    FLASH_WRITES_KEY,
     SYNCED_PREFIX,
+    YEARLY_ALLOWANCE,
+    stored_battery_value,
 )
+from custom_components.omnibattery.infra.coordinator import MarstekVenusDataUpdateCoordinator
 from custom_components.omnibattery.infra.indevolt_client import SLOT_S, pacing_levels
 from tests.indevolt_fake import FakeIndevoltDevice, RecordingNotifier, VirtualClock, connected_driver
 
@@ -28,10 +35,28 @@ def _store(**synced) -> dict:
     return store
 
 
+class WallClock:
+    """Wall-clock time for the yearly allowance, moved apart from the virtual
+    clock: running the driver through a whole year would take far too long."""
+
+    def __init__(self, now: float = 1_800_000_000.0) -> None:
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
+
+
 async def _driver(clock, device, store, **kwargs):
     kwargs.setdefault("notifier", RecordingNotifier())
+    kwargs.setdefault("wall_clock", WallClock())
     return await connected_driver(clock, device, own=False, persist=store.__setitem__,
                                   stored=store.get, **kwargs)
+
+
+async def _write(driver, clock, key, value) -> bool:
+    accepted = await driver.write_control(key, value)
+    await clock.run(DEBOUNCE_S + 3 * SLOT_S)
+    return accepted
 
 
 async def test_an_entity_change_is_written_once_after_the_debounce():
@@ -107,23 +132,152 @@ async def test_a_burst_of_changes_collapses_to_the_last_value():
     await driver.close()
 
 
-async def test_the_daily_budget_refuses_further_writes_and_says_why():
+async def test_every_setting_write_counts_toward_one_persisted_allowance():
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, energy_mode=1, allow_config_writes=True)
+    store = _store(min_soc=15, max_charge_power=2400, max_discharge_power=2400)
+    driver = await _driver(clock, device, store)
+    assert await _write(driver, clock, MIN, 20)
+    assert await _write(driver, clock, "max_charge_power", 1800)
+    assert await _write(driver, clock, "max_discharge_power", 1200)
+    assert len(device.config_writes) == 3
+    guard = store[FLASH_WRITES_KEY]
+    assert len(guard["times"]) == 3 and guard["total"] == 3 and guard["paused"] is False
+    assert (await driver.read_telemetry())["flash_writes"] == 3
+    await driver.close()
+
+
+async def test_the_yearly_allowance_stops_writes_until_turned_back_on_in_repairs():
+    clock = VirtualClock()
+    wall = WallClock()
+    device = FakeIndevoltDevice(clock, energy_mode=1, allow_config_writes=True)
+    notifier = RecordingNotifier()
+    store = _store(min_soc=15)
+    store[FLASH_WRITES_KEY] = {"times": [wall.now - 3600] * (YEARLY_ALLOWANCE - 1),
+                               "total": 250, "paused": False}
+    driver = await _driver(clock, device, store, notifier=notifier, wall_clock=wall)
+    assert await _write(driver, clock, MIN, 20)  # the 100th write this year
+    assert await _write(driver, clock, MIN, 25) is False
+    assert notifier.count("flash_paused", YEARLY_ALLOWANCE) == 1
+    assert store[FLASH_WRITES_KEY]["paused"] is True
+    # It stays off, also once the old writes have aged out of the window.
+    wall.now += 2 * ALLOWANCE_WINDOW_S
+    assert await _write(driver, clock, MIN, 25) is False
+    assert device.config_writes == [(1142, [20])]
+    # Turning it back on in Repairs starts a new allowance; the total keeps counting.
+    assert await driver.async_fix_issue(f"{FLASH_WRITES_ISSUE}_192.0.2.1_8080")
+    assert notifier.count("flash_resumed") == 1
+    assert await _write(driver, clock, MIN, 25)
+    assert device.config_writes[-1] == (1142, [25])
+    assert store[FLASH_WRITES_KEY]["times"] == [int(wall.now)]
+    assert store[FLASH_WRITES_KEY]["total"] == 252
+    assert (await driver.read_telemetry())["flash_writes"] == 252
+    await driver.close()
+
+
+async def test_writes_older_than_a_year_no_longer_count():
+    clock = VirtualClock()
+    wall = WallClock()
+    device = FakeIndevoltDevice(clock, energy_mode=1, allow_config_writes=True)
+    store = _store(min_soc=15)
+    old = wall.now - ALLOWANCE_WINDOW_S - 60
+    store[FLASH_WRITES_KEY] = {"times": [old] * YEARLY_ALLOWANCE, "total": 100, "paused": False}
+    driver = await _driver(clock, device, store, wall_clock=wall)
+    assert await _write(driver, clock, MIN, 20)
+    assert store[FLASH_WRITES_KEY]["times"] == [int(wall.now)]
+    assert store[FLASH_WRITES_KEY]["total"] == 101
+    await driver.close()
+
+
+class _Entries:
+    """Home Assistant's config entries: the entry's data is replaced by a read-only copy."""
+
+    def async_update_entry(self, entry, *, data):
+        entry.data = MappingProxyType(data)
+
+
+def _coordinator(batteries: list[dict]):
+    """The real persist and read path, on Home Assistant's read-only entry data."""
+    entry = SimpleNamespace(data=MappingProxyType({"batteries": batteries}))
+    return SimpleNamespace(_config_entry=entry, host="192.0.2.1", port=8080, slave_id=1,
+                           hass=SimpleNamespace(config_entries=_Entries()))
+
+
+async def test_the_allowance_and_agreed_values_survive_a_restart_on_real_entry_data():
+    """Home Assistant hands out entry data as a MappingProxyType, not a dict: the
+    guard and the agreed values must still be read back after a restart."""
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, energy_mode=1, allow_config_writes=True)
+    coordinator = _coordinator([{"host": "192.0.2.1", "port": 8080, "min_soc": 15,
+                                 "indevolt_synced_min_soc": 15}])
+
+    def persist(key, value):
+        MarstekVenusDataUpdateCoordinator.persist_battery_config(coordinator, key, value)
+
+    def stored(key):
+        return stored_battery_value(coordinator, key)
+
+    assert stored("indevolt_synced_min_soc") == 15
+    driver = await connected_driver(clock, device, own=False, persist=persist, stored=stored,
+                                    notifier=RecordingNotifier(), wall_clock=WallClock())
+    assert await _write(driver, clock, MIN, 20)
+    assert await _write(driver, clock, MIN, 25)
+    assert (await driver.read_telemetry())["flash_writes"] == 2
+    await driver.close()
+
+    driver = await connected_driver(clock, device, own=False, persist=persist, stored=stored,
+                                    notifier=RecordingNotifier(), wall_clock=WallClock())
+    await clock.run(10)
+    assert (await driver.read_telemetry())["flash_writes"] == 2
+    assert stored(FLASH_WRITES_KEY)["total"] == 2
+    # The agreed value is read back too, so an options-flow change is written.
+    await driver.apply_config(max_soc_pct=100, min_soc_pct=30,
+                              max_charge_power_w=2400, max_discharge_power_w=2400)
+    await clock.run(DEBOUNCE_S + 3 * SLOT_S)
+    assert device.config_writes[-1] == (1142, [30])
+    await driver.close()
+
+
+async def test_a_failed_write_still_counts():
+    """The battery may have stored the value before the request failed."""
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, energy_mode=1, allow_config_writes=True, reject_config=True)
+    store = _store(min_soc=15)
+    driver = await _driver(clock, device, store)
+    assert await _write(driver, clock, MIN, 30)
+    assert len(device.config_writes) == 1
+    assert store[FLASH_WRITES_KEY]["total"] == 1
+    await driver.close()
+
+
+async def test_stopped_writes_stay_stopped_after_a_restart():
     clock = VirtualClock()
     device = FakeIndevoltDevice(clock, energy_mode=1, allow_config_writes=True)
     notifier = RecordingNotifier()
-    driver = await _driver(clock, device, _store(min_soc=15), notifier=notifier)
-    for n in range(DAILY_BUDGET):
-        assert await driver.write_control(MIN, 20 + n)
-        await clock.run(DEBOUNCE_S + 3 * SLOT_S)
-    assert len(device.config_writes) == DAILY_BUDGET
-    assert await driver.write_control(MIN, 40) is False
-    assert notifier.count("setting_budget", MIN) == 1
-    await clock.run(DEBOUNCE_S + 3 * SLOT_S)
-    assert len(device.config_writes) == DAILY_BUDGET
-    await clock.run(86400)
-    assert await driver.write_control(MIN, 40)  # a day later it is allowed again
-    await clock.run(DEBOUNCE_S + 3 * SLOT_S)
-    assert device.config_writes[-1] == (1142, [40])
+    store = _store(min_soc=15, max_charge_power=2400, max_discharge_power=2400)
+    store[FLASH_WRITES_KEY] = {"times": [], "total": 40, "paused": True}
+    driver = await _driver(clock, device, store, notifier=notifier)
+    await clock.run(10)
+    assert notifier.count("flash_paused") >= 1  # the Repairs issue is back
+    assert await _write(driver, clock, MIN, 20) is False
+    # An options-flow change is refused too.
+    store["min_soc"] = 30
+    await driver.apply_config(max_soc_pct=100, min_soc_pct=30,
+                              max_charge_power_w=2400, max_discharge_power_w=2400)
+    await clock.run(60)
+    assert device.config_writes == []
+    assert (await driver.read_telemetry())["flash_writes"] == 40
+    await driver.close()
+
+
+async def test_only_the_flash_issue_is_fixed():
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, energy_mode=1, allow_config_writes=True)
+    store = _store(min_soc=15)
+    store[FLASH_WRITES_KEY] = {"times": [], "total": 100, "paused": True}
+    driver = await _driver(clock, device, store)
+    assert await driver.async_fix_issue("battery_not_delivering_x") is False
+    assert await _write(driver, clock, MIN, 20) is False
     await driver.close()
 
 

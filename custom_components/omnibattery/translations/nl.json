@@ -4,6 +4,20 @@
       "title": "Sensoren uitgesloten van Recorder",
       "description": "Recorder sluit deze sensoren uit die Omnibattery gebruikt om zonne- en huishoudelijke verbruiksprofielen te herstellen: {sensors}. Pas de include/exclude-regels van Recorder aan zodat deze sensoren worden opgenomen en herstart Home Assistant om de configuratie toe te passen. De waarschuwing verdwijnt automatisch zodra ze worden opgenomen. Ontbrekende historische metingen kunnen niet worden hersteld; live leren en bestaande opgeslagen profielen blijven werken."
     },
+    "indevolt_flash_writes_paused": {
+      "title": "Schrijven van Indevolt-instellingen gepauzeerd ter bescherming van de batterij: {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Indevolt-instellingen weer laten schrijven",
+            "description": "Omnibattery heeft de minimale SOC en de vermogenslimieten van **{name}** het afgelopen jaar {allowance} keer geschreven en heeft het schrijven daarom gepauzeerd. Dit is een vangnet, geen beperking voor jou: het voorkomt dat een automatisering of script die deze instellingen te vaak wijzigt ongemerkt het flashgeheugen van de batterij verslijt; dat slijt een beetje bij elke schrijfactie. Wijzigingen in de Indevolt-app worden nog wel overgenomen.\n\nControleer je automatiseringen en scripts op iets dat deze instellingen vaak wijzigt. Bevestig daarna hier om het schrijven weer aan te zetten; er begint dan een nieuw tegoed van {allowance} schrijfacties. Waren de wijzigingen de bedoeling, bevestig dan gewoon."
+          }
+        },
+        "abort": {
+          "battery_unavailable": "De batterij is nu niet geladen. Probeer het opnieuw zodra Omnibattery ermee verbonden is."
+        }
+      }
+    },
     "excluded_device_ev_type": {
       "title": "Markeer je EV-lader bij de uitgesloten apparaten",
       "description": "Het nieuwe energiestroomdiagram (inschakelen met de knop in de kop van de stroomkaart) tekent EV-laders op een eigen kabel, naast de auto. Omnibattery kan niet weten welk uitgesloten apparaat de lader is; totdat je het markeert, wordt het vermogen ervan op de kabel van de overige uitgesloten apparaten (de buitenunit) getoond en blijft de EV-kabel leeg. Open Opties → Uitgesloten apparaten en sla je apparaten opnieuw op, met \"EV-lader\" aangevinkt bij de lader (laat het uit bij de andere). Dit heeft alleen invloed op hoe het diagram wordt getekend, niet op de batterijbesturing. De melding verdwijnt zodra de apparaten zijn opgeslagen."
@@ -2205,6 +2219,9 @@
       },
       "request_failures": {
         "name": "Mislukte verzoeken"
+      },
+      "flash_writes": {
+        "name": "Flashschrijfacties"
       },
       "expansion_battery_1_temperature": {
         "name": "Temperatuur uitbreidingsbatterij 1"

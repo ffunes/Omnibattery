@@ -65,7 +65,14 @@ from ..infra.indevolt_client import (
     pacing_levels,
 )
 from .indevolt_settings import BY_KEY as SETTING_BY_KEY
-from .indevolt_settings import MAX_CHARGE, MAX_DISCHARGE, MIN_SOC, SETTINGS, IndevoltSettings
+from .indevolt_settings import (
+    FLASH_WRITES_ISSUE,
+    MAX_CHARGE,
+    MAX_DISCHARGE,
+    MIN_SOC,
+    SETTINGS,
+    IndevoltSettings,
+)
 from .base import (
     DELIVERED_AC_POWER_KEY,
     BatteryDriver,
@@ -339,6 +346,10 @@ SENSOR_DEFINITIONS = [
                 scan="medium", diagnostic=True, icon="mdi:timer-cog-outline"),
     _definition("request_failures", "Request Failures", state_class="total_increasing",
                 scan="medium", diagnostic=True, icon="mdi:alert-circle-outline"),
+    # Every write of the three settings that may have reached the battery's
+    # flash, ever (persisted; see YEARLY_ALLOWANCE in indevolt_settings).
+    _definition("flash_writes", "Flash Writes", state_class="total_increasing", scan="medium",
+                diagnostic=True, icon="mdi:chip"),
     _definition("realtime_power", "Realtime Command Power", unit="W", device_class="power",
                 scan="low", enabled=False, diagnostic=True),
     _definition("realtime_target_soc", "Realtime Target SOC", unit="%", scan="low",
@@ -424,7 +435,7 @@ _SPEED_FOR_SLOT = {slot: speed for speed, slot in REQUEST_SPEED_SLOT_S.items()}
 _SETTING_KEYS = tuple(s.key for s in SETTINGS)
 _MEDIUM_KEYS = ("battery_soc", "energy_mode", "inverter_state", "control_status",
                 "request_interval", "request_speed", "read_latency", "write_latency",
-                "request_failures", "realtime_command",
+                "request_failures", "flash_writes", "realtime_command",
                 *_SETTING_KEYS)
 # One temperature sensor per expansion battery that is present (see PACKS).
 PACK_TEMPERATURE_DEFINITIONS = [
@@ -457,8 +468,9 @@ class Notifier(Protocol):
     def resumed(self) -> None: ...
     def firmware_outdated(self, firmware: str, minimum: str) -> None: ...
     def setting_failed(self, key: str, value: int) -> None: ...
-    def setting_budget_exhausted(self, key: str, budget: int) -> None: ...
     def setting_ok(self, key: str) -> None: ...
+    def flash_writes_paused(self, allowance: int) -> None: ...
+    def flash_writes_resumed(self) -> None: ...
     def throttled(self, interval_s: float, *, suggest_slower: bool = False) -> None: ...
     def throttle_cleared(self) -> None: ...
 
@@ -482,6 +494,7 @@ class IndevoltDriver(BatteryDriver):
         sleep: Callable[[float], Awaitable[Any]] | None = None,
         slot_s: float = SLOT_S,
         name: str = "Indevolt",
+        wall_clock: Callable[[], float] = time.time,
     ) -> None:
         self._host = host
         self._port = port
@@ -545,6 +558,7 @@ class IndevoltDriver(BatteryDriver):
             stored=stored,
             notifier=notifier,
             name=name,
+            wall_clock=wall_clock,
         )
 
     # --- identity ------------------------------------------------------------------
@@ -831,6 +845,7 @@ class IndevoltDriver(BatteryDriver):
             if stats[stat] is not None:
                 out[key] = stats[stat]
         out["request_failures"] = stats["timeouts"] + stats["errors"]
+        out["flash_writes"] = self._settings.flash_writes
 
         echo_age = self._tier_max_age(ECHO_TIER)
         state = _num(c(P_BATTERY_STATE, echo_age))
@@ -1068,12 +1083,20 @@ class IndevoltDriver(BatteryDriver):
     async def write_control(self, key: str, value: int) -> bool:
         """A number entity changed a device setting: a direct user action.
 
-        Hands it to the settings sync (debounced, compared, budgeted); True
-        means it will be applied. Only the three settings are writable.
+        Hands it to the settings sync (debounced, compared, within the yearly
+        allowance); True means it will be applied. Only the three settings are
+        writable.
         """
         if key not in SETTING_BY_KEY:
             return False
         return self._settings.request(key, int(value), origin="entity")
+
+    async def async_fix_issue(self, issue_id: str) -> bool:
+        """The user turned setting writes back on in Repairs (see YEARLY_ALLOWANCE)."""
+        if not issue_id.startswith(FLASH_WRITES_ISSUE):
+            return False
+        self._settings.resume_flash_writes()
+        return True
 
     async def apply_config(self, **kwargs) -> bool:
         """Setup passes the battery config; only an options-flow change is written.

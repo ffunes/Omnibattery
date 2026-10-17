@@ -416,8 +416,11 @@ class RecordingNotifier:
     def setting_failed(self, key: str, value: int) -> None:
         self.events.append(("setting_failed", key, value))
 
-    def setting_budget_exhausted(self, key: str, budget: int) -> None:
-        self.events.append(("setting_budget", key, budget))
+    def flash_writes_paused(self, allowance: int) -> None:
+        self.events.append(("flash_paused", allowance))
+
+    def flash_writes_resumed(self) -> None:
+        self.events.append(("flash_resumed",))
 
     def setting_ok(self, key: str) -> None:
         self.events.append(("setting_ok", key))

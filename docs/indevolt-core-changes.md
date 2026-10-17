@@ -28,7 +28,7 @@ These are the same touchpoints every brand has (compare Sessy and Huawei):
 | `const/integration_const.py` | `CONF_INDEVOLT_REQUEST_SPEED`, the per-battery request-speed key. Optional: a battery config without it gets the default speed, so there is no config-entry migration. |
 | `config_flow.py` | Brand option, connection step (read-only probe), Realtime-mode notice step, request-speed step (its own screen, so the explanation of the speeds fits around the dropdown), reconfigure steps for the connection and the request speed, power ceilings in the existing limits step, SOC selector bounds (5–50%, the same range as the min-SOC number, so saving the form unchanged never clamps and rewrites the battery's reserve), and `indevolt` in the existing taper tuples. |
 | `switch.py` | The per-battery "100% Charge Voltage Taper" switch now uses the config flow's taper brand list, so it is no longer shown for Indevolt (or for Sessy, Hoymiles and Huawei, where it also had no effect). Covered by `tests/test_taper_switch_brands.py`. |
-| `strings.json`, `translations/*.json` | Texts for the new steps and the new sensor names. |
+| `strings.json`, `translations/*.json` | Texts for the new steps, the new sensor names and the `indevolt_flash_writes_paused` Repairs issue. |
 
 ## Core changes beyond registration
 
@@ -49,6 +49,27 @@ These are the same touchpoints every brand has (compare Sessy and Huawei):
 - **Other brands:** the default returns `None`, which keeps the static limit.
   `test_other_drivers_keep_their_limits` pins that, and the full suite is
   unchanged.
+
+### `repairs.py` and `BatteryDriver.async_fix_issue`: a driver fixes its own Repairs issue
+
+- **Files:** `repairs.py` (new, about 50 lines: Home Assistant's fix-flow
+  platform) and `drivers/base.py` (new method, default `False`).
+- **Why:** the three Indevolt settings live in the battery's flash. The driver
+  allows 100 writes per rolling year (the three together, every attempt that
+  may have reached the device), then stops writing them and keeps them stopped
+  until a person turns writing back on, so no bug or runaway automation can
+  wear the flash without someone noticing. Only a fixable Repairs issue gives
+  the user that switch, and Home Assistant looks for its fix flow in the
+  integration's `repairs.py`. The issue's data names the battery's
+  `device_key`; on Submit the flow calls `async_fix_issue(issue_id)` on that
+  battery's driver, and aborts (keeping the issue) when no loaded driver fixes
+  it.
+- **Proof:** `tests/test_driver_repairs.py` (the flow reaches the right
+  driver, aborts otherwise) and
+  `tests/test_indevolt_settings.py::test_the_yearly_allowance_stops_writes_until_turned_back_on_in_repairs`.
+- **Other brands:** the default returns `False` and no other driver raises a
+  fixable issue; the existing Repairs issues stay non-fixable.
+  `test_other_drivers_fix_nothing_by_default` pins the default.
 
 ### `number.py`: a register-backed SOC number replaces its software twin
 
@@ -103,8 +124,9 @@ Everything else was met with existing mechanisms:
   the core already writes those through `write_control` and adopts the polled
   values back into `min_soc` and the configured power ceilings, as for Marstek
   and Zendure. The driver writes only on that user action (and on setup after
-  an options-flow change), debounced, compared first and within a daily
-  budget; nothing periodic can reach the config channel. Max SOC has no device
+  an options-flow change), debounced, compared first and within a yearly
+  allowance of 100 writes, after which writing stays off until the user turns
+  it back on in Repairs; nothing periodic can reach the config channel. Max SOC has no device
   setting: `hardware_soc_cutoff=False`, so the core enforces it in software and
   weekly full charge needs no write (`set_charge_cutoff` returns False).
 - **Hardware power ceilings.** The config-flow probe reports 114/115, which the

@@ -479,6 +479,18 @@ class BatteryDriver(ABC):
         """
         return None
 
+    async def async_fix_issue(self, issue_id: str) -> bool:
+        """Fix a Repairs issue this driver raised; True when it did.
+
+        Called by the fix flow in ``repairs.py`` when the user submits a fixable
+        issue whose data names this battery. The Indevolt driver uses it to turn
+        setting writes back on after its yearly flash allowance stopped them.
+
+        Defaults to False: other drivers raise no fixable issues, and the flow
+        then keeps the issue. See docs/indevolt-core-changes.md.
+        """
+        return False
+
     @abstractmethod
     def net_power_from_data(self, data: dict) -> Optional[int]:
         """Derive the current commanded net power from coordinator telemetry cache.

@@ -69,12 +69,29 @@ def test_setting_texts_name_the_setting_and_value(calls):
     kind, notification_id, _title, message = calls[-1]
     assert notification_id.endswith("setting_discharging_cutoff_capacity")
     assert "minimum SOC" in message and "20%" in message
-    notifier.setting_budget_exhausted("max_charge_power", 10)
-    assert "maximum charge power" in calls[-1][3] and "10 times" in calls[-1][3]
+    notifier.setting_failed("max_charge_power", 1800)
+    assert "maximum charge power" in calls[-1][3]
     notifier.setting_ok("max_charge_power")
     assert calls[-1][0] == "dismiss"
     notifier.setting_failed("max_discharge_power", 1800)
     assert "1800 W" in calls[-1][3]
+
+
+def test_stopped_flash_writes_raise_a_fixable_repairs_issue(monkeypatch):
+    issues = []
+    monkeypatch.setattr(indevolt_notify.ir, "async_create_issue",
+                        lambda hass, domain, issue_id, **kw: issues.append(("create", issue_id, kw)))
+    monkeypatch.setattr(indevolt_notify.ir, "async_delete_issue",
+                        lambda hass, domain, issue_id: issues.append(("delete", issue_id)))
+    notifier = IndevoltNotifier(_hass(), "Garage", "192.0.2.1_8080")
+    notifier.flash_writes_paused(100)
+    kind, issue_id, kw = issues[-1]
+    assert kind == "create" and issue_id == "indevolt_flash_writes_paused_192.0.2.1_8080"
+    assert kw["is_fixable"] is True and kw["translation_key"] == "indevolt_flash_writes_paused"
+    assert kw["translation_placeholders"] == {"name": "Garage", "allowance": "100"}
+    assert kw["data"] == {"device_key": "192.0.2.1_8080"}
+    notifier.flash_writes_resumed()
+    assert issues[-1] == ("delete", issue_id)
 
 
 @pytest.mark.parametrize("language, needle", [("nl", "Realtime"), ("nl-BE", "werkmodus"), ("de", "working mode")])

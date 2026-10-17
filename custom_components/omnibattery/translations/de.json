@@ -4,6 +4,20 @@
       "title": "Sensoren vom Recorder ausgeschlossen",
       "description": "Der Recorder schließt diese Sensoren aus, die Omnibattery zur Wiederherstellung der Solar- und Haushaltsverbrauchsprofile verwendet: {sensors}. Passen Sie die include/exclude-Regeln des Recorders an und starten Sie Home Assistant neu, um die Konfiguration anzuwenden. Die Warnung verschwindet automatisch, sobald die Sensoren eingeschlossen sind. Fehlende frühere Messwerte können nicht wiederhergestellt werden; das Lernen aus aktuellen Werten und vorhandene gespeicherte Profile funktionieren weiterhin."
     },
+    "indevolt_flash_writes_paused": {
+      "title": "Schreiben der Indevolt-Einstellungen zum Schutz der Batterie pausiert: {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Schreiben der Indevolt-Einstellungen wieder erlauben",
+            "description": "Omnibattery hat die minimale SOC und die Leistungsgrenzen von **{name}** im letzten Jahr {allowance} Mal geschrieben und das Schreiben deshalb pausiert. Das ist ein Sicherheitsnetz, keine Einschränkung für dich: Es verhindert, dass eine Automatisierung oder ein Skript, das diese Einstellungen zu oft ändert, unbemerkt den Flash-Speicher der Batterie verschleißt; er nutzt sich mit jedem Schreibvorgang ein wenig ab. Änderungen in der Indevolt-App werden weiterhin übernommen.\n\nPrüfe deine Automatisierungen und Skripte auf etwas, das diese Einstellungen häufig ändert. Bestätige danach hier, um das Schreiben wieder zu erlauben; ein neues Kontingent von {allowance} Schreibvorgängen beginnt. Waren die Änderungen beabsichtigt, bestätige einfach."
+          }
+        },
+        "abort": {
+          "battery_unavailable": "Die Batterie ist gerade nicht geladen. Versuche es erneut, sobald Omnibattery mit ihr verbunden ist."
+        }
+      }
+    },
     "excluded_device_ev_type": {
       "title": "E-Auto-Ladegerät unter den ausgeschlossenen Geräten markieren",
       "description": "Das neue Energieflussdiagramm (über die Schaltfläche im Kopf der Fluss-Karte einschalten) zeichnet E-Auto-Ladegeräte auf einer eigenen Leitung neben dem Auto. Omnibattery kann nicht erkennen, welches ausgeschlossene Gerät das Ladegerät ist; bis du es markierst, erscheint seine Leistung auf der Leitung der übrigen ausgeschlossenen Geräte (Außeneinheit) und die E-Auto-Leitung bleibt leer. Öffne Optionen → Ausgeschlossene Geräte und speichere deine Geräte erneut; aktiviere dabei \"E-Auto-Ladegerät\" beim Ladegerät (bei den anderen deaktiviert lassen). Betrifft nur die Darstellung des Diagramms, nicht die Batteriesteuerung. Der Hinweis verschwindet, sobald die Geräte gespeichert sind."
@@ -2205,6 +2219,9 @@
       },
       "request_failures": {
         "name": "Fehlgeschlagene Anfragen"
+      },
+      "flash_writes": {
+        "name": "Flash-Schreibvorgänge"
       },
       "expansion_battery_1_temperature": {
         "name": "Temperatur Erweiterungsbatterie 1"
