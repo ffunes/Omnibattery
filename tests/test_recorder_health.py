@@ -1,10 +1,38 @@
 """Recorder exclusions must be actionable without querying historical data."""
+import ast
+import inspect
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
 from custom_components.omnibattery.tracking import recorder_health
+
+
+def test_monitor_setup_shares_the_recorder_backfill_eligibility_gate():
+    """Legacy entries without history-based features must not be warned.
+
+    Check the setup wiring without booting battery drivers. Sharing the existing
+    gate also preserves monitoring when predictive charging is configured but
+    temporarily switched off, or an accumulator rebuild is pending.
+    """
+    from custom_components.omnibattery import async_setup_entry
+
+    setup = ast.parse(inspect.getsource(async_setup_entry))
+    gate = next(
+        node for node in ast.walk(setup)
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Name)
+        and node.test.id == "needs_recorder_backfill"
+    )
+    calls = [
+        node for node in ast.walk(setup)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "async_setup_recorder_health"
+    ]
+    assert len(calls) == 1
+    assert calls[0] in list(ast.walk(gate))
 
 
 @pytest.fixture

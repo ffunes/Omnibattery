@@ -11317,12 +11317,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Check history inputs even while predictive charging or battery control is
-    # paused. The monitor waits for Recorder startup and never queries the DB.
-    from .tracking.recorder_health import async_setup_recorder_health
-
-    async_setup_recorder_health(hass, entry, controller)
-
     # Refresh once the platforms have populated the entity registry. On a fresh
     # install the early registration above cannot yet resolve the per-device
     # Enabled switches; this second pass supplies their final (rename-safe) IDs
@@ -11336,6 +11330,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         getattr(consumption_tracker, "_legacy_accumulator_rebuild_pending", False)
     )
     if needs_recorder_backfill:
+        # Only warn for entries that use history recovery. Configured predictive
+        # charging still qualifies while its runtime switch is off.
+        from .tracking.recorder_health import async_setup_recorder_health
+
+        async_setup_recorder_health(hass, entry, controller)
+
         if hass.state == CoreState.running:
             await consumption_tracker.startup_backfill_consumption()
             _LOGGER.info("Startup consumption backfill executed immediately (reload)")

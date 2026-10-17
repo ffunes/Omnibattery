@@ -7,6 +7,8 @@ Start with what you can see in Home Assistant. **Integration Status** and its bl
 
 ## Forecast history is missing
 
+The check runs for entries with predictive charging configured (even when temporarily switched off), Charge Delay enabled, or a pending accumulator rebuild. Older entries that use none of these do not receive this warning.
+
 Omnibattery raises a **Sensors excluded from Recorder** warning in **Settings → System → Repairs** when Recorder excludes a sensor used to recover learned profiles:
 
 - The integration's **Home Consumption** power sensor (including renamed entities).
