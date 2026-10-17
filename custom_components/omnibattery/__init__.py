@@ -713,6 +713,8 @@ class ChargeDischargeController:
         # belongs per-battery in the power distribution, not in the loop cadence.
         self._min_cycle_interval_s = config_entry.data.get(CONF_PD_MIN_CYCLE_INTERVAL, DEFAULT_PD_MIN_CYCLE_INTERVAL)
         self._last_cycle_monotonic = 0.0
+        # Set by a cycle that found no new meter sample and kept the last command.
+        self._cycle_kept_last_command = False
         self._background_tasks: set[asyncio.Task] = set()
         self._startup_dynamic_pricing_task: asyncio.Task | None = None
         self._unloading = False
@@ -7927,8 +7929,17 @@ class ChargeDischargeController:
                 _LOGGER.debug("Control cycle already running; skipping overlapping trigger.")
             return
         async with self._control_lock:
+            previous_cycle_monotonic = self._last_cycle_monotonic
             self._last_cycle_monotonic = time.monotonic()
+            self._cycle_kept_last_command = False
             await self._run_control_cycle(now)
+            # A safety-timer tick that found no new meter sample and kept the
+            # last command gives PD Min Cycle Interval back, so it doesn't hold
+            # off the next meter update. A tick that acted on a new sample
+            # still counts: with a fast meter it usually does, and leaving it
+            # out would let ticks add cycles on top of the paced meter updates.
+            if now is not None and self._cycle_kept_last_command:
+                self._last_cycle_monotonic = previous_cycle_monotonic
 
     def _schedule_no_pd_debounced_run(self):
         """Arm a one-shot deferred control cycle for the no-PD command delay.
@@ -9258,6 +9269,7 @@ class ChargeDischargeController:
                         f"{self._max_sensor_stale_s:.1f}s" if sensor_age_s is not None else "unknown age",
                         self.previous_power,
                     )
+                self._cycle_kept_last_command = True
                 return
             stale_safety_recalc = True
             if capacity_protection_must_recheck:
