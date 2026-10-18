@@ -711,6 +711,10 @@ class IndevoltDriver(BatteryDriver):
         device = config["device"]
         self._config = {k: str(device[k]) for k in ("type", "sn", "fw", "f_ver") if k in device}
         self._model = MODELS.get(self._config.get("type", ""))
+        _LOGGER.info("[%s] Indevolt %s (%s), firmware %s / %s, request speed %s", self._name,
+                     self._config.get("type"), self._model.label if self._model else "unknown model",
+                     self._config.get("f_ver"), self._config.get("fw"),
+                     _SPEED_FOR_SLOT.get(self._client.slot_s, self._client.slot_s))
         if self._model is not None and firmware_below(self._config.get("f_ver"), self._model.min_firmware):
             _LOGGER.warning("[%s] Indevolt firmware %s is older than the recommended %s",
                             self._name, self._config.get("f_ver"), self._model.min_firmware)
@@ -1153,7 +1157,12 @@ class IndevoltDriver(BatteryDriver):
             return
         was_controlling = self._state in (ControlState.OWNED, ControlState.ACQUIRING)
         self._state, self._reason = ControlState.PAUSED, reason
-        _LOGGER.warning("[%s] Indevolt control paused: %s", self._name, reason)
+        if reason == "unknown_model":
+            # The device type is what a new entry in MODELS needs.
+            _LOGGER.warning("[%s] Indevolt control paused: unknown_model (device type %s)",
+                            self._name, self._config.get("type"))
+        else:
+            _LOGGER.warning("[%s] Indevolt control paused: %s", self._name, reason)
         if self._scheduler is not None:
             self._scheduler.cancel_write()
             self._scheduler.forget_last_accepted()
@@ -1182,6 +1191,7 @@ class IndevoltDriver(BatteryDriver):
         self._handover_failures += 1
         self._next_acquire_at = self._clock() + delay
         self._pause("handover_failed")
+        _LOGGER.info("[%s] Indevolt next attempt to take control in %.0fs", self._name, delay)
 
     def _echo(self) -> tuple[int, int, int] | None:
         """The device's realtime state (action, power, target) if read recently."""

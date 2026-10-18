@@ -1112,7 +1112,12 @@ class IndevoltScheduler:
         latency_ms = round(latency * 1000, 1)
         self.latencies_ms.append(latency_ms)
         kind = current[0] if current is not None else "read"
-        self._record_health(latency <= (WRITE_SLOW_S if kind == "write" else READ_SLOW_S))
+        healthy = latency <= (WRITE_SLOW_S if kind == "write" else READ_SLOW_S)
+        if not healthy:
+            # Counts toward backoff like a failure, so a backoff step without
+            # failures shows its cause in a debug log.
+            _LOGGER.debug("[%s] Indevolt %s took %.0f ms", self._name, kind, latency * 1000)
+        self._record_health(healthy)
         if current is None:
             return
         kind, payload = current
