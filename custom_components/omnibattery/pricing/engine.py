@@ -5715,6 +5715,16 @@ class PricingManager:
                     if deficit_target is None:
                         self._controller._grid_charging_initialized = False
 
+        # A re-plan that selects nothing clears the schedule while a slot may
+        # still be running. Phase 4 below only looks at an existing schedule,
+        # so release the slot here or grid charging stays active for good.
+        if (
+            self._controller._current_price_slot_active
+            and not self._controller._dynamic_pricing_schedule
+            and not self._controller.predictive_charging_overridden
+        ):
+            await self._stop_dynamic_price_slot("schedule_cleared", write_idle=False)
+
         # Phase 4: Check if we're in a selected typed price slot.
         if self._controller._dynamic_pricing_schedule and not self._controller.predictive_charging_overridden:
             in_slot = self.is_in_dynamic_pricing_slot()

@@ -5,6 +5,7 @@
 ### Fixed
 
 - **Discharge reserve: the floor slid down with the SOC while PV credit was left** (#700): when dearer-hour demand exceeded the stored energy, the claims equalled the stored energy and the PV credit came off that, so the reserve was always just under the SOC and never held anything. The claims now run against the stored energy plus the solar the battery can still take, and the reserve is capped at what is stored. When the sun covers all demand the battery is still released. Thanks to @MarkB-HA.
+- **Dynamic Pricing: running slot stuck after a re-plan that selects nothing** (#642): a re-plan that found no slots cleared the schedule but left the running slot active, so the battery stayed in `grid_charging` at full SOC and never discharged until predictive charging was switched off. The slot is now released in the same cycle and normal PD control takes over. Thanks to @syphernl.
 
 ## [1.5.1b2] - 2026-10-13
 

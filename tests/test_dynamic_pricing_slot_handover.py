@@ -877,3 +877,31 @@ def test_full_solar_reserve_verdict_is_not_shadowed_by_an_earlier_purpose(clock)
 
     assert ctrl._current_price_slot_active is True
     assert ctrl._predictive_charge_target_soc[battery] == pytest.approx(40.0)
+
+
+def test_running_slot_is_released_when_a_replan_clears_the_schedule(clock):
+    # A re-plan that selects nothing sets the schedule to None while a slot is
+    # still running (#642). Phase 4 only looks at a schedule that exists, so
+    # nothing released the slot: grid charging stayed active at a full
+    # battery and the controller returned before normal PD every cycle.
+    battery = _Battery(20.0)
+    (slot,) = _slots(_at(9, 30), [0.30])
+    ctrl = _controller(battery, _decision(4.0), _schedule({slot: SLOT_PURPOSE_DEFICIT}))
+    manager = _manager(ctrl, _balance(battery, 6.0))
+
+    clock.value = slot.start
+    _run(manager)
+    assert ctrl._current_price_slot_active is True
+    assert ctrl.grid_charging_active is True
+
+    battery.soc = 100.0
+    ctrl._dynamic_pricing_schedule = None
+    clock.value = _at(9, 40)
+    _run(manager)
+
+    assert ctrl._current_price_slot_active is False
+    assert ctrl.grid_charging_active is False
+    assert ctrl._active_dynamic_slot_purpose is None
+    assert ctrl._active_dynamic_price_slot is None
+    # Normal PD takes over in the same cycle, as at the end of a slot.
+    assert ctrl.idle_writes == []
