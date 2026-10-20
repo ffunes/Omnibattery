@@ -2079,6 +2079,39 @@
           "standalone": "Independent"
         }
       },
+      "operating_status": {
+        "name": "Estat de funcionament",
+        "state": {
+          "powered_off": "Apagat",
+          "sleep": "Repòs",
+          "starting": "Engegant",
+          "mppt_operating": "MPPT en funcionament",
+          "current_limiting": "Limitació de corrent",
+          "shutting_down": "Aturant-se",
+          "inverter_fault": "Error de l'inversor",
+          "standby": "En espera",
+          "grid_charging": "Càrrega des de la xarxa",
+          "grid_discharging": "Descàrrega a la xarxa",
+          "off_grid_charging": "Càrrega sense xarxa",
+          "off_grid_discharging": "Descàrrega sense xarxa",
+          "low_battery_charging": "Càrrega per bateria baixa",
+          "deep_sleep": "Repòs profund",
+          "scheduled_full_charge": "Càrrega completa programada",
+          "off_grid_deep_sleep": "Repòs profund sense xarxa"
+        }
+      },
+      "full_charge_interval": {
+        "name": "Interval de càrrega completa forçada"
+      },
+      "full_charge_time": {
+        "name": "Hora de càrrega completa forçada"
+      },
+      "highest_cell_voltage": {
+        "name": "Tensió de cel·la més alta"
+      },
+      "lowest_cell_voltage": {
+        "name": "Tensió de cel·la més baixa"
+      },
       "pv1_power": {
         "name": "Potència PV1"
       },

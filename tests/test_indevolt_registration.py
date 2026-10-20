@@ -20,6 +20,7 @@ from custom_components.omnibattery.config_flow import (
 )
 from custom_components.omnibattery.drivers.indevolt import (
     _DEVICE_MODE,
+    _OPERATING_STATUS,
     _REALTIME_COMMAND,
     BINARY_SENSOR_DEFINITIONS,
     PACK_DETAIL_DEFINITIONS,
@@ -282,7 +283,8 @@ def test_every_new_string_exists_in_every_language():
         for definition in BINARY_SENSOR_DEFINITIONS:
             assert data["entity"]["binary_sensor"][definition["key"]]["name"], (path, definition["key"])
         # Sensors whose state is a key: every language names every state.
-        for key, states in (("realtime_command", _REALTIME_COMMAND), ("device_mode", _DEVICE_MODE)):
+        for key, states in (("realtime_command", _REALTIME_COMMAND), ("device_mode", _DEVICE_MODE),
+                            ("operating_status", _OPERATING_STATUS)):
             assert sorted(names[key]["state"]) == sorted(set(states.values())), (path, key)
 
 

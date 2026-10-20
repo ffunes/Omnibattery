@@ -34,6 +34,7 @@ from custom_components.omnibattery.infra.indevolt_client import (
 from tests.indevolt_fake import (
     FLASH_WEAR_MESSAGE,
     KNOWN_FLASH_POINTS,
+    READ_AND_WRITE_POINTS,
     FakeIndevoltDevice,
     VirtualClock,
     connected_driver,
@@ -208,8 +209,9 @@ def test_no_setdata_outside_the_client():
 
 def test_indevolt_files_name_no_writable_point():
     """No Indevolt file names a flash point, except the client and the settings
-    module, which may name only the three user settings."""
-    writable_only = set(KNOWN_FLASH_POINTS) - {11010, 2618, 4}  # 11010/2618 are also read
+    module, which may name only the three user settings. The points that are also
+    read have their own rule below; 1 and 4 are plain numbers too."""
+    writable_only = set(KNOWN_FLASH_POINTS) - READ_AND_WRITE_POINTS - {1, 4}
     offenders = []
     for path in _source_files():
         if "indevolt" not in path.name or path == CLIENT_FILE:
@@ -220,6 +222,41 @@ def test_indevolt_files_name_no_writable_point():
                     and node.value in writable_only - allowed):
                 offenders.append(f"{path.name}:{node.lineno} {node.value}")
     assert offenders == [], f"{FLASH_WEAR_MESSAGE}\n{offenders}"
+
+
+def test_points_that_are_also_written_are_named_only_where_reads_are_defined():
+    """A point with the same number for reading and writing (READ_AND_WRITE_POINTS)
+    is named only in the module-level definitions of the driver and the settings
+    module: the read tiers and point constants. Code inside a function refers to
+    it through those names, so no function can put the number in a request."""
+    offenders = []
+    for path in _source_files():
+        if "indevolt" not in path.name or path == CLIENT_FILE:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        inside: set[int] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                inside.update(id(n) for n in ast.walk(node))
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Constant) and type(node.value) is int
+                    and node.value in READ_AND_WRITE_POINTS
+                    and (path not in (DRIVER_FILE, SETTINGS_FILE) or id(node) in inside)):
+                offenders.append(f"{path.name}:{node.lineno} {node.value}")
+    assert offenders == [], f"{FLASH_WEAR_MESSAGE}\n{offenders}"
+
+
+@pytest.mark.parametrize("point", sorted(READ_AND_WRITE_POINTS))
+async def test_a_driver_reads_but_never_writes_the_points_that_are_also_written(point):
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock)
+    driver = await connected_driver(clock, device)
+    await driver.apply_setpoint(800)
+    await clock.run(400)  # every read tier comes round, the limits tier twice
+    reads = {p for r in device.requests if r.endpoint == "Indevolt.GetData" for p in r.config["t"]}
+    assert point in reads
+    assert flash_writes(device) == [], FLASH_WEAR_MESSAGE
+    await driver.close()
 
 
 def test_client_has_no_generic_write_method():

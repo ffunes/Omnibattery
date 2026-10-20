@@ -2079,6 +2079,39 @@
           "standalone": "Autonome"
         }
       },
+      "operating_status": {
+        "name": "État de fonctionnement",
+        "state": {
+          "powered_off": "Éteint",
+          "sleep": "Veille",
+          "starting": "Démarrage",
+          "mppt_operating": "MPPT en fonctionnement",
+          "current_limiting": "Limitation de courant",
+          "shutting_down": "Arrêt en cours",
+          "inverter_fault": "Défaut de l'onduleur",
+          "standby": "En attente",
+          "grid_charging": "Charge depuis le réseau",
+          "grid_discharging": "Décharge vers le réseau",
+          "off_grid_charging": "Charge hors réseau",
+          "off_grid_discharging": "Décharge hors réseau",
+          "low_battery_charging": "Charge batterie faible",
+          "deep_sleep": "Veille profonde",
+          "scheduled_full_charge": "Charge complète programmée",
+          "off_grid_deep_sleep": "Veille profonde hors réseau"
+        }
+      },
+      "full_charge_interval": {
+        "name": "Intervalle de charge complète forcée"
+      },
+      "full_charge_time": {
+        "name": "Heure de charge complète forcée"
+      },
+      "highest_cell_voltage": {
+        "name": "Tension de cellule la plus haute"
+      },
+      "lowest_cell_voltage": {
+        "name": "Tension de cellule la plus basse"
+      },
       "pv1_power": {
         "name": "Puissance PV1"
       },

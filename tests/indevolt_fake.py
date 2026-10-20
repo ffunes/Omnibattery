@@ -51,14 +51,23 @@ PACK_DETAIL_POINTS = (
     (9054, 9057, 9117, 9058, 19175), (9149, 9152, 9133, 9153, 19176),
     (9202, 9205, 9270, 9206, 19177),
 )
+# The two cell voltages of the inverter-unit battery, then of each expansion battery.
+INVERTER_BATTERY_CELL_POINTS = (9009, 9011)
+PACK_CELL_POINTS = ((9021, 9023), (9040, 9042), (9059, 9061), (9154, 9156), (9219, 9222))
 
-# Writable points named in Indevolt's tables and the official library. Every one
-# of them except 47015 is flash-backed. 1142, 1138 and 1147 are the user settings
-# Omnibattery may write on the config channel, on a direct user action only.
+# Every point of Indevolt's SetData tables, which the official library also uses.
+# Every one of them except 47015 is flash-backed. 1142, 1138 and 1147 are the user
+# settings Omnibattery may write on the config channel, on a direct user action
+# only. 1 is the load setting and 12197-12244 are its 48 load points.
 KNOWN_FLASH_POINTS = (
-    47005, 4, 6505, 1142, 11010, 1146, 1147, 2618, 1143, 2802, 8646, 8647,
-    35001, 35002, 1138, 7265, 7266, 47016, 47017,
+    47005, 4, 1, 6505, 1142, 11009, 11010, 1146, 1147, 2618, 1143, 2802, 8646, 8647,
+    35001, 35002, 35005, 1138, 7265, 7266, 15203, 15204, 18000, 18001, 47016, 47017,
+    *range(12197, 12245),
 )
+# Points Indevolt documents in both its GetData and its SetData table under the
+# same number; the call decides whether it is read or written. Omnibattery reads
+# these (limits, feed-in, grid charging, the forced full charge) and never writes them.
+READ_AND_WRITE_POINTS = frozenset({11009, 11010, 2618, 8646, 8647})
 
 
 class VirtualClock:
@@ -139,6 +148,11 @@ class FakeIndevoltDevice:
     _config_due: list = field(default_factory=list)
     ramp_w_per_s: float = 1000.0
     loss_w: float = 0.0
+    # 11006 System Operating Status; None derives it from what the battery does.
+    operating_status: int | None = None
+    full_charge_interval_days: int = 30  # 8646, set in the Indevolt app
+    full_charge_start: int = 0x0C00  # 8647: high byte hour, low byte minute (12:00)
+    cell_voltage: float = 3.34  # the inverter-unit battery's cells; pack n adds n × 10 mV
     status_family: int = 1000  # 1000-family echo (this firmware) or 0 (documented 0/1/2)
     packs: int = 3  # expansion packs; the sampled SF2000 has three
     absent_pack_style: str = "missing"  # absent packs: points "missing" or "empty" serials
@@ -275,6 +289,10 @@ class FakeIndevoltDevice:
             "114": self.limit_w, "115": self.limit_w,
             "142": self.capacity_kwh,
             "11005": 45,
+            "11006": self._operating_status(),
+            "8646": self.full_charge_interval_days,
+            "8647": self.full_charge_start,
+            **{str(p): self.cell_voltage for p in INVERTER_BATTERY_CELL_POINTS},
         })
         pack_points = ((9032, 9030), (9051, 9049), (9070, 9068), (9165, 9163), (9218, 9216))
         for n, (serial, temp) in enumerate(pack_points, start=1):
@@ -283,18 +301,30 @@ class FakeIndevoltDevice:
                 data[str(serial)] = f"PACK{n}SN"
                 data[str(temp)] = 30 + n
                 data.update(zip(map(str, details), (30 + n, 170 + n, 30 + n, 6.5, 11.0 + n)))
+                high, low = PACK_CELL_POINTS[n - 1]
+                data[str(high)] = round(self.cell_voltage + 0.01 * n, 3)
+                data[str(low)] = round(self.cell_voltage + 0.01 * (n - 1), 3)
             elif self.absent_pack_style == "empty":
                 data[str(serial)] = ""
                 data[str(temp)] = 0
-                data.update((str(point), 0) for point in details)
+                data.update((str(point), 0) for point in (*details, *PACK_CELL_POINTS[n - 1]))
             else:
-                for point in (serial, temp, *details):
+                for point in (serial, temp, *details, *PACK_CELL_POINTS[n - 1]):
                     data.pop(str(point), None)
         data.update(self.extra_points)
         return data
 
     def _setting(self, value: int | None) -> int:
         return self.limit_w if value is None else value
+
+    def _operating_status(self) -> int:
+        if self.operating_status is not None:
+            return self.operating_status
+        if self.power_w > 20:
+            return 9  # Grid Charging
+        if self.power_w < -20:
+            return 10  # Grid Discharging
+        return 14  # Deep Sleep, what an idle SF2000 in Realtime mode reports
 
     # --- transport -------------------------------------------------------------------
 

@@ -2079,6 +2079,39 @@
           "standalone": "Eigenständig"
         }
       },
+      "operating_status": {
+        "name": "Betriebsstatus",
+        "state": {
+          "powered_off": "Ausgeschaltet",
+          "sleep": "Ruhezustand",
+          "starting": "Startet",
+          "mppt_operating": "MPPT aktiv",
+          "current_limiting": "Strombegrenzung",
+          "shutting_down": "Fährt herunter",
+          "inverter_fault": "Wechselrichterfehler",
+          "standby": "Standby",
+          "grid_charging": "Laden aus dem Netz",
+          "grid_discharging": "Entladen ins Netz",
+          "off_grid_charging": "Laden im Inselbetrieb",
+          "off_grid_discharging": "Entladen im Inselbetrieb",
+          "low_battery_charging": "Laden bei niedrigem Akkustand",
+          "deep_sleep": "Tiefschlaf",
+          "scheduled_full_charge": "Geplante Vollladung",
+          "off_grid_deep_sleep": "Tiefschlaf im Inselbetrieb"
+        }
+      },
+      "full_charge_interval": {
+        "name": "Intervall erzwungene Vollladung"
+      },
+      "full_charge_time": {
+        "name": "Uhrzeit erzwungene Vollladung"
+      },
+      "highest_cell_voltage": {
+        "name": "Höchste Zellenspannung"
+      },
+      "lowest_cell_voltage": {
+        "name": "Niedrigste Zellenspannung"
+      },
       "pv1_power": {
         "name": "PV1 Leistung"
       },

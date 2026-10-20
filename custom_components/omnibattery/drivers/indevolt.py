@@ -99,12 +99,19 @@ P_NATIVE_MIN_SOC = 6105  # the reserve; written via 1142 (see indevolt_settings)
 P_HW_MAX_CHARGE = 114  # hardware ceilings; did not move when the settings changed
 P_HW_MAX_DISCHARGE = 115
 
+P_OPERATING_STATUS = 11006  # what the device is doing (see _OPERATING_STATUS)
+# The device's own forced full charge, set in the Indevolt app (read only here):
+# every this many days (0 = off), at this time (high byte hour, low byte minute).
+P_FULL_CHARGE_INTERVAL = 8646
+P_FULL_CHARGE_START = 8647
+
 ENERGY_MODE_REALTIME = 4
 
 # Read tiers. The control tier goes out in every read slot; the others ride
 # along when due (see IndevoltScheduler).
 CONTROL_TIER = Tier("control", (P_BATTERY_POWER, P_AC_TOTAL, P_BYPASS, P_ENERGY_MODE, P_SOC))
-ECHO_TIER = Tier("echo", (P_RT_STATUS, P_RT_TARGET, P_RT_POWER, P_BATTERY_STATE), 30.0)
+ECHO_TIER = Tier("echo", (P_RT_STATUS, P_RT_TARGET, P_RT_POWER, P_BATTERY_STATE,
+                          P_OPERATING_STATUS), 30.0)
 # Battery temperatures: the battery built into the inverter unit, then up to
 # five expansion batteries. An expansion battery exists when its serial number
 # point is non-empty (as in the official integration). 11005 is the transformer
@@ -115,6 +122,7 @@ PACKS = (  # (serial point, temperature point)
 )
 P_TRANSFORMER_TEMPERATURE = 11005
 P_FEED_IN_LIMIT = 11010
+P_GRID_CHARGING = 2618  # 1000 off, 1001 on; set in the Indevolt app, read only here
 P_DEVICE_MODE = 606  # 1000 cluster main, 1001 cluster sub, 1002 standalone
 # Per PV input 1-4. The power points also make up the Solar Power sum.
 P_PV_POWER = (1664, 1665, 1666, 1667)
@@ -146,6 +154,11 @@ P_METER_CONNECTED = 7120  # 1000 connected, 1001 not connected
 INVERTER_BATTERY_DETAILS = {"soc": 9000, "cycles": 9003, "mos_temperature": 11042,
                             "voltage": 9004, "current": 9013}
 P_INVERTER_BATTERY_SERIAL = 9008
+# Each battery is two LFP cells in series (its voltage above is their sum):
+# the inverter unit's cell points, then each expansion battery's (PACKS order).
+# They read 3.34–3.38V at rest when full.
+INVERTER_BATTERY_CELLS = (9009, 9011)
+PACK_CELLS = ((9021, 9023), (9040, 9042), (9059, 9061), (9154, 9156), (9219, 9222))
 PACK_DETAILS = (
     {"soc": 9016, "cycles": 9019, "mos_temperature": 9085, "voltage": 9020, "current": 19173},
     {"soc": 9035, "cycles": 9038, "mos_temperature": 9101, "voltage": 9039, "current": 19174},
@@ -164,7 +177,8 @@ BATTERY_DETAIL_FIELDS = (
 
 LIMITS_TIER = Tier(
     "limits",
-    (11009, 11011, P_FEED_IN_LIMIT, 11032, 114, 115, 2618, P_NATIVE_MIN_SOC, P_DEVICE_MODE, 142,
+    (11009, 11011, P_FEED_IN_LIMIT, 11032, 114, 115, P_GRID_CHARGING, P_NATIVE_MIN_SOC,
+     P_DEVICE_MODE, 142, P_FULL_CHARGE_INTERVAL, P_FULL_CHARGE_START,
      *(serial for serial, _ in PACKS)),
     180.0,
 )
@@ -181,7 +195,8 @@ SLOW_TIER = Tier(
 )
 # Starts with the inverter-unit battery; the expansion batteries are added once
 # their serial numbers (LIMITS_TIER) show which are present (see _sync_pack_points).
-PACKS_TIER = Tier("packs", (*INVERTER_BATTERY_DETAILS.values(), P_INVERTER_BATTERY_SERIAL), 120.0)
+PACKS_TIER = Tier("packs", (*INVERTER_BATTERY_DETAILS.values(), *INVERTER_BATTERY_CELLS,
+                            P_INVERTER_BATTERY_SERIAL), 120.0)
 TIERS = (CONTROL_TIER, ECHO_TIER, POWER_TIER, LIMITS_TIER, SLOW_TIER, PACKS_TIER)
 ECHO_INTERVAL_OWNED_S = 30.0
 ECHO_INTERVAL_IDLE_S = 60.0
@@ -385,6 +400,21 @@ SENSOR_DEFINITIONS = [
                 state_class="total_increasing", precision=3, scan="low"),
     # 6107 as a key (standby/charging/discharging); the label is translated.
     _text("realtime_command", "Realtime Command", icon="mdi:swap-vertical", scan="medium"),
+    # 11006 as a key (see _OPERATING_STATUS); the label is translated. It names
+    # what the device does on its own, such as its low-battery recovery charge
+    # or its forced full charge.
+    _text("operating_status", "Operating Status", icon="mdi:information-outline", scan="medium"),
+    # The device's own forced full charge (8646/8647), set in the Indevolt app.
+    _definition("full_charge_interval", "Forced Full Charge Interval", unit="d",
+                device_class="duration", state_class=None, scan="low", diagnostic=True,
+                icon="mdi:battery-sync"),
+    _text("full_charge_time", "Forced Full Charge Time", icon="mdi:clock-outline", scan="low"),
+    # The highest and lowest cell of the batteries present. Not max_cell_voltage:
+    # the core tapers and latches on that key, with another brand's thresholds.
+    _definition("highest_cell_voltage", "Highest Cell Voltage", unit="V", device_class="voltage",
+                precision=2, scan="low", enabled=False, diagnostic=True),
+    _definition("lowest_cell_voltage", "Lowest Cell Voltage", unit="V", device_class="voltage",
+                precision=2, scan="low", enabled=False, diagnostic=True),
     _definition("feed_in_limit", "Feed-in Limit", unit="W", device_class="power", state_class=None,
                 scan="low", diagnostic=True, icon="mdi:transmission-tower-import"),
     *(_definition(f"pv{n}_power", f"PV{n} Power", unit="W", device_class="power", scan="low",
@@ -407,6 +437,14 @@ SENSOR_DEFINITIONS = [
     _text("device_mode", "Device Mode", icon="mdi:server-network", scan="very_low", enabled=False),
 ]
 _DEVICE_MODE = {1000: "cluster_main", 1001: "cluster_sub", 1002: "standalone"}
+# 11006 as the Operating Status sensor, the values Indevolt documents.
+_OPERATING_STATUS = {
+    1: "powered_off", 2: "sleep", 3: "starting", 4: "mppt_operating", 5: "current_limiting",
+    6: "shutting_down", 7: "inverter_fault", 8: "standby", 9: "grid_charging",
+    10: "grid_discharging", 11: "off_grid_charging", 12: "off_grid_discharging",
+    13: "low_battery_charging", 14: "deep_sleep", 15: "scheduled_full_charge",
+    16: "off_grid_deep_sleep",
+}
 
 
 def _battery_detail_definitions(prefix: str, label: str) -> list[dict]:
@@ -438,7 +476,7 @@ _SPEED_FOR_SLOT = {slot: speed for speed, slot in REQUEST_SPEED_SLOT_S.items()}
 _SETTING_KEYS = tuple(s.key for s in SETTINGS)
 _MEDIUM_KEYS = ("battery_soc", "energy_mode", "inverter_state", "control_status",
                 "request_interval", "request_speed", "read_latency", "write_latency",
-                "request_failures", "flash_writes", "realtime_command",
+                "request_failures", "flash_writes", "realtime_command", "operating_status",
                 *_SETTING_KEYS)
 # One temperature sensor per expansion battery that is present (see PACKS).
 PACK_TEMPERATURE_DEFINITIONS = [
@@ -457,6 +495,8 @@ _LOW_KEYS = ("total_charging_energy", "total_discharging_energy", "total_daily_c
              "inverter_battery_temperature", "transformer_temperature",
              "solar_power", "realtime_power", "realtime_target_soc", "inverter_ac_power",
              "grid_charging_allowed", "feed_in_limit", "indevolt_meter_connected",
+             "full_charge_interval", "full_charge_time", "highest_cell_voltage",
+             "lowest_cell_voltage",
              *(key for key, _ in ENERGY_POINTS + WH_ENERGY_POINTS + GRID_POINTS + REMAINING_TIME_POINTS),
              *(f"pv{n}_{kind}" for kind in ("power", "voltage", "current")
                for n in range(1, len(P_PV_POWER) + 1)),
@@ -551,6 +591,7 @@ class IndevoltDriver(BatteryDriver):
         self._handover_failures = 0
         self._next_acquire_at = 0.0
         self._throttle_notified = False
+        self._operating_status: str | None = None
         self._settings = IndevoltSettings(
             client=lambda: self._client,
             read=self._setting_device_value,
@@ -668,12 +709,18 @@ class IndevoltDriver(BatteryDriver):
                 *((f"expansion_battery_{n}", PACK_DETAILS[n - 1], PACKS[n - 1][0])
                   for n in self._present_packs())]
 
+    def _cell_points(self) -> list[int]:
+        """The cell voltage points of the batteries that are present."""
+        return [*INVERTER_BATTERY_CELLS,
+                *(p for n in self._present_packs() for p in PACK_CELLS[n - 1])]
+
     def _sync_pack_points(self) -> None:
         """Read the details of the batteries that are present, and only those."""
         if self._scheduler is None:
             return
         points = [p for _, details, _ in self._batteries() for p in details.values()]
-        self._scheduler.set_tier_points("packs", (*points, P_INVERTER_BATTERY_SERIAL))
+        self._scheduler.set_tier_points(
+            "packs", (*points, *self._cell_points(), P_INVERTER_BATTERY_SERIAL))
 
     @property
     def control_dependency_keys(self) -> frozenset:
@@ -858,6 +905,9 @@ class IndevoltDriver(BatteryDriver):
         state = _num(c(P_BATTERY_STATE, echo_age))
         if state is not None and int(state) in _BATTERY_STATE:
             out["inverter_state"] = _BATTERY_STATE[int(state)]
+        operating = _num(c(P_OPERATING_STATUS, echo_age))
+        if operating is not None and int(operating) in _OPERATING_STATUS:
+            out["operating_status"] = _OPERATING_STATUS[int(operating)]
         rt_status = _num(c(P_RT_STATUS, echo_age))
         if rt_status is not None and int(rt_status) in _REALTIME_COMMAND:
             out["realtime_command"] = _REALTIME_COMMAND[int(rt_status)]
@@ -880,7 +930,7 @@ class IndevoltDriver(BatteryDriver):
         capacity = _num(limits[142], 0.01, 1000)
         if capacity is not None:
             out["battery_total_energy"] = capacity
-        grid = _num(limits[2618])
+        grid = _num(limits[P_GRID_CHARGING])
         if grid is not None:
             out["grid_charging_allowed"] = int(grid)
         feed_in = _num(limits[P_FEED_IN_LIMIT], 0, 100000)
@@ -889,6 +939,12 @@ class IndevoltDriver(BatteryDriver):
         device_mode = _num(limits[P_DEVICE_MODE])  # the device sends it as a string
         if device_mode is not None and int(device_mode) in _DEVICE_MODE:
             out["device_mode"] = _DEVICE_MODE[int(device_mode)]
+        interval = _num(limits[P_FULL_CHARGE_INTERVAL], 0, 60)
+        if interval is not None:
+            out["full_charge_interval"] = int(interval)
+        start = _num(limits[P_FULL_CHARGE_START], 0, 0xFFFF)
+        if start is not None and int(start) >> 8 < 24 and int(start) & 0xFF < 60:
+            out["full_charge_time"] = f"{int(start) >> 8:02d}:{int(start) & 0xFF:02d}"
 
         power_age = self._tier_max_age(POWER_TIER)
         for key, point in POWER_POINTS:
@@ -963,6 +1019,11 @@ class IndevoltDriver(BatteryDriver):
     def _decode_batteries(self, out: dict[str, Any], limits_age: float) -> None:
         """The details of each battery that is present (see PACKS_TIER)."""
         age = self._tier_max_age(PACKS_TIER)
+        cells = [_num(self._fresh_value(p, age), 1.0, 5.0) for p in self._cell_points()]
+        cells = [v for v in cells if v is not None]
+        if cells:
+            out["highest_cell_voltage"] = max(cells)
+            out["lowest_cell_voltage"] = min(cells)
         for prefix, details, serial_point in self._batteries():
             for field, _, _, _, _, _, low, high in BATTERY_DETAIL_FIELDS:
                 value = _num(self._fresh_value(details[field], age), low, high)
@@ -1139,7 +1200,21 @@ class IndevoltDriver(BatteryDriver):
             self._settings.on_telemetry()
         if any(serial in updated for serial, _ in PACKS):
             self._sync_pack_points()
+        if P_OPERATING_STATUS in updated:
+            self._log_operating_status()
         self._evaluate(updated)
+
+    def _log_operating_status(self) -> None:
+        assert self._scheduler is not None
+        raw = _num(self._scheduler.value(P_OPERATING_STATUS))
+        status = _OPERATING_STATUS.get(int(raw)) if raw is not None else None
+        if status is None:
+            status = f"unknown ({self._scheduler.value(P_OPERATING_STATUS)})"
+        if status != self._operating_status:
+            if self._operating_status is not None:
+                _LOGGER.info("[%s] Indevolt operating status %s -> %s",
+                             self._name, self._operating_status, status)
+            self._operating_status = status
 
     def _on_write(self, values: tuple[int, int, int], outcome: str) -> None:
         assert self._scheduler is not None

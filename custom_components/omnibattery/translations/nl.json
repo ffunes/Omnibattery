@@ -2079,6 +2079,39 @@
           "standalone": "Zelfstandig"
         }
       },
+      "operating_status": {
+        "name": "Bedrijfsstatus",
+        "state": {
+          "powered_off": "Uitgeschakeld",
+          "sleep": "Slaapstand",
+          "starting": "Opstarten",
+          "mppt_operating": "MPPT actief",
+          "current_limiting": "Stroombegrenzing",
+          "shutting_down": "Afsluiten",
+          "inverter_fault": "Omvormerstoring",
+          "standby": "Stand-by",
+          "grid_charging": "Laden van het net",
+          "grid_discharging": "Ontladen naar het net",
+          "off_grid_charging": "Off-grid laden",
+          "off_grid_discharging": "Off-grid ontladen",
+          "low_battery_charging": "Laden bij lage batterij",
+          "deep_sleep": "Diepe slaap",
+          "scheduled_full_charge": "Geplande volledige lading",
+          "off_grid_deep_sleep": "Off-grid diepe slaap"
+        }
+      },
+      "full_charge_interval": {
+        "name": "Interval geforceerde volledige lading"
+      },
+      "full_charge_time": {
+        "name": "Tijdstip geforceerde volledige lading"
+      },
+      "highest_cell_voltage": {
+        "name": "Hoogste celspanning"
+      },
+      "lowest_cell_voltage": {
+        "name": "Laagste celspanning"
+      },
       "pv1_power": {
         "name": "PV1 Vermogen"
       },

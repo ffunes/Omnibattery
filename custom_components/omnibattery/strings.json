@@ -2074,6 +2074,39 @@
           "standalone": "Standalone"
         }
       },
+      "operating_status": {
+        "name": "Operating status",
+        "state": {
+          "powered_off": "Powered off",
+          "sleep": "Sleep",
+          "starting": "Starting",
+          "mppt_operating": "MPPT operating",
+          "current_limiting": "Current limiting",
+          "shutting_down": "Shutting down",
+          "inverter_fault": "Inverter fault",
+          "standby": "Standby",
+          "grid_charging": "Grid charging",
+          "grid_discharging": "Grid discharging",
+          "off_grid_charging": "Off-grid charging",
+          "off_grid_discharging": "Off-grid discharging",
+          "low_battery_charging": "Low-battery charging",
+          "deep_sleep": "Deep sleep",
+          "scheduled_full_charge": "Scheduled full charge",
+          "off_grid_deep_sleep": "Off-grid deep sleep"
+        }
+      },
+      "full_charge_interval": {
+        "name": "Forced full charge interval"
+      },
+      "full_charge_time": {
+        "name": "Forced full charge time"
+      },
+      "highest_cell_voltage": {
+        "name": "Highest cell voltage"
+      },
+      "lowest_cell_voltage": {
+        "name": "Lowest cell voltage"
+      },
       "pv1_power": {
         "name": "PV1 Power"
       },
