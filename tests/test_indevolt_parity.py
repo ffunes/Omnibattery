@@ -86,6 +86,17 @@ async def test_ac_input_and_output_follow_the_battery():
     await driver.close()
 
 
+@pytest.mark.parametrize("reported, shown", [("00005E005301", "00:00:5e:00:53:01"), (None, None)])
+async def test_the_mac_address_comes_from_the_device_identity(reported, shown):
+    """Sys.GetConfig names the battery's MAC; the panel's device information shows it."""
+    clock = VirtualClock()
+    driver = await connected_driver(clock, FakeIndevoltDevice(clock, mac=reported))
+    assert any(d["key"] == "mac_address" for d in driver.sensor_definitions)
+    data = await driver.read_telemetry()
+    assert data.get("mac_address") == shown
+    await driver.close()
+
+
 async def test_the_indevolt_meter_is_not_presented_as_the_grid_meter():
     # 11016 trails the P1 meter by 10-20 s: its own name, and off by default,
     # so nobody mistakes it for the grid sensor Omnibattery regulates on.

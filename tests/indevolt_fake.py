@@ -123,6 +123,7 @@ class FakeIndevoltDevice:
     serial: str = "3300000001"
     firmware: str = "V1.4.0E_R00D.0B2_M4801_0000003E"
     f_ver: str = "V140E.0B.003E"
+    mac: str | None = "00005E005301"  # the documentation range of RFC 7042
     energy_mode: int = 4
     soc: float = 60.0
     capacity_kwh: float = 7.18
@@ -336,6 +337,8 @@ class FakeIndevoltDevice:
         if endpoint == "Sys.GetConfig" and method == "GET":
             body = {"device": {"type": self.device_type, "sn": self.serial,
                                "fw": self.firmware, "f_ver": self.f_ver}}
+            if self.mac is not None:
+                body["device"]["mac"] = self.mac
         elif endpoint == "Indevolt.GetData" and method == "POST":
             values = self.values()
             points = [p for p in config["t"] if p not in self.missing_points]

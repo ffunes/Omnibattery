@@ -64,6 +64,7 @@ from ..infra.indevolt_client import (
     normal_slot,
     pacing_levels,
 )
+from ..infra.mac_tracking import normalise_mac
 from .indevolt_settings import BY_KEY as SETTING_BY_KEY
 from .indevolt_settings import (
     FLASH_WRITES_ISSUE,
@@ -361,6 +362,8 @@ SENSOR_DEFINITIONS = [
                 diagnostic=True, states={1000: "Off", 1001: "On"}),
     _text("software_version", "Software Version", icon="mdi:ticket-confirmation-outline",
           scan="very_low"),
+    # From Sys.GetConfig, like the software version; the panel's device information shows it.
+    _text("mac_address", "MAC Address", icon="mdi:ethernet", scan="very_low"),
     # Read-only parity with the official integration (see POWER_POINTS).
     _definition("ac_input_power", "AC Input Power", unit="W", device_class="power"),
     _definition("ac_output_power", "AC Output Power", unit="W", device_class="power"),
@@ -458,7 +461,7 @@ _LOW_KEYS = ("total_charging_energy", "total_discharging_energy", "total_daily_c
              *(f"pv{n}_{kind}" for kind in ("power", "voltage", "current")
                for n in range(1, len(P_PV_POWER) + 1)),
              *(d["key"] for d in INVERTER_BATTERY_DETAIL_DEFINITIONS if d["scan_interval"] == "low"))
-_VERY_LOW_KEYS = ("software_version", "device_mode",
+_VERY_LOW_KEYS = ("software_version", "mac_address", "device_mode",
                   *(d["key"] for d in INVERTER_BATTERY_DETAIL_DEFINITIONS
                     if d["scan_interval"] == "very_low"))
 
@@ -709,7 +712,7 @@ class IndevoltDriver(BatteryDriver):
             self._connected = False
             return False
         device = config["device"]
-        self._config = {k: str(device[k]) for k in ("type", "sn", "fw", "f_ver") if k in device}
+        self._config = {k: str(device[k]) for k in ("type", "sn", "fw", "f_ver", "mac") if k in device}
         self._model = MODELS.get(self._config.get("type", ""))
         _LOGGER.info("[%s] Indevolt %s (%s), firmware %s / %s, request speed %s", self._name,
                      self._config.get("type"), self._model.label if self._model else "unknown model",
@@ -952,6 +955,9 @@ class IndevoltDriver(BatteryDriver):
             out["inverter_ac_power"] = inverter_ac
         if self.firmware and out:
             out["software_version"] = self.firmware
+        mac = normalise_mac(self._config.get("mac"))
+        if mac and out:
+            out["mac_address"] = mac
         return out
 
     def _decode_batteries(self, out: dict[str, Any], limits_age: float) -> None:

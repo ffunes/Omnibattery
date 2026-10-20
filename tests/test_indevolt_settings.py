@@ -19,7 +19,10 @@ from custom_components.omnibattery.drivers.indevolt_settings import (
     YEARLY_ALLOWANCE,
     stored_battery_value,
 )
-from custom_components.omnibattery.infra.coordinator import MarstekVenusDataUpdateCoordinator
+from custom_components.omnibattery.infra.coordinator import (
+    MarstekVenusDataUpdateCoordinator,
+    _sync_device_reported_limits,
+)
 from custom_components.omnibattery.infra.indevolt_client import SLOT_S, pacing_levels
 from tests.indevolt_fake import FakeIndevoltDevice, RecordingNotifier, VirtualClock, connected_driver
 
@@ -399,4 +402,28 @@ async def test_numbers_use_the_hardware_ceilings_and_the_settings_drive_the_clam
     assert data["max_discharge_power"] == 1000 and data["max_charge_power"] == 3000
     # The device's own setting caps discharge; the 100 W feed-in limit does not.
     assert (await driver.apply_setpoint(-2500)).net_power_w == -1000
+    await driver.close()
+
+
+async def test_a_zero_power_setting_is_not_published_so_the_core_never_writes_it_back():
+    """The core writes back a power ceiling a battery reports as 0 W. On an
+    Indevolt that write would go to flash, so a 0 W setting made in the
+    Indevolt app is left out of the data instead."""
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, energy_mode=1, allow_config_writes=True)
+    store = _store(min_soc=15, max_charge_power=2400, max_discharge_power=2400)
+    driver = await _driver(clock, device, store)
+    device.discharge_setting_w = 0
+    await clock.run(400)  # the limits tier comes round
+    data = await driver.read_telemetry()
+    assert "max_discharge_power" not in data
+    coordinator = SimpleNamespace(
+        name="Indevolt", data=data, needs_software_max_charge=False,
+        needs_software_max_discharge=False, needs_software_power_cap=False,
+        _configured_max_charge_power=2400, configured_max_charge_power=2400,
+        _configured_max_discharge_power=2400, configured_max_discharge_power=2400,
+    )
+    assert _sync_device_reported_limits(coordinator) == ()
+    await clock.run(60)
+    assert device.config_writes == []
     await driver.close()

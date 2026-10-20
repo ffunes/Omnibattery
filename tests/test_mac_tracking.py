@@ -192,8 +192,8 @@ def test_a_serial_marstek_is_left_alone():
     assert evaluate_lease(batteries, MAC_A, "192.168.1.180").reason == NOT_IP_BASED
 
 
-@pytest.mark.parametrize("brand", ["marstek", "zendure", "anker", "sessy"])
-def test_the_four_ip_brands_are_tracked(brand):
+@pytest.mark.parametrize("brand", ["marstek", "zendure", "anker", "sessy", "indevolt"])
+def test_the_ip_brands_are_tracked(brand):
     assert is_ip_based(battery(brand=brand))
 
 

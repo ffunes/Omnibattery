@@ -18,7 +18,9 @@ say why it exists in a docstring, be covered by a test, and be listed here.
 
 ## Registration touchpoints
 
-These are the same touchpoints every brand has (compare Sessy and Huawei):
+These are the registration points that "Files you touch" in
+`site-docs/reference/driver-requirements-template.md` lists for a new driver,
+the same ones Sessy and Huawei use:
 
 | File | Change |
 |---|---|
@@ -26,7 +28,8 @@ These are the same touchpoints every brand has (compare Sessy and Huawei):
 | `infra/coordinator.py` | Factory branch for `brand == "indevolt"` (it hands the driver `persist_battery_config` and a reader of this battery's config, so the settings sync can store what it adopted or wrote), manufacturer and model labels, `indevolt` in the existing voltage-taper exclusion tuple, and an `indevolt_request_speed` argument whose slot it hands to the driver (like Marstek's `rs485_gateway`). |
 | `__init__.py` | Passes the battery's `indevolt_request_speed` to the coordinator, next to `rs485_gateway`. |
 | `const/integration_const.py` | `CONF_INDEVOLT_REQUEST_SPEED`, the per-battery request-speed key. Optional: a battery config without it gets the default speed, so there is no config-entry migration. |
-| `config_flow.py` | Brand option, connection step (read-only probe), Realtime-mode notice step, request-speed step (its own screen, so the explanation of the speeds fits around the dropdown), reconfigure steps for the connection and the request speed, power ceilings in the existing limits step, SOC selector bounds (5–50%, the same range as the min-SOC number, so saving the form unchanged never clamps and rewrites the battery's reserve), and `indevolt` in the existing taper tuples. |
+| `config_flow.py` | Brand option, connection step (read-only probe), Realtime-mode notice step, request-speed step (its own screen, so the explanation of the speeds fits around the dropdown), reconfigure steps for the connection and the request speed, power ceilings in the existing limits step, SOC selector bounds (5–50%, the same range as the min-SOC number, so saving the form unchanged never clamps and rewrites the battery's reserve), `indevolt` in the existing taper tuples, and an `indevolt` branch in the connection test, which the DHCP step uses to probe a new address (the read-only `IndevoltDriver.probe`). |
+| `infra/mac_tracking.py` | `indevolt` in `IP_BASED_BRANDS`: the battery is reached over HTTP at the address the router hands out, so it gets the per-battery MAC tracking opt-in and can follow a new DHCP lease. Covered by `tests/test_mac_tracking.py` and `tests/test_mac_tracking_flow.py`. |
 | `switch.py` | The per-battery "100% Charge Voltage Taper" switch now uses the config flow's taper brand list, so it is no longer shown for Indevolt (or for Sessy, Hoymiles and Huawei, where it also had no effect). Covered by `tests/test_taper_switch_brands.py`. |
 | `strings.json`, `translations/*.json` | Texts for the new steps, the new sensor names and the `indevolt_flash_writes_paused` Repairs issue. |
 
@@ -150,6 +153,10 @@ Everything else was met with existing mechanisms:
   it back on in Repairs; nothing periodic can reach the config channel. Max SOC has no device
   setting: `hardware_soc_cutoff=False`, so the core enforces it in software and
   weekly full charge needs no write (`set_charge_cutoff` returns False).
+  A power setting of 0 W is left out of the data: the coordinator writes back
+  a ceiling a battery reports as 0 (#548), which on an Indevolt would be a
+  flash write. `test_a_zero_power_setting_is_not_published_so_the_core_never_writes_it_back`
+  pins that.
 - **Hardware power ceilings.** The config-flow probe reports 114/115, which the
   coordinator keeps as the device envelope; the number entities use them as
   their maximum.
