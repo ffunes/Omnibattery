@@ -591,6 +591,12 @@ class IndevoltDriver(BatteryDriver):
         self._handover_failures = 0
         self._next_acquire_at = 0.0
         self._throttle_notified = False
+        # What the device holds (the last accepted tuple), and when it was last
+        # told to move while it stood still: a standby battery state read
+        # before START_GRACE_S after that means it is still starting (_decode).
+        self._held: tuple[int, int, int] | None = None
+        self._start_at: float | None = None
+        self._start_echo_due = False
         self._operating_status: str | None = None
         self._settings = IndevoltSettings(
             client=lambda: self._client,
@@ -793,6 +799,7 @@ class IndevoltDriver(BatteryDriver):
         self._state = ControlState.MONITORING
         self._command = None
         self._command_net = None
+        self._held, self._start_at = None, None
 
     def set_shutting_down(self, value: bool) -> None:
         self._shutting_down = value
@@ -904,7 +911,11 @@ class IndevoltDriver(BatteryDriver):
         echo_age = self._tier_max_age(ECHO_TIER)
         state = _num(c(P_BATTERY_STATE, echo_age))
         if state is not None and int(state) in _BATTERY_STATE:
-            out["inverter_state"] = _BATTERY_STATE[int(state)]
+            inverter_state = _BATTERY_STATE[int(state)]
+            # Read before the battery could have started, standby says nothing
+            # yet. None (not left out): the coordinator keeps a missing key.
+            starting = inverter_state == 1 and self._read_before_start(P_BATTERY_STATE)
+            out["inverter_state"] = None if starting else inverter_state
         operating = _num(c(P_OPERATING_STATUS, echo_age))
         if operating is not None and int(operating) in _OPERATING_STATUS:
             out["operating_status"] = _OPERATING_STATUS[int(operating)]
@@ -1219,19 +1230,51 @@ class IndevoltDriver(BatteryDriver):
     def _on_write(self, values: tuple[int, int, int], outcome: str) -> None:
         assert self._scheduler is not None
         if outcome == WRITE_ACCEPTED:
+            now = self._clock()
             if self._state is ControlState.ACQUIRING and values == STOP_TUPLE:
-                self._stop_accepted_at = self._clock()
+                self._stop_accepted_at = now
                 self._handover_reads = 0
             if values == self._command:
-                self._command_accepted_at = self._clock()
+                self._command_accepted_at = now
+            self._track_held(values, now)
             # Confirm through the echo in the next read slot.
             self._scheduler.expedite("echo")
             return
+        # The device may or may not hold it now.
+        self._held = None
         if self._state is ControlState.ACQUIRING and values == STOP_TUPLE:
             self._handover_failed()
         elif values == self._command:
             # Outcome unknown: let the core's next cycle write again.
             self._command_net = None
+
+    def _track_held(self, values: tuple[int, int, int], now: float) -> None:
+        """Note what the device holds now, and when it starts to move."""
+        self._held = values
+        action = values[0]
+        if action == ACTION_STOP:
+            self._start_at = None
+        elif not self._moving():
+            # Told to move while it stands still: it starts now.
+            self._start_at, self._start_echo_due = now, True
+
+    def _delivered(self) -> float | None:
+        """The inverter's own AC power (2278 minus the bypass), + charging."""
+        total, bypass = _num(self._fresh_value(P_AC_TOTAL)), _num(self._fresh_value(P_BYPASS))
+        if total is None or bypass is None:
+            return None
+        return total - bypass
+
+    def _moving(self) -> bool:
+        delivered = self._delivered()
+        return delivered is not None and abs(delivered) > IDLE_TOLERANCE_W
+
+    def _read_before_start(self, point: int) -> bool:
+        """True if ``point`` was read before a move just started could show in it."""
+        if self._start_at is None or self._scheduler is None:
+            return False
+        age = self._scheduler.age(point)
+        return age is not None and self._clock() - age < self._start_at + START_GRACE_S
 
     def _pause(self, reason: str) -> None:
         if self._state is ControlState.PAUSED and self._reason == reason:
@@ -1254,6 +1297,7 @@ class IndevoltDriver(BatteryDriver):
                 self._scheduler.queue_write(STOP_TUPLE, force=True)
         self._command = None
         self._command_net = None
+        self._held, self._start_at = None, None
         if self._notifier is not None:
             self._notifier.paused(reason, model=self._config.get("type"))
 
@@ -1310,6 +1354,12 @@ class IndevoltDriver(BatteryDriver):
         if self._state is ControlState.ACQUIRING:
             self._check_handover()
             return
+        if self._start_echo_due and self._start_at is not None and (
+            self._clock() >= self._start_at + START_GRACE_S
+        ):
+            # Read the battery state again as soon as the start had its time.
+            self._start_echo_due = False
+            self._scheduler.expedite("echo")
         self._maintain_command(updated)
 
     def _check_handover(self) -> None:

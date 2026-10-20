@@ -18,6 +18,7 @@ import asyncio
 import heapq
 import itertools
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -148,6 +149,9 @@ class FakeIndevoltDevice:
     _config_due: list = field(default_factory=list)
     ramp_w_per_s: float = 1000.0
     loss_w: float = 0.0
+    # The most charge power the BMS takes at a SOC, as near full in its
+    # constant-voltage phase; None takes whatever is commanded.
+    acceptance: Callable[[float], float] | None = None
     # 11006 System Operating Status; None derives it from what the battery does.
     operating_status: int | None = None
     full_charge_interval_days: int = 30  # 8646, set in the Indevolt app
@@ -222,6 +226,8 @@ class FakeIndevoltDevice:
                 else -float(self.rt_power) if action == 2
                 else 0.0
             )
+            if action == 1 and self.acceptance is not None:
+                commanded = min(commanded, max(0.0, float(self.acceptance(self.soc))))
             if dt <= 0:
                 break
             step = min(1.0, dt)
