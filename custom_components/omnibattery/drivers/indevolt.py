@@ -218,6 +218,30 @@ RAMP_S = 2.0
 # realtime command, and its echo reports standby until then. Standby within
 # this long of an accepted command is the start, not a device that dropped out.
 START_GRACE_S = 30.0
+# Near full the BMS tapers the charge on its own (its constant-voltage phase),
+# down to about 200W while the command stays at the maximum. The core counts a
+# charge as delivered from 10% of the command, so the driver reports what the
+# battery takes as its live charge limit (dynamic_charge_limit_w), and the
+# core commands that. A shortfall counts once the battery moves and has stayed
+# more than TAPER_SHORTFALL_W short of its command for TAPER_CONFIRM_S without
+# its power rising by more than TAPER_STEP_W: a battery whose power still rises
+# follows its command, only later than the PD raises it. TAPER_CONFIRM_S is
+# longer than an SF2000 needs to ramp to a new command once it moves (4–8s),
+# and short enough that a start into a tapering battery (it shows power ~16s
+# after the command) is limited before the core's 30s engage grace and the
+# cycles after it run out. A battery that does not move at all is a stall, left
+# to the core. The limit is what the battery takes plus TAPER_HEADROOM_W, in
+# TAPER_STEP_W steps, so the shortfall stays below the 150W at which the core's
+# anti-windup re-anchors the PD. The limit goes back up once the battery takes
+# within TAPER_AT_LIMIT_W of it: an SF2000 that takes all it is allowed holds
+# its command within a few watts. The limit sits 50–100W above what a tapering
+# battery takes, so its reading has to rise more than 30W to count, more than
+# the ~30W a tapering SF2000's readings jump now and then.
+TAPER_CONFIRM_S = 10.0
+TAPER_SHORTFALL_W = 100
+TAPER_HEADROOM_W = 100
+TAPER_STEP_W = 50
+TAPER_AT_LIMIT_W = 20
 THROTTLE_NOTIFY_AFTER_S = 300.0
 DEFAULT_MAX_POWER_W = 2400
 
@@ -597,6 +621,12 @@ class IndevoltDriver(BatteryDriver):
         self._held: tuple[int, int, int] | None = None
         self._start_at: float | None = None
         self._start_echo_due = False
+        # The charge limit while the BMS tapers (see TAPER_CONFIRM_S).
+        self._taper_limit_w: int | None = None
+        self._taper_raised_at: float | None = None
+        self._shortfall_since: float | None = None
+        self._shortfall_command = 0
+        self._shortfall_delivered = 0.0
         self._operating_status: str | None = None
         self._settings = IndevoltSettings(
             client=lambda: self._client,
@@ -800,6 +830,7 @@ class IndevoltDriver(BatteryDriver):
         self._command = None
         self._command_net = None
         self._held, self._start_at = None, None
+        self._end_taper()
 
     def set_shutting_down(self, value: bool) -> None:
         self._shutting_down = value
@@ -1151,8 +1182,10 @@ class IndevoltDriver(BatteryDriver):
         return None if self._state is ControlState.OWNED else 0
 
     def dynamic_charge_limit_w(self, data: dict) -> Optional[int]:
-        """No charge headroom while control is not owned."""
-        return None if self._state is ControlState.OWNED else 0
+        """No charge headroom while control is not owned; near full, what the BMS takes."""
+        if self._state is not ControlState.OWNED:
+            return 0
+        return self._taper_limit_w
 
     async def standby(self) -> bool:
         """Send STOP and wait for the device to accept it (used on unload)."""
@@ -1249,14 +1282,19 @@ class IndevoltDriver(BatteryDriver):
             self._command_net = None
 
     def _track_held(self, values: tuple[int, int, int], now: float) -> None:
-        """Note what the device holds now, and when it starts to move."""
-        self._held = values
-        action = values[0]
+        """Note what the device holds now: starts, charges and raised powers."""
+        previous, self._held = self._held, values
+        action, power, _ = values
         if action == ACTION_STOP:
             self._start_at = None
         elif not self._moving():
             # Told to move while it stands still: it starts now.
             self._start_at, self._start_echo_due = now, True
+        charging = previous is not None and previous[0] == ACTION_CHARGE
+        if action != ACTION_CHARGE:
+            self._end_taper()
+        elif not charging or power > previous[1]:
+            self._taper_raised_at = now
 
     def _delivered(self) -> float | None:
         """The inverter's own AC power (2278 minus the bypass), + charging."""
@@ -1275,6 +1313,72 @@ class IndevoltDriver(BatteryDriver):
             return False
         age = self._scheduler.age(point)
         return age is not None and self._clock() - age < self._start_at + START_GRACE_S
+
+    def _follow_taper(self, updated: frozenset[int]) -> None:
+        """Set, follow and lift the charge limit while the BMS tapers the charge.
+
+        Runs on each fresh AC power reading. ``commanded`` is what the device
+        holds. The limit is set once the battery moves but stays short of its
+        command for TAPER_CONFIRM_S. The clock restarts when the command at
+        least doubles, a new step the battery has not had time for, and when
+        the battery's power has risen by more than TAPER_STEP_W since, as it
+        still follows its command. Then the limit only goes down while the
+        battery stays short, and back up when it takes all it is allowed, until
+        it is lifted at the battery's maximum.
+        """
+        held = self._held
+        if P_AC_TOTAL not in updated or held is None or held[0] != ACTION_CHARGE:
+            return
+        delivered = self._delivered()
+        if delivered is None:
+            return
+        now, commanded, limit = self._clock(), held[1], self._taper_limit_w
+        short = commanded - delivered > TAPER_SHORTFALL_W
+        if limit is not None:
+            if delivered >= limit - TAPER_AT_LIMIT_W:
+                self._set_taper_limit(max(limit + TAPER_HEADROOM_W, _step_down(limit * 3 / 2)),
+                                      delivered, commanded)
+            elif short and (self._taper_raised_at is None
+                            or now - self._taper_raised_at >= TAPER_CONFIRM_S):
+                self._set_taper_limit(min(limit, _step_down(delivered) + TAPER_HEADROOM_W),
+                                      delivered, commanded)
+            return
+        if not short or delivered <= IDLE_TOLERANCE_W:
+            self._shortfall_since = None
+            return
+        if (self._shortfall_since is None or commanded >= 2 * self._shortfall_command
+                or delivered > self._shortfall_delivered + TAPER_STEP_W):
+            self._shortfall_since = now
+            self._shortfall_command, self._shortfall_delivered = commanded, delivered
+            return
+        if now - self._shortfall_since >= TAPER_CONFIRM_S:
+            self._set_taper_limit(_step_down(delivered) + TAPER_HEADROOM_W, delivered, commanded)
+
+    def _set_taper_limit(self, limit: int, delivered: float, commanded: int) -> None:
+        charge_max, _ = self._limits()
+        if limit >= charge_max:
+            if self._taper_limit_w is not None:
+                _LOGGER.info("[%s] Indevolt takes the full charge power again; charge limit lifted",
+                             self._name)
+            self._end_taper()
+            return
+        if limit == self._taper_limit_w:
+            return
+        if self._taper_limit_w is None:
+            soc = self._soc()
+            _LOGGER.info("[%s] Indevolt takes %.0fW of %dW at %s SOC while its BMS tapers the "
+                         "charge; limiting the charge to %dW", self._name, delivered, commanded,
+                         "unknown" if soc is None else f"{soc:.0f}%", limit)
+        else:
+            _LOGGER.debug("[%s] Indevolt charge limit %dW -> %dW (takes %.0fW)", self._name,
+                          self._taper_limit_w, limit, delivered)
+            if limit > self._taper_limit_w:
+                self._taper_raised_at = self._clock()
+        self._taper_limit_w = limit
+
+    def _end_taper(self) -> None:
+        self._taper_limit_w = None
+        self._shortfall_since = None
 
     def _pause(self, reason: str) -> None:
         if self._state is ControlState.PAUSED and self._reason == reason:
@@ -1298,6 +1402,7 @@ class IndevoltDriver(BatteryDriver):
         self._command = None
         self._command_net = None
         self._held, self._start_at = None, None
+        self._end_taper()
         if self._notifier is not None:
             self._notifier.paused(reason, model=self._config.get("type"))
 
@@ -1360,6 +1465,7 @@ class IndevoltDriver(BatteryDriver):
             # Read the battery state again as soon as the start had its time.
             self._start_echo_due = False
             self._scheduler.expedite("echo")
+        self._follow_taper(updated)
         self._maintain_command(updated)
 
     def _check_handover(self) -> None:
@@ -1445,6 +1551,11 @@ class IndevoltDriver(BatteryDriver):
         elif not throttled and self._scheduler.backoff_level == 0 and self._throttle_notified:
             self._throttle_notified = False
             self._notifier.throttle_cleared()
+
+
+def _step_down(power: float) -> int:
+    """``power`` rounded down to a TAPER_STEP_W step, never below 0."""
+    return max(0, int(power // TAPER_STEP_W) * TAPER_STEP_W)
 
 
 def _lowest(values: dict[int, Any], points: tuple[int, ...]) -> int:

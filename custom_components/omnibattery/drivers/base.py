@@ -473,6 +473,9 @@ class BatteryDriver(ABC):
         Indevolt outside Realtime mode), so battery selection skips it and the
         other batteries take the load, instead of the controller allocating
         power the battery refuses until the non-responsive tracker excludes it.
+        Near full it may return what the battery takes while its BMS tapers the
+        charge (an Indevolt in its constant-voltage phase), so the controller
+        commands that instead of a power the battery reports as not delivered.
 
         Defaults to None: the static limit stands, so other drivers are
         unaffected. See docs/indevolt-core-changes.md.

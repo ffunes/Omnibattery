@@ -593,9 +593,10 @@ def _apply_driver_dynamic_limit(
     properties on purpose — those also drive the user-facing power sliders, and
     a bound that moved with the sun would be unusable.
 
-    ``charging`` asks the driver's ``dynamic_charge_limit_w`` instead. Only a
-    driver that cannot take commands at the moment (Indevolt outside Realtime
-    mode) reports one; every other driver returns None.
+    ``charging`` asks the driver's ``dynamic_charge_limit_w`` instead. Only the
+    Indevolt driver reports one: 0 while it cannot take commands (outside
+    Realtime mode), and near full what its BMS takes while it tapers the
+    charge. Every other driver returns None.
     """
     driver = getattr(coordinator, "driver", None)
     limiter = getattr(

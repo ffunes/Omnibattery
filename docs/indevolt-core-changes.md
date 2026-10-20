@@ -47,8 +47,20 @@ the same ones Sessy and Huawei use:
   went undelivered, and only the non-responsive tracker excluded it, retrying
   every 5 minutes and raising a "not delivering" Repair after 30 minutes for
   what is a deliberate mode choice.
+- **Second use, near full:** the SF2000's BMS tapers the charge on its own in
+  its constant-voltage phase, down to about 200W while the command stays at
+  2400W. The core counts a charge as delivered from 10% of the command, so it
+  excluded the tapering battery as "not delivering", and its anti-windup
+  re-anchored the PD every ~15s (a burst of setpoint writes each time). The
+  driver now reports what the battery takes plus at most 100W as the live
+  charge limit, so the core commands that. No core code changes for this; the
+  docstrings of the hook say so.
 - **Proof:** `tests/test_indevolt_allocation.py::test_a_paused_indevolt_gets_no_charge`
   failed before the hook (the paused Indevolt was selected) and passes with it.
+  `tests/test_indevolt_top_of_charge.py` covers the taper: the core's 10% bar
+  holds through a whole taper, a step up, a slow start or a battery that lags
+  a rising command is not limited, a taper is still limited while the core
+  raises the command, and a battery that never moves is left to the core.
 - **Other brands:** the default returns `None`, which keeps the static limit.
   `test_other_drivers_keep_their_limits` pins that, and the full suite is
   unchanged.
