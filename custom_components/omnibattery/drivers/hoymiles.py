@@ -222,7 +222,8 @@ class HoymilesMqttDriver(BatteryDriver):
         # alongside battery_power to judge delivery at the AC port.
         self._read_groups = [ReadGroup(
             "high",
-            tuple(d["key"] for d in SENSOR_DEFINITIONS) + (DELIVERED_AC_POWER_KEY,),
+            tuple(d["key"] for d in SENSOR_DEFINITIONS)
+            + (DELIVERED_AC_POWER_KEY, "battery_total_energy"),
         )]
 
     @property

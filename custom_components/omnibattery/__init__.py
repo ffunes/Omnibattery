@@ -5032,7 +5032,7 @@ class ChargeDischargeController:
 
         # === STEP 3: Calculate Energy Balance ===
         # Get battery configuration
-        total_capacity_kwh = sum(c.data.get("battery_total_energy", 0) for c in coordinators_with_data)
+        total_capacity_kwh = sum(c.data.get("battery_total_energy", 0) or 0 for c in coordinators_with_data)
         if total_capacity_kwh <= 0:
             _LOGGER.error(
                 "Invalid total battery capacity (%.2f kWh) - cannot evaluate predictive charging",
@@ -5618,7 +5618,7 @@ class ChargeDischargeController:
         # Per-battery gap to the charge ceiling (kWh); 100% on a weekly day.
         gaps: dict = {}
         for c in coordinators_with_data:
-            capacity = c.data.get("battery_total_energy", 0)
+            capacity = c.data.get("battery_total_energy", 0) or 0
             current_soc = c.data.get("battery_soc", 0)
             ceiling = ChargeDischargeController._charge_ceiling_soc(self, c)
             gaps[c] = max(0.0, (ceiling - current_soc) / 100.0 * capacity)
@@ -5658,7 +5658,7 @@ class ChargeDischargeController:
 
         targets: dict = {}
         for c in coordinators_with_data:
-            capacity = c.data.get("battery_total_energy", 0)
+            capacity = c.data.get("battery_total_energy", 0) or 0
             current_soc = c.data.get("battery_soc", 0)
             ceiling = ChargeDischargeController._charge_ceiling_soc(self, c)
             if capacity <= 0:

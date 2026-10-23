@@ -689,6 +689,17 @@ async def test_apply_setpoint_confirmed_on_matching_readback():
     assert res.battery_power_w == 580
 
 
+@pytest.mark.parametrize("packs", [[], [{"sn": "CO4ATEST", "packType": 70}]])
+async def test_setpoint_readback_does_not_replace_configured_capacity(packs):
+    report = {"properties": {"acMode": 1, "inputLimit": 600}, "packData": packs}
+    result = await _driver(session=_session(get_data=report)).apply_setpoint(600, read_back=True)
+    assert result.confirmed is True
+    # The coordinator merges applied telemetry into its existing cache.
+    cached = {"battery_total_energy": 5.28}
+    cached.update(result.applied)
+    assert cached["battery_total_energy"] == 5.28
+
+
 async def test_apply_setpoint_unconfirmed_on_mismatched_readback():
     readback = {
         "sn": "ZB123456",

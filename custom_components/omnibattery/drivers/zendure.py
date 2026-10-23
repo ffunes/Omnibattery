@@ -772,6 +772,9 @@ class ZendureLocalDriver(BatteryDriver):
 
         # Full snapshot echo so the coordinator cache reflects the readback.
         echo = self._snapshot_from_report(data)
+        # Capacity is merged during polling, where the configured override is
+        # applied. A setpoint echo must not bypass that override.
+        echo.pop("battery_total_energy", None)
         battery_power = echo["battery_power"]
 
         return SetpointResult(

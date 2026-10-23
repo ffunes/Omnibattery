@@ -122,7 +122,7 @@ _BALANCE_STATUS_FIELDS = (
 def _energy_needed_kwh(batteries: list, target_soc: float) -> float:
     """Return the kWh still missing to reach ``target_soc`` across ``batteries``."""
     return sum(
-        (target_soc - c.data.get("battery_soc", 100)) / 100.0 * c.data.get("battery_total_energy", 0)
+        (target_soc - c.data.get("battery_soc", 100)) / 100.0 * (c.data.get("battery_total_energy", 0) or 0)
         for c in batteries if c.data
     )
 
@@ -149,7 +149,7 @@ def _charge_time_h(
         deficit = (
             (target_soc - coordinator.data.get("battery_soc", 100))
             / 100.0
-            * coordinator.data.get("battery_total_energy", 0)
+            * (coordinator.data.get("battery_total_energy", 0) or 0)
         )
         if deficit <= 0:
             continue
@@ -622,7 +622,7 @@ class ChargeDelayManager:
 
         # --- Exception 2: Energy balance check (dynamic, recalculated only when forecast changes) ---
         total_capacity_kwh = sum(
-            c.data.get("battery_total_energy", 0)
+            c.data.get("battery_total_energy", 0) or 0
             for c in automatic_batteries
             if c.data
         )
