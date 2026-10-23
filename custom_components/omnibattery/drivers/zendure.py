@@ -170,6 +170,37 @@ _REMAIN_TIME_SENTINEL = 59940
 # the read_telemetry key filter even though no definition lists them.
 _PACK_KEY_RE = re.compile(r"^pack\d+_")
 
+
+def _pack_capacity_kwh(pack: dict) -> float | None:
+    """Identify nominal pack capacity using Zendure's serial families.
+
+    Reference: Zendure/Zendure-HA, ZendureBattery.get_battery_type in
+    custom_components/zendure_ha/device.py. packType alone is ambiguous:
+    both a CO4A 1.92 kWh pack and a B-family 8 kWh pack can report 70.
+    """
+    serial = pack.get("sn")
+    if not isinstance(serial, str) or len(serial) < 4:
+        return None
+    family = serial[0]
+    if family == "A":
+        return 2.4 if serial[3] == "3" else 0.96
+    if family == "B":
+        return 8.0 if pack.get("packType") in (70, "70") else 0.96
+    return {"C": 1.92, "F": 2.88, "G": 2.88, "J": 2.4}.get(family)
+
+
+def _reported_capacity_kwh(packs: list[dict], pack_count: int | None) -> float | None:
+    """Return a total only when every reported pack can be identified."""
+    if not packs or (pack_count is not None and pack_count != len(packs)):
+        return None
+    capacities = [_pack_capacity_kwh(pack) for pack in packs]
+    if any(capacity is None for capacity in capacities):
+        return None
+    serials = [pack["sn"] for pack in packs]
+    if len(set(serials)) != len(serials):
+        return None
+    return round(sum(capacities), 2)
+
 # Numeric per-pack sensor fields. Each becomes a sensor entity per pack; sn /
 # model / state ride along as attributes on the SoC sensor (see ZendurePackSensor).
 PACK_FIELD_SPECS: list[dict] = [
@@ -342,7 +373,7 @@ class ZendureLocalDriver(BatteryDriver):
             has_alarm_registers=True,    # faultLevel + is_error
             has_rs485_control=False,
             has_energy_counters=False,   # no kWh / capacity in the report; synthesised
-            has_nominal_capacity=False,  # configured by the user; absent from the report
+            has_nominal_capacity=False,  # derived from packs; allow a configured override
             has_daily_energy_counters=False,
             setpoint_confirm_reliable=False,  # HTTP report echoes the previous limit for ~2 s
             actuator_latency_s=3.0,      # HTTP write + ~2-3 s engage/echo latency
@@ -502,7 +533,7 @@ class ZendureLocalDriver(BatteryDriver):
             snapshot = {
                 k: v for k, v in snapshot.items()
                 if k in keys
-                or k in ("max_charge_power", DELIVERED_AC_POWER_KEY)
+                or k in ("max_charge_power", "battery_total_energy", DELIVERED_AC_POWER_KEY)
                 or _PACK_KEY_RE.match(k)
             }
 
@@ -539,6 +570,11 @@ class ZendureLocalDriver(BatteryDriver):
         # Device-level cell-voltage extremes from packData[] (raw centi-volt;
         # the coordinator applies the ×0.01 scale from the entity definition).
         packs = data.get("packData") or []
+        # Publish None for an incomplete/unknown pack list rather than retaining
+        # a stale total after packs change. A manual capacity still overrides it.
+        snapshot["battery_total_energy"] = _reported_capacity_kwh(
+            packs, props.get("packNum")
+        )
         max_vols = [p["maxVol"] for p in packs if p.get("maxVol")]
         min_vols = [p["minVol"] for p in packs if p.get("minVol")]
         if max_vols:
