@@ -5,7 +5,7 @@
 ### Fixed
 
 - **Discharge reserve: the floor slid down with the SOC while PV credit was left** (#700): when dearer-hour demand exceeded the stored energy, the claims equalled the stored energy and the PV credit came off that, so the reserve was always just under the SOC and never held anything. The claims now run against the stored energy plus the solar the battery can still take, and the reserve is capped at what is stored. When the sun covers all demand the battery is still released. Thanks to @MarkB-HA.
-- **Daily Operation timeline: weekly full charge day projected to Max SOC**: the projection capped the battery at the configured Max SOC while the planner charges to 100% on the weekly full charge day, so the timeline showed the battery stopping short. It now uses the same 100% ceiling until the weekly charge completes. Thanks to @syphernl.
+- **Daily Operation timeline: weekly full charge day projected to Max SOC** (PR#680): the projection capped the battery at the configured Max SOC while the planner charges to 100% on the weekly full charge day, so the timeline showed the battery stopping short. It now uses the same 100% ceiling until the weekly charge completes. Thanks to @syphernl.
 
 ## [1.5.1b2] - 2026-10-13
 
