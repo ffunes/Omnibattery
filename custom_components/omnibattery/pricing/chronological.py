@@ -12,7 +12,7 @@ import math
 from typing import Iterable, Sequence
 
 from ..const import CHARGE_EFFICIENCY
-from . import PriceSlot
+from . import PriceSlot, _timestamp
 
 ENERGY_TOLERANCE_KWH = 0.05
 _EPSILON = 1e-9
@@ -26,12 +26,49 @@ class EnergyInterval:
     solar_kwh: float
 
     def __post_init__(self) -> None:
-        if self.end <= self.start:
+        if _timestamp(self.end) <= _timestamp(self.start):
             raise ValueError("energy interval end must be after start")
         for name in ("consumption_kwh", "solar_kwh"):
             value = float(getattr(self, name))
             if not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and non-negative")
+
+    @property
+    def duration_seconds(self) -> float:
+        return max(0.0, _timestamp(self.end) - _timestamp(self.start))
+
+    @property
+    def duration_hours(self) -> float:
+        return self.duration_seconds / 3600.0
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, EnergyInterval):
+            return False
+        return (
+            _timestamp(self.start) == _timestamp(other.start)
+            and _timestamp(self.end) == _timestamp(other.end)
+            and self.consumption_kwh == other.consumption_kwh
+            and self.solar_kwh == other.solar_kwh
+        )
+
+    def __hash__(self) -> int:
+        return hash((
+            _timestamp(self.start),
+            _timestamp(self.end),
+            self.consumption_kwh,
+            self.solar_kwh,
+        ))
+
+    def __lt__(self, other: EnergyInterval) -> bool:
+        if not isinstance(other, EnergyInterval):
+            return NotImplemented
+        return (
+            _timestamp(self.start),
+            _timestamp(self.end),
+        ) < (
+            _timestamp(other.start),
+            _timestamp(other.end),
+        )
 
 
 @dataclass(frozen=True)
@@ -96,7 +133,7 @@ class ChronologicalEvaluationRequest:
     deadlines: tuple[EnergyDeadline, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.horizon_end <= self.now:
+        if _timestamp(self.horizon_end) <= _timestamp(self.now):
             raise ValueError("chronological horizon must end after now")
         # Accept ordinary sequences at the public boundary but retain only
         # immutable containers while the evaluator is running.
@@ -184,7 +221,7 @@ def simulate_allocations(
     usable_capacity_kwh: float = math.inf,
 ) -> EnergySimulationResult:
     """Simulate the stored usable energy at each interval boundary."""
-    ordered = sorted(intervals, key=lambda item: item.start)
+    ordered = sorted(intervals, key=lambda item: _timestamp(item.start))
     capacity = max(0.0, float(usable_capacity_kwh))
     energy = min(_finite_non_negative(usable_initial_kwh), capacity)
     minimum = energy
@@ -197,7 +234,10 @@ def simulate_allocations(
         # slot has ended.  Deadline allocation already caps crossing slots to
         # the capacity deliverable before the deadline.
         for index, allocation in enumerate(allocated):
-            if index not in applied_allocations and allocation.slot.end <= interval.end:
+            if (
+                index not in applied_allocations
+                and _timestamp(allocation.slot.end) <= _timestamp(interval.end)
+            ):
                 energy += allocation.planned_battery_kwh
                 applied_allocations.add(index)
         energy = min(
@@ -223,7 +263,7 @@ def build_energy_deadlines(
     usable_capacity_kwh: float = math.inf,
 ) -> list[EnergyDeadline]:
     """Derive cumulative requirements from the capacity-bounded trajectory."""
-    intervals = sorted(intervals, key=lambda item: item.start)
+    intervals = sorted(intervals, key=lambda item: _timestamp(item.start))
     capacity = max(0.0, float(usable_capacity_kwh))
     segment_initial = min(_finite_non_negative(usable_initial_kwh), capacity)
     tolerance = max(0.0, float(tolerance_kwh))
@@ -276,7 +316,7 @@ def build_energy_deadlines(
 
 
 def _duration_hours(start: datetime, end: datetime) -> float:
-    return max(0.0, (end - start).total_seconds() / 3600.0)
+    return max(0.0, (_timestamp(end) - _timestamp(start)) / 3600.0)
 
 
 def allocate_price_slots(
@@ -294,8 +334,8 @@ def allocate_price_slots(
     charge_efficiency: float = CHARGE_EFFICIENCY,
 ) -> ChronologicalPlan:
     """Allocate the cheapest feasible slot capacity to energy deadlines."""
-    intervals = sorted(intervals, key=lambda item: item.start)
-    deadlines = sorted(deadlines, key=lambda item: item.deadline)
+    intervals = sorted(intervals, key=lambda item: _timestamp(item.start))
+    deadlines = sorted(deadlines, key=lambda item: _timestamp(item.deadline))
     headroom = max(0.0, float(headroom_kwh))
     usable_capacity = _finite_non_negative(usable_initial_kwh) + headroom
     required = min(
@@ -304,10 +344,12 @@ def allocate_price_slots(
     )
     power = _finite_non_negative(effective_power_kw)
     efficiency = max(0.0, min(1.0, float(charge_efficiency)))
+    now_ts = _timestamp(now)
+    horizon_end_ts = _timestamp(horizon_end)
     candidates = [
         slot for slot in price_slots
-        if slot.end > now
-        and slot.start < horizon_end
+        if _timestamp(slot.end) > now_ts
+        and _timestamp(slot.start) < horizon_end_ts
         and math.isfinite(float(slot.price))
         and (max_price_threshold is None or slot.price <= max_price_threshold)
     ]
@@ -321,9 +363,13 @@ def allocate_price_slots(
         deadline: datetime | None = None,
         not_before: datetime | None = None,
     ) -> float:
-        start = max(now, slot.start, not_before or now)
-        end = min(slot.end, horizon_end, deadline or horizon_end)
-        return power * _duration_hours(start, end) * efficiency
+        slot_start_ts = _timestamp(slot.start)
+        slot_end_ts = _timestamp(slot.end)
+        not_before_ts = _timestamp(not_before) if not_before is not None else now_ts
+        deadline_ts = _timestamp(deadline) if deadline is not None else horizon_end_ts
+        start_ts = max(now_ts, slot_start_ts, not_before_ts)
+        end_ts = min(slot_end_ts, horizon_end_ts, deadline_ts)
+        return power * max(0.0, (end_ts - start_ts) / 3600.0) * efficiency
 
     no_grid = simulate_allocations(
         intervals,
@@ -341,31 +387,35 @@ def allocate_price_slots(
             projected_energy = 0.0
 
     def allocation_start(deadline: datetime) -> datetime:
+        deadline_ts = _timestamp(deadline)
         return max(
-            (instant for instant in full_at if instant < deadline),
+            (instant for instant in full_at if _timestamp(instant) < deadline_ts),
+            key=_timestamp,
             default=now,
         )
 
     def in_segment(slot: PriceSlot, start: datetime, deadline: datetime) -> bool:
         # Solar only displaces the part of a slot that lands before the
         # projected fill, so a straddling slot still serves the later deadline.
-        return slot.end > start and slot.start < deadline
+        return _timestamp(slot.end) > _timestamp(start) and _timestamp(slot.start) < _timestamp(deadline)
 
-    segment_required: dict[datetime, float] = {}
+    segment_required: dict[float, float] = {}
     for deadline in deadlines:
         start = allocation_start(deadline.deadline)
-        segment_required[start] = max(
-            segment_required.get(start, 0.0),
+        start_key = _timestamp(start)
+        segment_required[start_key] = max(
+            segment_required.get(start_key, 0.0),
             deadline.required_cumulative_kwh,
         )
     deadline_required = min(required, sum(segment_required.values()))
 
     for deadline in deadlines:
         start = allocation_start(deadline.deadline)
+        start_ts = _timestamp(start)
         allocated_before_segment = sum(
             amount
             for slot, amount in allocations.items()
-            if slot.end <= start
+            if _timestamp(slot.end) <= start_ts
         )
         cumulative_target = min(
             deadline.required_cumulative_kwh,
@@ -387,7 +437,7 @@ def allocate_price_slots(
                 slot.price,
                 0 if slot in allocations else 1,
                 -capacity(slot, deadline.deadline, start),
-                slot.start,
+                _timestamp(slot.start),
             ),
         )
         for slot in eligible:
@@ -401,7 +451,9 @@ def allocate_price_slots(
             allocations[slot] = allocations.get(slot, 0.0) + take
             previous = allocation_deadlines.get(slot)
             allocation_deadlines[slot] = (
-                deadline.deadline if previous is None else min(previous, deadline.deadline)
+                deadline.deadline
+                if previous is None
+                else min(previous, deadline.deadline, key=_timestamp)
             )
             missing -= take
             if missing <= _EPSILON:
@@ -413,7 +465,7 @@ def allocate_price_slots(
     # remains a chronological shortfall instead of being made to look covered
     # by energy delivered after the need occurred.
     missing_total = flexible_required
-    for slot in sorted(candidates, key=lambda item: (item.price, item.start)):
+    for slot in sorted(candidates, key=lambda item: (item.price, _timestamp(item.start))):
         free = max(0.0, capacity(slot) - allocations.get(slot, 0.0))
         take = min(missing_total, free)
         if take <= _EPSILON:
@@ -431,7 +483,7 @@ def allocate_price_slots(
             allocation_deadlines.get(slot),
             "deadline" if allocation_deadlines.get(slot) is not None else "flexible",
         )
-        for slot, amount in sorted(allocations.items(), key=lambda item: item[0].start)
+        for slot, amount in sorted(allocations.items(), key=lambda item: _timestamp(item[0].start))
     ]
     simulation = no_grid
     allocated = sum(allocations.values())

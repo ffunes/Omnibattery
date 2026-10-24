@@ -9,7 +9,7 @@ import logging
 import math
 from datetime import datetime, timedelta
 
-from . import PriceSlot
+from . import PriceSlot, _timestamp
 from ..const import (
     CHARGE_EFFICIENCY,
     DEFAULT_ROUND_TRIP_EFFICIENCY,
@@ -517,7 +517,7 @@ def select_cheapest_blocks(slots: list, hours_needed: float, slot_duration_h: fl
         Sorted (by start time) list of selected PriceSlot
     """
     block_size = max(1, round(1.0 / slot_duration_h))  # 4 for 15-min slots
-    sorted_slots = sorted(slots, key=lambda s: s.start)
+    sorted_slots = sorted(slots, key=lambda s: _timestamp(s.start))
     n = len(sorted_slots)
 
     full_blocks_needed = int(hours_needed)
@@ -531,7 +531,7 @@ def select_cheapest_blocks(slots: list, hours_needed: float, slot_duration_h: fl
             candidate = available[i:i + window_size]
             # Verify slots are time-consecutive (gap <= 1 min tolerance)
             consecutive = all(
-                abs((sorted_slots[candidate[j + 1]].start - sorted_slots[candidate[j]].end).total_seconds()) < 60
+                abs(_timestamp(sorted_slots[candidate[j + 1]].start) - _timestamp(sorted_slots[candidate[j]].end)) < 60
                 for j in range(len(candidate) - 1)
             )
             if not consecutive:
@@ -539,7 +539,7 @@ def select_cheapest_blocks(slots: list, hours_needed: float, slot_duration_h: fl
             avg = sum(sorted_slots[idx].price for idx in candidate) / window_size
             # Prefer lower price; break ties by earlier start time
             if avg < best_avg or (avg == best_avg and best_window is not None and
-                    sorted_slots[candidate[0]].start < sorted_slots[best_window[0]].start):
+                    _timestamp(sorted_slots[candidate[0]].start) < _timestamp(sorted_slots[best_window[0]].start)):
                 best_avg = avg
                 best_window = list(candidate)
         return best_window
@@ -620,7 +620,7 @@ def expected_discharge_price(slots: list, hours_needed: float) -> float | None:
     total_price = 0.0
     hours = 0.0
     for slot in by_price:
-        duration = (slot.end - slot.start).total_seconds() / 3600.0
+        duration = (_timestamp(slot.end) - _timestamp(slot.start)) / 3600.0
         if duration <= 0:
             continue
         total_price += slot.price * duration
@@ -747,17 +747,17 @@ def select_cheapest_hours(
         return []
 
     # Dispatch to block strategy for sub-hourly granularity
-    slot_duration_h = (future_slots[0].end - future_slots[0].start).total_seconds() / 3600.0
+    slot_duration_h = (_timestamp(future_slots[0].end) - _timestamp(future_slots[0].start)) / 3600.0
     if slot_duration_h < 0.9:
         return select_cheapest_blocks(future_slots, hours_needed, slot_duration_h)
 
     # Hourly slots: sort by price, accumulate until hours_needed is met
-    sorted_slots = sorted(future_slots, key=lambda s: (s.price, s.start))
+    sorted_slots = sorted(future_slots, key=lambda s: (s.price, _timestamp(s.start)))
 
     selected = []
     hours_accumulated = 0.0
     for slot in sorted_slots:
-        slot_duration = (slot.end - slot.start).total_seconds() / 3600.0
+        slot_duration = (_timestamp(slot.end) - _timestamp(slot.start)) / 3600.0
         selected.append(slot)
         hours_accumulated += slot_duration
         if hours_accumulated >= hours_needed:
@@ -770,7 +770,7 @@ def select_cheapest_hours(
         )
 
     # Return sorted by start time for chronological execution
-    return sorted(selected, key=lambda s: s.start)
+    return sorted(selected, key=lambda s: _timestamp(s.start))
 
 
 def select_cheapest_slots_by_duration(
@@ -791,7 +791,8 @@ def select_cheapest_slots_by_duration(
     if hours_needed <= 0:
         return []
 
-    future_slots = [slot for slot in slots if slot.end > now]
+    now_ts = _timestamp(now)
+    future_slots = [slot for slot in slots if _timestamp(slot.end) > now_ts]
     if max_price_threshold is not None:
         future_slots = [
             slot for slot in future_slots if slot.price <= max_price_threshold
@@ -799,15 +800,15 @@ def select_cheapest_slots_by_duration(
 
     selected = []
     accumulated_h = 0.0
-    for slot in sorted(future_slots, key=lambda item: (item.price, item.start)):
+    for slot in sorted(future_slots, key=lambda item: (item.price, _timestamp(item.start))):
         # A startup/manual evaluation may run inside the current interval.  Only
         # its remaining time can contribute energy toward the SOC target.
-        effective_start = max(slot.start, now)
-        duration_h = (slot.end - effective_start).total_seconds() / 3600.0
+        effective_start = max(slot.start, now, key=_timestamp)
+        duration_h = (_timestamp(slot.end) - _timestamp(effective_start)) / 3600.0
         if duration_h <= 0:
             continue
         selected.append(slot)
         accumulated_h += duration_h
         if accumulated_h >= hours_needed:
             break
-    return sorted(selected, key=lambda item: item.start)
+    return sorted(selected, key=lambda item: _timestamp(item.start))

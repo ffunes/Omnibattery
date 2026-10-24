@@ -89,6 +89,8 @@ def _utc(moment: datetime) -> datetime:
 
 
 def _duration_hours(start: datetime, end: datetime) -> float:
+    if start.tzinfo is not None and end.tzinfo is not None:
+        return max(0.0, (_utc(end) - _utc(start)).total_seconds() / 3600.0)
     return max(0.0, (end - start).total_seconds() / 3600.0)
 
 

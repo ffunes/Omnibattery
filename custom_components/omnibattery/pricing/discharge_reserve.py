@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Sequence
 
+from . import _timestamp
+
 EPSILON = 1e-9
 _QUARTER = timedelta(minutes=15)
 
@@ -68,7 +70,7 @@ class ReserveSlot:
 
     @property
     def duration_hours(self) -> float:
-        return max(0.0, (self.end - self.start).total_seconds() / 3600.0)
+        return max(0.0, (_timestamp(self.end) - _timestamp(self.start)) / 3600.0)
 
 
 @dataclass

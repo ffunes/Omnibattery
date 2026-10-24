@@ -2,6 +2,7 @@
 import asyncio
 from datetime import datetime, timedelta
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -533,3 +534,78 @@ def test_time_slot_preview_keeps_balance_diagnostics_after_last_window():
     assert controller._last_decision_data["stored_energy_kwh"] == pytest.approx(4.2)
     assert controller._last_decision_data["avg_consumption_kwh"] == pytest.approx(7.1)
     assert controller._last_decision_data["energy_deficit_kwh"] == pytest.approx(0.0)
+
+
+def test_energy_interval_dst_fall_back_aware_datetimes():
+    """EnergyInterval must validate using timestamps so autumn DST fall-back does not fail."""
+    amsterdam = ZoneInfo("Europe/Amsterdam")
+    # 02:45 CEST (fold=0, 00:45 UTC) -> 02:00 CET (fold=1, 01:00 UTC)
+    start = datetime(2026, 10, 25, 2, 45, tzinfo=amsterdam, fold=0)
+    end = datetime(2026, 10, 25, 2, 0, tzinfo=amsterdam, fold=1)
+
+    interval = EnergyInterval(start, end, 0.5, 0.1)
+
+    assert interval.duration_seconds == pytest.approx(900.0)
+    assert interval.duration_hours == pytest.approx(0.25)
+    assert interval.consumption_kwh == pytest.approx(0.5)
+    assert interval.solar_kwh == pytest.approx(0.1)
+
+    # Inverted timestamps must still raise ValueError
+    with pytest.raises(ValueError, match="energy interval end must be after start"):
+        EnergyInterval(end, start, 0.5, 0.1)
+
+
+def test_price_slot_dst_fold_equality_and_hashing():
+    """PriceSlots sharing wall clock across DST transition must not collide."""
+    amsterdam = ZoneInfo("Europe/Amsterdam")
+    s1 = PriceSlot(
+        datetime(2026, 10, 25, 2, 15, tzinfo=amsterdam, fold=0),
+        datetime(2026, 10, 25, 2, 30, tzinfo=amsterdam, fold=0),
+        0.10,
+    )
+    s2 = PriceSlot(
+        datetime(2026, 10, 25, 2, 15, tzinfo=amsterdam, fold=1),
+        datetime(2026, 10, 25, 2, 30, tzinfo=amsterdam, fold=1),
+        0.10,
+    )
+
+    assert s1 != s2
+    assert hash(s1) != hash(s2)
+    mapping = {s1: 1.0, s2: 2.0}
+    assert len(mapping) == 2
+    assert mapping[s1] == 1.0
+    assert mapping[s2] == 2.0
+
+
+def test_chronological_planning_across_dst_transition():
+    """Full 25-hour autumn DST day must produce 100 intervals and feasible allocation."""
+    amsterdam = ZoneInfo("Europe/Amsterdam")
+    start = datetime(2026, 10, 25, 0, 0, tzinfo=amsterdam)
+    end = datetime(2026, 10, 26, 0, 0, tzinfo=amsterdam)
+
+    boundaries = build_boundaries(start, end)
+    assert len(boundaries) == 100
+
+    intervals = [EnergyInterval(s, e, 0.1, 0.0) for s, e in boundaries]
+    deadlines = build_energy_deadlines(intervals, usable_initial_kwh=0.0)
+    assert deadlines
+
+    slots = [
+        PriceSlot(s, e, 0.05 if i in (58, 59, 60) else 0.20)
+        for i, (s, e) in enumerate(boundaries)
+    ]
+
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        slots,
+        total_required_kwh=2.0,
+        effective_power_kw=4.0,
+        now=start,
+        horizon_end=end,
+    )
+
+    assert plan.reason == "ok"
+    assert plan.allocated_kwh == pytest.approx(2.0)
+    assert len(plan.allocations) > 0
+

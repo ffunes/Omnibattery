@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Chronological planning across DST transitions** (PR#682, #678): every chronological plan crossing the autumn DST transition failed with "energy interval end must be after start", causing Daily Operation dashboard projections to fall back and report the projection as unavailable. Comparisons, boundary validations, and durations across the pricing engine and chronological planner now evaluate absolute timestamps, ensuring proper ordering through the DST fold and avoiding price slot collisions.
+
 ## [1.5.1b2] - 2026-10-13
 
 ### Fixed

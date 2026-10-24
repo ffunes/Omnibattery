@@ -1984,6 +1984,48 @@ def test_extended_projection_adapter_is_read_only_for_dashboard_callers():
         result.diagnostics["chronological_source"] = "mutated"
 
 
+def test_extended_projection_across_autumn_dst_transition():
+    """Daily Operation cross-midnight projection must succeed across autumn DST transition."""
+    amsterdam = ZoneInfo("Europe/Amsterdam")
+    # Saturday Oct 24, 2026 12:00 -> Sunday Oct 25, 2026 12:00 (crossing 03:00 -> 02:00 fall-back)
+    now = datetime(2026, 10, 24, 12, 0, tzinfo=amsterdam)
+    horizon_end = datetime(2026, 10, 25, 12, 0, tzinfo=amsterdam)
+    shape = [0.1] * INTERVAL_COUNT
+    forecast = ConsumptionForecast(9.6, shape, "profile", True)
+    tracker = SimpleNamespace(
+        consumption_profile=SimpleNamespace(),
+        forecast_consumption_between=lambda *_args, **_kwargs: forecast,
+        solar_profile=None,
+        calculate_solar_noon=lambda: 13.0,
+    )
+    ctrl = _controller(
+        _consumption_tracker=tracker,
+        solar_profile_mode="off",
+        _predictive_safety_margin_kwh=0.0,
+        coordinators=[],
+        _is_battery_manual_owned=lambda _coordinator: False,
+        max_contracted_power=0.0,
+        max_charge_capacity=3000.0,
+    )
+    manager = _mgr(ctrl)
+
+    projection = manager.build_extended_chronological_projection(
+        now=now,
+        slots=[],
+        base_decision_data={
+            "avg_consumption_kwh": 9.6,
+            "solar_forecast_input": SolarForecastInput(0.0, "none"),
+        },
+        price_ceiling=None,
+        horizon_end=horizon_end,
+    )
+
+    assert projection.plan is not None
+    # 12:00 to 24:00 today (12h = 48 intervals) + 00:00 to 12:00 tomorrow (13h due to DST fall back = 52 intervals) -> 100 intervals total
+    assert len(projection.plan.intervals) == 100
+    assert projection.diagnostics.get("chronological_plan_reason") is not None
+
+
 def test_extended_projection_refreshes_the_live_solar_budget():
     """A dashboard redraw must not reuse a morning solar remainder."""
     madrid = ZoneInfo("Europe/Madrid")

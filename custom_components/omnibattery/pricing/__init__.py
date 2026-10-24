@@ -6,10 +6,33 @@ notifications live in submodules.
 """
 from collections import namedtuple
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
-# Dynamic pricing data structures
-PriceSlot = namedtuple("PriceSlot", ["start", "end", "price"])
+
+def _timestamp(value: datetime) -> float:
+    """Return an absolute timestamp; naive values are treated as UTC."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc).timestamp()
+    return value.timestamp()
+
+
+class PriceSlot(namedtuple("PriceSlot", ["start", "end", "price"])):
+    """Immutable price interval with safe timestamp-based equality and ordering."""
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PriceSlot):
+            return super().__eq__(other)
+        return (
+            _timestamp(self.start) == _timestamp(other.start)
+            and _timestamp(self.end) == _timestamp(other.end)
+            and self.price == other.price
+        )
+
+    def __ne__(self, other: object) -> bool:
+        return not self.__eq__(other)
+
+    def __hash__(self) -> int:
+        return hash((_timestamp(self.start), _timestamp(self.end), self.price))
 
 SLOT_PURPOSE_DEFICIT = "deficit"
 SLOT_PURPOSE_NEGATIVE_PRICE = "negative_price"
@@ -74,6 +97,7 @@ from .curtailment import BatterySnapshot, CurtailmentPlan, PreDischargeSlot
 from . import calculations  # noqa: E402,F401
 
 __all__ = [
+    "_timestamp",
     "PriceSlot",
     "DynamicPricingSchedule",
     "SLOT_PURPOSE_DEFICIT",

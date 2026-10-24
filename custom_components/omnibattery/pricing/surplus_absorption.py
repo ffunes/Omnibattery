@@ -32,7 +32,7 @@ from datetime import datetime
 from typing import Mapping, Sequence
 
 from ..const import CHARGE_EFFICIENCY
-from . import PriceSlot
+from . import PriceSlot, _timestamp
 from .curtailment import BatterySnapshot
 
 
@@ -61,7 +61,7 @@ def _finite(value: object) -> bool:
 
 def _duration_hours(start: datetime, end: datetime) -> float:
     try:
-        return max(0.0, (end - start).total_seconds() / 3600.0)
+        return max(0.0, (_timestamp(end) - _timestamp(start)) / 3600.0)
     except (AttributeError, TypeError):
         return 0.0
 

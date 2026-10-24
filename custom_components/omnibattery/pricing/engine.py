@@ -88,6 +88,7 @@ from .chronological import (
     ChronologicalPlan,
     EnergyDeadline,
     EnergyInterval,
+    _timestamp,
     build_energy_deadlines,
     evaluate_chronological_request,
     normalize_energy_shape,
@@ -190,7 +191,7 @@ def _apply_excluded_demand_claim(
     today_indices = [
         index
         for index, (start, _end) in enumerate(boundaries)
-        if start < today_end and intervals_kwh[index] > 0.0
+        if _timestamp(start) < _timestamp(today_end) and intervals_kwh[index] > 0.0
     ]
     available = sum(intervals_kwh[index] for index in today_indices)
     if available <= 0.0:
@@ -310,7 +311,7 @@ class PricingManager:
             comparable_horizon_end = comparable_horizon_end.replace(tzinfo=None)
         elif comparable_horizon_end.tzinfo is not None:
             comparable_horizon_end = comparable_horizon_end.astimezone(now.tzinfo)
-        if comparable_horizon_end <= daily_horizon_end:
+        if _timestamp(comparable_horizon_end) <= _timestamp(daily_horizon_end):
             raise ValueError(
                 "dashboard projection horizon must extend beyond the local day"
             )
@@ -2683,8 +2684,8 @@ class PricingManager:
             horizon_end = horizon_end.replace(tzinfo=None)
         else:
             horizon_end = horizon_end.astimezone(now.tzinfo)
-        is_extended_horizon = horizon_end > control_horizon_end
-        if horizon_end <= now:
+        is_extended_horizon = _timestamp(horizon_end) > _timestamp(control_horizon_end)
+        if _timestamp(horizon_end) <= _timestamp(now):
             return None
         try:
             solar_profile_mode = normalize_solar_profile_mode(
@@ -2714,7 +2715,7 @@ class PricingManager:
                 )
                 fraction = max(
                     0.0,
-                    (end.timestamp() - start.timestamp()) / 900.0,
+                    (_timestamp(end) - _timestamp(start)) / 900.0,
                 )
                 consumption_raw.append(max(0.0, bucket * fraction))
 
@@ -2863,9 +2864,9 @@ class PricingManager:
                     max(
                         0.0,
                         consumption[index]
-                        - limit_kw * (end - start).total_seconds() / 3600.0,
+                        - limit_kw * (_timestamp(end) - _timestamp(start)) / 3600.0,
                     )
-                    if held_until is not None and start < held_until
+                    if held_until is not None and _timestamp(start) < _timestamp(held_until)
                     else consumption[index],
                     solar[index],
                 )
@@ -2981,7 +2982,7 @@ class PricingManager:
                         - sum(
                             item.consumption_kwh
                             for item in intervals
-                            if item.end <= solar_end_dt
+                            if _timestamp(item.end) <= _timestamp(solar_end_dt)
                         ),
                     ),
                 )
@@ -2999,7 +3000,7 @@ class PricingManager:
                 not diagnostic_only
                 and getattr(self._controller, "_predictive_min_soc_floor_enabled", False)
                 and solar_start_dt is not None
-                and solar_start_dt > now
+                and _timestamp(solar_start_dt) > _timestamp(now)
             ):
                 floor = max(
                     0.0,
@@ -3015,7 +3016,10 @@ class PricingManager:
                     * float(c.data.get("battery_total_energy", 0) or 0)
                     for c in eligible
                 )
-                pre_solar = [item for item in intervals if item.end <= solar_start_dt]
+                pre_solar = [
+                    item for item in intervals
+                    if _timestamp(item.end) <= _timestamp(solar_start_dt)
+                ]
                 # Already sitting under the floor is a requirement by itself.
                 # ``build_energy_deadlines`` only reports the projected drain
                 # and the clamp below hides that gap, so a battery that is held
@@ -3066,7 +3070,7 @@ class PricingManager:
                     maximum = 0.0
                     for item in sorted(
                         deadlines + floor_deadlines,
-                        key=lambda value: value.deadline,
+                        key=lambda value: _timestamp(value.deadline),
                     ):
                         if item.required_cumulative_kwh > maximum + 1e-9:
                             combined.append(item)
