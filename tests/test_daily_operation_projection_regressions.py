@@ -728,3 +728,35 @@ def test_executable_schedule_still_plans_grid_charge():
     item = result["intervals"][0]
     assert item["grid_to_battery_kwh"] > 0.0
     assert item["action_mask"] & ACTION_GRID_CHARGE
+
+
+@pytest.mark.parametrize(("weekly_day", "expected_kwh"), [("tue", 10.0), ("wed", 9.5)])
+def test_extension_into_weekly_full_charge_day_projects_to_full(
+    weekly_day, expected_kwh
+):
+    now = datetime(2026, 8, 24, 23, 45, tzinfo=MADRID)  # Monday
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    intervals = [
+        ProjectionIntervalInput(now, midnight, solar_kwh=1.0),
+        ProjectionIntervalInput(
+            midnight, midnight + timedelta(minutes=15), solar_kwh=1.0
+        ),
+    ]
+    controller = _controller_for_projection(
+        now,
+        intervals,
+        [],
+        [BatteryProjectionInput("a", 9.5, 10, 10, 95, 4000, 4000)],
+        weekly_full_charge_enabled=True,
+        weekly_full_charge_day=weekly_day,
+    )
+
+    result = ChargeDischargeController._daily_operation_build_projection(
+        controller, now
+    )
+
+    assert result is not None
+    assert result["intervals"][-1]["stored_energy_end_kwh"] == pytest.approx(9.5)
+    assert result["extended_intervals"][0]["stored_energy_end_kwh"] == pytest.approx(
+        expected_kwh
+    )

@@ -54,6 +54,7 @@ class DailyOperationProjectionRequest:
     setpoint_enabled: bool = False
     setpoint_reached: bool = False
     weekly_charge_bypasses_delay: bool = False
+    weekly_full_charge_tomorrow: bool = False
     delay_active: bool = False
     delay_planned: bool = False
     delay_unlock: datetime | None = None
@@ -249,6 +250,15 @@ def build_daily_operation_projection(
         context_masks=context_masks,
         grid_charge_decisions=grid_decisions,
         charge_availability=charge_availability,
+        # Tomorrow's weekly full charge lifts the ceiling from midnight on.
+        charge_ceiling_pct=(
+            [
+                100.0 if interval.start >= local_midnight else None
+                for interval in projection_inputs
+            ]
+            if request.weekly_full_charge_tomorrow
+            else None
+        ),
         system_charge_power_w=request.system_charge_power_w,
         system_discharge_power_w=request.system_discharge_power_w,
     )

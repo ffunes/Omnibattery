@@ -1037,6 +1037,7 @@ def simulate_battery_projection(
     context_masks: Any = None,
     grid_charge_decisions: Any = None,
     charge_availability: Any = None,
+    charge_ceiling_pct: Any = None,
     system_charge_power_w: float | None = None,
     system_discharge_power_w: float | None = None,
 ) -> BatteryProjectionResult:
@@ -1053,7 +1054,10 @@ def simulate_battery_projection(
     gates, whitelist windows, controller blockers, or new allocations.  Those
     must be resolved by the authoritative planner before calling it.  Optional
     ``charge_availability`` values from 0 to 1 describe the fraction of each
-    interval in which charging is permitted.  System-wide charge/discharge
+    interval in which charging is permitted.  Optional ``charge_ceiling_pct``
+    values raise a battery's max SOC for that interval (a weekly full charge
+    due later in the horizon); they never lower it, and the charge-hysteresis
+    latch does not apply while raised.  System-wide charge/discharge
     limits cap the aggregate AC-side flow in each interval in addition to every
     battery's own power limit.
     """
@@ -1126,6 +1130,7 @@ def simulate_battery_projection(
             1.0,
         )
         solar_charge_available = solar_surplus * charge_fraction
+        ceiling_pct = _metadata_value(charge_ceiling_pct, index, interval_list)
         deficit = max(0.0, consumption - direct_solar)
 
         solar_to_battery = 0.0
@@ -1164,13 +1169,22 @@ def simulate_battery_projection(
             maximum,
             charge_power,
             discharge_power,
-            _capacity,
+            capacity,
         ) in valid:
             key = str(battery.key)
             start_stored = states[key]
             if charge_locked[key] and states[key] <= charge_resume[key] + _EPSILON:
                 charge_locked[key] = False
-            can_charge = battery.can_charge and not charge_locked[key]
+            interval_maximum = maximum
+            if ceiling_pct is not None:
+                interval_maximum = max(
+                    maximum,
+                    capacity * _bounded(ceiling_pct, 0.0, 100.0, 0.0) / 100.0,
+                )
+            ceiling_raised = interval_maximum > maximum + _EPSILON
+            can_charge = battery.can_charge and (
+                ceiling_raised or not charge_locked[key]
+            )
             charge_eff = _effective_efficiency(
                 battery.charge_efficiency, charge_efficiency
             )
@@ -1187,7 +1201,9 @@ def simulate_battery_projection(
                 power_cap = (
                     charge_power * duration_hours * charge_fraction / 1000.0
                 )
-                headroom_input = max(0.0, (maximum - states[key]) / charge_eff)
+                headroom_input = max(
+                    0.0, (interval_maximum - states[key]) / charge_eff
+                )
                 solar_input = min(
                     solar_charge_available,
                     power_cap,
@@ -1225,7 +1241,9 @@ def simulate_battery_projection(
                     charge_power * duration_hours * charge_fraction / 1000.0
                     - solar_input,
                 )
-                headroom_input = max(0.0, (maximum - states[key]) / charge_eff)
+                headroom_input = max(
+                    0.0, (interval_maximum - states[key]) / charge_eff
+                )
                 grid_input = min(
                     max(0.0, quota_input),
                     power_cap,
@@ -1247,7 +1265,8 @@ def simulate_battery_projection(
             grid_to_battery += grid_input
             stored_energy_charged += grid_input * charge_eff
             if (
-                charge_resume[key] < maximum
+                not ceiling_raised
+                and charge_resume[key] < maximum
                 and states[key] >= maximum - _EPSILON
             ):
                 charge_locked[key] = True
