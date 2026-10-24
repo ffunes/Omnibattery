@@ -95,6 +95,17 @@ def test_boundaries_stay_ordered_through_the_repeated_hour():
     assert [start.hour for start, _end in boundaries[12:16]] == [2, 2, 2, 2]
 
 
+def test_boundaries_measure_the_skipped_hour_in_absolute_time():
+    # On the spring change 01:45 CET is followed by 03:00 CEST. Subtracting by
+    # wall clock would count that quarter as 75 minutes of consumption.
+    local_date = datetime(2027, 3, 28, tzinfo=MADRID)
+    boundaries = build_boundaries(local_date, local_date + timedelta(days=1))
+
+    assert len(boundaries) == 92
+    assert all(end - start == timedelta(minutes=15) for start, end in boundaries)
+    assert (boundaries[7][0].hour, boundaries[7][1].hour) == (1, 3)
+
+
 def test_provider_periods_have_priority_and_are_resampled_to_horizon():
     solar_start, solar_end = _solar_window()
     provider = [SolarForecastPeriod(solar_start, solar_end, 8.0)]
