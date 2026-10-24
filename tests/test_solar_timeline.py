@@ -79,6 +79,22 @@ def test_boundaries_integrate_dst_days(
     )
 
 
+def test_boundaries_stay_ordered_through_the_repeated_hour():
+    # Aware datetimes sharing one ZoneInfo compare by wall clock and ignore
+    # fold, so 02:00 CET (fold=1) used to sort before 02:45 CEST and the
+    # chronological planner rejected the interval as ending before it starts.
+    local_date = datetime(2026, 10, 25, tzinfo=MADRID)
+    boundaries = build_boundaries(local_date, local_date + timedelta(days=1))
+
+    assert all(end > start for start, end in boundaries)
+    assert all(
+        prev_end <= start
+        for (_prev_start, prev_end), (start, _end) in zip(boundaries, boundaries[1:])
+    )
+    assert [start.hour for start, _end in boundaries[8:12]] == [2, 2, 2, 2]
+    assert [start.hour for start, _end in boundaries[12:16]] == [2, 2, 2, 2]
+
+
 def test_provider_periods_have_priority_and_are_resampled_to_horizon():
     solar_start, solar_end = _solar_window()
     provider = [SolarForecastPeriod(solar_start, solar_end, 8.0)]

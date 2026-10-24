@@ -1984,6 +1984,45 @@ def test_extended_projection_adapter_is_read_only_for_dashboard_callers():
         result.diagnostics["chronological_source"] = "mutated"
 
 
+def test_extended_projection_survives_the_autumn_dst_change():
+    """The repeated 02:00 hour must not make the projection fall back."""
+    madrid = ZoneInfo("Europe/Madrid")
+    now = datetime(2026, 10, 24, 10, 0, tzinfo=madrid)
+    horizon_end = now.replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ) + timedelta(days=1, hours=12)
+    forecast = ConsumptionForecast(1.0, [1.0 / INTERVAL_COUNT] * INTERVAL_COUNT, "profile", True)
+    tracker = SimpleNamespace(
+        consumption_profile=SimpleNamespace(),
+        forecast_consumption_between=lambda *_args, **_kwargs: forecast,
+    )
+    ctrl = _controller(
+        _consumption_tracker=tracker,
+        solar_profile_mode="off",
+        _predictive_safety_margin_kwh=0.0,
+        coordinators=[],
+        _is_battery_manual_owned=lambda _coordinator: False,
+        max_contracted_power=0.0,
+        max_charge_capacity=0.0,
+    )
+
+    result = _mgr(ctrl).build_extended_chronological_projection(
+        now=now,
+        slots=[],
+        base_decision_data={
+            "avg_consumption_kwh": 1.0,
+            "solar_forecast_input": SolarForecastInput(0.0, "none"),
+        },
+        price_ceiling=None,
+        horizon_end=horizon_end,
+    )
+
+    assert result.plan is not None
+    starts = [item.start for item in result.plan.intervals]
+    assert starts == sorted(starts)
+    assert sum(1 for start in starts if start.date() == now.date() + timedelta(days=1) and start.hour == 2) == 8
+
+
 def test_extended_projection_refreshes_the_live_solar_budget():
     """A dashboard redraw must not reuse a morning solar remainder."""
     madrid = ZoneInfo("Europe/Madrid")
