@@ -867,7 +867,8 @@ class IndevoltDriver(BatteryDriver):
         dtype = str(device.get("type", ""))
         if _num(data.get(str(P_SOC)), 0, 100) is None:
             return None
-        charge, discharge = _hardware_limits({int(k): v for k, v in data.items() if k.isdigit()})
+        values = {int(k): v for k, v in data.items() if k.isdigit()}
+        charge, discharge = _hardware_limits(values)
         model = MODELS.get(dtype)
         return {
             "type": dtype,
@@ -875,12 +876,14 @@ class IndevoltDriver(BatteryDriver):
             "known_model": model is not None,
             "serial": str(device.get("sn", "")),
             "firmware": str(device.get("f_ver") or device.get("fw") or ""),
+            "mac": normalise_mac(device.get("mac")),
             "energy_mode": _num(data.get(str(P_ENERGY_MODE))),
             "realtime_mode": _num(data.get(str(P_ENERGY_MODE))) == ENERGY_MODE_REALTIME,
             "max_charge_power": charge,
             "max_discharge_power": discharge,
             "native_min_soc": _num(data.get(str(P_NATIVE_MIN_SOC)), 0, 100),
             "battery_capacity_kwh": _num(data.get("142"), 0, 1000),
+            "settings": _setting_values(values),
         }
 
     # --- telemetry -------------------------------------------------------------------
@@ -1572,6 +1575,20 @@ def _native_limits(values: dict[int, Any]) -> tuple[int, int]:
     """
     return (_lowest(values, (MAX_CHARGE.read_point, P_HW_MAX_CHARGE)),
             _lowest(values, (MAX_DISCHARGE.read_point, 11032, P_HW_MAX_DISCHARGE)))
+
+
+def _setting_values(values: dict[int, Any]) -> dict[str, int]:
+    """The battery's own reserve and power limits by config key, as the settings sync reads them.
+
+    A driver adopts these on its first start without writing anything, so the
+    config flow offers them as the defaults of a new battery.
+    """
+    found = {}
+    for setting in SETTINGS:
+        value = _num(values.get(setting.read_point), 0, MAX_REALTIME_POWER_W)
+        if value is not None:
+            found[setting.config_key] = int(round(value))
+    return found
 
 
 def _hardware_limits(values: dict[int, Any]) -> tuple[int, int]:

@@ -160,6 +160,7 @@ from .drivers.zendure import (
 from .drivers.anker import AnkerModbusDriver
 from .drivers.sessy import SessyLocalDriver
 from .drivers.indevolt import IndevoltDriver
+from .drivers.indevolt_settings import SYNCED_PREFIX as INDEVOLT_SYNCED_PREFIX
 from .infra.indevolt_client import DEFAULT_REQUEST_SPEED, REQUEST_SPEED_SLOT_S, IndevoltAuthenticationError
 from .drivers.huawei import HuaweiSolarDriver
 from .drivers.hoymiles import (
@@ -183,7 +184,7 @@ _SESSY_MAX_DISCHARGE_POWER_W = 1700
 _SESSY_DEFAULT_MIN_SOC = 5
 _INDEVOLT_DEFAULT_PORT = 8080
 _INDEVOLT_DEFAULT_MAX_POWER_W = 2400
-_INDEVOLT_DEFAULT_MIN_SOC = 15
+_INDEVOLT_DEFAULT_MIN_SOC = 20  # Indevolt's own default reserve, for a battery that reports none
 _HOYMILES_MODEL_AUTO = "auto"
 
 
@@ -654,6 +655,22 @@ async def _indevolt_probe(user_input: dict) -> tuple[dict, dict] | str:
         if info.get(source):
             data[target] = int(info[source])
     return data, info
+
+
+def _indevolt_prefill(battery_data: dict, info: dict, stored: dict | None = None) -> None:
+    """Pre-fill the limits form with the reserve, power limits and MAC the battery reports.
+
+    On its first start the driver adopts the battery's own settings and writes
+    nothing (drivers/indevolt_settings.py), so a form value that differs would
+    be replaced without notice. A setting that Omnibattery and the battery
+    already agreed on (``stored``) keeps its configured value.
+    """
+    stored = stored or {}
+    for key, value in (info.get("settings") or {}).items():
+        if stored.get(INDEVOLT_SYNCED_PREFIX + key) is None:
+            battery_data[key] = value
+    if info.get("mac") and not battery_data.get(CONF_MAC):
+        battery_data[CONF_MAC] = info["mac"]
 
 
 def _indevolt_power_ceilings(battery_data: dict) -> tuple[int, int]:
@@ -1948,6 +1965,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             else:
                 data, info = probed
                 self._current_battery_data.update(data)
+                _indevolt_prefill(self._current_battery_data, info)
                 if not info["realtime_mode"]:
                     return await self.async_step_indevolt_mode_notice()
                 return await self.async_step_indevolt_request_speed()
@@ -2396,8 +2414,10 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         _schema.update({
             vol.Required("max_soc", default=soc_max_default):
                 NumberSelector(NumberSelectorConfig(min=soc_max_lo, max=soc_max_hi, step=1, mode=NumberSelectorMode.SLIDER)),
-            vol.Required("min_soc", default=soc_min_default):
-                NumberSelector(NumberSelectorConfig(min=soc_min_lo, max=soc_min_hi, step=1, mode=NumberSelectorMode.SLIDER)),
+            vol.Required(
+                "min_soc",
+                default=max(soc_min_lo, min(soc_min_hi, int(self._current_battery_data.get("min_soc", soc_min_default)))),
+            ): NumberSelector(NumberSelectorConfig(min=soc_min_lo, max=soc_min_hi, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("charge_hysteresis_percent", default=DEFAULT_CHARGE_HYSTERESIS_PERCENT):
                 NumberSelector(NumberSelectorConfig(min=MIN_CHARGE_HYSTERESIS_PERCENT, max=MAX_CHARGE_HYSTERESIS_PERCENT, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("backup_offgrid_threshold", default=50):
@@ -4626,6 +4646,7 @@ class OptionsFlowHandler(OptionsFlow):
             else:
                 data, info = probed
                 self._current_battery_data.update(data)
+                _indevolt_prefill(self._current_battery_data, info, current_battery)
                 if not info["realtime_mode"]:
                     return await self.async_step_indevolt_mode_notice()
                 return await self.async_step_indevolt_request_speed()
@@ -5155,7 +5176,7 @@ class OptionsFlowHandler(OptionsFlow):
                         ),
                     ),
                     "max_soc": soc_max_default,
-                    "min_soc": soc_min_default,
+                    "min_soc": self._current_battery_data.get("min_soc", soc_min_default),
                     "charge_hysteresis_percent": DEFAULT_CHARGE_HYSTERESIS_PERCENT,
                     "backup_offgrid_threshold": 50,
                     CONF_DC_PV_CONNECTED: self._current_battery_data.get(

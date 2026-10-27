@@ -5,6 +5,7 @@ These are the only places outside the Indevolt files that know the brand.
 
 from __future__ import annotations
 
+import asyncio
 import glob
 import json
 from types import SimpleNamespace
@@ -36,6 +37,7 @@ from custom_components.omnibattery.infra.indevolt_client import (
 from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
 )
+from tests.indevolt_fake import FakeIndevoltDevice, VirtualClock
 
 _INPUT = {"name": "Garage Indevolt", "host": " 192.0.2.50 ", "port": 8080}
 _PROBE = {
@@ -43,6 +45,12 @@ _PROBE = {
     "firmware": "V140E.0B.003E", "energy_mode": 1.0, "realtime_mode": False,
     "max_charge_power": 2400, "max_discharge_power": 1800, "native_min_soc": 15.0,
     "battery_capacity_kwh": 7.18,
+}
+# A battery whose own settings sit below its hardware ceiling, with a MAC.
+_LIMITED_PROBE = {
+    **_PROBE, "realtime_mode": True, "max_charge_power": 2688, "max_discharge_power": 2688,
+    "settings": {"min_soc": 20, "max_charge_power": 800, "max_discharge_power": 800},
+    "mac": "00:00:5e:00:53:01",
 }
 
 
@@ -98,7 +106,8 @@ async def test_setup_flow_probes_read_only_and_notes_realtime_mode(monkeypatch):
     assert fields["max_discharge_power"].config["max"] == 1800
     assert fields["min_soc"].config["min"] == 5
     markers = {marker.schema: marker for marker in limits["data_schema"].schema}
-    assert markers["min_soc"].default() == 15
+    # This probe reports no settings, so the form falls back to Indevolt's default reserve.
+    assert markers["min_soc"].default() == 20
     # The SF2000 reports its capacity, so no capacity field.
     assert "battery_capacity_kwh" not in fields
     assert "full_charge_voltage_taper_enabled" not in fields
@@ -164,6 +173,77 @@ async def test_options_flow_offers_and_configures_indevolt(monkeypatch):
     assert form["step_id"] == "battery_limits"
     assert flow._current_battery_data["device_max_discharge_power"] == 1800
     assert flow._current_battery_data["indevolt_request_speed"] == "maximum"
+
+
+async def test_probe_reports_the_battery_settings_and_mac():
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, limit_w=2688, charge_setting_w=800,
+                                discharge_setting_w=800, native_min_soc=20)
+    probe = asyncio.ensure_future(
+        IndevoltDriver.probe("192.0.2.1", transport=device, clock=clock, sleep=clock.sleep)
+    )
+    await clock.run_until(probe.done, 30)
+    info = probe.result()
+    assert (info["max_charge_power"], info["max_discharge_power"]) == (2688, 2688)
+    assert info["settings"] == {"min_soc": 20, "max_charge_power": 800, "max_discharge_power": 800}
+    assert info["mac"] == "00:00:5e:00:53:01"
+
+
+async def test_setup_flow_opens_the_limits_at_the_battery_settings(monkeypatch):
+    """The limits form starts at the reserve, power limits and MAC the battery reports.
+
+    The driver adopts the battery's settings on its first start, so any other
+    default would be replaced. The sliders still reach the hardware ceiling.
+    """
+    flow = MarstekVenusConfigFlow()
+    flow.config_data = {"num_batteries": 1}
+    flow._current_battery_data = {"brand": "indevolt"}
+    monkeypatch.setattr(IndevoltDriver, "probe", AsyncMock(return_value=dict(_LIMITED_PROBE)))
+    form = await flow.async_step_battery_connection_indevolt(dict(_INPUT))
+    assert form["step_id"] == "indevolt_request_speed"
+    limits = await flow.async_step_indevolt_request_speed({"indevolt_request_speed": "conservative"})
+    assert limits["step_id"] == "battery_limits"
+    fields = _fields(limits)
+    assert fields["max_charge_power"].config["max"] == 2688
+    assert fields["max_discharge_power"].config["max"] == 2688
+    markers = {marker.schema: marker for marker in limits["data_schema"].schema}
+    assert markers["max_charge_power"].default() == 800
+    assert markers["max_discharge_power"].default() == 800
+    assert markers["min_soc"].default() == 20
+    assert markers["mac"].default() == "00:00:5e:00:53:01"
+    assert markers["track_mac"].default() is False
+
+
+async def test_options_flow_opens_a_new_battery_at_its_settings_and_keeps_agreed_ones(monkeypatch):
+    """A battery added in the options starts at its own settings. For a battery
+    already configured, a setting both sides agreed on keeps its configured value."""
+    stored = {"brand": "indevolt", "name": "Garage Indevolt", "host": "192.0.2.50", "port": 8080,
+              "max_charge_power": 1500, "indevolt_synced_max_charge_power": 1500}
+    entry = SimpleNamespace(entry_id="test-entry", data={"batteries": [stored]})
+    flow = OptionsFlowHandler(entry)
+    flow.hass = SimpleNamespace(
+        config_entries=SimpleNamespace(
+            async_get_known_entry=lambda entry_id: entry if entry_id == entry.entry_id else None
+        )
+    )
+    flow.handler = entry.entry_id
+    monkeypatch.setattr(IndevoltDriver, "probe", AsyncMock(return_value=dict(_LIMITED_PROBE)))
+
+    flow._current_battery_data = {"brand": "indevolt"}
+    await flow.async_step_battery_connection_indevolt(dict(_INPUT))
+    assert "max_charge_power" not in flow._current_battery_data
+    assert flow._current_battery_data["max_discharge_power"] == 800
+    assert flow._current_battery_data["min_soc"] == 20
+
+    flow.battery_index = 1
+    flow._current_battery_data = {"brand": "indevolt"}
+    await flow.async_step_battery_connection_indevolt(dict(_INPUT))
+    limits = await flow.async_step_battery_limits()
+    markers = {marker.schema: marker for marker in limits["data_schema"].schema}
+    assert markers["max_charge_power"].default() == 800
+    assert markers["max_discharge_power"].default() == 800
+    assert markers["min_soc"].default() == 20
+    assert markers["mac"].default() == "00:00:5e:00:53:01"
 
 
 async def test_reconfigure_routes_indevolt_to_its_form(monkeypatch):

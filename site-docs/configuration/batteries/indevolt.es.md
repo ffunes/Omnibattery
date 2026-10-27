@@ -22,7 +22,7 @@ Omnibattery controla una batería Indevolt a través de la API HTTP local de la 
 3. Deja el **Puerto HTTP** en `8080` y la **Velocidad de solicitudes** en **Conservadora (5s)** (consulta [Elegir la velocidad de solicitudes](#elegir-la-velocidad-de-solicitudes)).
 4. Omnibattery lee la identidad, el modo de trabajo y los límites de potencia de la batería. No cambia nada en la batería.
 5. Si la batería no está en modo Tiempo real, un aviso lo indica. La configuración continúa; el control empieza cuando eliges Tiempo real en la app.
-6. Elige los límites comunes de potencia y estado de carga. La primera vez que arranca, Omnibattery adopta la reserva y los límites de potencia de la batería en lugar de escribir los tuyos; después puedes cambiarlos en cualquiera de los dos sitios.
+6. Elige los límites comunes de potencia y estado de carga. El formulario se abre con la reserva y los límites de potencia de la propia batería, y los controles de potencia llegan hasta el máximo de hardware de la batería. La primera vez que arranca, Omnibattery adopta los ajustes de la batería sin escribir nada, así que cámbialos después, en la página del dispositivo o en la app de Indevolt. Para el seguimiento por MAC, la dirección MAC se rellena desde la batería.
 
 ## Qué verás
 

@@ -22,7 +22,7 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 3. Keep **HTTP port** at `8080` and **Request speed** at **Conservative (5s)** (see [Choosing the request speed](#choosing-the-request-speed)).
 4. Omnibattery reads the battery's identity, working mode and power limits. It does not change anything on the battery.
 5. If the battery is not in Realtime mode, a notice says so. Setup continues; control starts once you select Realtime in the app.
-6. Choose the common power and state-of-charge limits. The first time Omnibattery starts, it takes over the battery's own reserve and power settings instead of writing yours; change them afterwards in either place.
+6. Choose the common power and state-of-charge limits. The form opens at the battery's own reserve and power settings, and the power sliders go up to the battery's hardware maximum. The first time Omnibattery starts, it takes over the battery's settings without writing anything, so change them afterwards, on the device page or in the Indevolt app. For MAC tracking, the MAC address is filled in from the battery.
 
 ## What you will see
 
