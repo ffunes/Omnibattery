@@ -1411,7 +1411,8 @@
         "zonneplan": "Zonneplan",
         "frank_energie": "Frank Energie",
         "energyzero": "EnergyZero",
-        "tibber": "Tibber (dienstbasiert)"
+        "tibber": "Tibber (dienstbasiert)",
+        "be_electricity_prices": "BE Electricity Prices (Belgien, Endpreis)"
       }
     }
   },

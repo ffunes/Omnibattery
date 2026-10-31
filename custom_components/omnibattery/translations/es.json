@@ -1411,7 +1411,8 @@
         "zonneplan": "Zonneplan",
         "frank_energie": "Frank Energie",
         "energyzero": "EnergyZero",
-        "tibber": "Tibber (basado en servicio)"
+        "tibber": "Tibber (basado en servicio)",
+        "be_electricity_prices": "BE Electricity Prices (Bélgica, todo incluido)"
       }
     }
   },

@@ -127,6 +127,7 @@ from .const import (
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_ENTSOE,
     PRICE_INTEGRATION_ENERGYZERO,
+    PRICE_INTEGRATION_BE_ELECTRICITY,
     PRICE_INTEGRATION_TIBBER,
     PRICE_INTEGRATION_ZONNEPLAN,
     PRICE_INTEGRATION_FRANK_ENERGIE,
@@ -167,7 +168,11 @@ from .drivers.hoymiles import (
     hoymiles_model_profile,
 )
 from .pricing.nordpool import is_official_nordpool_sensor
-from .pricing.calculations import parse_frank_energie_prices, parse_zonneplan_prices
+from .pricing.calculations import (
+    parse_be_electricity_prices,
+    parse_frank_energie_prices,
+    parse_zonneplan_prices,
+)
 from .pricing.energyzero import (
     ENERGYZERO_DOMAIN,
     ENERGYZERO_GET_PRICES_SERVICE,
@@ -218,6 +223,7 @@ def _price_integration_options() -> list[str]:
         PRICE_INTEGRATION_TIBBER,
         PRICE_INTEGRATION_ZONNEPLAN,
         PRICE_INTEGRATION_FRANK_ENERGIE,
+        PRICE_INTEGRATION_BE_ELECTRICITY,
     ]
 
 
@@ -291,6 +297,8 @@ def _validate_price_sensor(
         if not hass.services.has_service(ENERGYZERO_DOMAIN, ENERGYZERO_GET_PRICES_SERVICE):
             return "energyzero_unavailable"
         return None if is_energyzero_sensor(hass, price_sensor) else "no_price_data"
+    if integration_type == PRICE_INTEGRATION_BE_ELECTRICITY:
+        return None if parse_be_electricity_prices(attrs) else "no_price_data"
     # Nordpool
     if "raw_today" in attrs:
         return None

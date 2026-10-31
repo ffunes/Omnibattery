@@ -10,7 +10,7 @@ Precio dinámico lee un calendario de precios futuros y compra el déficit energ
 
 ## Antes de empezar
 
-- Configura una fuente compatible: **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie** o **Tibber**.
+- Configura una fuente compatible: **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie**, **Tibber** o **BE Electricity Prices** (Bélgica).
 - Selecciona la entidad de precio actual del proveedor salvo que uses Tibber. Tibber usa el servicio `tibber.get_prices` de la integración oficial y no necesita sensor de precio.
 - La previsión solar es opcional. Una previsión de energía restante mejora la replanificación diurna y evita contar la solar ya producida. **Venta a precio alto** en *Solo excedente* o superior necesita que la integración de previsión configurada proporcione previsiones al panel de Energía de Home Assistant, como Solcast o Forecast.Solar.
 - Decide si necesitas una fuente de precio de exportación. Es opcional y la usan **Retención de excedente por precio** y **Venta a precio alto**; déjala vacía cuando la exportación se remunere al precio de importación.
@@ -26,6 +26,7 @@ Precio dinámico lee un calendario de precios futuros y compra el déficit energ
 ![Configura una fuente de precios futuros](../../assets/screenshots/configuration/predictive-charging/dynamic-pricing-form.png){ width="650" style="display: block; margin: 0 auto;" }
 
 !!! note "Elección de sensor específica del proveedor"
+    Para **BE Electricity Prices** (Bélgica), elige su sensor **Current price**. Lista cada franja de hoy y mañana al precio todo incluido para cualquier contrato, también los de franjas horarias como ENGIE Empower Flextime, así que Dynamic Pricing y **Discharge Reserve** funcionan sin plantilla. Para la curva de exportación, elige su sensor **Injection price** con el mismo tipo.
     Para Zonneplan, elige **Current quarter hourly electricity tariff** para un contrato de cuarto de hora o **Current hourly electricity tariff** para un contrato horario. También se admite el antiguo **Current electricity tariff**. Para Nord Pool, elige una entidad de la integración oficial o el sensor de HACS; Omnibattery detecta el formato.
 
 ## Qué verás
@@ -66,7 +67,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 ??? "Detalles avanzados"
     ### Normalización de fuentes de precio
 
-    Omnibattery admite **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie** y **Tibber**. Los analizadores de proveedores normalizan los periodos de precios fechados al mismo horario local.
+    Omnibattery admite **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie**, **Tibber** y **BE Electricity Prices**. Los analizadores de proveedores normalizan los periodos de precios fechados al mismo horario local.
 
     Frank Energie necesita la [integración HACS de Frank Energie](https://github.com/HiDiHo01/home-assistant-frank_energie). Lee el atributo `prices` del sensor elegido (`from`, `till`, `price`), incluido mañana cuando está disponible. Los precios ya están en moneda principal/kWh con impuestos incluidos y no se reescalan. Usa el sensor de precio all-in para importación, por ejemplo `sensor.frank_energie_electricity_prices_current_electricity_price_all_in`, y el sensor con impuestos y margen para exportación, por ejemplo `sensor.frank_energie_electricity_prices_current_electricity_price_including_tax_and_markup`. Los periodos pueden ser horarios o cuartohorarios.
     EnergyZero llama a `energyzero.get_energy_prices` para hoy y mañana usando la entidad eléctrica seleccionada, su entrada de integración, el tipo de precio de mercado/todo incluido y el intervalo horario/cuarto horario. Los precios incluyen IVA y ya están en EUR/kWh. Si los precios de mañana aún no están disponibles, se conservan los de hoy.
