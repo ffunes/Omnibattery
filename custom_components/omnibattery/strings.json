@@ -1975,10 +1975,10 @@
         "name": "Software Version"
       },
       "energy_mode": {
-        "name": "Working mode"
+        "name": "Working Mode"
       },
       "control_status": {
-        "name": "Control status",
+        "name": "Control Status",
         "state": {
           "active": "Active",
           "starting": "Taking control",
@@ -1990,76 +1990,76 @@
         }
       },
       "native_min_soc": {
-        "name": "Battery reserve"
+        "name": "Battery Reserve"
       },
       "realtime_power": {
-        "name": "Realtime command power"
+        "name": "Realtime Command Power"
       },
       "realtime_target_soc": {
-        "name": "Realtime target SOC"
+        "name": "Realtime Target SOC"
       },
       "grid_charging_allowed": {
-        "name": "Grid charging"
+        "name": "Grid Charging"
       },
       "inverter_battery_temperature": {
-        "name": "Inverter battery temperature"
+        "name": "Inverter Battery Temperature"
       },
       "transformer_temperature": {
-        "name": "Transformer temperature"
+        "name": "Transformer Temperature"
       },
       "request_interval": {
-        "name": "Request interval (effective)"
+        "name": "Request Interval (Effective)"
       },
       "ac_input_power": {
-        "name": "AC input power"
+        "name": "AC Input Power"
       },
       "ac_output_power": {
-        "name": "AC output power"
+        "name": "AC Output Power"
       },
       "bypass_power": {
-        "name": "Bypass power"
+        "name": "Bypass Power"
       },
       "indevolt_meter_power": {
-        "name": "Indevolt meter power"
+        "name": "Indevolt Meter Power"
       },
       "solar_output_power": {
-        "name": "Solar output power"
+        "name": "Solar Output Power"
       },
       "total_ac_input_energy": {
-        "name": "Total AC input energy"
+        "name": "Total AC Input Energy"
       },
       "total_ac_output_energy": {
-        "name": "Total AC output energy"
+        "name": "Total AC Output Energy"
       },
       "off_grid_output_energy": {
-        "name": "Off-grid output energy"
+        "name": "Off-Grid Output Energy"
       },
       "bypass_input_energy": {
-        "name": "Bypass input energy"
+        "name": "Bypass Input Energy"
       },
       "daily_solar_energy": {
-        "name": "Daily solar energy"
+        "name": "Daily Solar Energy"
       },
       "total_solar_energy": {
-        "name": "Total solar energy"
+        "name": "Total Solar Energy"
       },
       "feed_in_limit": {
-        "name": "Feed-in limit"
+        "name": "Feed-in Limit"
       },
       "grid_voltage": {
-        "name": "Grid voltage"
+        "name": "Grid Voltage"
       },
       "grid_frequency": {
-        "name": "Grid frequency"
+        "name": "Grid Frequency"
       },
       "remaining_charging_time": {
-        "name": "Remaining charging time"
+        "name": "Remaining Charging Time"
       },
       "remaining_discharging_time": {
-        "name": "Remaining discharging time"
+        "name": "Remaining Discharging Time"
       },
       "realtime_command": {
-        "name": "Realtime command",
+        "name": "Realtime Command",
         "state": {
           "standby": "Standby",
           "charging": "Charging",
@@ -2067,7 +2067,7 @@
         }
       },
       "device_mode": {
-        "name": "Device mode",
+        "name": "Device Mode",
         "state": {
           "cluster_main": "Cluster (main)",
           "cluster_sub": "Cluster (sub)",
@@ -2075,7 +2075,7 @@
         }
       },
       "operating_status": {
-        "name": "Operating status",
+        "name": "Operating Status",
         "state": {
           "powered_off": "Powered off",
           "sleep": "Sleep",
@@ -2096,16 +2096,16 @@
         }
       },
       "full_charge_interval": {
-        "name": "Forced full charge interval"
+        "name": "Forced Full Charge Interval"
       },
       "full_charge_time": {
-        "name": "Forced full charge time"
+        "name": "Forced Full Charge Time"
       },
       "highest_cell_voltage": {
-        "name": "Highest cell voltage"
+        "name": "Highest Cell Voltage"
       },
       "lowest_cell_voltage": {
-        "name": "Lowest cell voltage"
+        "name": "Lowest Cell Voltage"
       },
       "pv1_power": {
         "name": "PV1 Power"
@@ -2132,115 +2132,115 @@
         "name": "PV4 Current"
       },
       "inverter_battery_soc": {
-        "name": "Inverter battery SOC"
+        "name": "Inverter Battery SOC"
       },
       "inverter_battery_cycles": {
-        "name": "Inverter battery cycles"
+        "name": "Inverter Battery Cycles"
       },
       "inverter_battery_mos_temperature": {
-        "name": "Inverter battery MOS temperature"
+        "name": "Inverter Battery MOS Temperature"
       },
       "inverter_battery_voltage": {
-        "name": "Inverter battery voltage"
+        "name": "Inverter Battery Voltage"
       },
       "inverter_battery_current": {
-        "name": "Inverter battery current"
+        "name": "Inverter Battery Current"
       },
       "inverter_battery_serial_number": {
-        "name": "Inverter battery serial number"
+        "name": "Inverter Battery Serial Number"
       },
       "expansion_battery_1_soc": {
-        "name": "Expansion battery 1 SOC"
+        "name": "Expansion Battery 1 SOC"
       },
       "expansion_battery_1_cycles": {
-        "name": "Expansion battery 1 cycles"
+        "name": "Expansion Battery 1 Cycles"
       },
       "expansion_battery_1_mos_temperature": {
-        "name": "Expansion battery 1 MOS temperature"
+        "name": "Expansion Battery 1 MOS Temperature"
       },
       "expansion_battery_1_voltage": {
-        "name": "Expansion battery 1 voltage"
+        "name": "Expansion Battery 1 Voltage"
       },
       "expansion_battery_1_current": {
-        "name": "Expansion battery 1 current"
+        "name": "Expansion Battery 1 Current"
       },
       "expansion_battery_1_serial_number": {
-        "name": "Expansion battery 1 serial number"
+        "name": "Expansion Battery 1 Serial Number"
       },
       "expansion_battery_2_soc": {
-        "name": "Expansion battery 2 SOC"
+        "name": "Expansion Battery 2 SOC"
       },
       "expansion_battery_2_cycles": {
-        "name": "Expansion battery 2 cycles"
+        "name": "Expansion Battery 2 Cycles"
       },
       "expansion_battery_2_mos_temperature": {
-        "name": "Expansion battery 2 MOS temperature"
+        "name": "Expansion Battery 2 MOS Temperature"
       },
       "expansion_battery_2_voltage": {
-        "name": "Expansion battery 2 voltage"
+        "name": "Expansion Battery 2 Voltage"
       },
       "expansion_battery_2_current": {
-        "name": "Expansion battery 2 current"
+        "name": "Expansion Battery 2 Current"
       },
       "expansion_battery_2_serial_number": {
-        "name": "Expansion battery 2 serial number"
+        "name": "Expansion Battery 2 Serial Number"
       },
       "expansion_battery_3_soc": {
-        "name": "Expansion battery 3 SOC"
+        "name": "Expansion Battery 3 SOC"
       },
       "expansion_battery_3_cycles": {
-        "name": "Expansion battery 3 cycles"
+        "name": "Expansion Battery 3 Cycles"
       },
       "expansion_battery_3_mos_temperature": {
-        "name": "Expansion battery 3 MOS temperature"
+        "name": "Expansion Battery 3 MOS Temperature"
       },
       "expansion_battery_3_voltage": {
-        "name": "Expansion battery 3 voltage"
+        "name": "Expansion Battery 3 Voltage"
       },
       "expansion_battery_3_current": {
-        "name": "Expansion battery 3 current"
+        "name": "Expansion Battery 3 Current"
       },
       "expansion_battery_3_serial_number": {
-        "name": "Expansion battery 3 serial number"
+        "name": "Expansion Battery 3 Serial Number"
       },
       "expansion_battery_4_soc": {
-        "name": "Expansion battery 4 SOC"
+        "name": "Expansion Battery 4 SOC"
       },
       "expansion_battery_4_cycles": {
-        "name": "Expansion battery 4 cycles"
+        "name": "Expansion Battery 4 Cycles"
       },
       "expansion_battery_4_mos_temperature": {
-        "name": "Expansion battery 4 MOS temperature"
+        "name": "Expansion Battery 4 MOS Temperature"
       },
       "expansion_battery_4_voltage": {
-        "name": "Expansion battery 4 voltage"
+        "name": "Expansion Battery 4 Voltage"
       },
       "expansion_battery_4_current": {
-        "name": "Expansion battery 4 current"
+        "name": "Expansion Battery 4 Current"
       },
       "expansion_battery_4_serial_number": {
-        "name": "Expansion battery 4 serial number"
+        "name": "Expansion Battery 4 Serial Number"
       },
       "expansion_battery_5_soc": {
-        "name": "Expansion battery 5 SOC"
+        "name": "Expansion Battery 5 SOC"
       },
       "expansion_battery_5_cycles": {
-        "name": "Expansion battery 5 cycles"
+        "name": "Expansion Battery 5 Cycles"
       },
       "expansion_battery_5_mos_temperature": {
-        "name": "Expansion battery 5 MOS temperature"
+        "name": "Expansion Battery 5 MOS Temperature"
       },
       "expansion_battery_5_voltage": {
-        "name": "Expansion battery 5 voltage"
+        "name": "Expansion Battery 5 Voltage"
       },
       "expansion_battery_5_current": {
-        "name": "Expansion battery 5 current"
+        "name": "Expansion Battery 5 Current"
       },
       "expansion_battery_5_serial_number": {
-        "name": "Expansion battery 5 serial number"
+        "name": "Expansion Battery 5 Serial Number"
       },
       "request_speed": {
-        "name": "Request speed",
+        "name": "Request Speed",
         "state": {
           "maximum": "Maximum (1s)",
           "fast": "Fast (2s)",
@@ -2249,31 +2249,31 @@
         }
       },
       "read_latency": {
-        "name": "Read latency (P95)"
+        "name": "Read Latency (P95)"
       },
       "write_latency": {
-        "name": "Write latency (P95)"
+        "name": "Write Latency (P95)"
       },
       "request_failures": {
-        "name": "Request failures"
+        "name": "Request Failures"
       },
       "flash_writes": {
-        "name": "Flash writes"
+        "name": "Flash Writes"
       },
       "expansion_battery_1_temperature": {
-        "name": "Expansion battery 1 temperature"
+        "name": "Expansion Battery 1 Temperature"
       },
       "expansion_battery_2_temperature": {
-        "name": "Expansion battery 2 temperature"
+        "name": "Expansion Battery 2 Temperature"
       },
       "expansion_battery_3_temperature": {
-        "name": "Expansion battery 3 temperature"
+        "name": "Expansion Battery 3 Temperature"
       },
       "expansion_battery_4_temperature": {
-        "name": "Expansion battery 4 temperature"
+        "name": "Expansion Battery 4 Temperature"
       },
       "expansion_battery_5_temperature": {
-        "name": "Expansion battery 5 temperature"
+        "name": "Expansion Battery 5 Temperature"
       },
       "pv1_voltage": {
         "name": "PV1 Voltage"
@@ -2449,7 +2449,7 @@
     },
     "binary_sensor": {
       "indevolt_meter_connected": {
-        "name": "Indevolt meter connected"
+        "name": "Indevolt Meter Connected"
       },
       "capacity_protection_active": {
         "name": "Peak Shaving Active"
