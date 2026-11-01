@@ -632,6 +632,21 @@ def test_solar_forecast_reeval_false_late_in_the_evening():
     assert manager._is_solar_forecast_reeval(datetime(2026, 8, 28, 23, 10)) is False
 
 
+@pytest.mark.parametrize(
+    ("minute", "second", "expected"),
+    [(0, 17, False), (4, 59, False), (5, 2, False), (6, 0, True)],
+)
+def test_solar_forecast_reeval_leaves_the_new_day_to_the_00_05_evaluation(
+    minute, second, expected
+):
+    # The sensor rolls to the new day's total at midnight while the reference
+    # still holds last evening's 0 kWh. That is a new day, not a revision.
+    now = datetime(2026, 8, 29, 0, minute, second)
+    ctrl = _forecast_ctrl(0.0, _daily_solar_energy_date=now.date())
+    manager = _forecast_mgr(ctrl, 13.2, produced=0.0)
+    assert manager._is_solar_forecast_reeval(now) is expected
+
+
 def test_solar_forecast_reeval_respects_cooldown():
     ctrl = _forecast_ctrl(
         13.1,

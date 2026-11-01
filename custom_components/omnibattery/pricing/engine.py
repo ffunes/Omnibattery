@@ -4366,8 +4366,10 @@ class PricingManager:
         ref_produced = getattr(controller, "_dp_last_eval_solar_produced_kwh", None)
         if ref is None or ref_produced is None:
             return False
-        if now.hour >= 23:
-            # The 00:05 evaluation is close enough; don't clash with it.
+        if now.hour >= 23 or (now.hour == 0 and now.minute <= 5):
+            # The 00:05 evaluation is close enough; don't clash with it. After
+            # midnight the sensor already reports the new day's total, which
+            # would otherwise read as a revision of last evening's reference.
             return False
         current = self._read_remaining_solar_reading(now)
         produced = self._read_solar_produced_today_kwh(now)
