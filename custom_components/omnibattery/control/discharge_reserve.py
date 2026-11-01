@@ -26,7 +26,7 @@ battery keeps behaving exactly as it does today.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
@@ -285,8 +285,17 @@ class DischargeReserveManager:
         and cutting at midnight left it to the grid. The shared horizon helper
         stops at sunrise for exactly this reason, which is the first moment
         tomorrow's PV can start refilling.
+
+        Between midnight and sunrise that is *today's* sunrise, while the helper
+        always answers the next day's. Following it there would bring the coming
+        evening's dearer hours into the plan: they take every claim, today's PV
+        pays for them, and nothing is left held for the morning.
         """
-        return self._controller._pricing_mgr.energy_horizon_end(now)
+        pricing = self._controller._pricing_mgr
+        horizon_end = pricing.energy_horizon_end(now - timedelta(days=1))
+        if now >= horizon_end:
+            horizon_end = pricing.energy_horizon_end(now)
+        return horizon_end
 
     def _current_price(self) -> float | None:
         pricing = getattr(self._controller, "_pricing_mgr", None)

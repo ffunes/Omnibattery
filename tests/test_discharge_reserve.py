@@ -394,6 +394,103 @@ def test_a_pre_dawn_peak_claims_stored_energy():
     assert [slot["start"] for slot in reserved] == [pre_dawn.start.isoformat()]
 
 
+OCT_27 = datetime(2026, 10, 27)
+OCT_27_SUNRISE = OCT_27 + timedelta(hours=7, minutes=6)
+OCT_28_SUNRISE = OCT_27 + timedelta(days=1, hours=7, minutes=7)
+
+
+def _after_midnight_pricing(forecast_kwh: float = 13.8):
+    """27 Oct: a dear morning before sunrise, a dearer evening, sun in between.
+
+    ``energy_horizon_end`` and the slot filter behave like the real ones, and the
+    solar fraction is zero before sunrise, so the horizon is what decides.
+    """
+
+    def quarter(hour: float, price: float) -> PriceSlot:
+        start = OCT_27 + timedelta(hours=hour)
+        return PriceSlot(start, start + timedelta(minutes=15), price)
+
+    slots = [
+        quarter(0.25, 0.354),
+        quarter(6.25, 0.3877),
+        quarter(6.5, 0.418),
+        quarter(6.75, 0.418),
+        quarter(12.0, 0.25),
+        quarter(12.25, 0.25),
+        quarter(18.0, 0.52),
+        quarter(18.25, 0.52),
+        quarter(18.5, 0.52),
+    ]
+    intervals = [0.0] * 96
+    for index in (25, 26, 27):  # 06:15 - 07:00
+        intervals[index] = 0.5
+    for index in (72, 73, 74):  # 18:00 - 18:45
+        intervals[index] = 1.0
+    profile = SimpleNamespace(
+        intervals_kwh=intervals,
+        intervals_by_date={OCT_27.date(): intervals},
+        energy_kwh=sum(intervals),
+        source="profile",
+    )
+
+    def fraction(hour: float) -> float:
+        return max(0.0, min(1.0, (hour - 7.1) / 10.0))
+
+    return _pricing(
+        get_future_price_slots=lambda horizon_end=None: [
+            slot for slot in slots if horizon_end is None or slot.end <= horizon_end
+        ],
+        _profile_remaining_consumption=lambda start, end: profile,
+        _curtailment_forecast_model=lambda now: (forecast_kwh, fraction, None),
+        _solar_forecast_is_remaining=lambda: True,
+        _get_current_price=lambda: 0.354,
+        energy_horizon_end=lambda now: (
+            OCT_28_SUNRISE if now.date() == OCT_27.date() else OCT_27_SUNRISE
+        ),
+    )
+
+
+def test_horizon_after_midnight_ends_at_this_morning_s_sunrise():
+    """Before sunrise the night being protected is still the current one."""
+    manager = _manager(_controller(_pricing_mgr=_after_midnight_pricing()))
+    just_past_midnight = OCT_27 + timedelta(minutes=5)
+    assert manager._horizon_end(just_past_midnight) == OCT_27_SUNRISE
+
+
+@pytest.mark.parametrize("minutes_after_sunrise", [0, 1, 300])
+def test_horizon_moves_to_tomorrow_once_the_sun_is_up(minutes_after_sunrise):
+    manager = _manager(_controller(_pricing_mgr=_after_midnight_pricing()))
+    now = OCT_27_SUNRISE + timedelta(minutes=minutes_after_sunrise)
+    assert manager._horizon_end(now) == OCT_28_SUNRISE
+
+
+def test_the_evening_peak_does_not_release_the_reserve_after_midnight():
+    """Replay of 27 Oct 00:05: usable energy 1.859 kWh, 13.8 kWh forecast.
+
+    With the horizon on tomorrow's sunrise the dearer evening took every claim,
+    the day's sun paid for all of them, and the battery drained into the night
+    with nothing held for the morning.
+    """
+    now = OCT_27 + timedelta(minutes=5)
+    controller = _controller(
+        _pricing_mgr=_after_midnight_pricing(),
+        discharge_reserve_min_saving=0.029,
+        # 1.859 kWh above the 10 % floor of the 10 kWh stand-in battery.
+        coordinators=[_coordinator(soc=28.59)],
+    )
+    manager = _built(controller, now)
+
+    # 1.5 kWh of pre-sunrise demand on the 10 kWh stand-in battery.
+    assert manager.reserve_soc_pct() == pytest.approx(15.0)
+    status = manager.get_status()
+    assert status["reason"] == "reserved_for_dearer_hours"
+    assert status["pv_credit_kwh"] == 0.0
+    assert all(
+        datetime.fromisoformat(slot["start"]) < OCT_27_SUNRISE
+        for slot in status["reserved_slots"]
+    )
+
+
 # ----------------------------------------------------------------------
 # The seam: how the reserve reaches the battery
 # ----------------------------------------------------------------------
