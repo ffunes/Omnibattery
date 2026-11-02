@@ -441,7 +441,7 @@ class RecordingNotifier:
 
     def __init__(self) -> None:
         self.events: list[tuple] = []
-        self.suggest_slower: list[bool] = []
+        self.slower_speed: list[str | None] = []
 
     def paused(self, reason: str, *, model: str | None = None) -> None:
         self.events.append(("paused", reason))
@@ -464,9 +464,9 @@ class RecordingNotifier:
     def setting_ok(self, key: str) -> None:
         self.events.append(("setting_ok", key))
 
-    def throttled(self, interval_s: float, *, suggest_slower: bool = False) -> None:
+    def throttled(self, interval_s: float, *, slower_speed: str | None = None) -> None:
         self.events.append(("throttled", interval_s))
-        self.suggest_slower.append(suggest_slower)
+        self.slower_speed.append(slower_speed)
 
     def throttle_cleared(self) -> None:
         self.events.append(("throttle_cleared",))

@@ -50,17 +50,29 @@ def test_throttle_names_the_official_integration_only_when_loaded(calls):
     IndevoltNotifier(_hass(ConfigEntryState.NOT_LOADED), "Garage", "k").throttled(20)
     assert "official Indevolt integration" not in calls[-1][3]
     # Other local clients are named in general, whether or not it is loaded.
-    assert "EVCC" in calls[-1][3] and "Wi-Fi" in calls[-1][3]
+    assert "another Home Assistant integration" in calls[-1][3]
+    assert "network connection" in calls[-1][3]
     IndevoltNotifier(_hass(ConfigEntryState.LOADED), "Garage", "k").throttled(20)
     assert "official Indevolt integration" in calls[-1][3]
     assert "20s" in calls[-1][3]
 
 
-def test_throttle_suggests_the_normal_speed_only_when_a_faster_one_is_set(calls):
+def test_throttle_suggests_a_slower_speed_only_when_one_is_given(calls):
     IndevoltNotifier(_hass(), "Garage", "k").throttled(12)
-    assert "Conservative (5s)" not in calls[-1][3]
-    IndevoltNotifier(_hass(), "Garage", "k").throttled(12, suggest_slower=True)
-    assert "Conservative (5s)" in calls[-1][3] and "Reconfigure" in calls[-1][3]
+    assert "request speed" not in calls[-1][3]
+    IndevoltNotifier(_hass(), "Garage", "k").throttled(12, slower_speed="normal")
+    assert "one step, to **Normal (3s)**" in calls[-1][3] and "Reconfigure" in calls[-1][3]
+
+
+@pytest.mark.parametrize(
+    ("speed", "label"),
+    [("fast", "Snel (2s)"), ("normal", "Normaal (3s)"), ("conservative", "Conservatief (5s)")],
+)
+def test_throttle_names_the_slower_speed_in_dutch(calls, speed, label):
+    hass = _hass()
+    hass.config = SimpleNamespace(language="nl")
+    IndevoltNotifier(hass, "Garage", "k").throttled(3, slower_speed=speed)
+    assert f"een stap lager, op **{label}**" in calls[-1][3]
 
 
 def test_setting_texts_name_the_setting_and_value(calls):

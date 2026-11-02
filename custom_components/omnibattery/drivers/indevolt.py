@@ -538,7 +538,7 @@ class Notifier(Protocol):
     def setting_ok(self, key: str) -> None: ...
     def flash_writes_paused(self, allowance: int) -> None: ...
     def flash_writes_resumed(self) -> None: ...
-    def throttled(self, interval_s: float, *, suggest_slower: bool = False) -> None: ...
+    def throttled(self, interval_s: float, *, slower_speed: str | None = None) -> None: ...
     def throttle_cleared(self) -> None: ...
 
 
@@ -1546,14 +1546,19 @@ class IndevoltDriver(BatteryDriver):
         if throttled and not self._throttle_notified:
             self._throttle_notified = True
             # Faster than Conservative the user chose the extra speed, so the text
-            # names the slower setting as the lasting fix.
+            # names the speed one step slower as the lasting fix.
             self._notifier.throttled(
-                self._scheduler.interval_s,
-                suggest_slower=self._slot_s < REQUEST_SPEED_SLOT_S["conservative"],
+                self._scheduler.interval_s, slower_speed=_slower_speed(self._slot_s),
             )
         elif not throttled and self._scheduler.backoff_level == 0 and self._throttle_notified:
             self._throttle_notified = False
             self._notifier.throttle_cleared()
+
+
+def _slower_speed(slot_s: float) -> str | None:
+    """The request speed one step slower than ``slot_s``; None at Conservative."""
+    slower = [(slot, speed) for speed, slot in REQUEST_SPEED_SLOT_S.items() if slot > slot_s]
+    return min(slower)[1] if slower else None
 
 
 def _step_down(power: float) -> int:

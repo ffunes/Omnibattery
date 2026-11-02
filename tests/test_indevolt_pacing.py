@@ -264,8 +264,9 @@ async def test_every_request_speed_backs_off_and_names_the_slower_speed(slot_s):
     # Up the ladder to its last rung, never beyond.
     assert driver.scheduler.interval_s == PACING_LADDER[-1].write_s
     assert driver._notifier.count("throttled") == 1
-    # Only a speed faster than Normal points the user at Normal.
-    assert driver._notifier.suggest_slower == [slot_s < REQUEST_SPEED_SLOT_S["conservative"]]
+    # A speed faster than Conservative points the user one step slower.
+    slower = {1.0: "fast", 2.0: "normal", 3.0: "conservative", 5.0: None}[slot_s]
+    assert driver._notifier.slower_speed == [slower]
     await driver.close()
 
 

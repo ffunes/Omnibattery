@@ -77,8 +77,8 @@ _TEXTS = {
         "throttled": (
             "**{name}** answers slowly or not at all, so Omnibattery now waits "
             "{interval:.0f}s between requests. Something else may be polling the battery "
-            "too (another Home Assistant integration, EVCC, Node-RED or a script), or its "
-            "Wi-Fi link may be weak."
+            "too, such as another Home Assistant integration, or its network connection "
+            "may be weak."
         ),
         "official": (
             "\n\nThe official Indevolt integration is also polling this battery. "
@@ -88,10 +88,13 @@ _TEXTS = {
             "memory whenever they are used."
         ),
         "slower": (
-            "\n\nIf this keeps happening, set the request speed of **{name}** to "
-            "**Conservative (5s)**: in Settings → Devices & services, choose Reconfigure on "
+            "\n\nIf this keeps happening, lower the request speed of **{name}** one step, "
+            "to **{speed}**: in Settings → Devices & services, choose Reconfigure on "
             "Omnibattery."
         ),
+        "speed_fast": "Fast (2s)",
+        "speed_normal": "Normal (3s)",
+        "speed_conservative": "Conservative (5s)",
     },
     "nl": {
         "paused_title": "Indevolt-aansturing gepauzeerd: {name}",
@@ -129,9 +132,8 @@ _TEXTS = {
         "throttled_title": "Indevolt-batterij traag: {name}",
         "throttled": (
             "**{name}** reageert traag of niet, dus Omnibattery wacht nu {interval:.0f}s "
-            "tussen verzoeken. Mogelijk vraagt iets anders de batterij ook uit (een andere "
-            "Home Assistant-integratie, EVCC, Node-RED of een script), of is de "
-            "wifi-verbinding zwak."
+            "tussen verzoeken. Mogelijk vraagt iets anders de batterij ook uit, zoals een "
+            "andere Home Assistant-integratie, of is de netwerkverbinding zwak."
         ),
         "official": (
             "\n\nDe officiële Indevolt-integratie vraagt deze batterij ook uit. "
@@ -141,10 +143,13 @@ _TEXTS = {
             "schrijft bovendien naar het flashgeheugen van de batterij zodra je die gebruikt."
         ),
         "slower": (
-            "\n\nGebeurt dit vaker, zet de verzoeksnelheid van **{name}** dan op "
-            "**Conservatief (5s)**: kies in Instellingen → Apparaten & diensten bij "
+            "\n\nGebeurt dit vaker, zet de verzoeksnelheid van **{name}** dan een stap "
+            "lager, op **{speed}**: kies in Instellingen → Apparaten & diensten bij "
             "Omnibattery voor Opnieuw configureren."
         ),
+        "speed_fast": "Snel (2s)",
+        "speed_normal": "Normaal (3s)",
+        "speed_conservative": "Conservatief (5s)",
     },
 }
 
@@ -253,12 +258,13 @@ class IndevoltNotifier:
     def flash_writes_resumed(self) -> None:
         ir.async_delete_issue(self._hass, DOMAIN, self.flash_issue_id)
 
-    def throttled(self, interval_s: float, *, suggest_slower: bool = False) -> None:
+    def throttled(self, interval_s: float, *, slower_speed: str | None = None) -> None:
+        """``slower_speed`` is the request speed one step below the chosen one, if any."""
         message = self._text("throttled", interval=interval_s)
         if self.official_integration_loaded():
             message += self._text("official")
-        if suggest_slower:
-            message += self._text("slower")
+        if slower_speed is not None:
+            message += self._text("slower", speed=self._text(f"speed_{slower_speed}"))
         self._create("throttled", self._text("throttled_title"), message)
 
     def throttle_cleared(self) -> None:
