@@ -28,6 +28,7 @@ from typing import Sequence
 
 EPSILON = 1e-9
 _QUARTER = timedelta(minutes=15)
+_SUN_COVERS_WINDOW = timedelta(hours=1)
 
 STATUS_DISABLED = "disabled"
 STATUS_RESERVING = "reserving"
@@ -362,6 +363,30 @@ def net_demand_by_slot(consumption: dict, solar: dict | None = None) -> dict:
         slot: max(0.0, _positive(value) - _positive(solar.get(slot, 0.0)))
         for slot, value in consumption.items()
     }
+
+
+def first_sun_covered_start(
+    price_slots: Sequence, consumption: dict, solar: dict
+) -> datetime | None:
+    """Return when the sun takes over from the battery, or None if it never does.
+
+    That is the first slot where expected PV meets the load, both in the slot
+    itself and over the hour it starts. The learned profile is spiky at 15
+    minutes, and one quiet quarter-hour at 08:30 is not the sun carrying the
+    house.
+    """
+    ordered = sorted(price_slots, key=lambda slot: slot.start)
+    for index, slot in enumerate(ordered):
+        sun = _positive(solar.get(slot, 0.0))
+        if sun <= EPSILON or sun < _positive(consumption.get(slot, 0.0)):
+            continue
+        window_end = slot.start + _SUN_COVERS_WINDOW
+        window = [other for other in ordered[index:] if other.start < window_end]
+        window_sun = sum(_positive(solar.get(other, 0.0)) for other in window)
+        window_load = sum(_positive(consumption.get(other, 0.0)) for other in window)
+        if window_sun >= window_load:
+            return slot.start
+    return None
 
 
 def plan_discharge_reserve(
