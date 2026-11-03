@@ -5062,11 +5062,21 @@ class PricingManager:
         decision_data["should_charge"] = True
         decision_data["energy_deficit_kwh"] = evening_deficit_kwh
         decision_data["planned_grid_charge_kwh"] = planned_evening_charge_kwh
+        # Same arbitrage-aware ceiling as the main evaluation: a deficit top-up
+        # must not buy energy that costs more than it can displace later.
+        price_ceiling, _ = calculations.effective_charge_ceiling(
+            slots,
+            hours_needed,
+            self._controller.max_price_threshold,
+            self._controller.min_arbitrage_margin,
+            self._controller.round_trip_efficiency,
+            now=now,
+        )
         chronological_plan = self._build_chronological_plan(
             now=now,
             slots=slots,
             decision_data=decision_data,
-            price_ceiling=self._controller.max_price_threshold,
+            price_ceiling=price_ceiling,
         )
         if chronological_plan is not None:
             selected = [
@@ -5080,11 +5090,14 @@ class PricingManager:
             selected = calculations.select_cheapest_hours(
                 additional_slots,
                 hours_needed,
-                self._controller.max_price_threshold,
+                price_ceiling,
             )
 
         if not selected:
-            _LOGGER.warning("Evening recharge: no slots below price threshold")
+            _LOGGER.warning(
+                "Evening recharge: no new slots selected (price ceiling %s)",
+                "none" if price_ceiling is None else f"{price_ceiling:.4f}",
+            )
             return
 
         # --- Merge into schedule ---
