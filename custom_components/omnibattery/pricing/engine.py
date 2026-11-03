@@ -5078,6 +5078,22 @@ class PricingManager:
             decision_data=decision_data,
             price_ceiling=price_ceiling,
         )
+        if (
+            chronological_plan is not None
+            and decision_data.get("floor_active", False)
+        ):
+            # A battery already under its floor band is flagged by the
+            # reactive check, even after the planner's own floor window has
+            # passed. Guaranteed-floor energy bypasses the optimization-only
+            # arbitrage margin, while the user's explicit ceiling remains
+            # authoritative, as in the 00:05 evaluation.
+            price_ceiling = self._controller.max_price_threshold
+            chronological_plan = self._build_chronological_plan(
+                now=now,
+                slots=slots,
+                decision_data=decision_data,
+                price_ceiling=price_ceiling,
+            )
         if chronological_plan is not None:
             selected = [
                 allocation.slot

@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **Dynamic Pricing: evening recharge booked the evening price peak** (#721): the evening re-evaluation only applied the static **Max Price Threshold (Charge)**, so without one it ignored the **Minimum Arbitrage Margin** and could grid-charge at the most expensive hours of the day while cheaper night hours followed. It now uses the same effective ceiling as the main evaluation uses for deficit charging (static threshold or arbitrage ceiling, whichever is stricter), including for a weekly full charge top-up. Thanks to @Nieass.
+- **Dynamic Pricing: evening recharge booked the evening price peak** (#721): the evening re-evaluation only applied the static **Max Price Threshold (Charge)**, so without one it ignored the **Minimum Arbitrage Margin** and could grid-charge at the most expensive hours of the day while cheaper night hours followed. It now uses the same effective ceiling as the main evaluation uses for deficit charging (static threshold or arbitrage ceiling, whichever is stricter), including for a weekly full charge top-up. Energy for **Guaranteed Minimum SOC** still skips the margin, as in the 00:05 plan. Thanks to @Nieass.
 
 ## [1.5.1b2] - 2026-10-13
 

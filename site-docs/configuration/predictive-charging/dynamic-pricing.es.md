@@ -97,7 +97,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
     El plan diario puede reconstruirse mediante estos eventos:
 
     - **Antes de un periodo seleccionado:** una hora antes de un futuro periodo seleccionado, Omnibattery comprueba el balance restante. Elimina silenciosamente el periodo si ahora basta la energía o lo confirma mediante notificación si persiste el déficit. Los periodos consecutivos no se reconsideran mientras el anterior está cargando.
-    - **Evaluación de final del día:** cuando se ha detectado el inicio solar, se ejecuta aproximadamente 1,5 horas antes del final de producción estimado; en caso contrario usa las 16:00. Añade futuros periodos elegibles solo para un déficit restante de al menos 0,3 kWh. Esta recarga de seguridad no se rechaza por la puerta opcional del margen de arbitraje.
+    - **Evaluación de final del día:** cuando se ha detectado el inicio solar, se ejecuta aproximadamente 1,5 horas antes del final de producción estimado; en caso contrario usa las 16:00. Añade futuros periodos elegibles solo para un déficit restante de al menos 0,3 kWh. Esos periodos deben respetar el mismo techo de precio y cumplir el mismo margen de arbitraje opcional que el plan diario.
     - **Caída de SOC:** un plan cronológico se reconstruye tras una caída de cinco puntos porcentuales desde la última media de flota evaluada. Un plan alternativo no cronológico conserva el umbral de 30 puntos. Una subida de SOC no lo activa.
     - **Revisión de previsión solar:** un cambio de al menos 1,5 kWh en cualquier dirección reconstruye el plan, con un periodo de espera de 30 minutos y un máximo de cuatro reconstrucciones al día. La solar medida desde la lectura guardada se elimina antes de comparar, y un sensor no disponible no se trata como una previsión desplomada.
     - **Reclamación solar de dispositivo excluido:** un cambio importante en una carga excluida, como una sesión de vehículo eléctrico, reconstruye el plan porque ese dispositivo cambia cuánta solar prevista queda para la batería.
@@ -190,7 +190,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
     expected_discharge_price × round_trip_efficiency − charge_price ≥ margin
     ```
 
-    El margen se desactiva cuando está vacío o se establece en 0. Se aplica además de **Umbral máximo de precio**, y prevalece el techo más estricto. Filtra la selección comercial de las 00:05; las reconstrucciones posteriores de horizonte restante y seguridad de final del día aún pueden programar la energía necesaria para evitar un déficit.
+    El margen se desactiva cuando está vacío o se establece en 0. Se aplica además de **Umbral máximo de precio**, y prevalece el techo más estricto. Filtra el plan de las 00:05 y cada reconstrucción posterior, incluida la evaluación de final del día. La energía necesaria para **SOC mínimo garantizado** es la excepción: solo la limita **Umbral máximo de precio**.
 
     **Eficiencia de ciclo completo** tiene por defecto 0,85 y representa la eficiencia marginal de energía de CA a CA. Valores inferiores requieren un diferencial bruto mayor. Es distinta de los totales vitalicios de carga/descarga, que incluyen el consumo en reposo.
 
