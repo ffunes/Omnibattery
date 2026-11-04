@@ -6,6 +6,10 @@
 
 - **Time Slot: Manual mode with both charge and discharge allowed** (#614): the form now rejects it. Such a slot silently fell back to PD and never forced the configured power. Thanks to @UsiuO.
 
+### Changed
+
+- **Manifest no longer lists `pyserial`**: Home Assistant ships it, and hassfest now rejects it. Modbus RTU is unaffected.
+
 ## [1.5.1b1] - 2026-10-12
 
 ### Added
