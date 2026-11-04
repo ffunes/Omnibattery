@@ -336,4 +336,4 @@ jobs:
             "$(cat out/pr_body)" "$N" > pr.md
           URL=$(gh pr create -B "$BASE" -H "$B" --title "$(cat out/title)" --body-file pr.md)
           printf '%s\n\n%s\n' "$(cat out/issue_comment)" "$URL" | gh issue comment "$N" --body-file -
-          gh issue edit "$N" --remove-label claude:fix
+          gh issue edit "$N" --remove-label claude:fix --remove-label needs-maintainer
