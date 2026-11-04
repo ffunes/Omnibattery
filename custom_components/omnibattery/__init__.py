@@ -234,6 +234,7 @@ from .const import (
     MISSING_SENSOR_ISSUE_DELAY_S,
     HOT_PATH_READBACK_MAX_LATENCY_S,
     DISCHARGE_ENGAGE_GRACE_S,
+    ENGAGE_GRACE_STEP_FACTOR,
     HIGH_SOC_CHARGE_TAPER_FLOOR,
     HIGH_SOC_CHARGE_TAPER_GRACE_S,
     IDLE_RUNAWAY_POWER_W,
@@ -659,6 +660,23 @@ def _delivered_toward(data: dict, cell_power: float, *, is_charge: bool) -> floa
     if ac_power is not None:
         delivered = max(delivered, sign * float(ac_power))
     return max(0.0, delivered)
+
+
+def _charge_hysteresis_latch_is_stale(coordinator) -> bool:
+    """Whether max_soc was raised above the ceiling the hysteresis latched under.
+
+    Such a latch captured a lower, since-raised ceiling (e.g. Target SOC bumped
+    back up after a temporary reduction) and must not hold the battery below the
+    new target. A latch set below the ceiling by a BMS cutoff or the top-cell
+    voltage is not stale: it holds until SOC falls through the hysteresis band,
+    like a latch at the ceiling. A latch without a recorded ceiling is judged
+    against its base SOC.
+    """
+    base = coordinator._hysteresis_base_soc
+    if base is None:
+        return False
+    latched_under = getattr(coordinator, "_hysteresis_latch_max_soc", None)
+    return coordinator.max_soc > (base if latched_under is None else latched_under)
 
 
 class ChargeDischargeController:
@@ -3856,15 +3874,9 @@ class ChargeDischargeController:
                     _vmax = control_vmax(coordinator)
                     if _vmax is not None:
                         taper_at_top_voltage = _vmax >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
-                # If the configured ceiling was raised above the latched base SOC,
-                # the latch is stale: it captured a lower, since-raised ceiling
-                # (e.g. Target SOC bumped back up after a temporary reduction).
-                # Clear it so charge can resume toward the new target; a genuine
-                # top-of-charge re-arms immediately below.
-                if (
-                    coordinator._hysteresis_base_soc is not None
-                    and coordinator.max_soc > coordinator._hysteresis_base_soc
-                ):
+                # Clear a stale latch so charge can resume toward the raised
+                # target; a genuine top-of-charge re-arms immediately below.
+                if _charge_hysteresis_latch_is_stale(coordinator):
                     coordinator._hysteresis_active = False
                     coordinator._hysteresis_base_soc = None
 
@@ -3874,6 +3886,7 @@ class ChargeDischargeController:
                         # Base stays the aggregate: it answers "how far must the
                         # whole battery fall before recharging", not "is it full".
                         coordinator._hysteresis_base_soc = current_soc
+                        coordinator._hysteresis_latch_max_soc = coordinator.max_soc
 
                 hysteresis_base = (
                     coordinator._hysteresis_base_soc
@@ -4396,14 +4409,9 @@ class ChargeDischargeController:
                         _taper_at_top = False
                         if effective_max_soc >= 100 and _vmax_hysteresis is not None:
                             _taper_at_top = _vmax_hysteresis >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
-                        # If the configured ceiling was raised above the latched
-                        # base SOC, the latch is stale (Target SOC bumped back up
-                        # after a temporary reduction). Clear it so charge resumes
-                        # toward the new target; a genuine top re-arms below.
-                        if (
-                            coordinator._hysteresis_base_soc is not None
-                            and coordinator.max_soc > coordinator._hysteresis_base_soc
-                        ):
+                        # Clear a stale latch so charge resumes toward the
+                        # raised target; a genuine top re-arms below.
+                        if _charge_hysteresis_latch_is_stale(coordinator):
                             coordinator._hysteresis_active = False
                             coordinator._hysteresis_base_soc = None
 
@@ -4412,6 +4420,7 @@ class ChargeDischargeController:
                             # Capture the actual SOC that triggered hysteresis (may be 100% after full charge)
                             if coordinator._hysteresis_base_soc is None:
                                 coordinator._hysteresis_base_soc = current_soc
+                                coordinator._hysteresis_latch_max_soc = coordinator.max_soc
 
                         # Use actual peak SOC as threshold base (handles post-full-charge case)
                         hysteresis_base = coordinator._hysteresis_base_soc if coordinator._hysteresis_base_soc else coordinator.max_soc
@@ -4457,6 +4466,7 @@ class ChargeDischargeController:
                         coordinator._hysteresis_active = True
                         if coordinator._hysteresis_base_soc is None:
                             coordinator._hysteresis_base_soc = current_soc
+                            coordinator._hysteresis_latch_max_soc = coordinator.max_soc
                         _LOGGER.debug(
                             "%s: BMS cutoff at %d%% — activating hysteresis",
                             coordinator.name, current_soc,
@@ -6937,6 +6947,42 @@ class ChargeDischargeController:
             self._discharge_engage_started[coordinator] = dt_util.utcnow()
             self._non_responsive.clear(coordinator, delivering=False)
             coordinator._low_soc_refusal_started = None
+        # A large step up within the same direction restarts only its engage
+        # clock: the battery was following the smaller command and needs time to
+        # ramp. The non-responsive episode, the taper clock and the low-SOC
+        # refusal clock carry on, so a stall that outlasts the grace still counts.
+        if (
+            not preserve_non_responsive_episode
+            and net_sign != 0
+            and self._last_commanded_net_sign.get(coordinator) == net_sign
+        ):
+            is_charge = net_sign == 1
+            previous_command = getattr(
+                coordinator,
+                "commanded_charge_power" if is_charge else "commanded_discharge_power",
+                0,
+            ) or 0
+            previous_power = (coordinator.data or {}).get("battery_power")
+            if (
+                previous_command > 0
+                and abs(net_power) >= ENGAGE_GRACE_STEP_FACTOR * previous_command
+                and previous_power is not None
+                and _delivered_toward(
+                    coordinator.data, float(previous_power), is_charge=is_charge
+                ) >= 0.10 * previous_command
+            ):
+                engage_times = (
+                    self._charge_engage_started
+                    if is_charge
+                    else self._discharge_engage_started
+                )
+                engage_times[coordinator] = dt_util.utcnow()
+                _LOGGER.debug(
+                    "[%s] %s command stepped up %dW -> %dW — restarting the "
+                    "engage grace",
+                    coordinator.name, "Charge" if is_charge else "Discharge",
+                    previous_command, abs(net_power),
+                )
         # Mirror stamp for the opposite transition: a flip from a move into idle
         # starts the ramp-down grace for the idle-runaway judgment below. A
         # battery idle from the start (no prior commanded move) gets no grace —
@@ -7298,9 +7344,10 @@ class ChargeDischargeController:
         if within_engage_grace:
             # A slow inverter (Zendure HTTP) takes seconds to reverse into
             # discharge from charge/idle — up to ~20-30 s on a cold
-            # charge→discharge transition. 0 W out this soon after the
-            # direction flip is engage latency, not a fault; give it time
-            # before judging. The flip already reset the tracker.
+            # charge→discharge transition — or to ramp after a large step up.
+            # 0 W out this soon after the direction flip or step is engage
+            # latency, not a fault; give it time before judging. A flip
+            # already reset the tracker; a step leaves its count in place.
             _LOGGER.debug(
                 "[%s] No %s delivered yet but within %ds engage "
                 "grace — inverter still engaging, not a fault",

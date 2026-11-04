@@ -8,21 +8,36 @@ exclusion that follows it.
 
 No hardware, no real Home Assistant. ``Store(hass, ...)`` only stores references at
 construction, so a SimpleNamespace hass is enough; ``is_active`` is overridden to
-isolate the cutoff counter from day/feature gating.
+isolate the cutoff counter from day/feature gating. The detector runs on a fake
+clock (``bms_cutoff_clock`` in conftest), one control cycle per tick.
 """
 from __future__ import annotations
 
 from types import SimpleNamespace
 
-from custom_components.omnibattery.const import NORMAL_BALANCE_TAPER_CELL_VOLTAGE
+import pytest
+
+from custom_components.omnibattery.const import (
+    DISCHARGE_ENGAGE_GRACE_S,
+    NORMAL_BALANCE_TAPER_CELL_VOLTAGE,
+)
 from custom_components.omnibattery.control.weekly_full_charge import (
     WeeklyFullChargeManager,
+    _BMS_CUTOFF_CONFIRM_S,
     _BMS_CUTOFF_REQUIRED_CYCLES,
 )
 from custom_components.omnibattery.control.max_soc_charge import MaxSocChargeManager
 
 _IN_ZONE = NORMAL_BALANCE_TAPER_CELL_VOLTAGE + 0.05  # cell above taper entry
 _STANDBY = 1
+_CHARGING = 2
+# Meter samples plus the 2s safety tick: about 1.5 control cycles a second.
+_FAST_CYCLE_S = 2 / 3
+
+
+@pytest.fixture(autouse=True)
+def clock(bms_cutoff_clock):
+    return bms_cutoff_clock
 
 
 class _Coord:
@@ -50,9 +65,17 @@ def _mgr(coord, *, top_charge_manager=None):
     m = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)
     m._controller = ctrl
     m._bms_cutoff_counts = {}
+    # A commanded battery has been charging since long before the test starts.
+    m._bms_charge_commanded_at = {coord.name: 0.0}
     m._already_complete_logged = False
     m.is_active = lambda: True  # weekly active; bypass day/feature gating
     return m
+
+
+def _run_for(m, clock, seconds):
+    """Tick the detector for ``seconds`` at the clock's step."""
+    for _ in range(round(seconds / clock.step)):
+        m.tick_bms_cutoff()
 
 
 def test_idle_battery_never_confirms_cutoff():
@@ -152,6 +175,93 @@ def test_flapping_bms_confirms_cutoff():
     assert m.is_battery_full(coord) is True
 
 
+def test_restart_from_standby_is_not_judged_within_the_engage_grace(clock):
+    """A battery restarted from standby at 99% still reads 0 W + Standby while it
+    engages, and its readings can predate the command. No refusal counts before
+    the engage grace has passed."""
+    clock.step = _FAST_CYCLE_S
+    coord = _Coord("bat", soc=99, power=0, commanded=0)
+    m = _mgr(coord)
+    _run_for(m, clock, 60)  # idle in standby, not asked to charge
+
+    coord.commanded_charge_power = 800
+    m.tick_bms_cutoff()
+    coord.commanded_charge_power = 1600
+    _run_for(m, clock, DISCHARGE_ENGAGE_GRACE_S - 2)
+    assert m._bms_cutoff_counts.get("bat", 0) == 0
+    assert m.is_battery_full(coord) is False
+
+    # It starts charging: never a cutoff.
+    coord.data.update(battery_power=1200, inverter_state=_CHARGING)
+    _run_for(m, clock, 60)
+    assert m.is_battery_full(coord) is False
+
+
+def test_battery_that_never_starts_is_confirmed_after_the_grace(clock):
+    """A battery asked to charge that keeps refusing is confirmed once the engage
+    grace and the confirmation window have passed."""
+    clock.step = _FAST_CYCLE_S
+    coord = _Coord("bat", soc=99, power=0, commanded=0)
+    m = _mgr(coord)
+    m.tick_bms_cutoff()
+
+    coord.commanded_charge_power = 1600
+    _run_for(m, clock, DISCHARGE_ENGAGE_GRACE_S + _BMS_CUTOFF_CONFIRM_S - 2)
+    assert m.is_battery_full(coord) is False
+    _run_for(m, clock, 4)
+    assert m.is_battery_full(coord) is True
+
+
+def test_cutoff_of_a_charging_battery_is_confirmed_on_time_not_cycles(clock):
+    """The control cycle also runs on the 2s safety tick, so the required number
+    of cycles can pass in about 3s. A battery that was charging and stops is
+    confirmed once the refusal has lasted the confirmation window."""
+    clock.step = _FAST_CYCLE_S
+    coord = _Coord("bat", soc=99, power=900, commanded=1600, inv=_CHARGING)
+    m = _mgr(coord)
+    _run_for(m, clock, 60)
+
+    coord.data.update(battery_power=0, inverter_state=_STANDBY)
+    for _ in range(_BMS_CUTOFF_REQUIRED_CYCLES):
+        m.tick_bms_cutoff()
+    assert m.is_battery_full(coord) is False
+    _run_for(m, clock, _BMS_CUTOFF_CONFIRM_S)
+    assert m.is_battery_full(coord) is True
+
+
+def test_engage_grace_follows_the_driver_capability(clock):
+    """A driver that reports a longer engage grace gets all of it."""
+    coord = _Coord("bat", soc=99, power=0, commanded=0)
+    coord.capabilities = SimpleNamespace(engage_grace_s=65.0)
+    m = _mgr(coord)
+    m.tick_bms_cutoff()
+
+    coord.commanded_charge_power = 1600
+    _run_for(m, clock, 60)
+    assert m._bms_cutoff_counts.get("bat", 0) == 0
+    _run_for(m, clock, 20)
+    assert m.is_battery_full(coord) is True
+
+
+def test_a_new_charge_command_gets_a_new_engage_grace(clock):
+    """Dropping the charge command freezes the count; the next command starts a
+    new engage grace in which the count stays frozen too."""
+    coord = _Coord("bat", soc=99, power=0, commanded=1600)
+    m = _mgr(coord)
+    m.tick_bms_cutoff()
+    m.tick_bms_cutoff()
+    assert m._bms_cutoff_counts["bat"] == 2
+
+    coord.commanded_charge_power = 0
+    _run_for(m, clock, 300)
+    assert m._bms_cutoff_counts["bat"] == 2
+
+    coord.commanded_charge_power = 800
+    _run_for(m, clock, DISCHARGE_ENGAGE_GRACE_S - 5)
+    assert m._bms_cutoff_counts["bat"] == 2
+    assert m.is_battery_full(coord) is False
+
+
 def test_venus_ad_100_soc_waits_for_bms_cutoff_when_top_charge_path_is_active():
     coord = _Coord("bat", soc=100, power=200, commanded=200, vmax=3.60,
                    battery_version="vA")
@@ -196,6 +306,7 @@ def test_venus_ad_first_cutoff_does_not_complete_until_retry_is_refused():
     weekly = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)
     weekly._controller = ctrl
     weekly._bms_cutoff_counts = {"bat": _BMS_CUTOFF_REQUIRED_CYCLES}
+    weekly._bms_charge_commanded_at = {"bat": 0.0}
     weekly._already_complete_logged = False
     weekly.is_active = lambda: True
     ctrl._weekly_charge_mgr = weekly
@@ -246,6 +357,7 @@ def test_venus_ad_rearms_three_sequential_pack_handovers_then_finishes():
     weekly = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)
     weekly._controller = ctrl
     weekly._bms_cutoff_counts = {}
+    weekly._bms_charge_commanded_at = {"bat": 0.0}
     weekly._already_complete_logged = False
     weekly.is_active = lambda: True
     ctrl._weekly_charge_mgr = weekly

@@ -483,6 +483,16 @@ HOT_PATH_READBACK_MAX_LATENCY_S = 1.5
 # engages is still caught, just this many seconds later.
 DISCHARGE_ENGAGE_GRACE_S = 30
 
+# A step up in commanded power by at least this factor restarts that direction's
+# engage grace too, when the battery met the delivery bar (10% of the command)
+# for the previous command: it needs time to ramp to the new power, and a driver
+# that serves cached telemetry keeps showing the pre-step power for seconds. The
+# PD's re-ramp after an anti-windup re-anchor adds near-equal increments onto the
+# measured power, so each of its steps stays below 2x while the battery delivers
+# anything, and a battery stuck at 0 W never meets the previous bar. Neither
+# restarts the grace, so a battery that stalls under that cycle is still caught.
+ENGAGE_GRACE_STEP_FACTOR = 2
+
 # Top-of-charge tail: the last stretch before 100% often tapers hard (CC/CV
 # tail current) well before is_battery_full() reports the battery full or
 # tick_bms_cutoff() confirms a cutoff (which needs power <= 10 W *and*

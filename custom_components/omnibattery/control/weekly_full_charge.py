@@ -17,12 +17,14 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, datetime
+from time import monotonic
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.storage import Store
 
 from .pack_soc import control_vmax, soc_vs_ceiling
 from ..const import (
+    DISCHARGE_ENGAGE_GRACE_S,
     DOMAIN,
     NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
     NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
@@ -40,10 +42,15 @@ _LOGGER = logging.getLogger(__name__)
 _INVERTER_STATE_STANDBY = 1
 # Battery power below this (W) is treated as "not charging" for BMS-cutoff detection.
 _BMS_CUTOFF_POWER_W = 10
-# Consecutive update cycles (~2 s each) of BMS-cutoff conditions required before
-# declaring completion at 99%. Keep this shared with the Venus A/D retry-acceptance
-# debounce: 5 × 2 s = 10 s outlasts the Modbus response delay while reacting quickly.
+# Refusal samples (one per control cycle) required before declaring completion at
+# 99%. Keep this shared with the Venus A/D retry-acceptance debounce.
 _BMS_CUTOFF_REQUIRED_CYCLES = NORMAL_BALANCE_RECAL_CUTOFF_CYCLES
+# A cutoff is also confirmed no sooner than this many seconds after its first
+# refusal sample. The control cycle runs on every meter sample and on the 2s
+# safety tick, so the sample count alone can pass within about 3s. Timed on the
+# controller's clock, not by reading age: a driver that serves a cached device
+# state makes every poll look fresh.
+_BMS_CUTOFF_CONFIRM_S = 10
 
 
 class WeeklyFullChargeManager:
@@ -127,7 +134,17 @@ class WeeklyFullChargeManager:
             tick_retry_acceptance()
         # Consecutive accepted-charge samples that must precede a counter reset.
         accept_counts = self.__dict__.setdefault("_bms_accept_counts", {})
+        # When each battery's current charge command started, and when its
+        # current run of refusal samples started (monotonic seconds).
+        charge_commanded_at = self.__dict__.setdefault("_bms_charge_commanded_at", {})
+        first_refusal_at = self.__dict__.setdefault("_bms_cutoff_first_at", {})
+        now = monotonic()
         for c in ctrl.coordinators:
+            commanded = getattr(c, "commanded_charge_power", 0) or 0
+            if commanded > _BMS_CUTOFF_POWER_W:
+                charge_commanded_at.setdefault(c.name, now)
+            else:
+                charge_commanded_at.pop(c.name, None)
             if getattr(c, "battery_manual_mode_enabled", False):
                 # Individual manual mode owns the battery. Freeze its cutoff
                 # evidence so weekly charge cannot classify or reconfigure it.
@@ -160,7 +177,6 @@ class WeeklyFullChargeManager:
                 # without being full. Gating on the commanded setpoint is what
                 # separates a real BMS cut from "nobody asked it to charge", and
                 # stops an idle battery from racking up cutoff cycles forever.
-                commanded = getattr(c, "commanded_charge_power", 0) or 0
                 cutoff = (
                     power is not None
                     and commanded > _BMS_CUTOFF_POWER_W
@@ -173,9 +189,23 @@ class WeeklyFullChargeManager:
                         or (is_zendure and inv_state is None and soc >= 99)
                     )
                 )
+                if cutoff and now - charge_commanded_at[c.name] < self._engage_grace_s(c):
+                    # A battery starting from standby reads ≤10 W + Standby until it
+                    # engages, which can take well over 10s, and its readings may
+                    # predate the command. Neither proves a cutoff: freeze the
+                    # counter until the engage grace has passed.
+                    continue
                 if cutoff:
                     accept_counts.pop(c.name, None)
                     count = self._bms_cutoff_counts.get(c.name, 0) + 1
+                    if count == 1 or c.name not in first_refusal_at:
+                        first_refusal_at[c.name] = now
+                    refusing_s = now - first_refusal_at[c.name]
+                    if count == _BMS_CUTOFF_REQUIRED_CYCLES and refusing_s < _BMS_CUTOFF_CONFIRM_S:
+                        # Enough samples but not enough time: hold one short of
+                        # confirmation, so a count at the threshold still means
+                        # confirmed for every reader.
+                        count -= 1
                     self._bms_cutoff_counts[c.name] = count
                     if count == 1:
                         _LOGGER.info(
@@ -185,9 +215,9 @@ class WeeklyFullChargeManager:
                         )
                     elif count == _BMS_CUTOFF_REQUIRED_CYCLES:
                         _LOGGER.info(
-                            "%s: BMS cutoff confirmed at %d%% (%d cycles at ≤%.0fW + Standby "
-                            "while commanded to charge)",
-                            c.name, soc, count, _BMS_CUTOFF_POWER_W,
+                            "%s: BMS cutoff confirmed at %d%% (%d cycles over %.0fs at ≤%.0fW + "
+                            "Standby while commanded to charge)",
+                            c.name, soc, count, refusing_s, _BMS_CUTOFF_POWER_W,
                         )
                 elif power is not None and power > _BMS_CUTOFF_POWER_W:
                     # Battery is accepting charge → genuinely not full, but only
@@ -214,6 +244,14 @@ class WeeklyFullChargeManager:
             else:
                 self._bms_cutoff_counts[c.name] = 0
                 accept_counts.pop(c.name, None)
+
+    @staticmethod
+    def _engage_grace_s(coordinator: Any) -> float:
+        """Return how long a new charge command may go undelivered while engaging."""
+        engage_grace_s = getattr(
+            getattr(coordinator, "capabilities", None), "engage_grace_s", None
+        )
+        return DISCHARGE_ENGAGE_GRACE_S if engage_grace_s is None else engage_grace_s
 
     def reset_bms_cutoff_confirmation(self, coordinator: Any) -> None:
         """Forget a provisional cutoff before the one-shot retry begins."""
@@ -808,6 +846,7 @@ class WeeklyFullChargeManager:
                 coordinator._hysteresis_active = True
                 current_soc = coordinator.data.get("battery_soc", 100) if coordinator.data else 100
                 coordinator._hysteresis_base_soc = current_soc
+                coordinator._hysteresis_latch_max_soc = coordinator.max_soc
                 _LOGGER.debug(
                     "%s: Re-enabled hysteresis after weekly full charge (base SOC: %.1f%%)",
                     coordinator.name,

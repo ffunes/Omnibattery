@@ -444,6 +444,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         setattr(self, CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, full_charge_voltage_taper_enabled)
         self._hysteresis_active = False  # Tracks if battery reached max_soc (for hysteresis)
         self._hysteresis_base_soc = None  # SOC that triggered hysteresis (used as threshold base)
+        self._hysteresis_latch_max_soc = None  # max_soc in force when that base was latched
         self._scan_counter = 0
         self.lock = asyncio.Lock()
         self._is_shutting_down = False  # Flag to suppress errors during shutdown

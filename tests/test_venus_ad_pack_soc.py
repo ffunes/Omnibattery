@@ -319,6 +319,8 @@ def _weekly(coord):
     m = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)
     m._controller = ctrl
     m._bms_cutoff_counts = {}
+    # Charging since long before the test starts: past the engage grace.
+    m._bms_charge_commanded_at = {coord.name: 0.0}
     m._already_complete_logged = False
     m.is_active = lambda: True
     return m
@@ -339,7 +341,7 @@ def test_taper_zone_does_not_arm_while_a_pack_is_still_filling():
     assert weekly.is_battery_full(coord) is False
 
 
-def test_taper_zone_still_arms_when_every_pack_is_at_the_top():
+def test_taper_zone_still_arms_when_every_pack_is_at_the_top(bms_cutoff_clock):
     coord = _PackCoord(
         battery_soc=94, max_cell_voltage=3.481,
         battery_soc_pack_1=100.0, battery_soc_pack_2=99.4,
@@ -350,7 +352,7 @@ def test_taper_zone_still_arms_when_every_pack_is_at_the_top():
     assert weekly._bms_cutoff_counts["bat"] >= _BMS_CUTOFF_REQUIRED_CYCLES
 
 
-def test_taper_zone_arming_unchanged_without_pack_telemetry():
+def test_taper_zone_arming_unchanged_without_pack_telemetry(bms_cutoff_clock):
     coord = _PackCoord(battery_soc=94, max_cell_voltage=3.481)
     weekly = _weekly(coord)
     for _ in range(_BMS_CUTOFF_REQUIRED_CYCLES):
