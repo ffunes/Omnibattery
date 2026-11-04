@@ -4,7 +4,7 @@ name: Claude issue automation
 # Claude never gets GitHub write access: it reads the repo and returns a JSON
 # decision or a patch; only steps that never run repo code hold a GitHub token.
 # The owner can re-run triage with the `claude:triage` label, or force a fix with `claude:fix`.
-# Triage only starts after the owner approves it (environment `claude-triage`).
+# Triage started by others only runs after the owner approves it (environment `claude-triage`).
 
 on:
   issues:
@@ -20,8 +20,9 @@ permissions: {}
 
 jobs:
   triage:
-    # Waits for the owner to approve the run (required reviewer on this environment).
-    environment: claude-triage
+    # Runs started by others wait for the owner's approval (required reviewer on this
+    # environment); the owner's own `claude:triage` label runs straight away.
+    environment: ${{ github.event.sender.login != github.repository_owner && 'claude-triage' || '' }}
     # A new issue from someone else, its reporter answering a needs-info request,
     # or the owner adding the `claude:triage` label to any issue.
     if: >-
