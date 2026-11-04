@@ -249,7 +249,10 @@ from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager
 from .control.residual_load import apply_guards, guards_pending
 from .drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
-from .control.discharge_reserve import DischargeReserveManager
+from .control.discharge_reserve import (
+    RESERVE_SOC_TOLERANCE_PCT,
+    DischargeReserveManager,
+)
 from .control.high_price_discharge import HighPriceDischargeManager
 from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
@@ -4001,7 +4004,9 @@ class ChargeDischargeController:
                 self.remove_discharge_block("price_reserve", coordinator=coordinator)
                 continue
             reserved_floor = min(100.0, floor + reserve_pct)
-            if soc <= reserved_floor:
+            # A reserve of everything stored puts the floor exactly on the
+            # whole-percent SOC, and floor + pct rounds either side of it.
+            if soc <= reserved_floor + RESERVE_SOC_TOLERANCE_PCT:
                 self.set_discharge_block(
                     "price_reserve",
                     "price_reserve",

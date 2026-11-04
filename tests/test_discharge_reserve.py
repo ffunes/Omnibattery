@@ -464,6 +464,31 @@ def test_an_unreadable_soc_blocks_nothing():
     assert _blocks(40.0, [coordinator]) == {}
 
 
+def test_a_reserve_a_rounding_error_below_the_soc_still_holds():
+    """5 + 22.999999999999996 is 28 for a battery that reports whole percent."""
+    registry = _blocks(22.999999999999996, [_coordinator(soc=28.0, min_soc=5.0)])
+    assert ("battery-1", "price_reserve") in registry
+
+
+@pytest.mark.parametrize(
+    ("capacity", "min_soc", "soc"),
+    [(2.56, 5.0, 28.0), (2.56, 12.0, 58.0), (5.12, 5.0, 28.0)],
+)
+def test_a_reserve_of_everything_stored_holds_the_battery(capacity, min_soc, soc):
+    """The reserve claims all of it, so the battery must not discharge a step.
+
+    floor + reserve_soc_pct lands a rounding error below these SOCs.
+    """
+    pricing = _pricing(_profile_remaining_consumption=lambda start, end: _forecast(50.0))
+    coordinator = _coordinator(soc=soc, min_soc=min_soc, capacity=capacity)
+    manager = _built(_controller(coordinators=[coordinator], _pricing_mgr=pricing))
+    pct = manager.reserve_soc_pct()
+    status = manager.get_status()
+    assert status["reserve_kwh"] == pytest.approx(status["usable_energy_kwh"])
+
+    assert ("battery-1", "price_reserve") in _blocks(pct, [coordinator])
+
+
 def test_an_explicit_slot_floor_is_what_the_reserve_is_added_to():
     """A discharge slot reaching below min_soc keeps its window."""
     registry = _blocks(5.0, [_coordinator(soc=25.0, min_soc=30.0)], effective_floor=15.0)
