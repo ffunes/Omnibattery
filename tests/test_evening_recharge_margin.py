@@ -3,7 +3,8 @@
 A grid-charge slot has to clear the arbitrage margin: the energy it stores,
 after round-trip losses, must be worth more than the slot costs plus the
 margin. Guaranteed-floor energy is the exception: it ignores the margin, and
-only the user's own price cap limits it.
+only the user's own price cap limits it. The exception covers the floor
+energy alone, never the ordinary deficit around it (#724).
 
 The evening path runs the real chronological planner here, with a flat
 consumption profile and no solar left for the day.
@@ -61,14 +62,14 @@ def _prices(overrides=None):
     return slots
 
 
-def _manager(*, prices, floor=None, **controller_overrides):
+def _manager(*, prices, floor=None, load_kw=_LOAD_KW, **controller_overrides):
     async def _avg():
-        return _LOAD_KW * 24
+        return load_kw * 24
 
     def _forecast_between(start, end, *, fallback="legacy_daily"):
         hours = (end - start).total_seconds() / 3600.0
         return ConsumptionForecast(
-            _LOAD_KW * hours, [_LOAD_KW * 0.25] * 96, "profile", True
+            load_kw * hours, [load_kw * 0.25] * 96, "profile", True
         )
 
     tracker = SimpleNamespace(
@@ -126,15 +127,21 @@ def _manager(*, prices, floor=None, **controller_overrides):
         return None
 
     async def _remaining(*, now=None, horizon_end=None):
-        # 1 kWh usable against 6 kWh of load before sunrise: the battery
-        # runs empty around 18:30. A battery at 20% sits under a 30% floor's
-        # band, so the floor is what asks for the charge.
+        # 1 kWh usable (20% SOC, 10% cutoff) and no solar left. With the
+        # default load that is 6 kWh before sunrise, so the battery runs
+        # empty around 18:30. A floor asks for the energy up to it; it is the binding
+        # constraint only when it exceeds the ordinary deficit, as in the
+        # controller's own balance.
+        consumption = load_kw * 15
+        floor_deficit = max(0.0, ((floor or 0.0) - 20.0) / 100.0 * _CAPACITY_KWH)
         return {
             "should_charge": True,
-            "floor_active": floor is not None,
-            "remaining_consumption_kwh": _LOAD_KW * 15,
-            "consumption_rate_kwh_h": _LOAD_KW,
-            "avg_consumption_kwh": _LOAD_KW * 15,
+            "floor_active": floor_deficit > max(0.0, consumption - 1.0),
+            "floor_deficit_kwh": floor_deficit,
+            "remaining_consumption_kwh": consumption,
+            "consumption_rate_kwh_h": load_kw,
+            "avg_consumption_kwh": consumption,
+            "total_available_kwh": 1.0,
             "excluded_demand_claim_kwh": 0.0,
         }
 
@@ -185,9 +192,10 @@ def test_evening_fallback_without_a_consumption_profile_applies_the_margin():
 def test_guaranteed_floor_energy_ignores_the_margin():
     # The same prices book nothing for an ordinary deficit, but still charge
     # a battery that sits under its guaranteed floor.
-    assert _booked(_manager(prices=_prices())) == []
+    # A 40% floor asks for 2 kWh against a 0.5 kWh ordinary deficit.
+    assert _booked(_manager(prices=_prices(), load_kw=0.1)) == []
 
-    booked = _booked(_manager(prices=_prices(), floor=30.0))
+    booked = _booked(_manager(prices=_prices(), floor=40.0, load_kw=0.1))
 
     assert booked
     assert all(price >= 0.45 for _hour, price in booked)
@@ -197,7 +205,8 @@ def test_guaranteed_floor_energy_keeps_the_manual_price_cap():
     booked = _booked(
         _manager(
             prices=_prices({22: 0.44, 23: 0.44}),
-            floor=30.0,
+            floor=40.0,
+            load_kw=0.1,
             max_price_threshold=0.44,
         )
     )

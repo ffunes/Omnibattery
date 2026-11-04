@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from custom_components.omnibattery.const import CHARGE_EFFICIENCY
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.chronological import (
     ChronologicalEvaluationRequest,
@@ -533,3 +534,43 @@ def test_time_slot_preview_keeps_balance_diagnostics_after_last_window():
     assert controller._last_decision_data["stored_energy_kwh"] == pytest.approx(4.2)
     assert controller._last_decision_data["avg_consumption_kwh"] == pytest.approx(7.1)
     assert controller._last_decision_data["energy_deficit_kwh"] == pytest.approx(0.0)
+
+
+def _floor_plan(**kwargs):
+    # 5 kWh due by 02:00 at 2 kW: one cheap slot (0.30) delivers 0.425 kWh,
+    # the expensive ones (0.50) could cover the rest.
+    intervals = [_interval(7, 5.0)]
+    deadlines = build_energy_deadlines(intervals, usable_initial_kwh=0.0)
+    return allocate_price_slots(
+        intervals,
+        deadlines,
+        [_slot(0, 15, 0.30), _slot(15, 60, 0.50), _slot(60, 120, 0.50)],
+        total_required_kwh=5.0,
+        effective_power_kw=2.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=12),
+        max_price_threshold=0.35,
+        **kwargs,
+    )
+
+
+def test_floor_premium_buys_only_the_floor_energy_above_the_ceiling():
+    """#724: the floor lifts the margin for its own kWh, not the whole plan."""
+    plan = _floor_plan(premium_kwh=1.0)
+
+    premium = sum(a.planned_battery_kwh for a in plan.allocations if a.slot.price > 0.35)
+    cheap = sum(a.planned_battery_kwh for a in plan.allocations if a.slot.price <= 0.35)
+    assert premium == pytest.approx(1.0)
+    assert cheap == pytest.approx(2.0 * 0.25 * CHARGE_EFFICIENCY)
+
+
+def test_floor_premium_respects_the_user_price_cap():
+    plan = _floor_plan(premium_kwh=1.0, premium_price_threshold=0.45)
+
+    assert all(a.slot.price <= 0.35 for a in plan.allocations)
+
+
+def test_no_floor_premium_keeps_every_slot_under_the_ceiling():
+    plan = _floor_plan()
+
+    assert all(a.slot.price <= 0.35 for a in plan.allocations)
