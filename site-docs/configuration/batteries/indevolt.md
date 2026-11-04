@@ -4,14 +4,14 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 
 ## Do I need it?
 
-**Use it if** you own an Indevolt SolidFlex or PowerFlex battery and Home Assistant can reach it on your local network. The SolidFlex 2000 has been tested. The PowerFlex 2000, the SolidFlex and PowerFlex 3000 and the SolidFlex 1200 use the same API; please report your model and firmware if you use one of them.
+**Use it if** you own an Indevolt SolidFlex or PowerFlex battery and Home Assistant can reach it on your local network. The SolidFlex 2000 and the SolidFlex 3000 AC have been tested. The PowerFlex 2000, the PowerFlex 3000 and the SolidFlex 1200 use the same API; please report your model and firmware if you use one of them. A SolidFlex 3000 reports the same device type as a SolidFlex 2000 (`CMS-SF2000`), so Omnibattery shows it with the SolidFlex 2000 model name; control works the same.
 
 **Use Omnibattery instead of the official Indevolt integration.** Both poll the same battery, and the battery answers requests one at a time. Omnibattery shows the same measurements, including the AC energy counters for the Energy dashboard, so disable or remove the official integration for a battery that Omnibattery controls (see [Moving from the official Indevolt integration](#moving-from-the-official-indevolt-integration)).
 
 ## Before you start
 
 - In the Indevolt app, enable the **local API** with the **HTTP** protocol (not HTTP Digest), and give the battery a stable IP address. Omnibattery does not use **Modbus TCP**, so you can leave it off. In tests, the battery answered Modbus requests much more slowly than HTTP requests, and the Modbus connection was less stable and needed frequent reconnects.
-- In the Indevolt app, set the working mode to **Realtime**. Omnibattery controls the battery only in Realtime mode and never switches the mode itself (see [why](#why-omnibattery-writes-settings-only-when-you-change-them)).
+- In the Indevolt app, set the working mode to **Realtime (standby)**. Omnibattery controls the battery only in Realtime mode and never switches the mode itself (see [why](#why-omnibattery-writes-settings-only-when-you-change-them)).
 - The battery's **reserve** (backup SOC), **max AC input** and **max AC output** are the same settings as Omnibattery's minimum SOC, max charge power and max discharge power. Omnibattery keeps them in sync, so you can change them in either place.
 - Disable the official Indevolt integration for this battery.
 
@@ -19,7 +19,7 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 
 1. In the Omnibattery setup flow, choose **Indevolt SolidFlex / PowerFlex**.
 2. Enter a descriptive **Name** and the battery's **IP address**.
-3. Keep **HTTP port** at `8080` and **Request speed** at **Conservative (5s)** (see [Choosing the request speed](#choosing-the-request-speed)).
+3. Keep **HTTP port** at `8080` and pick a **Request speed**; **Conservative (5s)** is the default (see [Choosing the request speed](#choosing-the-request-speed)).
 4. Omnibattery reads the battery's identity, working mode and power limits. It does not change anything on the battery.
 5. If the battery is not in Realtime mode, a notice says so. Setup continues; control starts once you select Realtime in the app.
 6. Choose the common power and state-of-charge limits. The form opens at the battery's own reserve and power settings, and the power sliders go up to the battery's hardware maximum. The first time Omnibattery starts, it takes over the battery's settings without writing anything, so change them afterwards, on the device page or in the Indevolt app. For MAC tracking, the MAC address is filled in from the battery.
@@ -32,7 +32,7 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 - **Switching modes in the app is safe.** If you select another working mode, Omnibattery pauses, shows a notification and leaves the battery alone. Switch back to Realtime and it resumes automatically.
 - **Response time.** Omnibattery reads the battery once per interval of the request speed (5s by default, 2s at Maximum). A new setpoint goes out as soon as 2s have passed since the previous request (1s at Normal and Fast; at Maximum 0.2s after the previous reply, at most one setpoint per second), and the battery follows within seconds.
 - **Near full.** In the last part of a charge the battery lowers its charge power by itself, down to a few hundred watts, while it tops up its cells. Omnibattery then charges it with what it takes, plus at most 100W, instead of the full power, so the battery charges on to 100% rather than being reported as not delivering. PD Control Quality shows the battery as the limit meanwhile, and the extra solar goes to your other batteries or to the grid.
-- **Settings:** **Discharge Cutoff** (the battery's reserve, which is Omnibattery's minimum SOC), **Max Charge Power** and **Max Discharge Power**. A change here is written to the battery; a change in the Indevolt app shows up here within a few minutes. The power sliders go up to the battery's hardware maximum. **Charge Cutoff** (maximum SOC) has no battery setting and is applied by Omnibattery only.
+- **Settings:** **Discharging Cutoff Capacity** (the battery's reserve, which is Omnibattery's minimum SOC), **Max Charge Power** and **Max Discharge Power**. A change here is written to the battery; a change in the Indevolt app shows up here within a few minutes. The power sliders go up to the battery's hardware maximum. **Charging Cutoff Capacity** (maximum SOC) has no battery setting and is applied by Omnibattery only.
 - **Sensors:** state of charge, battery power, AC power, working mode and firmware version, plus:
     - **AC Input Power** and **AC Output Power** at the battery's AC connection (read every 10s), and **Bypass Power** through the bypass socket.
     - Energy counters on two sides. **Total AC Input Energy** and **Total AC Output Energy** count at the AC connection: use these for the battery in the Energy dashboard. **Total Charging Energy**, **Total Discharging Energy** and the daily counters count on the battery side, after conversion losses. **Off-Grid Output Energy** and **Bypass Input Energy** count what went through the backup and bypass sockets.
@@ -61,7 +61,7 @@ Omnibattery shows the measurements of the official Indevolt integration under it
 | Energy mode | Working Mode | Read only |
 | Real-time mode, Real-time target SOC, Real-time power limit | Realtime Command, Realtime Target SOC, Realtime Command Power | |
 | Rated capacity | Battery Total Energy | |
-| Discharge limit, Max AC output power, Inverter input limit | Discharge Cutoff, Max Discharge Power, Max Charge Power | Settings, kept in sync with the battery |
+| Discharge limit, Max AC output power, Inverter input limit | Discharging Cutoff Capacity, Max Discharge Power, Max Charge Power | Settings, kept in sync with the battery |
 | Feed-in power limit, Allow grid charging | Feed-in Limit, Grid Charging | Read only |
 | Grid voltage and frequency, remaining charging and discharging time, device mode, PV input power, voltage and current, and per battery SOC, cycles, temperatures, voltage, current and serial number | Same names | Disabled by default, as in the official integration |
 
@@ -83,7 +83,7 @@ Everything faster than Indevolt's 5s is at your own risk, and you are responsibl
 A faster speed gets each new setpoint to the battery sooner, so it reacts sooner to meter changes, which can improve net zero. It does not make the battery's own ramp faster, and the battery refreshes its AC power only about every 6s. A speed faster than your grid meter gains nothing: with a meter that updates every 2s, choose Fast rather than Maximum. Apart from Maximum, Omnibattery never sends two requests closer than 1s apart, Indevolt's documented minimum (2s at Conservative). At Maximum it waits 0.2s after each reply instead, still with one request at a time, and steps back to Fast with the 1s spacing when the battery answers slowly. Whatever you choose, it slows down by itself when the battery answers slowly or not at all.
 
 !!! tip "Only Indevolt batteries? Set PD Min Cycle Interval to 0"
-    Omnibattery's **PD Min Cycle Interval** (default 1.0s) skips a meter update that arrives too soon after the previous control run, so a fast meter cannot flood a slow Modbus bridge, such as an Elfin EW11, with commands. The Indevolt driver already paces its own requests and only ever sends the newest setpoint, so for an Indevolt the interval protects nothing. It only adds delay: a skipped update waits for the next control run, up to 2s later.
+    Omnibattery's **PD Min Cycle Interval** (default 1.0s) skips a meter update that arrives too soon after the previous control run, so a fast meter cannot flood a slow Modbus bridge, such as an Elfin EW11, with commands. The Indevolt driver already paces its own requests and only ever sends the newest setpoint, so for an Indevolt the interval protects nothing. It only adds delay: a skipped update waits for the next meter update or the 2s safety timer, so with a 1s meter it is acted on up to 1s later.
 
     If every battery in Omnibattery is an Indevolt, set it to `0`: open the Omnibattery sidebar panel, select **Control**, and in **PD controller (advanced)** set **Min cycle interval** to 0. It takes effect at once. The battery gets no extra requests, because the request speed still sets the pace. Keep the default if Omnibattery also controls a battery behind a slow Modbus bridge. The other PD settings are explained in [Follow home consumption](../../features/pd-controller.md).
 
@@ -111,7 +111,7 @@ Omnibattery enforces its own minimum and maximum SOC in software. Each command a
 |---|---|---|
 | The wizard cannot connect | The local API is off, or the address or port is wrong | Enable the local API in the Indevolt app and check the IP address and port `8080` |
 | The wizard says the battery asks for a password | The local API is set to HTTP Digest | Select **HTTP** for the local API in the Indevolt app |
-| Control Status is `realtime_mode_required` | The battery is in another working mode | Select **Realtime** in the Indevolt app; control resumes automatically |
+| Control Status is `realtime_mode_required` | The battery is in another working mode | Select **Realtime (standby)** in the Indevolt app; control resumes automatically |
 | A notification says the battery is slow, or Request Interval (Effective) stays above the chosen speed | Another client is polling it too, or the Wi-Fi link is weak | Disable the official Indevolt integration for this battery, check the signal, or choose the **Conservative (5s)** request speed |
 | A notification says a setting was not applied | The battery did not accept the value | The battery keeps its value; try again later, or change it in the Indevolt app |
 | Repairs says Indevolt setting writes are paused | 100 writes of the reserve and power limits in a year, nearly always from an automation or a script | Check automations and scripts that set these numbers, then turn writing back on in **Settings → Repairs** (also if the changes were intended) |
