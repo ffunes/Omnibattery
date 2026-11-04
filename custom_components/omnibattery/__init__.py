@@ -6958,6 +6958,7 @@ class ChargeDischargeController:
             self._discharge_engage_started[coordinator] = dt_util.utcnow()
             self._non_responsive.clear(coordinator, delivering=False)
             coordinator._low_soc_refusal_started = None
+            coordinator._low_soc_standby_wake_done = False
         # A large step up within the same direction restarts only its engage
         # clock: the battery was following the smaller command and needs time to
         # ramp. The non-responsive episode, the taper clock and the low-SOC
@@ -7337,6 +7338,7 @@ class ChargeDischargeController:
             self._high_soc_taper_started.pop(coordinator, None)
             self._non_responsive.clear(coordinator)
             coordinator._low_soc_refusal_started = None
+            coordinator._low_soc_standby_wake_done = False
             return
         engage_times = (
             self._charge_engage_started
@@ -7413,6 +7415,17 @@ class ChargeDischargeController:
                 )
             else:
                 self._high_soc_taper_started.pop(coordinator, None)
+        # ACK'd but no power: separate a battery sitting in standby
+        # (likely dropped RS485 control) from one that is awake but
+        # still refusing.
+        inv_state = coordinator.data.get("inverter_state") if coordinator.data else None
+        try:
+            is_standby = (
+                inv_state is not None
+                and int(inv_state) == NORMAL_BALANCE_RECAL_INVERTER_STANDBY
+            )
+        except (TypeError, ValueError):
+            is_standby = False
         # Skip non-responsive recording when the BMS is legitimately
         # refusing discharge: either at/near the configured min-SOC, or
         # anywhere below the low-SOC protective floor where the BMS may
@@ -7430,6 +7443,18 @@ class ChargeDischargeController:
             )
             # Comms and battery are fine, just protecting itself.
             self._non_responsive.clear(coordinator)
+            # A battery parked in Standby may instead be stuck (a short AC
+            # interruption leaves it there with RS485 still reading enabled,
+            # #720), which looks the same as a cutoff. Give it the one-shot
+            # standby wake once per refusal episode before judging it empty:
+            # a real cutoff costs one reconnect, a stuck one is recovered.
+            if is_standby and not getattr(
+                coordinator, "_low_soc_standby_wake_done", False
+            ):
+                coordinator._low_soc_standby_wake_done = True
+                coordinator._low_soc_refusal_started = dt_util.utcnow()
+                await self._attempt_wake(coordinator, is_standby=True)
+                return
             # Not a fault, but not a battery to keep asking either: a device
             # that stops above min_soc (its own cutoff set higher in the app, a
             # BMS stopping early) was otherwise commanded for hours while the
@@ -7453,17 +7478,6 @@ class ChargeDischargeController:
                     current_soc + DISCHARGE_MIN_SOC_REENTRY_MARGIN,
                 )
             return
-        # ACK'd but no power: separate a battery sitting in standby
-        # (likely dropped RS485 control) from one that is awake but
-        # still refusing.
-        inv_state = coordinator.data.get("inverter_state") if coordinator.data else None
-        try:
-            is_standby = (
-                inv_state is not None
-                and int(inv_state) == NORMAL_BALANCE_RECAL_INVERTER_STANDBY
-            )
-        except (TypeError, ValueError):
-            is_standby = False
         # Reaching the top voltage during the previous charge is not an exemption
         # here. The discharge engage grace above covers the legitimate transition
         # out of BMS-full standby; once it expires, a battery that still ACKs the
