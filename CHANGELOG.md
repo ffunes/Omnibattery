@@ -6,6 +6,7 @@
 
 - **Discharge reserve: the floor slid down with the SOC while PV credit was left** (#700): when dearer-hour demand exceeded the stored energy, the claims equalled the stored energy and the PV credit came off that, so the reserve was always just under the SOC and never held anything. The claims now run against the stored energy plus the solar the battery can still take, and the reserve is capped at what is stored. When the sun covers all demand the battery is still released. Thanks to @MarkB-HA.
 - **Discharge reserve: a battery whose stored energy is all reserved could still discharge one step**: the reserved floor is then exactly the SOC, and float rounding put it just below a whole-percent SOC in about 2% of cases (5 + 22.999999999999996 against 28), so the battery was not held until it dropped another percent. The comparison now allows for the rounding.
+- **Discharge reserve: the horizon jumped to the next day's sunrise at midnight** (#725): the reserve then planned for the coming evening instead of the slots before this morning's sunrise, and counted that day's solar forecast as credit against it, so the battery was no longer held for a price peak at 06:00. Between midnight and sunrise the horizon now stays on this morning's sunrise, as documented; it moves on to the next sunrise once the sun is up.
 
 ## [1.5.1b2] - 2026-10-13
 
