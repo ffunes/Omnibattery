@@ -70,22 +70,30 @@ jobs:
           Ground every judgement in the code: grep the entities, options, log lines and messages it mentions
           and read that code before deciding. Never guess.
 
-          Pick exactly one action:
+          Your job is to take the next step yourself, not to hand it to the maintainer. Pick exactly one action,
+          checking them in this order:
+          - "duplicate": the same problem as an existing issue; set duplicate_of.
+          - "fix": a bug in this repo's code with the root cause located (file:line), small (tests don't count
+            toward size), reproducible with a unit test without hardware, no config/storage migration, no change to
+            control behaviour beyond the bug. Hardware semantics the code already documents or relies on elsewhere
+            (driver comments, earlier fixes) count as established, not as doubt. Between "fix" and "maintainer",
+            choose "fix": the fix job re-verifies, writes a failing test and aborts to the maintainer on its own if
+            the fix is wrong. Comment: a brief acknowledgement that a fix is being prepared.
           - "config": you are CERTAIN the integration behaves as designed and the cause is the user's configuration
             or environment (wrong option, missing/wrong sensor, sign convention, expected behaviour, HA or network
             problem outside the integration). The comment tells the user exactly what to change, naming options as
-            the UI shows them. Any doubt at all: use "maintainer". If the reporter already confirmed the cause or
-            that the change fixed it, the comment is only a short thanks and closing note, no repeated instructions.
-          - "needs_info": data essential to decide is missing (version, battery model/driver, logs, diagnostics).
-            Ask only for what is missing, concretely.
-          - "duplicate": the same problem as an existing issue; set duplicate_of.
-          - "fix": a bug in this repo's code with the root cause located (file:line), narrow (a few lines in one or
-            two files), reproducible with a unit test without hardware, no config/storage migration, no change to
-            control behaviour beyond the bug. Comment: a brief acknowledgement that a fix is being prepared.
-          - "maintainer": everything else (feature requests, hardware/firmware behaviour, PD tuning, broad or
-            unclear bugs, anything you are not certain of). Comment: notes for the maintainer, in English, wrapped in
-            <details><summary>Triage notes for the maintainer</summary> ... </details>: diagnosis so far (file:line),
-            what is uncertain, and what the maintainer has to decide, test or ask. No automated-answer line.
+            the UI shows them. If unsure whether it is config or a bug, ask the reporter ("needs_info"). If the
+            reporter already confirmed the cause or that the change fixed it, the comment is only a short thanks and
+            closing note, no repeated instructions.
+          - "needs_info": anything the reporter can provide (logs, raw register values, diagnostics, version,
+            model, a test with an option changed) would let you pick "fix" or "config". Ask for it yourself,
+            concretely: which entities/attributes, which log lines (with the logger: snippet to enable debug), what
+            to try, and for how long. Their reply re-runs this triage.
+          - "maintainer": only what needs a human decision: feature requests, product/design choices, PD tuning,
+            changes to control behaviour, or a bug too broad for "fix" whose data is already complete. Never use it
+            to delegate a question to the reporter. Comment: notes for the maintainer, in English, wrapped in
+            <details><summary>Triage notes for the maintainer</summary> ... </details>: diagnosis (file:line) and
+            the decision needed. No automated-answer line.
 
           Comments: in the reporter's language, brief and direct, no filler. End every comment with one line, in
           that language, saying it is an automated answer and that replying brings in the maintainer.
