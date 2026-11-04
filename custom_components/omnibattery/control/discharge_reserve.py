@@ -1,8 +1,9 @@
 """Runtime owner of the price-aware discharge reserve.
 
-The reserve is expressed as one number: the extra SOC every battery must keep
-back because a dearer hour is still ahead and the household will need energy
-there. ``_refresh_price_reserve_blocks`` turns it into a per-battery
+The reserve is the energy the fleet must keep back because a dearer hour is
+still ahead and the household will need energy there. Each battery keeps the
+same share of what it holds above its floor, and
+``_refresh_price_reserve_blocks`` turns that into a per-battery
 ``price_reserve`` discharge blocker.
 
 Deliberately a blocker rather than a raised ``min_soc``: the configured floor is
@@ -35,6 +36,7 @@ from ..pricing.curtailment import BatterySnapshot, distribute_solar_forecast
 from ..pricing.discharge_reserve import (
     ReservePlan,
     STATUS_DISABLED,
+    battery_reserve_soc_pct,
     consumption_by_slot,
     eligible_capacity_kwh,
     free_space_kwh,
@@ -61,8 +63,8 @@ GUARD_CAPACITY_PROTECTION = "capacity_protection"
 GUARD_NEW_DAY = "new_day"
 GUARD_FLEET_UNKNOWN = "battery_state_unknown"
 
-# When the reserve claims everything stored, floor + reserve_soc_pct is the SOC
-# itself, give or take float rounding (5 + 22.999999999999996 against 28). Far below
+# When the reserve claims everything stored, floor + the battery's reserve is
+# the SOC itself, give or take float rounding (5 + 22.999999999999996 against 28). Far below
 # any SOC a battery reports, far above the rounding.
 RESERVE_SOC_TOLERANCE_PCT = 1e-6
 
@@ -93,6 +95,8 @@ class DischargeReserveManager:
         self._plan: ReservePlan | None = None
         self._plan_date = None
         self._last_rebuild_mono: float | None = None
+        # This cycle's reserve per battery, from reserve_soc_pct().
+        self._battery_pct: dict[Any, float] = {}
         self._status: dict[str, Any] = {
             "state": STATUS_DISABLED,
             "reason": GUARD_NOT_ENABLED,
@@ -151,9 +155,10 @@ class DischargeReserveManager:
     def reserve_soc_pct(self) -> float:
         """Return the extra SOC every battery must keep, in percentage points.
 
-        Synchronous and side-effect free apart from the status snapshot, so the
-        per-battery floor refresh can call it directly.
+        Synchronous and side-effect free apart from the status snapshot and the
+        per-battery split, so the per-battery floor refresh can call it directly.
         """
+        self._battery_pct = {}
         if not self.feature_enabled():
             self._set_status(0.0, STATUS_DISABLED, GUARD_NOT_ENABLED)
             return 0.0
@@ -184,11 +189,12 @@ class DischargeReserveManager:
             0.0,
             float(getattr(self._controller, "discharge_reserve_min_saving", 0.0) or 0.0),
         )
-        fleet = self._fleet_snapshots()
-        if fleet is None:
+        batteries = self._fleet()
+        if batteries is None:
             # Not knowing what the battery holds is not a reason to hold it.
             self._set_status(0.0, "released", GUARD_FLEET_UNKNOWN)
             return 0.0
+        fleet = [snapshot for _, snapshot in batteries]
         live_usable = usable_energy_kwh(fleet)
         live_capacity = eligible_capacity_kwh(fleet)
         live_space = free_space_kwh(fleet)
@@ -203,8 +209,22 @@ class DischargeReserveManager:
         plan.usable_energy_kwh = live_usable
         plan.free_space_kwh = live_space
         pct = _reserve_soc_pct(reserve_kwh, live_capacity)
+        shares = battery_reserve_soc_pct(reserve_kwh, fleet)
+        self._battery_pct = {
+            coordinator: share for (coordinator, _), share in zip(batteries, shares)
+        }
         self._set_status(pct, "reserving" if pct > 0 else "released", reason, plan)
+        self._status["battery_reserve_soc_pct"] = {
+            snapshot.name: round(share, 2) for snapshot, share in zip(fleet, shares)
+        }
         return pct
+
+    def battery_reserve_soc_pct(self, coordinator) -> float | None:
+        """This cycle's reserve for one battery, in points above its own floor.
+
+        None for a battery that did not back the reserve this cycle.
+        """
+        return self._battery_pct.get(coordinator)
 
     async def async_rebuild_plan(
         self, reason: str = "scheduled", *, force: bool = False
@@ -313,6 +333,13 @@ class DischargeReserveManager:
             return None
 
     def _fleet_snapshots(self) -> list[BatterySnapshot] | None:
+        """The live fleet, without the coordinators."""
+        batteries = self._fleet()
+        if batteries is None:
+            return None
+        return [snapshot for _, snapshot in batteries]
+
+    def _fleet(self) -> list[tuple[Any, BatterySnapshot]] | None:
         """Read live SOC and capacity straight from the coordinators.
 
         Deliberately not ``PricingManager._curtailment_battery_snapshots``: that
@@ -325,7 +352,7 @@ class DischargeReserveManager:
         Returns None when no battery could be read, so the caller releases
         instead of reserving against a guess.
         """
-        snapshots: list[BatterySnapshot] = []
+        snapshots: list[tuple[Any, BatterySnapshot]] = []
         for coordinator in getattr(self._controller, "coordinators", []) or []:
             data = getattr(coordinator, "data", None) or {}
             if not data or not getattr(coordinator, "is_available", False):
@@ -346,15 +373,18 @@ class DischargeReserveManager:
             except (AttributeError, TypeError, ValueError):
                 continue
             snapshots.append(
-                BatterySnapshot(
-                    name=getattr(coordinator, "name", "battery"),
-                    soc_pct=soc,
-                    capacity_kwh=capacity,
-                    max_soc_pct=max_soc,
-                    floor_soc_pct=floor,
-                    max_discharge_power_w=0.0,
-                    eligible=True,
-                    can_discharge=True,
+                (
+                    coordinator,
+                    BatterySnapshot(
+                        name=getattr(coordinator, "name", "battery"),
+                        soc_pct=soc,
+                        capacity_kwh=capacity,
+                        max_soc_pct=max_soc,
+                        floor_soc_pct=floor,
+                        max_discharge_power_w=0.0,
+                        eligible=True,
+                        can_discharge=True,
+                    ),
                 )
             )
         return snapshots or None

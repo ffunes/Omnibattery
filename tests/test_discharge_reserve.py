@@ -496,7 +496,7 @@ def test_the_evening_peak_does_not_release_the_reserve_after_midnight():
 # ----------------------------------------------------------------------
 
 
-def _blocks(reserve_pct: float, coordinators=None, effective_floor=None):
+def _blocks(reserve_pct: float, coordinators=None, effective_floor=None, manager=None):
     """Run the controller's reserve blocker pass with a stand-in ``self``."""
     from custom_components.omnibattery import ChargeDischargeController
 
@@ -512,6 +512,7 @@ def _blocks(reserve_pct: float, coordinators=None, effective_floor=None):
         coordinators=coordinators,
         _effective_discharge_min_soc=_floor,
         _price_discharge_reserve_pct=lambda: reserve_pct,
+        _discharge_reserve_mgr=manager,
         set_discharge_block=lambda source, reason, details=None, coordinator=None: registry.__setitem__(
             (coordinator.name, source), details
         ),
@@ -584,6 +585,82 @@ def test_a_reserve_of_everything_stored_holds_the_battery(capacity, min_soc, soc
     assert status["reserve_kwh"] == pytest.approx(status["usable_energy_kwh"])
 
     assert ("battery-1", "price_reserve") in _blocks(pct, [coordinator])
+
+
+def _fleet_blocks(coordinators, evening_kwh: float):
+    """The real manager and the blocker pass, as one control cycle runs them."""
+    pricing = _pricing(
+        _profile_remaining_consumption=lambda start, end: _forecast(evening_kwh)
+    )
+    manager = _built(_controller(coordinators=coordinators, _pricing_mgr=pricing))
+    pct = manager.reserve_soc_pct()
+    return _blocks(pct, coordinators, manager=manager), manager
+
+
+@pytest.mark.parametrize(
+    "batteries",
+    [
+        # #700: two Venus E with the same floor, the fleet floor at 65.73 %.
+        [(68.0, 12.0, 5.12), (65.0, 12.0, 5.12)],
+        # Different floors and sizes, the fleet floor at 5.54 points.
+        [(20.0, 12.0, 5.12), (9.0, 5.0, 8.16)],
+    ],
+)
+def test_every_battery_is_held_once_everything_stored_is_reserved(batteries):
+    """One fleet percentage held one battery and let the other discharge."""
+    coordinators = [
+        _coordinator(soc=soc, min_soc=floor, capacity=capacity, name=f"battery-{i}")
+        for i, (soc, floor, capacity) in enumerate(batteries, start=1)
+    ]
+    registry, _ = _fleet_blocks(coordinators, evening_kwh=50.0)
+    for i, (soc, _floor, _capacity) in enumerate(batteries, start=1):
+        assert registry[(f"battery-{i}", "price_reserve")]["reserved_floor"] == soc
+
+
+def test_no_battery_is_held_while_the_fleet_has_more_than_the_reserve():
+    """4 kWh reserved, 5 kWh stored: the fleet may still spend 1 kWh.
+
+    The fleet floor (20 points on 20 kWh) held the emptier battery already.
+    """
+    coordinators = [
+        _coordinator(soc=40.0, name="battery-1"),
+        _coordinator(soc=30.0, name="battery-2"),
+    ]
+    registry, manager = _fleet_blocks(coordinators, evening_kwh=4.0)
+    assert manager.get_status()["reserve_kwh"] == pytest.approx(4.0)
+    assert registry == {}
+
+
+def test_both_batteries_are_held_when_the_fleet_reaches_the_reserve():
+    coordinators = [
+        _coordinator(soc=30.0, name="battery-1"),
+        _coordinator(soc=30.0, name="battery-2"),
+    ]
+    registry, _ = _fleet_blocks(coordinators, evening_kwh=4.0)
+    assert set(registry) == {("battery-1", "price_reserve"), ("battery-2", "price_reserve")}
+    details = registry[("battery-1", "price_reserve")]
+    assert details["reserve_soc_pct"] == pytest.approx(20.0)
+    assert details["fleet_reserve_soc_pct"] == pytest.approx(20.0)
+
+
+def test_the_status_shows_each_battery_s_share():
+    coordinators = [
+        _coordinator(soc=68.0, min_soc=12.0, capacity=5.12, name="Venus 1"),
+        _coordinator(soc=65.0, min_soc=12.0, capacity=5.12, name="Venus 2"),
+    ]
+    _, manager = _fleet_blocks(coordinators, evening_kwh=50.0)
+    assert manager.get_status()["battery_reserve_soc_pct"] == {
+        "Venus 1": 56.0,
+        "Venus 2": 53.0,
+    }
+
+
+def test_a_battery_left_out_of_the_fleet_is_judged_by_the_fleet_figure():
+    """Unchanged for a battery the manager did not size the reserve against."""
+    coordinator = _coordinator(soc=45.0)
+    manager = SimpleNamespace(battery_reserve_soc_pct=lambda coordinator: None)
+    registry = _blocks(40.0, [coordinator], manager=manager)
+    assert registry[("battery-1", "price_reserve")]["reserved_floor"] == 50.0
 
 
 def test_an_explicit_slot_floor_is_what_the_reserve_is_added_to():

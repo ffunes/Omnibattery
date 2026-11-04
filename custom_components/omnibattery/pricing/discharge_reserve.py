@@ -407,20 +407,53 @@ def plan_discharge_reserve(
 
 
 def reserve_soc_pct(reserve_kwh: float, total_capacity_kwh: float) -> float:
-    """Convert a system-wide reserve into the SOC each battery must keep.
+    """Express a system-wide reserve as a share of the fleet's capacity.
 
-    One percentage for every battery, deliberately: it is independent of the mix
-    of capacities and does not move when one battery discharges faster than
-    another. It reserves exactly ``reserve_kwh`` only when every battery has at
-    least that share of its own capacity left; a battery already below it simply
-    stops discharging, and the fleet then holds back less than planned. Under-
-    reserving is the safe direction — the alternative would block a battery for
-    energy its neighbour is holding.
+    The headline figure the status publishes. The blocker does not apply it to
+    each battery: with batteries at different charge levels or floors that holds
+    one and releases the other, see :func:`battery_reserve_soc_pct`.
     """
     capacity = _positive(total_capacity_kwh)
     if capacity <= EPSILON:
         return 0.0
     return max(0.0, min(100.0, 100.0 * _positive(reserve_kwh) / capacity))
+
+
+def battery_reserve_soc_pct(reserve_kwh: float, snapshots: Sequence) -> list[float]:
+    """Split a fleet reserve into the SOC each battery keeps above its own floor.
+
+    Every battery keeps the same share of what it holds above its floor, so the
+    fleet keeps exactly ``reserve_kwh`` and every battery reaches its reserved
+    floor at the same moment: when the fleet's usable energy has come down to
+    the reserve. The single fleet percentage of :func:`reserve_soc_pct` sits at
+    a different height in each battery instead. The one with more above it
+    discharges, the fleet's usable energy and with it the floor drop below the
+    held one too, and the two take turns sliding down (#700).
+
+    One entry per snapshot, in order; zero for a battery that does not back the
+    reserve.
+    """
+    above_floor: list[float] = []
+    usable = 0.0
+    for snapshot in snapshots:
+        if not getattr(snapshot, "eligible", True) or not getattr(
+            snapshot, "can_discharge", True
+        ):
+            above_floor.append(0.0)
+            continue
+        capacity = _positive(getattr(snapshot, "capacity_kwh", 0.0))
+        points = max(
+            0.0,
+            _positive(getattr(snapshot, "soc_pct", 0.0))
+            - _positive(getattr(snapshot, "floor_soc_pct", 0.0)),
+        )
+        above_floor.append(points if capacity > EPSILON else 0.0)
+        usable += capacity * above_floor[-1] / 100.0
+    reserve = _positive(reserve_kwh)
+    if reserve <= EPSILON or usable <= EPSILON:
+        return [0.0] * len(above_floor)
+    share = min(1.0, reserve / usable)
+    return [share * points for points in above_floor]
 
 
 def free_space_kwh(snapshots: Sequence) -> float:

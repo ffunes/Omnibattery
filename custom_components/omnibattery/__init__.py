@@ -4004,6 +4004,8 @@ class ChargeDischargeController:
         from discharging without moving any planner's idea of the battery.
         """
         reserve_pct = self._price_discharge_reserve_pct()
+        manager = getattr(self, "_discharge_reserve_mgr", None)
+        battery_reserve = getattr(manager, "battery_reserve_soc_pct", None)
         for coordinator in self.coordinators:
             if reserve_pct <= 0 or ChargeDischargeController._is_battery_manual_owned(
                 coordinator
@@ -4025,7 +4027,12 @@ class ChargeDischargeController:
             except (TypeError, ValueError):
                 self.remove_discharge_block("price_reserve", coordinator=coordinator)
                 continue
-            reserved_floor = min(100.0, floor + reserve_pct)
+            # This battery's share of the fleet reserve, so every battery is
+            # held at the same moment instead of one after the other (#700).
+            battery_pct = battery_reserve(coordinator) if callable(battery_reserve) else None
+            if battery_pct is None:
+                battery_pct = reserve_pct
+            reserved_floor = min(100.0, floor + battery_pct)
             # A reserve of everything stored puts the floor exactly on the
             # whole-percent SOC, and floor + pct rounds either side of it.
             if soc <= reserved_floor + RESERVE_SOC_TOLERANCE_PCT:
@@ -4037,7 +4044,8 @@ class ChargeDischargeController:
                         "soc": soc,
                         "min_soc": floor,
                         "reserved_floor": round(reserved_floor, 2),
-                        "reserve_soc_pct": round(reserve_pct, 2),
+                        "reserve_soc_pct": round(battery_pct, 2),
+                        "fleet_reserve_soc_pct": round(reserve_pct, 2),
                     },
                     coordinator=coordinator,
                 )
