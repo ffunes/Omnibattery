@@ -14,6 +14,8 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import pytest
+
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import PREDICTIVE_MODE_DYNAMIC_PRICING
 from custom_components.omnibattery.pricing import PriceSlot
@@ -840,3 +842,28 @@ def test_floor_below_the_band_charges_even_when_the_fleet_gap_is_small():
     assert decision["should_charge"] is True
     assert not decision.get("chronological_deferred")
     assert decision["active_slot_energy_target_kwh"] > 0.4
+
+
+def test_floor_lifts_the_margin_only_for_the_floor_energy():
+    # #724: 25% at 01:00 drains about 1.25 kWh past the 12% cutoff before
+    # sunrise; the 20% floor adds 0.41 kWh on top. Only those 0.41 kWh may be
+    # bought above the 0.35 arbitrage ceiling.
+    now = datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ)
+    slots = [
+        PriceSlot(now + timedelta(hours=h), now + timedelta(hours=h + 1), 0.50)
+        for h in range(5)
+    ]
+    decision = {
+        "should_charge": True,
+        "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+        "energy_deficit_kwh": 1.25,
+        "planned_grid_charge_kwh": 1.25,
+        "excluded_demand_claim_kwh": 0.0,
+    }
+
+    plan = _floor_manager(25.0)._build_chronological_plan(
+        now=now, slots=slots, decision_data=decision, price_ceiling=0.35
+    )
+
+    assert decision["floor_active"] is True
+    assert plan.allocated_kwh == pytest.approx((20.0 - 12.0) / 100.0 * _FLOOR_CAP, abs=0.02)

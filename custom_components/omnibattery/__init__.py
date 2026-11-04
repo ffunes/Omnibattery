@@ -5432,6 +5432,7 @@ class ChargeDischargeController:
                 # Consumers (the per-battery stop target) need to know the floor
                 # is the binding constraint here too, not only in the balanced
                 # branch below.
+                "floor_deficit_kwh": floor_deficit_kwh,
                 "floor_active": (
                     floor_deficit_kwh > 0
                     and floor_deficit_kwh > avg_consumption_kwh - total_available_kwh
@@ -5537,6 +5538,7 @@ class ChargeDischargeController:
             "days_in_history": days_in_history,
             "solar_surplus_kwh": solar_surplus_kwh,
             "floor_active": floor_active,
+            "floor_deficit_kwh": floor_deficit_kwh,
             "weekly_full_charge_active": weekly_active,
             "consumption_scope": consumption_scope,
             "consumption_forecast_source": (

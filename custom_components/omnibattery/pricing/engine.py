@@ -2995,6 +2995,20 @@ class PricingManager:
                 intervals, usable, usable_capacity_kwh=usable + headroom
             )
             required = max(0.0, float(decision_data.get("planned_grid_charge_kwh", 0.0) or 0.0))
+            # Only guaranteed-floor energy may skip the arbitrage margin (#724):
+            # the reactive under-floor gap beyond the ordinary deficit, or the
+            # planner's floor requirement beyond ordinary pre-sunrise depletion.
+            premium_kwh = 0.0
+            if decision_data.get("floor_active", False):
+                premium_kwh = max(
+                    0.0,
+                    float(decision_data.get("floor_deficit_kwh", 0.0) or 0.0)
+                    - max(
+                        0.0,
+                        float(decision_data.get("avg_consumption_kwh", 0.0) or 0.0)
+                        - float(decision_data.get("total_available_kwh", 0.0) or 0.0),
+                    ),
+                )
             if (
                 not diagnostic_only
                 and getattr(self._controller, "_predictive_min_soc_floor_enabled", False)
@@ -3062,6 +3076,7 @@ class PricingManager:
                 if floor_required > hysteresis_kwh or (under_band and gap > 0.0):
                     # The floor requirement dominates ordinary depletion until
                     # sunrise. Preserve later, larger ordinary requirements.
+                    ordinary_deadlines = deadlines
                     combined: list = []
                     maximum = 0.0
                     for item in sorted(
@@ -3072,6 +3087,18 @@ class PricingManager:
                             combined.append(item)
                             maximum = item.required_cumulative_kwh
                     deadlines = combined
+                    premium_kwh = max(
+                        premium_kwh,
+                        floor_required
+                        - max(
+                            (
+                                item.required_cumulative_kwh
+                                for item in ordinary_deadlines
+                                if item.deadline <= solar_start_dt
+                            ),
+                            default=0.0,
+                        ),
+                    )
                     required = max(required, floor_required)
                     decision_data["should_charge"] = True
                     decision_data["floor_active"] = True
@@ -3097,6 +3124,8 @@ class PricingManager:
                     usable_initial_kwh=usable,
                     max_price_threshold=price_ceiling,
                     deadlines=tuple(deadlines),
+                    premium_kwh=premium_kwh,
+                    premium_price_threshold=self._controller.max_price_threshold,
                 )
             )
             plan = evaluation.plan
@@ -3575,19 +3604,6 @@ class PricingManager:
                 decision_data=decision_data,
                 price_ceiling=ceiling,
             )
-            if (
-                chronological_plan is not None
-                and decision_data.get("floor_active", False)
-            ):
-                # Guaranteed-floor energy bypasses the optimization-only
-                # arbitrage margin, while the user's explicit ceiling remains
-                # authoritative.
-                chronological_plan = self._build_chronological_plan(
-                    now=eval_now,
-                    slots=slots,
-                    decision_data=decision_data,
-                    price_ceiling=self._controller.max_price_threshold,
-                )
             deficit_charging_needed = bool(decision_data.get("should_charge", False))
             if deficit_charging_needed and chronological_plan is not None:
                 deficit_kwh = float(
@@ -5078,22 +5094,6 @@ class PricingManager:
             decision_data=decision_data,
             price_ceiling=price_ceiling,
         )
-        if (
-            chronological_plan is not None
-            and decision_data.get("floor_active", False)
-        ):
-            # A battery already under its floor band is flagged by the
-            # reactive check, even after the planner's own floor window has
-            # passed. Guaranteed-floor energy bypasses the optimization-only
-            # arbitrage margin, while the user's explicit ceiling remains
-            # authoritative, as in the 00:05 evaluation.
-            price_ceiling = self._controller.max_price_threshold
-            chronological_plan = self._build_chronological_plan(
-                now=now,
-                slots=slots,
-                decision_data=decision_data,
-                price_ceiling=price_ceiling,
-            )
         if chronological_plan is not None:
             selected = [
                 allocation.slot
