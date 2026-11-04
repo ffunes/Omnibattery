@@ -117,6 +117,29 @@ async def test_configured_capacity_is_injected_for_drivers_without_nominal_capac
     assert coordinator.data["battery_total_energy"] == 5.28
 
 
+@pytest.mark.parametrize("configured,expected", [(0, 1.92), (5.28, 5.28)])
+async def test_detected_capacity_and_manual_override(configured, expected):
+    coordinator, _ = _coordinator(critical_succeeds=True)
+    coordinator.capabilities.has_nominal_capacity = False
+    coordinator.battery_capacity_kwh = configured
+    coordinator.driver.read_telemetry = AsyncMock(return_value={
+        "battery_soc": 50, "battery_total_energy": 1.92,
+    })
+    await MarstekVenusDataUpdateCoordinator._async_update_data(coordinator)
+    assert coordinator.data["battery_total_energy"] == expected
+
+
+async def test_unknown_detected_capacity_clears_previous_total():
+    coordinator, _ = _coordinator(critical_succeeds=True)
+    coordinator.capabilities.has_nominal_capacity = False
+    coordinator.data["battery_total_energy"] = 1.92
+    coordinator.driver.read_telemetry = AsyncMock(return_value={
+        "battery_soc": 50, "battery_total_energy": None,
+    })
+    await MarstekVenusDataUpdateCoordinator._async_update_data(coordinator)
+    assert coordinator.data["battery_total_energy"] is None
+
+
 def _power_limit_coordinator(
     *, version: str, device_charge: int, device_discharge: int,
     user_charge: int, user_discharge: int,

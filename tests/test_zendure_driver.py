@@ -142,6 +142,47 @@ def test_capabilities_flags():
     assert caps.has_nominal_capacity is False
 
 
+@pytest.mark.asyncio
+async def test_capacity_detected_for_solarflow_800_plus_even_with_filtered_keys():
+    report = {"properties": {"packNum": 1},
+              "packData": [{"sn": "CO4ATEST000001", "packType": 70}]}
+    drv = _driver(session=_session(get_data=report))
+    snapshot = await drv.read_telemetry(["battery_soc"])
+    assert snapshot["battery_total_energy"] == 1.92
+
+
+@pytest.mark.parametrize(("serial", "pack_type", "capacity"), [
+    ("AO00TEST", 0, 0.96), ("AO03TEST", 0, 2.4),
+    ("BO00TEST", 0, 0.96), ("BO00TEST", 70, 8.0),
+    ("CO4ATEST", 70, 1.92), ("FO00TEST", 0, 2.88),
+    ("GO00TEST", 0, 2.88), ("JO4ATEST", 0, 2.4),
+])
+def test_report_capacity_recognizes_pack_families(serial, pack_type, capacity):
+    snapshot = _driver()._snapshot_from_report({
+        "properties": {"packNum": 1},
+        "packData": [{"sn": serial, "packType": pack_type}],
+    })
+    assert snapshot["battery_total_energy"] == capacity
+
+
+def test_report_capacity_sums_mixed_packs_and_tracks_removal():
+    drv = _driver()
+    packs = [{"sn": "CO4ATEST"}, {"sn": "FO00TEST"}]
+    assert drv._snapshot_from_report({"packData": packs})["battery_total_energy"] == 4.8
+    assert drv._snapshot_from_report({"packData": packs[:1]})["battery_total_energy"] == 1.92
+
+
+@pytest.mark.parametrize("report", [
+    {}, {"packData": []}, {"packData": [{}]},
+    {"packData": [{"sn": ""}]}, {"packData": [{"sn": "C"}]},
+    {"packData": [{"sn": "CO4ATEST"}, {"sn": "UNKNOWN"}]},
+    {"packData": [{"sn": "CO4ATEST"}, {"sn": "CO4ATEST"}]},
+    {"properties": {"packNum": 2}, "packData": [{"sn": "CO4ATEST"}]},
+])
+def test_unknown_or_incomplete_capacity_is_not_guessed(report):
+    assert _driver()._snapshot_from_report(report)["battery_total_energy"] is None
+
+
 def test_capabilities_power_envelope():
     caps = _driver(max_charge=1200, max_discharge=800).capabilities
     assert caps.max_charge_power_w == 1200
@@ -540,6 +581,7 @@ async def test_read_telemetry_key_filter():
     assert {"battery_soc", "battery_power"} <= set(snap)
     extras = set(snap) - {
         "battery_soc", "battery_power", "max_charge_power", "ac_delivered_power",
+        "battery_total_energy",
     }
     assert all(re.match(r"pack\d+_", k) for k in extras)
 
@@ -667,6 +709,17 @@ async def test_apply_setpoint_confirmed_on_matching_readback():
     assert res.ok is True
     assert res.confirmed is True
     assert res.battery_power_w == 580
+
+
+@pytest.mark.parametrize("packs", [[], [{"sn": "CO4ATEST", "packType": 70}]])
+async def test_setpoint_readback_does_not_replace_configured_capacity(packs):
+    report = {"properties": {"acMode": 1, "inputLimit": 600}, "packData": packs}
+    result = await _driver(session=_session(get_data=report)).apply_setpoint(600, read_back=True)
+    assert result.confirmed is True
+    # The coordinator merges applied telemetry into its existing cache.
+    cached = {"battery_total_energy": 5.28}
+    cached.update(result.applied)
+    assert cached["battery_total_energy"] == 5.28
 
 
 async def test_apply_setpoint_unconfirmed_on_mismatched_readback():

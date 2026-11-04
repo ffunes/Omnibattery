@@ -78,6 +78,22 @@ async def test_mqtt_telemetry_uses_aggregate_values_and_inverts_wire_sign(mqtt_m
 
 
 @pytest.mark.asyncio
+async def test_polling_groups_deliver_detected_capacity(mqtt_mock):
+    driver = HoymilesMqttDriver(
+        _hass(), "MSA-capacity", max_charge_power_w=1800, max_discharge_power_w=1800
+    )
+    await driver.connect()
+    mqtt_mock.callbacks["homeassistant/sensor/MSA-capacity/device/state"](
+        SimpleNamespace(payload='{"pack_num":2}')
+    )
+    snapshot = {}
+    for group in driver.read_groups:
+        snapshot.update(await driver.read_telemetry(list(group.keys)))
+    assert snapshot["battery_total_energy"] == 4.48
+    await driver.close()
+
+
+@pytest.mark.asyncio
 async def test_mqtt_telemetry_accepts_legacy_numeric_strings(mqtt_mock):
     driver = HoymilesMqttDriver(
         _hass(), "MSA-legacy", max_charge_power_w=1800, max_discharge_power_w=1800

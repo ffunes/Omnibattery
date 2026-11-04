@@ -64,6 +64,14 @@ def test_unset_solar_sensor_does_not_crash():
     assert "Solar unavailable - conservative mode" in result["reason"]
 
 
+def test_unknown_capacity_reports_unavailable_decision():
+    ctrl = _ctrl_no_solar()
+    ctrl.coordinators[0].data["battery_total_energy"] = None
+    result = _run(ctrl)
+    assert result["should_charge"] is False
+    assert result["reason"] == "Invalid battery capacity: 0.00 kWh"
+
+
 def test_unset_solar_sensor_falls_back_to_conservative_mode():
     # 5 kWh usable (50% of 10kWh) vs 8 kWh consumption → deficit → charge.
     result = _run(_ctrl_no_solar(consumption=8.0))
