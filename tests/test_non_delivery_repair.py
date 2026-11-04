@@ -142,3 +142,36 @@ def test_a_direction_flip_does_not_restart_the_spell(repairs):
     tracker.update_repairs(object(), "entry1")
 
     assert len(repairs.created) == 1
+
+
+def test_a_direction_flip_keeps_the_reason_of_the_spell(repairs):
+    """The open spell keeps the reason it was excluded for, so the full-battery
+    sweep can still tell a charge-side spell apart and the Repair names it."""
+    coord = FakeCoordinator(name="BAT1")
+    tracker = NonResponsiveTracker(fail_threshold=3)
+    for _ in range(6):
+        tracker.record_non_delivery(coord, 2400, 235, reason="charge_non_delivery")
+    _backdate(tracker, coord, NON_DELIVERY_REPAIR_AFTER_S + 60)
+
+    tracker.clear(coord, delivering=False)
+    tracker.update_repairs(object(), "entry1")
+
+    assert tracker.last_reason(coord) == "charge_non_delivery"
+    assert tracker.batteries[coord]["fail_count"] == 0
+    assert repairs.created[0][1]["translation_placeholders"]["reason"] == (
+        "charge_non_delivery"
+    )
+
+
+def test_a_direction_flip_without_a_spell_forgets_the_reason():
+    """Fails that never led to an exclusion leave no spell open, so a flip
+    resets them completely, reason included."""
+    coord = FakeCoordinator(name="BAT1")
+    tracker = NonResponsiveTracker(fail_threshold=3)
+    tracker.record_non_delivery(coord, 2400, 235, reason="charge_non_delivery")
+    tracker.record_non_delivery(coord, 2400, 235, reason="charge_non_delivery")
+
+    tracker.clear(coord, delivering=False)
+
+    assert tracker.last_reason(coord) == ""
+    assert tracker.batteries[coord]["fail_count"] == 0
