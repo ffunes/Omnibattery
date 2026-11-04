@@ -83,7 +83,9 @@ jobs:
             two files), reproducible with a unit test without hardware, no config/storage migration, no change to
             control behaviour beyond the bug. Comment: a brief acknowledgement that a fix is being prepared.
           - "maintainer": everything else (feature requests, hardware/firmware behaviour, PD tuning, broad or
-            unclear bugs, anything you are not certain of). No comment.
+            unclear bugs, anything you are not certain of). Comment: notes for the maintainer, in Spanish, wrapped in
+            <details><summary>Notas de triaje para el mantenedor</summary> ... </details>: diagnosis so far (file:line),
+            what is uncertain, and what the maintainer has to decide, test or ask. No automated-answer line.
 
           Comments: in the reporter's language, brief and direct, no filler. End every comment with one line, in
           that language, saying it is an automated answer and that replying brings in the maintainer.
@@ -128,7 +130,7 @@ jobs:
           if action != "needs_info":
               gh("edit", "--remove-label", "needs-info", check=False)
           gh("edit", "--remove-label", "claude:triage", check=False)
-          if comment and action != "maintainer":
+          if comment:
               gh("comment", "--body", comment)
           gh("edit", "--add-label", labels)
           if action == "config":
