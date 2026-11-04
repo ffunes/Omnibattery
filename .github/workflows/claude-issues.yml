@@ -83,8 +83,8 @@ jobs:
             two files), reproducible with a unit test without hardware, no config/storage migration, no change to
             control behaviour beyond the bug. Comment: a brief acknowledgement that a fix is being prepared.
           - "maintainer": everything else (feature requests, hardware/firmware behaviour, PD tuning, broad or
-            unclear bugs, anything you are not certain of). Comment: notes for the maintainer, in Spanish, wrapped in
-            <details><summary>Notas de triaje para el mantenedor</summary> ... </details>: diagnosis so far (file:line),
+            unclear bugs, anything you are not certain of). Comment: notes for the maintainer, in English, wrapped in
+            <details><summary>Triage notes for the maintainer</summary> ... </details>: diagnosis so far (file:line),
             what is uncertain, and what the maintainer has to decide, test or ask. No automated-answer line.
 
           Comments: in the reporter's language, brief and direct, no filler. End every comment with one line, in
