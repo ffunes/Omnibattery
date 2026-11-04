@@ -6,7 +6,7 @@
     },
     "battery_not_delivering": {
       "title": "La batería {battery} no entrega potencia",
-      "description": "{battery} lleva {minutes} minutos aceptando órdenes de carga/descarga sin entregar potencia ({reason}). Omnibattery la mantiene fuera del reparto y la reintenta cada {cooldown} minutos, así que el resto de la flota cubre la casa mientras tanto. Hay que revisar la batería, su enlace Modbus o el puente que tenga delante: comprueba que no esté en espera bajo el control de su propia app y que la conexión no esté saturada. Activar y desactivar el Control Manual de esa batería suele recuperarla."
+      "description": "{battery} lleva {minutes} minutos aceptando órdenes de carga/descarga sin entregar potencia ({reason}). Omnibattery la mantiene fuera del reparto y la reintenta cada {cooldown} minutos, así que el resto de la flota cubre la casa mientras tanto. Hay que revisar la batería o su conexión: comprueba que no esté en espera bajo el control de su propia app y que la conexión no esté saturada. Activar y desactivar el Control Manual de esa batería suele recuperarla."
     },
     "configured_sensor_missing": {
       "title": "Un sensor configurado ya no existe",

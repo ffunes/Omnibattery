@@ -6,7 +6,7 @@
     },
     "battery_not_delivering": {
       "title": "Batterie {battery} liefert keine Leistung",
-      "description": "{battery} nimmt seit {minutes} Minuten Lade-/Entladebefehle an, ohne Leistung zu liefern ({reason}). Omnibattery hält sie aus der Verteilung heraus und versucht es alle {cooldown} Minuten erneut, sodass der Rest der Flotte das Haus in der Zwischenzeit versorgt. Die Batterie selbst, ihre Modbus-Verbindung oder die Bridge davor braucht Aufmerksamkeit: Prüfe, ob sie nicht unter der Kontrolle ihrer eigenen App im Standby steht und ob die Verbindung nicht überlastet ist. Die manuelle Batteriesteuerung für diese Batterie ein- und wieder auszuschalten stellt sie oft wieder her."
+      "description": "{battery} nimmt seit {minutes} Minuten Lade-/Entladebefehle an, ohne Leistung zu liefern ({reason}). Omnibattery hält sie aus der Verteilung heraus und versucht es alle {cooldown} Minuten erneut, sodass der Rest der Flotte das Haus in der Zwischenzeit versorgt. Die Batterie selbst oder ihre Verbindung braucht Aufmerksamkeit: Prüfe, ob sie nicht unter der Kontrolle ihrer eigenen App im Standby steht und ob die Verbindung nicht überlastet ist. Die manuelle Batteriesteuerung für diese Batterie ein- und wieder auszuschalten stellt sie oft wieder her."
     },
     "configured_sensor_missing": {
       "title": "Konfigurierter Sensor existiert nicht mehr",

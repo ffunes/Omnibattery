@@ -6,7 +6,7 @@
     },
     "battery_not_delivering": {
       "title": "La bateria {battery} no lliura potència",
-      "description": "{battery} fa {minutes} minuts que accepta ordres de càrrega/descàrrega sense lliurar potència ({reason}). Omnibattery la manté fora del repartiment i la reintenta cada {cooldown} minuts, de manera que la resta de la flota cobreix la casa mentrestant. Cal revisar la bateria, el seu enllaç Modbus o el pont que tingui al davant: comprova que no estigui en espera sota el control de la seva pròpia aplicació i que la connexió no estigui saturada. Activar i desactivar el Control Manual d'aquesta bateria sovint la recupera."
+      "description": "{battery} fa {minutes} minuts que accepta ordres de càrrega/descàrrega sense lliurar potència ({reason}). Omnibattery la manté fora del repartiment i la reintenta cada {cooldown} minuts, de manera que la resta de la flota cobreix la casa mentrestant. Cal revisar la bateria o la seva connexió: comprova que no estigui en espera sota el control de la seva pròpia aplicació i que la connexió no estigui saturada. Activar i desactivar el Control Manual d'aquesta bateria sovint la recupera."
     },
     "configured_sensor_missing": {
       "title": "Un sensor configurat ja no existeix",

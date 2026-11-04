@@ -6,7 +6,7 @@
     },
     "battery_not_delivering": {
       "title": "Batterij {battery} levert geen vermogen",
-      "description": "{battery} neemt al {minutes} minuten laad-/ontlaadopdrachten aan zonder vermogen te leveren ({reason}). Omnibattery houdt hem buiten de verdeling en probeert het elke {cooldown} minuten opnieuw, zodat de rest van de vloot het huis ondertussen dekt. De batterij zelf, zijn Modbus-verbinding of de bridge ervoor heeft aandacht nodig: controleer of hij niet in stand-by staat onder besturing van zijn eigen app en of de verbinding niet verzadigd is. Handmatige batterijbesturing voor die batterij aan- en weer uitzetten herstelt hem vaak."
+      "description": "{battery} neemt al {minutes} minuten laad-/ontlaadopdrachten aan zonder vermogen te leveren ({reason}). Omnibattery houdt hem buiten de verdeling en probeert het elke {cooldown} minuten opnieuw, zodat de rest van de vloot het huis ondertussen dekt. De batterij zelf of de verbinding ermee heeft aandacht nodig: controleer of hij niet in stand-by staat onder besturing van zijn eigen app en of de verbinding niet overbelast is. Handmatige batterijbesturing voor die batterij aan- en weer uitzetten herstelt hem vaak."
     },
     "configured_sensor_missing": {
       "title": "Geconfigureerde sensor bestaat niet meer",

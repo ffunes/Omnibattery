@@ -10,7 +10,10 @@ must not restart the clock either.
 """
 from __future__ import annotations
 
+import json
+import re
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from homeassistant.util import dt as dt_util
@@ -87,6 +90,30 @@ def test_a_spell_past_the_threshold_raises_a_repair(repairs):
     # Idempotent: a second cycle must not re-raise it.
     tracker.update_repairs(object(), "entry1")
     assert len(repairs.created) == 1
+
+
+def test_the_repair_text_fits_every_battery_in_every_language(repairs):
+    """Each language fills in what the tracker passes and names no protocol.
+
+    The Repair is raised for every brand, over Modbus, HTTP or MQTT alike, so
+    its advice speaks of the battery's connection rather than of one protocol.
+    """
+    coord = FakeCoordinator(name="BAT1")
+    tracker = _excluded_tracker(coord)
+    _backdate(tracker, coord, NON_DELIVERY_REPAIR_AFTER_S + 60)
+    tracker.update_repairs(object(), "entry1")
+    passed = set(repairs.created[0][1]["translation_placeholders"])
+
+    component = Path("custom_components/omnibattery")
+    for path in [component / "strings.json"] + sorted(
+        (component / "translations").glob("*.json")
+    ):
+        text = json.loads(path.read_text(encoding="utf-8"))
+        description = text["issues"]["battery_not_delivering"]["description"]
+
+        assert set(re.findall(r"\{(\w+)\}", description)) == passed, path.name
+        for protocol in ("Modbus", "HTTP", "MQTT"):
+            assert protocol not in description, (path.name, protocol)
 
 
 def test_delivering_again_resolves_the_repair(repairs):

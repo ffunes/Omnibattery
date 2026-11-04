@@ -6,7 +6,7 @@
     },
     "battery_not_delivering": {
       "title": "La batterie {battery} ne délivre pas de puissance",
-      "description": "{battery} accepte des ordres de charge/décharge depuis {minutes} minutes sans délivrer de puissance ({reason}). Omnibattery la garde hors de la répartition et la réessaie toutes les {cooldown} minutes, le reste du parc couvre donc la maison entre-temps. La batterie elle-même, sa liaison Modbus ou la passerelle en amont demande une vérification : contrôlez qu'elle n'est pas en veille sous le contrôle de sa propre application et que la connexion n'est pas saturée. Activer puis désactiver le contrôle manuel de cette batterie la rétablit souvent."
+      "description": "{battery} accepte des ordres de charge/décharge depuis {minutes} minutes sans délivrer de puissance ({reason}). Omnibattery la garde hors de la répartition et la réessaie toutes les {cooldown} minutes, le reste du parc couvre donc la maison entre-temps. La batterie elle-même ou sa connexion demande une vérification : contrôlez qu'elle n'est pas en veille sous le contrôle de sa propre application et que la connexion n'est pas saturée. Activer puis désactiver le contrôle manuel de cette batterie la rétablit souvent."
     },
     "configured_sensor_missing": {
       "title": "Un capteur configuré n'existe plus",

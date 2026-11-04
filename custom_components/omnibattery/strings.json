@@ -6,7 +6,7 @@
     },
     "battery_not_delivering": {
       "title": "Battery {battery} is not delivering power",
-      "description": "{battery} has been accepting charge/discharge commands without delivering power for {minutes} minutes ({reason}). Omnibattery keeps it out of the pool and retries it every {cooldown} minutes, so the rest of the fleet covers the house meanwhile. The battery itself, its Modbus link or the bridge in front of it needs attention: check that it is not sitting in standby under its own app's control, and that the connection is not saturated. Switching Manual Battery Control on and off again for that battery often restores it."
+      "description": "{battery} has been accepting charge/discharge commands without delivering power for {minutes} minutes ({reason}). Omnibattery keeps it out of the pool and retries it every {cooldown} minutes, so the rest of the fleet covers the house meanwhile. The battery itself or its connection needs attention: check that it is not sitting in standby under its own app's control, and that the connection is not saturated. Switching Manual Battery Control on and off again for that battery often restores it."
     },
     "configured_sensor_missing": {
       "title": "Configured sensor no longer exists",
