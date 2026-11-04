@@ -26,6 +26,7 @@
 - **Panel: Net balance showed a green "+0.00 kWh" while hourly balance was off**: it now shows "Disabled". Thanks to @tkaspersNL.
 - **Zendure/Hoymiles: 0 kWh capacity failed to save** (#675): 0 now means automatic detection (Zendure from its packs); a positive value still overrides it. Thanks to @thomasvt1.
 - **Panel: daily-operation tooltip showed "Source" twice** for unmeasured quarters. Thanks to @tkaspersNL.
+- **Chronological plan counted all solar as battery charge in no-discharge slots** (#616): in fleet-wide no-discharge time slots and price-blocked discharge hours, the projection now credits only the solar left after household load, so the projected SOC is no longer overstated and needed grid charging is planned. Thanks to @iwanvandaele.
 
 ### Added
 
