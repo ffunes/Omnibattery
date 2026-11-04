@@ -283,6 +283,42 @@ def _duration_hours(start: datetime, end: datetime) -> float:
     return max(0.0, (end - start).total_seconds() / 3600.0)
 
 
+def _unclipped_room(
+    intervals: Sequence[EnergyInterval],
+    usable_initial_kwh: float,
+    capacity: float,
+    allocations: dict[PriceSlot, float],
+    slot: PriceSlot,
+) -> float:
+    """Energy ``slot`` can still add without a later full point clipping it.
+
+    Energy charged ahead of a projected solar fill is exported, not stored
+    (#704).  A projected deficit after the slot uses up part of the extra
+    energy first, which widens the room at every later full point.
+    """
+    energy = min(_finite_non_negative(usable_initial_kwh), capacity)
+    pending = sorted(allocations.items(), key=lambda item: item[0].end)
+    index = 0
+    room: float | None = None
+    absorbed = 0.0
+    for interval in intervals:
+        # Same timing as ``simulate_allocations``: energy lands in the
+        # interval its slot ends in, and is clipped after that interval's flow.
+        while index < len(pending) and pending[index][0].end <= interval.end:
+            energy += pending[index][1]
+            index += 1
+        if room is None and slot.end <= interval.end:
+            room = math.inf
+        energy = min(capacity, energy + interval.solar_kwh - interval.consumption_kwh)
+        if energy < 0.0:
+            if room is not None:
+                absorbed -= energy
+            energy = 0.0
+        if room is not None:
+            room = min(room, absorbed + capacity - energy)
+    return max(0.0, capacity - energy if room is None else room)
+
+
 def allocate_price_slots(
     intervals: Iterable[EnergyInterval],
     deadlines: Iterable[EnergyDeadline],
@@ -384,7 +420,21 @@ def allocate_price_slots(
         )
     deadline_required = min(required, sum(segment_required.values()))
 
+    # Energy charged ahead of a projected solar fill is clipped, not stored, so
+    # it saves no import (#704).  Only guaranteed-floor energy, needed at its
+    # deadline whatever happens after, is exempt.
+    def room(slot: PriceSlot, free: float) -> float:
+        return min(
+            free,
+            _unclipped_room(
+                intervals, usable_initial_kwh, usable_capacity, allocations, slot
+            ),
+        )
+
+    segment_unusable: dict[datetime, float] = {}
     for deadline in deadlines:
+        clip = deadline.kind != "guaranteed_floor"
+        blocked = 0.0
         start = allocation_start(deadline.deadline)
         allocated_before_segment = sum(
             amount
@@ -392,7 +442,7 @@ def allocate_price_slots(
             if slot.end <= start
         )
         cumulative_target = min(
-            deadline.required_cumulative_kwh,
+            deadline.required_cumulative_kwh - segment_unusable.get(start, 0.0),
             max(0.0, required - allocated_before_segment),
         )
         already = sum(
@@ -419,7 +469,9 @@ def allocate_price_slots(
                 0.0,
                 capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
             )
-            take = min(missing, free)
+            usable = room(slot, free) if clip else free
+            blocked += free - usable
+            take = min(missing, usable)
             if take <= _EPSILON:
                 continue
             allocations[slot] = allocations.get(slot, 0.0) + take
@@ -442,7 +494,9 @@ def allocate_price_slots(
                 0.0,
                 capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
             )
-            take = min(missing, free, premium_budget)
+            usable = room(slot, free) if clip else free
+            blocked += free - usable
+            take = min(missing, usable, premium_budget)
             if take <= _EPSILON:
                 continue
             allocations[slot] = allocations.get(slot, 0.0) + take
@@ -454,16 +508,26 @@ def allocate_price_slots(
             premium_budget -= take
             if missing <= _EPSILON or premium_budget <= _EPSILON:
                 break
-        deadline_shortfall = max(deadline_shortfall, missing)
+        # More slot capacity would not help clipped energy: it is unusable,
+        # not a shortfall.
+        cut = min(missing, blocked)
+        segment_unusable[start] = segment_unusable.get(start, 0.0) + cut
+        deadline_shortfall = max(deadline_shortfall, missing - cut)
+    unusable = sum(segment_unusable.values())
+    required = max(0.0, required - unusable)
+    deadline_required = max(0.0, deadline_required - unusable)
 
     flexible_required = max(0.0, required - deadline_required)
     # A missed deadline is intentionally not relabelled as flexible work.  It
     # remains a chronological shortfall instead of being made to look covered
     # by energy delivered after the need occurred.
     missing_total = flexible_required
+    blocked = 0.0
     for slot in sorted(candidates, key=lambda item: (item.price, item.start)):
         free = max(0.0, capacity(slot) - allocations.get(slot, 0.0))
-        take = min(missing_total, free)
+        usable = room(slot, free)
+        blocked += free - usable
+        take = min(missing_total, usable)
         if take <= _EPSILON:
             continue
         allocations[slot] = allocations.get(slot, 0.0) + take
@@ -473,7 +537,9 @@ def allocate_price_slots(
             break
     for slot in sorted(premium_candidates, key=lambda item: (item.price, item.start)):
         free = max(0.0, capacity(slot) - allocations.get(slot, 0.0))
-        take = min(missing_total, free, premium_budget)
+        usable = room(slot, free)
+        blocked += free - usable
+        take = min(missing_total, usable, premium_budget)
         if take <= _EPSILON:
             continue
         allocations[slot] = allocations.get(slot, 0.0) + take
@@ -482,6 +548,9 @@ def allocate_price_slots(
         premium_budget -= take
         if missing_total <= _EPSILON or premium_budget <= _EPSILON:
             break
+    cut = min(missing_total, blocked)
+    required -= cut
+    flexible_required -= cut
 
     result_allocations = [
         SlotAllocation(
