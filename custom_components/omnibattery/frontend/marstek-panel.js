@@ -2171,6 +2171,9 @@ class MarstekVenusPanel extends HTMLElement {
         const s = this._watts(get(mk));
         if (s != null) mpptW = (mpptW || 0) + s;
       }
+      // Only per-MPPT PV is added to cell power. Anker Solarbank 4's ac_power is
+      // the negated pack power, which already includes PV (#738).
+      const cellMpptW = mpptW;
       // Some batteries (Anker Solarbank 4) publish only the aggregate DC PV
       // value. It uses the same canonical translation key as the Venus total,
       // so it can fill the per-battery model without inventing MPPT channels.
@@ -2191,7 +2194,7 @@ class MarstekVenusPanel extends HTMLElement {
       const invBackup = /backup/i.test(this._sval(get(K.inverterState)) || "");
       const cellAcoW = invBackup ? acoW || 0 : 0;
       const powerW =
-        acW != null ? -acW - cellAcoW + (mpptW || 0) : battPwrW;
+        acW != null ? -acW - cellAcoW + (cellMpptW || 0) : battPwrW;
       batteries.push({
         dev,
         soc: this._num(socObj),
