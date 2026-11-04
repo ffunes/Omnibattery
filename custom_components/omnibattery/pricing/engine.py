@@ -1491,17 +1491,19 @@ class PricingManager:
             for slot in keep
         )
         if keep:
-            schedule.average_price = sum(slot.price for slot in keep) / len(keep)
             effective_power_kw = min(
                 self._contracted_charge_ceiling(),
                 float(getattr(self._controller, "max_charge_capacity", 0.0)),
             ) / 1000.0
-            schedule.estimated_cost = sum(
-                slot.price
-                * effective_power_kw
-                * max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
-                for slot in keep
+            targets = (
+                getattr(schedule, "slot_energy_targets_kwh", {}) or {}
+                if getattr(schedule, "chronological_planning_active", False)
+                else {}
             )
+            (
+                schedule.average_price,
+                schedule.estimated_cost,
+            ) = calculations.schedule_price_summary(keep, effective_power_kw, targets)
         if not keep:
             self._controller._dynamic_pricing_schedule = None
 
@@ -3815,17 +3817,22 @@ class PricingManager:
             self._build_curtailment_plan(slots, selected, now=now)
 
         # Step 4: Build schedule
-        avg_price = sum(s.price for s in selected) / len(selected)
         effective_power_kw = min(self._contracted_charge_ceiling(), self._controller.max_charge_capacity) / 1000.0
         selected_hours = sum(
             max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
             for slot in selected
         )
-        estimated_cost = sum(
-            slot.price
-            * effective_power_kw
-            * max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
-            for slot in selected
+        avg_price, estimated_cost = calculations.schedule_price_summary(
+            selected,
+            effective_power_kw,
+            (
+                {
+                    allocation.slot: allocation.planned_battery_kwh
+                    for allocation in chronological_plan.allocations
+                }
+                if chronological_plan is not None
+                else None
+            ),
         )
         opportunity_selected = bool(negative_price_selected)
         charging_needed = deficit_charging_needed or opportunity_selected

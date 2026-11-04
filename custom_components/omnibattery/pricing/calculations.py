@@ -500,6 +500,41 @@ def calculate_planned_grid_charge_kwh(
     return min(headroom, deficit)
 
 
+def schedule_price_summary(
+    slots: list,
+    effective_power_kw: float,
+    slot_energy_targets_kwh: dict | None = None,
+) -> tuple[float, float]:
+    """Return ``(average_price, estimated_cost)`` for selected slots.
+
+    When the chronological planner assigned per-slot energy, cost and average
+    are weighted by that planned energy: slots without an allocation carry no
+    energy and contribute nothing (#715).  Without a plan, each slot is assumed
+    to run at full power for its whole duration.
+    """
+    if not slots:
+        return 0.0, 0.0
+    plain_average = sum(slot.price for slot in slots) / len(slots)
+    targets = slot_energy_targets_kwh or {}
+    if not targets:
+        power_kw = max(0.0, effective_power_kw)
+        cost = sum(
+            slot.price
+            * power_kw
+            * max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
+            for slot in slots
+        )
+        return plain_average, cost
+    energy = {
+        slot: max(0.0, float(targets.get(slot, 0.0) or 0.0)) for slot in slots
+    }
+    total_kwh = sum(energy.values())
+    cost = sum(slot.price * kwh for slot, kwh in energy.items())
+    if total_kwh > 0:
+        return cost / total_kwh, cost
+    return plain_average, cost
+
+
 def select_cheapest_blocks(slots: list, hours_needed: float, slot_duration_h: float) -> list:
     """Select cheapest slots using a block strategy for sub-hourly granularity.
 
