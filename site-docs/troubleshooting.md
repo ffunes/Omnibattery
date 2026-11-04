@@ -72,8 +72,10 @@ The battery may be idle by design when the grid is already near target. If house
 
 ## Grid meter is unavailable or frozen
 
-!!! warning "An unavailable meter can leave the last battery command active"
-    When the grid sensor becomes `unavailable` or `unknown`, the control loop sends no new command. A battery can therefore continue at its last requested power — for example 2000 W discharge — until meter data returns. There is no automatic timeout that ramps the battery to idle; only SOC and other safety limits still apply.
+!!! warning "A silent meter stops automatic control after 5 minutes"
+    When the grid sensor becomes `unavailable` or `unknown`, or stops updating, the control loop no longer follows the house load, and a battery can continue at its last requested power, for example 2000W of discharge. After 5 minutes without a valid reading, Omnibattery raises a Home Assistant Repair and sets every battery under automatic control to 0W. Manual mode and manual time slots are left as they are, and predictive grid charging is paused. Automatic control resumes by itself as soon as the sensor publishes a valid reading again.
+
+    The same applies when the sensor never reports after a Home Assistant restart. After a crash or a power cut, a battery can still be running its last command from before the restart; the 5 minutes then count from when Home Assistant has finished starting.
 
 | Likely cause | What to check | Action |
 |---|---|---|

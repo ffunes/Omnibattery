@@ -98,6 +98,7 @@ def _main_controller(state_holder, pd_calls):
         _try_apply_manual_slot=_async_noop,
         _phase_safety_pending=False,
         _max_soc_mgr=SimpleNamespace(handle_measurement=_max_soc_measurement),
+        _apply_dead_meter_fallback=_async_false,
         predictive_charging_enabled=False,
         previous_power=-400.0,
         previous_sensor=None,

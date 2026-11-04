@@ -50,7 +50,7 @@ Un pronóstico solar del resto del día estará disponible para predecir la carg
 ??? "Detalles avanzados"
     **Cadencia del medidor y datos obsoletos**
 
-    El controlador vuelve a calcular cada vez que el sensor de red publica. También se ejecuta un ciclo de seguridad cada 2 segundos. Se recomienda un intervalo de actualización de 1 a 2 segundos; Los intervalos de 10 segundos o más activan una reparación de Home Assistant después de 3 informes lentos consecutivos. La reparación se borra después de 20 intervalos consecutivos más rápidos. La última lectura sigue teniendo autoridad hasta que tenga más de 65 segundos.
+    El controlador vuelve a calcular cada vez que el sensor de red publica. También se ejecuta un ciclo de seguridad cada 2 segundos. Se recomienda un intervalo de actualización de 1 a 2 segundos; Los intervalos de 10 segundos o más activan una reparación de Home Assistant después de 3 informes lentos consecutivos. La reparación se borra después de 20 intervalos consecutivos más rápidos. La última lectura sigue teniendo autoridad hasta que tenga más de 65 segundos. Tras 5 minutos sin una lectura válida, incluido un sensor que no publica nada tras un reinicio, Omnibattery crea una reparación y detiene el control automático a 0W hasta que el sensor vuelva a publicar; consulta [El medidor de red no está disponible o está bloqueado](../troubleshooting.md#el-medidor-de-red-no-esta-disponible-o-esta-bloqueado).
 
     La demanda del hogar puede cambiar en varios kilovatios entre lecturas lentas, por lo que el controlador puede responder a una carga que ya ha cambiado.
 

@@ -14,7 +14,11 @@
     },
     "dead_main_sensor": {
       "title": "Grid power sensor has stopped publishing",
-      "description": "The configured grid sensor {sensor} has not published a reading for {minutes} minutes. Omnibattery cannot regulate without it, so it is holding its last command of {power} W: past the stale tolerance the controller stops integrating new corrections rather than acting on a reading it knows is old. Charge and discharge limits, SOC blockers and three-phase protection all still apply, so this is not a runaway, but the batteries keep charging or discharging at that fixed power against a house load nobody is reading, until an SOC limit stops them. Note that a sensor frozen on a valid value looks perfectly healthy in Home Assistant: check that {sensor} still updates, and that the integration or bridge behind it has not wedged."
+      "description": "The configured grid sensor {sensor} has not published a reading for {minutes} minutes. Omnibattery cannot regulate without it, so it has stopped automatic control: every battery under automatic control is set to 0W (the last command was {power}W) and predictive grid charging is paused. Manual mode and manual time slots are left as they are. Automatic control resumes by itself as soon as {sensor} publishes a valid reading again. Note that a sensor frozen on a valid value looks perfectly healthy in Home Assistant: check that {sensor} still updates, and that the integration or bridge behind it has not wedged."
+    },
+    "dead_main_sensor_since_start": {
+      "title": "Grid power sensor has not reported since the restart",
+      "description": "The configured grid sensor {sensor} has not published a valid reading in the {minutes} minutes since Home Assistant started. Omnibattery cannot regulate without it. If Home Assistant did not shut down cleanly, a battery can still be running its last command from before the restart, so Omnibattery has stopped automatic control: every battery under automatic control is set to 0W and predictive grid charging is paused. Manual mode and manual time slots are left as they are. Automatic control starts by itself as soon as {sensor} publishes a valid reading. Check that {sensor} exists and updates, and that the integration or device behind it came back after the restart."
     },
     "slow_main_sensor": {
       "title": "Grid power sensor updates too slowly",

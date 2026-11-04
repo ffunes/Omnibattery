@@ -915,6 +915,7 @@ def test_price_publication_reeval_never_runs_outside_dynamic_pricing_mode():
         _refresh_operation_blockers=lambda: None,
         _try_apply_manual_slot=_async_noop,
         _max_soc_mgr=SimpleNamespace(handle_measurement=_async_false),
+        _apply_dead_meter_fallback=_async_false,
         predictive_charging_enabled=True,
         predictive_charging_mode=PREDICTIVE_MODE_TIME_SLOT,
         # grid_charging_active True makes whichever branch runs return right
