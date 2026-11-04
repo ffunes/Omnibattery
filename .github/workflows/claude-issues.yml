@@ -3,7 +3,7 @@ name: Claude issue automation
 # Triage every new issue, and auto-fix the narrow, reproducible bugs.
 # Claude never gets GitHub write access: it reads the repo and returns a JSON
 # decision or a patch; only steps that never run repo code hold a GitHub token.
-# The owner can also force a fix by adding the `claude:fix` label.
+# The owner can re-run triage with the `claude:triage` label, or force a fix with `claude:fix`.
 
 on:
   issues:
@@ -19,14 +19,17 @@ permissions: {}
 
 jobs:
   triage:
-    # A new issue from someone else, or its reporter answering a needs-info request.
+    # A new issue from someone else, its reporter answering a needs-info request,
+    # or the owner adding the `claude:triage` label to any issue.
     if: >-
       github.event.issue.pull_request == null &&
-      github.event.issue.user.login != github.repository_owner &&
-      (github.event.action == 'opened' ||
-       (github.event_name == 'issue_comment' &&
-        github.event.comment.user.login == github.event.issue.user.login &&
-        contains(github.event.issue.labels.*.name, 'needs-info')))
+      ((github.event.issue.user.login != github.repository_owner &&
+        (github.event.action == 'opened' ||
+         (github.event_name == 'issue_comment' &&
+          github.event.comment.user.login == github.event.issue.user.login &&
+          contains(github.event.issue.labels.*.name, 'needs-info')))) ||
+       (github.event.action == 'labeled' && github.event.label.name == 'claude:triage' &&
+        github.event.sender.login == github.repository_owner))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -122,6 +125,7 @@ jobs:
               labels += "," + d["type"]
           if action != "needs_info":
               gh("edit", "--remove-label", "needs-info", check=False)
+          gh("edit", "--remove-label", "claude:triage", check=False)
           if comment and action != "maintainer":
               gh("comment", "--body", comment)
           gh("edit", "--add-label", labels)
