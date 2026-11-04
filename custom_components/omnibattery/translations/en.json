@@ -1,5 +1,9 @@
 {
   "issues": {
+    "recorder_excluded_sensors": {
+      "title": "Sensors excluded from Recorder",
+      "description": "Recorder excludes these sensors used by Omnibattery to recover solar and household consumption profiles: {sensors}. Include them in Recorder by adjusting its include/exclude rules, then restart Home Assistant to apply the configuration. The warning clears automatically once they are included. Missing past samples cannot be recovered; live learning and existing stored profiles continue to work."
+    },
     "excluded_device_ev_type": {
       "title": "Mark your EV charger among excluded devices",
       "description": "The new energy-flow diagram (switch it on with the button in the flow card header) draws EV chargers on their own cable, next to the car. Omnibattery cannot tell which excluded device is the EV charger, so until you mark it, its power is shown on the other excluded-devices cable (the outdoor unit) and the EV cable stays empty. Open Options → Excluded devices and save your devices again, ticking \"EV charger\" on the charger (leave it unticked on the others). This only affects how the diagram is drawn, not battery control. The notice disappears once the devices have been saved."

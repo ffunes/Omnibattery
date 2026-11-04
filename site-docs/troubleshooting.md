@@ -5,6 +5,20 @@ Start with what you can see in Home Assistant. **Integration Status** and its bl
 !!! note "Marstek app compatibility"
     You do not need to change anything in the Marstek app for Omnibattery to work, including its energy meter setting. Once Omnibattery is running, do not change the operating mode or a setting from the Marstek app: doing so breaks compatibility until you disable and re-enable the integration.
 
+## Forecast history is missing
+
+The check runs for entries with predictive charging configured (even when temporarily switched off), Charge Delay enabled, or a pending accumulator rebuild. Older entries that use none of these do not receive this warning.
+
+Omnibattery raises a **Sensors excluded from Recorder** warning in **Settings → System → Repairs** when Recorder excludes a sensor used to recover learned profiles:
+
+- The integration's **Home Consumption** power sensor (including renamed entities).
+- The configured **Solar Production** power sensor while solar profile learning is enabled.
+- Enabled excluded/additional-device power sensors, except devices configured without telemetry.
+
+Update Recorder's include/exclude rules so the listed entities are recorded, then restart Home Assistant to apply the Recorder configuration. The warning clears when those entities are included again; Omnibattery checks after startup and every five minutes. Recording new data does not restore samples that were never saved. Live learning continues, and existing stored profiles are retained.
+
+The check uses Recorder's effective filter, including domain and wildcard rules. It does not diagnose database failures, paused recording, retention gaps, or insufficient history. A newly included sensor with no history is not treated as excluded. The provider's forecast energy sensor is read live and does not need Recorder history for forecasting.
+
 ## Battery does nothing
 
 The battery may be idle by design when the grid is already near target. If household load changes and the battery still neither charges nor discharges, use this table.

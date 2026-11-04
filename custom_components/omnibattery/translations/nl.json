@@ -1,5 +1,9 @@
 {
   "issues": {
+    "recorder_excluded_sensors": {
+      "title": "Sensoren uitgesloten van Recorder",
+      "description": "Recorder sluit deze sensoren uit die Omnibattery gebruikt om zonne- en huishoudelijke verbruiksprofielen te herstellen: {sensors}. Pas de include/exclude-regels van Recorder aan zodat deze sensoren worden opgenomen en herstart Home Assistant om de configuratie toe te passen. De waarschuwing verdwijnt automatisch zodra ze worden opgenomen. Ontbrekende historische metingen kunnen niet worden hersteld; live leren en bestaande opgeslagen profielen blijven werken."
+    },
     "excluded_device_ev_type": {
       "title": "Markeer je EV-lader bij de uitgesloten apparaten",
       "description": "Het nieuwe energiestroomdiagram (inschakelen met de knop in de kop van de stroomkaart) tekent EV-laders op een eigen kabel, naast de auto. Omnibattery kan niet weten welk uitgesloten apparaat de lader is; totdat je het markeert, wordt het vermogen ervan op de kabel van de overige uitgesloten apparaten (de buitenunit) getoond en blijft de EV-kabel leeg. Open Opties → Uitgesloten apparaten en sla je apparaten opnieuw op, met \"EV-lader\" aangevinkt bij de lader (laat het uit bij de andere). Dit heeft alleen invloed op hoe het diagram wordt getekend, niet op de batterijbesturing. De melding verdwijnt zodra de apparaten zijn opgeslagen."
