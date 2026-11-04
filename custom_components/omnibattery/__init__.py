@@ -1764,7 +1764,11 @@ class ChargeDischargeController:
                     )
                     if math.isfinite(candidate):
                         offgrid_power = candidate
-                cell_power = -ac_power - offgrid_power + direct_pv_w
+                # Only MPPT PV is added: Anker SB4's ac_power is the negated pack
+                # power, which already includes its aggregate PV (#738).
+                cell_power = -ac_power - offgrid_power + (
+                    direct_pv_w if has_mppt else 0.0
+                )
 
             measured = True
             total_power += cell_power
