@@ -196,21 +196,32 @@ class ReservePlan:
             return 0.0, [], REASON_PV_COVERS_IT
         return reserve, [slot for slot, _take in claims], REASON_RESERVED
 
-    def _expected_pv_into_battery(
+    def _pv_absorbed(
         self, now: datetime, free_space_kwh: float, available_kwh: float
-    ) -> float:
-        """Sum the PV the battery can take, by the same room as the sweep below."""
+    ):
+        """Yield ``(slot, kWh of PV the battery takes in it)`` for each slot ahead.
+
+        The battery serves each slot's demand, which is room the sun can land
+        in; what it cannot hold is exported and never pays a claim.
+        """
         room = _positive(free_space_kwh)
         ceiling = room + _positive(available_kwh)
-        total = 0.0
         for slot in self.slots:
             if slot.start < now:
                 continue
             room = min(ceiling, room + _positive(slot.net_demand_kwh))
             absorbed = min(_positive(slot.expected_surplus_kwh), room)
             room -= absorbed
-            total += absorbed
-        return total
+            yield slot, absorbed
+
+    def _expected_pv_into_battery(
+        self, now: datetime, free_space_kwh: float, available_kwh: float
+    ) -> float:
+        """Sum the PV the battery can take, by the same room as the sweep below."""
+        return sum(
+            absorbed
+            for _slot, absorbed in self._pv_absorbed(now, free_space_kwh, available_kwh)
+        )
 
     def _reserve_after_pv(
         self,
@@ -242,15 +253,11 @@ class ReservePlan:
         order as ``claims`` so the attributes can show which claim the sun paid
         for.
         """
-        room = _positive(free_space_kwh)
-        ceiling = room + _positive(available_kwh)
         stored = 0.0
         reserve = 0.0
         credits = [0.0] * len(claims)
         pending = 0
-        for slot in self.slots:
-            if slot.start < now:
-                continue
+        for slot, absorbed in self._pv_absorbed(now, free_space_kwh, available_kwh):
             while pending < len(claims) and claims[pending][0].start <= slot.start:
                 take = claims[pending][1]
                 credit = min(take, stored)
@@ -258,11 +265,6 @@ class ReservePlan:
                 reserve += take - credit
                 credits[pending] = credit
                 pending += 1
-            # The battery serves this slot's demand, which is room the sun can
-            # land in; what it cannot hold is exported and never pays a claim.
-            room = min(ceiling, room + _positive(slot.net_demand_kwh))
-            absorbed = min(_positive(slot.expected_surplus_kwh), room)
-            room -= absorbed
             stored += absorbed
         # No claim can be left pending: every claim is one of these slots, so
         # the last pass of the inner walk settles whatever is still open.
