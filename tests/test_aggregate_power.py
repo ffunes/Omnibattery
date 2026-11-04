@@ -241,6 +241,20 @@ def test_cell_power_max_ac_does_not_add_derived_solar_power():
     assert sensor._calculate_battery_cell_power() == 200
 
 
+def test_cell_power_anker_sb4_does_not_double_count_pv_issue_738():
+    # Solarbank 4 E5000 Pro: ac_power = -pack power (10008), which already
+    # includes the 2540 W PV charging the cells. Cell power = pack = 2110 W,
+    # not pack + PV = 4650 W.
+    sb4 = SimpleNamespace(
+        is_available=True,
+        data={"ac_power": -2110, "battery_power": 2110, "solar_power": 2540},
+        capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=True),
+    )
+    sensor = _sensor([sb4], "system_battery_cell_power")
+
+    assert sensor._calculate_battery_cell_power() == 2110
+
+
 def test_cell_power_uses_ac_power_when_venus_mppt_inputs_are_unused():
     venus_d = SimpleNamespace(
         is_available=True,
