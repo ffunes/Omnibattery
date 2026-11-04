@@ -74,7 +74,8 @@ jobs:
           - "config": you are CERTAIN the integration behaves as designed and the cause is the user's configuration
             or environment (wrong option, missing/wrong sensor, sign convention, expected behaviour, HA or network
             problem outside the integration). The comment tells the user exactly what to change, naming options as
-            the UI shows them. Any doubt at all: use "maintainer".
+            the UI shows them. Any doubt at all: use "maintainer". If the reporter already confirmed the cause or
+            that the change fixed it, the comment is only a short thanks and closing note, no repeated instructions.
           - "needs_info": data essential to decide is missing (version, battery model/driver, logs, diagnostics).
             Ask only for what is missing, concretely.
           - "duplicate": the same problem as an existing issue; set duplicate_of.
@@ -92,10 +93,11 @@ jobs:
            "duplicate_of": null, "root_cause": "file:line - one sentence, for fix only"}
           EOF
           # /proc/*/environ holds the OAuth token: a prompt injection must not be able to read it.
-          claude -p "$(cat .claude-ctx/prompt.md)" --max-turns 40 --output-format json \
+          claude -p "$(cat .claude-ctx/prompt.md)" --model sonnet --max-turns 40 --output-format json \
             --permission-mode dontAsk --allowedTools "Read,Grep,Glob" \
             --settings '{"permissions":{"deny":["Read(//proc/**)","Read(//home/runner/work/_temp/**)"]}}' \
             > .claude-ctx/out.json || true
+          jq -c '{model: (.modelUsage // {} | keys), turns: .num_turns, cost_usd: .total_cost_usd, end: .subtype}' .claude-ctx/out.json || true
       - name: Apply decision
         id: apply
         env:
@@ -223,10 +225,11 @@ jobs:
            "sandbox": {"enabled": true, "failIfUnavailable": true, "allowUnsandboxedCommands": false,
                        "network": {"allowedDomains": []}}}
           JSON
-          claude -p "$(cat .claude-ctx/prompt.md)" --max-turns 100 --output-format json \
+          claude -p "$(cat .claude-ctx/prompt.md)" --model opus --max-turns 100 --output-format json \
             --permission-mode dontAsk --settings .claude-ctx/settings.json \
             --allowedTools "Read,Grep,Glob,Edit,Write,Bash(pytest:*),Bash(python -m pytest:*),Bash(git diff:*),Bash(git status:*)" \
             > .claude-ctx/out.json || true
+          jq -c '{model: (.modelUsage // {} | keys), turns: .num_turns, cost_usd: .total_cost_usd, end: .subtype}' .claude-ctx/out.json || true
       - name: Parse result
         shell: python
         run: |
