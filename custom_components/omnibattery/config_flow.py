@@ -4067,15 +4067,22 @@ class OptionsFlowHandler(OptionsFlow):
         """Select battery brand for the current battery slot."""
         battery_num = self.battery_index + 1
         current_batteries = self.config_entry.data.get("batteries", [])
-        current_brand = (
-            current_batteries[self.battery_index].get("brand", "marstek")
+        current_battery = (
+            current_batteries[self.battery_index]
             if self.battery_index < len(current_batteries)
-            else "marstek"
+            else {}
         )
+        current_brand = current_battery.get("brand", "marstek")
 
         if user_input is not None:
             brand = user_input["brand"]
-            self._current_battery_data = {"brand": brand}
+            # No connection step asks for MAC tracking, so the stored opt-in and
+            # MAC ride along to battery_limits, the form that shows them.
+            self._current_battery_data = {
+                "brand": brand,
+                CONF_TRACK_MAC: current_battery.get(CONF_TRACK_MAC, False),
+                CONF_MAC: current_battery.get(CONF_MAC, ""),
+            }
             if brand == "zendure":
                 return await self.async_step_battery_connection_zendure()
             if brand == "esphome":
