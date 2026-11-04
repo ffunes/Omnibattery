@@ -23,7 +23,12 @@
 - **Backup Function: Bypass with load on the backup port stuck in cooldown** (#660): per-key poll times are now published together with the data. Thanks to @pando85.
 - **Configure turned off MAC tracking of an existing battery**. Thanks to @tkaspersNL.
 - **Panel: Net balance showed a green "+0.00 kWh" while hourly balance was off**: it now shows "Disabled". Thanks to @tkaspersNL.
+- **Zendure/Hoymiles: 0 kWh capacity failed to save** (#675): 0 now means automatic detection (Zendure from its packs); a positive value still overrides it. Thanks to @thomasvt1.
 - **Panel: daily-operation tooltip showed "Source" twice** for unmeasured quarters. Thanks to @tkaspersNL.
+
+### Added
+
+- **Repairs warning when Recorder excludes the sensors used to recover forecast history** (Home Consumption, solar production, excluded-device power). Thanks to @thomasvt1.
 
 ### Changed
 

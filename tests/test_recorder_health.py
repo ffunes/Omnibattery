@@ -116,7 +116,8 @@ def test_recorder_optional_and_unload_clears_warning(monitor, monkeypatch):
 
 
 def test_real_recorder_include_exclude_rules(monitor, monkeypatch):
-    from homeassistant.components.recorder import entity_options
+    # entity_options only exists on HA 2026.x; skip on older test envs.
+    entity_options = pytest.importorskip("homeassistant.components.recorder.entity_options")
     from homeassistant.helpers.entityfilter import generate_filter
 
     recorder = SimpleNamespace(entity_filter=generate_filter(
