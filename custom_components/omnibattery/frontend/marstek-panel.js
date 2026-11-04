@@ -2041,13 +2041,23 @@ class MarstekVenusPanel extends HTMLElement {
     const unit = String((stateObj.attributes || {}).unit_of_measurement || "kWh").toLowerCase();
     return unit === "wh" ? n / 1000 : n;
   }
-  /** Sum numeric states for a key across all batteries. */
+  /** Sum numeric states for a key across all batteries: one value per device.
+   *  A device can expose two entities with the same translation_key (Anker:
+   *  read-only hardware-cap sensor + soft-limit number for max charge /
+   *  discharge power, #716). Those are the same limit, not two units; the
+   *  effective ceiling is the lower of the two, as the coordinator applies. */
   _sum(byKey, key) {
-    let total = null;
-    for (const s of this._statesFor(byKey, key)) {
-      const n = this._num(s);
-      if (n != null) total = (total || 0) + n;
+    const reg = (this._hass && this._hass.entities) || {};
+    const perDevice = new Map();
+    for (const id of byKey.get(key) || []) {
+      const n = this._num(this._hass.states[id]);
+      if (n == null) continue;
+      const dev = (reg[id] && reg[id].device_id) || id;
+      const prev = perDevice.get(dev);
+      perDevice.set(dev, prev == null ? n : Math.min(prev, n));
     }
+    let total = null;
+    for (const n of perDevice.values()) total = (total || 0) + n;
     return total;
   }
   /** Convert a power state to Watts regardless of W/kW unit. */
