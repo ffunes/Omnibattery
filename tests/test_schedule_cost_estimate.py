@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from custom_components.omnibattery.const import CHARGE_EFFICIENCY
 from custom_components.omnibattery.pricing import (
     SLOT_PURPOSE_DEFICIT,
     SLOT_PURPOSE_NEGATIVE_PRICE,
@@ -35,8 +36,8 @@ def _issue_plan():
 
 
 def _expected(targets):
-    cost = sum(slot.price * kwh for slot, kwh in targets.items())
-    return cost / sum(targets.values()), cost
+    battery_cost = sum(slot.price * kwh for slot, kwh in targets.items())
+    return battery_cost / sum(targets.values()), battery_cost / CHARGE_EFFICIENCY
 
 
 def test_prune_uses_planned_slot_energy_for_cost_and_average():
@@ -55,6 +56,7 @@ def test_prune_uses_planned_slot_energy_for_cost_and_average():
         slot_purposes=purposes,
         deficit_charging_needed=True,
         slot_energy_targets_kwh=dict(targets),
+        slot_cost_energy_kwh=dict(targets),
         chronological_planning_active=True,
     )
     ctrl = SimpleNamespace(
@@ -68,7 +70,7 @@ def test_prune_uses_planned_slot_energy_for_cost_and_average():
     avg, cost = _expected(targets)
     assert schedule.selected_slots == slots
     assert schedule.estimated_cost == pytest.approx(cost)
-    assert schedule.estimated_cost == pytest.approx(2.61, abs=0.01)
+    assert schedule.estimated_cost == pytest.approx(3.07, abs=0.01)
     assert schedule.average_price == pytest.approx(avg)
 
 

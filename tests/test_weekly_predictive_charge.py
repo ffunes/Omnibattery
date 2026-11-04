@@ -202,9 +202,8 @@ def test_weekly_reserve_survives_a_fully_covering_solar_forecast():
     assert weekly["weekly_reserve_kwh"] > 0
 
 
-def test_weekly_schedule_reserves_only_post_solar_slots(monkeypatch):
-    """The weekly fallback must not arm cheap pre-dawn informational slots (#489)."""
-    now = datetime(2026, 9, 21, 0, 5)
+def _evaluate_with_weekly_reserve(monkeypatch, now, slots, build_plan, **decision_overrides):
+    """Run a daily evaluation whose plan publishes a 5 kWh weekly reserve."""
 
     class FixedDateTime(datetime):
         @classmethod
@@ -214,7 +213,7 @@ def test_weekly_schedule_reserves_only_post_solar_slots(monkeypatch):
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
     monkeypatch.setattr(pricing_engine.calculations, "datetime", FixedDateTime)
     ctrl = _ctrl([_Coord(50.0, 10.0)], weekly=True, solar="8.0")
-    decision = _run(ctrl)
+    decision = {**_run(ctrl), **decision_overrides}
 
     async def should_activate():
         return dict(decision)
@@ -237,12 +236,6 @@ def test_weekly_schedule_reserves_only_post_solar_slots(monkeypatch):
     ctrl.round_trip_efficiency = 1.0
     ctrl.discharge_price_threshold = 1.0
     ctrl._predictive_min_soc_floor_enabled = False
-    pre_dawn = PriceSlot(
-        now.replace(hour=1), now.replace(hour=2), 0.01
-    )
-    post_solar = PriceSlot(
-        now.replace(hour=19), now.replace(hour=20), 0.02
-    )
     manager = PricingManager(SimpleNamespace(), ctrl)
     manager._mark_surplus_hold_stale = lambda _reason: None
     manager._mark_discharge_reserve_stale = lambda _reason: None
@@ -251,7 +244,7 @@ def test_weekly_schedule_reserves_only_post_solar_slots(monkeypatch):
     manager._maybe_refresh_service_prices = no_op
     manager._refresh_excluded_demand_reference = lambda: None
     manager._refresh_solar_forecast_reference = lambda _now: None
-    manager._parse_price_data = lambda **_kwargs: [pre_dawn, post_solar]
+    manager._parse_price_data = lambda **_kwargs: list(slots)
     manager._negative_price_feature_enabled = lambda: False
     manager._build_curtailment_plan = lambda *_args, **_kwargs: SimpleNamespace(
         risk_slots=[]
@@ -264,7 +257,7 @@ def test_weekly_schedule_reserves_only_post_solar_slots(monkeypatch):
             weekly_reserve_kwh=5.0,
             weekly_reserve_not_before=now.replace(hour=18).isoformat(),
         )
-        return None
+        return build_plan(kwargs["decision_data"])
 
     manager._build_chronological_plan = publish_weekly_reserve
 
@@ -272,6 +265,21 @@ def test_weekly_schedule_reserves_only_post_solar_slots(monkeypatch):
         manager._evaluate_dynamic_pricing(
             horizon=DynamicPricingEvaluationHorizon.DAILY
         )
+    )
+    return ctrl
+
+
+def test_weekly_schedule_reserves_only_post_solar_slots(monkeypatch):
+    """The weekly fallback must not arm cheap pre-dawn informational slots (#489)."""
+    now = datetime(2026, 9, 21, 0, 5)
+    pre_dawn = PriceSlot(
+        now.replace(hour=1), now.replace(hour=2), 0.01
+    )
+    post_solar = PriceSlot(
+        now.replace(hour=19), now.replace(hour=20), 0.02
+    )
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch, now, [pre_dawn, post_solar], lambda _decision: None
     )
 
     schedule = ctrl._dynamic_pricing_schedule
@@ -391,3 +399,41 @@ def test_evening_weekly_fallback_sizes_the_deficit_to_full_soc(monkeypatch):
     schedule = ctrl._dynamic_pricing_schedule
     assert schedule.energy_deficit_kwh == pytest.approx(3.8)
     assert schedule.energy_deficit_kwh > (coord.max_soc - 62.0) / 100.0 * 10.0
+
+
+def test_weekly_slots_after_the_plan_count_in_the_estimated_cost(monkeypatch):
+    """Weekly slots carry no planned kWh but do charge: cost them (#715)."""
+    from custom_components.omnibattery.const import CHARGE_EFFICIENCY
+    from custom_components.omnibattery.pricing.chronological import (
+        ChronologicalPlan,
+        SlotAllocation,
+    )
+
+    now = datetime(2026, 9, 21, 0, 5)
+    planned = PriceSlot(now.replace(hour=2), now.replace(hour=3), 0.10)
+    weekly = [
+        PriceSlot(now.replace(hour=h), now.replace(hour=h + 1), 0.20)
+        for h in (19, 20)
+    ]
+
+    def plan(decision):
+        decision.update(should_charge=True, energy_deficit_kwh=2.0)
+        return ChronologicalPlan(
+            allocations=[SlotAllocation(planned, 2.0, None, "flexible")],
+            total_required_kwh=2.0,
+            flexible_required_kwh=2.0,
+        )
+
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch, now, [planned, *weekly], plan, should_charge=True
+    )
+
+    schedule = ctrl._dynamic_pricing_schedule
+    # 5 kW x 1 h x efficiency fills the first weekly slot; the rest of the
+    # 5 kWh reserve lands in the second.
+    first = 5.0 * CHARGE_EFFICIENCY
+    battery_kwh = {planned: 2.0, weekly[0]: first, weekly[1]: 5.0 - first}
+    assert schedule.slot_cost_energy_kwh == pytest.approx(battery_kwh)
+    battery_cost = sum(slot.price * kwh for slot, kwh in battery_kwh.items())
+    assert schedule.estimated_cost == pytest.approx(battery_cost / CHARGE_EFFICIENCY)
+    assert schedule.average_price == pytest.approx(battery_cost / 7.0)

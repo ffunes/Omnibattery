@@ -507,10 +507,11 @@ def schedule_price_summary(
 ) -> tuple[float, float]:
     """Return ``(average_price, estimated_cost)`` for selected slots.
 
-    When the chronological planner assigned per-slot energy, cost and average
-    are weighted by that planned energy: slots without an allocation carry no
-    energy and contribute nothing (#715).  Without a plan, each slot is assumed
-    to run at full power for its whole duration.
+    When per-slot battery energy is known, cost and average are weighted by
+    it: slots without energy contribute nothing, and the cost pays for the
+    grid energy, i.e. the battery energy plus charging losses (#715).
+    Without it, each slot is assumed to run at full power for its whole
+    duration.
     """
     if not slots:
         return 0.0, 0.0
@@ -529,9 +530,10 @@ def schedule_price_summary(
         slot: max(0.0, float(targets.get(slot, 0.0) or 0.0)) for slot in slots
     }
     total_kwh = sum(energy.values())
-    cost = sum(slot.price * kwh for slot, kwh in energy.items())
+    battery_cost = sum(slot.price * kwh for slot, kwh in energy.items())
+    cost = battery_cost / CHARGE_EFFICIENCY
     if total_kwh > 0:
-        return cost / total_kwh, cost
+        return battery_cost / total_kwh, cost
     return plain_average, cost
 
 

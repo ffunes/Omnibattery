@@ -1495,15 +1495,14 @@ class PricingManager:
                 self._contracted_charge_ceiling(),
                 float(getattr(self._controller, "max_charge_capacity", 0.0)),
             ) / 1000.0
-            targets = (
-                getattr(schedule, "slot_energy_targets_kwh", {}) or {}
-                if getattr(schedule, "chronological_planning_active", False)
-                else {}
-            )
             (
                 schedule.average_price,
                 schedule.estimated_cost,
-            ) = calculations.schedule_price_summary(keep, effective_power_kw, targets)
+            ) = calculations.schedule_price_summary(
+                keep,
+                effective_power_kw,
+                getattr(schedule, "slot_cost_energy_kwh", None),
+            )
         if not keep:
             self._controller._dynamic_pricing_schedule = None
 
@@ -3645,6 +3644,7 @@ class PricingManager:
             )
         except (TypeError, ValueError):
             weekly_reserve_not_before = None
+        weekly_selected: list[PriceSlot] = []
         if weekly_reserve_kwh > 0.0 and weekly_reserve_not_before is not None:
             post_solar = [
                 slot for slot in slots
@@ -3822,17 +3822,26 @@ class PricingManager:
             max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
             for slot in selected
         )
+        cost_energy_kwh: dict[PriceSlot, float] = {}
+        if chronological_plan is not None:
+            cost_energy_kwh = {
+                allocation.slot: allocation.planned_battery_kwh
+                for allocation in chronological_plan.allocations
+            }
+            # Weekly Full Charge slots are added after the plan and carry no
+            # planned energy, but they do charge: spread the reserve over them
+            # in charging order so the estimate counts them (#715).
+            weekly_left = weekly_reserve_kwh
+            for slot in sorted(weekly_selected, key=lambda item: item.start):
+                if weekly_left <= 0.0 or slot in cost_energy_kwh:
+                    continue
+                capacity = effective_power_kw * max(
+                    0.0, (slot.end - slot.start).total_seconds() / 3600.0
+                ) * CHARGE_EFFICIENCY
+                cost_energy_kwh[slot] = min(weekly_left, capacity)
+                weekly_left -= cost_energy_kwh[slot]
         avg_price, estimated_cost = calculations.schedule_price_summary(
-            selected,
-            effective_power_kw,
-            (
-                {
-                    allocation.slot: allocation.planned_battery_kwh
-                    for allocation in chronological_plan.allocations
-                }
-                if chronological_plan is not None
-                else None
-            ),
+            selected, effective_power_kw, cost_energy_kwh
         )
         opportunity_selected = bool(negative_price_selected)
         charging_needed = deficit_charging_needed or opportunity_selected
@@ -3866,6 +3875,7 @@ class PricingManager:
                 if chronological_plan is not None
                 else {}
             ),
+            slot_cost_energy_kwh=cost_energy_kwh,
             slot_deadlines=(
                 {
                     allocation.slot: allocation.deadline
@@ -5679,6 +5689,7 @@ class PricingManager:
                     for attribute in (
                         "slot_purposes",
                         "slot_energy_targets_kwh",
+                        "slot_cost_energy_kwh",
                         "slot_deadlines",
                         "slot_plan_kinds",
                     ):
