@@ -54,9 +54,9 @@ _TEXTS = {
             "automatically."
         ),
         "unknown_model": (
-            "**{name}** reports device type `{model}`, which Omnibattery does not know "
-            "yet. It is monitored, but not controlled. Please report the device type "
-            "so it can be added."
+            "**{name}** reports model code `{model}`, which Omnibattery does not "
+            "support yet. It is monitored, but not controlled. Please report the model "
+            "code so it can be added."
         ),
         "firmware_title": "Indevolt firmware update recommended: {name}",
         "firmware": (
@@ -110,9 +110,9 @@ _TEXTS = {
             "batterij volgen en probeert het vanzelf opnieuw."
         ),
         "unknown_model": (
-            "**{name}** meldt apparaattype `{model}`, dat Omnibattery nog niet kent. "
-            "De batterij wordt gevolgd, maar niet aangestuurd. Meld het apparaattype "
-            "graag, zodat het kan worden toegevoegd."
+            "**{name}** meldt modelcode `{model}`, die Omnibattery nog niet ondersteunt. "
+            "De batterij wordt gevolgd, maar niet aangestuurd. Meld de modelcode graag, "
+            "zodat die kan worden toegevoegd."
         ),
         "firmware_title": "Indevolt-firmware-update aanbevolen: {name}",
         "firmware": (

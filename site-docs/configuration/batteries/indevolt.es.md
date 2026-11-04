@@ -4,7 +4,7 @@ Omnibattery controla una batería Indevolt a través de la API HTTP local de la 
 
 ## ¿Lo necesito?
 
-**Úsalo si** tienes una batería Indevolt SolidFlex o PowerFlex y Home Assistant puede alcanzarla en tu red local. La SolidFlex 2000 y la SolidFlex 3000 AC están probadas. La PowerFlex 2000, la PowerFlex 3000 y la SolidFlex 1200 usan la misma API; si usas una de ellas, indica tu modelo y firmware. Una SolidFlex 3000 informa el mismo tipo de dispositivo que una SolidFlex 2000 (`CMS-SF2000`), así que Omnibattery la muestra con el nombre de modelo SolidFlex 2000; el control funciona igual.
+**Úsalo si** tienes una batería Indevolt SolidFlex o PowerFlex y Home Assistant puede alcanzarla en tu red local. La SolidFlex 2000 y la SolidFlex 3000 AC están probadas. La PowerFlex 2000 y 3000, la SolidFlex y PowerFlex 1200 y la SolidFlex 3600 usan la misma API; si usas una de ellas, indica tu modelo y firmware. La BK1600 usa una API anterior y no es compatible. La batería indica su familia de modelos, no el producto exacto, así que Home Assistant muestra por ejemplo SolidFlex/PowerFlex 3000 para una SolidFlex 3000 AC. El control funciona igual en todas.
 
 **Usa Omnibattery en lugar de la integración oficial de Indevolt.** Ambas consultan la misma batería, y la batería atiende las peticiones de una en una. Omnibattery muestra las mismas medidas, incluidos los contadores de energía AC para el panel de Energía, así que desactiva o elimina la integración oficial para una batería que controle Omnibattery (consulta [Pasar desde la integración oficial de Indevolt](#pasar-desde-la-integracion-oficial-de-indevolt)).
 
@@ -115,7 +115,7 @@ Omnibattery aplica su propio SOC mínimo y máximo por software. Cada orden llev
 | Una notificación dice que la batería va lenta, o Request Interval (Effective) se mantiene por encima de la velocidad elegida | Otro cliente también la consulta, o la señal Wi-Fi es débil | Desactiva la integración oficial de Indevolt para esta batería, revisa la señal o elige la velocidad de solicitudes **Conservadora (5s)** |
 | Una notificación dice que un ajuste no se aplicó | La batería no aceptó el valor | La batería conserva su valor; inténtalo más tarde o cámbialo en la app de Indevolt |
 | Reparaciones dice que la escritura de ajustes de Indevolt está en pausa | 100 escrituras de la reserva y los límites de potencia en un año, casi siempre por una automatización o un script | Revisa las automatizaciones y scripts que fijan estos valores y vuelve a permitir la escritura en **Ajustes → Reparaciones** (también si los cambios eran intencionados) |
-| Control Status es `unknown_model` | La batería indica un tipo de dispositivo que Omnibattery aún no conoce | Abre un issue en GitHub con el tipo de dispositivo de la notificación |
+| Control Status es `unknown_model` | La batería indica un código de modelo que Omnibattery aún no admite | Abre un issue en GitHub con el código de modelo de la notificación |
 | Control Status es `handover_failed` | La batería no confirmó el reposo tras la orden de parada | Revisa la batería en la app de Indevolt; Omnibattery lo reintenta solo |
 
 ??? "Detalles avanzados"
@@ -127,6 +127,6 @@ Omnibattery aplica su propio SOC mínimo y máximo por software. Cada orden llev
 
     La potencia AC entregada es la potencia AC total de la batería menos la del puerto bypass, para que una carga o un microinversor en ese puerto no cuente como salida de la batería.
 
-    El firmware mínimo de Indevolt para la API local es CMS V1406.07.002E para los modelos 2000, V1409.08.3034 para la familia 3000 y V1407.07.202E para la SolidFlex 1200. Omnibattery muestra una notificación si la batería indica una versión anterior.
+    El firmware mínimo de Indevolt para la API local es CMS V1406.07.002E para la familia 2000, V1409.08.3034 para la familia 3000 y V1407.07.202E para la familia 1200. Omnibattery muestra una notificación si la batería indica una versión anterior. Indevolt no ha publicado un mínimo para la SolidFlex 3600, así que Omnibattery no lo comprueba.
 
     Para los controles comunes y los límites del sistema, consulta [Elegir la conexión de la batería](index.md).

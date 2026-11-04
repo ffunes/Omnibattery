@@ -707,10 +707,14 @@ class IndevoltScheduler:
         on_telemetry: Callable[[frozenset[int]], None] | None = None,
         on_write: Callable[[tuple[int, int, int], str], None] | None = None,
         name: str = "Indevolt",
+        first_read: Sequence[int] = (),
     ) -> None:
         if not tiers:
             raise ValueError("The scheduler needs at least the control tier")
         self._client = client
+        # Static points read once, on their own, before the first regular read;
+        # a point missing from that reply is marked unsupported.
+        self._first_points = list(first_read)
         self._tiers = list(tiers)
         self._tier_intervals = {tier.name: tier.interval_s for tier in tiers}
         self._clock = clock
@@ -847,6 +851,10 @@ class IndevoltScheduler:
     def age(self, point: int) -> float | None:
         entry = self._cache.get(point)
         return None if entry is None else self._clock() - entry[1]
+
+    def is_unsupported(self, point: int) -> bool:
+        """True while ``point`` is left out of reads because the device lacks it."""
+        return point in self._unsupported
 
     def set_tier_interval(self, name: str, interval_s: float) -> None:
         self._tier_intervals[name] = interval_s
@@ -1040,6 +1048,10 @@ class IndevoltScheduler:
             return None  # woken for a write that is gone or not allowed yet
         self._consecutive_writes = 0
         self._last_read_start = now
+        if self._first_points:
+            points, self._first_points = self._first_points, []
+            self._current = ("first", points)
+            return "Indevolt.GetData", {"t": points}
         if self._verify and (
             self._last_verify is None or now - self._last_verify >= VERIFY_SPACING_S
         ):
@@ -1207,6 +1219,8 @@ class IndevoltScheduler:
             self._last_accepted = None
             self._resolve_waiters(current[1], False)
             self._notify(self._on_write, current[1], WRITE_FAILED)
+        elif current is not None and current[0] == "first":
+            self._first_points = current[1]  # read once per start: retried as the next read
         if isinstance(err, IndevoltAuthenticationError) and not self._auth_warned:
             self._auth_warned = True
             _LOGGER.warning(

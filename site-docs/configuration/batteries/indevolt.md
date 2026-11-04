@@ -4,7 +4,7 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 
 ## Do I need it?
 
-**Use it if** you own an Indevolt SolidFlex or PowerFlex battery and Home Assistant can reach it on your local network. The SolidFlex 2000 and the SolidFlex 3000 AC have been tested. The PowerFlex 2000, the PowerFlex 3000 and the SolidFlex 1200 use the same API; please report your model and firmware if you use one of them. A SolidFlex 3000 reports the same device type as a SolidFlex 2000 (`CMS-SF2000`), so Omnibattery shows it with the SolidFlex 2000 model name; control works the same.
+**Use it if** you own an Indevolt SolidFlex or PowerFlex battery and Home Assistant can reach it on your local network. The SolidFlex 2000 and the SolidFlex 3000 AC have been tested. The PowerFlex 2000 and 3000, the SolidFlex and PowerFlex 1200 and the SolidFlex 3600 use the same API; please report your model and firmware if you use one of them. The BK1600 uses an older API and is not supported. The battery reports its model family, not the exact product, so Home Assistant shows for example SolidFlex/PowerFlex 3000 for a SolidFlex 3000 AC. Control works the same for all of them.
 
 **Use Omnibattery instead of the official Indevolt integration.** Both poll the same battery, and the battery answers requests one at a time. Omnibattery shows the same measurements, including the AC energy counters for the Energy dashboard, so disable or remove the official integration for a battery that Omnibattery controls (see [Moving from the official Indevolt integration](#moving-from-the-official-indevolt-integration)).
 
@@ -115,7 +115,7 @@ Omnibattery enforces its own minimum and maximum SOC in software. Each command a
 | A notification says the battery is slow, or Request Interval (Effective) stays above the chosen speed | Another client is polling it too, or the Wi-Fi link is weak | Disable the official Indevolt integration for this battery, check the signal, or choose the **Conservative (5s)** request speed |
 | A notification says a setting was not applied | The battery did not accept the value | The battery keeps its value; try again later, or change it in the Indevolt app |
 | Repairs says Indevolt setting writes are paused | 100 writes of the reserve and power limits in a year, nearly always from an automation or a script | Check automations and scripts that set these numbers, then turn writing back on in **Settings → Repairs** (also if the changes were intended) |
-| Control Status is `unknown_model` | The battery reports a device type Omnibattery does not know yet | Open a GitHub issue with the device type from the notification |
+| Control Status is `unknown_model` | The battery reports a model code Omnibattery does not support yet | Open a GitHub issue with the model code from the notification |
 | Control Status is `handover_failed` | The battery did not confirm idle after the stop command | Check the battery in the Indevolt app; Omnibattery retries automatically |
 
 ??? "Advanced details"
@@ -127,6 +127,6 @@ Omnibattery enforces its own minimum and maximum SOC in software. Each command a
 
     The delivered AC power is the battery's total AC power minus the power on its bypass port, so a load or microinverter on that port is not counted as battery output.
 
-    Indevolt's minimum firmware for the local API is CMS V1406.07.002E for the 2000 models, V1409.08.3034 for the 3000 family and V1407.07.202E for the SolidFlex 1200. Omnibattery shows a notification when the battery reports an older version.
+    Indevolt's minimum firmware for the local API is CMS V1406.07.002E for the 2000 family, V1409.08.3034 for the 3000 family and V1407.07.202E for the 1200 family. Omnibattery shows a notification when the battery reports an older version. Indevolt has not published a minimum for the SolidFlex 3600, so Omnibattery doesn't check it.
 
     For shared runtime controls and system limits, see [Choose your battery connection](index.md).

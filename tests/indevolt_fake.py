@@ -133,6 +133,7 @@ class FakeIndevoltDevice:
     serial: str = "3300000001"
     firmware: str = "V1.4.0E_R00D.0B2_M4801_0000003E"
     f_ver: str = "V140E.0B.003E"
+    model_code: str | None = "YZ-E2000G2"  # point 1; None: firmware without it
     mac: str | None = "00005E005301"  # the documentation range of RFC 7042
     energy_mode: int = 4
     soc: float = 60.0
@@ -317,6 +318,8 @@ class FakeIndevoltDevice:
             else:
                 for point in (serial, temp, *details, *PACK_CELL_POINTS[n - 1]):
                     data.pop(str(point), None)
+        if self.model_code is not None:
+            data["1"] = self.model_code
         data.update(self.extra_points)
         return data
 

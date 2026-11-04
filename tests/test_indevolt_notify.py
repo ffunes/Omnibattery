@@ -117,8 +117,8 @@ def test_dutch_texts_and_english_fallback(calls, language, needle):
     assert "15%" in calls[-1][3]
     notifier.throttled(20)
     notifier.firmware_outdated("V1", "V2")
-    notifier.paused("unknown_model", model="CMS-X")
-    assert "CMS-X" in calls[-1][3]
+    notifier.paused("unknown_model", model="YZ-X9000")
+    assert "YZ-X9000" in calls[-1][3]
 
 
 def test_every_language_has_every_text():

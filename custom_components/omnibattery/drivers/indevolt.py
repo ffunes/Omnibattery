@@ -98,6 +98,7 @@ P_RT_POWER = 6109
 P_NATIVE_MIN_SOC = 6105  # the reserve; written via 1142 (see indevolt_settings)
 P_HW_MAX_CHARGE = 114  # hardware ceilings; did not move when the settings changed
 P_HW_MAX_DISCHARGE = 115
+P_MODEL_CODE = 1  # the model code, e.g. "YZ-E3000" (see MODELS)
 
 P_OPERATING_STATUS = 11006  # what the device is doing (see _OPERATING_STATUS)
 # The device's own forced full charge, set in the Indevolt app (read only here):
@@ -177,8 +178,8 @@ BATTERY_DETAIL_FIELDS = (
 
 LIMITS_TIER = Tier(
     "limits",
-    (11009, 11011, P_FEED_IN_LIMIT, 11032, 114, 115, P_GRID_CHARGING, P_NATIVE_MIN_SOC,
-     P_DEVICE_MODE, 142, P_FULL_CHARGE_INTERVAL, P_FULL_CHARGE_START,
+    (11009, 11011, P_FEED_IN_LIMIT, 11032, 114, 115, P_GRID_CHARGING,
+     P_NATIVE_MIN_SOC, P_DEVICE_MODE, 142, P_FULL_CHARGE_INTERVAL, P_FULL_CHARGE_START,
      *(serial for serial, _ in PACKS)),
     180.0,
 )
@@ -276,18 +277,34 @@ CONTROL_STATUS_OPTIONS = ("active", "starting", *PAUSE_REASONS)
 @dataclass(frozen=True)
 class _Model:
     label: str
-    min_firmware: str  # vendor minimum CMS firmware (f_ver)
+    min_firmware: str | None  # vendor minimum CMS firmware (f_ver); None: none published
+    generation: int = 2  # Indevolt's API generation; only Gen 2 is controlled
 
 
-# Gen-2 device types from the vendor co-maintained library (indevolt-api 1.8.8)
-# and Indevolt's minimum firmware per family. Unknown types are monitored only.
+# Indevolt identifies the model by its model code (GetData point 1), which every
+# firmware reports; the device type in Sys.GetConfig is an internal identifier (a
+# SolidFlex 3000 AC reports CMS-SF2000). A code names a family: the exact product
+# (SolidFlex or PowerFlex; AC, Hybrid, Pro or Eco) cannot be read locally. The
+# BK1600 uses the Gen-1 API; it and any unknown code are monitored only.
 MODELS = {
-    "CMS-SF2000": _Model("SolidFlex 2000", "V1406.07.002E"),
-    "CMS-SP2000": _Model("PowerFlex 2000", "V1406.07.002E"),
-    "CMS-SF3000": _Model("SolidFlex 3000", "V1409.08.3034"),
-    "CMS-SP3000": _Model("PowerFlex 3000", "V1409.08.3034"),
-    "CMS-SF1200": _Model("SolidFlex 1200", "V1407.07.202E"),
+    "YZ-E2000G2-SE": _Model("SolidFlex/PowerFlex 1200", "V1407.07.202E"),
+    "YZ-E2000G2": _Model("SolidFlex/PowerFlex 2000", "V1406.07.002E"),
+    "YZ-E3000": _Model("SolidFlex/PowerFlex 3000", "V1409.08.3034"),
+    "YZ-E3600": _Model("SolidFlex 3600", None),
+    "YZ-E1600": _Model("BK1600", None, generation=1),
 }
+
+
+def model_for(model_code: object) -> _Model | None:
+    return MODELS.get(model_code.strip()) if isinstance(model_code, str) else None
+
+
+def model_label_for(model_code: object) -> str | None:
+    """The family name for a model code; an unknown code is shown as reported."""
+    if not isinstance(model_code, str) or not model_code.strip():
+        return None
+    model = model_for(model_code)
+    return model.label if model is not None else model_code.strip()
 
 _FW_PATTERN = re.compile(r"^V([0-9A-Fa-f]+)\.([0-9A-Fa-f]+)\.([0-9A-Fa-f]+)$")
 
@@ -578,6 +595,7 @@ class IndevoltDriver(BatteryDriver):
         self._shutting_down = False
         self._config: dict[str, Any] = {}
         self._model: _Model | None = None
+        self._model_code: Any = None
         pace = pacing_levels(normal_slot(slot_s))[0]
         self._capabilities = DriverCapabilities(
             hardware_soc_cutoff=False,
@@ -649,9 +667,7 @@ class IndevoltDriver(BatteryDriver):
 
     @property
     def model_label(self) -> Optional[str]:
-        if self._model is not None:
-            return self._model.label
-        return self._config.get("type")
+        return model_label_for(self._model_code)
 
     @property
     def serial(self) -> Optional[str]:
@@ -796,19 +812,16 @@ class IndevoltDriver(BatteryDriver):
             return False
         device = config["device"]
         self._config = {k: str(device[k]) for k in ("type", "sn", "fw", "f_ver", "mac") if k in device}
-        self._model = MODELS.get(self._config.get("type", ""))
-        _LOGGER.info("[%s] Indevolt %s (%s), firmware %s / %s, request speed %s", self._name,
-                     self._config.get("type"), self._model.label if self._model else "unknown model",
-                     self._config.get("f_ver"), self._config.get("fw"),
+        _LOGGER.info("[%s] Indevolt %s, firmware %s / %s, request speed %s", self._name,
+                     self._config.get("type"), self._config.get("f_ver"), self._config.get("fw"),
                      _SPEED_FOR_SLOT.get(self._client.slot_s, self._client.slot_s))
-        if self._model is not None and firmware_below(self._config.get("f_ver"), self._model.min_firmware):
-            _LOGGER.warning("[%s] Indevolt firmware %s is older than the recommended %s",
-                            self._name, self._config.get("f_ver"), self._model.min_firmware)
-            if self._notifier is not None:
-                self._notifier.firmware_outdated(self._config["f_ver"], self._model.min_firmware)
+        # The model decides the name, control and the firmware check, so it is
+        # read first, on its own: known before Home Assistant registers the
+        # device and before the first control decision, however small the
+        # battery's batches are.
         self._scheduler = IndevoltScheduler(
             self._client, TIERS, clock=self._clock, on_telemetry=self._on_telemetry,
-            on_write=self._on_write, name=self._name,
+            on_write=self._on_write, name=self._name, first_read=(P_MODEL_CODE,),
         )
         self._scheduler.set_tier_interval("echo", ECHO_INTERVAL_IDLE_S)
         self._scheduler.start()
@@ -854,7 +867,7 @@ class IndevoltDriver(BatteryDriver):
         client = IndevoltClient(host, port=port, transport=transport, **kwargs)
         try:
             config = await client.get_config()
-            points = [*CONTROL_TIER.points, *LIMITS_TIER.points]
+            points = [P_MODEL_CODE, *CONTROL_TIER.points, *LIMITS_TIER.points]
             data = await client.get_data(points)
         except IndevoltAuthenticationError:
             raise
@@ -869,11 +882,11 @@ class IndevoltDriver(BatteryDriver):
             return None
         values = {int(k): v for k, v in data.items() if k.isdigit()}
         charge, discharge = _hardware_limits(values)
-        model = MODELS.get(dtype)
+        model = model_for(data.get(str(P_MODEL_CODE)))
         return {
             "type": dtype,
-            "model": model.label if model else dtype,
-            "known_model": model is not None,
+            "model": model_label_for(data.get(str(P_MODEL_CODE))),
+            "known_model": model is not None and model.generation == 2,
             "serial": str(device.get("sn", "")),
             "firmware": str(device.get("f_ver") or device.get("fw") or ""),
             "mac": normalise_mac(device.get("mac")),
@@ -1249,7 +1262,22 @@ class IndevoltDriver(BatteryDriver):
             self._sync_pack_points()
         if P_OPERATING_STATUS in updated:
             self._log_operating_status()
+        if P_MODEL_CODE in updated:
+            self._set_model_code(self._scheduler.value(P_MODEL_CODE))
         self._evaluate(updated)
+
+    def _set_model_code(self, code: Any) -> None:
+        if code is None or code == self._model_code:
+            return
+        self._model_code, self._model = code, model_for(code)
+        _LOGGER.info("[%s] Indevolt model code %s, shown as %s",
+                     self._name, code, self.model_label)
+        minimum = self._model.min_firmware if self._model is not None else None
+        if minimum is not None and firmware_below(self._config.get("f_ver"), minimum):
+            _LOGGER.warning("[%s] Indevolt firmware %s is older than the recommended %s",
+                            self._name, self._config.get("f_ver"), minimum)
+            if self._notifier is not None:
+                self._notifier.firmware_outdated(self._config["f_ver"], minimum)
 
     def _log_operating_status(self) -> None:
         assert self._scheduler is not None
@@ -1389,9 +1417,9 @@ class IndevoltDriver(BatteryDriver):
         was_controlling = self._state in (ControlState.OWNED, ControlState.ACQUIRING)
         self._state, self._reason = ControlState.PAUSED, reason
         if reason == "unknown_model":
-            # The device type is what a new entry in MODELS needs.
-            _LOGGER.warning("[%s] Indevolt control paused: unknown_model (device type %s)",
-                            self._name, self._config.get("type"))
+            # The model code is what a new entry in MODELS needs.
+            _LOGGER.warning("[%s] Indevolt control paused: unknown_model (model code %s)",
+                            self._name, self._model_code)
         else:
             _LOGGER.warning("[%s] Indevolt control paused: %s", self._name, reason)
         if self._scheduler is not None:
@@ -1407,7 +1435,8 @@ class IndevoltDriver(BatteryDriver):
         self._held, self._start_at = None, None
         self._end_taper()
         if self._notifier is not None:
-            self._notifier.paused(reason, model=self._config.get("type"))
+            self._notifier.paused(
+                reason, model=str(self._model_code) if self._model_code is not None else None)
 
     def _start_acquire(self) -> None:
         assert self._scheduler is not None
@@ -1443,8 +1472,9 @@ class IndevoltDriver(BatteryDriver):
         if not self._control_enabled:
             self._state, self._reason = ControlState.MONITORING, None
             return
-        if self._model is None:
-            if self._config:
+        if self._model is None or self._model.generation != 2:
+            # Control waits for the model code's first read.
+            if self._model_code is not None or self._scheduler.is_unsupported(P_MODEL_CODE):
                 self._pause("unknown_model")
             return
         if not self._control_fresh():

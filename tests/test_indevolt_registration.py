@@ -189,6 +189,22 @@ async def test_probe_reports_the_battery_settings_and_mac():
     assert info["mac"] == "00:00:5e:00:53:01"
 
 
+@pytest.mark.parametrize(("model_code", "model", "known"), [
+    ("YZ-E3000", "SolidFlex/PowerFlex 3000", True),
+    ("YZ-E1600", "BK1600", False),  # Gen 1
+    ("YZ-X9000", "YZ-X9000", False),
+])
+async def test_probe_names_the_model_by_its_model_code(model_code, model, known):
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, device_type="CMS-SF2000", model_code=model_code)
+    probe = asyncio.ensure_future(
+        IndevoltDriver.probe("192.0.2.1", transport=device, clock=clock, sleep=clock.sleep)
+    )
+    await clock.run_until(probe.done, 30)
+    info = probe.result()
+    assert (info["type"], info["model"], info["known_model"]) == ("CMS-SF2000", model, known)
+
+
 async def test_setup_flow_opens_the_limits_at_the_battery_settings(monkeypatch):
     """The limits form starts at the reserve, power limits and MAC the battery reports.
 

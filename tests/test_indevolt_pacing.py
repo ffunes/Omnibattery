@@ -439,6 +439,22 @@ async def test_incomplete_batches_fall_back_and_recover():
     await driver.close()
 
 
+async def test_a_first_read_point_is_read_once_on_its_own():
+    clock = VirtualClock()
+    device = FakeIndevoltDevice(clock, timeouts=1)
+    client = IndevoltClient("192.0.2.4", transport=device, clock=clock, sleep=clock.sleep)
+    scheduler = IndevoltScheduler(client, [Tier("control", (6002,)), Tier("slow", (9012,), 30)],
+                                  clock=clock, first_read=(1,))
+    scheduler.start()
+    await clock.run(600)
+    await scheduler.close()
+    reads = [r.config["t"] for r in device.requests]
+    # The first request times out; the point is asked again as the next read and never after.
+    assert reads[:3] == [[1], [1], [6002, 9012]]
+    assert sum(1 in t for t in reads) == 2
+    assert scheduler.value(1) == "YZ-E2000G2"
+
+
 async def test_a_point_the_device_never_reports_is_skipped():
     clock = VirtualClock()
     device = FakeIndevoltDevice(clock, missing_points={9068})
