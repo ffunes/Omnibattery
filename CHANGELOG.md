@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **Dynamic Pricing: price slots in the repeated DST hour collided as dictionary keys**: two slots in the repeated autumn hour with the same price compared equal and had identical hashes, colliding when stored as dictionary keys in allocations and slot purposes. PriceSlot now compares and hashes by absolute timestamp. Thanks to @TvdBrink.
 - **Dynamic Pricing: Guaranteed Minimum SOC lifted the arbitrage margin off the whole plan** (#724): with the floor active, every deficit kWh could be bought above the margin, up to the evening peak. Now only the floor's own energy skips it (still capped by **Max Price Threshold (Charge)**). Thanks to @locmer and @Varashi.
 - **Discharge reserve: the floor slid down with the SOC while PV credit was left** (#700): when dearer-hour demand exceeded the stored energy, the claims equalled the stored energy and the PV credit came off that, so the reserve was always just under the SOC and never held anything. The claims now run against the stored energy plus the solar the battery can still take, and the reserve is capped at what is stored. When the sun covers all demand the battery is still released. Thanks to @MarkB-HA.
 - **Discharge reserve: a battery whose stored energy is all reserved could still discharge one step**: the reserved floor is then exactly the SOC, and float rounding put it just below a whole-percent SOC in about 2% of cases (5 + 22.999999999999996 against 28), so the battery was not held until it dropped another percent. The comparison now allows for the rounding.

@@ -6,10 +6,37 @@ notifications live in submodules.
 """
 from collections import namedtuple
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def _timestamp(value: datetime) -> float:
+    """Return an absolute timestamp; naive values are treated as UTC."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc).timestamp()
+    return value.timestamp()
+
 
 # Dynamic pricing data structures
-PriceSlot = namedtuple("PriceSlot", ["start", "end", "price"])
+class PriceSlot(namedtuple("PriceSlot", ["start", "end", "price"])):
+    """Immutable price interval with safe timestamp-based equality and hashing."""
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PriceSlot):
+            return super().__eq__(other)
+        return (
+            _timestamp(self.start) == _timestamp(other.start)
+            and _timestamp(self.end) == _timestamp(other.end)
+            and self.price == other.price
+        )
+
+    def __ne__(self, other: object) -> bool:
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return NotImplemented
+        return not result
+
+    def __hash__(self) -> int:
+        return hash((_timestamp(self.start), _timestamp(self.end), self.price))
 
 SLOT_PURPOSE_DEFICIT = "deficit"
 SLOT_PURPOSE_NEGATIVE_PRICE = "negative_price"

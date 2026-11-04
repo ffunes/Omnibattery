@@ -2,6 +2,7 @@
 import asyncio
 from datetime import datetime, timedelta
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -574,3 +575,29 @@ def test_no_floor_premium_keeps_every_slot_under_the_ceiling():
     plan = _floor_plan()
 
     assert all(a.slot.price <= 0.35 for a in plan.allocations)
+
+
+def test_price_slot_dst_fold_equality_and_hashing():
+    """PriceSlots sharing wall clock across DST transition must not collide."""
+    amsterdam = ZoneInfo("Europe/Amsterdam")
+    s1 = PriceSlot(
+        datetime(2026, 10, 25, 2, 15, tzinfo=amsterdam, fold=0),
+        datetime(2026, 10, 25, 2, 30, tzinfo=amsterdam, fold=0),
+        0.10,
+    )
+    s2 = PriceSlot(
+        datetime(2026, 10, 25, 2, 15, tzinfo=amsterdam, fold=1),
+        datetime(2026, 10, 25, 2, 30, tzinfo=amsterdam, fold=1),
+        0.10,
+    )
+
+    assert s1 == s1
+    assert s1 != s2
+    assert hash(s1) != hash(s2)
+    assert s1 != None
+    assert s1 == (s1.start, s1.end, s1.price)
+    mapping = {s1: 1.0, s2: 2.0}
+    assert len(mapping) == 2
+    assert mapping[s1] == 1.0
+    assert mapping[s2] == 2.0
+
