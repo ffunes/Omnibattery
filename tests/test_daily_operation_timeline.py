@@ -467,3 +467,27 @@ def test_charge_hysteresis_latch_is_inert_without_a_band():
             [_interval(0, solar=3.0)], [battery], charge_efficiency=1.0
         ).intervals[0]
         assert flow.solar_to_battery_kwh == pytest.approx(0.07)
+
+
+def test_charge_ceiling_raises_max_soc_and_skips_the_latch():
+    intervals = [_interval(0, solar=3.0), _interval(1, solar=3.0)]
+    flows = simulate_battery_projection(
+        intervals,
+        [_latched_battery()],
+        charge_efficiency=1.0,
+        charge_ceiling_pct=[None, 100.0],
+    ).intervals
+
+    assert flows[0].solar_to_battery_kwh == 0.0
+    assert flows[1].stored_energy_end_kwh == pytest.approx(10.0)
+
+
+def test_charge_ceiling_never_lowers_max_soc():
+    flow = simulate_battery_projection(
+        [_interval(0, solar=3.0)],
+        [_latched_battery(locked=False)],
+        charge_efficiency=1.0,
+        charge_ceiling_pct=50.0,
+    ).intervals[0]
+
+    assert flow.stored_energy_end_kwh == pytest.approx(9.5)

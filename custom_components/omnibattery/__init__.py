@@ -1919,6 +1919,9 @@ class ChargeDischargeController:
         """Return safe battery snapshots for the pure future projection."""
         from .pricing.daily_timeline import BatteryProjectionInput
 
+        # A pending weekly full charge lifts the ceiling to 100%, the same
+        # ceiling every planner charge path uses (_charge_ceiling_soc).
+        weekly_pending = ChargeDischargeController._weekly_full_charge_pending(self)
         result = []
         for index, coordinator in enumerate(getattr(self, "coordinators", ())):
             manual_owned = self._is_battery_manual_owned(coordinator)
@@ -1945,8 +1948,12 @@ class ChargeDischargeController:
                     min_soc_pct=self._daily_operation_float(
                         getattr(coordinator, "min_soc", 0.0), 0.0
                     ),
-                    max_soc_pct=self._daily_operation_float(
-                        getattr(coordinator, "max_soc", 100.0), 100.0
+                    max_soc_pct=(
+                        100.0
+                        if weekly_pending
+                        else self._daily_operation_float(
+                            getattr(coordinator, "max_soc", 100.0), 100.0
+                        )
                     ),
                     charge_power_w=max(0.0, charge_limit),
                     discharge_power_w=max(0.0, discharge_limit),
@@ -2216,6 +2223,9 @@ class ChargeDischargeController:
                 setpoint_enabled=setpoint_enabled,
                 setpoint_reached=setpoint_reached,
                 weekly_charge_bypasses_delay=weekly_charge_bypasses_delay,
+                weekly_full_charge_tomorrow=(
+                    ChargeDischargeController._weekly_full_charge_tomorrow(self, now)
+                ),
                 delay_active=delay_active,
                 delay_planned=delay_planned,
                 delay_unlock=runtime_delay_unlock,
@@ -3625,6 +3635,15 @@ class ChargeDischargeController:
             or self._charge_delay_unlocked
             or self._balance_monitor_overrides_delay()
         )
+
+    def _weekly_full_charge_tomorrow(self, now: datetime) -> bool:
+        """Return True when tomorrow is the configured weekly full charge day."""
+        from .const import WEEKDAY_MAP
+
+        if not getattr(self, "weekly_full_charge_enabled", False):
+            return False
+        target = WEEKDAY_MAP.get(getattr(self, "weekly_full_charge_day", None))
+        return target is not None and (now.weekday() + 1) % 7 == target
 
     def _weekly_full_charge_pending(self) -> bool:
         """Return True while a weekly full charge still has to reach 100% today."""
