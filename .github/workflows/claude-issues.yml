@@ -53,7 +53,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .claude-ctx
-          gh issue view "$N" --comments --json number,title,author,labels,body,comments > .claude-ctx/issue.json
+          gh issue view "$N" --json number,title,author,labels,body,comments > .claude-ctx/issue.json
           gh issue list --state all --limit 400 --json number,title,state > .claude-ctx/issues.json
       - run: npm install -g @anthropic-ai/claude-code
       - name: Triage with Claude
@@ -183,7 +183,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p .claude-ctx
-          gh issue view "$N" --comments --json number,title,author,labels,body,comments > .claude-ctx/issue.json
+          gh issue view "$N" --json number,title,author,labels,body,comments > .claude-ctx/issue.json
       - name: Fix with Claude
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
