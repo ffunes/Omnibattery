@@ -45,6 +45,8 @@ from ..pricing.discharge_reserve import (
     reserve_soc_pct as _reserve_soc_pct,
     usable_energy_kwh,
 )
+from ..pricing.solar_timeline import provider_weights
+from ..solar_forecast import solar_forecast_local_timezone
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -453,11 +455,14 @@ class DischargeReserveManager:
             # future slots alone; a whole-day figure keeps its cumulative share,
             # or the evening would be credited with the morning's production and
             # the reserve would silently never engage.
-            solar = distribute_solar_forecast(
-                slots,
-                float(forecast_kwh),
-                fraction_fn,
-                normalize_future=self._forecast_is_remaining(pricing),
+            solar = self._follow_provider_curve(
+                distribute_solar_forecast(
+                    slots,
+                    float(forecast_kwh),
+                    fraction_fn,
+                    normalize_future=self._forecast_is_remaining(pricing),
+                ),
+                now,
             )
         # Only the sun that can physically land in the battery pays a claim.
         # The forecast is AC-side and unbounded; the battery takes it at a
@@ -485,6 +490,57 @@ class DischargeReserveManager:
                     absorbed_kwh = 0.0
             surplus[slot] = SURPLUS_CREDIT_FACTOR * absorbed_kwh * CHARGE_EFFICIENCY
         return net_demand_by_slot(consumption, solar), surplus
+
+    def _follow_provider_curve(self, solar: dict, now: datetime) -> dict:
+        """Give each day's solar the shape the forecast provider expects.
+
+        ``distribute_solar_forecast`` shapes the forecast total as a sine from
+        the astronomical sunrise, as if the horizon were flat. A provider's
+        dated periods (the sensor's own, or the Energy dashboard forecast) know
+        when the panels really see the sun: the low morning sun, the provider's
+        damping, and the terrain where the provider has a horizon profile.
+
+        Each day keeps the energy the sine gave it, so the forecast total and
+        its horizon mean exactly what they did; only the hour-by-hour split
+        moves. A day the periods do not cover keeps the sine.
+        """
+        # Read with the forecast by ``_curtailment_forecast_model`` just before.
+        periods = getattr(self._controller, "solar_forecast_periods", None)
+        if not periods or not solar:
+            return solar
+        timezone = solar_forecast_local_timezone(self._hass, self._controller, now)
+
+        def local(value: datetime) -> datetime:
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone)
+            return value.astimezone(timezone)
+
+        days: dict = {}
+        for slot in sorted(solar, key=lambda slot: local(slot.start)):
+            days.setdefault(local(slot.start).date(), []).append(slot)
+        shaped = dict(solar)
+        for day_slots in days.values():
+            budget = sum(float(solar[slot] or 0.0) for slot in day_slots)
+            lit = [slot for slot in day_slots if float(solar[slot] or 0.0) > 0.0]
+            if budget <= 0.0 or not lit:
+                continue
+            # Daylight as the sine sees it, so a provider that leaves its dark
+            # hours out (Solcast) still counts as covering the day.
+            weights, reason = provider_weights(
+                [(local(slot.start), local(slot.end)) for slot in day_slots],
+                periods,
+                solar_start=local(lit[0].start),
+                solar_end=local(lit[-1].end),
+            )
+            if weights is None:
+                _LOGGER.debug(
+                    "Discharge reserve: provider solar curve not used (%s)", reason
+                )
+                continue
+            total = sum(weights)
+            for slot, weight in zip(day_slots, weights):
+                shaped[slot] = budget * weight / total
+        return shaped
 
     def _hold_plan_state(self, now: datetime) -> tuple[set, set] | None:
         """Return ``(slots the hold planned, slots it selected)``, or None.

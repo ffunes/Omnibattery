@@ -6,7 +6,7 @@ No Home Assistant and no Modbus: the manager talks to a stand-in controller
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -28,6 +28,7 @@ from custom_components.omnibattery.control.discharge_reserve import (
 )
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.discharge_reserve import STATUS_DISABLED
+from custom_components.omnibattery.solar_forecast import SolarForecastPeriod
 
 DAY = datetime(2026, 9, 4)
 NOW = DAY + timedelta(hours=13)
@@ -489,6 +490,145 @@ def test_the_evening_peak_does_not_release_the_reserve_after_midnight():
         datetime.fromisoformat(slot["start"]) < OCT_27_SUNRISE
         for slot in status["reserved_slots"]
     )
+
+
+# ----------------------------------------------------------------------
+# The provider's solar curve
+# ----------------------------------------------------------------------
+
+
+def _hourly(day: datetime, first: int, last: int) -> list[PriceSlot]:
+    return [
+        PriceSlot(day + timedelta(hours=hour), day + timedelta(hours=hour + 1), 0.3)
+        for hour in range(first, last)
+    ]
+
+
+def _periods(day: datetime, energy_by_hour: dict[int, float]):
+    """Provider periods in UTC, the zone the curve manager below runs in."""
+    return tuple(
+        SolarForecastPeriod(
+            (day + timedelta(hours=hour)).replace(tzinfo=timezone.utc),
+            (day + timedelta(hours=hour + 1)).replace(tzinfo=timezone.utc),
+            energy,
+        )
+        for hour, energy in energy_by_hour.items()
+    )
+
+
+def _curve_manager(periods=None, **controller_overrides) -> DischargeReserveManager:
+    controller = _controller(**controller_overrides)
+    if periods is not None:
+        controller.solar_forecast_periods = periods
+    manager = DischargeReserveManager(
+        SimpleNamespace(config=SimpleNamespace(time_zone="UTC")), controller
+    )
+    manager._now = lambda: NOW
+    return manager
+
+
+# The flat-horizon sine: sun from 07:00, an even 1 kWh an hour until noon.
+SINE_MORNING = {slot: 1.0 for slot in _hourly(DAY, 7, 12)}
+
+# The provider: the panels see nothing until 09:00, the mountain's hours.
+MOUNTAIN_MORNING = {7: 0.0, 8: 0.0, 9: 1.0, 10: 2.0, 11: 3.0}
+
+
+def test_the_provider_curve_moves_the_sun_to_when_the_panels_see_it():
+    manager = _curve_manager(_periods(DAY, MOUNTAIN_MORNING))
+    shaped = manager._follow_provider_curve(SINE_MORNING, NOW)
+
+    by_hour = {slot.start.hour: kwh for slot, kwh in shaped.items()}
+    assert by_hour[7] == 0.0
+    assert by_hour[8] == 0.0
+    assert by_hour[9] == pytest.approx(5.0 / 6.0)
+    assert by_hour[11] == pytest.approx(2.5)
+    # The day's energy is the sine's; only its split moved.
+    assert sum(shaped.values()) == pytest.approx(5.0)
+
+
+def test_without_provider_periods_the_sine_stays():
+    manager = _curve_manager()
+    assert manager._follow_provider_curve(SINE_MORNING, NOW) == SINE_MORNING
+
+
+def test_a_day_the_periods_do_not_cover_keeps_the_sine():
+    tomorrow = DAY + timedelta(days=1)
+    solar = {**SINE_MORNING, **{slot: 0.5 for slot in _hourly(tomorrow, 7, 9)}}
+    manager = _curve_manager(_periods(DAY, MOUNTAIN_MORNING))
+    shaped = manager._follow_provider_curve(solar, NOW)
+
+    for slot in _hourly(tomorrow, 7, 9):
+        assert shaped[slot] == 0.5
+    assert shaped[_hourly(DAY, 7, 8)[0]] == 0.0
+
+
+def test_each_day_keeps_its_own_energy():
+    tomorrow = DAY + timedelta(days=1)
+    solar = {**SINE_MORNING, **{slot: 0.5 for slot in _hourly(tomorrow, 7, 9)}}
+    periods = _periods(DAY, MOUNTAIN_MORNING) + _periods(tomorrow, {7: 0.0, 8: 4.0})
+    shaped = _curve_manager(periods)._follow_provider_curve(solar, NOW)
+
+    today = sum(kwh for slot, kwh in shaped.items() if slot.start.date() == DAY.date())
+    assert today == pytest.approx(5.0)
+    assert shaped[_hourly(tomorrow, 7, 8)[0]] == 0.0
+    assert shaped[_hourly(tomorrow, 8, 9)[0]] == pytest.approx(1.0)
+
+
+def test_a_provider_that_leaves_out_its_dark_hours_still_covers_the_day():
+    """Solcast sends no period for an hour without sun."""
+    solar = {
+        **{slot: 0.0 for slot in _hourly(DAY, 0, 7)},
+        **SINE_MORNING,
+    }
+    manager = _curve_manager(_periods(DAY, MOUNTAIN_MORNING))
+    shaped = manager._follow_provider_curve(solar, NOW)
+    assert shaped[_hourly(DAY, 7, 8)[0]] == 0.0
+    assert sum(shaped.values()) == pytest.approx(5.0)
+
+
+def test_a_curve_with_a_hole_in_daylight_is_not_trusted():
+    periods = _periods(DAY, {7: 0.0, 8: 0.0, 11: 3.0})
+    manager = _curve_manager(periods)
+    assert manager._follow_provider_curve(SINE_MORNING, NOW) == SINE_MORNING
+
+
+def test_the_morning_demand_follows_the_provider_curve():
+    """Before the panels see the sun the house still runs on the battery."""
+    slots = _hourly(DAY, 7, 12)
+
+    def fraction(hour: float) -> float:
+        return max(0.0, min(1.0, (hour - 7.0) / 5.0))
+
+    intervals = [0.0] * 96
+    for index in range(28, 48):  # 07:00 - 12:00, 0.5 kWh an hour
+        intervals[index] = 0.125
+    profile = SimpleNamespace(
+        intervals_kwh=intervals,
+        intervals_by_date={DAY.date(): intervals},
+        energy_kwh=sum(intervals),
+        source="profile",
+    )
+    pricing = _pricing(
+        get_future_price_slots=lambda horizon_end=None: slots,
+        _profile_remaining_consumption=lambda start, end: profile,
+        _curtailment_forecast_model=lambda now: (5.0, fraction, None),
+        _solar_forecast_is_remaining=lambda: True,
+    )
+    now = DAY + timedelta(hours=6)
+
+    flat = _curve_manager(_pricing_mgr=pricing)
+    demand, _ = flat._demand_and_surplus_by_slot(pricing, slots, now, None)
+    assert demand[slots[0]] == 0.0
+
+    mountain = _curve_manager(
+        _periods(DAY, MOUNTAIN_MORNING), _pricing_mgr=pricing
+    )
+    demand, surplus = mountain._demand_and_surplus_by_slot(pricing, slots, now, None)
+    assert demand[slots[0]] == pytest.approx(0.5)
+    assert demand[slots[1]] == pytest.approx(0.5)
+    assert surplus[slots[0]] == 0.0
+    assert surplus[slots[4]] > 0.0
 
 
 # ----------------------------------------------------------------------
