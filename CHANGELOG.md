@@ -5,6 +5,7 @@
 ### Fixed
 
 - **Discharge reserve: the floor slid down with the SOC while PV credit was left** (#700): when dearer-hour demand exceeded the stored energy, the claims equalled the stored energy and the PV credit came off that, so the reserve was always just under the SOC and never held anything. The claims now run against the stored energy plus the solar the battery can still take, and the reserve is capped at what is stored. When the sun covers all demand the battery is still released. Thanks to @MarkB-HA.
+- **Discharge reserve: a battery whose stored energy is all reserved could still discharge one step**: the reserved floor is then exactly the SOC, and float rounding put it just below a whole-percent SOC in about 2% of cases (5 + 22.999999999999996 against 28), so the battery was not held until it dropped another percent. The comparison now allows for the rounding.
 
 ## [1.5.1b2] - 2026-10-13
 

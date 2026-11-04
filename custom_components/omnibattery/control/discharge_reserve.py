@@ -61,6 +61,11 @@ GUARD_CAPACITY_PROTECTION = "capacity_protection"
 GUARD_NEW_DAY = "new_day"
 GUARD_FLEET_UNKNOWN = "battery_state_unknown"
 
+# When the reserve claims everything stored, floor + reserve_soc_pct is the SOC
+# itself, give or take float rounding (5 + 22.999999999999996 against 28). Far below
+# any SOC a battery reports, far above the rounding.
+RESERVE_SOC_TOLERANCE_PCT = 1e-6
+
 # The credit is only as good as the forecast behind it, and overnight there is
 # nothing to correct it: a day-ahead figure that releases the whole reserve at
 # 00:30 buys the evening peak at peak price if the morning turns out cloudy.
