@@ -948,7 +948,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 + (f":{self.port}" if self.port != 80 else "")
                 + "/"
             )
-            software_version = (self.data or {}).get("software_version")
+        # The firmware line on the device page. Home Assistant keeps the last
+        # value written there, so a brand whose software version is the
+        # battery's firmware writes it on every start.
+        if self.brand in ("sessy", "indevolt"):
+            software_version = (getattr(self, "data", None) or {}).get("software_version")
             if software_version:
                 info["sw_version"] = str(software_version)
         return info

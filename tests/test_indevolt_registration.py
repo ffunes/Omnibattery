@@ -314,6 +314,21 @@ def test_coordinator_builds_the_indevolt_driver(monkeypatch):
     assert driver._slot_s == SLOT_S  # a battery config without a speed gets the default
 
 
+def test_the_device_page_shows_the_firmware_the_battery_reports():
+    coordinator = SimpleNamespace(
+        device_key="192.0.2.50_8080", name="Garage Indevolt", brand="indevolt",
+        driver=SimpleNamespace(model_label="SolidFlex 2000", serial="1"),
+        data={"software_version": "V1500.0B.0041"},
+    )
+    info = MarstekVenusDataUpdateCoordinator.battery_device_info.fget(coordinator)
+    assert info["sw_version"] == "V1500.0B.0041"
+    assert "configuration_url" not in info  # only Sessy links its local web page
+
+    coordinator.data = {}  # before the first poll: the field is left as it is
+    info = MarstekVenusDataUpdateCoordinator.battery_device_info.fget(coordinator)
+    assert "sw_version" not in info
+
+
 @pytest.mark.parametrize(("speed", "slot_s"), [("maximum", 1.0), ("fast", 2.0), ("normal", 3.0),
                                                 ("conservative", 5.0), ("warp", SLOT_S)])
 def test_the_coordinator_hands_the_chosen_speed_to_the_driver(monkeypatch, speed, slot_s):
