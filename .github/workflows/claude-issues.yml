@@ -2,7 +2,7 @@ name: Claude issue automation
 
 # Triage every new issue, and auto-fix the narrow, reproducible bugs.
 # Claude never gets GitHub write access: it reads the repo and returns a JSON
-# decision; the shell steps below are the only ones holding a GitHub token.
+# decision or a patch; only steps that never run repo code hold a GitHub token.
 # The owner can also force a fix by adding the `claude:fix` label.
 
 on:
@@ -88,12 +88,16 @@ jobs:
           {"action": "...", "type": "bug|enhancement|question", "comment": "markdown or empty",
            "duplicate_of": null, "root_cause": "file:line - one sentence, for fix only"}
           EOF
-          claude -p "$(cat .claude-ctx/prompt.md)" --max-turns 40 --allowedTools "Read,Grep,Glob" \
-            --output-format json > .claude-ctx/out.json || true
+          # /proc/*/environ holds the OAuth token: a prompt injection must not be able to read it.
+          claude -p "$(cat .claude-ctx/prompt.md)" --max-turns 40 --output-format json \
+            --permission-mode dontAsk --allowedTools "Read,Grep,Glob" \
+            --settings '{"permissions":{"deny":["Read(//proc/**)","Read(//home/runner/work/_temp/**)"]}}' \
+            > .claude-ctx/out.json || true
       - name: Apply decision
         id: apply
         env:
           GH_TOKEN: ${{ github.token }}
+          SECRET: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         shell: python
         run: |
           import json, os, subprocess
@@ -109,6 +113,9 @@ jobs:
               print(f"Unparseable triage output: {e}")
               d, action = {}, "maintainer"
           comment = (d.get("comment") or "").strip()
+          if os.environ["SECRET"] in comment or "sk-ant-" in comment:
+              print("Comment contains a credential: not posting it")
+              d, action, comment = {}, "maintainer", ""
           labels = {"config": "config", "needs_info": "needs-info", "duplicate": "duplicate",
                     "fix": "claude:fix"}.get(action, "needs-maintainer")
           if d.get("type") in ("bug", "enhancement", "question"):
@@ -129,6 +136,8 @@ jobs:
   fix:
     needs: triage
     # Triage chose "fix", or the owner added the `claude:fix` label by hand.
+    # This job runs code Claude wrote, so it gets no GitHub write access: it only
+    # hands a tested patch to the publish job.
     if: >-
       always() &&
       (needs.triage.outputs.action == 'fix' ||
@@ -137,9 +146,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
+      contents: read
+      issues: read
+    outputs:
+      base: ${{ steps.branch.outputs.name }}
     env:
       GH_REPO: ${{ github.repository }}
       N: ${{ github.event.issue.number }}
@@ -160,6 +170,9 @@ jobs:
       - run: |
           pip install -r requirements-test.txt
           npm install -g @anthropic-ai/claude-code
+          sudo apt-get install -y -q bubblewrap socat
+          # Ubuntu 24.04 blocks the unprivileged user namespaces bubblewrap needs.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           echo ".claude-ctx/" >> .git/info/exclude
       - name: Dump issue context
         env:
@@ -200,7 +213,14 @@ jobs:
            "issue_comment": "short, in the reporter's language: what was wrong and that the fix ships in the next beta",
            "reason": "why you aborted (abort only)"}
           EOF
+          # No reading /proc (token in environ); Bash only inside a network-less sandbox, fail-closed.
+          cat > .claude-ctx/settings.json <<'JSON'
+          {"permissions": {"deny": ["Read(//proc/**)", "Read(//home/runner/work/_temp/**)"]},
+           "sandbox": {"enabled": true, "failIfUnavailable": true, "allowUnsandboxedCommands": false,
+                       "network": {"allowedDomains": []}}}
+          JSON
           claude -p "$(cat .claude-ctx/prompt.md)" --max-turns 100 --output-format json \
+            --permission-mode dontAsk --settings .claude-ctx/settings.json \
             --allowedTools "Read,Grep,Glob,Edit,Write,Bash(pytest:*),Bash(python -m pytest:*),Bash(git diff:*),Bash(git status:*)" \
             > .claude-ctx/out.json || true
       - name: Parse result
@@ -214,36 +234,82 @@ jobs:
               d = {"status": "abort", "reason": f"unparseable Claude output: {e}"}
           for key in ("status", "title", "pr_body", "issue_comment", "reason"):
               open(f".claude-ctx/{key}", "w").write(str(d.get(key) or ""))
-      - name: Gate and open PR
+      - name: Test gate
+        # No token in this step: it runs code Claude wrote.
+        run: |
+          fail() { echo abort > .claude-ctx/status; echo "$1" > .claude-ctx/reason; exit 0; }
+          [ "$(cat .claude-ctx/status)" = fixed ] || exit 0
+          git add -A
+          [ -n "$(git diff --cached --name-only)" ] || fail "no changes produced."
+          git diff --cached --binary > .claude-ctx/patch.diff
+          python -m compileall -q custom_components/omnibattery tests || fail "compileall failed."
+          # Same two steps as tests.yml; keep the flow-test file list in sync.
+          pytest -q || fail "test suite failed."
+          pytest -q -o addopts="" tests/test_config_backup.py tests/test_domain_migration.py tests/test_system_uid_migration.py \
+            || fail "Home Assistant flow tests failed."
+      - name: Collect result
+        if: always()
+        run: |
+          mkdir -p out
+          cp .claude-ctx/status .claude-ctx/reason .claude-ctx/title .claude-ctx/pr_body .claude-ctx/issue_comment out/ || true
+          [ "$(cat out/status)" = fixed ] && cp .claude-ctx/patch.diff out/ || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: claude-fix
+          path: out/
+
+  publish:
+    needs: fix
+    # Fresh runner that never runs repo code: re-checks the patch and opens the PR.
+    if: always() && needs.fix.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      GH_REPO: ${{ github.repository }}
+      N: ${{ github.event.issue.number }}
+      BASE: ${{ needs.fix.outputs.base }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.fix.outputs.base }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: claude-fix
+          path: out/
+      - name: Check patch and open PR
         env:
           GH_TOKEN: ${{ github.token }}
-          BASE: ${{ steps.branch.outputs.name }}
+          SECRET: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           fail() {
             gh issue comment "$N" --body "Automatic fix not possible: $1"
             gh issue edit "$N" --remove-label claude:fix --add-label needs-maintainer
             exit 0
           }
-          [ "$(cat .claude-ctx/status)" = fixed ] || fail "$(cat .claude-ctx/reason)"
-          CHANGED=$(git status --porcelain --untracked-files=all | cut -c4-)
-          [ -n "$CHANGED" ] || fail "no changes produced."
-          ! echo "$CHANGED" | grep -qvE '^(custom_components/|tests/|CHANGELOG\.md$)' || fail "edits outside the allowed paths."
-          python -m compileall -q custom_components/omnibattery tests || fail "compileall failed."
-          # Same two steps as tests.yml; keep the flow-test file list in sync.
-          pytest -q || fail "test suite failed."
-          pytest -q -o addopts="" tests/test_config_backup.py tests/test_domain_migration.py tests/test_system_uid_migration.py \
-            || fail "Home Assistant flow tests failed."
+          [ -f out/status ] || fail "the fix job crashed (see the workflow run)."
+          # Before anything from out/ is published.
+          ! grep -rqF -e "$SECRET" -e "sk-ant-" out/ || fail "the output contained a credential; nothing was published."
+          [ "$(cat out/status)" = fixed ] || fail "$(cat out/reason)"
+          git apply --index out/patch.diff || fail "the patch did not apply."
+          ! git diff --cached --name-only | grep -qvE '^(custom_components/|tests/|CHANGELOG\.md$)' \
+            || fail "edits outside the allowed paths."
 
           B="claude/issue-$N"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$B"
-          git add -A
           printf '%s\n\n%s\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n' \
-            "$(cat .claude-ctx/title)" "$(cat .claude-ctx/pr_body)" | git commit -q -F -
+            "$(cat out/title)" "$(cat out/pr_body)" | git commit -q -F -
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git" "$B"
           printf '%s\n\nIssue #%s\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n' \
-            "$(cat .claude-ctx/pr_body)" "$N" > .claude-ctx/pr.md
-          URL=$(gh pr create -B "$BASE" -H "$B" --title "$(cat .claude-ctx/title)" --body-file .claude-ctx/pr.md)
-          printf '%s\n\n%s\n' "$(cat .claude-ctx/issue_comment)" "$URL" | gh issue comment "$N" --body-file -
+            "$(cat out/pr_body)" "$N" > pr.md
+          URL=$(gh pr create -B "$BASE" -H "$B" --title "$(cat out/title)" --body-file pr.md)
+          printf '%s\n\n%s\n' "$(cat out/issue_comment)" "$URL" | gh issue comment "$N" --body-file -
           gh issue edit "$N" --remove-label claude:fix
