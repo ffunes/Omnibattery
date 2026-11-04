@@ -138,44 +138,33 @@ def test_same_poll_rejects_a_key_that_was_never_read():
     assert check("inverter_state", "ac_offgrid_power") is False
 
 
-async def test_partial_read_of_a_shared_group_does_not_trust_stale_bypass(
-    monkeypatch,
-):
-    """ESPHome reads every key in one group and omits unavailable entities.
+class _PollingCoord(SimpleNamespace):
+    """Stub for running the real coordinator methods against a fake driver."""
 
-    The group is stamped as soon as one key is stored, so a per-group check
-    would pair a fresh port load with the previous poll's Bypass.
-    """
+    __hash__ = object.__hash__  # the controller keys its cooldowns by coordinator
+
+    def readings_from_same_poll(self, key_a, key_b):
+        from custom_components.omnibattery.infra.coordinator import (
+            MarstekVenusDataUpdateCoordinator,
+        )
+
+        return MarstekVenusDataUpdateCoordinator.readings_from_same_poll(
+            self, key_a, key_b
+        )
+
+
+def _polling_coordinator(read_groups, read_telemetry):
     import asyncio
     from unittest.mock import AsyncMock
 
-    from homeassistant.util import dt as ha_dt
-
-    from custom_components.omnibattery.drivers.base import ReadGroup
-    from custom_components.omnibattery.infra.coordinator import (
-        MarstekVenusDataUpdateCoordinator,
-    )
-
-    replies = iter(
-        [
-            {"inverter_state": INVERTER_BYPASS, "ac_offgrid_power": 116},
-            {"ac_offgrid_power": 900},  # inverter_state entity unavailable
-        ]
-    )
-
-    async def read_telemetry(keys):
-        return next(replies)
-
-    clock = iter([dt_util.utcnow(), dt_util.utcnow() + timedelta(seconds=2)])
-    monkeypatch.setattr(ha_dt, "utcnow", lambda: next(clock))
-
-    keys = ("inverter_state", "ac_offgrid_power")
-    coord = SimpleNamespace(
+    keys = [key for group in read_groups for key in group.keys]
+    return _PollingCoord(
         name="Venus",
         host="192.0.2.10",
         device_key="192.0.2.10_1",
+        backup_offgrid_threshold=50,
         driver=SimpleNamespace(
-            read_groups=[ReadGroup("high", keys)],
+            read_groups=read_groups,
             read_telemetry=read_telemetry,
             control_dependency_keys=set(),
         ),
@@ -204,11 +193,102 @@ async def test_partial_read_of_a_shared_group_does_not_trust_stale_bypass(
         _alarm_notifier=SimpleNamespace(check=AsyncMock()),
     )
 
+
+async def test_partial_read_of_a_shared_group_does_not_trust_stale_bypass(
+    monkeypatch,
+):
+    """ESPHome reads every key in one group and omits unavailable entities.
+
+    The group is stamped as soon as one key is stored, so a per-group check
+    would pair a fresh port load with the previous poll's Bypass.
+    """
+    from homeassistant.util import dt as ha_dt
+
+    from custom_components.omnibattery.drivers.base import ReadGroup
+    from custom_components.omnibattery.infra.coordinator import (
+        MarstekVenusDataUpdateCoordinator,
+    )
+
+    replies = iter(
+        [
+            {"inverter_state": INVERTER_BYPASS, "ac_offgrid_power": 116},
+            {"ac_offgrid_power": 900},  # inverter_state entity unavailable
+        ]
+    )
+
+    async def read_telemetry(keys):
+        return next(replies)
+
+    clock = iter([dt_util.utcnow(), dt_util.utcnow() + timedelta(seconds=2)])
+    monkeypatch.setattr(ha_dt, "utcnow", lambda: next(clock))
+
+    keys = ("inverter_state", "ac_offgrid_power")
+    coord = _polling_coordinator([ReadGroup("high", keys)], read_telemetry)
+
     for _ in range(2):
         coord._last_update_times.clear()
         await MarstekVenusDataUpdateCoordinator._async_update_data(coord)
 
     assert coord.data["inverter_state"] == INVERTER_BYPASS  # stale, kept
-    assert MarstekVenusDataUpdateCoordinator.readings_from_same_poll(
-        coord, "inverter_state", "ac_offgrid_power"
-    ) is False
+    assert coord.readings_from_same_poll("inverter_state", "ac_offgrid_power") is False
+
+
+async def test_check_between_read_groups_still_trusts_bypass(monkeypatch):
+    """The poll yields between groups, so the controller can run mid-poll.
+
+    ``data`` still holds the previous poll's values then, so the per-key
+    timestamps must not move ahead of them: a Bypass with a backup-port load
+    above the threshold must not refresh the backup cooldown.
+    """
+    import asyncio
+
+    from homeassistant.util import dt as ha_dt
+
+    from custom_components.omnibattery.drivers.base import ReadGroup
+    from custom_components.omnibattery.infra.coordinator import (
+        MarstekVenusDataUpdateCoordinator,
+    )
+
+    hold_state_read = False
+    state_read_started = asyncio.Event()
+    release_state_read = asyncio.Event()
+
+    async def read_telemetry(keys):
+        if keys == ["inverter_state"]:
+            if hold_state_read:
+                state_read_started.set()
+                await release_state_read.wait()
+            return {"inverter_state": INVERTER_BYPASS}
+        return {"ac_offgrid_power": 85}
+
+    clock = [dt_util.utcnow()]
+    monkeypatch.setattr(ha_dt, "utcnow", lambda: clock[0])
+
+    coord = _polling_coordinator(
+        [
+            ReadGroup("high", ("ac_offgrid_power",)),
+            ReadGroup("high", ("inverter_state",)),
+        ],
+        read_telemetry,
+    )
+    await MarstekVenusDataUpdateCoordinator._async_update_data(coord)
+    coord.data["backup_function"] = 0  # Backup Function switch on
+
+    clock[0] += timedelta(seconds=2)
+    coord._last_update_times.clear()
+    hold_state_read = True
+    poll = asyncio.create_task(
+        MarstekVenusDataUpdateCoordinator._async_update_data(coord)
+    )
+    await state_read_started.wait()
+
+    controller = SimpleNamespace(_backup_cooldown_until={})
+    try:
+        assert coord.readings_from_same_poll("inverter_state", "ac_offgrid_power")
+        assert _active(coord, controller) is False
+        assert coord not in controller._backup_cooldown_until
+    finally:
+        release_state_read.set()
+        await poll
+
+    assert coord.readings_from_same_poll("inverter_state", "ac_offgrid_power")
