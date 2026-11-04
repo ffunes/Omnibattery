@@ -61,6 +61,7 @@ from .config_backup import (
 )
 from .infra.lifecycle import clear_reload_pending, mark_reload_pending
 from .infra.entity_naming import is_omnibattery_solar_entity
+from .infra.device_lookup import get_entry_device
 from .solar_forecast import normalize_solar_forecast_config
 from .const import (
     DOMAIN,
@@ -2898,7 +2899,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 ent_reg.async_update_entity(ent.entity_id, new_unique_id=new_uid)
 
         dev_reg = dr.async_get(self.hass)
-        old_dev = dev_reg.async_get_device(identifiers={(DOMAIN, old_device_id)})
+        old_dev = get_entry_device(dev_reg, (DOMAIN, old_device_id), entry.entry_id)
         if old_dev is not None:
             new_identifiers = set(old_dev.identifiers)
             new_identifiers.discard((DOMAIN, old_device_id))
@@ -3815,7 +3816,7 @@ class OptionsFlowHandler(OptionsFlow):
             if slave != 1:
                 key = f"{key}_{slave}"
             dev_reg = dr.async_get(self.hass)
-            if device := dev_reg.async_get_device(identifiers={(DOMAIN, key)}):
+            if device := get_entry_device(dev_reg, (DOMAIN, key), self.config_entry.entry_id):
                 dev_reg.async_remove_device(device.id)
             return result
 
