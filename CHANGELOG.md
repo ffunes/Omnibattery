@@ -12,7 +12,22 @@
 - **Dynamic Pricing: running slot stuck after a re-plan that selects nothing** (#642): a re-plan that found no slots cleared the schedule but left the running slot active, so the battery stayed in `grid_charging` at full SOC and never discharged until predictive charging was switched off. The slot is now released in the same cycle and normal PD control takes over. Thanks to @syphernl.
 - **Discharge reserve: with several batteries, only some were held** (#700): the reserve was one percentage of the fleet's capacity, applied above each battery's floor. With batteries at different charge levels, floors or sizes, that floor sat below the fuller battery and above the emptier one, so the fuller one kept discharging and the fleet's usable energy, and with it the floor, followed it down. Each battery now keeps the same share of what it holds above its own floor, so the fleet keeps exactly the reserve and every battery is held at the same moment. The status shows each battery's share as `battery_reserve_soc_pct`. Thanks to @Edidotc.
 - **Chronological planning on the autumn DST change** (PR#679, #678): every plan whose horizon crossed the repeated 02:00 hour fell back with "energy interval end must be after start", so Daily Operation showed no plan for the whole day before the change. Quarter-hour boundaries now carry a fixed UTC offset, so the repeated hour sorts after its first pass and the quarter across the skipped spring hour lasts 15 minutes instead of 75. Thanks to @syphernl.
-- **Anker Solarbank 4: System Battery Cell Power counted solar twice** (#738): the sensor and the dashboard's Charge/Discharge blocks added the solar input on top of the battery pack power, which already includes it, so they now show the real charge power. Thanks to @Hellsing.
+- **Anker Solarbank 4: System Battery Cell Power counted solar twice** (#738): the sensor and the dashboard's Charge/Discharge blocks added the solar input on top of the battery pack power, which already includes it, so they now show the real charge power. The Daily Operation diary no longer counts it twice either. Thanks to @Hellsing.
+- **Grid sensor dead: automatic control now stops**: after 5 min without a valid grid reading (frozen, unavailable or never reported since restart), automatic batteries go to 0 W until it returns, with a Repair explaining why. Thanks to @tkaspersNL.
+- **Dynamic Pricing: a slot still running at midnight never stopped**: the new-day reset left grid charging on; it now stops the slot (a slot continuing past 00:00 restarts). Thanks to @StalkersGlue.
+- **Slow-starting battery stuck at 99% or excluded**: BMS cutoff detection waits out the engage grace, charge hysteresis remembers the Max SOC it latched under, and a big power step restarts the engage grace. Thanks to @tkaspersNL.
+- **Full battery got a "not delivering power" Repair after a direction switch**: the non-delivery reason now survives a charge/discharge flip, so the full-battery check ends the episode. Thanks to @tkaspersNL.
+- **"Not delivering power" Repair pointed HTTP/MQTT batteries at Modbus**: the advice now says "the battery itself or its connection". Thanks to @tkaspersNL.
+- **PD Quality showed "Sluggish" while the grid sat on target**: time inside the deadband now counts. Thanks to @tkaspersNL.
+- **PD safety timer delayed meter updates by up to 2 s**: a tick that only keeps the last command no longer restarts PD Min Cycle Interval. Thanks to @tkaspersNL.
+- **Backup Function: Bypass with load on the backup port stuck in cooldown** (#660): per-key poll times are now published together with the data. Thanks to @pando85.
+- **Configure turned off MAC tracking of an existing battery**. Thanks to @tkaspersNL.
+- **Panel: Net balance showed a green "+0.00 kWh" while hourly balance was off**: it now shows "Disabled". Thanks to @tkaspersNL.
+- **Panel: daily-operation tooltip showed "Source" twice** for unmeasured quarters. Thanks to @tkaspersNL.
+
+### Changed
+
+- **Device registry lookups use the per-entry API on HA 2026.10+**, avoiding the `async_get_device` deprecation. Thanks to @tkaspersNL.
 
 ## [1.5.1b2] - 2026-10-13
 
