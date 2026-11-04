@@ -90,7 +90,7 @@ const I18N = {
     diagActiveBatteries: "Active batteries", diagNonResponsive: "No response",
     diagDischargeWindow: "Discharge window", diagPredictive: "Predictive charging", diagCurtailment: "Smart pre-discharge", diagSurplusHold: "Surplus price hold", highPriceSale: "High-price sale", diagHighPriceDischarge: "High-price sale status", diagDischargeReserve: "Discharge reserve",
     diagPeak: "Peak shaving reserve", diagWeeklyCharge: "Weekly charge", diagChargeDelay: "Charge delay",
-    nResponsive: "{n} no response", none: "None",
+    nResponsive: "{n} no response", none: "None", disabled: "Disabled",
     noBatteriesTitle: "No batteries",
     noBatteriesMsg: "No battery devices were detected in this integration.",
     healthCells: "Health & cells",
@@ -181,7 +181,7 @@ const I18N = {
     diagActiveBatteries: "Baterías activas", diagNonResponsive: "Sin respuesta",
     diagDischargeWindow: "Ventana de descarga", diagPredictive: "Carga predictiva", diagCurtailment: "Predescarga inteligente", diagSurplusHold: "Retención de excedente por precio", highPriceSale: "Venta a precio alto", diagHighPriceDischarge: "Estado de venta a precio alto", diagDischargeReserve: "Reserva de descarga",
     diagPeak: "Reserva para reducción de picos", diagWeeklyCharge: "Carga semanal", diagChargeDelay: "Retardo de carga",
-    nResponsive: "{n} sin respuesta", none: "Ninguna",
+    nResponsive: "{n} sin respuesta", none: "Ninguna", disabled: "Desactivado",
     noBatteriesTitle: "Sin baterías",
     noBatteriesMsg: "No se detectaron dispositivos de batería en esta integración.",
     healthCells: "Salud y celdas",
@@ -273,7 +273,7 @@ const I18N = {
     diagActiveBatteries: "Bateries actives", diagNonResponsive: "Sense resposta",
     diagDischargeWindow: "Finestra de descàrrega", diagPredictive: "Càrrega predictiva", diagCurtailment: "Predescàrrega intel·ligent", diagSurplusHold: "Retenció d'excedent per preu", highPriceSale: "Venda a preu alt", diagHighPriceDischarge: "Estat de venda a preu alt", diagDischargeReserve: "Reserva de descàrrega",
     diagPeak: "Reserva per a reducció de pics", diagWeeklyCharge: "Càrrega setmanal", diagChargeDelay: "Retard de càrrega",
-    nResponsive: "{n} sense resposta", none: "Cap",
+    nResponsive: "{n} sense resposta", none: "Cap", disabled: "Desactivat",
     noBatteriesTitle: "Sense bateries",
     noBatteriesMsg: "No s'han detectat dispositius de bateria en aquesta integració.",
     healthCells: "Salut i cel·les",
@@ -360,7 +360,7 @@ const I18N = {
     diagActiveBatteries: "Aktive Batterien", diagNonResponsive: "Keine Antwort",
     diagDischargeWindow: "Entladefenster", diagPredictive: "Prädiktives Laden", diagCurtailment: "Intelligente Vorentladung", diagSurplusHold: "Preisbremse Solarüberschuss", highPriceSale: "Verkauf bei Hochpreis", diagHighPriceDischarge: "Status Verkauf bei Hochpreis", diagDischargeReserve: "Entladereserve",
     diagPeak: "Reserve für Spitzenlastkappung", diagWeeklyCharge: "Wöchentliche Ladung", diagChargeDelay: "Ladeverzögerung",
-    nResponsive: "{n} ohne Antwort", none: "Keine",
+    nResponsive: "{n} ohne Antwort", none: "Keine", disabled: "Deaktiviert",
     noBatteriesTitle: "Keine Batterien",
     noBatteriesMsg: "In dieser Integration wurden keine Batteriegeräte erkannt.",
     healthCells: "Zustand & Zellen",
@@ -447,7 +447,7 @@ const I18N = {
     diagActiveBatteries: "Batteries actives", diagNonResponsive: "Sans réponse",
     diagDischargeWindow: "Fenêtre de décharge", diagPredictive: "Charge prédictive", diagCurtailment: "Pré-décharge intelligente", diagSurplusHold: "Retenue de surplus selon le prix", highPriceSale: "Vente à prix élevé", diagHighPriceDischarge: "État de la vente à prix élevé", diagDischargeReserve: "Réserve de décharge",
     diagPeak: "Réserve pour écrêtement de pointe", diagWeeklyCharge: "Charge hebdomadaire", diagChargeDelay: "Délai de charge",
-    nResponsive: "{n} sans réponse", none: "Aucune",
+    nResponsive: "{n} sans réponse", none: "Aucune", disabled: "Désactivé",
     noBatteriesTitle: "Aucune batterie",
     noBatteriesMsg: "Aucun appareil de batterie n'a été détecté dans cette intégration.",
     healthCells: "Santé et cellules",
@@ -534,7 +534,7 @@ const I18N = {
     diagActiveBatteries: "Actieve batterijen", diagNonResponsive: "Geen reactie",
     diagDischargeWindow: "Ontlaadvenster", diagPredictive: "Voorspellend laden", diagCurtailment: "Slim voorontladen", diagSurplusHold: "Prijsrem zonne-overschot", highPriceSale: "Verkoop bij hoge prijs", diagHighPriceDischarge: "Status verkoop bij hoge prijs", diagDischargeReserve: "Ontlaadreserve",
     diagPeak: "Reserve voor piekbegrenzing", diagWeeklyCharge: "Wekelijkse lading", diagChargeDelay: "Laadvertraging",
-    nResponsive: "{n} geen reactie", none: "Geen",
+    nResponsive: "{n} geen reactie", none: "Geen", disabled: "Uitgeschakeld",
     noBatteriesTitle: "Geen batterijen",
     noBatteriesMsg: "Er zijn geen batterijapparaten gedetecteerd in deze integratie.",
     healthCells: "Gezondheid & cellen",
@@ -920,6 +920,7 @@ const K = {
   dischargeWindow: "discharge_window",
   predictiveSwitch: "predictive_charging",
   peakSwitch: "capacity_protection",
+  hourlyBalanceSwitch: "hourly_balance",
   // diagnostic-category entities of the "Marstek Venus System" device
   predictiveActive: "predictive_charging_active",
   curtailmentActive: "curtailment_status",
@@ -2339,6 +2340,10 @@ class MarstekVenusPanel extends HTMLElement {
     const diagStates = {};
     for (const row of DIAG_ROWS) diagStates[row.key] = this._stateFor(byKey, row.key);
     const alarmObj = diagStates[K.sysAlarm];
+    // The net-balance sensor exists whenever the feature was configured, also
+    // while its switch is off; the switch tells the row which case it shows.
+    const hbSwitch = this._stateFor(byKey, K.hourlyBalanceSwitch);
+    const hourlyBalanceOff = hbSwitch != null && hbSwitch.state === "off";
 
     // exact daily solar/home/grid energy (kWh) from the backend accumulator sensors
     const dailySolar = this._num(this._stateFor(byKey, K.sysDailySolar));
@@ -2394,6 +2399,7 @@ class MarstekVenusPanel extends HTMLElement {
       maxDischarge: maxDis,
       alarm: alarmObj ? alarmObj.state : null,
       diagStates,
+      hourlyBalanceOff,
     };
   }
 
@@ -4887,6 +4893,9 @@ class MarstekVenusPanel extends HTMLElement {
         : so.state;
     switch (key) {
       case K.netBalance: {
+        // Switched off, the sensor holds 0.0; show the feature as disabled
+        // like the other status rows instead of a green "+0.00 kWh".
+        if (m.hourlyBalanceOff) return { text: this._t("disabled"), tone: "neutral" };
         const n = this._num(so);
         if (n == null) return { text: "—", tone: "neutral" };
         return { text: `${n >= 0 ? "+" : ""}${this._nf(n, 2)} kWh`, tone: n >= 0 ? "good" : "warn" };
