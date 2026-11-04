@@ -353,6 +353,8 @@ def test_evening_weekly_fallback_sizes_the_deficit_to_full_soc(monkeypatch):
     ctrl.max_contracted_power = 3000
     ctrl.max_charge_capacity = 3000
     ctrl.max_price_threshold = 1.0
+    ctrl.min_arbitrage_margin = None
+    ctrl.round_trip_efficiency = 0.85
     ctrl._dynamic_pricing_evaluated_date = None
     slots = [
         PriceSlot(now + timedelta(hours=i), now + timedelta(hours=i + 1), 0.10 + i / 100)
