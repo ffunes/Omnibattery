@@ -540,7 +540,8 @@ class DischargeReserveManager:
                     "reference_price": plan.reference_price,
                     # The price a slot has to beat this cycle, and what the
                     # claims and the sun did with it. reserve_kwh is
-                    # claimed_kwh minus pv_credit_kwh, so the two cycles that
+                    # claimed_kwh minus pv_credit_kwh, capped at the usable
+                    # energy, so the two cycles that
                     # disagree now say which of the three moved.
                     "threshold_price": (
                         None

@@ -160,14 +160,21 @@ class ReservePlan:
             return 0.0, [], REASON_NOTHING_DEARER
 
         # Most expensive first: stored energy is worth what the hour it replaces
-        # costs, so the dearest hour has first claim on it.
+        # costs, so the dearest hour has first claim on it. The claims run against
+        # the stored energy plus the sun still to land. Against stored energy
+        # alone, the credit below came off a figure that already equalled the
+        # battery, so whenever demand exceeded it the reserve was usable minus
+        # credit: always just under the SOC, following it down without ever
+        # holding anything (#700).
+        space = self.free_space_kwh if free_space_kwh is None else _positive(free_space_kwh)
+        budget = available + self._expected_pv_into_battery(now, space, available)
         candidates.sort(key=lambda slot: (-slot.price, slot.start))
         claimed = 0.0
         claims: list[tuple[ReserveSlot, float]] = []
         for slot in candidates:
-            if claimed >= available - EPSILON:
+            if claimed >= budget - EPSILON:
                 break
-            take = min(slot.net_demand_kwh, available - claimed)
+            take = min(slot.net_demand_kwh, budget - claimed)
             if take <= EPSILON:
                 continue
             claimed += take
@@ -176,9 +183,10 @@ class ReservePlan:
 
         # Sun that lands in the battery before a claim pays for part of it, so
         # holding the same energy back now would import at today's price and
-        # export the PV that was going to replace it.
-        space = self.free_space_kwh if free_space_kwh is None else _positive(free_space_kwh)
+        # export the PV that was going to replace it. What is left cannot be more
+        # than the battery holds.
         reserve, credits = self._reserve_after_pv(now, claims, space, available)
+        reserve = min(reserve, available)
         self.claimed_kwh = claimed
         self.pv_credit_kwh = sum(credits)
         self.claim_breakdown = [
@@ -187,6 +195,22 @@ class ReservePlan:
         if reserve <= EPSILON:
             return 0.0, [], REASON_PV_COVERS_IT
         return reserve, [slot for slot, _take in claims], REASON_RESERVED
+
+    def _expected_pv_into_battery(
+        self, now: datetime, free_space_kwh: float, available_kwh: float
+    ) -> float:
+        """Sum the PV the battery can take, by the same room as the sweep below."""
+        room = _positive(free_space_kwh)
+        ceiling = room + _positive(available_kwh)
+        total = 0.0
+        for slot in self.slots:
+            if slot.start < now:
+                continue
+            room = min(ceiling, room + _positive(slot.net_demand_kwh))
+            absorbed = min(_positive(slot.expected_surplus_kwh), room)
+            room -= absorbed
+            total += absorbed
+        return total
 
     def _reserve_after_pv(
         self,
