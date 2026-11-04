@@ -102,6 +102,7 @@ from .const import (
     CONF_SERIAL_PORT,
     CONF_RS485_GATEWAY,
     DEFAULT_VERSION,
+    REGISTER_MAP,
     MAX_POWER_BY_VERSION,
     max_power_for_battery_version,
     MAX_BATTERIES,
@@ -144,6 +145,7 @@ from .const import (
     DEFAULT_SLOT_SOC_MAX_CEILING,
     MAX_TIME_SLOTS,
 )
+from .drivers.base import DriverCapabilities
 from .drivers.esphome import EsphomeEntityDriver
 from .drivers.marstek import MarstekModbusDriver
 from .drivers.zendure import (
@@ -536,7 +538,9 @@ def _phase_assignment_is_valid(value: Any) -> bool:
     return value in PHASE_VALUES or value == PHASE_UNASSIGNED or value in (None, "")
 
 
-def _soc_selector_limits(brand: str) -> tuple[int, int, int, int, int, int]:
+def _soc_selector_limits(
+    brand: str, battery_version: str = DEFAULT_VERSION
+) -> tuple[int, int, int, int, int, int]:
     """Return minimum and maximum SOC selector bounds and defaults."""
     if brand == "zendure":
         min_lo, min_hi, min_default = 5, 50, 12
@@ -552,6 +556,11 @@ def _soc_selector_limits(brand: str) -> tuple[int, int, int, int, int, int]:
         min_lo, min_hi, min_default = 0, 30, 10
     else:
         min_lo, min_hi, min_default = 12, 30, 12
+        # v3/vA/vD enforce this in software, so the 30 % of the v2 register
+        # doesn't apply. The form offers what the SOC limit entity offers:
+        # otherwise saving it lowers a higher value set on that entity.
+        if brand == "marstek" and REGISTER_MAP.get(battery_version, {}).get("discharging_cutoff_capacity") is None:
+            min_hi = int(DriverCapabilities.discharge_cutoff_range[1])
 
     # Omnibattery enforces the charge ceiling in software. Sessy's reported SOC
     # spans 0–100 %, so the standard 100 % ceiling is valid for this driver.
@@ -2155,7 +2164,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             soc_max_lo,
             soc_max_hi,
             soc_max_default,
-        ) = _soc_selector_limits(brand)
+        ) = _soc_selector_limits(brand, self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION))
 
         if user_input is not None:
             phase = user_input.get(CONF_BATTERY_PHASE, "")
@@ -4741,7 +4750,7 @@ class OptionsFlowHandler(OptionsFlow):
                 soc_max_lo,
                 soc_max_hi,
                 soc_max_default,
-            ) = _soc_selector_limits(brand)
+            ) = _soc_selector_limits(brand, self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION))
             current_batteries = self.config_entry.data.get("batteries", [])
 
             if user_input is not None:

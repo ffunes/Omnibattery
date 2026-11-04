@@ -1110,6 +1110,55 @@ async def test_options_flow_preserves_unused_venus_mppt_inputs():
     assert flow.battery_configs[0]["dc_pv_connected"] is False
 
 
+@pytest.mark.parametrize(
+    ("version", "saved_min_soc"),
+    [("v2", 30), ("v3", 50), ("vA", 50), ("vD", 50)],
+)
+async def test_options_flow_keeps_a_min_soc_set_on_the_soc_limit_entity(version, saved_min_soc):
+    """The entity offers up to 50 % without a hardware cutoff; v2's register stops at 30 %."""
+    from custom_components.omnibattery.config_flow import OptionsFlowHandler
+
+    battery = {
+        "brand": "marstek",
+        "name": "Venus",
+        "battery_version": version,
+        "max_charge_power": 2500,
+        "max_discharge_power": 2500,
+        "max_soc": 100,
+        "min_soc": 50,
+        "charge_hysteresis_percent": 2,
+        "backup_offgrid_threshold": 50,
+        "full_charge_voltage_taper_enabled": True,
+        "dc_pv_connected": False,
+    }
+    entry = SimpleNamespace(
+        entry_id="venus-entry",
+        data={"num_batteries": 2, "batteries": [battery]},
+        options={},
+    )
+    flow = OptionsFlowHandler(entry)
+    flow.hass = SimpleNamespace(
+        config_entries=SimpleNamespace(
+            async_get_known_entry=lambda entry_id: (
+                entry if entry_id == entry.entry_id else None
+            )
+        )
+    )
+    flow.handler = entry.entry_id
+    flow.config_data = {"num_batteries": 2}
+    flow._current_battery_data = dict(battery)
+
+    form = await flow.async_step_battery_limits()
+    user_input = {
+        marker.schema: marker.default()
+        for marker in form["data_schema"].schema
+        if callable(marker.default)
+    }
+    await flow.async_step_battery_limits(user_input)
+
+    assert flow.battery_configs[0]["min_soc"] == saved_min_soc
+
+
 async def test_probe_returns_false_when_connection_fails(monkeypatch):
     client = AsyncMock()
     client.async_connect = AsyncMock(return_value=False)
