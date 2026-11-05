@@ -168,7 +168,7 @@ Battery entities depend on the driver. A missing entity usually means that the d
 
     Common attributes include `charging_needed`, `reason`, `price_data_status`, forecast and consumption values, selected price slots, target energy, and current progress.
 
-    Dynamic Pricing can also expose `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `energy_deadlines`, `slot_deadlines`, and `chronological_plan_reason`. They describe planning intent; live battery, grid, and safety limits remain authoritative.
+    Dynamic Pricing can also expose `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `cheaper_to_import_kwh`, `cheapest_rejected_slot`, `energy_deadlines`, `slot_deadlines`, and `chronological_plan_reason`. They describe planning intent; live battery, grid, and safety limits remain authoritative.
 
 ??? "High-Price Sale Status attributes"
 

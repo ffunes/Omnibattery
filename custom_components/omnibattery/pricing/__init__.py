@@ -52,6 +52,7 @@ class DynamicPricingSchedule:
     flexible_required_kwh: float = 0.0
     deadline_shortfall_kwh: float = 0.0
     total_shortfall_kwh: float = 0.0
+    cheaper_to_import_kwh: float = 0.0
     energy_deadlines: list = field(default_factory=list)
     chronological_plan_reason: str | None = None
 

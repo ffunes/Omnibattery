@@ -5,6 +5,7 @@ side-effect-free functions: price-sensor attribute parsers (one per supported
 integration) plus the cheap-slot selection / charging-hours math. The controller
 keeps thin delegating wrappers so its internal call sites are unchanged.
 """
+import heapq
 import logging
 import math
 from datetime import datetime, timedelta
@@ -737,8 +738,8 @@ def expected_discharge_price(slots: list, hours_needed: float) -> float | None:
 
     This is the value a stored kWh is expected to realise: energy charged now
     displaces grid import during the priciest part of the slots it can still
-    serve.  Pass only slots that start after the charge (see
-    :func:`slot_arbitrage_ceilings`), or earlier peaks justify later charging.
+    serve.  Pass only slots that start after the charge, or earlier peaks
+    justify later charging.
 
     Symmetry assumption: the discharge window is taken to be as long as the
     charge window. That is an approximation, since discharge rate follows
@@ -811,35 +812,53 @@ def arbitrage_ceiling(
 
 def slot_arbitrage_ceilings(
     slots: list,
-    hours_needed: float,
     min_arbitrage_margin,
     round_trip_efficiency: float = DEFAULT_ROUND_TRIP_EFFICIENCY,
 ) -> dict | None:
     """Arbitrage ceiling per charge slot, keyed by ``slot.start``.
 
-    Energy stored in a slot can only be sold in slots that start at or after
-    its end, so each slot is valued against those alone (#649). A slot with no
-    later slot has no arbitrage value and gets ``-inf``. Returns None when the
-    gate is disabled.
+    Each slot of stored energy is paired with one later slot whose import it
+    displaces (#662): the cheapest charge slots take the priciest later
+    slots, and each later slot is sold only once, so the first kWh is valued
+    against the evening peak and the seventh against whatever is left. Energy
+    can only be sold after it is stored (#649).
+
+    A slot kept by the pairing gets the best value of any later slot as its
+    ceiling, which is at or above its own price; a slot left out gets
+    ``-inf``. Returns None when the gate is disabled.
     """
     if min_arbitrage_margin is None or min_arbitrage_margin <= 0:
         return None
-    # ponytail: O(n^2) over at most ~200 slots, not worth a suffix sweep.
+    ordered = sorted(slots, key=lambda s: s.start)
+
+    def value(slot) -> float:
+        return slot.price * round_trip_efficiency - min_arbitrage_margin
+
+    # Max-profit buy-low-sell-high with the undo trick: selling at a slot
+    # pushes its value back so a later, better slot can take the sale over.
+    # ponytail: one unit per slot whatever its length; a horizon mixing
+    # 15-min and hourly slots weighs an hour like a quarter. Weight by
+    # duration if mixed providers matter.
+    heap: list[tuple[float, int, bool, object]] = []
+    bought = set()
+    for index, slot in enumerate(ordered):
+        if heap and heap[0][0] <= value(slot):
+            _, _, is_buy, other = heapq.heappop(heap)
+            if is_buy:
+                bought.add(other.start)
+            heapq.heappush(heap, (value(slot), 2 * index, False, slot))
+        heapq.heappush(heap, (slot.price, 2 * index + 1, True, slot))
+
     ceilings = {}
-    for slot in slots:
-        expected = expected_discharge_price(
-            [t for t in slots if t.start >= slot.end], hours_needed
-        )
-        ceilings[slot.start] = (
-            float("-inf") if expected is None
-            else expected * round_trip_efficiency - min_arbitrage_margin
-        )
+    best_later = float("-inf")
+    for slot in reversed(ordered):
+        ceilings[slot.start] = best_later if slot.start in bought else float("-inf")
+        best_later = max(best_later, value(slot))
     return ceilings
 
 
 def effective_charge_ceilings(
     slots: list,
-    hours_needed: float,
     max_price_threshold,
     min_arbitrage_margin=None,
     round_trip_efficiency: float = DEFAULT_ROUND_TRIP_EFFICIENCY,
@@ -867,7 +886,7 @@ def effective_charge_ceilings(
     future_slots = [s for s in slots if s.end > now]
 
     arb = slot_arbitrage_ceilings(
-        future_slots, hours_needed, min_arbitrage_margin, round_trip_efficiency
+        future_slots, min_arbitrage_margin, round_trip_efficiency
     )
     if arb is None:
         return None, None
