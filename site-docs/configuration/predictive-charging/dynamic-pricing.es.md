@@ -195,7 +195,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     El margen se desactiva cuando está vacío o se establece en 0. Se aplica además de **Umbral máximo de precio**, y prevalece el techo más estricto. Filtra el plan de las 00:05 y cada reconstrucción posterior, incluida la evaluación de final del día. La energía necesaria para **SOC mínimo garantizado** es la excepción: solo la limita **Umbral máximo de precio**.
 
-    **Eficiencia de ciclo completo** tiene por defecto 0,85 y representa la eficiencia marginal de energía de CA a CA. Valores inferiores requieren un diferencial bruto mayor. Es distinta de los totales vitalicios de carga/descarga, que incluyen el consumo en reposo.
+    **Eficiencia de ciclo completo** representa la eficiencia marginal de energía de CA a CA; valores inferiores requieren un diferencial bruto mayor. Mientras se deje en el valor por defecto 0,85, la integración usa la eficiencia que mide en tus baterías (media ponderada por capacidad), cuando una batería tiene historial suficiente: al menos 50 ciclos equivalentes con una relación vitalicia entre 0,75 y 0,95 o, en Venus A/D, ambos tramos de carga y descarga muestreados. Sin una medición válida se mantiene en 0,85. Cualquier otro valor que establezcas se usa tal cual. El valor en uso y su origen aparecen como `round_trip_efficiency_used` y `round_trip_efficiency_source` en el diagnóstico de carga predictiva.
 
     El mismo margen mínimo se aplica a **Venta a precio alto**, de manera que las decisiones de compra y venta usan una sola preferencia de riesgo económico.
 

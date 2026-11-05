@@ -80,6 +80,7 @@ from ..control.max_soc_charge import MaxSocChargeManager
 from ..control.pack_soc import soc_vs_ceiling
 from ..drivers.base import has_connected_mppt_pv
 from ..tracking.consumption_profile import adjust_remaining_fallback_energy
+from ..energy import effective_round_trip_efficiency
 from . import (
     DynamicPricingSchedule,
     PriceSlot,
@@ -3804,7 +3805,7 @@ class PricingManager:
             deficit_hours_needed,
             ceiling,
             self._controller.min_arbitrage_margin,
-            self._controller.round_trip_efficiency,
+            effective_round_trip_efficiency(self._controller)[0],
             now=eval_now,
         )
         self._controller._dp_arbitrage_ceiling = arb_ceiling
@@ -5404,7 +5405,7 @@ class PricingManager:
             hours_needed,
             price_ceiling,
             self._controller.min_arbitrage_margin,
-            self._controller.round_trip_efficiency,
+            effective_round_trip_efficiency(self._controller)[0],
             now=now,
         )
         chronological_plan = self._build_chronological_plan(

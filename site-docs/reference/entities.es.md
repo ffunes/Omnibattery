@@ -168,7 +168,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
 
     Los atributos comunes incluyen `charging_needed`, `reason`, `price_data_status`, valores de previsión y consumo, franjas de precio seleccionadas, energía objetivo y progreso actual.
 
-    Precio dinámico también puede exponer `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `energy_deadlines`, `slot_deadlines` y `chronological_plan_reason`. Describen la intención de planificación; los límites activos de batería, red y seguridad mantienen la autoridad.
+    Precio dinámico también puede exponer `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `energy_deadlines`, `slot_deadlines` y `chronological_plan_reason`. El diagnóstico también expone `round_trip_efficiency_used` y `round_trip_efficiency_source` (`configured`, `measured` o `default`). Describen la intención de planificación; los límites activos de batería, red y seguridad mantienen la autoridad.
 
 ??? "Atributos de Estado de venta a precio alto"
 

@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.util import dt as dt_util
 
+from ..energy import effective_round_trip_efficiency
 from ..const import PREDICTIVE_MODE_DYNAMIC_PRICING
 from ..pricing import PriceSlot
 from ..pricing.curtailment import distribute_solar_forecast
@@ -347,7 +348,7 @@ class HighPriceDischargeManager:
                 # It is the round trip, so it understates the AC energy a full
                 # battery can deliver — the safe direction for a sale.
                 discharge_efficiency=float(
-                    getattr(self._controller, "round_trip_efficiency", 1.0) or 1.0
+                    effective_round_trip_efficiency(self._controller)[0] or 1.0
                 ),
             )
         except Exception as err:  # noqa: BLE001

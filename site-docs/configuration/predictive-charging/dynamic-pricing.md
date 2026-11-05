@@ -195,7 +195,7 @@ Optional controls in the **Control** tab solve different problems:
 
     The margin is disabled when empty or set to 0. It applies in addition to **Max Price Threshold**, and the stricter ceiling wins. It gates the 00:05 plan and every later rebuild, including the late-day assessment. Energy needed for **Guaranteed Minimum SOC** is the exception: only **Max Price Threshold** limits it.
 
-    **Round-Trip Efficiency** defaults to 0.85 and represents marginal AC-to-AC energy efficiency. Lower values require a larger gross spread. It is distinct from lifetime charge/discharge totals, which include standby consumption.
+    **Round-Trip Efficiency** represents marginal AC-to-AC energy efficiency; lower values require a larger gross spread. While it is left at the default 0.85, the integration uses the efficiency it measures on your batteries instead (capacity-weighted across the fleet), once a battery has enough history: at least 50 equivalent cycles with a lifetime ratio between 0.75 and 0.95, or, on Venus A/D, both charge and discharge legs sampled. Without a valid measurement it stays at 0.85. Any other value you set is always used as is. The value in use and its source are shown as `round_trip_efficiency_used` and `round_trip_efficiency_source` on the predictive-charging diagnostics.
 
     The same minimum margin applies to **High-Price Sale**, so the charge and sell decisions use one economic risk preference.
 
