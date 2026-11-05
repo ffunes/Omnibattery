@@ -820,3 +820,12 @@ def test_the_reserve_does_not_carry_night_energy_past_the_sun():
 
     assert all(a.slot.start.hour == 2 for a in plan.allocations)
     assert plan.allocated_kwh <= 0.425 + 1e-9
+
+
+def test_a_brief_dawn_blip_ends_the_reserve_hold():
+    """held_until is the first interval whose solar covers the house, even a
+    short blip before the morning deadline.  The reserve then no longer carries
+    the 00:00 charge past it (conservative: the morning imports instead)."""
+    plan = _left_hour_plan(28, sun_at=20, reserve_holds=True)
+
+    assert all(a.slot.start.hour != 0 for a in plan.allocations)
