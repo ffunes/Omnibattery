@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **Dynamic Pricing: arbitrage margin rejected the whole deficit when one peak would have paid for part of it** (#662): the discharge value was the average of as many expensive hours as the full deficit needs, so a cheap slot worth it for the first kWh was rejected with the rest (`price_threshold`, 0 slots). Each stored kWh is now paired with one later expensive slot. Energy needed at a given time is bought only when it beats importing it then, after round-trip losses and the margin; the rest is left to the grid (`cheaper_to_import_kwh`) instead of being reported as a shortfall. A `price_threshold` plan now names the cheapest rejected slot and its ceiling (`cheapest_rejected_slot`). Applies when **Minimum Arbitrage Margin** is on. Thanks to @RobtoCopter, @khh-dot and @anorakophobia.
+
 - **No-PD Command Delay: two commands in a row after a safety-timer tick** (#654): a tick just outside the delay window sent a command, and a deferred run armed earlier sent another right after it. The deferred run now waits out the rest of the window. Thanks to @tkaspersNL.
 - **Meter reading held by a paced tick was then acted on as if unchanged** (#654): the next cycle got 0 s elapsed, so the grid filter kept the old value. It now gets the time since the last reading actually used. Thanks to @tkaspersNL.
 

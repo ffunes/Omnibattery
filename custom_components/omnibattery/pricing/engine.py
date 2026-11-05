@@ -44,6 +44,7 @@ from ..const import (
     NORDPOOL_REFRESH_MINUTES,
     TIBBER_REFRESH_MINUTES,
     ENERGYZERO_REFRESH_MINUTES,
+    DEFAULT_ROUND_TRIP_EFFICIENCY,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PREDICTIVE_MODE_REALTIME_PRICE,
     NOTIFICATION_ID_PREFIX,
@@ -172,6 +173,8 @@ _CHRONOLOGICAL_DIAGNOSTIC_KEYS = (
     "energy_deadlines",
     "chronological_plan_reason",
     "guaranteed_floor_deadline",
+    "cheaper_to_import_kwh",
+    "cheapest_rejected_slot",
 )
 
 
@@ -3298,6 +3301,16 @@ class PricingManager:
                 self._contracted_charge_ceiling(),
                 max(0.0, float(self._controller.max_charge_capacity)),
             ) / 1000.0
+            # Value deadline energy against the import it displaces (#662)
+            # where the arbitrage margin is on (zero means off), and only in
+            # Dynamic Pricing: Time Slot prices are synthetic.
+            margin = getattr(self._controller, "min_arbitrage_margin", None)
+            value_deadlines = bool(
+                margin
+                and margin > 0
+                and getattr(self._controller, "predictive_charging_mode", None)
+                == PREDICTIVE_MODE_DYNAMIC_PRICING
+            )
             evaluation = self.evaluate_chronological_projection(
                 ChronologicalEvaluationRequest(
                     now=now,
@@ -3314,6 +3327,18 @@ class PricingManager:
                     premium_price_threshold=self._controller.max_price_threshold,
                     slot_ceilings=slot_ceilings,
                     required_from_deadlines=control_extension,
+                    import_value_efficiency=(
+                        getattr(
+                            self._controller,
+                            "round_trip_efficiency",
+                            DEFAULT_ROUND_TRIP_EFFICIENCY,
+                        )
+                        if value_deadlines
+                        else None
+                    ),
+                    import_value_margin=(
+                        margin if value_deadlines else 0.0
+                    ),
                 )
             )
             plan = evaluation.plan
@@ -3380,6 +3405,20 @@ class PricingManager:
                 "deadline_shortfall_kwh": round(diagnostics.deadline_shortfall_kwh, 3),
                 "total_shortfall_kwh": round(diagnostics.total_shortfall_kwh, 3),
                 "chronological_plan_reason": diagnostics.reason,
+                "cheaper_to_import_kwh": round(diagnostics.cheaper_to_import_kwh, 3),
+                "cheapest_rejected_slot": (
+                    None
+                    if diagnostics.cheapest_rejected is None
+                    else {
+                        "start": diagnostics.cheapest_rejected[0].isoformat(),
+                        "price": diagnostics.cheapest_rejected[1],
+                        "ceiling": (
+                            None
+                            if diagnostics.cheapest_rejected[2] is None
+                            else round(diagnostics.cheapest_rejected[2], 4)
+                        ),
+                    }
+                ),
                 "energy_deadlines": [
                     {
                         "deadline": item.deadline.isoformat(),
@@ -3801,7 +3840,6 @@ class PricingManager:
         ceiling = self._controller.max_price_threshold
         slot_ceilings, arb_ceiling = calculations.effective_charge_ceilings(
             plan_slots,
-            deficit_hours_needed,
             ceiling,
             self._controller.min_arbitrage_margin,
             self._controller.round_trip_efficiency,
@@ -4189,6 +4227,11 @@ class PricingManager:
             ),
             deadline_shortfall_kwh=(
                 chronological_plan.deadline_shortfall_kwh
+                if chronological_plan
+                else 0.0
+            ),
+            cheaper_to_import_kwh=(
+                chronological_plan.cheaper_to_import_kwh
                 if chronological_plan
                 else 0.0
             ),
@@ -5401,7 +5444,6 @@ class PricingManager:
         price_ceiling = self._controller.max_price_threshold
         slot_ceilings, _ = calculations.effective_charge_ceilings(
             slots,
-            hours_needed,
             price_ceiling,
             self._controller.min_arbitrage_margin,
             self._controller.round_trip_efficiency,

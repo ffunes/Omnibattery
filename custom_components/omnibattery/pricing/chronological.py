@@ -85,6 +85,12 @@ class ChronologicalPlan:
     earliest_depletion_at: datetime | None = None
     minimum_projected_energy_kwh: float = 0.0
     reason: str = "ok"
+    # Deadline energy left to the grid: importing it when it is used costs
+    # less than storing it earlier with the round-trip losses (#662).
+    cheaper_to_import_kwh: float = 0.0
+    # Cheapest slot the price limits rejected, as (start, price, ceiling), so a
+    # ``price_threshold`` plan shows by how much it missed.
+    cheapest_rejected: tuple[datetime, float, float | None] | None = None
 
 
 @dataclass(frozen=True)
@@ -119,6 +125,13 @@ class ChronologicalEvaluationRequest:
     # ``total_required_kwh``. A scalar balance over a multi-day horizon nets
     # tomorrow's solar against tonight's gap, which the deadlines do not (#710).
     required_from_deadlines: bool = False
+    # Value each ordinary deadline against the import price of the interval it
+    # serves (#662): a slot charges for it only when
+    #   slot_price <= import_price * import_value_efficiency - import_value_margin.
+    # None leaves the deadlines priced by the ceilings alone (Time Slot mode,
+    # whose slot prices are synthetic).
+    import_value_efficiency: float | None = None
+    import_value_margin: float = 0.0
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:
@@ -142,6 +155,8 @@ class ChronologicalDiagnostics:
     total_shortfall_kwh: float
     energy_deadlines: tuple[EnergyDeadline, ...]
     reason: str
+    cheaper_to_import_kwh: float = 0.0
+    cheapest_rejected: tuple[datetime, float, float | None] | None = None
 
 
 @dataclass(frozen=True)
@@ -357,6 +372,8 @@ def allocate_price_slots(
     premium_price_threshold: float | None = None,
     slot_ceilings: Mapping[datetime, float] | None = None,
     required_from_deadlines: bool = False,
+    import_value_efficiency: float | None = None,
+    import_value_margin: float = 0.0,
 ) -> ChronologicalPlan:
     """Allocate the cheapest feasible slot capacity to energy deadlines.
 
@@ -365,6 +382,13 @@ def allocate_price_slots(
     use slots above their ceiling, up to ``premium_price_threshold`` (None = no
     cap), once the slots under the ceiling are exhausted.  Everything else stays
     under the ceiling (#724).
+
+    With ``import_value_efficiency`` set, an ordinary deadline is valued
+    against the import price of the interval it serves instead of the slot
+    ceilings: a slot charges for it only up to
+    ``import_price * import_value_efficiency - import_value_margin``, and the
+    energy no such slot can cover is left to the grid (``cheaper_to_import``),
+    not counted as a shortfall (#662).
     """
     def ceiling_of(slot: PriceSlot) -> float | None:
         if slot_ceilings is not None:
@@ -383,6 +407,31 @@ def allocate_price_slots(
     )
     power = _finite_non_negative(effective_power_kw)
     efficiency = max(0.0, min(1.0, float(charge_efficiency)))
+    price_slots = [
+        slot for slot in price_slots if math.isfinite(float(slot.price))
+    ]
+    under_static = [
+        slot for slot in price_slots
+        if slot.end > now
+        and slot.start < horizon_end
+        and (max_price_threshold is None or slot.price <= max_price_threshold)
+    ]
+
+    def value_cap(deadline: EnergyDeadline) -> float | None:
+        # Guaranteed-floor energy is needed whatever the import costs then.
+        if import_value_efficiency is None or deadline.kind == "guaranteed_floor":
+            return None
+        served = next(
+            (
+                slot for slot in price_slots
+                if slot.start < deadline.deadline <= slot.end
+            ),
+            None,
+        )
+        if served is None:
+            return None
+        return served.price * import_value_efficiency - import_value_margin
+
     candidates = [
         slot for slot in price_slots
         if slot.end > now
@@ -405,6 +454,8 @@ def allocate_price_slots(
     allocations: dict[PriceSlot, float] = {}
     allocation_deadlines: dict[PriceSlot, datetime | None] = {}
     deadline_shortfall = 0.0
+    cheaper_to_import = 0.0
+    any_valued_pool = False
 
     def capacity(
         slot: PriceSlot,
@@ -483,10 +534,26 @@ def allocate_price_slots(
             if in_segment(slot, start, deadline.deadline)
         )
         missing = max(0.0, cumulative_target - already)
+        cap = value_cap(deadline)
+        pool = (
+            candidates if cap is None
+            else [slot for slot in under_static if slot.price <= cap]
+        )
+        any_valued_pool = any_valued_pool or (cap is not None and bool(pool))
+        # Capacity the import price ruled out: energy it could have stored
+        # is cheaper to import when used, not a shortfall.
+        import_free = 0.0 if cap is None else sum(
+            max(
+                0.0,
+                capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
+            )
+            for slot in under_static
+            if slot.price > cap and in_segment(slot, start, deadline.deadline)
+        )
         eligible = sorted(
             (
                 slot
-                for slot in candidates
+                for slot in pool
                 if in_segment(slot, start, deadline.deadline)
             ),
             key=lambda slot: (
@@ -543,8 +610,10 @@ def allocate_price_slots(
         # More slot capacity would not help clipped energy: it is unusable,
         # not a shortfall.
         cut = min(missing, blocked)
-        segment_unusable[start] = segment_unusable.get(start, 0.0) + cut
-        deadline_shortfall = max(deadline_shortfall, missing - cut)
+        import_cut = min(missing - cut, import_free)
+        cheaper_to_import += import_cut
+        segment_unusable[start] = segment_unusable.get(start, 0.0) + cut + import_cut
+        deadline_shortfall = max(deadline_shortfall, missing - cut - import_cut)
     unusable = sum(segment_unusable.values())
     required = max(0.0, required - unusable)
     deadline_required = max(0.0, deadline_required - unusable)
@@ -598,14 +667,31 @@ def allocate_price_slots(
     total_shortfall = max(0.0, required - allocated)
     if power <= 0:
         reason = "insufficient_power"
-    elif not candidates and not premium_candidates and required > 0:
+    elif (
+        not candidates and not premium_candidates and not any_valued_pool
+        and required > 0
+    ):
         reason = "price_threshold" if has_ceiling else "no_eligible_slots"
     elif deadline_shortfall > _EPSILON:
         reason = "deadline_capacity_shortfall"
     elif total_shortfall > _EPSILON:
         reason = "insufficient_slot_capacity"
+    elif cheaper_to_import > _EPSILON and allocated <= _EPSILON:
+        reason = "cheaper_to_import"
     else:
         reason = "ok"
+    cheapest_rejected = None
+    if reason == "price_threshold":
+        rejected = min(
+            (
+                slot for slot in price_slots
+                if slot.end > now and slot.start < horizon_end
+            ),
+            key=lambda slot: (slot.price, slot.start),
+            default=None,
+        )
+        if rejected is not None:
+            cheapest_rejected = (rejected.start, rejected.price, ceiling_of(rejected))
     earliest = simulation.earliest_depletion_at
     return ChronologicalPlan(
         intervals=intervals,
@@ -620,6 +706,8 @@ def allocate_price_slots(
         earliest_depletion_at=earliest,
         minimum_projected_energy_kwh=simulation.minimum_projected_energy_kwh,
         reason=reason,
+        cheaper_to_import_kwh=cheaper_to_import,
+        cheapest_rejected=cheapest_rejected,
     )
 
 
@@ -658,6 +746,8 @@ def evaluate_chronological_request(
         premium_price_threshold=request.premium_price_threshold,
         slot_ceilings=request.slot_ceilings,
         required_from_deadlines=request.required_from_deadlines,
+        import_value_efficiency=request.import_value_efficiency,
+        import_value_margin=request.import_value_margin,
     )
     return ChronologicalEvaluationResult(
         plan=plan,
@@ -670,5 +760,7 @@ def evaluate_chronological_request(
             total_shortfall_kwh=plan.total_shortfall_kwh,
             energy_deadlines=tuple(plan.deadlines),
             reason=plan.reason,
+            cheaper_to_import_kwh=plan.cheaper_to_import_kwh,
+            cheapest_rejected=plan.cheapest_rejected,
         ),
     )

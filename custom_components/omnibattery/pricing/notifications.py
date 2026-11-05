@@ -436,6 +436,12 @@ def format_dynamic_pricing_notification(
                     f"🕒 Required before deadlines: {deadline:.2f} kWh\n"
                     f"💰 Flexible by price: {flexible:.2f} kWh\n"
                 )
+                imported = float(getattr(schedule, "cheaper_to_import_kwh", 0.0) or 0.0)
+                if imported > 0:
+                    chronological_lines += (
+                        f"🔌 Left to the grid (cheaper to import when used): "
+                        f"{imported:.2f} kWh\n"
+                    )
                 shortfall = float(getattr(schedule, "deadline_shortfall_kwh", 0.0) or 0.0)
                 if shortfall > 0:
                     chronological_lines += (

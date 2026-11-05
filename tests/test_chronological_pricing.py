@@ -688,3 +688,69 @@ def test_only_floor_energy_is_charged_ahead_of_a_solar_fill(kind, expected):
 
     assert plan.allocated_kwh == pytest.approx(expected)
     assert plan.deadline_shortfall_kwh == pytest.approx(0.0)
+
+
+def _import_value_plan(**kwargs):
+    # 1 kWh used at 10:00 (import 0.30) and 1 kWh at 11:00 (import 0.20);
+    # the night slot costs 0.15.
+    intervals = [_interval(40, 1.0), _interval(44, 1.0)]
+    slots = [_slot(0, 60, 0.15), _slot(600, 615, 0.30), _slot(660, 675, 0.20)]
+    return allocate_price_slots(
+        intervals,
+        kwargs.pop(
+            "deadlines", build_energy_deadlines(intervals, usable_initial_kwh=0.0)
+        ),
+        slots,
+        total_required_kwh=2.0,
+        effective_power_kw=2.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=12),
+        **kwargs,
+    )
+
+
+def test_deadline_energy_is_bought_only_where_it_beats_the_import_then():
+    """#662: 0.30 x 0.82 - 0.06 = 0.186 repays the 0.15 night slot, while
+    0.20 x 0.82 - 0.06 = 0.104 does not, so that kWh is imported at 11:00."""
+    plan = _import_value_plan(import_value_efficiency=0.82, import_value_margin=0.06)
+
+    assert [a.slot.price for a in plan.allocations] == [0.15]
+    assert plan.allocated_kwh == pytest.approx(1.0)
+    assert plan.cheaper_to_import_kwh == pytest.approx(1.0)
+    assert plan.deadline_shortfall_kwh == pytest.approx(0.0)
+    assert plan.reason == "ok"
+
+
+def test_deadlines_without_import_value_keep_buying_everything():
+    plan = _import_value_plan()
+
+    assert plan.allocated_kwh == pytest.approx(2.0)
+    assert plan.cheaper_to_import_kwh == 0.0
+
+
+def test_everything_cheaper_to_import_is_not_a_shortfall():
+    plan = _import_value_plan(import_value_efficiency=0.82, import_value_margin=0.20)
+
+    assert plan.allocations == []
+    assert plan.deadline_shortfall_kwh == pytest.approx(0.0)
+    assert plan.cheaper_to_import_kwh == pytest.approx(2.0)
+    assert plan.reason == "cheaper_to_import"
+
+
+def test_guaranteed_floor_deadline_ignores_the_import_value():
+    deadline = EnergyDeadline(BASE + timedelta(hours=11, minutes=15), 2.0, "guaranteed_floor")
+    plan = _import_value_plan(
+        deadlines=[deadline],
+        import_value_efficiency=0.82,
+        import_value_margin=0.20,
+    )
+
+    assert plan.allocated_kwh == pytest.approx(2.0)
+    assert plan.cheaper_to_import_kwh == 0.0
+
+
+def test_price_threshold_names_the_cheapest_rejected_slot():
+    plan = _import_value_plan(max_price_threshold=0.10)
+
+    assert plan.reason == "price_threshold"
+    assert plan.cheapest_rejected == (BASE, 0.15, 0.10)

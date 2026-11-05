@@ -195,6 +195,8 @@ Optional controls in the **Control** tab solve different problems:
 
     The margin is disabled when empty or set to 0. It applies in addition to **Max Price Threshold**, and the stricter ceiling wins. It gates the 00:05 plan and every later rebuild, including the late-day assessment. Energy needed for **Guaranteed Minimum SOC** is the exception: only **Max Price Threshold** limits it.
 
+    `expected_discharge_price` is set per stored kWh, not for the whole deficit. The cheapest charge periods take the most expensive later periods, and each later period counts once. So the first kWh is compared with the evening peak, and the last with whatever cheaper hour it would replace. Energy the home needs at a given time is compared with the import price at that time. When importing then costs less than charging earlier with the round-trip losses, that energy is left to the grid and reported as `cheaper_to_import_kwh` instead of a shortfall. If no period qualifies, `chronological_plan_reason` is `price_threshold` and `cheapest_rejected_slot` shows the cheapest period with the ceiling it missed.
+
     **Round-Trip Efficiency** defaults to 0.85 and represents marginal AC-to-AC energy efficiency. Lower values require a larger gross spread. It is distinct from lifetime charge/discharge totals, which include standby consumption.
 
     The same minimum margin applies to **High-Price Sale**, so the charge and sell decisions use one economic risk preference.

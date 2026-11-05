@@ -749,6 +749,12 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
                 "chronological_plan_reason": _chronological_value(
                     "chronological_plan_reason"
                 ),
+                "cheaper_to_import_kwh": _chronological_value(
+                    "cheaper_to_import_kwh", 0.0
+                ),
+                "cheapest_rejected_slot": _chronological_value(
+                    "cheapest_rejected_slot"
+                ),
                 "guaranteed_floor_deadline": _chronological_value(
                     "guaranteed_floor_deadline"
                 ),
