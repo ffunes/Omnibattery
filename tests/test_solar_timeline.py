@@ -296,3 +296,53 @@ def test_legacy_positional_shape_is_used_only_for_the_exact_horizon():
     )
     assert invalid.source == "sinusoidal"
     assert "legacy_shape_length" in (invalid.fallback_reason or "")
+
+
+def _berlin_day_periods(day_offset: int, skip_hours=()):
+    tz = ZoneInfo("Europe/Berlin")
+    base = datetime(2026, 11, 5, 9, 0, tzinfo=tz) + timedelta(days=day_offset)
+    return [
+        SolarForecastPeriod(
+            start=base + timedelta(hours=h),
+            end=base + timedelta(hours=h + 1),
+            energy_kwh=1.0,
+        )
+        for h in range(8)
+        if h not in skip_hours
+    ]
+
+
+def _berlin_timeline(periods):
+    tz = ZoneInfo("Europe/Berlin")
+    return build_solar_timeline(
+        build_boundaries(
+            datetime(2026, 11, 5, 8, 19, tzinfo=tz),
+            datetime(2026, 11, 6, 7, 31, tzinfo=tz),
+        ),
+        8.0,
+        provider_periods=periods,
+        solar_start=datetime(2026, 11, 5, 9, 0, tzinfo=tz),
+        solar_end=datetime(2026, 11, 5, 17, 0, tzinfo=tz),
+        learned_shape=[1.0 / 96] * 96,
+        learned_mature=False,
+    )
+
+
+def test_next_day_periods_do_not_cause_provider_gap():
+    """#752: the overnight gap before tomorrow's periods is outside daylight."""
+    baseline = _berlin_timeline(_berlin_day_periods(0))
+    with_next_day = _berlin_timeline(
+        _berlin_day_periods(0) + _berlin_day_periods(1)
+    )
+
+    assert baseline.source == "provider"
+    assert with_next_day.source == "provider", with_next_day.fallback_reason
+
+
+def test_gap_inside_daylight_is_still_rejected_with_next_day_periods():
+    timeline = _berlin_timeline(
+        _berlin_day_periods(0, skip_hours=(3, 4)) + _berlin_day_periods(1)
+    )
+
+    assert timeline.source != "provider"
+    assert "provider_gap" in (timeline.fallback_reason or "")

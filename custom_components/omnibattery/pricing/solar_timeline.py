@@ -237,6 +237,10 @@ def _validate_periods(
         p_start, p_end = _timestamp(period.start), _timestamp(period.end)
         if p_end <= cursor:
             continue
+        if p_start >= light_end:
+            # Periods beyond the daylight window (e.g. tomorrow) are irrelevant;
+            # the overnight gap before them is not a coverage gap.
+            break
         if p_start > cursor:
             # A gap larger than one hour inside the daylight horizon is unsafe.
             if p_start - cursor > MAX_PROVIDER_GAP_SECONDS:
