@@ -400,7 +400,8 @@ def allocate_price_slots(
     therefore only served by a slot that ends at or after the last hour left
     to the grid before it, unless ``reserve_holds`` (the discharge reserve
     keeps the energy for dearer hours until the sun covers the house) and the
-    deadline comes before that.
+    deadline comes before that. On a day the sun never covers the house the
+    reserve holds a charge made after midnight to that day's evening.
     """
     def ceiling_of(slot: PriceSlot) -> float | None:
         if slot_ceilings is not None:
@@ -529,20 +530,28 @@ def allocate_price_slots(
     # The last deadline in each segment that was left to the grid: the battery
     # is empty there, so energy stored before it is gone by then.
     left_until: dict[datetime, datetime] = {}
-    held_until = (
-        next(
-            (
-                interval.start
-                for interval in intervals
-                if interval.end > now
-                and interval.solar_kwh > _EPSILON
-                and interval.solar_kwh >= interval.consumption_kwh
-            ),
-            None,
-        )
+    sun_covers = (
+        [
+            interval.start
+            for interval in intervals
+            if interval.end > now
+            and interval.solar_kwh > _EPSILON
+            and interval.solar_kwh >= interval.consumption_kwh
+        ]
         if reserve_holds
-        else None
+        else []
     )
+    held_until = sun_covers[0] if sun_covers else None
+
+    def held_through_the_day(slot: PriceSlot, deadline: datetime) -> bool:
+        # A day the sun never covers the house has no surplus to refill the
+        # battery, and the reserve keeps that day's evening in its plan. So a
+        # charge after midnight is held to a deadline later the same day, as
+        # long as the sun does not take over in between. A charge before
+        # midnight is not: until then the reserve plans only to sunrise.
+        if not reserve_holds or slot.start.date() != deadline.date():
+            return False
+        return not any(slot.start <= cover < deadline for cover in sun_covers)
 
     def lasts(slot: PriceSlot, start: datetime, deadline: datetime) -> bool:
         # The grid covers the house during a charge slot, so a slot ending at
@@ -552,6 +561,7 @@ def allocate_price_slots(
             until is None
             or slot.end >= until
             or (held_until is not None and deadline <= held_until)
+            or held_through_the_day(slot, deadline)
         )
 
     segment_unusable: dict[datetime, float] = {}
