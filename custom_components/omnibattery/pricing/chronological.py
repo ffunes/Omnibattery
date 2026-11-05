@@ -102,6 +102,10 @@ class ChronologicalEvaluationRequest:
     # Per-slot (arbitrage) ceilings keyed by ``slot.start``; a slot missing from
     # the mapping falls back to ``max_price_threshold``.
     slot_ceilings: Mapping[datetime, float] | None = None
+    # Size the plan from the deadlines when they ask for more than
+    # ``total_required_kwh``. A scalar balance over a multi-day horizon nets
+    # tomorrow's solar against tonight's gap, which the deadlines do not (#710).
+    required_from_deadlines: bool = False
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:
@@ -339,6 +343,7 @@ def allocate_price_slots(
     premium_kwh: float = 0.0,
     premium_price_threshold: float | None = None,
     slot_ceilings: Mapping[datetime, float] | None = None,
+    required_from_deadlines: bool = False,
 ) -> ChronologicalPlan:
     """Allocate the cheapest feasible slot capacity to energy deadlines.
 
@@ -430,6 +435,8 @@ def allocate_price_slots(
             segment_required.get(start, 0.0),
             deadline.required_cumulative_kwh,
         )
+    if required_from_deadlines:
+        required = min(headroom, max(required, sum(segment_required.values())))
     deadline_required = min(required, sum(segment_required.values()))
 
     # Energy charged ahead of a projected solar fill is clipped, not stored, so
@@ -637,6 +644,7 @@ def evaluate_chronological_request(
         premium_kwh=request.premium_kwh,
         premium_price_threshold=request.premium_price_threshold,
         slot_ceilings=request.slot_ceilings,
+        required_from_deadlines=request.required_from_deadlines,
     )
     return ChronologicalEvaluationResult(
         plan=plan,

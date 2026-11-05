@@ -32,6 +32,7 @@
 
 ### Added
 
+- **Dynamic Pricing: plans across tomorrow once its prices are published** (#710): the charge planner now looks up to the sunrise after tomorrow when tomorrow's prices and a dated solar forecast (Energy dashboard) are available, so tonight's slots are weighed against tomorrow's solar and evening peak and tomorrow's cheap slots can replace overbuying tonight. Only slots before the next sunrise are scheduled; the rest is planned again at the next daily evaluation. Without either input nothing changes.
 - **Repairs warning when Recorder excludes the sensors used to recover forecast history** (Home Consumption, solar production, excluded-device power). Thanks to @thomasvt1.
 
 ### Changed
