@@ -89,7 +89,8 @@ async def test_event_trigger_inside_the_min_interval_is_dropped():
     assert ctl._phase_safety_pending is True
 
 
-async def test_the_safety_timer_is_never_paced():
+async def test_the_safety_timer_always_runs_but_is_flagged_paced():
+    """#654: the tick still runs its safety review; the flag makes it keep the command."""
     runs = []
     ctl = _paced_controller(runs)
     stamp = dt_util.utcnow()
@@ -97,6 +98,21 @@ async def test_the_safety_timer_is_never_paced():
     await ChargeDischargeController.async_update_charge_discharge(ctl, stamp)
 
     assert runs == [stamp]
+    assert ctl._timer_tick_paced is True
+
+
+async def test_no_pd_delay_paces_the_safety_timer(monkeypatch):
+    runs = []
+    ctl, clock = _clocked_controller(monkeypatch, runs, keeps_last_command=False)
+    ctl.no_pd_mode_enabled = True
+    ctl._no_pd_command_delay = 3.0
+    ctl._last_cycle_monotonic = 0.0
+    tick = dt_util.utcnow()
+
+    await _trigger(ctl, clock, (2.0, tick))
+    assert ctl._timer_tick_paced is True
+    await _trigger(ctl, clock, (5.5, tick))
+    assert ctl._timer_tick_paced is False
 
 
 def _clocked_controller(monkeypatch, runs, *, keeps_last_command):

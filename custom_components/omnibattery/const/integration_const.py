@@ -713,8 +713,8 @@ RELAY_COOLDOWN_HOLD_POWER = 100
 # Minimum spacing (s) between event-driven control cycles. The grid sensor can
 # publish several times per second; without a floor, each out-of-deadband cycle
 # issues a Modbus write burst, which slow TCP-serial bridges (e.g. Elfin EW11)
-# can choke on. Drops surplus sensor-triggered cycles; the 2 s safety timer is
-# never gated. 0 = disabled (pre-feature behaviour); default 1 s caps bursts.
+# can choke on. Drops surplus sensor-triggered cycles; 2 s safety-timer ticks
+# inside the window keep the last command (#654). 0 = disabled (pre-feature behaviour); default 1 s caps bursts.
 DEFAULT_PD_MIN_CYCLE_INTERVAL = 1.0
 # Grid-sample EMA smoothing time constant (s). Single source of truth so no-PD
 # mode can drop it to 0 (raw passthrough) and restore it when the mode is off.
@@ -1168,7 +1168,7 @@ CONFIG_NUMBER_DEFINITIONS = [
         "key": CONF_PD_MIN_CYCLE_INTERVAL,
         "name": "PD Min Cycle Interval",
         "min": 0,
-        "max": 2,
+        "max": 5,
         "step": 0.1,
         "unit": "s",
         "default": DEFAULT_PD_MIN_CYCLE_INTERVAL,
