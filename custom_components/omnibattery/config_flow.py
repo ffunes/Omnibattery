@@ -543,6 +543,7 @@ def _soc_selector_limits(
     brand: str, battery_version: str = DEFAULT_VERSION
 ) -> tuple[int, int, int, int, int, int]:
     """Return minimum and maximum SOC selector bounds and defaults."""
+    max_lo = 80
     if brand == "zendure":
         min_lo, min_hi, min_default = 5, 50, 12
     elif brand == "anker":
@@ -558,14 +559,15 @@ def _soc_selector_limits(
     else:
         min_lo, min_hi, min_default = 12, 30, 12
         # v3/vA/vD enforce this in software, so the 30 % of the v2 register
-        # doesn't apply. The form offers what the SOC limit entity offers:
-        # otherwise saving it lowers a higher value set on that entity.
+        # doesn't apply. The form offers what the SOC limit entities offer:
+        # otherwise saving it moves a value set on those entities.
         if brand == "marstek" and REGISTER_MAP.get(battery_version, {}).get("discharging_cutoff_capacity") is None:
             min_hi = int(DriverCapabilities.discharge_cutoff_range[1])
+            max_lo = int(DriverCapabilities.charge_cutoff_range[0])
 
     # Omnibattery enforces the charge ceiling in software. Sessy's reported SOC
     # spans 0–100 %, so the standard 100 % ceiling is valid for this driver.
-    return min_lo, min_hi, min_default, 80, 100, 100
+    return min_lo, min_hi, min_default, max_lo, 100, 100
 
 
 def _hoymiles_apply_probe_caps(

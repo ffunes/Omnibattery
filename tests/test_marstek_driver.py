@@ -1110,12 +1110,8 @@ async def test_options_flow_preserves_unused_venus_mppt_inputs():
     assert flow.battery_configs[0]["dc_pv_connected"] is False
 
 
-@pytest.mark.parametrize(
-    ("version", "saved_min_soc"),
-    [("v2", 30), ("v3", 50), ("vA", 50), ("vD", 50)],
-)
-async def test_options_flow_keeps_a_min_soc_set_on_the_soc_limit_entity(version, saved_min_soc):
-    """The entity offers up to 50 % without a hardware cutoff; v2's register stops at 30 %."""
+async def _save_battery_limits_form(version, *, min_soc=12, max_soc=100):
+    """Open the battery form and save it unchanged, as a user would."""
     from custom_components.omnibattery.config_flow import OptionsFlowHandler
 
     battery = {
@@ -1124,8 +1120,8 @@ async def test_options_flow_keeps_a_min_soc_set_on_the_soc_limit_entity(version,
         "battery_version": version,
         "max_charge_power": 2500,
         "max_discharge_power": 2500,
-        "max_soc": 100,
-        "min_soc": 50,
+        "max_soc": max_soc,
+        "min_soc": min_soc,
         "charge_hysteresis_percent": 2,
         "backup_offgrid_threshold": 50,
         "full_charge_voltage_taper_enabled": True,
@@ -1155,8 +1151,29 @@ async def test_options_flow_keeps_a_min_soc_set_on_the_soc_limit_entity(version,
         if callable(marker.default)
     }
     await flow.async_step_battery_limits(user_input)
+    return flow.battery_configs[0]
 
-    assert flow.battery_configs[0]["min_soc"] == saved_min_soc
+
+@pytest.mark.parametrize(
+    ("version", "saved_min_soc"),
+    [("v2", 30), ("v3", 50), ("vA", 50), ("vD", 50)],
+)
+async def test_options_flow_keeps_a_min_soc_set_on_the_soc_limit_entity(version, saved_min_soc):
+    """The entity offers up to 50 % without a hardware cutoff; v2's register stops at 30 %."""
+    saved = await _save_battery_limits_form(version, min_soc=50)
+
+    assert saved["min_soc"] == saved_min_soc
+
+
+@pytest.mark.parametrize(
+    ("version", "saved_max_soc"),
+    [("v2", 80), ("v3", 50), ("vA", 50), ("vD", 50)],
+)
+async def test_options_flow_keeps_a_max_soc_set_on_the_soc_limit_entity(version, saved_max_soc):
+    """The entity offers down to 50 % without a hardware cutoff; v2 keeps the form's 80 %."""
+    saved = await _save_battery_limits_form(version, max_soc=50)
+
+    assert saved["max_soc"] == saved_max_soc
 
 
 async def test_probe_returns_false_when_connection_fails(monkeypatch):
