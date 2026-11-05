@@ -33,6 +33,19 @@ class EnergyInterval:
             if not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and non-negative")
 
+    def with_battery_idle(self) -> "EnergyInterval":
+        """Interval in which the battery may not discharge.
+
+        The grid carries the load the battery would have covered, but the
+        household still consumes solar first: only the surplus charges (#616).
+        """
+        return EnergyInterval(
+            self.start,
+            self.end,
+            0.0,
+            max(0.0, self.solar_kwh - self.consumption_kwh),
+        )
+
 
 @dataclass(frozen=True)
 class EnergyDeadline:

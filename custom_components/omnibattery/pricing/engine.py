@@ -2943,7 +2943,7 @@ class PricingManager:
             ]
             if fleet_blocks:
                 intervals = [
-                    EnergyInterval(item.start, item.end, 0.0, item.solar_kwh)
+                    item.with_battery_idle()
                     if any(
                         self._future_slot_matches_operation_block(item, block)
                         for block in fleet_blocks
@@ -2976,7 +2976,7 @@ class PricingManager:
                     if slot.price <= price_block
                 ]
                 intervals = [
-                    EnergyInterval(item.start, item.end, 0.0, item.solar_kwh)
+                    item.with_battery_idle()
                     if any(
                         wall(slot.start) <= wall(item.start) < wall(slot.end)
                         for slot in blocked

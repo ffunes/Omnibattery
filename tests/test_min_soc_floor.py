@@ -867,3 +867,61 @@ def test_floor_lifts_the_margin_only_for_the_floor_energy():
 
     assert decision["floor_active"] is True
     assert plan.allocated_kwh == pytest.approx((20.0 - 12.0) / 100.0 * _FLOOR_CAP, abs=0.02)
+
+
+# --- no-discharge intervals still net household load against solar (#616) -----
+
+
+def _captured_intervals(monkeypatch, manager, now):
+    from custom_components.omnibattery.pricing import engine as engine_module
+
+    captured = []
+    real = engine_module.build_energy_deadlines
+
+    def capture(intervals, *args, **kwargs):
+        captured.append(list(intervals))
+        return real(intervals, *args, **kwargs)
+
+    monkeypatch.setattr(engine_module, "build_energy_deadlines", capture)
+    manager._build_chronological_plan(
+        now=now,
+        slots=[],
+        decision_data={
+            "should_charge": False,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 0.0,
+            "planned_grid_charge_kwh": 0.0,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        price_ceiling=None,
+    )
+    return captured[0]
+
+
+def test_daytime_no_discharge_window_credits_only_the_solar_surplus(monkeypatch):
+    # Battery may not discharge 11:00-17:00, but the house still eats solar
+    # first: only the surplus may be projected as battery charge.
+    manager = _floor_manager(45.0)
+    manager._controller.config_entry.data["no_discharge_time_slots"] = [{
+        "start_time": "11:00:00",
+        "end_time": "17:00:00",
+        "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+        "enabled": True,
+        "battery_scope": "all",
+    }]
+    now = datetime(2026, 9, 11, 10, 0, tzinfo=_FLOOR_TZ)
+    baseline = _captured_intervals(monkeypatch, _floor_manager(45.0), now)
+    blocked = _captured_intervals(monkeypatch, manager, now)
+
+    inside = [
+        (raw, item)
+        for raw, item in zip(baseline, blocked)
+        if 11 <= item.start.astimezone(_FLOOR_TZ).hour < 17
+    ]
+    assert inside
+    assert any(raw.solar_kwh > 0 and raw.consumption_kwh > 0 for raw, _ in inside)
+    for raw, item in inside:
+        assert item.consumption_kwh == 0.0
+        assert item.solar_kwh == pytest.approx(
+            max(0.0, raw.solar_kwh - raw.consumption_kwh)
+        )
