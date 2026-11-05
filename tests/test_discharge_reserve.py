@@ -647,6 +647,82 @@ def test_a_later_uncovered_slot_does_not_pull_the_horizon_back_in():
     assert manager.plan.horizon_end == NOV_3_SUNRISE
 
 
+def _measured(solar_kw, home_kw):
+    """The consumption tracker's live readings: total solar and home load."""
+    return SimpleNamespace(
+        _read_total_solar_power_kw=lambda: solar_kw,
+        get_validated_home_power_kw=lambda: home_kw,
+    )
+
+
+def _nov_2_measured_manager(now, tracker, **pricing_kwargs):
+    controller = _controller(
+        _pricing_mgr=_nov_2_pricing(now=now, **pricing_kwargs),
+        discharge_reserve_min_saving=0.029,
+        _consumption_tracker=tracker,
+    )
+    return _built(controller, now)
+
+
+def _refresh(manager, now, **pricing_kwargs):
+    manager._controller._pricing_mgr = _nov_2_pricing(now=now, **pricing_kwargs)
+    manager._now = lambda: now
+    asyncio.get_event_loop().run_until_complete(
+        manager.async_rebuild_plan("test", force=True)
+    )
+
+
+def test_the_take_over_waits_for_the_panels_to_carry_the_house():
+    """5 Nov: the forecast's slot passed at 10:03 while the house imported
+    1.2 kW more than the panels made. A refresh that moves the sun later then
+    brings the late morning back into the plan."""
+    manager = _nov_2_measured_manager(SUN_TAKES_OVER, _measured(0.76, 2.0))
+    assert manager.plan.horizon_end == NOV_3_SUNRISE
+
+    later = SUN_TAKES_OVER + timedelta(minutes=20)
+    _refresh(manager, later, load={41: 2.0, 42: 2.0})
+    assert manager.plan.horizon_end == NOV_2 + timedelta(hours=10, minutes=45)
+
+
+def test_once_the_panels_carry_the_house_the_take_over_holds():
+    manager = _nov_2_measured_manager(SUN_TAKES_OVER, _measured(2.4, 2.0))
+
+    _refresh(manager, SUN_TAKES_OVER + timedelta(minutes=20), load={41: 2.0, 42: 2.0})
+    assert manager.plan.horizon_end == NOV_3_SUNRISE
+
+
+def test_unreadable_measurements_keep_the_forecast_take_over():
+    manager = _nov_2_measured_manager(SUN_TAKES_OVER, _measured(None, 2.0))
+
+    _refresh(manager, SUN_TAKES_OVER + timedelta(minutes=20), load={41: 2.0, 42: 2.0})
+    assert manager.plan.horizon_end == NOV_3_SUNRISE
+
+
+def _nov_2_at_measured_share(now, ratio):
+    controller = _controller(
+        _pricing_mgr=_nov_2_pricing(now=now), discharge_reserve_min_saving=0.029
+    )
+    manager = _manager(controller, now)
+    manager._measured_solar_ratio = lambda _now: ratio
+    asyncio.get_event_loop().run_until_complete(manager.async_rebuild_plan("test"))
+    return manager
+
+
+def test_a_day_the_panels_run_far_below_the_forecast_keeps_the_evening():
+    """At 40 % of the forecast the sun never covers the house, so the horizon
+    no longer ends at the forecast's 10:00 and the evening peak is claimed."""
+    as_forecast = _nov_2_at_measured_share(NOV_2 + timedelta(hours=9), None)
+    assert as_forecast.plan.horizon_end == SUN_TAKES_OVER
+
+    measured = _nov_2_at_measured_share(NOV_2 + timedelta(hours=9), 0.4)
+    measured.reserve_soc_pct()
+    status = measured.get_status()
+    assert status["horizon_end"] == NOV_3_SUNRISE.isoformat()
+    assert status["measured_solar_ratio"] == 0.4
+    starts = [slot["start"] for slot in status["reserved_slots"]]
+    assert (NOV_2 + timedelta(hours=18)).isoformat() in starts
+
+
 # ----------------------------------------------------------------------
 # The provider's solar curve
 # ----------------------------------------------------------------------
@@ -746,6 +822,42 @@ def test_a_curve_with_a_hole_in_daylight_is_not_trusted():
     periods = _periods(DAY, {7: 0.0, 8: 0.0, 11: 3.0})
     manager = _curve_manager(periods)
     assert manager._follow_provider_curve(SINE_MORNING, NOW) == SINE_MORNING
+
+
+def _measured_ratio(measured_kwh, now, *, on=DAY):
+    manager = _curve_manager(_periods(DAY, MOUNTAIN_MORNING))
+    manager._controller._daily_solar_energy_kwh = measured_kwh
+    manager._controller._daily_solar_energy_date = on.date()
+    return manager._measured_solar_ratio(now)
+
+
+def test_the_measured_share_is_today_s_production_over_the_provider_s_so_far():
+    # By 10:30 the provider expected 1.0 + half of 2.0 kWh.
+    assert _measured_ratio(1.0, DAY + timedelta(hours=10, minutes=30)) == pytest.approx(0.5)
+
+
+def test_too_little_expected_yet_is_not_judged():
+    assert _measured_ratio(0.0, DAY + timedelta(hours=9, minutes=15)) is None
+
+
+def test_yesterday_s_production_is_not_today_s():
+    assert _measured_ratio(1.0, DAY + timedelta(hours=12), on=DAY - timedelta(days=1)) is None
+
+
+@pytest.mark.parametrize("measured, expected", [(0.1, 0.25), (20.0, 1.5)])
+def test_the_measured_share_is_clamped(measured, expected):
+    assert _measured_ratio(measured, DAY + timedelta(hours=12)) == pytest.approx(expected)
+
+
+def test_only_today_s_sun_still_ahead_takes_the_measured_share():
+    manager = _curve_manager()
+    manager._measured_solar_ratio = lambda _now: 0.5
+    past, ahead = _hourly(DAY, 9, 10)[0], _hourly(DAY, 14, 15)[0]
+    tomorrow = _hourly(DAY + timedelta(days=1), 10, 11)[0]
+    scaled = manager._follow_measured_production(
+        {past: 1.0, ahead: 2.0, tomorrow: 3.0}, NOW
+    )
+    assert scaled == {past: 1.0, ahead: 1.0, tomorrow: 3.0}
 
 
 def test_the_morning_demand_follows_the_provider_curve():
