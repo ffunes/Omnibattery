@@ -8127,6 +8127,17 @@ class ChargeDischargeController:
 
     async def _run_no_pd_debounced_cycle(self):
         """Run the deferred no-PD control cycle."""
+        # #654: a safety-timer tick may have acted since this run was armed.
+        # Wait out the rest of its window so commands stay spaced by the delay.
+        remaining = self._no_pd_command_delay - (
+            time.monotonic() - self._last_cycle_monotonic
+        )
+        if remaining > 0.01:  # tolerance: the re-armed timer fires at ~0 remaining
+            if self._no_pd_debounce_unsub is None:
+                self._no_pd_debounce_unsub = async_call_later(
+                    self.hass, remaining, self._fire_no_pd_debounced_run
+                )
+            return
         if self._control_lock.locked():
             return
         async with self._control_lock:

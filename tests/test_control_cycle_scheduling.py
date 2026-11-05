@@ -185,3 +185,38 @@ async def test_a_meter_update_that_kept_the_last_command_still_counts(monkeypatc
 
     assert runs == [(0.0, None)]
     assert ctl._last_cycle_monotonic == 0.0
+
+
+async def test_no_pd_debounced_run_waits_out_a_tick_that_just_acted(monkeypatch):
+    """#654: a tick at 3.1s acts; the debounce armed at 0.3s fires at 3.3s.
+
+    Sending another command 0.2s later broke the No-PD Command Delay spacing,
+    so the deferred run is re-armed for the rest of the window instead.
+    """
+    runs = []
+    ctl, clock = _clocked_controller(monkeypatch, runs, keeps_last_command=False)
+    ctl.no_pd_mode_enabled = True
+    ctl._no_pd_command_delay = 3.0
+    ctl._no_pd_debounce_unsub = None
+    ctl.hass = object()
+    ctl._fire_no_pd_debounced_run = object()
+    armed = []
+    monkeypatch.setattr(
+        "custom_components.omnibattery.async_call_later",
+        lambda hass, delay, cb: armed.append(delay) or (lambda: None),
+    )
+    ctl._last_cycle_monotonic = 0.0
+    tick = dt_util.utcnow()
+
+    await _trigger(ctl, clock, (3.1, tick))
+    assert runs == [(3.1, tick)]
+
+    clock[0] = 3.3
+    await ChargeDischargeController._run_no_pd_debounced_cycle(ctl)
+    assert runs == [(3.1, tick)]
+    assert armed and abs(armed[0] - 2.8) < 1e-9
+
+    ctl._no_pd_debounce_unsub = None  # timer fired
+    clock[0] = 6.1
+    await ChargeDischargeController._run_no_pd_debounced_cycle(ctl)
+    assert runs == [(3.1, tick), (6.1, None)]

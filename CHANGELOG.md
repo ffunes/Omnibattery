@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.0b2] - Unreleased
+
+### Fixed
+
+- **No-PD Command Delay: two commands in a row after a safety-timer tick** (#654): a tick just outside the delay window sent a command, and a deferred run armed earlier sent another right after it. The deferred run now waits out the rest of the window. Thanks to @tkaspersNL.
+
 ## [1.6.0b1] - 2026-11-05
 
 ### Added
