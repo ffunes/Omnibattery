@@ -9489,6 +9489,7 @@ class ChargeDischargeController:
         self._consumption_sensor_issue = None
 
         # Detect real sensor publications, even when the numeric value is unchanged.
+        previous_report_time = self._last_sensor_report_time
         sensor_report_time, sensor_elapsed_s, is_stale = (
             self._track_sensor_report(consumption_state, sensor_raw)
         )
@@ -9550,8 +9551,11 @@ class ChargeDischargeController:
                     )
                 if paced_tick:
                     # Leave the sample unconsumed so the next unpaced cycle
-                    # still sees it as new and acts on it.
+                    # still sees it as new and acts on it, with its elapsed
+                    # measured from the last consumed report (not 0, which
+                    # would freeze the EMA on the old value).
                     self._last_control_sample_value = None
+                    self._last_sensor_report_time = previous_report_time
                 self._cycle_kept_last_command = True
                 return
             # A paced tick that a safety condition needs reviewed runs a normal

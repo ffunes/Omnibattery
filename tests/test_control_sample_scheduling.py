@@ -503,6 +503,8 @@ def test_paced_tick_keeps_command_but_leaves_new_sample_for_next_cycle():
     controller._timer_tick_paced = False
     asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=4)))
     assert len(pd_calls) == 2
+    # Elapsed spans the last consumed report, not 0 (which freezes the EMA).
+    assert pd_calls[-1][1] == 2.0
 
 
 def test_paced_tick_with_pending_safety_runs_a_normal_cycle():

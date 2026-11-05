@@ -5,6 +5,7 @@
 ### Fixed
 
 - **No-PD Command Delay: two commands in a row after a safety-timer tick** (#654): a tick just outside the delay window sent a command, and a deferred run armed earlier sent another right after it. The deferred run now waits out the rest of the window. Thanks to @tkaspersNL.
+- **Meter reading held by a paced tick was then acted on as if unchanged** (#654): the next cycle got 0 s elapsed, so the grid filter kept the old value. It now gets the time since the last reading actually used. Thanks to @tkaspersNL.
 
 ## [1.6.0b1] - 2026-11-05
 
