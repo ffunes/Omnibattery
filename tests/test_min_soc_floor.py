@@ -925,3 +925,70 @@ def test_daytime_no_discharge_window_credits_only_the_solar_surplus(monkeypatch)
         assert item.solar_kwh == pytest.approx(
             max(0.0, raw.solar_kwh - raw.consumption_kwh)
         )
+
+
+# --- peak shaving band is a peak reserve, not normal-load energy (#627) -------
+
+
+def test_peak_shaving_band_is_not_counted_as_usable_energy():
+    # 10 kWh at 30%, min_soc 12%, no sun, 2.5 kWh load. Without peak shaving
+    # 1.8 kWh is usable; with a 20% threshold only 1.0 kWh covers normal load.
+    plain = _run(_ctrl([_Coord(30.0, 10.0)], floor=0.0, solar="0.0", consumption=2.5))
+    ctrl = _ctrl([_Coord(30.0, 10.0)], floor=0.0, solar="0.0", consumption=2.5)
+    ctrl.capacity_protection_enabled = True
+    ctrl.capacity_protection_soc_threshold = 20
+    shaved = _run(ctrl)
+
+    assert abs(plain["usable_energy_kwh"] - 1.8) < 0.01
+    assert abs(shaved["usable_energy_kwh"] - 1.0) < 0.01
+    assert shaved["energy_deficit_kwh"] > plain["energy_deficit_kwh"] + 0.7
+
+
+def _shaving_floor_decision(threshold, *, held=False, floor=20.0):
+    manager = _floor_manager(45.0, floor=floor)
+    controller = manager._controller
+    if threshold is not None:
+        controller.capacity_protection_enabled = True
+        controller.capacity_protection_soc_threshold = threshold
+        controller.capacity_protection_limit = 14000  # never caps the grid charge
+        controller._is_capacity_protection_soc_limited = lambda: held
+        controller._planning_floor_soc = (
+            lambda c: ChargeDischargeController._planning_floor_soc(controller, c)
+        )
+    return manager._apply_time_slot_chronological_plan(
+        {
+            "should_charge": False,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 0.0,
+            "planned_grid_charge_kwh": 0.0,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        now=datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ),
+    )
+
+
+def test_peak_shaving_band_brings_projected_depletion_forward():
+    # Normal load stops drawing on the battery at the 30% threshold, not at
+    # min_soc, so the projection runs out earlier.
+    shaved = _shaving_floor_decision(30)["earliest_projected_depletion"]
+    plain = _shaving_floor_decision(None)["earliest_projected_depletion"]
+
+    assert datetime.fromisoformat(shaved) < datetime.fromisoformat(plain)
+
+
+def test_predictive_floor_above_threshold_keeps_the_same_floor_target():
+    # Reporter's setup: floor 25% over threshold 20%. Reaching 25% at sunrise
+    # costs the same energy whichever floor the usable figure is measured from.
+    assert _shaving_floor_decision(20, floor=25.0)[
+        "active_slot_energy_target_kwh"
+    ] == pytest.approx(
+        _shaving_floor_decision(None, floor=25.0)["active_slot_energy_target_kwh"]
+    )
+
+
+def test_peak_shaving_hold_keeps_min_soc_floor_for_the_projection():
+    # Held: intervals already carry only load above the limit, which the band
+    # covers, so the band must not be reserved twice.
+    held = _shaving_floor_decision(100, held=True)
+    unheld = _shaving_floor_decision(100)
+    assert held["active_slot_energy_target_kwh"] < unheld["active_slot_energy_target_kwh"]
