@@ -2807,6 +2807,14 @@ class PricingManager:
         if snapshot:
             self._controller._last_chronological_diagnostics = snapshot
 
+    def _discharge_reserve_holds(self) -> bool:
+        """Whether the discharge reserve keeps stored energy for dearer hours."""
+        manager = getattr(self._controller, "_discharge_reserve_mgr", None)
+        try:
+            return bool(manager is not None and manager.feature_enabled())
+        except Exception:  # noqa: BLE001
+            return False
+
     def _build_chronological_plan(
         self,
         *,
@@ -3345,6 +3353,7 @@ class PricingManager:
                     import_value_margin=(
                         margin if value_deadlines else 0.0
                     ),
+                    reserve_holds=value_deadlines and self._discharge_reserve_holds(),
                 )
             )
             plan = evaluation.plan

@@ -992,3 +992,45 @@ def test_peak_shaving_hold_keeps_min_soc_floor_for_the_projection():
     held = _shaving_floor_decision(100, held=True)
     unheld = _shaving_floor_decision(100)
     assert held["active_slot_energy_target_kwh"] < unheld["active_slot_energy_target_kwh"]
+
+
+@pytest.mark.parametrize(
+    ("margin", "reserve_on", "expected"),
+    [(0.05, True, True), (0.05, False, False), (0.0, True, False)],
+)
+def test_the_plan_knows_whether_the_discharge_reserve_holds_energy(
+    margin, reserve_on, expected
+):
+    # The reserve lets a valued deadline be served across an hour left to the
+    # grid, so it only matters while deadlines are valued (margin on).
+    now = datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ)
+    slots = [
+        PriceSlot(now + timedelta(hours=h), now + timedelta(hours=h + 1), 0.40)
+        for h in range(5)
+    ]
+    manager = _floor_manager(25.0)
+    manager._controller.min_arbitrage_margin = margin
+    manager._controller.predictive_charging_mode = PREDICTIVE_MODE_DYNAMIC_PRICING
+    manager._controller._discharge_reserve_mgr = SimpleNamespace(
+        feature_enabled=lambda: reserve_on
+    )
+    requests = []
+    evaluate = manager.evaluate_chronological_projection
+    manager.evaluate_chronological_projection = lambda request: (
+        requests.append(request) or evaluate(request)
+    )
+
+    manager._build_chronological_plan(
+        now=now,
+        slots=slots,
+        decision_data={
+            "should_charge": True,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 1.25,
+            "planned_grid_charge_kwh": 1.25,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        price_ceiling=None,
+    )
+
+    assert requests[0].reserve_holds is expected

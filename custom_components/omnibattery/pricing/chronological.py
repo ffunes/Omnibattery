@@ -132,6 +132,10 @@ class ChronologicalEvaluationRequest:
     # whose slot prices are synthetic).
     import_value_efficiency: float | None = None
     import_value_margin: float = 0.0
+    # The discharge reserve keeps stored energy for dearer hours until the sun
+    # covers the house, so a valued deadline may be served across an hour left
+    # to the grid up to then.
+    reserve_holds: bool = False
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:
@@ -374,6 +378,7 @@ def allocate_price_slots(
     required_from_deadlines: bool = False,
     import_value_efficiency: float | None = None,
     import_value_margin: float = 0.0,
+    reserve_holds: bool = False,
 ) -> ChronologicalPlan:
     """Allocate the cheapest feasible slot capacity to energy deadlines.
 
@@ -389,6 +394,13 @@ def allocate_price_slots(
     ``import_price * import_value_efficiency - import_value_margin``, and the
     energy no such slot can cover is left to the grid (``cheaper_to_import``),
     not counted as a shortfall (#662).
+
+    The battery covers the house first, so energy stored before an hour left
+    to the grid is used in that hour, not in a later one. A valued deadline is
+    therefore only served by a slot that ends at or after the last hour left
+    to the grid before it, unless ``reserve_holds`` (the discharge reserve
+    keeps the energy for dearer hours until the sun covers the house) and the
+    deadline comes before that.
     """
     def ceiling_of(slot: PriceSlot) -> float | None:
         if slot_ceilings is not None:
@@ -514,6 +526,34 @@ def allocate_price_slots(
             ),
         )
 
+    # The last deadline in each segment that was left to the grid: the battery
+    # is empty there, so energy stored before it is gone by then.
+    left_until: dict[datetime, datetime] = {}
+    held_until = (
+        next(
+            (
+                interval.start
+                for interval in intervals
+                if interval.end > now
+                and interval.solar_kwh > _EPSILON
+                and interval.solar_kwh >= interval.consumption_kwh
+            ),
+            None,
+        )
+        if reserve_holds
+        else None
+    )
+
+    def lasts(slot: PriceSlot, start: datetime, deadline: datetime) -> bool:
+        # The grid covers the house during a charge slot, so a slot ending at
+        # or after the hour left to the grid still serves later deadlines.
+        until = left_until.get(start)
+        return (
+            until is None
+            or slot.end >= until
+            or (held_until is not None and deadline <= held_until)
+        )
+
     segment_unusable: dict[datetime, float] = {}
     for deadline in deadlines:
         clip = deadline.kind != "guaranteed_floor"
@@ -537,18 +577,22 @@ def allocate_price_slots(
         cap = value_cap(deadline)
         pool = (
             candidates if cap is None
-            else [slot for slot in under_static if slot.price <= cap]
+            else [
+                slot for slot in under_static
+                if slot.price <= cap and lasts(slot, start, deadline.deadline)
+            ]
         )
         any_valued_pool = any_valued_pool or (cap is not None and bool(pool))
-        # Capacity the import price ruled out: energy it could have stored
-        # is cheaper to import when used, not a shortfall.
+        # Capacity the import price ruled out, or whose energy is used before
+        # this deadline: it is cheaper to import when used, not a shortfall.
         import_free = 0.0 if cap is None else sum(
             max(
                 0.0,
                 capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
             )
             for slot in under_static
-            if slot.price > cap and in_segment(slot, start, deadline.deadline)
+            if (slot.price > cap or not lasts(slot, start, deadline.deadline))
+            and in_segment(slot, start, deadline.deadline)
         )
         eligible = sorted(
             (
@@ -612,6 +656,8 @@ def allocate_price_slots(
         cut = min(missing, blocked)
         import_cut = min(missing - cut, import_free)
         cheaper_to_import += import_cut
+        if import_cut > _EPSILON:
+            left_until[start] = deadline.deadline
         segment_unusable[start] = segment_unusable.get(start, 0.0) + cut + import_cut
         deadline_shortfall = max(deadline_shortfall, missing - cut - import_cut)
     unusable = sum(segment_unusable.values())
@@ -748,6 +794,7 @@ def evaluate_chronological_request(
         required_from_deadlines=request.required_from_deadlines,
         import_value_efficiency=request.import_value_efficiency,
         import_value_margin=request.import_value_margin,
+        reserve_holds=request.reserve_holds,
     )
     return ChronologicalEvaluationResult(
         plan=plan,
