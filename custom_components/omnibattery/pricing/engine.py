@@ -44,7 +44,6 @@ from ..const import (
     NORDPOOL_REFRESH_MINUTES,
     TIBBER_REFRESH_MINUTES,
     ENERGYZERO_REFRESH_MINUTES,
-    DEFAULT_ROUND_TRIP_EFFICIENCY,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PREDICTIVE_MODE_REALTIME_PRICE,
     NOTIFICATION_ID_PREFIX,
@@ -81,6 +80,7 @@ from ..control.max_soc_charge import MaxSocChargeManager
 from ..control.pack_soc import soc_vs_ceiling
 from ..drivers.base import has_connected_mppt_pv
 from ..tracking.consumption_profile import adjust_remaining_fallback_energy
+from ..energy import effective_round_trip_efficiency
 from . import (
     DynamicPricingSchedule,
     PriceSlot,
@@ -3328,11 +3328,7 @@ class PricingManager:
                     slot_ceilings=slot_ceilings,
                     required_from_deadlines=control_extension,
                     import_value_efficiency=(
-                        getattr(
-                            self._controller,
-                            "round_trip_efficiency",
-                            DEFAULT_ROUND_TRIP_EFFICIENCY,
-                        )
+                        effective_round_trip_efficiency(self._controller)[0]
                         if value_deadlines
                         else None
                     ),
@@ -3842,7 +3838,7 @@ class PricingManager:
             plan_slots,
             ceiling,
             self._controller.min_arbitrage_margin,
-            self._controller.round_trip_efficiency,
+            effective_round_trip_efficiency(self._controller)[0],
             now=eval_now,
         )
         self._controller._dp_arbitrage_ceiling = arb_ceiling
@@ -5446,7 +5442,7 @@ class PricingManager:
             slots,
             price_ceiling,
             self._controller.min_arbitrage_margin,
-            self._controller.round_trip_efficiency,
+            effective_round_trip_efficiency(self._controller)[0],
             now=now,
         )
         chronological_plan = self._build_chronological_plan(

@@ -4,6 +4,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from .const import DEFAULT_ROUND_TRIP_EFFICIENCY
+
 
 BACKUP_DISCHARGING_ENERGY_KEY = "backup_discharging_energy"
 BACKUP_DAILY_DISCHARGING_ENERGY_KEY = "backup_daily_discharging_energy"
@@ -94,3 +96,65 @@ class BackupDischargeAccumulator:
             data.pop(EFFECTIVE_TOTAL_DISCHARGING_ENERGY_KEY, None)
             return
         data[EFFECTIVE_TOTAL_DISCHARGING_ENERGY_KEY] = raw_value + self.kwh
+
+
+# Measured round-trip efficiency feeding the arbitrage gate / High-Price Sale
+# when the user has not set their own value.
+MEASURED_EFFICIENCY_MIN = 0.75
+MEASURED_EFFICIENCY_MAX = 0.95
+MEASURED_EFFICIENCY_MIN_CYCLES = 50.0
+
+
+def measured_battery_efficiency(coordinator) -> float | None:
+    """Return one battery's measured round trip (0-1), or None if not trustworthy."""
+    sensor = getattr(coordinator, "efficiency_sensor", None)
+    capabilities = getattr(coordinator, "capabilities", None)
+    # Same test as the sensor's integrate mode: a DC-coupled unit's lifetime AC
+    # counters are not a round trip, so it only measures through its sensor.
+    dual_plane = bool(
+        (
+            getattr(capabilities, "has_mppt_pv", False)
+            or getattr(capabilities, "has_solar_telemetry", False)
+        )
+        and getattr(capabilities, "independent_power_planes", True)
+    )
+    if dual_plane:
+        if sensor is None:
+            return None
+        # vA/vD: both integrated legs must exist; one leg is only an estimate.
+        charge_eff, discharge_eff = sensor._leg_efficiencies()
+        if charge_eff is None or discharge_eff is None:
+            return None
+        value = charge_eff * discharge_eff
+    else:
+        data = getattr(coordinator, "data", None) or {}
+        try:
+            charge = float(data.get("total_charging_energy"))
+            capacity = float(data.get("battery_total_energy"))
+        except (TypeError, ValueError):
+            return None
+        discharge = effective_total_discharging_energy(data)
+        if discharge is None or capacity <= 0 or charge / capacity < MEASURED_EFFICIENCY_MIN_CYCLES:
+            return None
+        value = discharge / charge
+    if MEASURED_EFFICIENCY_MIN <= value <= MEASURED_EFFICIENCY_MAX:
+        return value
+    return None
+
+
+def effective_round_trip_efficiency(controller) -> tuple[float, str]:
+    """Return (efficiency, source): configured, measured fleet average, or default."""
+    configured = getattr(controller, "round_trip_efficiency", DEFAULT_ROUND_TRIP_EFFICIENCY)
+    if configured != DEFAULT_ROUND_TRIP_EFFICIENCY:
+        return configured, "configured"
+    weighted = total = 0.0
+    for coordinator in getattr(controller, "coordinators", None) or []:
+        value = measured_battery_efficiency(coordinator)
+        if value is None:
+            continue
+        capacity = float((getattr(coordinator, "data", None) or {}).get("battery_total_energy") or 0)
+        weighted += value * capacity
+        total += capacity
+    if total > 0:
+        return weighted / total, "measured"
+    return DEFAULT_ROUND_TRIP_EFFICIENCY, "default"

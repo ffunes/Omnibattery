@@ -102,6 +102,8 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
         self._discharge_ac_kwh = 0.0   # AC delivered while discharging
         self._discharge_dc_kwh = 0.0   # DC extracted while discharging
         self._last_mono: float | None = None
+        # Lets the controller read the integrated legs (not in coordinator.data).
+        coordinator.efficiency_sensor = self
 
     def _leg_efficiencies(self):
         """Return (charge_eff, discharge_eff) or (None, None) if not yet sampled."""

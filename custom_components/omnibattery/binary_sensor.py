@@ -18,6 +18,7 @@ from .const import (
     CONF_ENABLE_PREDICTIVE_CHARGING,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
 )
+from .energy import effective_round_trip_efficiency
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
 from .solar_forecast import read_solar_forecast_kwh
@@ -746,6 +747,12 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
                     "total_shortfall_kwh", 0.0
                 ),
                 "energy_deadlines": _chronological_value("energy_deadlines", []),
+                "round_trip_efficiency_used": round(
+                    effective_round_trip_efficiency(self.controller)[0], 4
+                ),
+                "round_trip_efficiency_source": effective_round_trip_efficiency(
+                    self.controller
+                )[1],
                 "chronological_plan_reason": _chronological_value(
                     "chronological_plan_reason"
                 ),

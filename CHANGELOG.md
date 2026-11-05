@@ -2,6 +2,10 @@
 
 ## [1.6.0b2] - Unreleased
 
+### Changed
+
+- **Round-Trip Efficiency uses the measured value by default**: while the setting is left at 0.85, the arbitrage margin and High-Price Sale use the capacity-weighted efficiency measured on your batteries (once they have enough history, within 0.75-0.95); a value you set yourself is always respected. The value and its source are in the predictive-charging diagnostics.
+
 ### Fixed
 
 - **Dynamic Pricing: arbitrage margin rejected the whole deficit when one peak would have paid for part of it** (#662): the discharge value was the average of as many expensive hours as the full deficit needs, so a cheap slot worth it for the first kWh was rejected with the rest (`price_threshold`, 0 slots). Each stored kWh is now paired with one later expensive slot. Energy needed at a given time is bought only when it beats importing it then, after round-trip losses and the margin; the rest is left to the grid (`cheaper_to_import_kwh`) instead of being reported as a shortfall. A `price_threshold` plan now names the cheapest rejected slot and its ceiling (`cheapest_rejected_slot`). Applies when **Minimum Arbitrage Margin** is on. Thanks to @RobtoCopter, @khh-dot and @anorakophobia.
