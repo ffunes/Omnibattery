@@ -326,6 +326,16 @@ def format_dynamic_pricing_notification(
                     else "No grid charging required."
                 )
             )
+        elif decision_data.get("deferred_to_next_day"):
+            title = "Predictive Charging: Price Optimization - nothing to charge yet"
+            message = (
+                f"✓ The cheapest slots for the energy needed are tomorrow\n\n"
+                f"🔋 Battery: {avg_soc:.0f}% ({usable_energy:.2f} kWh usable)\n"
+                f"{forecast_lines}"
+                f"⚡ Energy needed: {energy_deficit:.2f} kWh\n\n"
+                f"{price_config_line}"
+                "No grid charging is scheduled now; it is planned again at the next daily evaluation."
+            )
         else:
             title = "Predictive Charging: Price Optimization - No slots available"
             message = (

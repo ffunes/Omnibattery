@@ -1219,6 +1219,11 @@ def test_evening_recharge_respects_the_arbitrage_ceiling(monkeypatch):
 
     peak = [_slot(17, 0.50), _slot(18, 0.50), _slot(19, 0.50)]
     night = _slot(22, 0.30)
+    # #649: a slot is only valued against peaks that start after it ends.
+    morning = [
+        PriceSlot(s.start + timedelta(days=1), s.end + timedelta(days=1), 0.50)
+        for s in (_slot(6, 0), _slot(7, 0))
+    ]
     # 3 kWh deficit (4 kWh load, 1 kWh usable, no solar) at 1.5 kW: two hours.
     ctrl = _evening_ctrl(
         claim=0.0,
@@ -1232,17 +1237,17 @@ def test_evening_recharge_respects_the_arbitrage_ceiling(monkeypatch):
     manager.energy_horizon_end = lambda _now: now.replace(
         hour=0, minute=0
     ) + timedelta(days=1, hours=7)
-    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [*peak, night]
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [*peak, night, *morning]
     ceilings = []
     manager._build_chronological_plan = lambda **kwargs: ceilings.append(
-        kwargs["price_ceiling"]
+        kwargs["slot_ceilings"]
     )
     manager._send_evening_recharge_notification = _async_noop
 
     asyncio.run(manager._evaluate_evening_recharge())
 
     # Expected discharge 0.50 x 0.85 - 0.05 margin = 0.375.
-    assert ceilings == [pytest.approx(0.375)]
+    assert ceilings[0][night.start] == pytest.approx(0.375)
     assert ctrl._dynamic_pricing_schedule.selected_slots == [night]
 
 

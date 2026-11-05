@@ -951,7 +951,7 @@ CONF_DISCHARGE_PRICE_THRESHOLD = "discharge_price_threshold"
 CONF_MAX_PRICE_THRESHOLD_ENABLED = "max_price_threshold_enabled"
 CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED = "discharge_price_threshold_enabled"
 # Minimum arbitrage margin (currency/kWh) required before a slot is eligible for
-# grid charging. Unset (None) → disabled, and slot selection behaves exactly as
+# grid charging, valued against the slots that follow it only. Unset (None) → disabled, and slot selection behaves exactly as
 # before. When set, a candidate slot must satisfy
 #   expected_discharge_price * round_trip_efficiency - slot_price >= margin
 # so that charging is skipped on days where the intraday spread cannot repay the

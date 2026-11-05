@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **Dynamic Pricing: arbitrage ceiling counted peaks that were already over** (#649): one ceiling for the whole horizon let an evening peak justify night charging that comes after it, and the plan was dropped when that peak left the horizon. Each slot is now valued only against the slots that follow it; Guaranteed Minimum SOC energy still uses **Max Price Threshold (Charge)** as its cap.
 - **PD Min Cycle Interval / No-PD Command Delay ignored by the 2 s safety timer** (#654): with a fast meter the timer sent a new command almost every tick, so batteries that dislike fast changes (Anker) still got one every 1-3 s. Ticks inside the window now keep the last command; safety checks still act at once. PD Min Cycle Interval now goes up to 5 s. Thanks to @principis and @tkaspersNL.
 - **Predictive charging bought night energy the midday solar then exported** (#704): the plan sized the grid charge from the day balance without checking that the battery could still hold it under the solar peak, so on sunny days part of it was clipped at full and exported. The planner now charges only what the forecast says the battery can keep; Guaranteed Minimum SOC energy is exempt. Thanks to @Wassman2020.
 - **Dynamic Pricing: Guaranteed Minimum SOC lifted the arbitrage margin off the whole plan** (#724): with the floor active, every deficit kWh could be bought above the margin, up to the evening peak. Now only the floor's own energy skips it (still capped by **Max Price Threshold (Charge)**). Thanks to @locmer and @Varashi.
@@ -31,6 +32,7 @@
 
 ### Added
 
+- **Dynamic Pricing: plans across tomorrow once its prices are published** (#710): the charge planner now looks up to the sunrise after tomorrow when tomorrow's prices and a dated solar forecast (Energy dashboard) are available, so tonight's slots are weighed against tomorrow's solar and evening peak and tomorrow's cheap slots can replace overbuying tonight. Only slots before the next sunrise are scheduled; the rest is planned again at the next daily evaluation. Without either input nothing changes.
 - **Repairs warning when Recorder excludes the sensors used to recover forecast history** (Home Consumption, solar production, excluded-device power). Thanks to @thomasvt1.
 
 ### Changed
