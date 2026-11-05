@@ -1,16 +1,14 @@
 name: Claude issue automation
 
-# Triage every new issue, and auto-fix the narrow, reproducible bugs.
+# Triage issues on demand, and auto-fix the narrow, reproducible bugs.
 # Claude never gets GitHub write access: it reads the repo and returns a JSON
 # decision or a patch; only steps that never run repo code hold a GitHub token.
-# The owner can re-run triage with the `claude:triage` label, or force a fix with `claude:fix`.
-# Triage started by others only runs after the owner approves it (environment `claude-triage`).
+# Nothing runs on its own: the owner starts triage with the `claude:triage` label, or forces
+# a fix with `claude:fix`. Labels added by anyone else are ignored.
 
 on:
   issues:
-    types: [opened, labeled]
-  issue_comment:
-    types: [created]
+    types: [labeled]
 
 concurrency:
   group: claude-issue-${{ github.event.issue.number }}
@@ -20,20 +18,11 @@ permissions: {}
 
 jobs:
   triage:
-    # Runs started by others wait for the owner's approval (required reviewer on this
-    # environment); the owner's own `claude:triage` label runs straight away.
-    environment: ${{ github.event.sender.login != github.repository_owner && 'claude-triage' || '' }}
-    # A new issue from someone else, its reporter answering a needs-info request,
-    # or the owner adding the `claude:triage` label to any issue.
+    # Only the owner adding the `claude:triage` label to an issue.
     if: >-
       github.event.issue.pull_request == null &&
-      ((github.event.issue.user.login != github.repository_owner &&
-        (github.event.action == 'opened' ||
-         (github.event_name == 'issue_comment' &&
-          github.event.comment.user.login == github.event.issue.user.login &&
-          contains(github.event.issue.labels.*.name, 'needs-info')))) ||
-       (github.event.action == 'labeled' && github.event.label.name == 'claude:triage' &&
-        github.event.sender.login == github.repository_owner))
+      github.event.label.name == 'claude:triage' &&
+      github.event.sender.login == github.repository_owner
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
