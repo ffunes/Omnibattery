@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **Predictive charging slot ended when every battery dropped off Modbus** (#623): batteries excluded as non-responsive (e.g. EMS V150 stalls) left an empty pool that was read as "target reached", so the slot stopped and never resumed. The slot is now held and charging resumes when a battery is back. Thanks to @khh-dot.
 - **Dynamic Pricing: arbitrage ceiling counted peaks that were already over** (#649): one ceiling for the whole horizon let an evening peak justify night charging that comes after it, and the plan was dropped when that peak left the horizon. Each slot is now valued only against the slots that follow it; Guaranteed Minimum SOC energy still uses **Max Price Threshold (Charge)** as its cap.
 - **PD Min Cycle Interval / No-PD Command Delay ignored by the 2 s safety timer** (#654): with a fast meter the timer sent a new command almost every tick, so batteries that dislike fast changes (Anker) still got one every 1-3 s. Ticks inside the window now keep the last command; safety checks still act at once. PD Min Cycle Interval now goes up to 5 s. Thanks to @principis and @tkaspersNL.
 - **Predictive charging bought night energy the midday solar then exported** (#704): the plan sized the grid charge from the day balance without checking that the battery could still hold it under the solar peak, so on sunny days part of it was clipped at full and exported. The planner now charges only what the forecast says the battery can keep; Guaranteed Minimum SOC energy is exempt. Thanks to @Wassman2020.

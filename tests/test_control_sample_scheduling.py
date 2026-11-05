@@ -1024,3 +1024,36 @@ def test_5w_rounding_is_not_reported_as_phase_limited():
 
 def test_real_phase_cap_is_still_reported_as_limited():
     assert _phase_limited_after_cycle(800) is True
+
+
+def _empty_pool_controller(state_holder, writes, *, excluded):
+    controller = _predictive_controller(state_holder, writes)
+    battery = controller.coordinators[0]
+    battery.is_available = True
+    battery.rs485_user_disabled = False
+    controller._get_available_batteries = lambda is_charging, **_kwargs: []
+    controller._non_responsive = SimpleNamespace(is_excluded=lambda _c: excluded)
+    return controller
+
+
+def test_predictive_slot_held_while_only_battery_is_non_responsive():
+    # #623: an empty pool caused by a comms exclusion is not "target reached".
+    state_holder = {"state": _state(100, datetime.now(timezone.utc))}
+    writes = []
+    controller = _empty_pool_controller(state_holder, writes, excluded=True)
+
+    asyncio.run(controller._handle_predictive_grid_charging())
+
+    assert controller.grid_charging_active is True
+    assert controller._grid_charging_initialized is False
+    assert writes == []
+
+
+def test_predictive_slot_completes_when_empty_pool_is_target_reached():
+    state_holder = {"state": _state(100, datetime.now(timezone.utc))}
+    writes = []
+    controller = _empty_pool_controller(state_holder, writes, excluded=False)
+
+    asyncio.run(controller._handle_predictive_grid_charging())
+
+    assert controller.grid_charging_active is False

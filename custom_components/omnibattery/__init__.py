@@ -6342,6 +6342,28 @@ class ChargeDischargeController:
         # Get available batteries (respecting the active target and max_soc)
         available_batteries = self._get_available_batteries(is_charging=True)
         if not available_batteries:
+            # An empty pool only means "target reached" when no automatic
+            # battery is merely out of comms. A battery that is unreachable or
+            # excluded as non-responsive (e.g. EMS V150 stalls, #623) may still
+            # need charge: hold the slot and re-initialise when it returns.
+            comm_down = [
+                c.name
+                for c in self.coordinators
+                if not getattr(c, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+                and not c.rs485_user_disabled
+                and (
+                    c.data is None
+                    or not c.is_available
+                    or self._non_responsive.is_excluded(c)
+                )
+            ]
+            if comm_down:
+                _LOGGER.debug(
+                    "Predictive charging held: no battery available, waiting for %s",
+                    ", ".join(comm_down),
+                )
+                self._grid_charging_initialized = False
+                return
             _LOGGER.info(
                 "Predictive charging complete: all batteries reached their active SOC target"
             )
