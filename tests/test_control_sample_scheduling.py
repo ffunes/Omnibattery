@@ -482,6 +482,44 @@ def test_only_a_cycle_without_a_new_sample_reports_that_it_kept_the_last_command
     assert _cycle(70) is False
 
 
+
+def test_paced_tick_keeps_command_but_leaves_new_sample_for_next_cycle():
+    """#654: a 2 s tick inside the pacing window must not act on a fresh sample."""
+    first_report = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    state_holder = {"state": _state(100, first_report)}
+    pd_calls = []
+    controller = _main_controller(state_holder, pd_calls)
+    asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=1)))
+    assert len(pd_calls) == 1
+
+    state_holder["state"] = _state(200, first_report + timedelta(seconds=2))
+    controller._timer_tick_paced = True
+    controller._cycle_kept_last_command = False
+    asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=2)))
+    assert len(pd_calls) == 1
+    assert controller._cycle_kept_last_command is True
+
+    # Same value, next unpaced cycle: still treated as new, so P/D acts on it.
+    controller._timer_tick_paced = False
+    asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=4)))
+    assert len(pd_calls) == 2
+
+
+def test_paced_tick_with_pending_safety_runs_a_normal_cycle():
+    first_report = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    state_holder = {"state": _state(100, first_report)}
+    pd_calls = []
+    controller = _main_controller(state_holder, pd_calls)
+    asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=1)))
+
+    state_holder["state"] = _state(200, first_report + timedelta(seconds=2))
+    controller._timer_tick_paced = True
+    controller._phase_safety_pending = True
+    asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=2)))
+    assert len(pd_calls) == 2
+    assert pd_calls[-1][2] is False  # fresh sample, not a stale recalc
+
+
 def _predictive_controller(state_holder, writes):
     class _Coordinator(SimpleNamespace):
         __hash__ = object.__hash__

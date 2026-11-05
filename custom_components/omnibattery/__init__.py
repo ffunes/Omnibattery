@@ -737,6 +737,7 @@ class ChargeDischargeController:
         self._last_cycle_monotonic = 0.0
         # Set by a cycle that found no new meter sample and kept the last command.
         self._cycle_kept_last_command = False
+        self._timer_tick_paced = False
         self._background_tasks: set[asyncio.Task] = set()
         self._startup_dynamic_pricing_task: asyncio.Task | None = None
         self._unloading = False
@@ -8003,9 +8004,9 @@ class ChargeDischargeController:
         # Event-driven rate limit: drop a consumption-sensor trigger that lands
         # within _min_cycle_interval_s of the last cycle, so a fast-publishing
         # meter can't flood slow Modbus bridges (e.g. Elfin EW11) with write
-        # bursts. The periodic safety timer (now is a datetime) is never gated:
-        # it keeps the time-based subsystems running and forces a recalc within
-        # its own period. 0 = disabled.
+        # bursts. The periodic safety timer (now is a datetime) always runs, to
+        # keep the time-based subsystems going; inside this window it only keeps
+        # the last command (see _timer_tick_paced). 0 = disabled.
         if now is None and self._min_cycle_interval_s > 0:
             elapsed = time.monotonic() - self._last_cycle_monotonic
             if elapsed < self._min_cycle_interval_s:
@@ -8021,6 +8022,21 @@ class ChargeDischargeController:
             return
         async with self._control_lock:
             previous_cycle_monotonic = self._last_cycle_monotonic
+            # Safety-timer pacing (#654): a tick inside the user's pacing window
+            # (No-PD Command Delay, else PD Min Cycle Interval) still runs the
+            # structural/safety review, but keeps the last command instead of
+            # acting on a fresh meter sample. Otherwise a fast meter turns the
+            # 2 s timer into a command every tick, defeating both settings.
+            pace_s = (
+                self._no_pd_command_delay
+                if self.no_pd_mode_enabled and self._no_pd_command_delay > 0
+                else self._min_cycle_interval_s
+            )
+            self._timer_tick_paced = (
+                now is not None
+                and pace_s > 0
+                and time.monotonic() - previous_cycle_monotonic < pace_s
+            )
             self._last_cycle_monotonic = time.monotonic()
             self._cycle_kept_last_command = False
             await self._run_control_cycle(now)
@@ -8070,6 +8086,7 @@ class ChargeDischargeController:
         if self._control_lock.locked():
             return
         async with self._control_lock:
+            self._timer_tick_paced = False
             self._last_cycle_monotonic = time.monotonic()
             await self._run_control_cycle()
 
@@ -9452,7 +9469,8 @@ class ChargeDischargeController:
         else:
             self._stale_cycles = 0
 
-        if not self.first_execution and not has_new_control_sample:
+        paced_tick = has_new_control_sample and getattr(self, "_timer_tick_paced", False)
+        if not self.first_execution and (not has_new_control_sample or paced_tick):
             # last_reported may advance on an identical P1 publication. That is
             # fresh health data, but it is not a new feedback sample for the
             # incremental P/D law. Structural checks above have already run; keep
@@ -9475,10 +9493,18 @@ class ChargeDischargeController:
                         f"{self._max_sensor_stale_s:.1f}s" if sensor_age_s is not None else "unknown age",
                         self.previous_power,
                     )
+                if paced_tick:
+                    # Leave the sample unconsumed so the next unpaced cycle
+                    # still sees it as new and acts on it.
+                    self._last_control_sample_value = None
                 self._cycle_kept_last_command = True
                 return
-            stale_safety_recalc = True
-            if capacity_protection_must_recheck:
+            # A paced tick that a safety condition needs reviewed runs a normal
+            # cycle on its fresh sample: protections never wait for pacing.
+            stale_safety_recalc = not paced_tick
+            if paced_tick:
+                pass
+            elif capacity_protection_must_recheck:
                 _LOGGER.debug(
                     "ChargeDischargeController: No new control sample but peak shaving is SOC-limited; reviewing discharge %.1fW",
                     self.previous_power,
