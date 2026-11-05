@@ -284,6 +284,7 @@ from .control.temperature_limit import TemperatureChargeLimitManager
 from .control.phase_power_limit import PhasePowerLimiter
 from .pricing import (
     DynamicPricingSchedule,
+    PriceSlot,
     SLOT_PURPOSE_COMBINED,
     SLOT_PURPOSE_DEFICIT,
     SLOT_PURPOSE_NEGATIVE_PRICE,
@@ -1141,6 +1142,12 @@ class ChargeDischargeController:
         self._nordpool_price_slots: list = []
         self._nordpool_prices_fetched_at: Optional[datetime] = None
         self._nordpool_price_source_key: Optional[tuple] = None
+        self._energyzero_price_slots: dict[
+            tuple[str, str, str], list[PriceSlot]
+        ] = {}
+        self._energyzero_prices_fetched_at: dict[
+            tuple[str, str, str], datetime
+        ] = {}
 
         # Price-based discharge control flag (set each cycle by pricing handlers, consumed by PD section)
         self._price_based_discharge_blocked: bool = False

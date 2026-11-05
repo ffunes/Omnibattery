@@ -15,6 +15,7 @@ from ..const import (
     DEFAULT_ROUND_TRIP_EFFICIENCY,
     PRICE_INTEGRATION_CKW,
     PRICE_INTEGRATION_ENTSOE,
+    PRICE_INTEGRATION_ENERGYZERO,
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_FRANK_ENERGIE,
     PRICE_INTEGRATION_NORDPOOL,
@@ -64,6 +65,8 @@ def parse_prices_for_integration(integration_type: str, attrs: dict) -> list:
         return parse_zonneplan_prices(attrs)
     if integration_type == PRICE_INTEGRATION_FRANK_ENERGIE:
         return parse_frank_energie_prices(attrs)
+    if integration_type == PRICE_INTEGRATION_ENERGYZERO:
+        return parse_energyzero_prices(attrs)
     return parse_nordpool_prices(attrs)
 
 
@@ -395,6 +398,53 @@ def parse_frank_energie_prices(attrs: dict) -> list:
             slots[(start, end)] = PriceSlot(start, end, price)
         except (AttributeError, KeyError, TypeError, ValueError, OverflowError) as exc:
             _LOGGER.debug("Dynamic pricing: invalid Frank Energie entry %s: %s", entry, exc)
+    return sorted(slots.values(), key=lambda slot: slot.start)
+
+
+def parse_energyzero_prices(response: dict) -> list:
+    """Parse ``energyzero.get_energy_prices`` response data into local slots.
+
+    Expected response:
+        {"prices": [{"start": "2026-10-28T00:00:00+02:00",
+                     "end": "2026-10-28T01:00:00+02:00",
+                     "price": 0.245, "timestamp": "2026-10-28T00:00:00+02:00"}]}
+
+    The service returns tax-inclusive EUR/kWh prices with explicit interval
+    boundaries. ``timestamp`` is informational; the parser uses ``start`` and
+    ``end``. Its response is shared by the import and export price curves.
+    """
+    from homeassistant.util import dt as dt_util
+
+    entries = response.get("prices") if isinstance(response, dict) else None
+    if not isinstance(entries, (list, tuple)):
+        return []
+
+    slots = {}
+    for entry in entries:
+        try:
+            start = entry.get("start")
+            end = entry.get("end")
+            amount = entry.get("price")
+            if start is None or end is None or amount is None or isinstance(amount, bool):
+                continue
+            if isinstance(start, str):
+                start = datetime.fromisoformat(start)
+            if isinstance(end, str):
+                end = datetime.fromisoformat(end)
+            if not isinstance(start, datetime) or not isinstance(end, datetime):
+                continue
+            price = float(amount)
+            if not math.isfinite(price):
+                continue
+            if start.tzinfo is not None:
+                start = dt_util.as_local(start).replace(tzinfo=None)
+            if end.tzinfo is not None:
+                end = dt_util.as_local(end).replace(tzinfo=None)
+            if end <= start:
+                continue
+            slots[(start, end)] = PriceSlot(start, end, price)
+        except (AttributeError, KeyError, TypeError, ValueError, OverflowError) as exc:
+            _LOGGER.debug("Dynamic pricing: invalid EnergyZero price entry %s: %s", entry, exc)
     return sorted(slots.values(), key=lambda slot: slot.start)
 
 

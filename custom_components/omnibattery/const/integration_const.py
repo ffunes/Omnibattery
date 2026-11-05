@@ -1071,6 +1071,7 @@ PRICE_INTEGRATION_PVPC = "pvpc"
 PRICE_INTEGRATION_CKW = "ckw"
 PRICE_INTEGRATION_EPEX = "epex"
 PRICE_INTEGRATION_ENTSOE = "entsoe"
+PRICE_INTEGRATION_ENERGYZERO = "energyzero"
 PRICE_INTEGRATION_TIBBER = "tibber"
 PRICE_INTEGRATION_ZONNEPLAN = "zonneplan"
 PRICE_INTEGRATION_FRANK_ENERGIE = "frank_energie"
@@ -1078,6 +1079,7 @@ PRICE_INTEGRATION_FRANK_ENERGIE = "frank_energie"
 # Tibber and the official Nord Pool integration are service-based rather than
 # forecast-attribute based. How stale either cache may get before a refresh.
 TIBBER_REFRESH_MINUTES = 60
+ENERGYZERO_REFRESH_MINUTES = 60
 NORDPOOL_REFRESH_MINUTES = 60
 
 # Marker for CONFIG_NUMBER_DEFINITIONS entries whose slider bounds are derived

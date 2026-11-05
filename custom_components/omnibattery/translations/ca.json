@@ -733,6 +733,7 @@
       "manual_requires_single_direction": "El mode manual força una sola direcció: marca Permetre càrrega o Permetre descàrrega, no totes dues.",
       "no_price_data": "El sensor seleccionat no és una font de preus compatible. Nord Pool: selecciona una entitat de la integració oficial o un sensor de HACS amb `raw_today`. PVPC necessita `price_00h` … `price_23h`; CKW, una llista `prices`; EPEX, una llista `data`; i ENTSO-e, una llista `prices_today`.",
       "tibber_unavailable": "La integració Tibber no està instal·lada, o el seu servei `tibber.get_prices` no està disponible. Instal·la i configura Tibber primer.",
+      "energyzero_unavailable": "La integració EnergyZero no està instal·lada o el seu servei `energyzero.get_energy_prices` no està disponible. Instal·la i configura EnergyZero primer.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El preu mínim de descàrrega no pot ser inferior al preu màxim (de càrrega). Posa'l igual o superior, o deixa'l buit per reutilitzar el llindar de càrrega.",
@@ -1347,6 +1348,7 @@
       "manual_requires_single_direction": "El mode manual força una sola direcció: marca Permetre càrrega o Permetre descàrrega, no totes dues.",
       "no_price_data": "El sensor seleccionat no és una font de preus compatible. Nord Pool: selecciona una entitat de la integració oficial o un sensor de HACS amb `raw_today`. PVPC necessita `price_00h` … `price_23h`; CKW, una llista `prices`; EPEX, una llista `data`; i ENTSO-e, una llista `prices_today`.",
       "tibber_unavailable": "La integració Tibber no està instal·lada, o el seu servei `tibber.get_prices` no està disponible. Instal·la i configura Tibber primer.",
+      "energyzero_unavailable": "La integració EnergyZero no està instal·lada o el seu servei `energyzero.get_energy_prices` no està disponible. Instal·la i configura EnergyZero primer.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El preu mínim de descàrrega no pot ser inferior al preu màxim (de càrrega). Posa'l igual o superior, o deixa'l buit per reutilitzar el llindar de càrrega.",
@@ -1406,6 +1408,7 @@
         "entsoe": "ENTSO-e (Plataforma de Transparència)",
         "zonneplan": "Zonneplan",
         "frank_energie": "Frank Energie",
+        "energyzero": "EnergyZero",
         "tibber": "Tibber (basat en servei)"
       }
     }

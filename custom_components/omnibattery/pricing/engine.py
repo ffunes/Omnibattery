@@ -36,12 +36,14 @@ from ..const import (
     PRICE_INTEGRATION_CKW,
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_ENTSOE,
+    PRICE_INTEGRATION_ENERGYZERO,
     PRICE_INTEGRATION_TIBBER,
     PRICE_INTEGRATION_ZONNEPLAN,
     ZONNEPLAN_EXPORT_BONUS_RATE,
     ZONNEPLAN_EXPORT_BONUS_FIXED_EUR_PER_KWH,
     NORDPOOL_REFRESH_MINUTES,
     TIBBER_REFRESH_MINUTES,
+    ENERGYZERO_REFRESH_MINUTES,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PREDICTIVE_MODE_REALTIME_PRICE,
     NOTIFICATION_ID_PREFIX,
@@ -68,6 +70,11 @@ from ..solar_forecast import (
     read_solar_forecast_kwh,
     solar_forecast_local_timezone,
     solar_forecast_period_energy_between,
+)
+from .energyzero import (
+    ENERGYZERO_DOMAIN,
+    ENERGYZERO_GET_PRICES_SERVICE,
+    resolve_energyzero_source,
 )
 from ..control.max_soc_charge import MaxSocChargeManager
 from ..control.pack_soc import soc_vs_ceiling
@@ -608,6 +615,12 @@ class PricingManager:
                     return slot.price
             return None
 
+        if self._controller.price_integration_type == PRICE_INTEGRATION_ENERGYZERO:
+            now = datetime.now()
+            for slot in self._energyzero_price_slots(self._controller.price_sensor):
+                if slot.start <= now < slot.end:
+                    return slot.price
+
         # The official Nord Pool service cache and sensor use the same
         # currency/kWh scale. Prefer the interval data so any official Nord Pool
         # price entity can be used to identify the desired market area.
@@ -798,6 +811,105 @@ class PricingManager:
         """Refresh whichever service-based price provider is configured."""
         await self._maybe_refresh_tibber_prices(force=force)
         await self._maybe_refresh_nordpool_prices(force=force)
+        await self._maybe_refresh_energyzero_prices(force=force)
+
+    def _energyzero_source(self, entity_id: str | None):
+        """Resolve an EnergyZero entity only while its response service exists."""
+        services = getattr(self._hass, "services", None)
+        if services is None or not services.has_service(
+            ENERGYZERO_DOMAIN, ENERGYZERO_GET_PRICES_SERVICE
+        ):
+            return None
+        return resolve_energyzero_source(self._hass, entity_id)
+
+    @staticmethod
+    def _energyzero_source_key(source) -> tuple:
+        return source.config_entry_id, source.price_type, source.interval
+
+    def _energyzero_price_slots(self, entity_id: str | None) -> list:
+        """Return cached service slots for the selected EnergyZero entity."""
+        source = self._energyzero_source(entity_id)
+        if source is None:
+            return []
+        key = self._energyzero_source_key(source)
+        return list(self._controller._energyzero_price_slots.get(key, ()))
+
+    async def _maybe_refresh_energyzero_prices(self, *, force: bool = False) -> None:
+        """Fetch today's and, when published, tomorrow's EnergyZero prices."""
+        services = getattr(self._hass, "services", None)
+        if services is None or not services.has_service(
+            ENERGYZERO_DOMAIN, ENERGYZERO_GET_PRICES_SERVICE
+        ):
+            return
+
+        entity_ids = [self._controller.price_sensor]
+        export_sensor = getattr(self._controller, "export_price_sensor", None)
+        if export_sensor:
+            entity_ids.append(export_sensor)
+
+        from homeassistant.util import dt as dt_util
+
+        now = datetime.now()
+        today = dt_util.now().date()
+        for entity_id in dict.fromkeys(entity_ids):
+            source = self._energyzero_source(entity_id)
+            if source is None:
+                continue
+            key = self._energyzero_source_key(source)
+            fetched_at = self._controller._energyzero_prices_fetched_at.get(key)
+            if (
+                not force
+                and self._controller._energyzero_price_slots.get(key)
+                and fetched_at is not None
+                and (now - fetched_at) < timedelta(minutes=ENERGYZERO_REFRESH_MINUTES)
+            ):
+                continue
+
+            slots = []
+            for request_date in (today, today + timedelta(days=1)):
+                service_data = {
+                    "config_entry": source.config_entry_id,
+                    "incl_vat": True,
+                    "price_type": source.price_type,
+                    "interval": source.interval,
+                    "start": request_date.isoformat(),
+                    "end": request_date.isoformat(),
+                }
+                try:
+                    response = await services.async_call(
+                        ENERGYZERO_DOMAIN,
+                        ENERGYZERO_GET_PRICES_SERVICE,
+                        service_data,
+                        blocking=True,
+                        return_response=True,
+                    )
+                except Exception as exc:
+                    _LOGGER.debug(
+                        "Dynamic pricing: EnergyZero prices unavailable for %s: %s",
+                        request_date,
+                        exc,
+                    )
+                    continue
+                slots.extend(calculations.parse_energyzero_prices(response or {}))
+
+            if slots:
+                unique_slots = {
+                    (slot.start, slot.end): slot for slot in slots
+                }
+                self._controller._energyzero_price_slots[key] = sorted(
+                    unique_slots.values(), key=lambda slot: slot.start
+                )
+                self._controller._energyzero_prices_fetched_at[key] = now
+                _LOGGER.info(
+                    "Dynamic pricing: refreshed %d EnergyZero price slots",
+                    len(self._controller._energyzero_price_slots[key]),
+                )
+            else:
+                _LOGGER.warning(
+                    "Dynamic pricing: energyzero.get_energy_prices returned no usable "
+                    "slots for %s",
+                    entity_id,
+                )
 
     def maybe_check_price_data_health(self) -> None:
         """Periodically re-parse prices and raise/clear the price-data Repairs issue.
@@ -940,6 +1052,7 @@ class PricingManager:
             getattr(self._controller, "_tibber_prices_fetched_at", None),
             id(getattr(self._controller, "_nordpool_price_slots", None)),
             getattr(self._controller, "_nordpool_prices_fetched_at", None),
+            tuple(sorted(getattr(self._controller, "_energyzero_prices_fetched_at", {}).items())),
         )
         if cache_key == self._future_price_slots_cache_key:
             return list(self._future_price_slots_cache)
@@ -1056,6 +1169,16 @@ class PricingManager:
         this helper only reports through the logger.
         """
         _warn = _LOGGER.debug if quiet else _LOGGER.warning
+        # Service-based: the cache does not depend on the sensor's state.
+        if integration_type == PRICE_INTEGRATION_ENERGYZERO:
+            slots = self._energyzero_price_slots(entity_id)
+            if not slots:
+                _warn("Dynamic pricing: no EnergyZero price data cached for %s", entity_id)
+                self._last_sensor_parse_status = "no_slots"
+                return []
+            self._last_sensor_parse_status = None
+            return slots
+
         state = self._hass.states.get(entity_id)
         if state is None or state.state in ("unknown", "unavailable"):
             _warn("Dynamic pricing: price sensor %s unavailable", entity_id)
@@ -1128,6 +1251,12 @@ class PricingManager:
             raw_slots = list(self._controller._tibber_price_slots)
             if not raw_slots:
                 _warn("Dynamic pricing: no Tibber price data cached")
+                self._controller._price_data_status = "no_slots"
+                return []
+        elif self._controller.price_integration_type == PRICE_INTEGRATION_ENERGYZERO:
+            raw_slots = self._energyzero_price_slots(self._controller.price_sensor)
+            if not raw_slots:
+                _warn("Dynamic pricing: no EnergyZero price data cached")
                 self._controller._price_data_status = "no_slots"
                 return []
         elif not self._controller.price_sensor:

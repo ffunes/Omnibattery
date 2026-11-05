@@ -126,6 +126,7 @@ from .const import (
     PRICE_INTEGRATION_CKW,
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_ENTSOE,
+    PRICE_INTEGRATION_ENERGYZERO,
     PRICE_INTEGRATION_TIBBER,
     PRICE_INTEGRATION_ZONNEPLAN,
     PRICE_INTEGRATION_FRANK_ENERGIE,
@@ -167,6 +168,11 @@ from .drivers.hoymiles import (
 )
 from .pricing.nordpool import is_official_nordpool_sensor
 from .pricing.calculations import parse_frank_energie_prices, parse_zonneplan_prices
+from .pricing.energyzero import (
+    ENERGYZERO_DOMAIN,
+    ENERGYZERO_GET_PRICES_SERVICE,
+    is_energyzero_sensor,
+)
 
 _ANKER_MAX_POWER_W = 3500
 _SESSY_MAX_CHARGE_POWER_W = 2200
@@ -208,6 +214,7 @@ def _price_integration_options() -> list[str]:
         PRICE_INTEGRATION_CKW,
         PRICE_INTEGRATION_EPEX,
         PRICE_INTEGRATION_ENTSOE,
+        PRICE_INTEGRATION_ENERGYZERO,
         PRICE_INTEGRATION_TIBBER,
         PRICE_INTEGRATION_ZONNEPLAN,
         PRICE_INTEGRATION_FRANK_ENERGIE,
@@ -280,6 +287,10 @@ def _validate_price_sensor(
         return None if parse_zonneplan_prices(attrs) else "no_price_data"
     if integration_type == PRICE_INTEGRATION_FRANK_ENERGIE:
         return None if parse_frank_energie_prices(attrs) else "no_price_data"
+    if integration_type == PRICE_INTEGRATION_ENERGYZERO:
+        if not hass.services.has_service(ENERGYZERO_DOMAIN, ENERGYZERO_GET_PRICES_SERVICE):
+            return "energyzero_unavailable"
+        return None if is_energyzero_sensor(hass, price_sensor) else "no_price_data"
     # Nordpool
     if "raw_today" in attrs:
         return None

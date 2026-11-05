@@ -43,6 +43,7 @@
 
 - **Dynamic Pricing: plans across tomorrow once its prices are published** (#710): the charge planner now looks up to the sunrise after tomorrow when tomorrow's prices and a dated solar forecast (Energy dashboard) are available, so tonight's slots are weighed against tomorrow's solar and evening peak and tomorrow's cheap slots can replace overbuying tonight. Only slots before the next sunrise are scheduled; the rest is planned again at the next daily evaluation. Without either input nothing changes.
 - **Frank Energie (NL) price source** (PR#696): import and export price curves from the [Frank Energie](https://github.com/HiDiHo01/home-assistant-frank_energie) HACS integration, hourly or quarter-hourly. Thanks to @GruttePier013.
+- **EnergyZero (NL) price source** (PR#705): import and export price curves from the official EnergyZero integration (`energyzero.get_energy_prices`), market or all-in, hourly or quarter-hourly, picked from the selected sensor. Thanks to @mhspelt.
 - **Repairs warning when Recorder excludes the sensors used to recover forecast history** (Home Consumption, solar production, excluded-device power). Thanks to @thomasvt1.
 
 ### Changed

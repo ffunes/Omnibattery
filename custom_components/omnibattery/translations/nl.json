@@ -733,6 +733,7 @@
       "manual_requires_single_direction": "Handmatige modus forceert één richting: vink Laden toestaan of Ontladen toestaan aan, niet beide.",
       "no_price_data": "De geselecteerde sensor is geen ondersteunde prijsbron. Nord Pool: selecteer een entiteit van de officiële integratie of een HACS-sensor met `raw_today`. PVPC vereist `price_00h` … `price_23h`, CKW een `prices`-lijst, EPEX een `data`-lijst en ENTSO-e een `prices_today`-lijst.",
       "tibber_unavailable": "De Tibber-integratie is niet geïnstalleerd, of de service `tibber.get_prices` is niet beschikbaar. Installeer en configureer eerst Tibber.",
+      "energyzero_unavailable": "De EnergyZero-integratie is niet geïnstalleerd of de service `energyzero.get_energy_prices` is niet beschikbaar. Installeer en configureer eerst EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "De ontlaad-prijsondergrens mag niet lager zijn dan de maximale (laad)prijsdrempel. Stel deze gelijk of hoger in, of laat leeg om de laaddrempel te hergebruiken.",
@@ -1347,6 +1348,7 @@
       "manual_requires_single_direction": "Handmatige modus forceert één richting: vink Laden toestaan of Ontladen toestaan aan, niet beide.",
       "no_price_data": "De geselecteerde sensor is geen ondersteunde prijsbron. Nord Pool: selecteer een entiteit van de officiële integratie of een HACS-sensor met `raw_today`. PVPC vereist `price_00h` … `price_23h`, CKW een `prices`-lijst, EPEX een `data`-lijst en ENTSO-e een `prices_today`-lijst.",
       "tibber_unavailable": "De Tibber-integratie is niet geïnstalleerd, of de service `tibber.get_prices` is niet beschikbaar. Installeer en configureer eerst Tibber.",
+      "energyzero_unavailable": "De EnergyZero-integratie is niet geïnstalleerd of de service `energyzero.get_energy_prices` is niet beschikbaar. Installeer en configureer eerst EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "De ontlaad-prijsondergrens mag niet lager zijn dan de maximale (laad)prijsdrempel. Stel deze gelijk of hoger in, of laat leeg om de laaddrempel te hergebruiken.",
@@ -1406,6 +1408,7 @@
         "entsoe": "ENTSO-e (Transparency Platform)",
         "zonneplan": "Zonneplan",
         "frank_energie": "Frank Energie",
+        "energyzero": "EnergyZero",
         "tibber": "Tibber (servicegebaseerd)"
       }
     }

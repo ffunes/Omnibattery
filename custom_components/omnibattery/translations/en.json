@@ -729,6 +729,7 @@
       "manual_requires_single_direction": "Manual mode forces a single direction: tick either Allow charge or Allow discharge, not both.",
       "no_price_data": "Selected sensor is not a supported price source. Nord Pool: select an entity from the official integration or a HACS sensor with `raw_today`. PVPC: needs `price_00h` … `price_23h`. CKW: needs a `prices` list. EPEX: needs a `data` list. ENTSO-e: needs a `prices_today` list.",
       "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
+      "energyzero_unavailable": "The EnergyZero integration is not installed, or its `energyzero.get_energy_prices` service is unavailable. Install and configure EnergyZero first.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "The discharge price floor cannot be below the maximum (charge) price threshold. Set it equal or higher, or leave it empty to reuse the charge threshold.",
@@ -1339,6 +1340,7 @@
       "manual_requires_single_direction": "Manual mode forces a single direction: tick either Allow charge or Allow discharge, not both.",
       "no_price_data": "Selected sensor is not a supported price source. Nord Pool: select an entity from the official integration or a HACS sensor with `raw_today`. PVPC: needs `price_00h` … `price_23h`. CKW: needs a `prices` list. EPEX: needs a `data` list. ENTSO-e: needs a `prices_today` list.",
       "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
+      "energyzero_unavailable": "The EnergyZero integration is not installed, or its `energyzero.get_energy_prices` service is unavailable. Install and configure EnergyZero first.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "The discharge price floor cannot be below the maximum (charge) price threshold. Set it equal or higher, or leave it empty to reuse the charge threshold.",
@@ -1403,6 +1405,7 @@
         "entsoe": "ENTSO-e (Transparency Platform)",
         "zonneplan": "Zonneplan",
         "frank_energie": "Frank Energie",
+        "energyzero": "EnergyZero",
         "tibber": "Tibber (service-based)"
       }
     }

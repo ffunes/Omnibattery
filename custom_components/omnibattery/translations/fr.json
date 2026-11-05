@@ -733,6 +733,7 @@
       "manual_requires_single_direction": "Le mode manuel force une seule direction : cochez Autoriser la charge ou Autoriser la décharge, pas les deux.",
       "no_price_data": "Le capteur sélectionné n'est pas une source de prix compatible. Nord Pool : sélectionnez une entité de l'intégration officielle ou un capteur HACS avec `raw_today`. PVPC nécessite `price_00h` … `price_23h`, CKW une liste `prices`, EPEX une liste `data` et ENTSO-e une liste `prices_today`.",
       "tibber_unavailable": "L'intégration Tibber n'est pas installée, ou son service `tibber.get_prices` est indisponible. Installez et configurez d'abord Tibber.",
+      "energyzero_unavailable": "L'intégration EnergyZero n'est pas installée ou son service `energyzero.get_energy_prices` n'est pas disponible. Installez et configurez d'abord EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "Le prix plancher de décharge ne peut pas être inférieur au prix maximal (de charge). Définissez-le égal ou supérieur, ou laissez-le vide pour réutiliser le seuil de charge.",
@@ -1347,6 +1348,7 @@
       "manual_requires_single_direction": "Le mode manuel force une seule direction : cochez Autoriser la charge ou Autoriser la décharge, pas les deux.",
       "no_price_data": "Le capteur sélectionné n'est pas une source de prix compatible. Nord Pool : sélectionnez une entité de l'intégration officielle ou un capteur HACS avec `raw_today`. PVPC nécessite `price_00h` … `price_23h`, CKW une liste `prices`, EPEX une liste `data` et ENTSO-e une liste `prices_today`.",
       "tibber_unavailable": "L'intégration Tibber n'est pas installée, ou son service `tibber.get_prices` est indisponible. Installez et configurez d'abord Tibber.",
+      "energyzero_unavailable": "L'intégration EnergyZero n'est pas installée ou son service `energyzero.get_energy_prices` n'est pas disponible. Installez et configurez d'abord EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "Le prix plancher de décharge ne peut pas être inférieur au prix maximal (de charge). Définissez-le égal ou supérieur, ou laissez-le vide pour réutiliser le seuil de charge.",
@@ -1406,6 +1408,7 @@
         "entsoe": "ENTSO-e (Plateforme de Transparence)",
         "zonneplan": "Zonneplan",
         "frank_energie": "Frank Energie",
+        "energyzero": "EnergyZero",
         "tibber": "Tibber (basé sur un service)"
       }
     }
