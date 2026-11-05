@@ -213,3 +213,60 @@ def test_guaranteed_floor_energy_keeps_the_manual_price_cap():
 
     assert booked
     assert all(price <= 0.44 for _hour, price in booked)
+
+
+# ----------------------------------------------------------------------
+# A merged schedule reports the merged plan (#724, 3 Nov)
+# ----------------------------------------------------------------------
+
+from custom_components.omnibattery.pricing import DynamicPricingSchedule  # noqa: E402
+
+
+def _earlier_schedule(slot, **fields):
+    """The 13:37 plan of #724: one cheap 15-minute slot, armed."""
+    return DynamicPricingSchedule(
+        hours_needed=0.25,
+        selected_slots=[slot],
+        average_price=slot.price,
+        estimated_cost=slot.price * 2.5 * 0.25,
+        total_available_slots=40,
+        evaluation_time=_NOW - timedelta(hours=2, minutes=23),
+        energy_deficit_kwh=0.6,
+        charging_needed=True,
+        deficit_charging_needed=True,
+        slot_purposes={slot: "deficit"},
+        **fields,
+    )
+
+
+def _merged(**fields):
+    early = PriceSlot(_NOW + timedelta(hours=11), _NOW + timedelta(hours=11, minutes=15), 0.30)
+    manager = _manager(prices=_prices(), min_arbitrage_margin=None)
+    manager._controller._dynamic_pricing_schedule = _earlier_schedule(early, **fields)
+    asyncio.run(manager._evaluate_evening_recharge())
+    return early, manager._controller._dynamic_pricing_schedule
+
+
+def test_a_merged_schedule_reports_the_merged_price_cost_and_time():
+    early, schedule = _merged()
+
+    assert len(schedule.selected_slots) > 1
+    prices = [slot.price for slot in schedule.selected_slots]
+    assert schedule.average_price == pytest.approx(sum(prices) / len(prices))
+    assert schedule.estimated_cost == pytest.approx(
+        sum(
+            slot.price * 3.0 * (slot.end - slot.start).total_seconds() / 3600.0
+            for slot in schedule.selected_slots
+        )
+    )
+    assert schedule.evaluation_time == _NOW
+
+
+def test_a_merged_schedule_weighs_the_new_slots_by_their_planned_energy():
+    """With per-slot energy on the earlier plan, the evening slots bring theirs."""
+    early = PriceSlot(_NOW + timedelta(hours=11), _NOW + timedelta(hours=11, minutes=15), 0.30)
+    _early, schedule = _merged(slot_cost_energy_kwh={early: 0.6})
+
+    assert all(slot in schedule.slot_cost_energy_kwh for slot in schedule.selected_slots)
+    assert schedule.estimated_cost > 0.6 * 0.30
+    assert schedule.evaluation_time == _NOW
