@@ -3171,15 +3171,23 @@ class PricingManager:
             weekly_pending = getattr(
                 self._controller, "_weekly_full_charge_pending", None
             )
+            weekly_window_end, weekly_overnight = self._weekly_charge_window(now)
             if (
                 callable(weekly_pending)
                 and weekly_pending()
-                and solar_end_dt is not None
-                and solar_end_dt > now
+                and (
+                    weekly_overnight
+                    or (solar_end_dt is not None and solar_end_dt > now)
+                )
             ):
                 # An unreliable solar forecast is why this reservation exists;
                 # crediting it would reproduce #489.  Over-reserving is safe because
                 # the pre-slot re-evaluation cancels or resizes against the real SOC.
+                # In the night after the target day the sun has had its turn, so
+                # the gap is bought from now on, up to the sunrise ending the run.
+                drained_until = (
+                    weekly_window_end if weekly_overnight else solar_end_dt
+                )
                 projected_usable = min(
                     usable + headroom,
                     max(
@@ -3188,13 +3196,17 @@ class PricingManager:
                         - sum(
                             item.consumption_kwh
                             for item in intervals
-                            if item.end <= solar_end_dt
+                            if drained_until is not None and item.end <= drained_until
                         ),
                     ),
                 )
                 decision_data["weekly_reserve_not_before"] = (
-                    solar_end_dt.isoformat()
-                )
+                    now if weekly_overnight else solar_end_dt
+                ).isoformat()
+                if weekly_window_end is not None:
+                    decision_data["weekly_reserve_not_after"] = (
+                        weekly_window_end.isoformat()
+                    )
                 decision_data["weekly_reserve_kwh"] = max(
                     0.0, usable + headroom - projected_usable
                 )
@@ -3962,11 +3974,23 @@ class PricingManager:
             )
         except (TypeError, ValueError):
             weekly_reserve_not_before = None
+        try:
+            weekly_reserve_not_after = datetime.fromisoformat(
+                decision_data.get("weekly_reserve_not_after", "")
+            )
+        except (TypeError, ValueError):
+            weekly_reserve_not_after = None
         weekly_selected: list[PriceSlot] = []
         if weekly_reserve_kwh > 0.0 and weekly_reserve_not_before is not None:
+            # After the target day's sun, through the night after it: the run
+            # ends at that sunrise, so a slot past it charges nothing to 100%.
             post_solar = [
                 slot for slot in slots
                 if slot.start >= weekly_reserve_not_before
+                and (
+                    weekly_reserve_not_after is None
+                    or slot.end <= weekly_reserve_not_after
+                )
             ]
             weekly_hours_needed = calculations.calculate_charging_hours_needed(
                 weekly_reserve_kwh,
@@ -5677,6 +5701,19 @@ class PricingManager:
                 or 0.0
             ),
         )
+
+    def _weekly_charge_window(self, now: datetime) -> tuple[datetime | None, bool]:
+        """(end of the weekly full-charge window, whether it is the night after)."""
+        manager = getattr(self._controller, "_weekly_charge_mgr", None)
+        window_end = getattr(manager, "window_end", None)
+        overnight = getattr(manager, "in_overnight_extension", None)
+        if not callable(window_end) or not callable(overnight):
+            return None, False
+        try:
+            return window_end(now), bool(overnight(now))
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Weekly full charge window unavailable: %s", err)
+            return None, False
 
     def _deficit_slot_has_work(self) -> bool:
         """Return whether a battery is still below the active deficit target.
