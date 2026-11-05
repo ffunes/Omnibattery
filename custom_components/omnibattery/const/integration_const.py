@@ -494,6 +494,19 @@ DISCHARGE_ENGAGE_GRACE_S = 30
 # restarts the grace, so a battery that stalls under that cycle is still caught.
 ENGAGE_GRACE_STEP_FACTOR = 2
 
+# PD Quality only updates while the PD controls the grid. A gap longer than
+# PD_QUALITY_RESTART_GAP_S between two updates means the PD was not in control
+# meanwhile (a grid-charge slot, the weekly full charge, manual mode, a long
+# block). Its numbers then describe the situation before the gap, and when the
+# PD takes over the batteries are still running the previous command. So the
+# metric starts over: it skips the first PD_QUALITY_RESTART_SETTLE_S, the time
+# a battery gets to engage after a direction switch, and then averages one
+# metric window of fresh readings before the sensor shows a verdict again. The
+# gap is two 60s metric windows, well above the slowest supported meter
+# (MAX_SENSOR_STALE_S), which keeps updating the metric on every reading.
+PD_QUALITY_RESTART_GAP_S = 120.0
+PD_QUALITY_RESTART_SETTLE_S = float(DISCHARGE_ENGAGE_GRACE_S)
+
 # Top-of-charge tail: the last stretch before 100% often tapers hard (CC/CV
 # tail current) well before is_battery_full() reports the battery full or
 # tick_bms_cutoff() confirms a cutoff (which needs power <= 10 W *and*
