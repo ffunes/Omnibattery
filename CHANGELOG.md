@@ -48,6 +48,7 @@
 
 ### Changed
 
+- **Discharge reserve: the solar credit follows the forecast provider's hourly curve** (#754): the reserve spread the solar forecast over a sine from the astronomical sunrise, as if the horizon were flat, while predictive charging already used the provider's dated periods. Where the provider has them (the sensor's own, or the Energy dashboard forecast from Solcast, Forecast.Solar, Open-Meteo...), each day's solar is now split hour by hour as the provider expects it: a late morning behind a hill, the low winter sun, the provider's damping. The day's total is unchanged, and the sine stays wherever the periods do not cover the day. Thanks to @anorakophobia.
 - **Device registry lookups use the per-entry API on HA 2026.10+**, avoiding the `async_get_device` deprecation. Thanks to @tkaspersNL.
 
 ## [1.5.1b2] - 2026-10-13
