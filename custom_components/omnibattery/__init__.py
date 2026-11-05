@@ -5017,6 +5017,20 @@ class ChargeDischargeController:
         )
         return avg_soc < self.capacity_protection_soc_threshold
 
+    def _planning_floor_soc(self, coordinator) -> float:
+        """Lowest SOC that may cover normal load in an energy plan (#627).
+
+        Below the peak-shaving threshold the battery only covers load above
+        the limit, so the band between ``min_soc`` and the threshold is a
+        peak reserve, not energy for normal consumption.
+        """
+        floor = float(coordinator.min_soc)
+        if getattr(self, "capacity_protection_enabled", False):
+            threshold = getattr(self, "capacity_protection_soc_threshold", None)
+            if threshold is not None:
+                floor = max(floor, float(threshold))
+        return floor
+
     def reset_pid_state(self):
         """Manually reset PID controller state. Useful when system is unstable."""
         _LOGGER.warning("PID: MANUAL RESET requested - clearing all PID state variables")
@@ -5156,8 +5170,12 @@ class ChargeDischargeController:
         )
         avg_soc = sum(c.data.get("battery_soc", 0) for c in coordinators_with_data) / len(coordinators_with_data)
 
-        # Get min_soc from coordinators (use max if mixed configs for safety)
-        min_soc_values = [c.min_soc for c in coordinators_with_data]
+        # Get min_soc from coordinators (use max if mixed configs for safety).
+        # Peak shaving's SOC band is a peak reserve, not normal-load energy (#627).
+        min_soc_values = [
+            ChargeDischargeController._planning_floor_soc(self, c)
+            for c in coordinators_with_data
+        ]
         min_soc = max(min_soc_values) if min_soc_values else 20  # Default 20% if unavailable
 
         # Calculate energy components
@@ -5167,14 +5185,14 @@ class ChargeDischargeController:
             for c in coordinators_with_data
         )
         cutoff_energy_kwh = sum(
-            max(0.0, float(c.min_soc)) / 100.0
+            max(0.0, ChargeDischargeController._planning_floor_soc(self, c)) / 100.0
             * float(c.data.get("battery_total_energy", 0) or 0.0)
             for c in coordinators_with_data
         )
         usable_energy_kwh = sum(
             max(
                 0.0,
-                (float(c.data.get("battery_soc", 0) or 0.0) - float(c.min_soc))
+                (float(c.data.get("battery_soc", 0) or 0.0) - ChargeDischargeController._planning_floor_soc(self, c))
                 / 100.0
                 * float(c.data.get("battery_total_energy", 0) or 0.0),
             )

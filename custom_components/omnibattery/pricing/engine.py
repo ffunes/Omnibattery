@@ -3125,9 +3125,19 @@ class PricingManager:
                 float(c.data.get("battery_total_energy", 0) or 0)
                 for c in eligible
             )
+            # Peak shaving's SOC band is a peak reserve, not normal-load
+            # energy (#627). While it already holds the battery the intervals
+            # above carry only the load over the limit, which that band covers.
+            planning_floor = getattr(self._controller, "_planning_floor_soc", None)
+
+            def floor_of(c) -> float:
+                if held_until is not None or not callable(planning_floor):
+                    return float(c.min_soc)
+                return float(planning_floor(c))
+
             weighted_min_soc = (
                 sum(
-                    float(c.min_soc)
+                    floor_of(c)
                     * float(c.data.get("battery_total_energy", 0) or 0)
                     for c in eligible
                 )
@@ -3136,7 +3146,7 @@ class PricingManager:
                 else 0.0
             )
             usable = sum(
-                max(0.0, (float(c.data.get("battery_soc", 0) or 0) - float(c.min_soc)) / 100.0
+                max(0.0, (float(c.data.get("battery_soc", 0) or 0) - floor_of(c)) / 100.0
                     * float(c.data.get("battery_total_energy", 0) or 0))
                 for c in eligible
             )
@@ -3214,7 +3224,7 @@ class PricingManager:
                     ),
                 )
                 reserve = sum(
-                    max(0.0, floor - float(c.min_soc)) / 100.0
+                    max(0.0, floor - floor_of(c)) / 100.0
                     * float(c.data.get("battery_total_energy", 0) or 0)
                     for c in eligible
                 )
@@ -5358,9 +5368,12 @@ class PricingManager:
         self._refresh_excluded_demand_reference()
         self._refresh_solar_forecast_reference(now)
 
-        # Battery energy available above the discharge floor right now.
+        # Battery energy available above the discharge floor right now; the
+        # peak-shaving band is a peak reserve, not normal-load energy (#627).
+        planning_floor = getattr(self._controller, "_planning_floor_soc", None)
         usable_now_kwh = sum(
-            max(0.0, ((c.data.get("battery_soc", 0) or 0) - c.min_soc) / 100.0
+            max(0.0, ((c.data.get("battery_soc", 0) or 0)
+                      - (planning_floor(c) if callable(planning_floor) else c.min_soc)) / 100.0
                 * (c.data.get("battery_total_energy", 0) or 0))
             for c in coordinators_with_data
         )
