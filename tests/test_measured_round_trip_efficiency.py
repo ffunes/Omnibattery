@@ -23,8 +23,20 @@ def integrated(charge_eff, discharge_eff, capacity=5.12):
     legs = lambda: (charge_eff, discharge_eff)  # noqa: E731
     sensor = SimpleNamespace(_integrate_mode=True, _leg_efficiencies=legs)
     return SimpleNamespace(
-        efficiency_sensor=sensor, data={"battery_total_energy": capacity}
+        efficiency_sensor=sensor,
+        capabilities=_DUAL_PLANE,
+        data={"battery_total_energy": capacity},
     )
+
+
+_DUAL_PLANE = SimpleNamespace(has_mppt_pv=True, independent_power_planes=True)
+
+
+def test_dual_plane_without_its_sensor_ignores_the_lifetime_counters():
+    """vA/vD lifetime AC counters are not a round trip, even when in range."""
+    battery = lifetime(1000, 900)
+    battery.capabilities = _DUAL_PLANE
+    assert measured_battery_efficiency(battery) is None
 
 
 def ctrl(coordinators, configured=0.85):

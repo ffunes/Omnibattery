@@ -108,7 +108,19 @@ MEASURED_EFFICIENCY_MIN_CYCLES = 50.0
 def measured_battery_efficiency(coordinator) -> float | None:
     """Return one battery's measured round trip (0-1), or None if not trustworthy."""
     sensor = getattr(coordinator, "efficiency_sensor", None)
-    if sensor is not None and getattr(sensor, "_integrate_mode", False):
+    capabilities = getattr(coordinator, "capabilities", None)
+    # Same test as the sensor's integrate mode: a DC-coupled unit's lifetime AC
+    # counters are not a round trip, so it only measures through its sensor.
+    dual_plane = bool(
+        (
+            getattr(capabilities, "has_mppt_pv", False)
+            or getattr(capabilities, "has_solar_telemetry", False)
+        )
+        and getattr(capabilities, "independent_power_planes", True)
+    )
+    if dual_plane:
+        if sensor is None:
+            return None
         # vA/vD: both integrated legs must exist; one leg is only an estimate.
         charge_eff, discharge_eff = sensor._leg_efficiencies()
         if charge_eff is None or discharge_eff is None:
