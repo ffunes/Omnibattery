@@ -629,6 +629,23 @@ def test_once_the_sun_has_taken_over_the_horizon_is_tomorrow_s_sunrise(now):
     assert manager.plan.horizon_end == NOV_3_SUNRISE
 
 
+def test_a_later_uncovered_slot_does_not_pull_the_horizon_back_in():
+    """Once the sun has covered the house today, a forecast dip must not flip back."""
+    manager = _nov_2_manager(now=SUN_TAKES_OVER)
+    assert manager.plan.horizon_end == NOV_3_SUNRISE
+
+    later = SUN_TAKES_OVER + timedelta(minutes=20)
+    # The refreshed profile now says 10:15 and 10:30 outrun the sun.
+    manager._controller._pricing_mgr = _nov_2_pricing(
+        now=later, load={41: 2.0, 42: 2.0}
+    )
+    manager._now = lambda: later
+    asyncio.get_event_loop().run_until_complete(
+        manager.async_rebuild_plan("test", force=True)
+    )
+    assert manager.plan.horizon_end == NOV_3_SUNRISE
+
+
 # ----------------------------------------------------------------------
 # The seam: how the reserve reaches the battery
 # ----------------------------------------------------------------------

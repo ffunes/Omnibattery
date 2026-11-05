@@ -95,6 +95,9 @@ class DischargeReserveManager:
         self._controller = controller
         self._plan: ReservePlan | None = None
         self._plan_date = None
+        # Date the sun was last seen covering the house, so the horizon does not
+        # flip back to a morning slot when a refreshed forecast dips later on.
+        self._sun_took_over_on = None
         self._last_rebuild_mono: float | None = None
         # This cycle's reserve per battery, from reserve_soc_pct().
         self._battery_pct: dict[Any, float] = {}
@@ -355,7 +358,11 @@ class DischargeReserveManager:
         hour = now.hour + now.minute / 60.0 + now.second / 3600.0
         if float(fraction_fn(hour)) >= 0.5:
             return fallback
+        if self._sun_took_over_on == now.date():
+            return day_end
         covered = first_sun_covered_start(day_slots, consumption, solar)
+        if covered is not None and covered <= now:
+            self._sun_took_over_on = now.date()
         if covered is None or covered <= now:
             return day_end
         return covered
@@ -465,7 +472,11 @@ class DischargeReserveManager:
     def _demand_and_surplus_by_slot(
         self, pricing, slots, now: datetime, horizon_end
     ) -> tuple[dict, dict]:
-        """Per slot: the grid demand left after PV, and the PV surplus over it."""
+        """Per slot: the grid demand left after PV, and the PV surplus over it.
+
+        Not used by the rebuild, which needs the solar curve in between; kept as
+        the one-call seam the tests use.
+        """
         consumption, solar, _fraction_fn = self._consumption_and_solar(
             pricing, slots, now, horizon_end
         )
