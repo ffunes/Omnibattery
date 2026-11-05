@@ -1,6 +1,19 @@
 # Changelog
 
-## [Unreleased]
+## [1.6.0b1] - 2026-11-05
+
+### Added
+
+- **Dynamic Pricing: plans across tomorrow once its prices are published** (#710): the charge planner now looks up to the sunrise after tomorrow when tomorrow's prices and a dated solar forecast (Energy dashboard) are available, so tonight's slots are weighed against tomorrow's solar and evening peak and tomorrow's cheap slots can replace overbuying tonight. Only slots before the next sunrise are scheduled; the rest is planned again at the next daily evaluation. Without either input nothing changes.
+- **Frank Energie (NL) price source** (PR#696): import and export price curves from the [Frank Energie](https://github.com/HiDiHo01/home-assistant-frank_energie) HACS integration, hourly or quarter-hourly. Thanks to @GruttePier013.
+- **EnergyZero (NL) price source** (PR#705): import and export price curves from the official EnergyZero integration (`energyzero.get_energy_prices`), market or all-in, hourly or quarter-hourly, picked from the selected sensor. Thanks to @mhspelt.
+- **Repairs warning when Recorder excludes the sensors used to recover forecast history** (Home Consumption, solar production, excluded-device power). Thanks to @thomasvt1.
+
+### Changed
+
+- **Discharge reserve: the solar credit follows the forecast provider's hourly curve** (#754): the reserve spread the solar forecast over a sine from the astronomical sunrise, as if the horizon were flat, while predictive charging already used the provider's dated periods. Where the provider has them (the sensor's own, or the Energy dashboard forecast from Solcast, Forecast.Solar, Open-Meteo...), each day's solar is now split hour by hour as the provider expects it: a late morning behind a hill, the low winter sun, the provider's damping. The day's total is unchanged, and the sine stays wherever the periods do not cover the day. Thanks to @anorakophobia.
+- **Device registry lookups use the per-entry API on HA 2026.10+**, avoiding the `async_get_device` deprecation. Thanks to @tkaspersNL.
+- **Manifest no longer lists `pyserial`**: Home Assistant ships it, and hassfest now rejects it. Modbus RTU is unaffected.
 
 ### Fixed
 
@@ -38,28 +51,7 @@
 - **Panel: daily-operation tooltip showed "Source" twice** for unmeasured quarters. Thanks to @tkaspersNL.
 - **Chronological plan counted all solar as battery charge in no-discharge slots** (#616): in fleet-wide no-discharge time slots and price-blocked discharge hours, the projection now credits only the solar left after household load, so the projected SOC is no longer overstated and needed grid charging is planned. Thanks to @iwanvandaele.
 - **Solar timeline: next-day forecast periods caused a false provider_gap** (#752): the overnight gap before tomorrow's forecast was counted as a gap in today's daylight, so a complete provider forecast was rejected and the sinusoidal curve used instead; only gaps inside the daylight window are now checked. Thanks to @Hellsing.
-
-### Added
-
-- **Dynamic Pricing: plans across tomorrow once its prices are published** (#710): the charge planner now looks up to the sunrise after tomorrow when tomorrow's prices and a dated solar forecast (Energy dashboard) are available, so tonight's slots are weighed against tomorrow's solar and evening peak and tomorrow's cheap slots can replace overbuying tonight. Only slots before the next sunrise are scheduled; the rest is planned again at the next daily evaluation. Without either input nothing changes.
-- **Frank Energie (NL) price source** (PR#696): import and export price curves from the [Frank Energie](https://github.com/HiDiHo01/home-assistant-frank_energie) HACS integration, hourly or quarter-hourly. Thanks to @GruttePier013.
-- **EnergyZero (NL) price source** (PR#705): import and export price curves from the official EnergyZero integration (`energyzero.get_energy_prices`), market or all-in, hourly or quarter-hourly, picked from the selected sensor. Thanks to @mhspelt.
-- **Repairs warning when Recorder excludes the sensors used to recover forecast history** (Home Consumption, solar production, excluded-device power). Thanks to @thomasvt1.
-
-### Changed
-
-- **Discharge reserve: the solar credit follows the forecast provider's hourly curve** (#754): the reserve spread the solar forecast over a sine from the astronomical sunrise, as if the horizon were flat, while predictive charging already used the provider's dated periods. Where the provider has them (the sensor's own, or the Energy dashboard forecast from Solcast, Forecast.Solar, Open-Meteo...), each day's solar is now split hour by hour as the provider expects it: a late morning behind a hill, the low winter sun, the provider's damping. The day's total is unchanged, and the sine stays wherever the periods do not cover the day. Thanks to @anorakophobia.
-- **Device registry lookups use the per-entry API on HA 2026.10+**, avoiding the `async_get_device` deprecation. Thanks to @tkaspersNL.
-
-## [1.5.1b2] - 2026-10-13
-
-### Fixed
-
 - **Time Slot: Manual mode with both charge and discharge allowed** (#614): the form now rejects it. Such a slot silently fell back to PD and never forced the configured power. Thanks to @UsiuO.
-
-### Changed
-
-- **Manifest no longer lists `pyserial`**: Home Assistant ships it, and hassfest now rejects it. Modbus RTU is unaffected.
 
 ## [1.5.1b1] - 2026-10-12
 
