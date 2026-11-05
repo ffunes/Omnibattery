@@ -39,6 +39,7 @@ from ..pricing.discharge_reserve import (
     battery_reserve_soc_pct,
     consumption_by_slot,
     eligible_capacity_kwh,
+    first_sun_covered_start,
     free_space_kwh,
     net_demand_by_slot,
     plan_discharge_reserve,
@@ -96,6 +97,9 @@ class DischargeReserveManager:
         self._controller = controller
         self._plan: ReservePlan | None = None
         self._plan_date = None
+        # Date the sun was last seen covering the house, so the horizon does not
+        # flip back to a morning slot when a refreshed forecast dips later on.
+        self._sun_took_over_on = None
         self._last_rebuild_mono: float | None = None
         # This cycle's reserve per battery, from reserve_soc_pct().
         self._battery_pct: dict[Any, float] = {}
@@ -246,7 +250,6 @@ class DischargeReserveManager:
             self.clear("no_pricing_manager")
             return
 
-        horizon_end = self._horizon_end(now)
         fleet = self._fleet_snapshots()
         if fleet is None:
             # No battery readable right now. Leaving the throttle unarmed keeps
@@ -254,11 +257,20 @@ class DischargeReserveManager:
             # whole rebuild interval.
             _LOGGER.debug("Discharge reserve: no readable battery, rebuild deferred")
             return
-        slots = pricing.get_future_price_slots(horizon_end=horizon_end)
 
-        demand, surplus = self._demand_and_surplus_by_slot(
-            pricing, slots, now, horizon_end
+        # The sun is always read over the whole day, whatever the horizon turns
+        # out to be: a remaining-today figure spread over only the night's slots
+        # lands in full on the one around sunrise.
+        day_end = pricing.energy_horizon_end(now)
+        day_slots = pricing.get_future_price_slots(horizon_end=day_end)
+        consumption, solar, fraction_fn = self._consumption_and_solar(
+            pricing, day_slots, now, day_end
         )
+        horizon_end = self._sun_covered_horizon_end(
+            now, day_slots, consumption, solar, fraction_fn, day_end
+        )
+        slots = [slot for slot in day_slots if slot.start < horizon_end]
+        demand, surplus = self._net_demand_and_surplus(consumption, solar, now)
         try:
             plan = plan_discharge_reserve(
                 slots,
@@ -323,6 +335,39 @@ class DischargeReserveManager:
         if now >= horizon_end:
             horizon_end = pricing.energy_horizon_end(now)
         return horizon_end
+
+    def _sun_covered_horizon_end(
+        self, now: datetime, day_slots, consumption, solar, fraction_fn, day_end
+    ) -> datetime:
+        """End the morning's plan where the sun takes over, not where it rises.
+
+        Sunrise is when PV starts, not when it carries the house: on 2 Nov the
+        battery was empty at 07:15 and the house then imported 2.7 kWh at 0.586,
+        including the dearest slot of the morning. So until the sun covers the
+        house, those hours are still the night's problem. It also keeps the
+        coming evening out, for the reason in :meth:`_horizon_end`: nothing
+        before this point has any surplus, so no credit can release the hold.
+
+        A day the sun never covers the house has no surplus to refill the battery
+        at all, so the evening's hours stay in the plan. Past the solar midpoint
+        the question is settled for the day: a later slot the sun happens to cover
+        must not cut the evening off. Without a forecast there is nothing to go
+        on, and the horizon stays where :meth:`_horizon_end` puts it.
+        """
+        fallback = self._horizon_end(now)
+        if not solar or fraction_fn is None:
+            return fallback
+        hour = now.hour + now.minute / 60.0 + now.second / 3600.0
+        if float(fraction_fn(hour)) >= 0.5:
+            return fallback
+        if self._sun_took_over_on == now.date():
+            return day_end
+        covered = first_sun_covered_start(day_slots, consumption, solar)
+        if covered is not None and covered <= now:
+            self._sun_took_over_on = now.date()
+        if covered is None or covered <= now:
+            return day_end
+        return covered
 
     def _current_price(self) -> float | None:
         pricing = getattr(self._controller, "_pricing_mgr", None)
@@ -429,21 +474,35 @@ class DischargeReserveManager:
     def _demand_and_surplus_by_slot(
         self, pricing, slots, now: datetime, horizon_end
     ) -> tuple[dict, dict]:
-        """Per slot: the grid demand left after PV, and the PV surplus over it."""
+        """Per slot: the grid demand left after PV, and the PV surplus over it.
+
+        Not used by the rebuild, which needs the solar curve in between; kept as
+        the one-call seam the tests use.
+        """
+        consumption, solar, _fraction_fn = self._consumption_and_solar(
+            pricing, slots, now, horizon_end
+        )
+        return self._net_demand_and_surplus(consumption, solar, now)
+
+    def _consumption_and_solar(
+        self, pricing, slots, now: datetime, horizon_end
+    ) -> tuple[dict, dict, Any]:
+        """Per slot: learned consumption and expected PV, plus the solar curve."""
         if not slots:
-            return {}, {}
+            return {}, {}, None
         forecast = pricing._profile_remaining_consumption(now, horizon_end)
         if forecast is None:
-            return {}, {}
+            return {}, {}, None
         consumption = consumption_by_slot(
             slots,
             getattr(forecast, "intervals_by_date", None) or {},
             getattr(forecast, "intervals_kwh", None),
         )
         if not consumption:
-            return {}, {}
+            return {}, {}, None
 
         solar: dict = {}
+        fraction_fn = None
         try:
             forecast_kwh, fraction_fn, _daily = pricing._curtailment_forecast_model(now)
         except Exception as err:  # noqa: BLE001
@@ -464,6 +523,12 @@ class DischargeReserveManager:
                 ),
                 now,
             )
+        return consumption, solar, fraction_fn
+
+    def _net_demand_and_surplus(
+        self, consumption: dict, solar: dict, now: datetime
+    ) -> tuple[dict, dict]:
+        """Turn consumption and PV into grid demand and creditable surplus."""
         # Only the sun that can physically land in the battery pays a claim.
         # The forecast is AC-side and unbounded; the battery takes it at a
         # finite charge power and loses part of it on the way in, and the room

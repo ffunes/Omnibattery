@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 import math
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from ..const import CHARGE_EFFICIENCY
 from . import PriceSlot
@@ -32,6 +32,19 @@ class EnergyInterval:
             value = float(getattr(self, name))
             if not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and non-negative")
+
+    def with_battery_idle(self) -> "EnergyInterval":
+        """Interval in which the battery may not discharge.
+
+        The grid carries the load the battery would have covered, but the
+        household still consumes solar first: only the surplus charges (#616).
+        """
+        return EnergyInterval(
+            self.start,
+            self.end,
+            0.0,
+            max(0.0, self.solar_kwh - self.consumption_kwh),
+        )
 
 
 @dataclass(frozen=True)
@@ -94,10 +107,18 @@ class ChronologicalEvaluationRequest:
     usable_initial_kwh: float = 0.0
     max_price_threshold: float | None = None
     deadlines: tuple[EnergyDeadline, ...] = ()
-    # Guaranteed-floor energy that may be bought above ``max_price_threshold``
-    # (the arbitrage ceiling), capped only by ``premium_price_threshold``.
+    # Guaranteed-floor energy that may be bought above a slot's ceiling
+    # (``slot_ceilings``, else ``max_price_threshold``), capped only by
+    # ``premium_price_threshold``.
     premium_kwh: float = 0.0
     premium_price_threshold: float | None = None
+    # Per-slot (arbitrage) ceilings keyed by ``slot.start``; a slot missing from
+    # the mapping falls back to ``max_price_threshold``.
+    slot_ceilings: Mapping[datetime, float] | None = None
+    # Size the plan from the deadlines when they ask for more than
+    # ``total_required_kwh``. A scalar balance over a multi-day horizon nets
+    # tomorrow's solar against tonight's gap, which the deadlines do not (#710).
+    required_from_deadlines: bool = False
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:
@@ -283,6 +304,42 @@ def _duration_hours(start: datetime, end: datetime) -> float:
     return max(0.0, (end - start).total_seconds() / 3600.0)
 
 
+def _unclipped_room(
+    intervals: Sequence[EnergyInterval],
+    usable_initial_kwh: float,
+    capacity: float,
+    allocations: dict[PriceSlot, float],
+    slot: PriceSlot,
+) -> float:
+    """Energy ``slot`` can still add without a later full point clipping it.
+
+    Energy charged ahead of a projected solar fill is exported, not stored
+    (#704).  A projected deficit after the slot uses up part of the extra
+    energy first, which widens the room at every later full point.
+    """
+    energy = min(_finite_non_negative(usable_initial_kwh), capacity)
+    pending = sorted(allocations.items(), key=lambda item: item[0].end)
+    index = 0
+    room: float | None = None
+    absorbed = 0.0
+    for interval in intervals:
+        # Same timing as ``simulate_allocations``: energy lands in the
+        # interval its slot ends in, and is clipped after that interval's flow.
+        while index < len(pending) and pending[index][0].end <= interval.end:
+            energy += pending[index][1]
+            index += 1
+        if room is None and slot.end <= interval.end:
+            room = math.inf
+        energy = min(capacity, energy + interval.solar_kwh - interval.consumption_kwh)
+        if energy < 0.0:
+            if room is not None:
+                absorbed -= energy
+            energy = 0.0
+        if room is not None:
+            room = min(room, absorbed + capacity - energy)
+    return max(0.0, capacity - energy if room is None else room)
+
+
 def allocate_price_slots(
     intervals: Iterable[EnergyInterval],
     deadlines: Iterable[EnergyDeadline],
@@ -298,14 +355,24 @@ def allocate_price_slots(
     charge_efficiency: float = CHARGE_EFFICIENCY,
     premium_kwh: float = 0.0,
     premium_price_threshold: float | None = None,
+    slot_ceilings: Mapping[datetime, float] | None = None,
+    required_from_deadlines: bool = False,
 ) -> ChronologicalPlan:
     """Allocate the cheapest feasible slot capacity to energy deadlines.
 
-    Up to ``premium_kwh`` (guaranteed-floor energy) may use slots above
-    ``max_price_threshold``, up to ``premium_price_threshold`` (None = no cap),
-    once the slots under the ceiling are exhausted.  Everything else stays
+    A slot's ceiling is ``slot_ceilings[slot.start]`` when given, else
+    ``max_price_threshold``.  Up to ``premium_kwh`` (guaranteed-floor energy) may
+    use slots above their ceiling, up to ``premium_price_threshold`` (None = no
+    cap), once the slots under the ceiling are exhausted.  Everything else stays
     under the ceiling (#724).
     """
+    def ceiling_of(slot: PriceSlot) -> float | None:
+        if slot_ceilings is not None:
+            return slot_ceilings.get(slot.start, max_price_threshold)
+        return max_price_threshold
+
+    has_ceiling = max_price_threshold is not None or slot_ceilings is not None
+
     intervals = sorted(intervals, key=lambda item: item.start)
     deadlines = sorted(deadlines, key=lambda item: item.deadline)
     headroom = max(0.0, float(headroom_kwh))
@@ -321,18 +388,17 @@ def allocate_price_slots(
         if slot.end > now
         and slot.start < horizon_end
         and math.isfinite(float(slot.price))
-        and (max_price_threshold is None or slot.price <= max_price_threshold)
+        and (ceiling_of(slot) is None or slot.price <= ceiling_of(slot))
     ]
-    premium_budget = (
-        _finite_non_negative(premium_kwh) if max_price_threshold is not None else 0.0
-    )
+    premium_budget = _finite_non_negative(premium_kwh) if has_ceiling else 0.0
     premium_candidates = [
         slot for slot in price_slots
         if premium_budget > _EPSILON
         and slot.end > now
         and slot.start < horizon_end
         and math.isfinite(float(slot.price))
-        and slot.price > max_price_threshold
+        and ceiling_of(slot) is not None
+        and slot.price > ceiling_of(slot)
         and (premium_price_threshold is None or slot.price <= premium_price_threshold)
     ]
 
@@ -382,9 +448,25 @@ def allocate_price_slots(
             segment_required.get(start, 0.0),
             deadline.required_cumulative_kwh,
         )
+    if required_from_deadlines:
+        required = min(headroom, max(required, sum(segment_required.values())))
     deadline_required = min(required, sum(segment_required.values()))
 
+    # Energy charged ahead of a projected solar fill is clipped, not stored, so
+    # it saves no import (#704).  Only guaranteed-floor energy, needed at its
+    # deadline whatever happens after, is exempt.
+    def room(slot: PriceSlot, free: float) -> float:
+        return min(
+            free,
+            _unclipped_room(
+                intervals, usable_initial_kwh, usable_capacity, allocations, slot
+            ),
+        )
+
+    segment_unusable: dict[datetime, float] = {}
     for deadline in deadlines:
+        clip = deadline.kind != "guaranteed_floor"
+        blocked = 0.0
         start = allocation_start(deadline.deadline)
         allocated_before_segment = sum(
             amount
@@ -392,7 +474,7 @@ def allocate_price_slots(
             if slot.end <= start
         )
         cumulative_target = min(
-            deadline.required_cumulative_kwh,
+            deadline.required_cumulative_kwh - segment_unusable.get(start, 0.0),
             max(0.0, required - allocated_before_segment),
         )
         already = sum(
@@ -419,7 +501,9 @@ def allocate_price_slots(
                 0.0,
                 capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
             )
-            take = min(missing, free)
+            usable = room(slot, free) if clip else free
+            blocked += free - usable
+            take = min(missing, usable)
             if take <= _EPSILON:
                 continue
             allocations[slot] = allocations.get(slot, 0.0) + take
@@ -442,7 +526,9 @@ def allocate_price_slots(
                 0.0,
                 capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
             )
-            take = min(missing, free, premium_budget)
+            usable = room(slot, free) if clip else free
+            blocked += free - usable
+            take = min(missing, usable, premium_budget)
             if take <= _EPSILON:
                 continue
             allocations[slot] = allocations.get(slot, 0.0) + take
@@ -454,16 +540,26 @@ def allocate_price_slots(
             premium_budget -= take
             if missing <= _EPSILON or premium_budget <= _EPSILON:
                 break
-        deadline_shortfall = max(deadline_shortfall, missing)
+        # More slot capacity would not help clipped energy: it is unusable,
+        # not a shortfall.
+        cut = min(missing, blocked)
+        segment_unusable[start] = segment_unusable.get(start, 0.0) + cut
+        deadline_shortfall = max(deadline_shortfall, missing - cut)
+    unusable = sum(segment_unusable.values())
+    required = max(0.0, required - unusable)
+    deadline_required = max(0.0, deadline_required - unusable)
 
     flexible_required = max(0.0, required - deadline_required)
     # A missed deadline is intentionally not relabelled as flexible work.  It
     # remains a chronological shortfall instead of being made to look covered
     # by energy delivered after the need occurred.
     missing_total = flexible_required
+    blocked = 0.0
     for slot in sorted(candidates, key=lambda item: (item.price, item.start)):
         free = max(0.0, capacity(slot) - allocations.get(slot, 0.0))
-        take = min(missing_total, free)
+        usable = room(slot, free)
+        blocked += free - usable
+        take = min(missing_total, usable)
         if take <= _EPSILON:
             continue
         allocations[slot] = allocations.get(slot, 0.0) + take
@@ -473,7 +569,9 @@ def allocate_price_slots(
             break
     for slot in sorted(premium_candidates, key=lambda item: (item.price, item.start)):
         free = max(0.0, capacity(slot) - allocations.get(slot, 0.0))
-        take = min(missing_total, free, premium_budget)
+        usable = room(slot, free)
+        blocked += free - usable
+        take = min(missing_total, usable, premium_budget)
         if take <= _EPSILON:
             continue
         allocations[slot] = allocations.get(slot, 0.0) + take
@@ -482,6 +580,9 @@ def allocate_price_slots(
         premium_budget -= take
         if missing_total <= _EPSILON or premium_budget <= _EPSILON:
             break
+    cut = min(missing_total, blocked)
+    required -= cut
+    flexible_required -= cut
 
     result_allocations = [
         SlotAllocation(
@@ -498,7 +599,7 @@ def allocate_price_slots(
     if power <= 0:
         reason = "insufficient_power"
     elif not candidates and not premium_candidates and required > 0:
-        reason = "price_threshold" if max_price_threshold is not None else "no_eligible_slots"
+        reason = "price_threshold" if has_ceiling else "no_eligible_slots"
     elif deadline_shortfall > _EPSILON:
         reason = "deadline_capacity_shortfall"
     elif total_shortfall > _EPSILON:
@@ -555,6 +656,8 @@ def evaluate_chronological_request(
         max_price_threshold=request.max_price_threshold,
         premium_kwh=request.premium_kwh,
         premium_price_threshold=request.premium_price_threshold,
+        slot_ceilings=request.slot_ceilings,
+        required_from_deadlines=request.required_from_deadlines,
     )
     return ChronologicalEvaluationResult(
         plan=plan,

@@ -1344,7 +1344,7 @@ const SYS_HELP = {
     pd_min_charge_power: "Minimum power for charging. Below this threshold, the controller stays idle instead of charging at low power. 0 = disabled.",
     pd_min_discharge_power: "Minimum power for discharging. Below this threshold, the controller stays idle instead of discharging at low power. 0 = disabled.",
     pd_relay_cooldown: "Anti-chatter: once the battery engages, it stays on at least this long before returning to idle, so the relay doesn't toggle when the grid hovers at the deadband edge during solar ramp-up/down. While held it runs at the PD min charge/discharge power (or 100 W if that is 0). Large imbalances bypass it. 0 = disabled.",
-    pd_min_cycle_interval: "Minimum spacing between event-driven control cycles. Grid-sensor updates arriving sooner than this are dropped, so a fast meter can't flood slow Modbus bridges (e.g. Elfin EW11) with write bursts. The 2 s safety timer is never gated. 0 = disabled.",
+    pd_min_cycle_interval: "Minimum spacing between event-driven control cycles. Grid-sensor updates arriving sooner than this are dropped, so a fast meter can't flood slow Modbus bridges (e.g. Elfin EW11) with write bursts. The 2 s safety timer also keeps the last command inside this window (safety checks still act at once). 0 = disabled.",
     pd_target_grid_power: "Grid power setpoint the controller regulates to. Positive = import from grid (battery charges), negative = export to grid (battery discharges), 0 = net zero. The export range follows your total configured battery power, narrowed by the system power limits when enabled; the import range reaches your contracted power when it is set, since the house draws from the same meter. Default: 0 W.",
     system_max_charge_power: "Optional cap for combined charge power across all active batteries. 0 = disabled; per-battery limits still apply.",
     system_max_discharge_power: "Optional cap for combined discharge power across all active batteries. 0 = disabled; per-battery limits still apply.",
@@ -1431,7 +1431,7 @@ const SYS_HELP = {
     pd_min_charge_power: "Potencia mínima para cargar. Por debajo de este umbral, el controlador queda en reposo en vez de cargar a baja potencia. 0 = desactivado.",
     pd_min_discharge_power: "Potencia mínima para descargar. Por debajo de este umbral, el controlador queda en reposo en vez de descargar a baja potencia. 0 = desactivado.",
     pd_relay_cooldown: "Anti-chasquido: una vez la batería engancha, sigue activa al menos este tiempo antes de volver a reposo, para que el relé no conmute cuando la red ronda el borde de la banda muerta durante la rampa solar (amanecer/anochecer). Mientras se mantiene, funciona a la potencia mín. de carga/descarga PD (o 100 W si es 0). Desequilibrios grandes lo saltan. 0 = desactivado.",
-    pd_min_cycle_interval: "Separación mínima entre ciclos de control disparados por evento. Las actualizaciones del sensor de red que llegan antes de este tiempo se descartan, para que un medidor rápido no sature puentes Modbus lentos (p. ej. Elfin EW11) con ráfagas de escritura. El temporizador de seguridad de 2 s nunca se frena. 0 = desactivado.",
+    pd_min_cycle_interval: "Separación mínima entre ciclos de control disparados por evento. Las actualizaciones del sensor de red que llegan antes de este tiempo se descartan, para que un medidor rápido no sature puentes Modbus lentos (p. ej. Elfin EW11) con ráfagas de escritura. El temporizador de seguridad de 2 s también mantiene la última orden dentro de esta ventana (las protecciones actúan igualmente al momento). 0 = desactivado.",
     pd_target_grid_power: "Consigna de potencia de red que regula el controlador. Positivo = importar de red (la batería carga), negativo = exportar a red (la batería descarga), 0 = balance neto cero. El rango de exportación sigue la potencia total configurada de tus baterías, limitado por los límites de potencia del sistema cuando están activos; el de importación llega hasta tu potencia contratada si está configurada, porque la casa consume del mismo contador. Valor por defecto: 0 W.",
     system_max_charge_power: "Limite opcional para la potencia de carga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose.",
     system_max_discharge_power: "Limite opcional para la potencia de descarga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose.",
@@ -1518,7 +1518,7 @@ const SYS_HELP = {
     pd_min_charge_power: "Potència mínima per carregar. Per sota d'aquest llindar, el controlador queda en repòs en lloc de carregar a baixa potència. 0 = desactivat.",
     pd_min_discharge_power: "Potència mínima per descarregar. Per sota d'aquest llindar, el controlador queda en repòs en lloc de descarregar a baixa potència. 0 = desactivat.",
     pd_relay_cooldown: "Anti-espetec: un cop la bateria s'enganxa, segueix activa almenys aquest temps abans de tornar al repòs, perquè el relé no commuti quan la xarxa ronda la vora de la banda morta durant la rampa solar (alba/capvespre). Mentre es manté, funciona a la potència mín. de càrrega/descàrrega PD (o 100 W si és 0). Desequilibris grans l'ometen. 0 = desactivat.",
-    pd_min_cycle_interval: "Separació mínima entre cicles de control disparats per esdeveniment. Les actualitzacions del sensor de xarxa que arriben abans d'aquest temps es descarten, perquè un mesurador ràpid no saturi ponts Modbus lents (p. ex. Elfin EW11) amb ràfegues d'escriptura. El temporitzador de seguretat de 2 s mai es bloqueja. 0 = desactivat.",
+    pd_min_cycle_interval: "Separació mínima entre cicles de control disparats per esdeveniment. Les actualitzacions del sensor de xarxa que arriben abans d'aquest temps es descarten, perquè un mesurador ràpid no saturi ponts Modbus lents (p. ex. Elfin EW11) amb ràfegues d'escriptura. El temporitzador de seguretat de 2 s també manté l'última ordre dins d'aquesta finestra (les proteccions actuen igualment a l'instant). 0 = desactivat.",
     pd_target_grid_power: "Consigna de potència de xarxa que regula el controlador. Positiu = importar de la xarxa (la bateria carrega), negatiu = exportar a la xarxa (la bateria descarrega), 0 = balanç net zero. El rang d'exportació segueix la potència total configurada de les teves bateries, limitat pels límits de potència del sistema quan estan actius; el d'importació arriba fins a la teva potència contractada si està configurada, perquè la casa consumeix del mateix comptador. Per defecte: 0 W.",
     system_max_charge_power: "Límit opcional per a la potència de càrrega combinada de totes les bateries actives. 0 = desactivat; els límits per bateria segueixen aplicant-se.",
     system_max_discharge_power: "Límit opcional per a la potència de descàrrega combinada de totes les bateries actives. 0 = desactivat; els límits per bateria segueixen aplicant-se.",
@@ -1605,7 +1605,7 @@ const SYS_HELP = {
     pd_min_charge_power: "Mindestleistung zum Laden. Unter diesem Schwellenwert bleibt der Regler im Leerlauf, statt mit niedriger Leistung zu laden. 0 = deaktiviert.",
     pd_min_discharge_power: "Mindestleistung zum Entladen. Unter diesem Schwellenwert bleibt der Regler im Leerlauf, statt mit niedriger Leistung zu entladen. 0 = deaktiviert.",
     pd_relay_cooldown: "Anti-Klappern: Sobald die Batterie einschaltet, bleibt sie mindestens diese Zeit aktiv, bevor sie in den Leerlauf zurückkehrt, damit das Relais nicht schaltet, wenn das Netz während der Solar-Rampe (Sonnenauf-/-untergang) am Totband-Rand pendelt. Während des Haltens läuft sie mit der PD-Min.-Lade-/Entladeleistung (oder 100 W bei 0). Große Ungleichgewichte umgehen sie. 0 = deaktiviert.",
-    pd_min_cycle_interval: "Mindestabstand zwischen ereignisgesteuerten Regelzyklen. Netz-Sensor-Updates, die früher eintreffen, werden verworfen, damit ein schneller Zähler langsame Modbus-Bridges (z. B. Elfin EW11) nicht mit Schreib-Bursts überflutet. Der 2-s-Sicherheitstimer wird nie blockiert. 0 = deaktiviert.",
+    pd_min_cycle_interval: "Mindestabstand zwischen ereignisgesteuerten Regelzyklen. Netz-Sensor-Updates, die früher eintreffen, werden verworfen, damit ein schneller Zähler langsame Modbus-Bridges (z. B. Elfin EW11) nicht mit Schreib-Bursts überflutet. Auch der 2-s-Sicherheitstimer behält innerhalb dieses Fensters den letzten Befehl bei (Schutzfunktionen greifen weiterhin sofort). 0 = deaktiviert.",
     pd_target_grid_power: "Netzleistungs-Sollwert, auf den der Regler regelt. Positiv = Bezug aus dem Netz (Batterie lädt), negativ = Einspeisung ins Netz (Batterie entlädt), 0 = Nettonull. Der Einspeisebereich richtet sich nach der insgesamt konfigurierten Batterieleistung, begrenzt durch die System-Leistungsgrenzen, wenn diese aktiv sind; der Bezugsbereich reicht bis zur vertraglichen Anschlussleistung, wenn diese gesetzt ist, da das Haus am selben Zähler hängt. Standard: 0 W.",
     system_max_charge_power: "Optionale Begrenzung der kombinierten Ladeleistung aller aktiven Batterien. 0 = deaktiviert; Limits pro Batterie gelten weiterhin.",
     system_max_discharge_power: "Optionale Begrenzung der kombinierten Entladeleistung aller aktiven Batterien. 0 = deaktiviert; Limits pro Batterie gelten weiterhin.",
@@ -1692,7 +1692,7 @@ const SYS_HELP = {
     pd_min_charge_power: "Puissance minimale pour charger. En dessous de ce seuil, le contrôleur reste au repos au lieu de charger à faible puissance. 0 = désactivé.",
     pd_min_discharge_power: "Puissance minimale pour décharger. En dessous de ce seuil, le contrôleur reste au repos au lieu de décharger à faible puissance. 0 = désactivé.",
     pd_relay_cooldown: "Anti-claquement : une fois la batterie engagée, elle reste active au moins ce temps avant de revenir au repos, pour que le relais ne commute pas quand le réseau oscille au bord de la bande morte pendant la rampe solaire (lever/coucher). Pendant le maintien, elle fonctionne à la puissance min. de charge/décharge PD (ou 100 W si 0). Les grands déséquilibres l'ignorent. 0 = désactivé.",
-    pd_min_cycle_interval: "Espacement minimal entre les cycles de contrôle déclenchés par événement. Les mises à jour du capteur réseau arrivant plus tôt sont ignorées, pour qu'un compteur rapide n'inonde pas les ponts Modbus lents (p. ex. Elfin EW11) de rafales d'écriture. La temporisation de sécurité de 2 s n'est jamais bloquée. 0 = désactivé.",
+    pd_min_cycle_interval: "Espacement minimal entre les cycles de contrôle déclenchés par événement. Les mises à jour du capteur réseau arrivant plus tôt sont ignorées, pour qu'un compteur rapide n'inonde pas les ponts Modbus lents (p. ex. Elfin EW11) de rafales d'écriture. La temporisation de sécurité de 2 s conserve aussi la dernière commande dans cette fenêtre (les protections agissent toujours immédiatement). 0 = désactivé.",
     pd_target_grid_power: "Consigne de puissance réseau que le contrôleur régule. Positif = soutirage du réseau (la batterie charge), négatif = injection vers le réseau (la batterie décharge), 0 = net zéro. La plage d'injection suit la puissance totale configurée de vos batteries, limitée par les limites de puissance système lorsqu'elles sont actives ; la plage de soutirage va jusqu'à votre puissance souscrite si elle est définie, car la maison consomme sur le même compteur. Défaut : 0 W.",
     system_max_charge_power: "Plafond optionnel pour la puissance de charge combinée de toutes les batteries actives. 0 = désactivé ; les limites par batterie s'appliquent toujours.",
     system_max_discharge_power: "Plafond optionnel pour la puissance de décharge combinée de toutes les batteries actives. 0 = désactivé ; les limites par batterie s'appliquent toujours.",
@@ -1779,7 +1779,7 @@ const SYS_HELP = {
     pd_min_charge_power: "Minimaal vermogen om te laden. Onder deze drempel blijft de regelaar in rust in plaats van met laag vermogen te laden. 0 = uitgeschakeld.",
     pd_min_discharge_power: "Minimaal vermogen om te ontladen. Onder deze drempel blijft de regelaar in rust in plaats van met laag vermogen te ontladen. 0 = uitgeschakeld.",
     pd_relay_cooldown: "Anti-klapperen: zodra de batterij inschakelt, blijft hij minstens deze tijd actief voordat hij naar rust terugkeert, zodat het relais niet schakelt wanneer het net tijdens de zonne-ramp (op-/ondergang) op de rand van de dode band schommelt. Tijdens het vasthouden draait hij op het PD min. laad-/ontlaadvermogen (of 100 W bij 0). Grote onbalans omzeilt het. 0 = uitgeschakeld.",
-    pd_min_cycle_interval: "Minimale tussenruimte tussen gebeurtenisgestuurde regelcycli. Net-sensorupdates die eerder binnenkomen worden genegeerd, zodat een snelle meter trage Modbus-bridges (bijv. Elfin EW11) niet overspoelt met schrijfbursts. De 2 s-veiligheidstimer wordt nooit geblokkeerd. 0 = uitgeschakeld.",
+    pd_min_cycle_interval: "Minimale tussenruimte tussen gebeurtenisgestuurde regelcycli. Net-sensorupdates die eerder binnenkomen worden genegeerd, zodat een snelle meter trage Modbus-bridges (bijv. Elfin EW11) niet overspoelt met schrijfbursts. Ook de 2 s-veiligheidstimer houdt binnen dit venster het laatste commando aan (beveiligingen grijpen nog steeds direct in). 0 = uitgeschakeld.",
     pd_target_grid_power: "Netvermogen-setpoint waarop de regelaar regelt. Positief = afname van het net (batterij laadt), negatief = teruglevering aan het net (batterij ontlaadt), 0 = netto nul. Het terugleverbereik volgt het totaal geconfigureerde batterijvermogen, begrensd door de systeemvermogenslimieten wanneer die actief zijn; het afnamebereik loopt tot je gecontracteerd vermogen als dat is ingesteld, omdat het huis via dezelfde meter afneemt. Standaard: 0 W.",
     system_max_charge_power: "Optionele begrenzing voor het gecombineerde laadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden.",
     system_max_discharge_power: "Optionele begrenzing voor het gecombineerde ontlaadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden.",
@@ -2041,13 +2041,23 @@ class MarstekVenusPanel extends HTMLElement {
     const unit = String((stateObj.attributes || {}).unit_of_measurement || "kWh").toLowerCase();
     return unit === "wh" ? n / 1000 : n;
   }
-  /** Sum numeric states for a key across all batteries. */
+  /** Sum numeric states for a key across all batteries: one value per device.
+   *  A device can expose two entities with the same translation_key (Anker:
+   *  read-only hardware-cap sensor + soft-limit number for max charge /
+   *  discharge power, #716). Those are the same limit, not two units; the
+   *  effective ceiling is the lower of the two, as the coordinator applies. */
   _sum(byKey, key) {
-    let total = null;
-    for (const s of this._statesFor(byKey, key)) {
-      const n = this._num(s);
-      if (n != null) total = (total || 0) + n;
+    const reg = (this._hass && this._hass.entities) || {};
+    const perDevice = new Map();
+    for (const id of byKey.get(key) || []) {
+      const n = this._num(this._hass.states[id]);
+      if (n == null) continue;
+      const dev = (reg[id] && reg[id].device_id) || id;
+      const prev = perDevice.get(dev);
+      perDevice.set(dev, prev == null ? n : Math.min(prev, n));
     }
+    let total = null;
+    for (const n of perDevice.values()) total = (total || 0) + n;
     return total;
   }
   /** Convert a power state to Watts regardless of W/kW unit. */

@@ -482,6 +482,44 @@ def test_only_a_cycle_without_a_new_sample_reports_that_it_kept_the_last_command
     assert _cycle(70) is False
 
 
+
+def test_paced_tick_keeps_command_but_leaves_new_sample_for_next_cycle():
+    """#654: a 2 s tick inside the pacing window must not act on a fresh sample."""
+    first_report = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    state_holder = {"state": _state(100, first_report)}
+    pd_calls = []
+    controller = _main_controller(state_holder, pd_calls)
+    asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=1)))
+    assert len(pd_calls) == 1
+
+    state_holder["state"] = _state(200, first_report + timedelta(seconds=2))
+    controller._timer_tick_paced = True
+    controller._cycle_kept_last_command = False
+    asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=2)))
+    assert len(pd_calls) == 1
+    assert controller._cycle_kept_last_command is True
+
+    # Same value, next unpaced cycle: still treated as new, so P/D acts on it.
+    controller._timer_tick_paced = False
+    asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=4)))
+    assert len(pd_calls) == 2
+
+
+def test_paced_tick_with_pending_safety_runs_a_normal_cycle():
+    first_report = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    state_holder = {"state": _state(100, first_report)}
+    pd_calls = []
+    controller = _main_controller(state_holder, pd_calls)
+    asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=1)))
+
+    state_holder["state"] = _state(200, first_report + timedelta(seconds=2))
+    controller._timer_tick_paced = True
+    controller._phase_safety_pending = True
+    asyncio.run(controller._run_control_cycle(now=first_report + timedelta(seconds=2)))
+    assert len(pd_calls) == 2
+    assert pd_calls[-1][2] is False  # fresh sample, not a stale recalc
+
+
 def _predictive_controller(state_holder, writes):
     class _Coordinator(SimpleNamespace):
         __hash__ = object.__hash__
@@ -986,3 +1024,36 @@ def test_5w_rounding_is_not_reported_as_phase_limited():
 
 def test_real_phase_cap_is_still_reported_as_limited():
     assert _phase_limited_after_cycle(800) is True
+
+
+def _empty_pool_controller(state_holder, writes, *, excluded):
+    controller = _predictive_controller(state_holder, writes)
+    battery = controller.coordinators[0]
+    battery.is_available = True
+    battery.rs485_user_disabled = False
+    controller._get_available_batteries = lambda is_charging, **_kwargs: []
+    controller._non_responsive = SimpleNamespace(is_excluded=lambda _c: excluded)
+    return controller
+
+
+def test_predictive_slot_held_while_only_battery_is_non_responsive():
+    # #623: an empty pool caused by a comms exclusion is not "target reached".
+    state_holder = {"state": _state(100, datetime.now(timezone.utc))}
+    writes = []
+    controller = _empty_pool_controller(state_holder, writes, excluded=True)
+
+    asyncio.run(controller._handle_predictive_grid_charging())
+
+    assert controller.grid_charging_active is True
+    assert controller._grid_charging_initialized is False
+    assert writes == []
+
+
+def test_predictive_slot_completes_when_empty_pool_is_target_reached():
+    state_holder = {"state": _state(100, datetime.now(timezone.utc))}
+    writes = []
+    controller = _empty_pool_controller(state_holder, writes, excluded=False)
+
+    asyncio.run(controller._handle_predictive_grid_charging())
+
+    assert controller.grid_charging_active is False

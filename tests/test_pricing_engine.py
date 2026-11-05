@@ -632,6 +632,21 @@ def test_solar_forecast_reeval_false_late_in_the_evening():
     assert manager._is_solar_forecast_reeval(datetime(2026, 8, 28, 23, 10)) is False
 
 
+@pytest.mark.parametrize(
+    ("minute", "second", "expected"),
+    [(0, 17, False), (4, 59, False), (5, 2, False), (6, 0, True)],
+)
+def test_solar_forecast_reeval_leaves_the_new_day_to_the_00_05_evaluation(
+    minute, second, expected
+):
+    # The sensor rolls to the new day's total at midnight while the reference
+    # still holds last evening's 0 kWh. That is a new day, not a revision.
+    now = datetime(2026, 8, 29, 0, minute, second)
+    ctrl = _forecast_ctrl(0.0, _daily_solar_energy_date=now.date())
+    manager = _forecast_mgr(ctrl, 13.2, produced=0.0)
+    assert manager._is_solar_forecast_reeval(now) is expected
+
+
 def test_solar_forecast_reeval_respects_cooldown():
     ctrl = _forecast_ctrl(
         13.1,
@@ -1219,6 +1234,11 @@ def test_evening_recharge_respects_the_arbitrage_ceiling(monkeypatch):
 
     peak = [_slot(17, 0.50), _slot(18, 0.50), _slot(19, 0.50)]
     night = _slot(22, 0.30)
+    # #649: a slot is only valued against peaks that start after it ends.
+    morning = [
+        PriceSlot(s.start + timedelta(days=1), s.end + timedelta(days=1), 0.50)
+        for s in (_slot(6, 0), _slot(7, 0))
+    ]
     # 3 kWh deficit (4 kWh load, 1 kWh usable, no solar) at 1.5 kW: two hours.
     ctrl = _evening_ctrl(
         claim=0.0,
@@ -1232,17 +1252,17 @@ def test_evening_recharge_respects_the_arbitrage_ceiling(monkeypatch):
     manager.energy_horizon_end = lambda _now: now.replace(
         hour=0, minute=0
     ) + timedelta(days=1, hours=7)
-    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [*peak, night]
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [*peak, night, *morning]
     ceilings = []
     manager._build_chronological_plan = lambda **kwargs: ceilings.append(
-        kwargs["price_ceiling"]
+        kwargs["slot_ceilings"]
     )
     manager._send_evening_recharge_notification = _async_noop
 
     asyncio.run(manager._evaluate_evening_recharge())
 
     # Expected discharge 0.50 x 0.85 - 0.05 margin = 0.375.
-    assert ceilings == [pytest.approx(0.375)]
+    assert ceilings[0][night.start] == pytest.approx(0.375)
     assert ctrl._dynamic_pricing_schedule.selected_slots == [night]
 
 

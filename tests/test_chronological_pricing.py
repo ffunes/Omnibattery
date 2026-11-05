@@ -10,6 +10,7 @@ from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.chronological import (
     ChronologicalEvaluationRequest,
     ChronologicalPlan,
+    EnergyDeadline,
     EnergyInterval,
     SlotAllocation,
     allocate_price_slots,
@@ -574,3 +575,116 @@ def test_no_floor_premium_keeps_every_slot_under_the_ceiling():
     plan = _floor_plan()
 
     assert all(a.slot.price <= 0.35 for a in plan.allocations)
+
+
+def test_slot_ceilings_replace_the_scalar_ceiling_per_slot():
+    """#649: each slot is limited by its own arbitrage ceiling (static 0.35)."""
+    slots = [_slot(0, 15, 0.30), _slot(15, 60, 0.50), _slot(60, 120, 0.50)]
+    # Only the 00:00 slot is arbitrage-justified; the others get -inf.
+    ceilings = {slots[0].start: 0.35, slots[1].start: float("-inf"), slots[2].start: float("-inf")}
+    intervals = [_interval(7, 5.0)]
+    plan = allocate_price_slots(
+        intervals,
+        build_energy_deadlines(intervals, usable_initial_kwh=0.0),
+        slots,
+        total_required_kwh=5.0,
+        effective_power_kw=2.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=12),
+        max_price_threshold=0.60,
+        slot_ceilings=ceilings,
+    )
+    assert [a.slot for a in plan.allocations] == [slots[0]]
+
+
+def test_floor_premium_still_buys_above_the_slot_ceiling_up_to_the_static_cap():
+    slots = [_slot(0, 15, 0.30), _slot(15, 60, 0.50), _slot(60, 120, 0.70)]
+    ceilings = {s.start: 0.35 for s in slots}
+    intervals = [_interval(7, 5.0)]
+    plan = allocate_price_slots(
+        intervals,
+        build_energy_deadlines(intervals, usable_initial_kwh=0.0),
+        slots,
+        total_required_kwh=5.0,
+        effective_power_kw=2.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=12),
+        max_price_threshold=0.60,
+        slot_ceilings=ceilings,
+        premium_kwh=1.0,
+        premium_price_threshold=0.60,
+    )
+    premium = sum(a.planned_battery_kwh for a in plan.allocations if a.slot.price > 0.35)
+    assert premium == pytest.approx(1.0)
+    assert all(a.slot.price <= 0.60 for a in plan.allocations)
+
+
+def _night_charge_plan(solar_total_kwh):
+    """#704 shape: 01-08 window, morning load, midday solar, evening load."""
+    intervals = []
+    for index in range(96):
+        hour = index / 4
+        consumption = 0.0 if hour < 8 else 0.125 if hour < 17 else 0.2
+        solar = solar_total_kwh / 20 if 12 <= hour < 17 else 0.0
+        intervals.append(_interval(index, consumption, solar))
+    deadlines = build_energy_deadlines(
+        intervals, usable_initial_kwh=0.61, usable_capacity_kwh=5.12
+    )
+    return intervals, allocate_price_slots(
+        intervals,
+        deadlines,
+        [_slot(60, 480, 0.1)],
+        total_required_kwh=4.51,
+        effective_power_kw=2.5,
+        charge_efficiency=1.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(days=1),
+        headroom_kwh=4.51,
+        usable_initial_kwh=0.61,
+    )
+
+
+def _clipped_kwh(intervals, plan):
+    energy = 0.61 + plan.allocated_kwh
+    clipped = 0.0
+    for interval in intervals[32:]:
+        energy += interval.solar_kwh - interval.consumption_kwh
+        clipped += max(0.0, energy - 5.12)
+        energy = max(0.0, min(5.12, energy))
+    return clipped
+
+
+def test_energy_clipped_under_solar_peak_is_not_charged():
+    """#704: night energy the midday solar would export is not bought."""
+    intervals, plan = _night_charge_plan(solar_total_kwh=7.0)
+
+    # 1.39 morning deficit + 0.62 the solar leaves free; the rest was exported.
+    assert plan.allocated_kwh == pytest.approx(2.01)
+    assert plan.total_required_kwh == pytest.approx(plan.allocated_kwh)
+    assert _clipped_kwh(intervals, plan) == pytest.approx(0.0, abs=1e-6)
+    assert plan.reason == "ok"
+
+
+def test_charge_unchanged_when_solar_never_fills_the_battery():
+    _, plan = _night_charge_plan(solar_total_kwh=4.0)
+
+    assert plan.allocated_kwh == pytest.approx(4.51)
+
+
+@pytest.mark.parametrize("kind, expected", [("guaranteed_floor", 0.5), ("depletion", 0.0)])
+def test_only_floor_energy_is_charged_ahead_of_a_solar_fill(kind, expected):
+    intervals = [_interval(0, 0.0), _interval(1, 0.0, 2.0)]
+    plan = allocate_price_slots(
+        intervals,
+        [EnergyDeadline(intervals[0].end, 0.5, kind)],
+        [_slot(0, 15, 0.1)],
+        total_required_kwh=0.5,
+        effective_power_kw=4.0,
+        charge_efficiency=1.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=1),
+        headroom_kwh=1.0,
+    )
+
+    assert plan.allocated_kwh == pytest.approx(expected)
+    assert plan.deadline_shortfall_kwh == pytest.approx(0.0)

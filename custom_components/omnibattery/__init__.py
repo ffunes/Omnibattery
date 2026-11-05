@@ -737,6 +737,7 @@ class ChargeDischargeController:
         self._last_cycle_monotonic = 0.0
         # Set by a cycle that found no new meter sample and kept the last command.
         self._cycle_kept_last_command = False
+        self._timer_tick_paced = False
         self._background_tasks: set[asyncio.Task] = set()
         self._startup_dynamic_pricing_task: asyncio.Task | None = None
         self._unloading = False
@@ -1130,6 +1131,7 @@ class ChargeDischargeController:
         self.price_discharge_control: bool = config_entry.data.get(CONF_PRICE_DISCHARGE_CONTROL, False)
         self._dp_daily_avg_price: Optional[float] = None  # Computed from price slots in _evaluate_dynamic_pricing
         self._dp_arbitrage_ceiling: Optional[float] = None  # Set per evaluation when the margin gate is on
+        self._dp_planning_end: Optional[datetime] = None  # Extended planning horizon of the last evaluation (#710)
         # Tibber is service-based (no price sensor): the engine polls tibber.get_prices
         # and caches the parsed slots here.
         self._tibber_price_slots: list = []
@@ -6340,6 +6342,28 @@ class ChargeDischargeController:
         # Get available batteries (respecting the active target and max_soc)
         available_batteries = self._get_available_batteries(is_charging=True)
         if not available_batteries:
+            # An empty pool only means "target reached" when no automatic
+            # battery is merely out of comms. A battery that is unreachable or
+            # excluded as non-responsive (e.g. EMS V150 stalls, #623) may still
+            # need charge: hold the slot and re-initialise when it returns.
+            comm_down = [
+                c.name
+                for c in self.coordinators
+                if not getattr(c, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+                and not c.rs485_user_disabled
+                and (
+                    c.data is None
+                    or not c.is_available
+                    or self._non_responsive.is_excluded(c)
+                )
+            ]
+            if comm_down:
+                _LOGGER.debug(
+                    "Predictive charging held: no battery available, waiting for %s",
+                    ", ".join(comm_down),
+                )
+                self._grid_charging_initialized = False
+                return
             _LOGGER.info(
                 "Predictive charging complete: all batteries reached their active SOC target"
             )
@@ -6958,6 +6982,7 @@ class ChargeDischargeController:
             self._discharge_engage_started[coordinator] = dt_util.utcnow()
             self._non_responsive.clear(coordinator, delivering=False)
             coordinator._low_soc_refusal_started = None
+            coordinator._low_soc_standby_wake_done = False
         # A large step up within the same direction restarts only its engage
         # clock: the battery was following the smaller command and needs time to
         # ramp. The non-responsive episode, the taper clock and the low-SOC
@@ -7337,6 +7362,7 @@ class ChargeDischargeController:
             self._high_soc_taper_started.pop(coordinator, None)
             self._non_responsive.clear(coordinator)
             coordinator._low_soc_refusal_started = None
+            coordinator._low_soc_standby_wake_done = False
             return
         engage_times = (
             self._charge_engage_started
@@ -7413,6 +7439,17 @@ class ChargeDischargeController:
                 )
             else:
                 self._high_soc_taper_started.pop(coordinator, None)
+        # ACK'd but no power: separate a battery sitting in standby
+        # (likely dropped RS485 control) from one that is awake but
+        # still refusing.
+        inv_state = coordinator.data.get("inverter_state") if coordinator.data else None
+        try:
+            is_standby = (
+                inv_state is not None
+                and int(inv_state) == NORMAL_BALANCE_RECAL_INVERTER_STANDBY
+            )
+        except (TypeError, ValueError):
+            is_standby = False
         # Skip non-responsive recording when the BMS is legitimately
         # refusing discharge: either at/near the configured min-SOC, or
         # anywhere below the low-SOC protective floor where the BMS may
@@ -7430,6 +7467,18 @@ class ChargeDischargeController:
             )
             # Comms and battery are fine, just protecting itself.
             self._non_responsive.clear(coordinator)
+            # A battery parked in Standby may instead be stuck (a short AC
+            # interruption leaves it there with RS485 still reading enabled,
+            # #720), which looks the same as a cutoff. Give it the one-shot
+            # standby wake once per refusal episode before judging it empty:
+            # a real cutoff costs one reconnect, a stuck one is recovered.
+            if is_standby and not getattr(
+                coordinator, "_low_soc_standby_wake_done", False
+            ):
+                coordinator._low_soc_standby_wake_done = True
+                coordinator._low_soc_refusal_started = dt_util.utcnow()
+                await self._attempt_wake(coordinator, is_standby=True)
+                return
             # Not a fault, but not a battery to keep asking either: a device
             # that stops above min_soc (its own cutoff set higher in the app, a
             # BMS stopping early) was otherwise commanded for hours while the
@@ -7453,17 +7502,6 @@ class ChargeDischargeController:
                     current_soc + DISCHARGE_MIN_SOC_REENTRY_MARGIN,
                 )
             return
-        # ACK'd but no power: separate a battery sitting in standby
-        # (likely dropped RS485 control) from one that is awake but
-        # still refusing.
-        inv_state = coordinator.data.get("inverter_state") if coordinator.data else None
-        try:
-            is_standby = (
-                inv_state is not None
-                and int(inv_state) == NORMAL_BALANCE_RECAL_INVERTER_STANDBY
-            )
-        except (TypeError, ValueError):
-            is_standby = False
         # Reaching the top voltage during the previous charge is not an exemption
         # here. The discharge engage grace above covers the legitimate transition
         # out of BMS-full standby; once it expires, a battery that still ACKs the
@@ -8003,9 +8041,9 @@ class ChargeDischargeController:
         # Event-driven rate limit: drop a consumption-sensor trigger that lands
         # within _min_cycle_interval_s of the last cycle, so a fast-publishing
         # meter can't flood slow Modbus bridges (e.g. Elfin EW11) with write
-        # bursts. The periodic safety timer (now is a datetime) is never gated:
-        # it keeps the time-based subsystems running and forces a recalc within
-        # its own period. 0 = disabled.
+        # bursts. The periodic safety timer (now is a datetime) always runs, to
+        # keep the time-based subsystems going; inside this window it only keeps
+        # the last command (see _timer_tick_paced). 0 = disabled.
         if now is None and self._min_cycle_interval_s > 0:
             elapsed = time.monotonic() - self._last_cycle_monotonic
             if elapsed < self._min_cycle_interval_s:
@@ -8021,6 +8059,21 @@ class ChargeDischargeController:
             return
         async with self._control_lock:
             previous_cycle_monotonic = self._last_cycle_monotonic
+            # Safety-timer pacing (#654): a tick inside the user's pacing window
+            # (No-PD Command Delay, else PD Min Cycle Interval) still runs the
+            # structural/safety review, but keeps the last command instead of
+            # acting on a fresh meter sample. Otherwise a fast meter turns the
+            # 2 s timer into a command every tick, defeating both settings.
+            pace_s = (
+                self._no_pd_command_delay
+                if self.no_pd_mode_enabled and self._no_pd_command_delay > 0
+                else self._min_cycle_interval_s
+            )
+            self._timer_tick_paced = (
+                now is not None
+                and pace_s > 0
+                and time.monotonic() - previous_cycle_monotonic < pace_s
+            )
             self._last_cycle_monotonic = time.monotonic()
             self._cycle_kept_last_command = False
             await self._run_control_cycle(now)
@@ -8070,6 +8123,7 @@ class ChargeDischargeController:
         if self._control_lock.locked():
             return
         async with self._control_lock:
+            self._timer_tick_paced = False
             self._last_cycle_monotonic = time.monotonic()
             await self._run_control_cycle()
 
@@ -9452,7 +9506,8 @@ class ChargeDischargeController:
         else:
             self._stale_cycles = 0
 
-        if not self.first_execution and not has_new_control_sample:
+        paced_tick = has_new_control_sample and getattr(self, "_timer_tick_paced", False)
+        if not self.first_execution and (not has_new_control_sample or paced_tick):
             # last_reported may advance on an identical P1 publication. That is
             # fresh health data, but it is not a new feedback sample for the
             # incremental P/D law. Structural checks above have already run; keep
@@ -9475,10 +9530,18 @@ class ChargeDischargeController:
                         f"{self._max_sensor_stale_s:.1f}s" if sensor_age_s is not None else "unknown age",
                         self.previous_power,
                     )
+                if paced_tick:
+                    # Leave the sample unconsumed so the next unpaced cycle
+                    # still sees it as new and acts on it.
+                    self._last_control_sample_value = None
                 self._cycle_kept_last_command = True
                 return
-            stale_safety_recalc = True
-            if capacity_protection_must_recheck:
+            # A paced tick that a safety condition needs reviewed runs a normal
+            # cycle on its fresh sample: protections never wait for pacing.
+            stale_safety_recalc = not paced_tick
+            if paced_tick:
+                pass
+            elif capacity_protection_must_recheck:
                 _LOGGER.debug(
                     "ChargeDischargeController: No new control sample but peak shaving is SOC-limited; reviewing discharge %.1fW",
                     self.previous_power,

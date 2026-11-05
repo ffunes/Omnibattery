@@ -500,6 +500,43 @@ def calculate_planned_grid_charge_kwh(
     return min(headroom, deficit)
 
 
+def schedule_price_summary(
+    slots: list,
+    effective_power_kw: float,
+    slot_energy_targets_kwh: dict | None = None,
+) -> tuple[float, float]:
+    """Return ``(average_price, estimated_cost)`` for selected slots.
+
+    When per-slot battery energy is known, cost and average are weighted by
+    it: slots without energy contribute nothing, and the cost pays for the
+    grid energy, i.e. the battery energy plus charging losses (#715).
+    Without it, each slot is assumed to run at full power for its whole
+    duration.
+    """
+    if not slots:
+        return 0.0, 0.0
+    plain_average = sum(slot.price for slot in slots) / len(slots)
+    targets = slot_energy_targets_kwh or {}
+    if not targets:
+        power_kw = max(0.0, effective_power_kw)
+        cost = sum(
+            slot.price
+            * power_kw
+            * max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
+            for slot in slots
+        )
+        return plain_average, cost
+    energy = {
+        slot: max(0.0, float(targets.get(slot, 0.0) or 0.0)) for slot in slots
+    }
+    total_kwh = sum(energy.values())
+    battery_cost = sum(slot.price * kwh for slot, kwh in energy.items())
+    cost = battery_cost / CHARGE_EFFICIENCY
+    if total_kwh > 0:
+        return battery_cost / total_kwh, cost
+    return plain_average, cost
+
+
 def select_cheapest_blocks(slots: list, hours_needed: float, slot_duration_h: float) -> list:
     """Select cheapest slots using a block strategy for sub-hourly granularity.
 
@@ -596,10 +633,12 @@ def select_cheapest_blocks(slots: list, hours_needed: float, slot_duration_h: fl
 
 
 def expected_discharge_price(slots: list, hours_needed: float) -> float | None:
-    """Average price of the most expensive ``hours_needed`` of remaining slots.
+    """Average price of the most expensive ``hours_needed`` of the given slots.
 
     This is the value a stored kWh is expected to realise: energy charged now
-    displaces grid import during the priciest part of the remaining horizon.
+    displaces grid import during the priciest part of the slots it can still
+    serve.  Pass only slots that start after the charge (see
+    :func:`slot_arbitrage_ceilings`), or earlier peaks justify later charging.
 
     Symmetry assumption: the discharge window is taken to be as long as the
     charge window. That is an approximation, since discharge rate follows
@@ -607,7 +646,7 @@ def expected_discharge_price(slots: list, hours_needed: float) -> float | None:
     insensitive to it: both sides of the comparison move together when the
     window widens.
 
-    Must be called with the *unfiltered* future slots. The expensive hours are
+    Must be called with the *unfiltered* later slots. The expensive hours are
     by definition above the charge ceiling, so computing this after the
     ``max_price_threshold`` filter would discard exactly the slots it needs.
 
@@ -639,7 +678,8 @@ def arbitrage_ceiling(
     min_arbitrage_margin,
     round_trip_efficiency: float = DEFAULT_ROUND_TRIP_EFFICIENCY,
 ) -> float | None:
-    """Highest slot price that still clears ``min_arbitrage_margin`` per kWh.
+    """Highest charge price that still clears ``min_arbitrage_margin`` per kWh
+    when the energy is discharged in ``slots``.
 
     Returns None when the gate is disabled or when there is no price data to
     estimate the discharge value, in which case the caller falls back to the
@@ -669,25 +709,55 @@ def arbitrage_ceiling(
     return ceiling
 
 
-def effective_charge_ceiling(
+def slot_arbitrage_ceilings(
+    slots: list,
+    hours_needed: float,
+    min_arbitrage_margin,
+    round_trip_efficiency: float = DEFAULT_ROUND_TRIP_EFFICIENCY,
+) -> dict | None:
+    """Arbitrage ceiling per charge slot, keyed by ``slot.start``.
+
+    Energy stored in a slot can only be sold in slots that start at or after
+    its end, so each slot is valued against those alone (#649). A slot with no
+    later slot has no arbitrage value and gets ``-inf``. Returns None when the
+    gate is disabled.
+    """
+    if min_arbitrage_margin is None or min_arbitrage_margin <= 0:
+        return None
+    # ponytail: O(n^2) over at most ~200 slots, not worth a suffix sweep.
+    ceilings = {}
+    for slot in slots:
+        expected = expected_discharge_price(
+            [t for t in slots if t.start >= slot.end], hours_needed
+        )
+        ceilings[slot.start] = (
+            float("-inf") if expected is None
+            else expected * round_trip_efficiency - min_arbitrage_margin
+        )
+    return ceilings
+
+
+def effective_charge_ceilings(
     slots: list,
     hours_needed: float,
     max_price_threshold,
     min_arbitrage_margin=None,
     round_trip_efficiency: float = DEFAULT_ROUND_TRIP_EFFICIENCY,
     now=None,
-) -> tuple[float | None, float | None]:
-    """Return ``(effective_ceiling, arbitrage_ceiling)``.
+) -> tuple[dict | None, float | None]:
+    """Return ``(slot_ceilings, reported_arbitrage_ceiling)``.
 
-    ``effective_ceiling`` is the stricter of the static and arbitrage ceilings
-    and is what callers pass to ``select_cheapest_hours``.
+    ``slot_ceilings`` maps ``slot.start`` to the stricter of the static and the
+    slot's own arbitrage ceiling, and is None when the gate is off (callers then
+    use the static ``max_price_threshold`` alone). Pass it to
+    ``select_cheapest_hours`` / the chronological planner next to the static
+    threshold.
 
-    ``arbitrage_ceiling`` is returned separately for reporting, and is None when
-    the gate is off or could not be estimated. Note the two are equal only when
-    the arbitrage ceiling is the stricter one; when the static ceiling binds,
-    ``arbitrage_ceiling`` is a value that did not constrain anything. Callers
-    that explain a decision to the user must compare the two rather than assume
-    the arbitrage value was applied.
+    ``reported_arbitrage_ceiling`` is for notifications: the highest finite
+    arbitrage ceiling of any remaining slot, i.e. no slot is allowed above it.
+    It is None when the gate is off or no slot has an arbitrage value. It
+    constrains nothing when the static ceiling is lower, so callers that explain
+    a decision must compare the two.
 
     ``slots`` must be the unfiltered horizon: the expensive hours the arbitrage
     estimate needs are by definition above the static ceiling.
@@ -696,14 +766,28 @@ def effective_charge_ceiling(
         now = datetime.now()
     future_slots = [s for s in slots if s.end > now]
 
-    margin_ceiling = arbitrage_ceiling(
+    arb = slot_arbitrage_ceilings(
         future_slots, hours_needed, min_arbitrage_margin, round_trip_efficiency
     )
-    if margin_ceiling is None:
-        return max_price_threshold, None
-    if max_price_threshold is None or margin_ceiling < max_price_threshold:
-        return margin_ceiling, margin_ceiling
-    return max_price_threshold, margin_ceiling
+    if arb is None:
+        return None, None
+    if not future_slots:
+        _LOGGER.warning(
+            "Dynamic pricing: arbitrage margin enabled but no price data to "
+            "estimate discharge value, skipping the margin check"
+        )
+        return None, None
+    finite = [c for c in arb.values() if c != float("-inf")]
+    reported = max(finite) if finite else None
+    _LOGGER.info(
+        "Dynamic pricing: per-slot arbitrage ceilings, highest %s "
+        "(efficiency %.2f, margin %.4f)",
+        "none" if reported is None else f"{reported:.4f}",
+        round_trip_efficiency, min_arbitrage_margin,
+    )
+    if max_price_threshold is not None:
+        arb = {k: min(v, max_price_threshold) for k, v in arb.items()}
+    return arb, reported
 
 
 def select_cheapest_hours(
@@ -711,6 +795,7 @@ def select_cheapest_hours(
     hours_needed: float,
     max_price_threshold,
     now=None,
+    slot_ceilings=None,
 ) -> list:
     """Filter slots by max_price_threshold, sort by price, return cheapest N.
 
@@ -720,10 +805,11 @@ def select_cheapest_hours(
     Args:
         slots: list[PriceSlot] available in next 24h
         hours_needed: fractional hours of charging needed
-        max_price_threshold: optional price ceiling (None disables filtering);
-            pass the result of ``effective_charge_ceiling`` to apply the
-            arbitrage gate as well
+        max_price_threshold: optional price ceiling (None disables filtering)
         now: evaluation instant, defaults to the wall clock
+        slot_ceilings: optional per-slot ceilings from
+            ``effective_charge_ceilings`` (the arbitrage gate); a slot missing
+            from the mapping is limited by ``max_price_threshold`` alone
 
     Returns:
         Sorted (by start time) list of selected PriceSlot
@@ -741,6 +827,11 @@ def select_cheapest_hours(
             "Dynamic pricing: %d slots after price threshold filter (max=%.3f)",
             len(future_slots), max_price_threshold
         )
+    if slot_ceilings is not None:
+        future_slots = [
+            s for s in future_slots
+            if s.price <= slot_ceilings.get(s.start, float("inf"))
+        ]
 
     if not future_slots:
         _LOGGER.warning("Dynamic pricing: no slots available after filtering")
