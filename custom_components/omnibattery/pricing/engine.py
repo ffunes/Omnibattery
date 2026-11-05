@@ -2636,6 +2636,7 @@ class PricingManager:
         decision_data: dict[str, Any],
         price_ceiling: float | None,
         diagnostic_only: bool = False,
+        slot_ceilings: Mapping[datetime, float] | None = None,
     ) -> ChronologicalPlan | None:
         """Build the controller-owned plan through the energy horizon."""
         horizon_end = self.energy_horizon_end(now)
@@ -2647,6 +2648,7 @@ class PricingManager:
             diagnostic_only=diagnostic_only,
             horizon_end=horizon_end,
             persist_diagnostics=True,
+            slot_ceilings=slot_ceilings,
         )
 
     def _build_chronological_plan_for_horizon(
@@ -2659,6 +2661,7 @@ class PricingManager:
         diagnostic_only: bool,
         horizon_end: datetime,
         persist_diagnostics: bool,
+        slot_ceilings: Mapping[datetime, float] | None = None,
     ) -> ChronologicalPlan | None:
         """Adapt live forecasts for a bounded control or display horizon.
 
@@ -3126,6 +3129,7 @@ class PricingManager:
                     deadlines=tuple(deadlines),
                     premium_kwh=premium_kwh,
                     premium_price_threshold=self._controller.max_price_threshold,
+                    slot_ceilings=slot_ceilings,
                 )
             )
             plan = evaluation.plan
@@ -3560,13 +3564,16 @@ class PricingManager:
             deficit_hours_needed = calculations.calculate_charging_hours_needed(
                 decision_data["avg_consumption_kwh"], self._contracted_charge_ceiling(), self._controller.max_charge_capacity
             )
-        # One instant, one computation. `ceiling` is what actually filters;
-        # `arb_ceiling` is kept only so the notification can name the cause.
+        # One instant, one computation. `ceiling` (static) and `slot_ceilings`
+        # (per-slot arbitrage, #649) are what actually filter; `arb_ceiling`
+        # (highest per-slot value) is kept only so the notification can name
+        # the cause.
         eval_now = datetime.now()
-        ceiling, arb_ceiling = calculations.effective_charge_ceiling(
+        ceiling = self._controller.max_price_threshold
+        slot_ceilings, arb_ceiling = calculations.effective_charge_ceilings(
             slots,
             deficit_hours_needed,
-            self._controller.max_price_threshold,
+            ceiling,
             self._controller.min_arbitrage_margin,
             self._controller.round_trip_efficiency,
             now=eval_now,
@@ -3603,6 +3610,7 @@ class PricingManager:
                 slots=slots,
                 decision_data=decision_data,
                 price_ceiling=ceiling,
+                slot_ceilings=slot_ceilings,
             )
             deficit_charging_needed = bool(decision_data.get("should_charge", False))
             if deficit_charging_needed and chronological_plan is not None:
@@ -3624,12 +3632,14 @@ class PricingManager:
                 decision_data=decision_data,
                 price_ceiling=ceiling,
                 diagnostic_only=True,
+                slot_ceilings=slot_ceilings,
             )
         if chronological_plan is not None:
             deficit_selected = [allocation.slot for allocation in chronological_plan.allocations]
         elif deficit_charging_needed or not opportunity_selected:
             deficit_selected = calculations.select_cheapest_hours(
-                slots, deficit_hours_needed, ceiling, now=eval_now
+                slots, deficit_hours_needed, ceiling, now=eval_now,
+                slot_ceilings=slot_ceilings,
             )
         else:
             deficit_selected = []
@@ -3660,6 +3670,7 @@ class PricingManager:
                 weekly_hours_needed,
                 ceiling,
                 now=eval_now,
+                slot_ceilings=slot_ceilings,
             )
             if weekly_selected:
                 if deficit_charging_needed:
@@ -3770,7 +3781,8 @@ class PricingManager:
                 # Ordinary deficit charging also avoids the risk window, while
                 # the existing guaranteed-floor safety exception may keep it.
                 deficit_selected = calculations.select_cheapest_hours(
-                    safe_slots, deficit_hours_needed, ceiling, now=eval_now
+                    safe_slots, deficit_hours_needed, ceiling, now=eval_now,
+                    slot_ceilings=slot_ceilings,
                 )
                 if chronological_plan is not None:
                     chronological_plan = self._build_chronological_plan(
@@ -3778,6 +3790,7 @@ class PricingManager:
                         slots=safe_slots,
                         decision_data=decision_data,
                         price_ceiling=ceiling,
+                        slot_ceilings=slot_ceilings,
                     )
                     if chronological_plan is not None:
                         deficit_selected = [
@@ -5080,10 +5093,11 @@ class PricingManager:
         decision_data["planned_grid_charge_kwh"] = planned_evening_charge_kwh
         # Same arbitrage-aware ceiling as the main evaluation: a deficit top-up
         # must not buy energy that costs more than it can displace later.
-        price_ceiling, _ = calculations.effective_charge_ceiling(
+        price_ceiling = self._controller.max_price_threshold
+        slot_ceilings, _ = calculations.effective_charge_ceilings(
             slots,
             hours_needed,
-            self._controller.max_price_threshold,
+            price_ceiling,
             self._controller.min_arbitrage_margin,
             self._controller.round_trip_efficiency,
             now=now,
@@ -5093,6 +5107,7 @@ class PricingManager:
             slots=slots,
             decision_data=decision_data,
             price_ceiling=price_ceiling,
+            slot_ceilings=slot_ceilings,
         )
         if chronological_plan is not None:
             selected = [
@@ -5107,6 +5122,7 @@ class PricingManager:
                 additional_slots,
                 hours_needed,
                 price_ceiling,
+                slot_ceilings=slot_ceilings,
             )
 
         if not selected:

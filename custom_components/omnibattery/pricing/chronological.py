@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 import math
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from ..const import CHARGE_EFFICIENCY
 from . import PriceSlot
@@ -94,10 +94,14 @@ class ChronologicalEvaluationRequest:
     usable_initial_kwh: float = 0.0
     max_price_threshold: float | None = None
     deadlines: tuple[EnergyDeadline, ...] = ()
-    # Guaranteed-floor energy that may be bought above ``max_price_threshold``
-    # (the arbitrage ceiling), capped only by ``premium_price_threshold``.
+    # Guaranteed-floor energy that may be bought above a slot's ceiling
+    # (``slot_ceilings``, else ``max_price_threshold``), capped only by
+    # ``premium_price_threshold``.
     premium_kwh: float = 0.0
     premium_price_threshold: float | None = None
+    # Per-slot (arbitrage) ceilings keyed by ``slot.start``; a slot missing from
+    # the mapping falls back to ``max_price_threshold``.
+    slot_ceilings: Mapping[datetime, float] | None = None
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:
@@ -334,14 +338,23 @@ def allocate_price_slots(
     charge_efficiency: float = CHARGE_EFFICIENCY,
     premium_kwh: float = 0.0,
     premium_price_threshold: float | None = None,
+    slot_ceilings: Mapping[datetime, float] | None = None,
 ) -> ChronologicalPlan:
     """Allocate the cheapest feasible slot capacity to energy deadlines.
 
-    Up to ``premium_kwh`` (guaranteed-floor energy) may use slots above
-    ``max_price_threshold``, up to ``premium_price_threshold`` (None = no cap),
-    once the slots under the ceiling are exhausted.  Everything else stays
+    A slot's ceiling is ``slot_ceilings[slot.start]`` when given, else
+    ``max_price_threshold``.  Up to ``premium_kwh`` (guaranteed-floor energy) may
+    use slots above their ceiling, up to ``premium_price_threshold`` (None = no
+    cap), once the slots under the ceiling are exhausted.  Everything else stays
     under the ceiling (#724).
     """
+    def ceiling_of(slot: PriceSlot) -> float | None:
+        if slot_ceilings is not None:
+            return slot_ceilings.get(slot.start, max_price_threshold)
+        return max_price_threshold
+
+    has_ceiling = max_price_threshold is not None or slot_ceilings is not None
+
     intervals = sorted(intervals, key=lambda item: item.start)
     deadlines = sorted(deadlines, key=lambda item: item.deadline)
     headroom = max(0.0, float(headroom_kwh))
@@ -357,18 +370,17 @@ def allocate_price_slots(
         if slot.end > now
         and slot.start < horizon_end
         and math.isfinite(float(slot.price))
-        and (max_price_threshold is None or slot.price <= max_price_threshold)
+        and (ceiling_of(slot) is None or slot.price <= ceiling_of(slot))
     ]
-    premium_budget = (
-        _finite_non_negative(premium_kwh) if max_price_threshold is not None else 0.0
-    )
+    premium_budget = _finite_non_negative(premium_kwh) if has_ceiling else 0.0
     premium_candidates = [
         slot for slot in price_slots
         if premium_budget > _EPSILON
         and slot.end > now
         and slot.start < horizon_end
         and math.isfinite(float(slot.price))
-        and slot.price > max_price_threshold
+        and ceiling_of(slot) is not None
+        and slot.price > ceiling_of(slot)
         and (premium_price_threshold is None or slot.price <= premium_price_threshold)
     ]
 
@@ -567,7 +579,7 @@ def allocate_price_slots(
     if power <= 0:
         reason = "insufficient_power"
     elif not candidates and not premium_candidates and required > 0:
-        reason = "price_threshold" if max_price_threshold is not None else "no_eligible_slots"
+        reason = "price_threshold" if has_ceiling else "no_eligible_slots"
     elif deadline_shortfall > _EPSILON:
         reason = "deadline_capacity_shortfall"
     elif total_shortfall > _EPSILON:
@@ -624,6 +636,7 @@ def evaluate_chronological_request(
         max_price_threshold=request.max_price_threshold,
         premium_kwh=request.premium_kwh,
         premium_price_threshold=request.premium_price_threshold,
+        slot_ceilings=request.slot_ceilings,
     )
     return ChronologicalEvaluationResult(
         plan=plan,
