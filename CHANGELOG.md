@@ -2,6 +2,10 @@
 
 ## [1.6.0b2] - Unreleased
 
+### Added
+
+- **Daily operation chart shows the grid price**: with Dynamic Pricing, each interval's tooltip lists its import price, and a stepped grey line draws the price over the day and after midnight, scaled to the visible range (named in the legend). The price comes from the configured price source, past intervals included. Thanks to @anorakophobia.
+
 ### Changed
 
 - **Round-Trip Efficiency uses the measured value by default**: while the setting is left at 0.85, the arbitrage margin and High-Price Sale use the capacity-weighted efficiency measured on your batteries (once they have enough history, within 0.75-0.95); a value you set yourself is always respected. The value and its source are in the predictive-charging diagnostics.
