@@ -6,6 +6,7 @@
 
 - **Round-Trip Efficiency uses the measured value by default**: while the setting is left at 0.85, the arbitrage margin and High-Price Sale use the capacity-weighted efficiency measured on your batteries (once they have enough history, within 0.75-0.95); a value you set yourself is always respected. The value and its source are in the predictive-charging diagnostics.
 - **Weekly Full Charge finishes in the night after its day**: the gap the sun leaves is bought after sunset, which on the charge day was the evening peak, and the run was given up at midnight. It now stays open until the next sunrise, so the cheapest hours of that night count, and with tomorrow's prices known (#710) the reservation picks them. The sun still goes first, the battery covers the evening, and the hardware limits are restored at that sunrise when the run did not finish. Without a known sunrise it ends at midnight as before. Thanks to @anorakophobia.
+- **Consumption profile follows a recent change in use**: the forecast is scaled by how the last three days ran against the profile (median ratio, clamped 0.8 to 1.5), so it no longer trails a change of season by about two weeks. Thanks to @anorakophobia.
 
 ### Fixed
 

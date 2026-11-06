@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import math
+import statistics
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from time import monotonic
@@ -41,6 +42,15 @@ PROFILE_STORE_KEY = "consumption_profile"
 # external-load backfill used the wrong energy conversion—from surviving an
 # upgrade.
 PROFILE_CAPTURE_VERSION = 3
+# Recent-level correction: the median ratio of the last LEVEL_DAYS days against
+# the profile, clamped. Windows shorter than LEVEL_MIN_INTERVALS are judged over
+# the whole day, and a day expecting under LEVEL_MIN_EXPECTED_KWH in the window
+# is skipped as too small to judge.
+LEVEL_DAYS = 3
+LEVEL_MIN = 0.8
+LEVEL_MAX = 1.5
+LEVEL_MIN_INTERVALS = 16
+LEVEL_MIN_EXPECTED_KWH = 0.5
 # Temporary household-shape fallback used until the learned profile is mature.
 # Values are relative hourly demand, not kWh.  The six quiet overnight hours
 # stay at the lowest level, breakfast has a small lift, daytime demand rises
@@ -147,6 +157,8 @@ class ConsumptionForecast:
     # range crosses midnight so consumers that simulate each dated interval do
     # not apply one hour's aggregate to every matching date.
     intervals_by_date: dict[date, list[float]] = field(default_factory=dict)
+    # The recent-level scale applied to the learned profile (1.0 when none).
+    level_factor: float = 1.0
 
     def __post_init__(self) -> None:
         """Keep data safe for Home Assistant state attributes and arithmetic."""
@@ -621,6 +633,7 @@ class ConsumptionProfileTracker:
         self._days: dict[date, ProfileDay] = {}
         self._aggregate_cache: dict[tuple[int, str], _ProfileAggregate] = {}
         self._aggregate_cache_date: date | None = None
+        self._level_cache: dict[tuple[date, date], list[tuple[float, float] | None]] = {}
         self._last_sample_time: datetime | None = None
         self._last_sample_monotonic: float | None = None
         self._last_power_kw: float | None = None
@@ -1304,6 +1317,7 @@ class ConsumptionProfileTracker:
     def _invalidate_forecast_cache(self) -> None:
         """Drop the cached training aggregates after the profile data changed."""
         self._aggregate_cache.clear()
+        self._level_cache.clear()
 
     def _profile_aggregate(
         self, target_date: date, today: date, days: list[ProfileDay]
@@ -1319,12 +1333,20 @@ class ConsumptionProfileTracker:
             # Ageing weights move with the local date, so yesterday's entries
             # are dead the moment it turns over.
             self._aggregate_cache.clear()
+            self._level_cache.clear()
             self._aggregate_cache_date = today
         cache_key = (target_date.weekday(), self._day_type(target_date))
         cached = self._aggregate_cache.get(cache_key)
         if cached is not None:
             return cached
+        aggregate = self._build_profile_aggregate(target_date, today, days)
+        self._aggregate_cache[cache_key] = aggregate
+        return aggregate
 
+    def _build_profile_aggregate(
+        self, target_date: date, today: date, days: list[ProfileDay]
+    ) -> _ProfileAggregate:
+        """The weighted weekday/day-type/global blend, uncached."""
         target_weekday = target_date.weekday()
         target_day_type = self._day_type(target_date)
         day_meta: list[tuple[ProfileDay, float, date, bool, bool]] = []
@@ -1402,15 +1424,74 @@ class ConsumptionProfileTracker:
             interval_has_candidate.append(has_candidate)
             values.append(max(0.0, value if has_candidate else 0.0))
 
-        aggregate = _ProfileAggregate(
+        return _ProfileAggregate(
             values=tuple(values),
             weekday_counts=tuple(weekday_counts),
             day_type_counts=tuple(day_type_counts),
             interval_has_candidate=tuple(interval_has_candidate),
             interval_latest=tuple(interval_latest),
         )
-        self._aggregate_cache[cache_key] = aggregate
-        return aggregate
+
+    def _recent_level(
+        self, today: date, days: list[ProfileDay], indices: set[int]
+    ) -> float:
+        """How the last few days ran against what the profile expected for them.
+
+        The 28-day weights let the profile trail a change of season by about two
+        weeks: night use here doubled within a month in autumn, and the profile
+        stayed 30 to 45 % low. Each recent day is compared, over the same
+        quarter-hours, with the profile as it stood the day before, so the day
+        itself does not dampen its own signal. The median of those ratios scales
+        the forecast, clamped so that one odd day cannot swing it far; with too
+        few days it stays 1.
+        """
+        recent = sorted(
+            (day for day in days if day.local_date < today),
+            key=lambda day: day.local_date,
+            reverse=True,
+        )[:LEVEL_DAYS]
+        ratios: list[float] = []
+        for day in recent:
+            pairs = self._level_day_pairs(today, day, days)
+            actual = expected = 0.0
+            for index in indices:
+                pair = pairs[index]
+                if pair is None:
+                    continue
+                actual += pair[0]
+                expected += pair[1]
+            if expected >= LEVEL_MIN_EXPECTED_KWH:
+                ratios.append(actual / expected)
+        if len(ratios) < LEVEL_DAYS:
+            return 1.0
+        return min(LEVEL_MAX, max(LEVEL_MIN, statistics.median(ratios)))
+
+    def _level_day_pairs(
+        self, today: date, day: ProfileDay, days: list[ProfileDay]
+    ) -> list[tuple[float, float] | None]:
+        """``(actual, expected)`` per quarter-hour of a recent day, or None.
+
+        The profile a day is judged against does not depend on the window, so
+        it is built once per day and the windows only sum their quarter-hours:
+        Charge Delay asks for many windows each cycle.
+        """
+        key = (today, day.local_date)
+        cached = self._level_cache.get(key)
+        if cached is not None:
+            return cached
+        prior = [other for other in days if other.local_date < day.local_date]
+        expected_profile = self._build_profile_aggregate(
+            day.local_date, day.local_date, prior
+        )
+        pairs: list[tuple[float, float] | None] = []
+        for index in range(INTERVAL_COUNT):
+            value = self._training_interval(day, index)
+            if value is None or not expected_profile.interval_has_candidate[index]:
+                pairs.append(None)
+            else:
+                pairs.append((value, expected_profile.values[index]))
+        self._level_cache[key] = pairs
+        return pairs
 
     def forecast_for_date(
         self,
@@ -1487,6 +1568,7 @@ class ConsumptionProfileTracker:
         )
 
         fallback_reason: str | None = None
+        level_factor = 1.0
         if not mature:
             if not days:
                 fallback_reason = "no_profile_data"
@@ -1522,8 +1604,14 @@ class ConsumptionProfileTracker:
                     ),
                 )
             )
+            level_indices = (
+                requested_indices
+                if len(requested_indices) >= LEVEL_MIN_INTERVALS
+                else set(range(INTERVAL_COUNT))
+            )
+            level_factor = self._recent_level(today, days, level_indices)
             values = [
-                value if present else profile_mean
+                (value if present else profile_mean) * level_factor
                 for value, present in zip(values, interval_has_candidate)
             ]
             source = "profile"
@@ -1546,6 +1634,7 @@ class ConsumptionProfileTracker:
             fallback_reason=fallback_reason,
             profile_age_days=newest_age,
             newest_profile_date=newest,
+            level_factor=level_factor,
         )
 
     # ------------------------------------------------------------------
@@ -1709,6 +1798,7 @@ class ConsumptionProfileTracker:
         total_days = 0
         newest: date | None = None
         fallback_scales: dict[date, float] = {}
+        level_weighted = 0.0
         for segment_start, segment_end, midpoint in usable_segments:
             local_date = midpoint.date()
             forecast = forecasts.get(local_date)
@@ -1746,6 +1836,7 @@ class ConsumptionProfileTracker:
                 * scale
             )
             energy += max(0.0, portion)
+            level_weighted += max(0.0, portion) * forecast.level_factor
             aggregate_intervals[index] += max(0.0, portion)
             expected_seconds += seconds
             if forecast.source == "profile":
@@ -1772,6 +1863,7 @@ class ConsumptionProfileTracker:
                 ]
                 for local_date, forecast in forecasts.items()
             },
+            level_factor=level_weighted / energy if energy > 0 else 1.0,
         )
 
     # ------------------------------------------------------------------
@@ -2024,6 +2116,7 @@ class ConsumptionProfileTracker:
             "coverage_ratio": round(forecast.coverage_ratio, 3),
             "weekday_samples": forecast.weekday_samples,
             "day_type_samples": forecast.day_type_samples,
+            "level_factor": round(forecast.level_factor, 3),
             "total_profile_days": forecast.total_days,
             "newest_profile_date": (
                 forecast.newest_profile_date.isoformat()
