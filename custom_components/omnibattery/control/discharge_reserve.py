@@ -32,6 +32,7 @@ from time import monotonic
 from typing import TYPE_CHECKING, Any
 
 from ..const import CHARGE_EFFICIENCY, PREDICTIVE_MODE_DYNAMIC_PRICING
+from ..drivers.base import has_solar_production_source
 from ..pricing.curtailment import BatterySnapshot, distribute_solar_forecast
 from ..pricing.discharge_reserve import (
     ReservePlan,
@@ -722,10 +723,19 @@ class DischargeReserveManager:
         }
 
     def _measured_solar_ratio(self, now: datetime) -> float | None:
-        """Today's measured solar over what the provider expected by ``now``."""
+        """Today's measured solar over what the provider expected by ``now``.
+
+        None unless something measures production: without a source the daily
+        accumulator still rolls over at midnight and reads 0.0 all day, which
+        would cut the remaining sun to the lower clamp for good.
+
+        Curtailment (battery full, an export limit) and a restart during the day
+        also lower the ratio, without the sky being duller; the lower clamp
+        bounds how far that can cut the remaining sun.
+        """
         controller = self._controller
         periods = getattr(controller, "solar_forecast_periods", None)
-        if not periods:
+        if not periods or not has_solar_production_source(controller):
             return None
         if getattr(controller, "_daily_solar_energy_date", None) != now.date():
             return None

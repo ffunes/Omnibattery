@@ -824,8 +824,9 @@ def test_a_curve_with_a_hole_in_daylight_is_not_trusted():
     assert manager._follow_provider_curve(SINE_MORNING, NOW) == SINE_MORNING
 
 
-def _measured_ratio(measured_kwh, now, *, on=DAY):
+def _measured_ratio(measured_kwh, now, *, on=DAY, source="sensor.solar_now"):
     manager = _curve_manager(_periods(DAY, MOUNTAIN_MORNING))
+    manager._controller.solar_production_sensor = source
     manager._controller._daily_solar_energy_kwh = measured_kwh
     manager._controller._daily_solar_energy_date = on.date()
     return manager._measured_solar_ratio(now)
@@ -838,6 +839,12 @@ def test_the_measured_share_is_today_s_production_over_the_provider_s_so_far():
 
 def test_too_little_expected_yet_is_not_judged():
     assert _measured_ratio(0.0, DAY + timedelta(hours=9, minutes=15)) is None
+
+
+def test_without_a_production_source_nothing_is_judged():
+    """The accumulator reads 0.0 all day when nothing feeds it; that must not
+    read as a day at the lower clamp."""
+    assert _measured_ratio(0.0, DAY + timedelta(hours=12), source=None) is None
 
 
 def test_yesterday_s_production_is_not_today_s():

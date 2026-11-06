@@ -78,7 +78,7 @@ from .energyzero import (
 )
 from ..control.max_soc_charge import MaxSocChargeManager
 from ..control.pack_soc import soc_vs_ceiling
-from ..drivers.base import has_connected_mppt_pv
+from ..drivers.base import has_solar_production_source
 from ..tracking.consumption_profile import adjust_remaining_fallback_energy
 from ..energy import effective_round_trip_efficiency
 from . import (
@@ -4694,18 +4694,7 @@ class PricingManager:
         arrives. Without a source it stays at 0.0 all day, which would make the
         projection below read the ordinary forecast decline as a revision.
         """
-        controller = self._controller
-        if getattr(controller, "solar_production_sensor", None):
-            return True
-        return any(
-            has_connected_mppt_pv(coordinator)
-            or getattr(
-                getattr(coordinator, "capabilities", None),
-                "has_solar_telemetry",
-                False,
-            )
-            for coordinator in getattr(controller, "coordinators", None) or ()
-        )
+        return has_solar_production_source(self._controller)
 
     def _read_solar_produced_today_kwh(self, now: datetime) -> float | None:
         """Solar produced so far today, or None when nothing measured it."""
