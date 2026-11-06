@@ -1358,3 +1358,79 @@ def test_no_charge_capacity_credits_no_surplus():
 
     assert surplus[midday] == pytest.approx(0.0)
     assert surplus[evening] == pytest.approx(0.0)
+
+
+# ----------------------------------------------------------------------
+# The evening sees tomorrow's morning up to the sun
+# ----------------------------------------------------------------------
+
+TOMORROW = DAY + timedelta(days=1)
+TOMORROW_SUNRISE = TOMORROW + timedelta(hours=7)
+EVENING = DAY + timedelta(hours=21)
+
+
+def _evening_pricing(now=EVENING):
+    """21:00 to tomorrow noon, hourly: the night 0.30, tomorrow 07:00 to 09:00
+    dear at 0.55, then 0.30. The house uses 0.5 kWh an hour."""
+    slots = [
+        PriceSlot(
+            now + timedelta(hours=i),
+            now + timedelta(hours=i + 1),
+            0.55 if 7 <= (now + timedelta(hours=i)).hour < 9 and i > 3 else 0.30,
+        )
+        for i in range(15)
+    ]
+    intervals = [0.125] * 96
+    profile = SimpleNamespace(
+        intervals_kwh=intervals,
+        intervals_by_date={DAY.date(): intervals, TOMORROW.date(): intervals},
+        energy_kwh=sum(intervals),
+        source="profile",
+    )
+    return _pricing(
+        get_future_price_slots=lambda horizon_end=None: [
+            slot for slot in slots if horizon_end is None or slot.start <= horizon_end
+        ],
+        _profile_remaining_consumption=lambda start, end: profile,
+        # After sunset a remaining-today sensor reads 0; past the midpoint.
+        _curtailment_forecast_model=lambda _now: (0.0, lambda hour: 1.0, None),
+        _solar_forecast_is_remaining=lambda: True,
+        _get_current_price=lambda: 0.30,
+        energy_horizon_end=lambda _when: TOMORROW_SUNRISE,
+    )
+
+
+def _evening_manager(periods=None):
+    manager = _curve_manager(
+        periods,
+        _pricing_mgr=_evening_pricing(),
+        discharge_reserve_min_saving=0.05,
+        coordinators=[_coordinator(soc=80.0)],
+    )
+    manager._now = lambda: EVENING
+    asyncio.get_event_loop().run_until_complete(manager.async_rebuild_plan("test"))
+    return manager
+
+
+# Tomorrow's provider periods: the sun beats the 0.5 kWh an hour from 09:00.
+TOMORROW_SUN = {7: 0.05, 8: 0.3, 9: 0.8, 10: 1.2, 11: 1.5}
+
+
+def test_the_evening_plan_runs_to_where_the_sun_covers_the_house_tomorrow():
+    """#721, 21:38: the plan ended at sunrise while the house ran on the battery
+    until about 09:00, so the dear slots after sunrise were not kept."""
+    manager = _evening_manager(_periods(TOMORROW, TOMORROW_SUN))
+
+    assert manager.plan.horizon_end == TOMORROW + timedelta(hours=9)
+    manager.reserve_soc_pct()
+    claimed = {slot["start"] for slot in manager.get_status()["claims"]}
+    assert (TOMORROW + timedelta(hours=8)).isoformat() in claimed
+
+
+def test_without_tomorrow_s_periods_the_evening_plan_ends_at_sunrise():
+    assert _evening_manager().plan.horizon_end == TOMORROW_SUNRISE
+
+
+def test_a_morning_the_sun_does_not_cover_by_noon_keeps_sunrise():
+    dull = {hour: 0.1 for hour in range(7, 12)}
+    assert _evening_manager(_periods(TOMORROW, dull)).plan.horizon_end == TOMORROW_SUNRISE

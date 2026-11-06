@@ -269,6 +269,15 @@ class DischargeReserveManager:
         horizon_end = self._sun_covered_horizon_end(
             now, day_slots, consumption, solar, fraction_fn, day_end
         )
+        if horizon_end == self._horizon_end(now) and self._past_solar_midpoint(
+            now, fraction_fn
+        ):
+            # In the evening the next sunrise is the whole plan, but tomorrow's
+            # dear morning runs until the sun covers the house, as it does after
+            # midnight. Tomorrow's prices and dated solar are known by now.
+            morning = self._tomorrow_morning(pricing, now, horizon_end)
+            if morning is not None:
+                horizon_end, day_slots, consumption, solar = morning
         slots = [slot for slot in day_slots if slot.start < horizon_end]
         demand, surplus = self._net_demand_and_surplus(consumption, solar, now)
         try:
@@ -368,6 +377,69 @@ class DischargeReserveManager:
         if covered is None or covered <= now:
             return day_end
         return covered
+
+    @staticmethod
+    def _past_solar_midpoint(now: datetime, fraction_fn) -> bool:
+        """True from the middle of today's sun until midnight."""
+        hour = now.hour + now.minute / 60.0 + now.second / 3600.0
+        if fraction_fn is None:
+            return hour >= 12.0
+        try:
+            return float(fraction_fn(hour)) >= 0.5
+        except (TypeError, ValueError):
+            return hour >= 12.0
+
+    def _tomorrow_morning(self, pricing, now: datetime, sunrise: datetime):
+        """Tomorrow's morning up to where the sun covers the house, or None.
+
+        Returns ``(horizon_end, slots, consumption, solar)`` over the slots to
+        tomorrow noon. Tomorrow's sun comes from the provider's dated periods,
+        since the forecast figure only covers what is left of today. Without
+        those periods, tomorrow's prices, or a slot the sun covers before noon,
+        the plan keeps ending at sunrise.
+        """
+        periods = getattr(self._controller, "solar_forecast_periods", None)
+        if not periods:
+            return None
+        noon = sunrise.replace(hour=12, minute=0, second=0, microsecond=0)
+        if noon <= sunrise:
+            return None
+        slots = [
+            slot
+            for slot in pricing.get_future_price_slots(horizon_end=noon)
+            if slot.start < noon
+        ]
+        morning = [slot for slot in slots if slot.start >= sunrise]
+        if not morning:
+            return None
+        consumption, solar, _fraction_fn = self._consumption_and_solar(
+            pricing, slots, now, noon
+        )
+        if not consumption:
+            return None
+        timezone = solar_forecast_local_timezone(self._hass, self._controller, now)
+
+        def local(value: datetime) -> datetime:
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone)
+            return value.astimezone(timezone)
+
+        energies, reason = provider_weights(
+            [(local(slot.start), local(slot.end)) for slot in morning], periods
+        )
+        if energies is None:
+            _LOGGER.debug(
+                "Discharge reserve: tomorrow's solar unknown, plan ends at sunrise (%s)",
+                reason,
+            )
+            return None
+        solar = dict(solar)
+        for slot, kwh in zip(morning, energies):
+            solar[slot] = kwh
+        covered = first_sun_covered_start(morning, consumption, solar)
+        if covered is None or covered <= sunrise:
+            return None
+        return covered, slots, consumption, solar
 
     def _current_price(self) -> float | None:
         pricing = getattr(self._controller, "_pricing_mgr", None)
