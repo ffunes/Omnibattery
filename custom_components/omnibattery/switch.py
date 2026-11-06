@@ -1,6 +1,8 @@
 """Switch platform for the Omnibattery integration."""
 from __future__ import annotations
 
+from .infra.system_identity import scope_system_entities
+
 import logging
 
 from homeassistant.components.switch import SwitchEntity
@@ -200,7 +202,7 @@ async def async_setup_entry(
             entities.append(ExcludedDeviceDynamicPowerControlSwitch(hass, entry, index))
         entities.append(ExcludedDeviceCoverHomeSwitch(hass, entry, index))
 
-    async_add_entities(entities)
+    async_add_entities(scope_system_entities(hass, entry, entities))
 
 
 class MarstekVenusSwitch(CoordinatorEntity, SwitchEntity):
