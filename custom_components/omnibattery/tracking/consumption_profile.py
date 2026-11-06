@@ -633,7 +633,7 @@ class ConsumptionProfileTracker:
         self._days: dict[date, ProfileDay] = {}
         self._aggregate_cache: dict[tuple[int, str], _ProfileAggregate] = {}
         self._aggregate_cache_date: date | None = None
-        self._level_cache: dict[tuple[date, frozenset[int]], float] = {}
+        self._level_cache: dict[tuple[date, date], list[tuple[float, float] | None]] = {}
         self._last_sample_time: datetime | None = None
         self._last_sample_monotonic: float | None = None
         self._last_power_kw: float | None = None
@@ -1445,10 +1445,6 @@ class ConsumptionProfileTracker:
         the forecast, clamped so that one odd day cannot swing it far; with too
         few days it stays 1.
         """
-        key = (today, frozenset(indices))
-        cached = self._level_cache.get(key)
-        if cached is not None:
-            return cached
         recent = sorted(
             (day for day in days if day.local_date < today),
             key=lambda day: day.local_date,
@@ -1456,24 +1452,46 @@ class ConsumptionProfileTracker:
         )[:LEVEL_DAYS]
         ratios: list[float] = []
         for day in recent:
-            prior = [other for other in days if other.local_date < day.local_date]
-            expected_profile = self._build_profile_aggregate(
-                day.local_date, day.local_date, prior
-            )
+            pairs = self._level_day_pairs(today, day, days)
             actual = expected = 0.0
             for index in indices:
-                value = self._training_interval(day, index)
-                if value is None or not expected_profile.interval_has_candidate[index]:
+                pair = pairs[index]
+                if pair is None:
                     continue
-                actual += value
-                expected += expected_profile.values[index]
+                actual += pair[0]
+                expected += pair[1]
             if expected >= LEVEL_MIN_EXPECTED_KWH:
                 ratios.append(actual / expected)
-        level = 1.0
-        if len(ratios) == LEVEL_DAYS:
-            level = min(LEVEL_MAX, max(LEVEL_MIN, statistics.median(ratios)))
-        self._level_cache[key] = level
-        return level
+        if len(ratios) < LEVEL_DAYS:
+            return 1.0
+        return min(LEVEL_MAX, max(LEVEL_MIN, statistics.median(ratios)))
+
+    def _level_day_pairs(
+        self, today: date, day: ProfileDay, days: list[ProfileDay]
+    ) -> list[tuple[float, float] | None]:
+        """``(actual, expected)`` per quarter-hour of a recent day, or None.
+
+        The profile a day is judged against does not depend on the window, so
+        it is built once per day and the windows only sum their quarter-hours:
+        Charge Delay asks for many windows each cycle.
+        """
+        key = (today, day.local_date)
+        cached = self._level_cache.get(key)
+        if cached is not None:
+            return cached
+        prior = [other for other in days if other.local_date < day.local_date]
+        expected_profile = self._build_profile_aggregate(
+            day.local_date, day.local_date, prior
+        )
+        pairs: list[tuple[float, float] | None] = []
+        for index in range(INTERVAL_COUNT):
+            value = self._training_interval(day, index)
+            if value is None or not expected_profile.interval_has_candidate[index]:
+                pairs.append(None)
+            else:
+                pairs.append((value, expected_profile.values[index]))
+        self._level_cache[key] = pairs
+        return pairs
 
     def forecast_for_date(
         self,

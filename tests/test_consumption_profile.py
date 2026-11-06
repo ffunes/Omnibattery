@@ -1048,6 +1048,31 @@ def test_the_forecast_follows_a_recent_rise_in_use():
     assert forecast.intervals_kwh[8] == pytest.approx(plain.values[8] * 1.5)
 
 
+def test_each_recent_day_is_judged_once_whatever_the_window():
+    """Charge Delay asks for many windows per cycle: the profile each recent
+    day is judged against is built once, and the windows only sum their
+    quarter-hours."""
+    days = _steady_days(date(2026, 10, 10), 21, 1.0)
+    days.update(_steady_days(date(2026, 10, 31), 3, 1.6))
+    profile = _profile(days)
+    profile._today = lambda: date(2026, 11, 3)
+    built: list[date] = []
+    original = profile._build_profile_aggregate
+
+    def counting(target_date, today, usable):
+        built.append(target_date)
+        return original(target_date, today, usable)
+
+    profile._build_profile_aggregate = counting
+    for start in range(0, 80, 4):
+        profile.forecast_for_date(
+            date(2026, 11, 3), interval_indices=set(range(start, start + 16))
+        )
+
+    judged = [day for day in built if day < date(2026, 11, 3)]
+    assert sorted(judged) == [date(2026, 10, 31), date(2026, 11, 1), date(2026, 11, 2)]
+
+
 def test_one_odd_day_does_not_move_the_level():
     days = _steady_days(date(2026, 10, 10), 23, 1.0)
     days[date(2026, 11, 2)] = _day(date(2026, 11, 2), 3.0)
