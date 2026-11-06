@@ -4107,6 +4107,12 @@ class ChargeDischargeController:
             battery_pct = battery_reserve(coordinator) if callable(battery_reserve) else None
             if battery_pct is None:
                 battery_pct = reserve_pct
+            # No share, nothing held back: a battery on its floor is stopped
+            # there by min_soc, and holding it too reported the fleet as held
+            # while the other battery was still discharging.
+            if battery_pct <= RESERVE_SOC_TOLERANCE_PCT:
+                self.remove_discharge_block("price_reserve", coordinator=coordinator)
+                continue
             reserved_floor = min(100.0, floor + battery_pct)
             # A reserve of everything stored puts the floor exactly on the
             # whole-percent SOC, and floor + pct rounds either side of it.

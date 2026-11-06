@@ -938,6 +938,31 @@ def test_both_batteries_are_held_when_the_fleet_reaches_the_reserve():
     assert details["fleet_reserve_soc_pct"] == pytest.approx(20.0)
 
 
+def test_a_battery_on_its_floor_is_not_held_by_the_reserve():
+    """Its share is zero, so min_soc stops it, not the reserve.
+
+    Holding it too showed price_reserve_hold while the other battery still
+    discharged its share.
+    """
+    coordinators = [
+        _coordinator(soc=12.0, min_soc=12.0, capacity=5.12, name="Venus 1"),
+        _coordinator(soc=60.0, min_soc=5.0, capacity=8.16, name="Zendure 1"),
+    ]
+    registry, manager = _fleet_blocks(coordinators, evening_kwh=2.0)
+    assert manager.get_status()["battery_reserve_soc_pct"]["Venus 1"] == 0.0
+    assert ("Venus 1", "price_reserve") not in registry
+    assert registry == {}
+
+
+def test_a_battery_on_its_floor_is_not_held_next_to_one_that_is():
+    coordinators = [
+        _coordinator(soc=12.0, min_soc=12.0, capacity=5.12, name="Venus 1"),
+        _coordinator(soc=30.0, min_soc=5.0, capacity=8.16, name="Zendure 1"),
+    ]
+    registry, _ = _fleet_blocks(coordinators, evening_kwh=50.0)
+    assert set(registry) == {("Zendure 1", "price_reserve")}
+
+
 def test_the_status_shows_each_battery_s_share():
     coordinators = [
         _coordinator(soc=68.0, min_soc=12.0, capacity=5.12, name="Venus 1"),
