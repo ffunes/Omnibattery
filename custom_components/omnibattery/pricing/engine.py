@@ -5506,12 +5506,17 @@ class PricingManager:
             price_ceiling=price_ceiling,
             slot_ceilings=slot_ceilings,
         )
+        selected_energy_kwh: dict = {}
         if chronological_plan is not None:
             selected = [
                 allocation.slot
                 for allocation in chronological_plan.allocations
                 if allocation.slot.start not in kept_starts
             ]
+            for allocation in chronological_plan.allocations:
+                energy = getattr(allocation, "planned_battery_kwh", None)
+                if allocation.slot.start not in kept_starts and energy is not None:
+                    selected_energy_kwh[allocation.slot] = energy
         else:
             # A tracker without a consumption profile cannot establish depletion
             # deadlines, so retain the existing price-only fallback.
@@ -5555,6 +5560,27 @@ class PricingManager:
                 max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
                 for slot in merged
             )
+            # The figures describe the merged plan, not the one it grew from:
+            # left alone, the sensor kept the earlier plan's price, cost and
+            # time while the evening slots were added (#724).
+            cost_energy = getattr(schedule, "slot_cost_energy_kwh", None) or {}
+            if cost_energy and not all(slot in selected_energy_kwh for slot in selected):
+                # Per-slot energy only for part of the plan would weigh the
+                # rest at zero, so fall back to full power for every slot.
+                cost_energy = {}
+            elif cost_energy:
+                cost_energy = {**cost_energy, **selected_energy_kwh}
+                schedule.slot_cost_energy_kwh = cost_energy
+            effective_power_kw = min(
+                self._contracted_charge_ceiling(), self._controller.max_charge_capacity
+            ) / 1000.0
+            (
+                schedule.average_price,
+                schedule.estimated_cost,
+            ) = calculations.schedule_price_summary(
+                merged, effective_power_kw, cost_energy or None
+            )
+            schedule.evaluation_time = now
             self._controller._dynamic_pricing_evaluated_date = max(s.start.date() for s in merged)
         else:
             avg_price = sum(s.price for s in selected) / len(selected)
