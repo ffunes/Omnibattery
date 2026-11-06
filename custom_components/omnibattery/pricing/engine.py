@@ -100,7 +100,7 @@ from .chronological import (
     evaluate_chronological_request,
     normalize_energy_shape,
 )
-from .solar_timeline import build_boundaries, build_solar_timeline
+from .solar_timeline import build_boundaries, build_solar_timeline, provider_weights
 from .curtailment import (
     BatterySnapshot,
     CurtailmentPlan,
@@ -1911,7 +1911,9 @@ class PricingManager:
                 t_end = 2 * tracker.calculate_solar_noon() - t_start
             if t_end <= t_start:
                 return None, None, None
-            fraction_fn = lambda hour: tracker.get_solar_fraction_done(hour, t_start, t_end)
+            fraction_fn = self._provider_solar_fraction(now, t_start, t_end)
+            if fraction_fn is None:
+                fraction_fn = lambda hour: tracker.get_solar_fraction_done(hour, t_start, t_end)
             daily_consumption = float(tracker.get_avg_daily_consumption())
             # A remaining solar sensor applies only to future slots.  Use the
             # matching remaining load instead of comparing it to a full day.
@@ -1923,6 +1925,56 @@ class PricingManager:
         except (AttributeError, TypeError, ValueError):
             return None, None, None
         return forecast_kwh, fraction_fn, daily_consumption
+
+    def _provider_solar_fraction(self, now: datetime, t_start: float, t_end: float):
+        """Today's share of solar done by an hour, from the provider's periods.
+
+        The sine from sunrise to sunset assumes a flat horizon: it puts the
+        morning sun where a hill, a building or the provider's damping keeps
+        the panels dark, and the charge planner (which follows the provider)
+        then disagrees with every caller of this model. A provider's dated
+        periods know when the panels see the sun. Returns None, so the caller
+        keeps the sine, when the periods do not cover today's daylight.
+        """
+        periods = getattr(self._controller, "solar_forecast_periods", None)
+        if not periods:
+            return None
+        try:
+            timezone = solar_forecast_local_timezone(self._hass, self._controller, now)
+            local_now = (
+                now.astimezone(timezone) if now.tzinfo else now.replace(tzinfo=timezone)
+            )
+            midnight = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+            step = timedelta(minutes=15)
+            boundaries = [(midnight + step * i, midnight + step * (i + 1)) for i in range(96)]
+            weights, reason = provider_weights(
+                boundaries,
+                periods,
+                solar_start=midnight + timedelta(hours=float(t_start)),
+                solar_end=midnight + timedelta(hours=float(t_end)),
+            )
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            return None
+        if weights is None:
+            _LOGGER.debug("Curtailment model: provider solar curve not used (%s)", reason)
+            return None
+        total = sum(weights)
+        if total <= 0.0:
+            return None
+        cumulative = [0.0]
+        for weight in weights:
+            cumulative.append(cumulative[-1] + weight / total)
+
+        def fraction(hour: float) -> float:
+            position = max(0.0, min(96.0, float(hour) * 4.0))
+            index = min(95, int(position))
+            return min(
+                1.0,
+                cumulative[index]
+                + (cumulative[index + 1] - cumulative[index]) * (position - index),
+            )
+
+        return fraction
 
     def _curtailment_export_settings(self) -> tuple[str, float]:
         """Return the selector mode and deliberate-export limit.
@@ -3424,9 +3476,12 @@ class PricingManager:
                 "solar_profile_coverage_ratio": learned_snapshot.future_coverage_ratio if learned_snapshot else 0.0,
                 "solar_profile_generation": learned_snapshot.generation if learned_snapshot else None,
                 "solar_shadow_selected_source": timeline.shadow_selected_source,
+                # The curtailment model follows the provider's periods too
+                # (``_provider_solar_fraction``); only a learned profile
+                # still gives the planner a curve it does not share.
                 "curtailment_timeline_mismatch": bool(
                     solar_profile_mode == "active"
-                    and solar_source != "sinusoidal"
+                    and solar_source not in ("sinusoidal", "provider")
                 ),
                 "earliest_projected_depletion": (
                     diagnostics.earliest_projected_depletion.isoformat()
