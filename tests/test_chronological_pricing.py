@@ -756,13 +756,17 @@ def test_price_threshold_names_the_cheapest_rejected_slot():
     assert plan.cheapest_rejected == (BASE, 0.15, 0.10)
 
 
-def _left_hour_plan(use_at, *, sun_at=None, **kwargs):
+def _left_hour_plan(use_at, *, sun_at=None, dull_at=None, **kwargs):
     # 1 kWh used at 02:00 (import 0.16, left to the grid: 0.16 x 0.82 - 0.06
     # is under every slot) and 1 kWh at ``use_at`` (import 0.40, which repays
-    # the 0.15 night slot and the 0.16 slot alike).
+    # the 0.15 night slot and the 0.16 slot alike).  ``sun_at`` adds an
+    # interval the sun covers, ``dull_at`` one with forecast solar that does
+    # not cover the house.
     intervals = [_interval(8, 1.0), _interval(use_at, 1.0)]
     if sun_at is not None:
         intervals.append(_interval(sun_at, 0.1, solar=0.5))
+    if dull_at is not None:
+        intervals.append(_interval(dull_at, 0.5, solar=0.5 - 1e-3))
     intervals.sort(key=lambda item: item.start)
     slots = [
         _slot(0, 60, 0.15),
@@ -820,6 +824,52 @@ def test_the_reserve_does_not_carry_night_energy_past_the_sun():
 
     assert all(a.slot.start.hour == 2 for a in plan.allocations)
     assert plan.allocated_kwh <= 0.425 + 1e-9
+
+
+def test_the_reserve_carries_night_energy_through_a_sunless_day():
+    """Forecast solar, but no interval where the sun covers the house: the
+    reserve keeps the evening in its plan, so the 00:00 charge is held for
+    18:00."""
+    plan = _left_hour_plan(72, dull_at=48, reserve_holds=True)
+
+    assert [(a.slot.start.hour, a.slot.price) for a in plan.allocations] == [(0, 0.15)]
+    assert plan.allocated_kwh == pytest.approx(1.0 + 1e-3)
+    assert plan.cheaper_to_import_kwh == pytest.approx(1.0)
+
+
+def test_a_day_without_any_forecast_solar_does_not_carry_night_energy():
+    """No solar forecast at all (no PV, no forecast, or 0): the reserve plans
+    only to sunrise, so the 00:00 charge is not held for 18:00 and the plan
+    is the one without the reserve."""
+    held = _left_hour_plan(72, reserve_holds=True)
+    plain = _left_hour_plan(72)
+
+    assert [(a.slot.start.hour, a.slot.price) for a in held.allocations] == [(2, 0.16)]
+    assert held.allocated_kwh == pytest.approx(plain.allocated_kwh)
+    assert held.cheaper_to_import_kwh == pytest.approx(plain.cheaper_to_import_kwh)
+
+
+def test_a_sunless_day_does_not_carry_a_charge_from_before_midnight():
+    """Before midnight the reserve plans only to sunrise, so a 22:00 charge is
+    not held through the next day to its evening."""
+    now = BASE - timedelta(hours=2)
+    intervals = [_interval(8, 1.0), _interval(72, 1.0)]
+    slots = [_slot(-120, -105, 0.15), _slot(120, 135, 0.16), _slot(1080, 1095, 0.40)]
+    deadlines = build_energy_deadlines(intervals, usable_initial_kwh=0.0)
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        slots,
+        total_required_kwh=deadlines[-1].required_cumulative_kwh,
+        effective_power_kw=2.0,
+        now=now,
+        horizon_end=BASE + timedelta(hours=20),
+        import_value_efficiency=0.82,
+        import_value_margin=0.06,
+        reserve_holds=True,
+    )
+
+    assert all(a.slot.start.hour == 2 for a in plan.allocations)
 
 
 def test_a_brief_dawn_blip_ends_the_reserve_hold():
