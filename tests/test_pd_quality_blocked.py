@@ -99,6 +99,7 @@ class _MetricCtrl:
         self._pd_quality_step_grace_s = 10.0
         self._pd_quality_settle_until = 0.0
         self._pd_quality_prev_target = 0.0
+        self._pd_quality_warmup_start = None
 
     def update(self, error, *, blocked):
         ChargeDischargeController._update_pd_quality_metrics(

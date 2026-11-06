@@ -235,6 +235,8 @@ from .const import (
     HOT_PATH_READBACK_MAX_LATENCY_S,
     DISCHARGE_ENGAGE_GRACE_S,
     ENGAGE_GRACE_STEP_FACTOR,
+    PD_QUALITY_RESTART_GAP_S,
+    PD_QUALITY_RESTART_SETTLE_S,
     HIGH_SOC_CHARGE_TAPER_FLOOR,
     HIGH_SOC_CHARGE_TAPER_GRACE_S,
     IDLE_RUNAWAY_POWER_W,
@@ -816,6 +818,10 @@ class ChargeDischargeController:
         self._pd_quality_step_grace_s = 10.0  # skip the metric this long after a step
         self._pd_quality_settle_until = 0.0   # monotonic deadline; skip while now < this
         self._pd_quality_prev_target = None   # previous active_target for step detection
+        # Start of the warm-up after a restart (see PD_QUALITY_RESTART_GAP_S):
+        # the end of the settle window until the first reading after it arrives,
+        # then that reading's time. None when the metric is not warming up.
+        self._pd_quality_warmup_start = None
         # True when the PD has no headroom to reduce the error (battery full while it
         # would charge, empty while it would discharge, or output pinned at the power
         # rail). Surfaced as the "battery_limited" quality state; not a tuning fault.
@@ -3203,6 +3209,14 @@ class ChargeDischargeController:
         that transient is skipped through a short grace window so it doesn't inflate
         the metric. Detection is source-agnostic: it keys on active_target moving.
 
+        After a long gap (the PD was not in control: a grid-charge slot, the weekly
+        full charge, manual mode, ...) the stored numbers describe the situation
+        before the gap, and the batteries are still running the previous command
+        when the PD takes over. The metric then starts over: it skips the hand-over
+        through the same settle window, and weighs the readings after it equally
+        until they cover one metric window. Until then it reports no RMS, so the
+        sensor shows "collecting_data" instead of a verdict on a few seconds.
+
         While the PD is battery-limited (no headroom to reduce the error) the residual
         error is not a tuning fault, so the metric is skipped too — the sensor reports
         the "battery_limited" state instead.
@@ -3214,6 +3228,16 @@ class ChargeDischargeController:
         ):
             self._pd_quality_settle_until = now + self._pd_quality_step_grace_s
         self._pd_quality_prev_target = active_target
+        if (
+            self._pd_quality_last_ts is not None
+            and now - self._pd_quality_last_ts > PD_QUALITY_RESTART_GAP_S
+        ):
+            self._pd_quality_settle_until = max(
+                self._pd_quality_settle_until, now + PD_QUALITY_RESTART_SETTLE_S
+            )
+            self._pd_quality_rms_ema = None
+            self._pd_quality_osc_ema = 0.0
+            self._pd_quality_warmup_start = self._pd_quality_settle_until
 
         if pd_limited or now < self._pd_quality_settle_until:
             # Keep the timestamp fresh so the EMA resumes smoothly (small dt) instead
@@ -3231,10 +3255,21 @@ class ChargeDischargeController:
         if dt <= 0:
             return
         self._pd_quality_last_advance_ts = now
-        alpha = dt / (self._pd_quality_tau + dt)
+        tau = self._pd_quality_tau
+        if self._pd_quality_warmup_start is not None and self._pd_quality_rms_ema is not None:
+            # Restart warm-up: the window grows with the data, so every reading
+            # since the restart weighs the same until a full window is covered.
+            warm_s = now - self._pd_quality_warmup_start
+            if warm_s >= tau:
+                self._pd_quality_warmup_start = None
+            else:
+                tau = warm_s
+        alpha = dt / (tau + dt)
         sq = error * error
         if self._pd_quality_rms_ema is None:
             self._pd_quality_rms_ema = sq
+            if self._pd_quality_warmup_start is not None:
+                self._pd_quality_warmup_start = now
         else:
             self._pd_quality_rms_ema += alpha * (sq - self._pd_quality_rms_ema)
         # Oscillation rate in events/min: the instantaneous rate for this gap is
@@ -3270,8 +3305,17 @@ class ChargeDischargeController:
 
     @property
     def pd_quality_rms_error(self) -> float | None:
-        """RMS of the grid-control error over the metric window (W), or None."""
+        """RMS of the grid-control error over the metric window (W), or None.
+
+        None also while the metric restarts after a long gap and its fresh
+        readings don't cover one metric window yet.
+        """
         if self._pd_quality_rms_ema is None:
+            return None
+        if (
+            self._pd_quality_warmup_start is not None
+            and time.monotonic() - self._pd_quality_warmup_start < self._pd_quality_tau
+        ):
             return None
         return math.sqrt(max(0.0, self._pd_quality_rms_ema))
 
