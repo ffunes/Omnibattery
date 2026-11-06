@@ -991,3 +991,73 @@ async def test_probe_returns_false_on_exception(monkeypatch):
         MagicMock(return_value=fake),
     )
     assert await ZendureLocalDriver.probe("192.168.1.100") == (False, None)
+
+
+# ---------------------------------------------------------------------------
+# One retry when the device drops the connection
+# ---------------------------------------------------------------------------
+
+import aiohttp  # noqa: E402
+
+
+def _flaky_session(first, then_status: int = 200, then_data: dict | None = None) -> MagicMock:
+    """A session whose first GET and POST fail with ``first``, then succeed.
+
+    ``first`` is an exception to raise or an HTTP status to answer with.
+    """
+    s = MagicMock()
+    s.closed = False
+
+    def calls():
+        if isinstance(first, int):
+            yield _cm(_resp(first))
+        else:
+            failing = MagicMock()
+            failing.__aenter__ = AsyncMock(side_effect=first)
+            failing.__aexit__ = AsyncMock(return_value=False)
+            yield failing
+        while True:
+            yield _cm(_resp(then_status, then_data if then_data is not None else _REPORT))
+
+    gets, posts = calls(), calls()
+    s.get = MagicMock(side_effect=lambda *a, **k: next(gets))
+    s.post = MagicMock(side_effect=lambda *a, **k: next(posts))
+    return s
+
+
+@pytest.mark.parametrize(
+    "first",
+    [aiohttp.ServerDisconnectedError(), aiohttp.ClientOSError(104, "Connection reset by peer"), 431],
+)
+async def test_a_dropped_read_is_tried_once_more(first):
+    """6 Nov: 'Server disconnected' and one HTTP 431 each marked the
+    SolarFlow unavailable for a cycle, although the next request worked."""
+    sess = _flaky_session(first)
+    snap = await _driver(session=sess).read_telemetry()
+
+    assert snap["battery_soc"] is not None
+    assert sess.get.call_count == 2
+
+
+@pytest.mark.parametrize(
+    "first",
+    [aiohttp.ServerDisconnectedError(), aiohttp.ClientOSError(104, "Connection reset by peer"), 431],
+)
+async def test_a_dropped_write_is_sent_once_more(first):
+    sess = _flaky_session(first)
+    res = await _driver(session=sess).apply_setpoint(600, read_back=False)
+
+    assert res.ok is True
+    assert sess.post.call_count == 2
+
+
+async def test_a_second_drop_still_fails_without_a_third_try():
+    sess = _flaky_session(aiohttp.ServerDisconnectedError(), then_status=431)
+    assert await _driver(session=sess).read_telemetry() == {}
+    assert sess.get.call_count == 2
+
+
+async def test_other_errors_are_not_retried():
+    sess = _flaky_session(503)
+    assert await _driver(session=sess).read_telemetry() == {}
+    assert sess.get.call_count == 1
