@@ -1277,3 +1277,59 @@ def test_per_attempt_timeout_reaches_the_client(monkeypatch):
     for version in ("v2", "v3", "vA", "vD"):
         MarstekModbusDriver("1.2.3.4", 502, version)
         assert captured["timeout"] == READ_TIMEOUT_S[version], version
+
+
+# ----------------------------------------------------------------------
+# apply_config writes a setting only when it changed
+# ----------------------------------------------------------------------
+async def test_apply_config_writes_nothing_when_the_battery_already_holds_it():
+    """Setup ran on every Home Assistant start and rewrote the battery's own
+    settings (Venus E v3: the power caps) although they had not changed."""
+    client = _fake_client()
+    regs = REGISTER_MAP["v3"]
+    held = {regs["max_charge_power"]: 2500, regs["max_discharge_power"]: 2500}
+    client.async_read_register = AsyncMock(side_effect=lambda reg, *_a, **_k: held.get(reg))
+    drv = _driver("v3", client=client)
+
+    ok = await drv.apply_config(
+        max_soc_pct=95, min_soc_pct=12,
+        max_charge_power_w=2500, max_discharge_power_w=2500,
+    )
+
+    assert ok is True
+    client.async_write_register.assert_not_awaited()
+
+
+async def test_apply_config_writes_only_the_settings_that_differ():
+    client = _fake_client()
+    regs = REGISTER_MAP["v2"]
+    held = {
+        regs["charging_cutoff_capacity"]: int(100 / 0.1),
+        regs["discharging_cutoff_capacity"]: int(12 / 0.1),
+        regs["max_charge_power"]: 2500,
+        regs["max_discharge_power"]: 2500,
+    }
+    client.async_read_register = AsyncMock(side_effect=lambda reg, *_a, **_k: held.get(reg))
+    drv = _driver("v2", client=client)
+
+    await drv.apply_config(
+        max_soc_pct=95, min_soc_pct=12,
+        max_charge_power_w=2500, max_discharge_power_w=2500,
+    )
+
+    assert client.async_write_register.await_args_list == [
+        ((regs["charging_cutoff_capacity"], int(95 / 0.1)),)
+    ]
+
+
+async def test_apply_config_writes_a_setting_it_cannot_read():
+    client = _fake_client()
+    client.async_read_register = AsyncMock(return_value=None)
+    drv = _driver("v3", client=client)
+
+    await drv.apply_config(
+        max_soc_pct=95, min_soc_pct=12,
+        max_charge_power_w=2500, max_discharge_power_w=2500,
+    )
+
+    assert client.async_write_register.await_count == 2
