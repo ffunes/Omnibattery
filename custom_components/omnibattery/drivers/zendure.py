@@ -876,6 +876,16 @@ class ZendureLocalDriver(BatteryDriver):
         soc_set = max(70, min(100, int(soc_pct)))
         return await self._post_write({"socSet": soc_set * 10, "smartMode": 0})
 
+    async def set_temporary_charge_cutoff(self, soc_pct: float) -> bool:
+        """Write socSet to RAM only (smartMode=1), for a ceiling that is undone.
+
+        The weekly full charge raises the ceiling for one run. In flash the
+        device keeps the user's Target SOC, so a reboot falls back to it and
+        a run needs no flash write at all.
+        """
+        soc_set = max(70, min(100, int(soc_pct)))
+        return await self._post_write({"socSet": soc_set * 10, "smartMode": 1})
+
     async def standby(self) -> bool:
         """Stop discharge for teardown (smartMode=1, does not persist)."""
         return await self._post_write(
