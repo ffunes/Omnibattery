@@ -5944,8 +5944,14 @@ class ChargeDischargeController:
         paused the charge). Adding the slot's whole energy to the SOC reached by
         then asked the batteries for more than the slot was planned for, and a
         slot that had delivered its energy was then logged as not delivered.
+
+        The count starts again with every newly published schedule: a replan
+        rebuilds the slot's quota from the current SOC, so it is already net of
+        what was charged. The evening pass merging into the same schedule keeps
+        the slot's quota as it was, and the count with it.
         """
-        key = (slot.start, slot.end)
+        schedule = getattr(self, "_dynamic_pricing_schedule", None)
+        key = (slot.start, slot.end, id(schedule))
         state = getattr(self, "_slot_charge_baseline", None)
         if not state or state[0] != key:
             state = (key, {})
@@ -6259,6 +6265,7 @@ class ChargeDischargeController:
         self._predictive_deficit_target_soc = None
         self._curtailment_opportunistic_target_soc = None
         self._curtailment_opportunity_limited = False
+        self._slot_charge_baseline = None
         self.first_execution = True
 
     def _set_predictive_protection_status(self, active: bool, action: str, **details) -> None:
