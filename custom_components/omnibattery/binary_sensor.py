@@ -1,6 +1,8 @@
 """Binary sensor platform for the Omnibattery integration."""
 from __future__ import annotations
 
+from .infra.system_identity import scope_system_entities
+
 import logging
 from datetime import datetime
 
@@ -57,7 +59,7 @@ async def async_setup_entry(
     if controller and CONF_CAPACITY_PROTECTION_ENABLED in entry.data:
         entities.append(CapacityProtectionStatusSensor(hass, entry, controller))
 
-    async_add_entities(entities)
+    async_add_entities(scope_system_entities(hass, entry, entities))
 
 
 class MarstekVenusBinarySensor(CoordinatorEntity, BinarySensorEntity):
