@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
@@ -304,15 +304,57 @@ class WeeklyFullChargeManager:
         """Return only the debounced BMS-cutoff state, independent of SOC."""
         return self._bms_cutoff_counts.get(coordinator.name, 0) >= _BMS_CUTOFF_REQUIRED_CYCLES
 
+    def _sunrise_on(self, day: date) -> datetime | None:
+        """Local sunrise on ``day`` (naive), or None when it cannot be told."""
+        tracker = getattr(self._controller, "_consumption_tracker", None)
+        calculate = getattr(tracker, "calculate_sunrise", None)
+        if not callable(calculate):
+            return None
+        try:
+            hours = calculate(day)
+        except Exception:  # noqa: BLE001
+            return None
+        if hours is None:
+            return None
+        return datetime.combine(day, datetime.min.time()) + timedelta(hours=float(hours))
+
+    def window_end(self, now: datetime) -> datetime | None:
+        """When the current charge window ends: the sunrise after the target day.
+
+        The remaining gap is bought after the target day's sun has set, so the
+        cheap hours of the night after it belong to the same run. Without a
+        known sunrise the window ends at midnight, as it always did. Returned in
+        ``now``'s timezone (naive for a naive ``now``); None outside the window.
+        """
+        target_weekday = WEEKDAY_MAP[self._controller.weekly_full_charge_day]
+        local = now.replace(tzinfo=None) if now.tzinfo else now
+        if local.weekday() == target_weekday:
+            day_after = local.date() + timedelta(days=1)
+        elif self.in_overnight_extension(local):
+            day_after = local.date()
+        else:
+            return None
+        end = self._sunrise_on(day_after) or datetime.combine(day_after, datetime.min.time())
+        return end.replace(tzinfo=now.tzinfo) if now.tzinfo else end
+
+    def in_overnight_extension(self, now: datetime) -> bool:
+        """True in the night after the target day, before its sunrise."""
+        target_weekday = WEEKDAY_MAP[self._controller.weekly_full_charge_day]
+        local = now.replace(tzinfo=None) if now.tzinfo else now
+        if local.weekday() != (target_weekday + 1) % 7:
+            return False
+        end = self._sunrise_on(local.date())
+        return end is not None and local < end
+
     def is_active(self) -> bool:
         """Check if weekly full charge is currently active.
 
         Returns True if:
         - Feature is enabled
-        - Today is the selected day
+        - It is the selected day, or the night after it before sunrise
         - NOT all batteries have reached 100% yet
 
-        Also handles day boundary transitions to reset the flag.
+        Also handles the end of that window to reset the flags.
         """
         ctrl = self._controller
         if not ctrl.weekly_full_charge_enabled:
@@ -327,35 +369,39 @@ class WeeklyFullChargeManager:
         current_weekday = now.weekday()
         target_weekday = WEEKDAY_MAP[ctrl.weekly_full_charge_day]
 
-        # Handle day boundary transitions
-        if ctrl.last_checked_weekday is not None and ctrl.last_checked_weekday != current_weekday:
-            # Day changed - check if we're exiting the target day
-            if ctrl.last_checked_weekday == target_weekday and current_weekday != target_weekday:
-                # Just exited the target day - reset flags for next week
-                _LOGGER.info("Weekly Full Charge: Exited %s, resetting flags for next week",
-                            ctrl.weekly_full_charge_day.upper())
-                if ctrl.weekly_full_charge_registers_written and not ctrl.weekly_full_charge_complete:
-                    # The charge may not have reached its completion condition
-                    # before midnight. Resetting the flags alone would leave a
-                    # Zendure socSet=100 in place until the next weekly run.
-                    ctrl._weekly_charge_needs_restore = True
-                    _LOGGER.info(
-                        "Weekly Full Charge: Mid-charge day rollover detected - hardware restore pending"
-                    )
-                ctrl.weekly_full_charge_complete = False
-                ctrl.weekly_full_charge_registers_written = False
-                ctrl._force_full_charge = False
-                ctrl._weekly_charge_status["state"] = "Idle"
-                ctrl._weekly_charge_status.pop("completion_reason", None)
-                # Save the cleared state asynchronously (don't await to avoid blocking)
-                self._create_background_task(
-                    self.save_state(), "omnibattery_weekly_charge_state_save"
+        overnight = self.in_overnight_extension(now)
+        in_window = current_weekday == target_weekday or overnight
+        was_in_window = ctrl.last_checked_weekday is not None and (
+            ctrl.last_checked_weekday == target_weekday
+            or getattr(self, "_last_check_overnight", False)
+        )
+
+        # Handle the end of the window: the target day and, while the sunrise
+        # is known, the night after it.
+        if was_in_window and not in_window:
+            # Just left the window - reset flags for next week
+            _LOGGER.info("Weekly Full Charge: Exited %s, resetting flags for next week",
+                        ctrl.weekly_full_charge_day.upper())
+            if ctrl.weekly_full_charge_registers_written and not ctrl.weekly_full_charge_complete:
+                # The charge may not have reached its completion condition
+                # before the window closed. Resetting the flags alone would
+                # leave a Zendure socSet=100 in place until the next weekly run.
+                ctrl._weekly_charge_needs_restore = True
+                _LOGGER.info(
+                    "Weekly Full Charge: Mid-charge day rollover detected - hardware restore pending"
                 )
+            ctrl.weekly_full_charge_complete = False
+            ctrl.weekly_full_charge_registers_written = False
+            ctrl._force_full_charge = False
+            ctrl._weekly_charge_status["state"] = "Idle"
+            ctrl._weekly_charge_status.pop("completion_reason", None)
+            # Save the cleared state asynchronously (don't await to avoid blocking)
+            self._create_background_task(
+                self.save_state(), "omnibattery_weekly_charge_state_save"
+            )
 
         ctrl.last_checked_weekday = current_weekday
-
-        # Check if we're on the target day and haven't completed yet
-        is_target_day = current_weekday == target_weekday
+        self._last_check_overnight = overnight
 
         # Force full charge button overrides the day check
         if ctrl._force_full_charge:
@@ -363,7 +409,7 @@ class WeeklyFullChargeManager:
                 return False
             return True
 
-        if not is_target_day:
+        if not in_window:
             return False
 
         if ctrl.weekly_full_charge_complete:
@@ -393,10 +439,15 @@ class WeeklyFullChargeManager:
 
             today_iso = date.today().isoformat()
             stored_date = data.get("date")
+            # A run saved on the target day carries on in the night after it.
+            same_run = stored_date == today_iso or (
+                stored_date == (date.today() - timedelta(days=1)).isoformat()
+                and self.in_overnight_extension(datetime.now())
+            )
 
             # Only restore state if saved on the same calendar date (prevents last week's
             # completion from being incorrectly restored on the same weekday next week)
-            if stored_date == today_iso:
+            if same_run:
                 ctrl.weekly_full_charge_complete = data.get("complete", False)
                 ctrl.weekly_full_charge_registers_written = data.get("registers_written", False)
                 # Restore visible status so the sensor reflects the correct state immediately.
