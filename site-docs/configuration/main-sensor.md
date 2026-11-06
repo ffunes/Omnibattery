@@ -25,9 +25,6 @@ Omnibattery uses your grid-power sensor to decide how much the batteries should 
 
 ![Select the main Omnibattery sensors](../assets/screenshots/configuration/main-sensor.png){ width="600" style="display: block; margin: 0 auto;"}
 
-!!! warning "Screenshot needs updating"
-    The current form also includes separate remaining-today forecast, off-grid meter, and three-phase protection fields that are not visible in this screenshot.
-
 ## What you will see
 
 The dashboard energy-flow diagram uses the grid sensor and available battery and solar data. Omnibattery also creates **Home Consumption** by combining those sources; you do not select a separate household-consumption sensor.
