@@ -1038,6 +1038,7 @@ def simulate_battery_projection(
     grid_charge_decisions: Any = None,
     charge_availability: Any = None,
     charge_ceiling_pct: Any = None,
+    discharge_reserve_kwh: Any = None,
     system_charge_power_w: float | None = None,
     system_discharge_power_w: float | None = None,
 ) -> BatteryProjectionResult:
@@ -1057,7 +1058,10 @@ def simulate_battery_projection(
     interval in which charging is permitted.  Optional ``charge_ceiling_pct``
     values raise a battery's max SOC for that interval (a weekly full charge
     due later in the horizon); they never lower it, and the charge-hysteresis
-    latch does not apply while raised.  System-wide charge/discharge
+    latch does not apply while raised.  Optional ``discharge_reserve_kwh``
+    values are the stored energy above the batteries' floors that the discharge
+    reserve keeps for later, dearer slots: discharge in that interval leaves at
+    least that much in the fleet.  System-wide charge/discharge
     limits cap the aggregate AC-side flow in each interval in addition to every
     battery's own power limit.
     """
@@ -1284,7 +1288,19 @@ def simulate_battery_projection(
 
         # Run discharge after all charge allocation.  A given battery cannot
         # charge and discharge in the same interval, but distinct batteries
-        # may still coexist in opposite directions.
+        # may still coexist in opposite directions.  Energy the discharge
+        # reserve keeps for a later slot is not spent here.
+        reserve_floor = _metadata_value(discharge_reserve_kwh, index, interval_list)
+        reserve_room = (
+            max(
+                0.0,
+                sum(states.values())
+                - sum(values["minimum"] for values in per_battery.values())
+                - _non_negative(_finite(reserve_floor, 0.0)),
+            )
+            if reserve_floor is not None
+            else math.inf
+        )
         for (
             battery,
             _initial,
@@ -1314,9 +1330,12 @@ def simulate_battery_projection(
                     remaining_deficit,
                     power_cap,
                     available_output,
+                    reserve_room * discharge_eff,
                     system_discharge_remaining,
                 )
             values["discharge_output"] = discharge_output
+            if discharge_eff > _EPSILON:
+                reserve_room = max(0.0, reserve_room - discharge_output / discharge_eff)
             system_discharge_remaining = max(
                 0.0, system_discharge_remaining - discharge_output
             )
