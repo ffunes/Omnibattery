@@ -67,7 +67,7 @@ const I18N = {
     dailyOperationSolarWindow: "Solar window", dailyOperationSolarCharge: "Solar charge", dailyOperationGridCharge: "Grid charge", dailyOperationDischarge: "Battery discharge", dailyOperationEnergyToBattery: "Energy to battery", dailyOperationEnergyFromBattery: "Energy from battery", dailyOperationCause: "Cause", dailyOperationHourlyBalance: "Hourly net balance",
     dailyOperationNotNeeded: "Grid charge not needed", dailyOperationNoAction: "No action", dailyOperationSetpoint: "Until setpoint",
     dailyOperationDelay: "Charge delayed", dailyOperationUnlock: "Estimated unlock: {time}", dailyOperationAxis: "kWh/15 min",
-    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consumption", dailyOperationSoc: "Total SOC", dailyOperationLearned: "Learned profile",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consumption", dailyOperationSoc: "Total SOC", dailyOperationPrice: "Grid price", dailyOperationLearned: "Learned profile",
     dailyOperationSinusoidal: "Sinusoidal fallback", dailyOperationGenericFallback: "Fallback estimate", dailyOperationZeroFallback: "Zero-solar fallback", dailyOperationFallback: "Fallback: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Observed", dailyOperationProjected: "Projected", dailyOperationPrevious: "Previous",
     dailyOperationNext: "Next", dailyOperationNow: "Now", dailyOperationCoverage: "Coverage", dailyOperationMode: "Mode",
@@ -158,7 +158,7 @@ const I18N = {
     dailyOperationSolarWindow: "Ventana solar", dailyOperationSolarCharge: "Carga solar", dailyOperationGridCharge: "Carga de red", dailyOperationDischarge: "Descarga de batería", dailyOperationEnergyToBattery: "Energía a batería", dailyOperationEnergyFromBattery: "Energía desde batería", dailyOperationCause: "Causa", dailyOperationHourlyBalance: "Balance neto horario",
     dailyOperationNotNeeded: "Carga de red no necesaria", dailyOperationNoAction: "Sin acción", dailyOperationSetpoint: "Hasta el setpoint",
     dailyOperationDelay: "Carga retrasada", dailyOperationUnlock: "Desbloqueo estimado: {time}", dailyOperationAxis: "kWh/15 min",
-    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consumo", dailyOperationSoc: "SOC total", dailyOperationLearned: "Perfil aprendido",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consumo", dailyOperationSoc: "SOC total", dailyOperationPrice: "Precio de red", dailyOperationLearned: "Perfil aprendido",
     dailyOperationSinusoidal: "Curva sinusoidal alternativa", dailyOperationGenericFallback: "Estimación alternativa", dailyOperationZeroFallback: "Previsión solar nula", dailyOperationFallback: "Estimación alternativa: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Observado", dailyOperationProjected: "Previsto", dailyOperationPrevious: "Anterior",
     dailyOperationNext: "Siguiente", dailyOperationNow: "Ahora", dailyOperationCoverage: "Cobertura", dailyOperationMode: "Modo",
@@ -250,7 +250,7 @@ const I18N = {
     dailyOperationSolarWindow: "Finestra solar", dailyOperationSolarCharge: "Càrrega solar", dailyOperationGridCharge: "Càrrega de xarxa", dailyOperationDischarge: "Descàrrega de bateria", dailyOperationEnergyToBattery: "Energia a la bateria", dailyOperationEnergyFromBattery: "Energia des de la bateria", dailyOperationCause: "Causa", dailyOperationHourlyBalance: "Balanç net horari",
     dailyOperationNotNeeded: "Càrrega de xarxa no necessària", dailyOperationNoAction: "Sense acció", dailyOperationSetpoint: "Fins al setpoint",
     dailyOperationDelay: "Càrrega retardada", dailyOperationUnlock: "Desbloqueig estimat: {time}", dailyOperationAxis: "kWh/15 min",
-    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consum", dailyOperationSoc: "SOC total", dailyOperationLearned: "Perfil après",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consum", dailyOperationSoc: "SOC total", dailyOperationPrice: "Preu de xarxa", dailyOperationLearned: "Perfil après",
     dailyOperationSinusoidal: "Corba sinusoidal alternativa", dailyOperationGenericFallback: "Estimació alternativa", dailyOperationZeroFallback: "Previsió solar nul·la", dailyOperationFallback: "Estimació alternativa: {reason}", dailyOperationPlan: "Pla",
     dailyOperationObserved: "Observat", dailyOperationProjected: "Previst", dailyOperationPrevious: "Anterior",
     dailyOperationNext: "Següent", dailyOperationNow: "Ara", dailyOperationCoverage: "Cobertura", dailyOperationMode: "Mode",
@@ -337,7 +337,7 @@ const I18N = {
     dailyOperationSolarWindow: "Solarfenster", dailyOperationSolarCharge: "Solarladung", dailyOperationGridCharge: "Netzladung", dailyOperationDischarge: "Batterieentladung", dailyOperationEnergyToBattery: "Energie zur Batterie", dailyOperationEnergyFromBattery: "Energie aus der Batterie", dailyOperationCause: "Ursache", dailyOperationHourlyBalance: "Stündlicher Netzausgleich",
     dailyOperationNotNeeded: "Keine Netzladung erforderlich", dailyOperationNoAction: "Keine Aktion", dailyOperationSetpoint: "Bis zum Sollwert",
     dailyOperationDelay: "Laden verzögert", dailyOperationUnlock: "Voraussichtliche Freigabe: {time}", dailyOperationAxis: "kWh/15 Min.",
-    dailyOperationSolar: "Solar", dailyOperationConsumption: "Verbrauch", dailyOperationSoc: "Gesamt-SOC", dailyOperationLearned: "Gelerntes Profil",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Verbrauch", dailyOperationSoc: "Gesamt-SOC", dailyOperationPrice: "Netzpreis", dailyOperationLearned: "Gelerntes Profil",
     dailyOperationSinusoidal: "Sinusförmige Ersatzkurve", dailyOperationGenericFallback: "Ersatzprognose", dailyOperationZeroFallback: "Solarprognose ohne Ertrag", dailyOperationFallback: "Ersatzprognose: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Beobachtet", dailyOperationProjected: "Prognostiziert", dailyOperationPrevious: "Zurück",
     dailyOperationNext: "Weiter", dailyOperationNow: "Jetzt", dailyOperationCoverage: "Abdeckung", dailyOperationMode: "Modus",
@@ -424,7 +424,7 @@ const I18N = {
     dailyOperationSolarWindow: "Fenêtre solaire", dailyOperationSolarCharge: "Charge solaire", dailyOperationGridCharge: "Charge réseau", dailyOperationDischarge: "Décharge batterie", dailyOperationEnergyToBattery: "Énergie vers la batterie", dailyOperationEnergyFromBattery: "Énergie depuis la batterie", dailyOperationCause: "Cause", dailyOperationHourlyBalance: "Bilan net horaire",
     dailyOperationNotNeeded: "Charge réseau non nécessaire", dailyOperationNoAction: "Aucune action", dailyOperationSetpoint: "Jusqu'au point de consigne",
     dailyOperationDelay: "Charge retardée", dailyOperationUnlock: "Déblocage estimé : {time}", dailyOperationAxis: "kWh/15 min",
-    dailyOperationSolar: "Solaire", dailyOperationConsumption: "Consommation", dailyOperationSoc: "SOC total", dailyOperationLearned: "Profil appris",
+    dailyOperationSolar: "Solaire", dailyOperationConsumption: "Consommation", dailyOperationSoc: "SOC total", dailyOperationPrice: "Prix du réseau", dailyOperationLearned: "Profil appris",
     dailyOperationSinusoidal: "Courbe sinusoïdale de secours", dailyOperationGenericFallback: "Estimation de secours", dailyOperationZeroFallback: "Prévision solaire nulle", dailyOperationFallback: "Estimation de secours : {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Observé", dailyOperationProjected: "Prévu", dailyOperationPrevious: "Précédent",
     dailyOperationNext: "Suivant", dailyOperationNow: "Maintenant", dailyOperationCoverage: "Couverture", dailyOperationMode: "Mode",
@@ -511,7 +511,7 @@ const I18N = {
     dailyOperationSolarWindow: "Zonnevenster", dailyOperationSolarCharge: "Laden met zonne-energie", dailyOperationGridCharge: "Laden vanaf net", dailyOperationDischarge: "Batterij ontladen", dailyOperationEnergyToBattery: "Energie naar batterij", dailyOperationEnergyFromBattery: "Energie uit batterij", dailyOperationCause: "Oorzaak", dailyOperationHourlyBalance: "Uurbalans",
     dailyOperationNotNeeded: "Laden vanaf net niet nodig", dailyOperationNoAction: "Geen actie", dailyOperationSetpoint: "Tot setpoint",
     dailyOperationDelay: "Laden vertraagd", dailyOperationUnlock: "Geschatte vrijgave: {time}", dailyOperationAxis: "kWh/15 min",
-    dailyOperationSolar: "Zon", dailyOperationConsumption: "Verbruik", dailyOperationSoc: "Totale SOC", dailyOperationLearned: "Geleerd profiel",
+    dailyOperationSolar: "Zon", dailyOperationConsumption: "Verbruik", dailyOperationSoc: "Totale SOC", dailyOperationPrice: "Netprijs", dailyOperationLearned: "Geleerd profiel",
     dailyOperationSinusoidal: "Alternatieve sinuscurve", dailyOperationGenericFallback: "Alternatieve prognose", dailyOperationZeroFallback: "Zonneprognose zonder opbrengst", dailyOperationFallback: "Alternatieve prognose: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Geobserveerd", dailyOperationProjected: "Verwacht", dailyOperationPrevious: "Vorige",
     dailyOperationNext: "Volgende", dailyOperationNow: "Nu", dailyOperationCoverage: "Dekking", dailyOperationMode: "Modus",
@@ -2616,7 +2616,8 @@ class MarstekVenusPanel extends HTMLElement {
       `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-not-needed"></i>${this._t("dailyOperationNotNeeded")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-solar"></i>${this._t("dailyOperationSolar")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-consumption"></i>${this._t("dailyOperationConsumption")}</span>` +
-      `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-soc"></i>${this._t("dailyOperationSoc")}</span>`;
+      `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-soc"></i>${this._t("dailyOperationSoc")}</span>` +
+      `<span class="daily-op-legend-item daily-op-legend-price" hidden><i class="daily-op-line daily-op-line-price"></i><span class="daily-op-legend-price-text"></span></span>`;
     toolbar.appendChild(legend);
 
     const nav = document.createElement("div");
@@ -2677,7 +2678,8 @@ class MarstekVenusPanel extends HTMLElement {
       `<path class="daily-op-path daily-op-path-consumption-actual" fill="none"></path>` +
       `<path class="daily-op-path daily-op-path-consumption-forecast" fill="none"></path>` +
       `<path class="daily-op-path daily-op-path-soc-actual" fill="none"></path>` +
-      `<path class="daily-op-path daily-op-path-soc-forecast" fill="none"></path>`;
+      `<path class="daily-op-path daily-op-path-soc-forecast" fill="none"></path>` +
+      `<path class="daily-op-path daily-op-path-price" fill="none"></path>`;
     stage.appendChild(svg);
 
     // Keep the current-time marker in HTML so its label has a stable pixel
@@ -2808,6 +2810,8 @@ class MarstekVenusPanel extends HTMLElement {
     this._r.dailyOperation = {
       card, badge, notice, legend,
       hourlyBalanceLegend: legend.querySelector(".daily-op-legend-hourly-balance"),
+      priceLegend: legend.querySelector(".daily-op-legend-price"),
+      priceLegendText: legend.querySelector(".daily-op-legend-price-text"),
       yAxis, socAxis, viewport, stage, svg, tooltip, previous, next,
       cells, labels, hours,
       paths: {
@@ -2817,6 +2821,7 @@ class MarstekVenusPanel extends HTMLElement {
         consumptionForecast: svg.querySelector(".daily-op-path-consumption-forecast"),
         socActual: svg.querySelector(".daily-op-path-soc-actual"),
         socForecast: svg.querySelector(".daily-op-path-soc-forecast"),
+        price: svg.querySelector(".daily-op-path-price"),
       },
       nowMarker,
       nowText,
@@ -3017,6 +3022,16 @@ class MarstekVenusPanel extends HTMLElement {
       skipped[DAILY_OPERATION_BASE_INTERVALS + index] = extensionSkipped[index] ?? null;
       repeated[DAILY_OPERATION_BASE_INTERVALS + index] = extensionRepeated[index] ?? null;
     }
+    // Grid price per interval: today in ``series``, after midnight in the
+    // extended horizon. Display only; empty without dynamic pricing.
+    const priceBase = pickSeries(["price_per_kwh"]);
+    const extensionPrices = Array.isArray(extensionHorizon.price_per_kwh)
+      ? extensionHorizon.price_per_kwh : [];
+    const price = Array.from({ length: DAILY_OPERATION_TOTAL_INTERVALS }, (_, index) =>
+      this._dailyOperationNumber(index < DAILY_OPERATION_BASE_INTERVALS
+        ? priceBase && priceBase[index]
+        : extensionPrices[index - DAILY_OPERATION_BASE_INTERVALS])
+    );
     const isSkipped = Array.from({ length: DAILY_OPERATION_TOTAL_INTERVALS }, (_, index) =>
       this._dailyOperationBool(skipped && skipped[index]) || String(flagArray[index] || "").toLowerCase() === "dst_skipped"
     );
@@ -3125,6 +3140,7 @@ class MarstekVenusPanel extends HTMLElement {
       stale: this._dailyOperationBool(data.stale),
       staleReason: data.stale_reason == null ? null : String(data.stale_reason),
       actualSolar, forecastSolar, actualConsumption, forecastConsumption, actualSoc, forecastSoc,
+      price,
       actualMask,
       plannedMask: plannedActions,
       actualCoexistence,
@@ -3408,6 +3424,7 @@ class MarstekVenusPanel extends HTMLElement {
       consumptionForecast: this._dailyOperationValueAt(snapshot.forecastConsumption, index),
       socActual: this._dailyOperationValueAt(snapshot.actualSoc, index),
       socForecast: this._dailyOperationValueAt(snapshot.forecastSoc, index),
+      price: this._dailyOperationValueAt(snapshot.price, index),
       coverage: this._dailyOperationValueAt(snapshot.coverage, index),
       chargePower: this._dailyOperationValueAt(snapshot.chargePower, index),
       dischargePower: this._dailyOperationValueAt(snapshot.dischargePower, index),
@@ -3438,6 +3455,23 @@ class MarstekVenusPanel extends HTMLElement {
     return value == null ? "—" : `${this._nf(value, 3)} kWh`;
   }
 
+  _dailyOperationPriceUnit() {
+    const code = this._hass && this._hass.config && this._hass.config.currency;
+    let symbol = code || "";
+    if (code) {
+      try {
+        const part = new Intl.NumberFormat(this._lang(), { style: "currency", currency: code })
+          .formatToParts(0).find((item) => item.type === "currency");
+        if (part) symbol = part.value;
+      } catch (_err) { /* unknown currency code: keep it as text */ }
+    }
+    return `${symbol}/kWh`;
+  }
+
+  _dailyOperationFormatPrice(value) {
+    return value == null ? "—" : `${this._nf(value, 3)} ${this._dailyOperationPriceUnit()}`;
+  }
+
   _dailyOperationFormatPower(value) {
     return value == null ? "—" : `${this._nf(value, 0)} W`;
   }
@@ -3460,6 +3494,7 @@ class MarstekVenusPanel extends HTMLElement {
     if (item.consumptionForecast != null) parts.push(`${this._t("dailyOperationConsumption")} (${this._t("dailyOperationForecast")}): ${this._dailyOperationFormatKwh(item.consumptionForecast)}`);
     if (item.socActual != null) parts.push(`${this._t("dailyOperationSoc")} (${this._t("dailyOperationReal")}): ${this._nf(item.socActual, 1)} %`);
     if (item.socForecast != null) parts.push(`${this._t("dailyOperationSoc")} (${this._t("dailyOperationForecast")}): ${this._nf(item.socForecast, 1)} %`);
+    if (item.price != null) parts.push(`${this._t("dailyOperationPrice")}: ${this._dailyOperationFormatPrice(item.price)}`);
     if (item.coverage != null) parts.push(`${this._t("dailyOperationCoverage")}: ${Math.round(item.coverage)} s`);
     if (item.actions.length) {
       const actionKind = this._dailyOperationActionKind(item);
@@ -3521,6 +3556,7 @@ class MarstekVenusPanel extends HTMLElement {
     if (solar != null) rows.push(row(this._t("dailyOperationSolar"), this._dailyOperationFormatKwh(solar)));
     if (consumption != null) rows.push(row(this._t("dailyOperationConsumption"), this._dailyOperationFormatKwh(consumption)));
     if (soc != null) rows.push(row(this._t("dailyOperationSoc"), `${this._nf(soc, 1)} %`));
+    if (item.price != null) rows.push(row(this._t("dailyOperationPrice"), this._dailyOperationFormatPrice(item.price)));
     const actionLabels = item.actions.length
       ? item.actions.map((key) => this._dailyOperationActionLabel(key === "solar" ? 1 : key === "grid" ? 2 : 4)).join(", ")
       : item.solarWindow ? this._t("dailyOperationSolarWindow")
@@ -3760,6 +3796,32 @@ class MarstekVenusPanel extends HTMLElement {
     return parts.join(" ");
   }
 
+  /** A stepped line: each price holds for its whole interval. It spans the
+   *  visible price range (there is no price axis; the legend names the range
+   *  and the tooltip the value). */
+  _dailyOperationPricePath(values, snapshot, low, high) {
+    if (!Array.isArray(values)) return "";
+    const top = 40, bottom = 156;
+    const span = high - low;
+    const y = (value) => span > 0
+      ? bottom - ((value - low) / span) * (bottom - top)
+      : (top + bottom) / 2;
+    const parts = [];
+    let segment = "";
+    values.forEach((value, index) => {
+      const number = this._dailyOperationNumber(value);
+      if (snapshot.isSkipped[index] || number == null) {
+        if (segment) parts.push(segment);
+        segment = "";
+        return;
+      }
+      const level = y(number).toFixed(2);
+      segment += `${segment ? "L" : "M"}${index * 10},${level} L${(index + 1) * 10},${level} `;
+    });
+    if (segment) parts.push(segment);
+    return parts.join(" ").trim();
+  }
+
   _dailyOperationUpdatePaths(snapshot) {
     const ref = this._r.dailyOperation;
     if (!ref) return;
@@ -3803,6 +3865,25 @@ class MarstekVenusPanel extends HTMLElement {
       const d = this._dailyOperationPath(series, snapshot, 100, future);
       path.setAttribute("d", d);
       path.style.display = d ? "" : "none";
+    }
+    const visiblePrices = (Array.isArray(snapshot.price) ? snapshot.price : [])
+      .slice(visibleStart, visibleEnd + 1)
+      .map((value) => this._dailyOperationNumber(value))
+      .filter((value) => value != null);
+    const priceLow = visiblePrices.length ? Math.min(...visiblePrices) : null;
+    const priceHigh = visiblePrices.length ? Math.max(...visiblePrices) : null;
+    const priceD = priceLow == null
+      ? "" : this._dailyOperationPricePath(snapshot.price, snapshot, priceLow, priceHigh);
+    if (ref.paths.price) {
+      ref.paths.price.setAttribute("d", priceD);
+      ref.paths.price.style.display = priceD ? "" : "none";
+    }
+    if (ref.priceLegend) {
+      ref.priceLegend.hidden = !priceD;
+      if (priceD) {
+        ref.priceLegendText.textContent = `${this._t("dailyOperationPrice")} ` +
+          `${this._nf(priceLow, 3)}–${this._nf(priceHigh, 3)} ${this._dailyOperationPriceUnit()}`;
+      }
     }
     const now = (snapshot.currentIndex + snapshot.currentProgress) * 10;
     ref.nowMarker.style.left = `${now / (DAILY_OPERATION_TOTAL_INTERVALS * 0.1)}%`;
@@ -7326,6 +7407,7 @@ class MarstekVenusPanel extends HTMLElement {
         --daily-op-discharge: var(--flow-blue);
         --daily-op-not-needed: var(--ink-dim);
         --daily-op-soc: oklch(0.74 0.18 330);
+        --daily-op-price: var(--ink-mid);
         --daily-op-delay: oklch(0.78 0.15 58);
         --font-ui: "Manrope", system-ui, sans-serif;
         --font-display: "Space Grotesk", system-ui, sans-serif;
@@ -7474,6 +7556,7 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-op-line-solar { border-color: var(--daily-op-solar-line); }
       .daily-op-line-consumption { border-color: var(--home); border-top-style: dashed; }
       .daily-op-line-soc { border-color: var(--daily-op-soc); }
+      .daily-op-line-price { border-color: var(--daily-op-price); border-top-width: 1.5px; }
       .daily-op-nav { display: inline-flex; gap: 5px; margin-left: auto; flex-shrink: 0; }
       .daily-op-nav-btn { display: grid; place-items: center; width: 29px; height: 29px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); color: var(--ink-mid); cursor: pointer; --mdc-icon-size: 18px; }
       .daily-op-nav-btn:hover:not(:disabled) { color: var(--ink); background: var(--bg-hover); }
@@ -7502,6 +7585,7 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-op-path-consumption-forecast { stroke: var(--home); stroke-dasharray: 5 4; opacity: .78; }
       .daily-op-path-soc-actual { stroke: var(--daily-op-soc); }
       .daily-op-path-soc-forecast { stroke: var(--daily-op-soc); stroke-dasharray: 5 4; opacity: .82; }
+      .daily-op-path-price { stroke: var(--daily-op-price); stroke-width: 1.5; stroke-linecap: butt; stroke-linejoin: miter; opacity: .85; }
       .daily-op-grid { position: absolute; inset: 0; z-index: 2; display: grid; grid-template-rows: 24px 146px 20px; pointer-events: none; }
       .daily-op-now-marker { position: absolute; z-index: 5; top: 3px; bottom: 20px; width: 0; pointer-events: none; }
       .daily-op-now-marker::before { content: ""; position: absolute; top: 21px; bottom: 0; left: 0; border-left: 1.5px solid var(--accent); }

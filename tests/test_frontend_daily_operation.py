@@ -179,3 +179,11 @@ def test_unmeasured_quarter_has_one_action_row_and_no_raw_source():
             "dailyOperationRuntimeMeasured:",
         ):
             assert key in block, (language, key)
+
+
+def test_grid_price_label_exists_in_every_language():
+    panel = PANEL.read_text(encoding="utf-8")
+
+    for label in ("Grid price", "Precio de red", "Preu de xarxa", "Netzpreis", "Prix du réseau", "Netprijs"):
+        assert f'dailyOperationPrice: "{label}"' in panel
+    assert 'rows.push(row(this._t("dailyOperationPrice"), this._dailyOperationFormatPrice(item.price)))' in panel

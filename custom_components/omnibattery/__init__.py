@@ -2291,6 +2291,21 @@ class ChargeDischargeController:
         )
 
 
+    def _daily_operation_update_prices(self, manager, current: datetime) -> None:
+        """Give the timeline the grid price of today and the extended horizon."""
+        update = getattr(manager, "update_prices", None)
+        pricing = getattr(self, "_pricing_mgr", None)
+        if not callable(update) or pricing is None:
+            return
+        if getattr(self, "predictive_charging_mode", None) != PREDICTIVE_MODE_DYNAMIC_PRICING:
+            update([])
+            return
+        day_start = datetime.combine(current.date(), datetime.min.time())
+        try:
+            update(pricing.price_slots_between(day_start, day_start + timedelta(hours=36)))
+        except Exception:  # noqa: BLE001 - display data must not block the projection
+            _LOGGER.debug("Daily operation timeline price update failed", exc_info=True)
+
     def _refresh_daily_operation_timeline(
         self, *, now: datetime | None = None, force_projection: bool = False
     ) -> None:
@@ -2377,6 +2392,9 @@ class ChargeDischargeController:
             )
             projection = None
             if should_project:
+                ChargeDischargeController._daily_operation_update_prices(
+                    self, manager, current
+                )
                 projection = self._daily_operation_build_projection(current)
                 self._daily_operation_last_projection_signature = projection_signature
                 self._daily_operation_last_projection_monotonic = monotonic_now
