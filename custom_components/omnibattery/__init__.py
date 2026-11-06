@@ -6018,12 +6018,14 @@ class ChargeDischargeController:
         the slot's quota as it was, and the count with it.
         """
         schedule = getattr(self, "_dynamic_pricing_schedule", None)
-        key = (slot.start, slot.end, id(schedule))
+        # The schedule object itself, not id(): a freed schedule's id can be
+        # reused by a later one and would inherit its count.
+        key = (slot.start, slot.end)
         state = getattr(self, "_slot_charge_baseline", None)
-        if not state or state[0] != key:
-            state = (key, {})
+        if not state or state[0] != key or state[1] is not schedule:
+            state = (key, schedule, {})
             self._slot_charge_baseline = state
-        baseline = state[1]
+        baseline = state[2]
         charged = 0.0
         for coordinator in getattr(self, "coordinators", None) or ():
             data = getattr(coordinator, "data", None)
