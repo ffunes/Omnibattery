@@ -5936,6 +5936,36 @@ class ChargeDischargeController:
             targets[coordinator] = target
         return targets or None
 
+    def _charged_in_slot(self, slot) -> float:
+        """Stored energy charged since ``slot`` started, from each battery's SOC then.
+
+        The targets are recomputed whenever the grid charge is re-initialised
+        in the middle of a slot (a battery missed a read, demand protection
+        paused the charge). Adding the slot's whole energy to the SOC reached by
+        then asked the batteries for more than the slot was planned for, and a
+        slot that had delivered its energy was then logged as not delivered.
+        """
+        key = (slot.start, slot.end)
+        state = getattr(self, "_slot_charge_baseline", None)
+        if not state or state[0] != key:
+            state = (key, {})
+            self._slot_charge_baseline = state
+        baseline = state[1]
+        charged = 0.0
+        for coordinator in getattr(self, "coordinators", None) or ():
+            data = getattr(coordinator, "data", None)
+            if not data:
+                continue
+            try:
+                soc = float(data.get("battery_soc"))
+                capacity = float(data.get("battery_total_energy") or 0.0)
+            except (TypeError, ValueError):
+                continue
+            # A battery first seen during the slot counts from then on.
+            start = baseline.setdefault(coordinator, soc)
+            charged += max(0.0, soc - start) / 100.0 * max(0.0, capacity)
+        return charged
+
     def _compute_predictive_target_soc(self, *, log: bool = True) -> Optional[dict]:
         """Return the SOC target authorized by the active typed price slot.
 
@@ -5964,6 +5994,12 @@ class ChargeDischargeController:
             if active_slot is not None:
                 planned_kwh = schedule.slot_energy_targets_kwh.get(active_slot)
                 window_hours = max(0.0, (active_slot.end - now).total_seconds() / 3600.0)
+                if planned_kwh is not None:
+                    planned_kwh = max(
+                        0.0,
+                        float(planned_kwh)
+                        - ChargeDischargeController._charged_in_slot(self, active_slot),
+                    )
         deficit_targets = ChargeDischargeController._compute_deficit_target_soc(
             self, planned_kwh=planned_kwh, log=log, window_hours=window_hours
         )
