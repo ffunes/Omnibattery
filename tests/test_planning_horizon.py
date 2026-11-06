@@ -299,6 +299,62 @@ def test_notification_names_energy_deferred_to_tomorrow():
     assert "tomorrow" in message
 
 
+def test_extended_horizon_notification_labels_tomorrow_not_tonight():
+    """#721: a horizon ending at tomorrow's midnight was labelled "until
+    midnight", its whole-day overnight leg "until sunrise", and today's solar
+    plus tomorrow's forecast "Solar remaining today"."""
+    import asyncio
+
+    from custom_components.omnibattery.pricing import notifications
+
+    manager = _manager(_solar(8.0))
+
+    async def _decision(**kwargs):
+        return {
+            "should_charge": False,
+            "solar_forecast_kwh": kwargs["solar_forecast_override_kwh"],
+            "usable_energy_kwh": 5.0,
+            "avg_soc": 50.0,
+            "total_available_kwh": 30.0,
+            "energy_deficit_kwh": 0.0,
+        }
+
+    async def _average():
+        return 12.0
+
+    controller = manager._controller
+    controller._should_activate_grid_charging = _decision
+    controller._consumption_tracker.get_dynamic_base_consumption = _average
+    controller._daily_home_energy_date = None
+    controller._daily_home_energy_kwh = 0.0
+    controller._household_accumulator_date = None
+    manager._remaining_solar_today_kwh = lambda _now: 0.0
+
+    def _message(decision):
+        return notifications.format_predictive_notification_message(
+            decision,
+            max_contracted_power=3000,
+            max_charge_capacity=3000,
+            charging_time_slot=None,
+        )[1]
+
+    message = _message(
+        asyncio.run(manager._evaluate_remaining_grid_charging(now=NOW, horizon_end=CAP))
+    )
+    assert "remaining until tomorrow midnight: 14.00 kWh" in message
+    assert "🌙 Of which tomorrow (00:00-24:00): 12.00 kWh" in message
+    assert "Solar remaining today: 0.00 kWh" in message
+    assert "Solar tomorrow: 8.00 kWh" in message
+    assert "until sunrise" not in message
+    assert "Sufficient energy for the rest of today and tomorrow" in message
+
+    # The unextended horizon ends at tonight's midnight: wording unchanged.
+    message = _message(asyncio.run(manager._evaluate_remaining_grid_charging(now=NOW)))
+    assert "remaining until midnight: 2.00 kWh" in message
+    assert "Solar tomorrow" not in message
+    assert "Sufficient energy for the rest of today\n" in message
+
+
 def test_extended_planning_end_is_none_until_tomorrow_is_planable():
     manager = _manager(_solar(5.0))
     manager.get_future_price_slots = lambda horizon_end=None: _tonight(0.10)

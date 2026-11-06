@@ -5055,10 +5055,11 @@ class PricingManager:
         # sun; the plan builder adds the same dated periods to the unextended
         # input kept in the decision, so the two stay equal.
         balance_solar_kwh = remaining_solar_kwh
+        planning_extended = horizon_end > self.energy_horizon_end(now)
         if (
             solar_forecast_input is not None
             and solar_forecast_input.periods
-            and horizon_end > self.energy_horizon_end(now)
+            and planning_extended
         ):
             balance_solar_kwh += solar_forecast_period_energy_between(
                 solar_forecast_input.periods,
@@ -5106,6 +5107,13 @@ class PricingManager:
         )
         decision["energy_horizon_end"] = horizon_end
         decision["overnight_consumption_kwh"] = overnight_consumption_kwh
+        # An extended planning horizon (#710) covers all of tomorrow, so a 00:00
+        # end is tomorrow's midnight and the overnight leg is a whole day; the
+        # notification needs this to label the figures (#721).
+        decision["planning_horizon_extended"] = planning_extended
+        decision["tomorrow_solar_kwh"] = max(
+            0.0, balance_solar_kwh - remaining_solar_kwh
+        )
         return decision
 
     async def _current_horizon_grid_charging_decision(
