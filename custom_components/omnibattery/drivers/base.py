@@ -196,6 +196,26 @@ def has_connected_mppt_pv(coordinator) -> bool:
     )
 
 
+def has_solar_production_source(controller) -> bool:
+    """True when production is actually measured, not merely accumulated.
+
+    The daily accumulator is rolled over at midnight whether or not any
+    source feeds it, so its date says nothing about whether a reading ever
+    arrives. Without a source it stays at 0.0 all day.
+    """
+    if getattr(controller, "solar_production_sensor", None):
+        return True
+    return any(
+        has_connected_mppt_pv(coordinator)
+        or getattr(
+            getattr(coordinator, "capabilities", None),
+            "has_solar_telemetry",
+            False,
+        )
+        for coordinator in getattr(controller, "coordinators", None) or ()
+    )
+
+
 @dataclass(frozen=True)
 class SetpointResult:
     """Outcome of an :meth:`BatteryDriver.apply_setpoint` call.

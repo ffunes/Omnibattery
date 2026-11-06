@@ -288,6 +288,25 @@ def provider_weights(
     return weights, None
 
 
+def provider_energy_between(
+    periods: Sequence[SolarForecastPeriod] | None, start: datetime, end: datetime
+) -> float | None:
+    """Energy the provider's periods put between ``start`` and ``end``, or None."""
+    if not periods:
+        return None
+    coerced = [_coerce_period(period) for period in periods]
+    if any(period is None for period in coerced):
+        return None
+    b_start, b_end = _timestamp(start), _timestamp(end)
+    energy = 0.0
+    for period in coerced:
+        p_start, p_end = _timestamp(period.start), _timestamp(period.end)
+        overlap = _overlap(b_start, b_end, p_start, p_end)
+        if overlap:
+            energy += period.energy_kwh * overlap / (p_end - p_start)
+    return energy
+
+
 def legacy_shape_weights(
     boundaries: Sequence[tuple[datetime, datetime]],
     shape: Sequence[float] | None,

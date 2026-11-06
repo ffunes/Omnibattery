@@ -32,6 +32,7 @@ from time import monotonic
 from typing import TYPE_CHECKING, Any
 
 from ..const import CHARGE_EFFICIENCY, PREDICTIVE_MODE_DYNAMIC_PRICING
+from ..drivers.base import has_solar_production_source
 from ..pricing.curtailment import BatterySnapshot, distribute_solar_forecast
 from ..pricing.discharge_reserve import (
     ReservePlan,
@@ -46,7 +47,7 @@ from ..pricing.discharge_reserve import (
     reserve_soc_pct as _reserve_soc_pct,
     usable_energy_kwh,
 )
-from ..pricing.solar_timeline import provider_weights
+from ..pricing.solar_timeline import provider_energy_between, provider_weights
 from ..solar_forecast import solar_forecast_local_timezone
 
 if TYPE_CHECKING:
@@ -83,6 +84,13 @@ RESERVE_SOC_TOLERANCE_PCT = 1e-6
 # battery anyway, and read as if the uncertainty had been accounted for.
 SURPLUS_CREDIT_FACTOR = 0.75
 
+# Today's remaining sun follows what the panels have produced so far against
+# what the provider expected by now, once it expected enough to judge, clamped
+# so that a morning of fog cannot write the whole afternoon off.
+MEASURED_SOLAR_MIN_EXPECTED_KWH = 0.3
+MEASURED_SOLAR_RATIO_MIN = 0.25
+MEASURED_SOLAR_RATIO_MAX = 1.5
+
 # Pre-discharge deliberately empties the battery before a curtailment window,
 # and peak shaving deliberately spends it on a spike. Holding energy back
 # against either would import at exactly the moment they exist to avoid.
@@ -100,6 +108,8 @@ class DischargeReserveManager:
         # Date the sun was last seen covering the house, so the horizon does not
         # flip back to a morning slot when a refreshed forecast dips later on.
         self._sun_took_over_on = None
+        # Measured over expected solar so far today, None when not judged.
+        self._measured_solar_ratio_value: float | None = None
         self._last_rebuild_mono: float | None = None
         # This cycle's reserve per battery, from reserve_soc_pct().
         self._battery_pct: dict[Any, float] = {}
@@ -372,7 +382,10 @@ class DischargeReserveManager:
         if self._sun_took_over_on == now.date():
             return day_end
         covered = first_sun_covered_start(day_slots, consumption, solar)
-        if covered is not None and covered <= now:
+        if covered is not None and covered <= now and self._sun_covers_now() is not False:
+            # Latched only once the panels agree: on 5 Nov the forecast's slot
+            # passed at 10:03 while the house still imported, and the sun had
+            # not covered it by 10:45. Until then a later refresh may move it.
             self._sun_took_over_on = now.date()
         if covered is None or covered <= now:
             return day_end
@@ -586,12 +599,15 @@ class DischargeReserveManager:
             # future slots alone; a whole-day figure keeps its cumulative share,
             # or the evening would be credited with the morning's production and
             # the reserve would silently never engage.
-            solar = self._follow_provider_curve(
-                distribute_solar_forecast(
-                    slots,
-                    float(forecast_kwh),
-                    fraction_fn,
-                    normalize_future=self._forecast_is_remaining(pricing),
+            solar = self._follow_measured_production(
+                self._follow_provider_curve(
+                    distribute_solar_forecast(
+                        slots,
+                        float(forecast_kwh),
+                        fraction_fn,
+                        normalize_future=self._forecast_is_remaining(pricing),
+                    ),
+                    now,
                 ),
                 now,
             )
@@ -678,6 +694,77 @@ class DischargeReserveManager:
             for slot, weight in zip(day_slots, weights):
                 shaped[slot] = budget * weight / total
         return shaped
+
+    def _follow_measured_production(self, solar: dict, now: datetime) -> dict:
+        """Scale today's remaining sun by how the panels have done so far.
+
+        The provider's level can be far off for a whole day: on 5 Nov the
+        panels made about half of it all morning, so the sun-covered slot came
+        hours early and the credit paid off claims the sun never met. Today's
+        slots still ahead take the measured share; tomorrow keeps the forecast.
+        """
+        ratio = self._measured_solar_ratio(now)
+        self._measured_solar_ratio_value = ratio
+        if ratio is None or not solar:
+            return solar
+        timezone = solar_forecast_local_timezone(self._hass, self._controller, now)
+        today = now.astimezone(timezone).date() if now.tzinfo else now.date()
+
+        def local_date(value: datetime):
+            return value.astimezone(timezone).date() if value.tzinfo else value.date()
+
+        return {
+            slot: (
+                float(kwh or 0.0) * ratio
+                if slot.end > now and local_date(slot.start) == today
+                else kwh
+            )
+            for slot, kwh in solar.items()
+        }
+
+    def _measured_solar_ratio(self, now: datetime) -> float | None:
+        """Today's measured solar over what the provider expected by ``now``.
+
+        None unless something measures production: without a source the daily
+        accumulator still rolls over at midnight and reads 0.0 all day, which
+        would cut the remaining sun to the lower clamp for good.
+
+        Curtailment (battery full, an export limit) and a restart during the day
+        also lower the ratio, without the sky being duller; the lower clamp
+        bounds how far that can cut the remaining sun.
+        """
+        controller = self._controller
+        periods = getattr(controller, "solar_forecast_periods", None)
+        if not periods or not has_solar_production_source(controller):
+            return None
+        if getattr(controller, "_daily_solar_energy_date", None) != now.date():
+            return None
+        try:
+            measured = float(getattr(controller, "_daily_solar_energy_kwh", None))
+        except (TypeError, ValueError):
+            return None
+        timezone = solar_forecast_local_timezone(self._hass, self._controller, now)
+        local_now = now.astimezone(timezone) if now.tzinfo else now.replace(tzinfo=timezone)
+        midnight = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        expected = provider_energy_between(periods, midnight, local_now)
+        if expected is None or expected < MEASURED_SOLAR_MIN_EXPECTED_KWH or measured < 0:
+            return None
+        return min(MEASURED_SOLAR_RATIO_MAX, max(MEASURED_SOLAR_RATIO_MIN, measured / expected))
+
+    def _sun_covers_now(self) -> bool | None:
+        """Whether the panels carry the house right now, None if unmeasured."""
+        tracker = getattr(self._controller, "_consumption_tracker", None)
+        if tracker is None:
+            return None
+        try:
+            solar_kw = tracker._read_total_solar_power_kw()
+            home_kw = tracker.get_validated_home_power_kw()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Discharge reserve: measured solar or load unreadable: %s", err)
+            return None
+        if solar_kw is None or home_kw is None:
+            return None
+        return float(solar_kw) >= float(home_kw)
 
     def _hold_plan_state(self, now: datetime) -> tuple[set, set] | None:
         """Return ``(slots the hold planned, slots it selected)``, or None.
@@ -789,6 +876,11 @@ class DischargeReserveManager:
                     "pv_credit_kwh": round(plan.pv_credit_kwh, 3),
                     "horizon_demand_kwh": round(plan.horizon_demand_kwh, 3),
                     "horizon_surplus_kwh": round(plan.horizon_surplus_kwh, 3),
+                    "measured_solar_ratio": (
+                        None
+                        if self._measured_solar_ratio_value is None
+                        else round(self._measured_solar_ratio_value, 3)
+                    ),
                     "horizon_end": (
                         plan.horizon_end.isoformat() if plan.horizon_end else None
                     ),
