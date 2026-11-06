@@ -2614,6 +2614,8 @@ class MarstekVenusPanel extends HTMLElement {
       `<span class="daily-op-legend-item daily-op-legend-hourly-balance"><i class="daily-op-swatch daily-op-swatch-hourly-balance"></i>${this._t("dailyOperationHourlyBalance")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-discharge"></i>${this._t("dailyOperationDischarge")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-not-needed"></i>${this._t("dailyOperationNotNeeded")}</span>` +
+      // The areas on one row, the lines on the next.
+      `<span class="daily-op-legend-break" aria-hidden="true"></span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-solar"></i>${this._t("dailyOperationSolar")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-consumption"></i>${this._t("dailyOperationConsumption")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-soc"></i>${this._t("dailyOperationSoc")}</span>` +
@@ -7543,7 +7545,8 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-operation-card[hidden], .daily-operation-card [hidden] { display: none !important; }
       .daily-op-description { font-size: 12px; line-height: 1.45; margin: -7px 0 12px; }
       .daily-op-toolbar { display: flex; align-items: center; gap: 12px; min-width: 0; margin-bottom: 9px; }
-      .daily-op-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+      .daily-op-legend { display: flex; align-items: center; gap: 12px; row-gap: 6px; flex-wrap: wrap; min-width: 0; }
+      .daily-op-legend-break { flex-basis: 100%; height: 0; }
       .daily-op-legend-item { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-mid); font-size: 11px; white-space: nowrap; }
       .daily-op-swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--line-strong); border-radius: 3px; }
       .daily-op-swatch-solar-window { background: color-mix(in oklab, var(--daily-op-solar-window) var(--daily-op-shade-opacity), transparent); }
