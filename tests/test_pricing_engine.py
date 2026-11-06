@@ -2474,7 +2474,8 @@ def test_official_nordpool_refresh_requests_today_and_selected_area(monkeypatch)
     asyncio.run(manager._maybe_refresh_nordpool_prices(force=True))
     asyncio.run(manager._maybe_refresh_nordpool_prices())
 
-    assert len(services.calls) == 1
+    # One refresh asks for today and tomorrow; the second call is cached.
+    assert len(services.calls) == 2
     domain, service, data = services.calls[0]
     assert (domain, service) == ("nordpool", "get_prices_for_date")
     assert data == {
@@ -2482,6 +2483,8 @@ def test_official_nordpool_refresh_requests_today_and_selected_area(monkeypatch)
         "date": dt_util.now().date(),
         "areas": ["ES"],
     }
+    assert services.calls[1][2]["date"] == dt_util.now().date() + timedelta(days=1)
+    # The fake echoes the same slot for both days; it must not be duplicated.
     assert len(ctrl._nordpool_price_slots) == 1
     assert ctrl._nordpool_price_slots[0].price == 0.12345
     assert manager._get_current_price() == 0.12345
@@ -2500,9 +2503,102 @@ def test_official_nordpool_refresh_requests_today_and_selected_area(monkeypatch)
     }
     asyncio.run(manager._maybe_refresh_nordpool_prices())
 
-    assert len(services.calls) == 2
-    assert services.calls[1][2]["areas"] == ["FR"]
+    assert len(services.calls) == 4
+    assert services.calls[2][2]["areas"] == ["FR"]
     assert ctrl._nordpool_price_slots[0].price == 0.2
+
+
+class _FakeNordPoolTwoDayServices:
+    """Answers per delivery date; ``tomorrow`` None raises like an unpublished day."""
+
+    def __init__(self, today, tomorrow):
+        self.today = today
+        self.tomorrow = tomorrow
+        self.calls: list = []
+
+    def has_service(self, domain, service):
+        return domain == "nordpool" and service == "get_prices_for_date"
+
+    async def async_call(self, domain, service, data, blocking=True, return_response=True):
+        from homeassistant.util import dt as dt_util
+
+        self.calls.append(data["date"])
+        if data["date"] == dt_util.now().date():
+            return self.today
+        if self.tomorrow is None:
+            raise ValueError("No data available for that date")
+        return self.tomorrow
+
+
+def _nordpool_entry(start, price):
+    return {
+        "start": start.isoformat(),
+        "end": (start + timedelta(hours=1)).isoformat(),
+        "price": price,
+    }
+
+
+def test_official_nordpool_refresh_includes_tomorrow_once_published(monkeypatch):
+    """An evening plan must see the cheaper post-midnight hours."""
+    import asyncio
+
+    midnight = datetime.now().replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ) + timedelta(days=1)
+    services = _FakeNordPoolTwoDayServices(
+        {"NL": [_nordpool_entry(midnight - timedelta(hours=1), 250.0)]},
+        {"NL": [_nordpool_entry(midnight + timedelta(hours=2), 80.0)]},
+    )
+    hass = SimpleNamespace(
+        services=services,
+        states=SimpleNamespace(get=lambda _entity_id: SimpleNamespace(attributes={})),
+    )
+    monkeypatch.setattr(
+        pricing_engine,
+        "resolve_official_nordpool_source",
+        lambda *_args: OfficialNordPoolSource("nordpool-entry", "NL"),
+    )
+    ctrl = _controller(
+        price_sensor="sensor.nord_pool_nl_current_price",
+        _nordpool_price_slots=[],
+        _nordpool_prices_fetched_at=None,
+    )
+    manager = PricingManager(hass, ctrl)
+
+    asyncio.run(manager._maybe_refresh_nordpool_prices(force=True))
+
+    assert [slot.price for slot in ctrl._nordpool_price_slots] == [0.25, 0.08]
+    horizon = manager._parse_price_data(horizon_end=midnight + timedelta(hours=8))
+    assert [slot.start for slot in horizon][-1] == midnight + timedelta(hours=2)
+
+
+def test_official_nordpool_refresh_keeps_today_when_tomorrow_unpublished(monkeypatch):
+    import asyncio
+
+    start = datetime.now().replace(minute=0, second=0, microsecond=0)
+    services = _FakeNordPoolTwoDayServices(
+        {"NL": [_nordpool_entry(start, 150.0)]},
+        None,
+    )
+    hass = SimpleNamespace(
+        services=services,
+        states=SimpleNamespace(get=lambda _entity_id: SimpleNamespace(attributes={})),
+    )
+    monkeypatch.setattr(
+        pricing_engine,
+        "resolve_official_nordpool_source",
+        lambda *_args: OfficialNordPoolSource("nordpool-entry", "NL"),
+    )
+    ctrl = _controller(
+        price_sensor="sensor.nord_pool_nl_current_price",
+        _nordpool_price_slots=[],
+        _nordpool_prices_fetched_at=None,
+    )
+
+    asyncio.run(PricingManager(hass, ctrl)._maybe_refresh_nordpool_prices(force=True))
+
+    assert len(services.calls) == 2
+    assert [slot.price for slot in ctrl._nordpool_price_slots] == [0.15]
 
 
 def test_hacs_nordpool_raw_today_does_not_call_official_service():

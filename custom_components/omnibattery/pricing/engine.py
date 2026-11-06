@@ -742,7 +742,7 @@ class PricingManager:
             _LOGGER.warning("Dynamic pricing: tibber.get_prices returned no usable slots")
 
     async def _maybe_refresh_nordpool_prices(self, *, force: bool = False) -> None:
-        """Poll the official Nord Pool service for today's prices when stale.
+        """Poll the official Nord Pool service for today's and tomorrow's prices.
 
         HACS Nordpool sensors keep using ``raw_today`` / ``raw_tomorrow`` and
         never enter this path. The official integration's entities only expose
@@ -773,21 +773,23 @@ class PricingManager:
         ):
             return
 
-        service_data: dict[str, Any] = {
-            "config_entry": source.config_entry_id,
-            "date": service_date,
-        }
-        if source.area:
-            service_data["areas"] = [source.area]
-
-        try:
-            response = await self._hass.services.async_call(
+        async def _fetch(date) -> dict:
+            service_data: dict[str, Any] = {
+                "config_entry": source.config_entry_id,
+                "date": date,
+            }
+            if source.area:
+                service_data["areas"] = [source.area]
+            return await self._hass.services.async_call(
                 NORDPOOL_DOMAIN,
                 NORDPOOL_GET_PRICES_SERVICE,
                 service_data,
                 blocking=True,
                 return_response=True,
             )
+
+        try:
+            response = await _fetch(service_date)
         except Exception as exc:
             _LOGGER.warning(
                 "Dynamic pricing: nordpool.get_prices_for_date call failed: %s",
@@ -797,6 +799,29 @@ class PricingManager:
 
         slots = calculations.parse_nordpool_service_prices(response or {}, source.area)
         if slots:
+            # The service answers one delivery day per call. Without tomorrow,
+            # an evening plan can only see slots before midnight and books
+            # today's remaining hours even when the night is cheaper. Tomorrow
+            # is published around 13:00 CET; before that the call fails or
+            # returns nothing, which is normal and retried on the next refresh.
+            try:
+                tomorrow_response = await _fetch(service_date + timedelta(days=1))
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Dynamic pricing: Nord Pool prices for tomorrow not available yet: %s",
+                    exc,
+                )
+                tomorrow_response = None
+            if tomorrow_response:
+                known = {slot.start for slot in slots}
+                slots.extend(
+                    slot
+                    for slot in calculations.parse_nordpool_service_prices(
+                        tomorrow_response, source.area
+                    )
+                    if slot.start not in known
+                )
+                slots.sort(key=lambda slot: slot.start)
             self._controller._nordpool_price_slots = slots
             self._controller._nordpool_prices_fetched_at = now
             self._controller._nordpool_price_source_key = source_key
