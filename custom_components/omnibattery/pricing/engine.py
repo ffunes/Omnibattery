@@ -1231,13 +1231,11 @@ class PricingManager:
         effective_horizon = horizon_end if horizon_end is not None else end_of_day
         return [s for s in raw_slots if s.end > now and s.start <= effective_horizon]
 
-    def _parse_price_data(self, *, horizon_end=None, quiet=False) -> list:
-        """Read price sensor and return list[PriceSlot] for remaining slots up to horizon_end.
+    def _raw_price_slots(self, *, quiet=False) -> tuple[list, str]:
+        """Return every parsed slot of the configured price source.
 
-        Dispatches to the correct parser based on price_integration_type.
-        When horizon_end is None, defaults to end of current day (today 23:59:59).
-        Returns empty list on error. When quiet=True, status logging is demoted to
-        debug so high-frequency callers do not spam the log.
+        The second item is the price-data status to report when the list is
+        empty. Nothing is filtered by time and no status is stored.
         """
         _warn = _LOGGER.debug if quiet else _LOGGER.warning
         official_nordpool = self._official_nordpool_source()
@@ -1247,37 +1245,57 @@ class PricingManager:
             raw_slots = list(self._controller._nordpool_price_slots)
             if not raw_slots:
                 _warn("Dynamic pricing: no official Nord Pool price data cached")
-                self._controller._price_data_status = "no_slots"
-                return []
-        elif self._controller.price_integration_type == PRICE_INTEGRATION_TIBBER:
+            return raw_slots, "no_slots"
+        if self._controller.price_integration_type == PRICE_INTEGRATION_TIBBER:
             # Service-based: use the cached slots refreshed by _maybe_refresh_tibber_prices.
             raw_slots = list(self._controller._tibber_price_slots)
             if not raw_slots:
                 _warn("Dynamic pricing: no Tibber price data cached")
-                self._controller._price_data_status = "no_slots"
-                return []
-        elif self._controller.price_integration_type == PRICE_INTEGRATION_ENERGYZERO:
+            return raw_slots, "no_slots"
+        if self._controller.price_integration_type == PRICE_INTEGRATION_ENERGYZERO:
             raw_slots = self._energyzero_price_slots(self._controller.price_sensor)
             if not raw_slots:
                 _warn("Dynamic pricing: no EnergyZero price data cached")
-                self._controller._price_data_status = "no_slots"
-                return []
-        elif not self._controller.price_sensor:
+            return raw_slots or [], "no_slots"
+        if not self._controller.price_sensor:
             _warn("Dynamic pricing: no price sensor configured")
-            self._controller._price_data_status = "no_sensor"
+            return [], "no_sensor"
+        self._last_sensor_parse_status = None
+        raw_slots = self._parse_sensor_price_slots(
+            self._controller.price_sensor,
+            self._controller.price_integration_type,
+            quiet=quiet,
+        )
+        return raw_slots or [], self._last_sensor_parse_status or "no_slots"
+
+    def price_slots_between(self, start: datetime, end: datetime) -> list:
+        """Return the price slots overlapping ``[start, end)``, past ones included.
+
+        For display (the daily operation chart): it reads the same source as
+        the planner, but leaves the price-data status and the log alone.
+        """
+        try:
+            raw_slots, _failure = self._raw_price_slots(quiet=True)
+        except Exception:  # noqa: BLE001 - display data must not break control
+            _LOGGER.debug("Price slots for display unavailable", exc_info=True)
             return []
-        else:
-            self._last_sensor_parse_status = None
-            raw_slots = self._parse_sensor_price_slots(
-                self._controller.price_sensor,
-                self._controller.price_integration_type,
-                quiet=quiet,
-            )
-            if not raw_slots:
-                self._controller._price_data_status = (
-                    self._last_sensor_parse_status or "no_slots"
-                )
-                return []
+        return sorted(
+            (slot for slot in raw_slots if slot.end > start and slot.start < end),
+            key=lambda slot: slot.start,
+        )
+
+    def _parse_price_data(self, *, horizon_end=None, quiet=False) -> list:
+        """Read price sensor and return list[PriceSlot] for remaining slots up to horizon_end.
+
+        Dispatches to the correct parser based on price_integration_type.
+        When horizon_end is None, defaults to end of current day (today 23:59:59).
+        Returns empty list on error. When quiet=True, status logging is demoted to
+        debug so high-frequency callers do not spam the log.
+        """
+        raw_slots, failure = self._raw_price_slots(quiet=quiet)
+        if not raw_slots:
+            self._controller._price_data_status = failure
+            return []
 
         # Filter to remaining slots within the requested horizon.
         filtered = self._filter_future_slots(raw_slots, horizon_end)

@@ -179,3 +179,20 @@ def test_unmeasured_quarter_has_one_action_row_and_no_raw_source():
             "dailyOperationRuntimeMeasured:",
         ):
             assert key in block, (language, key)
+
+
+def test_grid_price_label_exists_in_every_language():
+    panel = PANEL.read_text(encoding="utf-8")
+
+    for label in ("Grid price", "Precio de red", "Preu de xarxa", "Netzpreis", "Prix du réseau", "Netprijs"):
+        assert f'dailyOperationPrice: "{label}"' in panel
+    assert 'rows.push(row(this._t("dailyOperationPrice"), this._dailyOperationFormatPrice(item.price)))' in panel
+
+
+def test_the_legend_puts_the_lines_on_their_own_row():
+    panel = PANEL.read_text(encoding="utf-8")
+    not_needed = panel.index("daily-op-swatch-not-needed\"></i>")
+    row_break = panel.index('class="daily-op-legend-break"')
+    first_line = panel.index('daily-op-line daily-op-line-solar"></i>')
+    assert not_needed < row_break < first_line
+    assert ".daily-op-legend-break { flex-basis: 100%; height: 0; }" in panel

@@ -68,12 +68,15 @@ class DailyOperationProjectionRequest:
     operation_plan_source: str = "profile_projection"
     plan_evaluated_at: datetime | None = None
     extension_hours: int = 12
+    # (slot start, stored kWh) the discharge reserve keeps for each later slot.
+    reserve_claims: Sequence[tuple[datetime, float]] = ()
 
     def __post_init__(self) -> None:
         """Detach every collection from its controller-owned source."""
         object.__setattr__(self, "plan_intervals", tuple(self.plan_intervals))
         object.__setattr__(self, "allocations", tuple(self.allocations))
         object.__setattr__(self, "battery_inputs", tuple(self.battery_inputs))
+        object.__setattr__(self, "reserve_claims", tuple(self.reserve_claims))
         object.__setattr__(
             self,
             "decision_data",
@@ -243,6 +246,22 @@ def build_daily_operation_projection(
             else 0.0
         )
 
+    # The reserve keeps each claim's energy until its slot starts, so every
+    # interval leaves the claims of the slots after it in the battery.
+    reserve_claims = [
+        (start, _finite(kwh))
+        for start, kwh in request.reserve_claims
+        if isinstance(start, datetime) and _finite(kwh) > 0.0
+    ]
+    discharge_reserve_kwh = (
+        [
+            sum(kwh for start, kwh in reserve_claims if start >= interval.end)
+            for interval in projection_inputs
+        ]
+        if reserve_claims
+        else None
+    )
+
     result = simulate_battery_projection(
         projection_inputs,
         request.battery_inputs,
@@ -259,6 +278,7 @@ def build_daily_operation_projection(
             if request.weekly_full_charge_tomorrow
             else None
         ),
+        discharge_reserve_kwh=discharge_reserve_kwh,
         system_charge_power_w=request.system_charge_power_w,
         system_discharge_power_w=request.system_discharge_power_w,
     )
