@@ -5745,7 +5745,11 @@ class ChargeDischargeController:
         return self._check_time_window()
 
     def _compute_deficit_target_soc(
-        self, planned_kwh: float | None = None, *, log: bool = True
+        self,
+        planned_kwh: float | None = None,
+        *,
+        log: bool = True,
+        window_hours: float | None = None,
     ) -> Optional[dict]:
         """Calculate per-battery grid-only SOC targets for a forecast deficit.
 
@@ -5758,6 +5762,12 @@ class ChargeDischargeController:
           grid_charge   = max(0, total_gap - solar_surplus)
           share_i       = (gap_i / total_gap) × grid_charge
           target_soc_i  = min(max_soc_i, soc_i + share_i / capacity_i × 100)
+
+        With ``window_hours`` (what is left of a chronological slot), a share
+        is capped at what the battery can charge in that time and the rest
+        goes to the batteries with time to spare. Otherwise the one with the
+        smaller gap reached its share early and stopped, while the other could
+        not charge its larger share before the slot ended.
 
         Returns dict {coordinator: target_soc_%} or None if data is insufficient
         (callers fall back to max_soc behaviour when None is returned).
@@ -5817,6 +5827,12 @@ class ChargeDischargeController:
         ):
             floor_soc = float(getattr(self, "_predictive_min_soc_floor", 0.0) or 0.0)
 
+        shares = {c: (gaps[c] / total_gap_kwh) * grid_charge_kwh for c in gaps}
+        if window_hours is not None:
+            shares = ChargeDischargeController._shares_within_window(
+                self, gaps, grid_charge_kwh, window_hours
+            )
+
         targets: dict = {}
         for c in coordinators_with_data:
             capacity = c.data.get("battery_total_energy", 0) or 0
@@ -5825,7 +5841,7 @@ class ChargeDischargeController:
             if capacity <= 0:
                 targets[c] = ceiling
                 continue
-            share_kwh = (gaps[c] / total_gap_kwh) * grid_charge_kwh
+            share_kwh = shares[c]
             target = min(ceiling, current_soc + (share_kwh / capacity) * 100.0)
             if floor_soc:
                 target = min(ceiling, max(target, floor_soc))
@@ -5839,6 +5855,56 @@ class ChargeDischargeController:
             {c.name: f"{v:.1f}%" for c, v in targets.items()},
         )
         return targets
+
+    def _shares_within_window(
+        self, gaps: dict, grid_charge_kwh: float, window_hours: float
+    ) -> dict:
+        """Split ``grid_charge_kwh`` by gap, each share within what fits in time.
+
+        A battery's share is capped at what it charges in ``window_hours`` at
+        its present power limit (taper and temperature included), and the
+        excess goes to the others by gap. What no battery can take in time is
+        spread back over the gaps, so every battery then charges to the end of
+        the window and the slot's shortfall is still counted from the targets.
+        """
+        from .const import CHARGE_EFFICIENCY
+
+        total_gap_kwh = sum(gaps.values())
+        by_gap = {c: (gap / total_gap_kwh) * grid_charge_kwh for c, gap in gaps.items()}
+        caps: dict = {}
+        for c, gap in gaps.items():
+            try:
+                power_w = float(ChargeDischargeController._battery_power_limit(self, c, True))
+            except (AttributeError, TypeError, ValueError):
+                # Lightweight controller stand-ins: the plain split by gap.
+                return by_gap
+            caps[c] = min(gap, max(0.0, power_w) / 1000.0 * window_hours * CHARGE_EFFICIENCY)
+
+        shares = dict.fromkeys(gaps, 0.0)
+        remaining = grid_charge_kwh
+        open_batteries = {c for c in gaps if caps[c] > 0}
+        while remaining > 1e-9 and open_batteries:
+            weight = sum(gaps[c] for c in open_batteries)
+            full = [
+                c for c in open_batteries if remaining * gaps[c] / weight >= caps[c]
+            ]
+            if not full:
+                for c in open_batteries:
+                    shares[c] += remaining * gaps[c] / weight
+                remaining = 0.0
+                break
+            for c in full:
+                shares[c] = caps[c]
+                remaining -= caps[c]
+                open_batteries.discard(c)
+
+        if remaining > 1e-9:
+            room = {c: gaps[c] - shares[c] for c in gaps}
+            total_room = sum(room.values())
+            if total_room > 0:
+                for c in gaps:
+                    shares[c] += min(room[c], remaining * room[c] / total_room)
+        return shares
 
     def _compute_opportunistic_target_soc(self) -> Optional[dict]:
         """Return each battery's charge ceiling as the opportunity ceiling."""
@@ -5881,6 +5947,7 @@ class ChargeDischargeController:
         # Call the helpers through the class so this method remains usable in
         # the lightweight controller stand-ins used by the planning tests.
         planned_kwh = None
+        window_hours = None
         if getattr(self, "predictive_charging_mode", None) == PREDICTIVE_MODE_TIME_SLOT:
             planned_kwh = getattr(self, "_active_time_slot_quota_kwh", None)
         schedule = getattr(self, "_dynamic_pricing_schedule", None)
@@ -5896,8 +5963,9 @@ class ChargeDischargeController:
             )
             if active_slot is not None:
                 planned_kwh = schedule.slot_energy_targets_kwh.get(active_slot)
+                window_hours = max(0.0, (active_slot.end - now).total_seconds() / 3600.0)
         deficit_targets = ChargeDischargeController._compute_deficit_target_soc(
-            self, planned_kwh=planned_kwh, log=log
+            self, planned_kwh=planned_kwh, log=log, window_hours=window_hours
         )
         self._predictive_deficit_target_soc = (
             deficit_targets
