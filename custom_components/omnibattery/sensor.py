@@ -1,6 +1,8 @@
 """Sensor platform for the Omnibattery integration."""
 from __future__ import annotations
 
+from .infra.system_identity import scope_system_entities
+
 import inspect
 import logging
 import math
@@ -300,7 +302,7 @@ async def async_setup_entry(
 
 
 
-    async_add_entities(entities)
+    async_add_entities(scope_system_entities(hass, entry, entities))
 
     # Balance monitor sensors (registered separately so they get their own setup call)
     from .sensors import balance_sensors as _balance_sensors
