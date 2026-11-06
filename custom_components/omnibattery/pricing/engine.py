@@ -5568,6 +5568,8 @@ class PricingManager:
                 # Per-slot energy only for part of the plan would weigh the
                 # rest at zero, so fall back to full power for every slot.
                 cost_energy = {}
+                # Clear the stored copy too: the slot-prune recompute reads it.
+                schedule.slot_cost_energy_kwh = {}
             elif cost_energy:
                 cost_energy = {**cost_energy, **selected_energy_kwh}
                 schedule.slot_cost_energy_kwh = cost_energy
