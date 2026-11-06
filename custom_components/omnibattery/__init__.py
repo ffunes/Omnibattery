@@ -2287,9 +2287,73 @@ class ChargeDischargeController:
                 system_discharge_power_w=system_discharge_power_w,
                 operation_plan_source=operation_plan_source,
                 plan_evaluated_at=evaluated_at,
+                reserve_claims=ChargeDischargeController._daily_operation_reserve_claims(
+                    self, now
+                ),
             )
         )
 
+    def _daily_operation_reserve_claims(
+        self, now: datetime
+    ) -> tuple[tuple[datetime, float], ...]:
+        """What the discharge reserve keeps for each later slot, for the projection.
+
+        The reserve holds stored energy back for dearer slots ahead. Without
+        its claims the projection spends that energy in the cheaper hours first,
+        so the planned discharge and SOC show what the battery will not do. Each
+        claim keeps its energy net of the sun expected to pay for it, and all of
+        them together no more than the reserve currently holds.
+        """
+        manager = getattr(self, "_discharge_reserve_mgr", None)
+        get_status = getattr(manager, "get_status", None)
+        if not callable(get_status):
+            return ()
+        try:
+            status = get_status() or {}
+        except Exception:  # noqa: BLE001 - dashboard projection is optional
+            return ()
+        if status.get("state") != "reserving":
+            return ()
+        claims: list[tuple[datetime, float]] = []
+        for claim in status.get("claims") or ():
+            try:
+                start = datetime.fromisoformat(str(claim["start"]))
+                kwh = float(claim.get("claimed_kwh") or 0.0) - float(
+                    claim.get("pv_credit_kwh") or 0.0
+                )
+            except (KeyError, TypeError, ValueError, AttributeError):
+                continue
+            if not math.isfinite(kwh) or kwh <= 0.0:
+                continue
+            if now.tzinfo is None:
+                start = start.replace(tzinfo=None)
+            elif start.tzinfo is None:
+                start = start.replace(tzinfo=now.tzinfo)
+            else:
+                start = start.astimezone(now.tzinfo)
+            claims.append((start, kwh))
+        total = sum(kwh for _start, kwh in claims)
+        held = self._daily_operation_float(status.get("reserve_kwh"), 0.0)
+        if total <= 0.0 or held <= 0.0:
+            return ()
+        scale = min(1.0, held / total)
+        return tuple((start, kwh * scale) for start, kwh in claims)
+
+
+    def _daily_operation_update_prices(self, manager, current: datetime) -> None:
+        """Give the timeline the grid price of today and the extended horizon."""
+        update = getattr(manager, "update_prices", None)
+        pricing = getattr(self, "_pricing_mgr", None)
+        if not callable(update) or pricing is None:
+            return
+        if getattr(self, "predictive_charging_mode", None) != PREDICTIVE_MODE_DYNAMIC_PRICING:
+            update([])
+            return
+        day_start = datetime.combine(current.date(), datetime.min.time())
+        try:
+            update(pricing.price_slots_between(day_start, day_start + timedelta(hours=36)))
+        except Exception:  # noqa: BLE001 - display data must not block the projection
+            _LOGGER.debug("Daily operation timeline price update failed", exc_info=True)
 
     def _refresh_daily_operation_timeline(
         self, *, now: datetime | None = None, force_projection: bool = False
@@ -2377,6 +2441,9 @@ class ChargeDischargeController:
             )
             projection = None
             if should_project:
+                ChargeDischargeController._daily_operation_update_prices(
+                    self, manager, current
+                )
                 projection = self._daily_operation_build_projection(current)
                 self._daily_operation_last_projection_signature = projection_signature
                 self._daily_operation_last_projection_monotonic = monotonic_now

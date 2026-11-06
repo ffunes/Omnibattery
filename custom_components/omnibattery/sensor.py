@@ -1592,6 +1592,7 @@ def _timeline_horizon(value: object) -> dict[str, object]:
         ("duration_s", _timeline_number, 0.0),
         ("dst_skipped", _timeline_bool, False),
         ("dst_repeated", _timeline_bool, False),
+        ("price_per_kwh", _timeline_number, None),
     ):
         raw = value.get(key)
         if not isinstance(raw, (list, tuple)):
@@ -2045,6 +2046,11 @@ def _daily_operation_timeline_attributes(controller: object) -> dict[str, object
             "consumption_actual_coverage_s": _timeline_array(
                 _timeline_find(source, ("consumption_actual_coverage_s",), series),
                 _timeline_energy,
+                None,
+            ),
+            "price_per_kwh": _timeline_array(
+                _timeline_find(source, ("price_per_kwh",), series),
+                _timeline_number,
                 None,
             ),
         },

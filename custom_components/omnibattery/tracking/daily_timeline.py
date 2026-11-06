@@ -1270,6 +1270,8 @@ class DailyOperationTimelineManager:
         self._planned_solar_kwh = [None] * INTERVAL_COUNT
         self._planned_consumption_kwh = [None] * INTERVAL_COUNT
         self._planned_stored_energy_end_kwh = [None] * INTERVAL_COUNT
+        self._price_per_kwh = [None] * INTERVAL_COUNT
+        self._extended_price_per_kwh = [None] * EXTENDED_INTERVAL_COUNT
         self._extended_projection = []
         self._current_index = 0
         self._current_progress = 0.0
@@ -1291,6 +1293,52 @@ class DailyOperationTimelineManager:
             "consumption_fallback_reason": None,
             "operation_plan": None,
         }
+
+    def update_prices(self, slots: Any) -> bool:
+        """Store the grid price of each interval, today and the extended horizon.
+
+        ``slots`` are price slots with local ``start``/``end`` and ``price``;
+        an interval takes the price of the slot it starts in. Display only:
+        prices are not persisted and are read again on the next refresh.
+        Returns whether anything changed.
+        """
+        tz = self._timezone()
+
+        def wall(value: Any) -> datetime | None:
+            if not isinstance(value, datetime):
+                return None
+            if value.tzinfo is not None:
+                value = value.astimezone(tz).replace(tzinfo=None)
+            return value
+
+        ranges = []
+        for slot in slots or ():
+            start = wall(getattr(slot, "start", None))
+            end = wall(getattr(slot, "end", None))
+            price = _finite_float(getattr(slot, "price", None))
+            if start is not None and end is not None and end > start and price is not None:
+                ranges.append((start, end, round(price, 5)))
+        ranges.sort(key=lambda item: item[0])
+
+        def prices_for(day: date, count: int) -> list[float | None]:
+            values: list[float | None] = []
+            for index in range(count):
+                hour, quarter = divmod(index, 4)
+                at = datetime.combine(day, time(hour, quarter * INTERVAL_MINUTES))
+                values.append(
+                    next((price for start, end, price in ranges if start <= at < end), None)
+                )
+            return values
+
+        today = prices_for(self._local_date, INTERVAL_COUNT)
+        extended = prices_for(self._local_date + timedelta(days=1), EXTENDED_INTERVAL_COUNT)
+        if today == self._price_per_kwh and extended == self._extended_price_per_kwh:
+            return False
+        self._price_per_kwh = today
+        self._extended_price_per_kwh = extended
+        self._mark_public_change("prices")
+        self._notify_listeners()
+        return True
 
     def _clear_projection(self) -> None:
         """Discard forecast data while retaining measured current-day evidence."""
@@ -3090,6 +3138,7 @@ class DailyOperationTimelineManager:
             "duration_s": [item["duration_s"] for item in extended_grid],
             "dst_skipped": [item["dst_skipped"] for item in extended_grid],
             "dst_repeated": [item["dst_repeated"] for item in extended_grid],
+            "price_per_kwh": list(self._extended_price_per_kwh),
         }
         actual_samples = [
             {
@@ -3229,6 +3278,7 @@ class DailyOperationTimelineManager:
                     round(value, 3) for value in self._actual_consumption_coverage_s
                 ],
                 "actual_samples": actual_samples,
+                "price_per_kwh": list(self._price_per_kwh),
             },
             "operations": {
                 "actual_action_mask": actual_masks,

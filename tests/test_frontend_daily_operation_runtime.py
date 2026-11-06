@@ -59,7 +59,7 @@ ref.viewport.scrollLeft = 0;
 ref.scrollState = { manual: false, initialized: false, programmaticUntil: 0 };
 ref.cells = Array.from({ length: 144 }, node);
 ref.paths = Object.fromEntries(
-  'solarActual solarForecast consumptionActual consumptionForecast socActual socForecast'
+  'solarActual solarForecast consumptionActual consumptionForecast socActual socForecast price'
     .split(' ').map(key => [key, node()])
 );
 panel._r = { dailyOperation: ref };
@@ -302,3 +302,23 @@ def test_current_forecast_never_becomes_an_observed_action():
     assert result["cells"][1]["className"] == "daily-op-cell daily-op-base-neutral"
     assert result["items"][2]["actions"] == ["grid"]
     assert "Plan: Grid charge" in result["cells"][2]["aria"]
+
+
+def test_grid_price_shows_in_the_cell_and_as_a_stepped_line():
+    result = _run(
+        {
+            "price_per_kwh": _series(**{"7": 0.25, "8": 0.3125, "9": -0.01}),
+            "extended_horizon": {"price_per_kwh": [0.4] + [None] * 47},
+        }
+    )
+    assert [item["price"] for item in result["items"]] == [0.25, 0.3125, -0.01, 0.4]
+    assert "Grid price: 0.313 /kWh" in result["cells"][1]["aria"]
+    # Each price holds for its whole interval: two points per interval.
+    assert result["paths"]["price"].startswith("M70,")
+    assert "L80," in result["paths"]["price"]
+
+
+def test_no_price_data_draws_no_price_line():
+    result = _run({"actual_action_mask": _series(**{"8": 2})})
+    assert [item["price"] for item in result["items"]] == [None] * 4
+    assert result["paths"]["price"] == ""
