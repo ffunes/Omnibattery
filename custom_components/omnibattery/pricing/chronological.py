@@ -400,8 +400,9 @@ def allocate_price_slots(
     therefore only served by a slot that ends at or after the last hour left
     to the grid before it, unless ``reserve_holds`` (the discharge reserve
     keeps the energy for dearer hours until the sun covers the house) and the
-    deadline comes before that. On a day the sun never covers the house the
-    reserve holds a charge made after midnight to that day's evening.
+    deadline comes before that. On a day with forecast solar that never covers
+    the house the reserve holds a charge made after midnight to that day's
+    evening.
     """
     def ceiling_of(slot: PriceSlot) -> float | None:
         if slot_ceilings is not None:
@@ -542,6 +543,11 @@ def allocate_price_slots(
         else []
     )
     held_until = sun_covers[0] if sun_covers else None
+    forecast_days = {
+        interval.start.date()
+        for interval in intervals
+        if interval.solar_kwh > _EPSILON
+    }
 
     def held_through_the_day(slot: PriceSlot, deadline: datetime) -> bool:
         # A day the sun never covers the house has no surplus to refill the
@@ -549,7 +555,13 @@ def allocate_price_slots(
         # charge after midnight is held to a deadline later the same day, as
         # long as the sun does not take over in between. A charge before
         # midnight is not: until then the reserve plans only to sunrise.
-        if not reserve_holds or slot.start.date() != deadline.date():
+        # Without any forecast solar that day the reserve has nothing to go on
+        # and also plans only to sunrise, so nothing is carried either.
+        if (
+            not reserve_holds
+            or slot.start.date() != deadline.date()
+            or deadline.date() not in forecast_days
+        ):
             return False
         return not any(slot.start <= cover < deadline for cover in sun_covers)
 
