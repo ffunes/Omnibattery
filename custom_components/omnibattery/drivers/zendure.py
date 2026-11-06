@@ -108,6 +108,8 @@ _AGGREGATE_PV_MODELS: frozenset[str] = frozenset({
     ZENDURE_MODEL_SOLARFLOW_800,
     ZENDURE_MODEL_SOLARFLOW_800_PLUS,
     ZENDURE_MODEL_SOLARFLOW_800_PRO,
+    # SolarFlow 2400 Pro has DC PV inputs reported as solarInputPower (#630).
+    ZENDURE_MODEL_2400AC_PRO,
 })
 
 # Zendure API property name → logical coordinator key.

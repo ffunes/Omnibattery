@@ -21,6 +21,7 @@ from custom_components.omnibattery.drivers.zendure import (
     ZENDURE_MODEL_SOLARFLOW_800_PRO,
     ZENDURE_MODEL_1600AC_PLUS,
     ZENDURE_MODEL_2400AC_PLUS,
+    ZENDURE_MODEL_2400AC_PRO,
     ZENDURE_MODEL_3000MIX_AC_PLUS,
     ZENDURE_MODEL_4000MIX_AC_PLUS,
     ZENDURE_MODEL_4000MIX_PRO,
@@ -295,6 +296,16 @@ def test_non_800_models_do_not_report_aggregate_pv(model):
     caps = ZendureLocalDriver("192.168.1.100", model=model).capabilities
 
     assert caps.has_solar_telemetry is False
+
+
+def test_solarflow_2400_pro_reports_aggregate_pv():
+    """#630: the 2400 Pro's solarInputPower counts toward system solar."""
+    driver = ZendureLocalDriver("192.168.1.100", model=ZENDURE_MODEL_2400AC_PRO)
+    caps = driver.capabilities
+
+    assert caps.has_solar_telemetry is True
+    assert caps.has_mppt_pv is False
+    assert "solar_power" in {d["key"] for d in driver.sensor_definitions}
 
 
 @pytest.mark.parametrize(("product", "model"), [
