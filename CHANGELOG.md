@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Daily operation chart shows the grid price**: with Dynamic Pricing, each interval's tooltip lists its import price, and a stepped grey line draws the price over the day and after midnight, scaled to the visible range (named in the legend). The price comes from the configured price source, past intervals included. Thanks to @anorakophobia.
+- **Daily operation chart shows the grid price**: with Dynamic Pricing, each interval's tooltip lists its import price, and a stepped grey line draws the price over the day and after midnight, scaled to the visible range, with its high and low labelled at the right edge. The price comes from the configured price source, past intervals included. Thanks to @anorakophobia.
 
 ### Changed
 

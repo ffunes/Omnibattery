@@ -2788,6 +2788,14 @@ class MarstekVenusPanel extends HTMLElement {
     socAxis.innerHTML = `<small>SOC %</small><div class="daily-op-soc-axis-ticks">` +
       [100, 75, 50, 25, 0].map((value) => `<span>${value}</span>`).join("") + `</div>`;
     layout.appendChild(socAxis);
+    // Price high/low labels pinned over the viewport's right edge: the price
+    // line spans the full height, so these give it a scale while scrolling.
+    const priceScale = document.createElement("div");
+    priceScale.className = "daily-op-price-scale";
+    priceScale.setAttribute("aria-hidden", "true");
+    priceScale.hidden = true;
+    priceScale.innerHTML = `<span class="daily-op-price-high"></span><span class="daily-op-price-low"></span>`;
+    layout.appendChild(priceScale);
     card.appendChild(layout);
     // The tooltip is positioned against the card, outside the horizontally
     // clipped viewport, so the first and last intervals remain fully visible.
@@ -2814,6 +2822,9 @@ class MarstekVenusPanel extends HTMLElement {
       hourlyBalanceLegend: legend.querySelector(".daily-op-legend-hourly-balance"),
       priceLegend: legend.querySelector(".daily-op-legend-price"),
       priceLegendText: legend.querySelector(".daily-op-legend-price-text"),
+      priceScale,
+      priceHigh: priceScale.querySelector(".daily-op-price-high"),
+      priceLow: priceScale.querySelector(".daily-op-price-low"),
       yAxis, socAxis, viewport, stage, svg, tooltip, previous, next,
       cells, labels, hours,
       paths: {
@@ -3885,6 +3896,17 @@ class MarstekVenusPanel extends HTMLElement {
       if (priceD) {
         ref.priceLegendText.textContent = `${this._t("dailyOperationPrice")} ` +
           `${this._nf(priceLow, 3)}–${this._nf(priceHigh, 3)} ${this._dailyOperationPriceUnit()}`;
+      }
+    }
+    if (ref.priceScale) {
+      ref.priceScale.hidden = !priceD;
+      if (priceD) {
+        // Same y as _dailyOperationPricePath: high at 40, low at 156, flat at the middle.
+        const flat = priceHigh === priceLow;
+        ref.priceHigh.textContent = this._nf(priceHigh, 3);
+        ref.priceHigh.style.top = flat ? "98px" : "40px";
+        ref.priceLow.textContent = this._nf(priceLow, 3);
+        ref.priceLow.hidden = flat;
       }
     }
     const now = (snapshot.currentIndex + snapshot.currentProgress) * 10;
@@ -7568,7 +7590,10 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-op-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
       .daily-op-badge-stale { color: oklch(0.82 0.14 75); border-color: oklch(0.82 0.14 75 / .4); background: oklch(0.82 0.14 75 / .1); }
       .daily-op-notice { margin: 0 0 9px; padding: 7px 10px; border: 1px solid oklch(0.82 0.14 75 / .35); border-radius: 9px; color: oklch(0.82 0.14 75); background: oklch(0.82 0.14 75 / .08); font-size: 11px; line-height: 1.4; }
-      .daily-op-layout { display: grid; grid-template-columns: 62px minmax(0, 1fr) 42px; gap: 0; min-width: 0; }
+      .daily-op-layout { position: relative; display: grid; grid-template-columns: 62px minmax(0, 1fr) 42px; gap: 0; min-width: 0; }
+      .daily-op-price-scale { position: absolute; top: 0; right: 42px; height: 190px; z-index: 2; pointer-events: none; color: var(--daily-op-price); font-size: 9px; line-height: 1; }
+      .daily-op-price-scale span { position: absolute; right: 2px; transform: translateY(-50%); padding: 1px 3px; border-radius: 4px; background: var(--bg-1); white-space: nowrap; }
+      .daily-op-price-low { top: 156px; }
       .daily-op-yaxis { position: relative; height: 190px; color: var(--ink-dim); font-size: 10px; line-height: 1; white-space: nowrap; }
       .daily-op-yaxis small { position: absolute; top: 7px; right: 8px; font-size: 9px; writing-mode: horizontal-tb; transform: none; }
       .daily-op-yaxis-ticks { position: absolute; top: 32px; right: 8px; bottom: 26px; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; }
@@ -7626,6 +7651,7 @@ class MarstekVenusPanel extends HTMLElement {
         .daily-op-toolbar { align-items: flex-start; }
         .daily-op-legend { gap: 8px; }
         .daily-op-layout { grid-template-columns: 54px minmax(0, 1fr) 38px; }
+        .daily-op-price-scale { right: 38px; }
         .daily-op-yaxis { padding-right: 6px; }
       }
 

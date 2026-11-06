@@ -50,7 +50,7 @@ const node = () => ({
   get classList() { return { toggle: (key, value) => { this.toggles[key] = !!value; } }; },
 });
 const ref = Object.fromEntries(
-  'card badge notice hourlyBalanceLegend yAxis socAxis viewport stage tooltip previous next nowMarker nowText'
+  'card badge notice hourlyBalanceLegend yAxis socAxis viewport stage tooltip previous next nowMarker nowText priceScale priceHigh priceLow'
     .split(' ').map(key => [key, node()])
 );
 ref.viewport.clientWidth = 480;
@@ -83,6 +83,7 @@ process.stdout.write(JSON.stringify({
   patchedCells: ref.cells.filter(cell => Object.hasOwn(cell.attributes, 'aria-label')).length,
   cardHidden: ref.card.hidden, notice: ref.notice.textContent, noticeHidden: ref.notice.hidden,
   paths: Object.fromEntries(Object.entries(ref.paths).map(([key, path]) => [key, path.attributes.d || ''])),
+  priceScale: { hidden: ref.priceScale.hidden, high: ref.priceHigh.textContent, highTop: ref.priceHigh.style.top || null, low: ref.priceLow.textContent, lowHidden: ref.priceLow.hidden },
   navigation: { previousDisabled: ref.previous.disabled, nextDisabled: ref.next.disabled, centered: ref.scrollState.initialized },
 }));
 })().catch(error => { console.error(error); process.exitCode = 1; });
@@ -316,9 +317,21 @@ def test_grid_price_shows_in_the_cell_and_as_a_stepped_line():
     # Each price holds for its whole interval: two points per interval.
     assert result["paths"]["price"].startswith("M70,")
     assert "L80," in result["paths"]["price"]
+    # High/low labels give the axis-less line its scale.
+    assert result["priceScale"]["hidden"] is False
+    assert result["priceScale"]["highTop"] == "40px"
+    assert result["priceScale"]["lowHidden"] is False
+    assert result["priceScale"]["high"] and result["priceScale"]["low"]
 
 
 def test_no_price_data_draws_no_price_line():
     result = _run({"actual_action_mask": _series(**{"8": 2})})
     assert [item["price"] for item in result["items"]] == [None] * 4
     assert result["paths"]["price"] == ""
+    assert result["priceScale"]["hidden"] is True
+
+
+def test_flat_price_shows_one_label_at_the_line():
+    result = _run({"price_per_kwh": _series(**{"7": 0.2, "8": 0.2, "9": 0.2})})
+    assert result["priceScale"]["highTop"] == "98px"
+    assert result["priceScale"]["lowHidden"] is True
