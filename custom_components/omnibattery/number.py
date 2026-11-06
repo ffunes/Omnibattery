@@ -1,6 +1,8 @@
 """Number platform for the Omnibattery integration."""
 from __future__ import annotations
 
+from .infra.system_identity import scope_system_entities
+
 import logging
 
 from homeassistant.components.number import NumberEntity, NumberMode
@@ -172,7 +174,7 @@ async def async_setup_entry(
             continue
         entities.append(ExcludedDeviceExclusionPctNumber(hass, entry, index))
 
-    async_add_entities(entities)
+    async_add_entities(scope_system_entities(hass, entry, entities))
 
 
 class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
