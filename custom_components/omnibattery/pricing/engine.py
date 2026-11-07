@@ -4118,11 +4118,7 @@ class PricingManager:
                     or slot.end <= weekly_reserve_not_after
                 )
             ]
-            weekly_hours_needed = calculations.calculate_charging_hours_needed(
-                weekly_reserve_kwh,
-                self._contracted_charge_ceiling(),
-                self._controller.max_charge_capacity,
-            )
+            weekly_hours_needed = self._weekly_charge_hours_needed(weekly_reserve_kwh)
             # ponytail: the price ceiling was computed from the pre-reservation
             # deficit_hours_needed and is deliberately not recomputed here.
             # A full charge is maintenance, not arbitrage: the arbitrage gate
@@ -4499,6 +4495,45 @@ class PricingManager:
         )
         limit = self._peak_shaving_limit()
         return min(contracted, float(limit)) if limit else contracted
+
+    def _weekly_charge_hours_needed(self, energy_kwh: float) -> float:
+        """Hours the weekly gap takes, at least what the slowest battery needs.
+
+        The fleet's combined power fills the batteries together only while all
+        of them charge. A battery with a large gap keeps charging alone at its
+        own limit after the others are full, so sizing by the fleet alone
+        stopped the run short of 100 %.
+        """
+        contracted = self._contracted_charge_ceiling()
+        hours = calculations.calculate_charging_hours_needed(
+            energy_kwh, contracted, self._controller.max_charge_capacity
+        )
+        for coordinator in getattr(self._controller, "coordinators", ()) or ():
+            if getattr(coordinator, "battery_manual_mode_enabled", False):
+                continue
+            data = getattr(coordinator, "data", None) or {}
+            try:
+                gap_kwh = max(
+                    0.0,
+                    (100.0 - float(data.get("battery_soc", 100.0) or 0.0))
+                    / 100.0
+                    * float(data.get("battery_total_energy", 0.0) or 0.0),
+                )
+                power_w = float(
+                    getattr(coordinator, "max_charge_power", None)
+                    or data.get("max_charge_power")
+                    or 0.0
+                )
+            except (TypeError, ValueError):
+                continue
+            if gap_kwh > 0.0 and power_w > 0.0:
+                hours = max(
+                    hours,
+                    calculations.calculate_charging_hours_needed(
+                        gap_kwh, contracted, power_w
+                    ),
+                )
+        return hours
 
     async def _send_dynamic_pricing_slot_start_notification(self, slot: PriceSlot) -> None:
         """Send notification when a cheap pricing slot starts."""
