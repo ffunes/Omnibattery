@@ -862,6 +862,54 @@ def _entry_amount(
     value: Any, interval: ProjectionIntervalInput, battery_key: str | None
 ) -> float:
     """Read a stored-energy quota from a scalar, mapping, or slot object."""
+    amount = _entry_total(value, battery_key)
+    window = _window_from_value(value)
+    if window is None:
+        return amount
+    overlap = max(
+        0.0,
+        min(_timestamp(window[1]), _timestamp(interval.end))
+        - max(_timestamp(window[0]), _timestamp(interval.start)),
+    )
+    window_seconds = _duration_seconds(window[0], window[1])
+    return (
+        amount * overlap / window_seconds
+        if window_seconds > _EPSILON
+        else 0.0
+    )
+
+
+def _front_loaded_slots(
+    source: Any, interval_count: int
+) -> list[list[Any]] | None:
+    """``[start, end, kWh left]`` per slot quota, or None to prorate.
+
+    The controller charges a slot at full power from its start until the
+    slot's energy is stored, then the battery covers the house again. Only
+    a list of slot-shaped quotas (what the runtime passes) is front-loaded;
+    aligned per-interval amounts are already placed.
+    """
+    if source is None or isinstance(source, (str, bytes, int, float)):
+        return None
+    if isinstance(source, Mapping):
+        entries = [source] if _window_from_value(source) else None
+    elif isinstance(source, Sequence) and len(source) != interval_count:
+        entries = list(source)
+    else:
+        entries = [source] if _window_from_value(source) else None
+    if not entries:
+        return None
+    slots = []
+    for entry in entries:
+        window = _window_from_value(entry)
+        if window is None:
+            return None
+        slots.append([window[0], window[1], _entry_total(entry, None)])
+    return slots
+
+
+def _entry_total(value: Any, battery_key: str | None) -> float:
+    """The whole quota of an entry, before it is spread over intervals."""
     if value is None:
         return 0.0
     if isinstance(value, bool):
@@ -913,21 +961,7 @@ def _entry_amount(
                 break
     if amount is None:
         return 0.0
-
-    window = _window_from_value(value)
-    if window is None:
-        return _non_negative(amount)
-    overlap = max(
-        0.0,
-        min(_timestamp(window[1]), _timestamp(interval.end))
-        - max(_timestamp(window[0]), _timestamp(interval.start)),
-    )
-    window_seconds = _duration_seconds(window[0], window[1])
-    return (
-        _non_negative(amount) * overlap / window_seconds
-        if window_seconds > _EPSILON
-        else 0.0
-    )
+    return _non_negative(amount)
 
 
 def _amount_from_source(
@@ -1122,6 +1156,13 @@ def simulate_battery_projection(
     global_allocations, per_battery_allocations = _per_battery_sources(
         allocation_source, battery_keys
     )
+    # ponytail: per-battery quotas stay spread over their slot; the runtime
+    # only passes the system-wide list.
+    front_loaded = (
+        None
+        if per_battery_allocations
+        else _front_loaded_slots(global_allocations, len(interval_list))
+    )
 
     for index, interval in enumerate(interval_list):
         physical_seconds = (
@@ -1153,11 +1194,25 @@ def simulate_battery_projection(
         stored_energy_discharged = 0.0
         per_interval: list[ProjectedBatteryFlow] = []
         per_battery: dict[str, dict[str, float]] = {}
-        global_quota_remaining = (
-            _amount_from_source(global_allocations, index, interval_list)
-            if not per_battery_allocations
-            else 0.0
+        active_slots = (
+            [
+                slot for slot in front_loaded
+                if slot[0] < interval.end
+                and slot[1] > interval.start
+                and slot[2] > _EPSILON
+            ]
+            if front_loaded is not None
+            else []
         )
+        if front_loaded is not None:
+            global_quota_remaining = sum(slot[2] for slot in active_slots)
+        else:
+            global_quota_remaining = (
+                _amount_from_source(global_allocations, index, interval_list)
+                if not per_battery_allocations
+                else 0.0
+            )
+        quota_at_start = global_quota_remaining
         system_charge_remaining = (
             _non_negative(system_charge_power_w)
             * duration_hours
@@ -1293,6 +1348,12 @@ def simulate_battery_projection(
                 "discharge_power": discharge_power,
                 "discharge_output": 0.0,
             }
+
+        used = quota_at_start - global_quota_remaining
+        for slot in active_slots:
+            take = min(slot[2], used)
+            slot[2] -= take
+            used -= take
 
         # Run discharge after all charge allocation.  A given battery cannot
         # charge and discharge in the same interval, but distinct batteries

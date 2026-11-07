@@ -601,6 +601,27 @@ def calculate_planned_grid_charge_kwh(
     return min(headroom, deficit)
 
 
+def net_of_load_carried_by_grid(
+    planned_kwh: float,
+    charge_power_kw: float,
+    load_kw: float,
+    charge_efficiency: float = CHARGE_EFFICIENCY,
+) -> float:
+    """Battery energy to store when the grid feeds the house during the charge.
+
+    The scalar deficit counts the house load in the charge window as battery
+    drain, but the grid carries it while the battery charges (#785). The
+    charge stops once stored energy plus carried load reach the deficit:
+    ``stored + load * t = planned`` with ``stored = rate * t``.
+    """
+    planned = max(0.0, planned_kwh)
+    rate = max(0.0, charge_power_kw) * max(0.0, charge_efficiency)
+    load = max(0.0, load_kw)
+    if rate <= 0.0 or load <= 0.0:
+        return planned
+    return planned * rate / (rate + load)
+
+
 def schedule_price_summary(
     slots: list,
     effective_power_kw: float,
