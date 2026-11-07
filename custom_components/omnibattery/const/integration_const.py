@@ -611,6 +611,16 @@ EXTERNAL_NET_BALANCE_CANDIDATES: list[str] = ["sensor.balance_neto"]
 # Weekly Full Charge Delay Constants
 CHARGE_EFFICIENCY = 0.85  # Conservative factor for charge power estimation
 
+# Weekly Full Charge slot sizing. The last few percent charge slower than the
+# battery's limit: at NORMAL_BALANCE_CHARGE_POWER_W with the 100 % voltage
+# taper, otherwise as the BMS derates near full. A margin on top covers
+# temperature derating and discharge between slot blocks; slots not needed
+# are cancelled before they start once the battery is full.
+WEEKLY_CHARGE_TAIL_PCT = 5.0
+WEEKLY_CHARGE_TAIL_POWER_RATIO = 0.5
+WEEKLY_CHARGE_MARGIN_RATIO = 0.25
+WEEKLY_CHARGE_MARGIN_MIN_H = 0.5
+
 # Round-trip efficiency used by the arbitrage-margin gate (see
 # CONF_MIN_ARBITRAGE_MARGIN). Distinct from CHARGE_EFFICIENCY, which derates
 # charge *power* to size a charging window; this one is the AC-to-AC energy
