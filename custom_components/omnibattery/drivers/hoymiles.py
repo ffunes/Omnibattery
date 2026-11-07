@@ -698,6 +698,11 @@ class HoymilesMqttDriver(BatteryDriver):
                     await asyncio.wait_for(config_event.wait(), min(timeout, 0.25))
                 except asyncio.TimeoutError:
                     pass
+            if not config_event.is_set():
+                # #779: the slave of a paired system publishes quick/state but
+                # no power_ctrl, so it cannot be controlled; only the master can.
+                metadata["error"] = "hoymiles_no_power_ctrl"
+                return False, metadata
             return valid, metadata
         except Exception:
             return False, metadata
