@@ -758,9 +758,9 @@ class WeeklyFullChargeManager:
                     applied_names.add(coordinator.name)
                     continue
 
-                if coordinator.name in applied_names:
-                    # Already at 100 % this session; only a fallen-back battery
-                    # is written again.
+                if coordinator.name in applied_names and self._cutoff_is_temporary(coordinator):
+                    # Already at 100 % in RAM this session; only a fallen-back
+                    # battery is written again.
                     continue
 
                 # v2 batteries: write hardware register
