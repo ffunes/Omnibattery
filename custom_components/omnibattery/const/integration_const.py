@@ -242,8 +242,8 @@ DEFAULT_BASE_CONSUMPTION_KWH = 5.0  # Fallback when no consumption history avail
 # it before predictive charging decides whether to charge, and the same margin
 # reserves anti-curtailment headroom in Dynamic Pricing. 0.0 is the sentinel
 # for "no margin" and also the fallback when the fleet's capacity is unknown
-# (see default_predictive_safety_margin_kwh() below, which the config flow
-# uses to size the default for *new* entries only).
+# (see default_predictive_safety_margin_kwh() below: the margin used while
+# none is stored, sized to the fleet's configured or reported capacity).
 CONF_PREDICTIVE_SAFETY_MARGIN_KWH = "predictive_safety_margin_kwh"
 DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH = 0.0
 
@@ -870,13 +870,24 @@ def effective_system_power(data) -> tuple[int, int]:
     )
 
 
-def total_battery_capacity_kwh(data) -> float:
-    """Return the sum of each configured battery's rated capacity, in kWh."""
-    batteries = data.get("batteries") or []
-    return sum(float(battery.get("battery_capacity_kwh", 0.0) or 0.0) for battery in batteries)
+def total_battery_capacity_kwh(data, reported_kwh=None) -> float:
+    """Return the fleet's capacity in kWh: each battery's configured value, or what it reports.
+
+    A battery without a configured capacity -- one whose driver reads it (Marstek
+    over Modbus) or one left at 0 for auto-detection (Zendure, Hoymiles) -- counts
+    with ``reported_kwh[name]``, the capacity its coordinator reports, when known.
+    """
+    reported_kwh = reported_kwh or {}
+    total = 0.0
+    for battery in data.get("batteries") or []:
+        configured = float(battery.get("battery_capacity_kwh", 0.0) or 0.0)
+        if configured <= 0:
+            configured = float(reported_kwh.get(battery.get("name")) or 0.0)
+        total += max(0.0, configured)
+    return total
 
 
-def default_predictive_safety_margin_kwh(data) -> float:
+def default_predictive_safety_margin_kwh(data, reported_kwh=None) -> float:
     """Return ~5% of the fleet's total capacity, or the no-margin sentinel.
 
     Mirrors ``default_high_price_discharge_max_power()``: the only forecast
@@ -884,7 +895,7 @@ def default_predictive_safety_margin_kwh(data) -> float:
     Falls back to ``DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH`` (0.0, no margin)
     when no battery capacity can be determined yet.
     """
-    capacity_kwh = total_battery_capacity_kwh(data)
+    capacity_kwh = total_battery_capacity_kwh(data, reported_kwh)
     if capacity_kwh <= 0:
         return DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
     return round(capacity_kwh * 0.05, 2)
