@@ -6746,8 +6746,12 @@ class MarstekVenusPanel extends HTMLElement {
           // with an unavailable state, which would render as dead rows.
           // Buttons sit at "unknown" until first pressed — that's normal, not a
           // leftover — so for them only "unavailable" means truly gone.
+          // A number behind a `dep` switch may be "unknown" too: it has no value
+          // until one is set (a manual price threshold), and must still render
+          // so turning its switch on shows it, as "—".
           const st = this._hass.states[id];
-          const alive = item.domain === "button"
+          const unset = item.dep && (item.domain || "number") === "number";
+          const alive = item.domain === "button" || unset
             ? st && st.state !== "unavailable"
             : st && st.state !== "unavailable" && st.state !== "unknown";
           if (alive) {

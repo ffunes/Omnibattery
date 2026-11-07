@@ -49,6 +49,7 @@ from .const import (
     CONF_DISCHARGE_PRICE_THRESHOLD,
     CONF_MAX_PRICE_THRESHOLD_ENABLED,
     CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED,
+    effective_price_threshold,
     CONF_ENABLE_PREDICTIVE_CHARGING,
     CONF_VACATION_MODE_ENABLED,
     CONF_THREE_PHASE_ENABLED,
@@ -2328,9 +2329,40 @@ class PriceThresholdEnabledSwitch(SwitchEntity):
         # Missing key: legacy entries were manual iff a value was set.
         return bool(self.entry.data.get(self._conf_key, self.entry.data.get(self._value_key) is not None))
 
+    def _starting_value(self) -> float | None:
+        """A first value for a manual threshold that was never set.
+
+        Turning manual on with nothing stored would change nothing and leave
+        the box empty. Today's average price is what the discharge floor falls
+        back to anyway; it is kept on the right side of the sibling threshold
+        (charge ceiling <= discharge floor, #408). None without prices.
+        """
+        controller = (
+            (getattr(self.hass, "data", None) or {}).get(DOMAIN, {})
+            .get(self.entry.entry_id, {})
+            .get("controller")
+        )
+        average = getattr(controller, "_dp_daily_avg_price", None)
+        if average is None:
+            return None
+        value = round(float(average), 3)
+        if self._kind == "charge":
+            floor = effective_price_threshold(
+                self.entry.data, CONF_DISCHARGE_PRICE_THRESHOLD, CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED
+            )
+            return value if floor is None else min(value, floor)
+        ceiling = effective_price_threshold(
+            self.entry.data, CONF_MAX_PRICE_THRESHOLD, CONF_MAX_PRICE_THRESHOLD_ENABLED
+        )
+        return value if ceiling is None else max(value, ceiling)
+
     def _set_enabled(self, enabled: bool) -> None:
         new_data = dict(self.entry.data)
         new_data[self._conf_key] = enabled
+        if enabled and new_data.get(self._value_key) is None:
+            start = self._starting_value()
+            if start is not None:
+                new_data[self._value_key] = start
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         _LOGGER.info("Dynamic pricing %s price threshold %s",
                      self._kind, "MANUAL" if enabled else "AUTOMATIC")
