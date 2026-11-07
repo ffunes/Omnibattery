@@ -97,6 +97,7 @@ from . import (
     notifications,
 )
 from .chronological import (
+    ENERGY_TOLERANCE_KWH,
     ChronologicalEvaluationRequest,
     ChronologicalEvaluationResult,
     ChronologicalPlan,
@@ -7110,3 +7111,134 @@ class PricingManager:
                 "Price-based discharge BLOCKED (current=%.4f <= threshold=%.4f, mode=%s)",
                 current_price, threshold, mode,
             )
+
+    # =========================================================================
+    # Weekly Full Charge: hold between charge blocks
+    # =========================================================================
+
+    def _weekly_refill_slots(self, now: datetime) -> list:
+        """Weekly charge slots not yet over, while the run has to reach 100 %."""
+        ctrl = self._controller
+        if getattr(ctrl, "predictive_charging_mode", None) != PREDICTIVE_MODE_DYNAMIC_PRICING:
+            return []
+        pending = getattr(ctrl, "_weekly_full_charge_pending", None)
+        if not callable(pending) or not pending():
+            return []
+        schedule = getattr(ctrl, "_dynamic_pricing_schedule", None)
+        if schedule is None or not getattr(schedule, "charging_needed", False):
+            return []
+        # A slot the pre-slot gate already dropped will not refill anything.
+        decided = getattr(ctrl, "_dp_pre_evaluated_slots", None) or {}
+        purpose_for = getattr(schedule, "purpose_for", None)
+        return [
+            slot
+            for slot in getattr(schedule, "selected_slots", ()) or ()
+            if slot.end > now
+            and decided.get(slot.start, True)
+            and (
+                not callable(purpose_for)
+                or purpose_for(slot) in {SLOT_PURPOSE_DEFICIT, SLOT_PURPOSE_COMBINED}
+            )
+        ]
+
+    def _weekly_refill_threshold(self, refill_slots: list) -> float | None:
+        """Price above which discharging before the refill still pays.
+
+        A kWh used now is bought back in a later weekly slot, after the round
+        trip; the dearest refill slot is the conservative reference.
+        """
+        if not refill_slots:
+            return None
+        efficiency = effective_round_trip_efficiency(self._controller)[0]
+        if not efficiency or efficiency <= 0.0:
+            return None
+        margin = float(getattr(self._controller, "min_arbitrage_margin", 0.0) or 0.0)
+        return max(slot.price for slot in refill_slots) / efficiency + margin
+
+    def apply_weekly_refill_hold(self) -> None:
+        """Hold the batteries during the weekly run unless discharging pays.
+
+        Energy discharged before the run ends has to be charged again in a
+        later weekly slot. That pays only when the current price beats the
+        refill price after the round trip plus the arbitrage margin.
+
+        - Between charge slots the gap then runs on the grid (global blocker).
+        - A battery already full keeps still until the others are full, inside
+          a slot too: the run completes only when every battery counts as full
+          at the same moment, and one that covers the house drops out of its
+          full state while another is still charging.
+
+        Called every control cycle, after the price block.
+        """
+        ctrl = self._controller
+        now = datetime.now()
+        run_slots = self._weekly_refill_slots(now)
+        threshold = self._weekly_refill_threshold(
+            [slot for slot in run_slots if slot.start > now]
+        )
+        current_price = self._get_current_price() if run_slots else None
+        pays = (
+            threshold is not None
+            and current_price is not None
+            and current_price >= threshold
+        )
+        details = {
+            "current_price": current_price,
+            "threshold": None if threshold is None else round(threshold, 4),
+        }
+        if (
+            threshold is None
+            or current_price is None
+            or pays
+            or getattr(ctrl, "_current_price_slot_active", False)
+        ):
+            ctrl.remove_discharge_block("weekly_refill_hold")
+        else:
+            ctrl.set_discharge_block("weekly_refill_hold", "weekly_refill", details)
+
+        hold_full = bool(run_slots) and not pays
+        manager = getattr(ctrl, "_weekly_charge_mgr", None)
+        is_full = getattr(manager, "is_battery_full", None)
+        for coordinator in getattr(ctrl, "coordinators", ()) or ():
+            if hold_full and callable(is_full) and is_full(coordinator):
+                ctrl.set_discharge_block(
+                    "weekly_full_hold",
+                    "weekly_full",
+                    details,
+                    coordinator=coordinator,
+                )
+            else:
+                ctrl.remove_discharge_block("weekly_full_hold", coordinator=coordinator)
+
+    def weekly_refill_hold_fn(self):
+        """The same hold for the projection, as a reserve floor, or None.
+
+        Returns ``hold(start, usable_kwh, free_kwh)``: all usable energy at an
+        interval the hold covers, None elsewhere. Inside a charge slot only a
+        full battery could discharge, so holding everything is that battery
+        keeping still; once the fleet has no free space left the run is
+        complete. Side-effect free.
+        """
+        from homeassistant.util import dt as dt_util
+
+        now = datetime.now()
+        run_slots = self._weekly_refill_slots(now)
+        if not run_slots:
+            return None
+        threshold = self._weekly_refill_threshold(
+            [slot for slot in run_slots if slot.start > now]
+        )
+        last_end = max(slot.end for slot in run_slots)
+        prices = self.price_slots_between(now, last_end)
+
+        def hold(start: datetime, usable_kwh: float, free_kwh: float) -> float | None:
+            if start.tzinfo is not None:
+                start = dt_util.as_local(start).replace(tzinfo=None)
+            if start >= last_end or free_kwh <= ENERGY_TOLERANCE_KWH:
+                return None
+            price = next((s.price for s in prices if s.start <= start < s.end), None)
+            if threshold is not None and price is not None and price >= threshold:
+                return None
+            return usable_kwh
+
+        return hold

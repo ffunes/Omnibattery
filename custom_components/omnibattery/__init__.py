@@ -2352,15 +2352,38 @@ class ChargeDischargeController:
 
 
     def _daily_operation_reserve_floor(self):
-        """The reserve's decision at a later slot, for the projection, or None."""
+        """The reserve's decision at a later slot, for the projection, or None.
+
+        The hold between weekly charge blocks keeps everything where it
+        applies; the discharge reserve decides elsewhere.
+        """
+        reserve_fn = None
+        weekly_fn = None
         manager = getattr(self, "_discharge_reserve_mgr", None)
         projected = getattr(manager, "projected_reserve_fn", None)
-        if not callable(projected):
-            return None
-        try:
-            return projected()
-        except Exception:  # noqa: BLE001 - dashboard projection is optional
-            return None
+        if callable(projected):
+            try:
+                reserve_fn = projected()
+            except Exception:  # noqa: BLE001 - dashboard projection is optional
+                reserve_fn = None
+        weekly_hold = getattr(
+            getattr(self, "_pricing_mgr", None), "weekly_refill_hold_fn", None
+        )
+        if callable(weekly_hold):
+            try:
+                weekly_fn = weekly_hold()
+            except Exception:  # noqa: BLE001 - dashboard projection is optional
+                weekly_fn = None
+        if weekly_fn is None:
+            return reserve_fn
+
+        def floor(start, usable_kwh, free_kwh):
+            held = weekly_fn(start, usable_kwh, free_kwh)
+            if held is not None:
+                return held
+            return reserve_fn(start, usable_kwh, free_kwh) if reserve_fn else None
+
+        return floor
 
     def _daily_operation_update_prices(self, manager, current: datetime) -> None:
         """Give the timeline the grid price of today and the extended horizon."""
@@ -3581,6 +3604,8 @@ class ChargeDischargeController:
             "price_discharge",
             "price_reserve",
             "curtailment_negative_window",
+            "weekly_refill_hold",
+            "weekly_full_hold",
         }
         global_blockers = self._global_discharge_blockers
         if ignore_economic:
@@ -7908,6 +7933,7 @@ class ChargeDischargeController:
     def _apply_price_discharge_block(self) -> None:
         """Delegates to PricingManager.apply_price_discharge_block (called every control cycle)."""
         self._pricing_mgr.apply_price_discharge_block()
+        self._pricing_mgr.apply_weekly_refill_hold()
 
     async def _stop_all_batteries_for_block(self, direction: str) -> None:
         """Stop all battery commands after a global operation block becomes active."""
