@@ -5763,13 +5763,23 @@ class PricingManager:
             schedule.evaluation_time = now
             self._controller._dynamic_pricing_evaluated_date = max(s.start.date() for s in merged)
         else:
-            avg_price = sum(s.price for s in selected) / len(selected)
             effective_power_kw = min(self._contracted_charge_ceiling(), self._controller.max_charge_capacity) / 1000.0
+            # Weighted by the planned energy like the main evaluation (#715);
+            # the price-only fallback has none and assumes full power.
+            cost_energy = (
+                selected_energy_kwh
+                if all(slot in selected_energy_kwh for slot in selected)
+                else {}
+            )
+            avg_price, estimated_cost = calculations.schedule_price_summary(
+                selected, effective_power_kw, cost_energy or None
+            )
             self._controller._dynamic_pricing_schedule = DynamicPricingSchedule(
                 hours_needed=hours_needed,
                 selected_slots=selected,
                 average_price=avg_price,
-                estimated_cost=avg_price * effective_power_kw * hours_needed,
+                estimated_cost=estimated_cost,
+                slot_cost_energy_kwh=cost_energy,
                 total_available_slots=len(slots),
                 evaluation_time=now,
                 energy_deficit_kwh=evening_deficit_kwh,

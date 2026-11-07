@@ -270,3 +270,43 @@ def test_a_merged_schedule_weighs_the_new_slots_by_their_planned_energy():
     assert all(slot in schedule.slot_cost_energy_kwh for slot in schedule.selected_slots)
     assert schedule.estimated_cost > 0.6 * 0.30
     assert schedule.evaluation_time == _NOW
+
+
+# ----------------------------------------------------------------------
+# A new evening schedule prices the energy it plans (#715)
+# ----------------------------------------------------------------------
+
+from custom_components.omnibattery.const import CHARGE_EFFICIENCY  # noqa: E402
+
+
+def _full_power_cost(schedule):
+    return sum(
+        slot.price * 3.0 * (slot.end - slot.start).total_seconds() / 3600.0
+        for slot in schedule.selected_slots
+    )
+
+
+def test_a_new_evening_schedule_weighs_its_slots_by_their_planned_energy():
+    manager = _manager(prices=_prices(), min_arbitrage_margin=None)
+    asyncio.run(manager._evaluate_evening_recharge())
+    schedule = manager._controller._dynamic_pricing_schedule
+    energy = schedule.slot_cost_energy_kwh
+
+    assert schedule.selected_slots
+    assert set(energy) == set(schedule.selected_slots)
+    battery_cost = sum(slot.price * kwh for slot, kwh in energy.items())
+    assert schedule.estimated_cost == pytest.approx(battery_cost / CHARGE_EFFICIENCY)
+    assert schedule.average_price == pytest.approx(battery_cost / sum(energy.values()))
+    # Every slot at full power for its whole hour priced energy never planned.
+    assert schedule.estimated_cost < _full_power_cost(schedule)
+
+
+def test_a_new_evening_schedule_without_a_profile_assumes_full_power():
+    manager = _manager(prices=_prices(), min_arbitrage_margin=None)
+    manager._controller._consumption_tracker.consumption_profile = None
+    asyncio.run(manager._evaluate_evening_recharge())
+    schedule = manager._controller._dynamic_pricing_schedule
+
+    assert schedule.selected_slots
+    assert schedule.slot_cost_energy_kwh == {}
+    assert schedule.estimated_cost == pytest.approx(_full_power_cost(schedule))
