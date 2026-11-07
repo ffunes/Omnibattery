@@ -16,6 +16,8 @@ from . import PriceSlot
 
 ENERGY_TOLERANCE_KWH = 0.05
 _EPSILON = 1e-9
+# value_cap of a deadline past the last published price.
+_UNPRICED = -math.inf
 
 
 @dataclass(frozen=True)
@@ -483,7 +485,8 @@ def allocate_price_slots(
     ceilings: a slot charges for it only up to
     ``import_price * import_value_efficiency - import_value_margin``, and the
     energy no such slot can cover is left to the grid (``cheaper_to_import``),
-    not counted as a shortfall (#662).
+    not counted as a shortfall (#662). A deadline after the last published
+    price is left to the grid the same way until its price is known.
 
     The battery covers the house first, so energy stored before an hour left
     to the grid is used in that hour, not in a later one. A valued deadline is
@@ -521,6 +524,8 @@ def allocate_price_slots(
         and (max_price_threshold is None or slot.price <= max_price_threshold)
     ]
 
+    priced_until = max((slot.end for slot in price_slots), default=None)
+
     def value_cap(deadline: EnergyDeadline) -> float | None:
         # Guaranteed-floor energy is needed whatever the import costs then.
         if import_value_efficiency is None or deadline.kind == "guaranteed_floor":
@@ -533,6 +538,8 @@ def allocate_price_slots(
             None,
         )
         if served is None:
+            if priced_until is not None and deadline.deadline > priced_until:
+                return _UNPRICED
             return None
         return served.price * import_value_efficiency - import_value_margin
 
@@ -687,6 +694,13 @@ def allocate_price_slots(
         )
         missing = max(0.0, cumulative_target - already)
         cap = value_cap(deadline)
+        if cap == _UNPRICED:
+            # Its import price is not published yet, so nothing shows that a
+            # slot now repays it. Leave it to the grid for now; the
+            # re-evaluation on publication values it against the real price.
+            cheaper_to_import += missing
+            segment_unusable[start] = segment_unusable.get(start, 0.0) + missing
+            continue
         pool = (
             candidates if cap is None
             else [
