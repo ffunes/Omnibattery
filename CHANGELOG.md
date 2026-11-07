@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- **Dynamic Pricing: an evening recharge without an earlier plan still estimated its cost at full charge power** (#715): when the evening pass built the night's schedule from scratch, the notification's estimated cost and average price used every slot at full power. They now use the energy planned per slot plus charging losses, as the main evaluation does. Thanks to @anorakophobia.
 - **Anker: targets below 100 W were sent as 0 W** (#734): the driver treated 1-99 W as forbidden and idled the battery, although register 10071 accepts any value from 0 W (the official Anker integration allows it). Small targets are now sent as they are. Thanks to @Hellsing.
 - **PD Control Quality read "Sluggish" while every battery was in charge hysteresis**: a block on each battery (hysteresis, limits) wasn't seen as blocking the loop, so a solar export it couldn't act on was scored as slow tuning. It now reads "Blocked".
 - **Weekly Full Charge: on a day without price spread the grid charge was never booked**: the slots for the weekly gap went through the same per-slot arbitrage gate as an ordinary charge (#662), so when no later slot was dear enough to pay back a stored kWh, every slot was rejected ("weekly reservation … could not be placed (no slots below ceiling)") and the batteries reached 100 % only if the sun filled them. A full charge is maintenance, not arbitrage: the weekly slots are now limited by the static Max Price Threshold only, and still take the cheapest slots in the window. Thanks to @anorakophobia.
