@@ -203,7 +203,14 @@ def test_weekly_reserve_survives_a_fully_covering_solar_forecast():
 
 
 def _evaluate_with_weekly_reserve(
-    monkeypatch, now, slots, build_plan, reserve=None, **decision_overrides
+    monkeypatch,
+    now,
+    slots,
+    build_plan,
+    reserve=None,
+    min_arbitrage_margin=0.0,
+    max_price_threshold=1.0,
+    **decision_overrides,
 ):
     """Run a daily evaluation whose plan publishes a 5 kWh weekly reserve."""
 
@@ -233,8 +240,8 @@ def _evaluate_with_weekly_reserve(
     ctrl._dynamic_pricing_schedule = None
     ctrl.max_contracted_power = 5000
     ctrl.max_charge_capacity = 5000
-    ctrl.max_price_threshold = 1.0
-    ctrl.min_arbitrage_margin = 0.0
+    ctrl.max_price_threshold = max_price_threshold
+    ctrl.min_arbitrage_margin = min_arbitrage_margin
     ctrl.round_trip_efficiency = 1.0
     ctrl.discharge_price_threshold = 1.0
     ctrl._predictive_min_soc_floor_enabled = False
@@ -442,6 +449,107 @@ def test_weekly_slots_after_the_plan_count_in_the_estimated_cost(monkeypatch):
     battery_cost = sum(slot.price * kwh for slot, kwh in battery_kwh.items())
     assert schedule.estimated_cost == pytest.approx(battery_cost / CHARGE_EFFICIENCY)
     assert schedule.average_price == pytest.approx(battery_cost / 7.0)
+
+
+def _flat_evening(now, price):
+    return [
+        PriceSlot(now.replace(hour=h), now.replace(hour=h + 1), price)
+        for h in (19, 20, 21)
+    ]
+
+
+def test_weekly_reserve_is_placed_on_a_day_without_spread(monkeypatch):
+    """A full charge is not arbitrage: a flat evening fails the arbitrage gate
+    in every slot, and the run then never charged from the grid."""
+    now = datetime(2026, 9, 21, 0, 5)
+    slots = _flat_evening(now, 0.47)
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch, now, slots, lambda _decision: None, min_arbitrage_margin=0.05
+    )
+
+    schedule = ctrl._dynamic_pricing_schedule
+    assert schedule is not None
+    assert schedule.selected_slots
+    assert {slot.start for slot in schedule.selected_slots} <= {slot.start for slot in slots}
+
+
+def test_weekly_reserve_still_respects_the_static_price_ceiling(monkeypatch):
+    now = datetime(2026, 9, 21, 0, 5)
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch,
+        now,
+        _flat_evening(now, 0.47),
+        lambda _decision: None,
+        min_arbitrage_margin=0.05,
+        max_price_threshold=0.40,
+    )
+
+    schedule = ctrl._dynamic_pricing_schedule
+    assert schedule is None or not schedule.selected_slots
+
+
+def _hours_manager(*batteries, max_charge_capacity=None):
+    coords = [
+        SimpleNamespace(
+            name=name,
+            max_charge_power=power_w,
+            full_charge_voltage_taper_enabled=taper,
+            data={"battery_soc": soc, "battery_total_energy": capacity_kwh},
+        )
+        for name, soc, capacity_kwh, power_w, taper in batteries
+    ]
+    ctrl = SimpleNamespace(
+        coordinators=coords,
+        max_contracted_power=20000,
+        max_charge_capacity=(
+            sum(battery[3] for battery in batteries)
+            if max_charge_capacity is None
+            else max_charge_capacity
+        ),
+    )
+    return PricingManager(SimpleNamespace(), ctrl)
+
+
+def test_weekly_hours_cover_the_slow_end_of_the_slowest_battery():
+    """7 Nov: Marstek 11 % of 5.12 kWh (100 % voltage taper on), Zendure 4 %
+    of 8.16 kWh, 2.4 kW each. The fleet's 4.8 kW suggested 3.5 h for 12.39
+    kWh. The Zendure alone needs 7.43 kWh at 2.4 kW and its last 5 % (0.41
+    kWh) at half power: 3.64 + 0.40 = 4.04 h. The Marstek, its last 5 % at
+    200 W: 2.11 + 1.51 = 3.61 h. Plus a quarter as margin: 5.05 h, so 5.5 h."""
+    manager = _hours_manager(
+        ("Marstek", 11.0, 5.12, 2400.0, True),
+        ("Zendure", 4.0, 8.16, 2400.0, False),
+    )
+
+    assert manager._weekly_charge_hours_needed(12.39) == 5.5
+
+
+def test_the_voltage_taper_charges_the_last_percent_at_200_w():
+    # 0.51 kWh to go on a 5.12 kWh pack: half of it, its last 5 %, at 200 W
+    # takes 1.5 h with the taper and 0.25 h at half power without.
+    with_taper = _hours_manager(("Marstek", 90.0, 5.12, 2400.0, True))
+    without_taper = _hours_manager(("Marstek", 90.0, 5.12, 2400.0, False))
+
+    assert with_taper._weekly_charge_hours_needed(0.512) == 2.5
+    assert without_taper._weekly_charge_hours_needed(0.512) == 1.0
+
+
+def test_weekly_hours_keep_at_least_half_an_hour_of_margin():
+    # Fleet 2 kWh at 4.8 kW: 0.49 h; each battery 1 kWh with its slow end:
+    # 0.61 h. A quarter would be 0.15 h, so the half-hour minimum applies.
+    manager = _hours_manager(
+        ("A", 80.0, 5.0, 2400.0, False), ("B", 80.0, 5.0, 2400.0, False)
+    )
+
+    assert manager._weekly_charge_hours_needed(2.0) == 1.5
+
+
+def test_weekly_hours_without_any_power_figure_keep_the_fallback():
+    manager = _hours_manager(
+        ("A", 50.0, 5.0, 0.0, False), max_charge_capacity=0.0
+    )
+
+    assert manager._weekly_charge_hours_needed(2.0) == 1.0
 
 
 # ----------------------------------------------------------------------

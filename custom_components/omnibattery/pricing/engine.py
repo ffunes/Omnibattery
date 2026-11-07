@@ -61,6 +61,12 @@ from ..const import (
     T_START_FALLBACK_HOUR,
     FLOOR_HYSTERESIS_PCT,
     CHARGE_EFFICIENCY,
+    CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
+    NORMAL_BALANCE_CHARGE_POWER_W,
+    WEEKLY_CHARGE_MARGIN_MIN_H,
+    WEEKLY_CHARGE_MARGIN_RATIO,
+    WEEKLY_CHARGE_TAIL_PCT,
+    WEEKLY_CHARGE_TAIL_POWER_RATIO,
     normalize_solar_profile_mode,
 )
 from ..solar_forecast import (
@@ -4118,19 +4124,17 @@ class PricingManager:
                     or slot.end <= weekly_reserve_not_after
                 )
             ]
-            weekly_hours_needed = calculations.calculate_charging_hours_needed(
-                weekly_reserve_kwh,
-                self._contracted_charge_ceiling(),
-                self._controller.max_charge_capacity,
-            )
+            weekly_hours_needed = self._weekly_charge_hours_needed(weekly_reserve_kwh)
             # ponytail: the price ceiling was computed from the pre-reservation
             # deficit_hours_needed and is deliberately not recomputed here.
+            # A full charge is maintenance, not arbitrage: the arbitrage gate
+            # would reject every slot on a day without spread and the run
+            # would never charge, so only the user's static ceiling applies.
             weekly_selected = calculations.select_cheapest_hours(
                 post_solar,
                 weekly_hours_needed,
                 ceiling,
                 now=eval_now,
-                slot_ceilings=slot_ceilings,
             )
             if weekly_selected:
                 if deficit_charging_needed:
@@ -4497,6 +4501,64 @@ class PricingManager:
         )
         limit = self._peak_shaving_limit()
         return min(contracted, float(limit)) if limit else contracted
+
+    def _weekly_charge_hours_needed(self, energy_kwh: float) -> float:
+        """Hours to book for the weekly gap, with room to reach 100 % for sure.
+
+        The fleet's combined power fills the batteries together only while all
+        of them charge. A battery with a large gap keeps charging alone at its
+        own limit after the others are full, and its last few percent charge
+        slower (the 100 % voltage taper at 200 W, or the BMS derating near
+        full). A margin on top covers temperature derating and discharge
+        between slot blocks. Booking too much costs nothing: a slot is
+        cancelled before it starts once the battery is full.
+        """
+        contracted = self._contracted_charge_ceiling()
+        hours = calculations.calculate_exact_charging_hours_needed(
+            energy_kwh, contracted, self._controller.max_charge_capacity
+        )
+        for coordinator in getattr(self._controller, "coordinators", ()) or ():
+            if getattr(coordinator, "battery_manual_mode_enabled", False):
+                continue
+            data = getattr(coordinator, "data", None) or {}
+            try:
+                capacity_kwh = float(data.get("battery_total_energy", 0.0) or 0.0)
+                gap_kwh = max(
+                    0.0,
+                    (100.0 - float(data.get("battery_soc", 100.0) or 0.0))
+                    / 100.0
+                    * capacity_kwh,
+                )
+                power_w = min(
+                    contracted or math.inf,
+                    float(
+                        getattr(coordinator, "max_charge_power", None)
+                        or data.get("max_charge_power")
+                        or 0.0
+                    ),
+                )
+            except (TypeError, ValueError):
+                continue
+            if gap_kwh <= 0.0 or power_w <= 0.0:
+                continue
+            tail_kwh = min(gap_kwh, capacity_kwh * WEEKLY_CHARGE_TAIL_PCT / 100.0)
+            tail_power_w = (
+                min(power_w, NORMAL_BALANCE_CHARGE_POWER_W)
+                if getattr(coordinator, CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, False)
+                else power_w * WEEKLY_CHARGE_TAIL_POWER_RATIO
+            )
+            hours = max(
+                hours,
+                (gap_kwh - tail_kwh) / (power_w / 1000.0 * CHARGE_EFFICIENCY)
+                + tail_kwh / (tail_power_w / 1000.0 * CHARGE_EFFICIENCY),
+            )
+        if hours <= 0.0:
+            # No power figure at all: keep the planner's one-hour fallback.
+            return calculations.calculate_charging_hours_needed(
+                energy_kwh, contracted, self._controller.max_charge_capacity
+            )
+        hours += max(WEEKLY_CHARGE_MARGIN_MIN_H, hours * WEEKLY_CHARGE_MARGIN_RATIO)
+        return math.ceil(hours * 2) / 2
 
     async def _send_dynamic_pricing_slot_start_notification(self, slot: PriceSlot) -> None:
         """Send notification when a cheap pricing slot starts."""
