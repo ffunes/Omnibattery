@@ -2101,7 +2101,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 model_hint=_hoymiles_model_hint(user_input),
             )
             if not ok:
-                errors["base"] = "cannot_connect"
+                errors["base"] = caps.get("error", "cannot_connect")
             else:
                 self._current_battery_data.update({CONF_NAME: user_input[CONF_NAME], CONF_HOST: device_id,
                     CONF_PORT: 0, "device_id": device_id, "brand": "hoymiles"})
@@ -3531,7 +3531,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 model_hint=_hoymiles_model_hint(user_input),
             )
             if not ok:
-                errors["base"] = "cannot_connect"
+                errors["base"] = caps.get("error", "cannot_connect")
             else:
                 old_host, old_port = current.get(CONF_HOST), current.get(CONF_PORT, 0)
                 if old_host and old_host != device_id:
@@ -4664,7 +4664,7 @@ class OptionsFlowHandler(OptionsFlow):
                 model_hint=_hoymiles_model_hint(user_input),
             )
             if not ok:
-                errors["base"] = "cannot_connect"
+                errors["base"] = caps.get("error", "cannot_connect")
             else:
                 self._current_battery_data.update({CONF_NAME: user_input[CONF_NAME], CONF_HOST: device_id,
                     CONF_PORT: 0, "device_id": device_id, "brand": "hoymiles"})

@@ -399,9 +399,20 @@ async def test_probe_accepts_quick_telemetry_and_cleans_up(mqtt_mock):
     hass = SimpleNamespace()
     probe = asyncio.create_task(HoymilesMqttDriver.probe(hass, "MSA-1", timeout=0.2))
     await asyncio.sleep(0)
+    mqtt_mock.callbacks["homeassistant/number/MSA-1/power_ctrl/config"](SimpleNamespace(payload="{}"))
     mqtt_mock.callbacks["homeassistant/sensor/MSA-1/quick/state"](SimpleNamespace(payload='{"soc":50,"bat_p":-100}'))
     ok, metadata = await probe
     assert ok and metadata == {}
+    assert len(mqtt_mock.unsubscribed) == 2
+
+
+@pytest.mark.asyncio
+async def test_probe_rejects_slave_without_power_ctrl(mqtt_mock):
+    # #779: a paired system's slave publishes quick/state but no power_ctrl.
+    probe = asyncio.create_task(HoymilesMqttDriver.probe(SimpleNamespace(), "MSA-slave", timeout=0.2))
+    await asyncio.sleep(0)
+    mqtt_mock.callbacks["homeassistant/sensor/MSA-slave/quick/state"](SimpleNamespace(payload='{"soc":35,"bat_p":-100}'))
+    assert await probe == (False, {"error": "hoymiles_no_power_ctrl"})
     assert len(mqtt_mock.unsubscribed) == 2
 
 
@@ -410,6 +421,7 @@ async def test_probe_accepts_legacy_string_telemetry(mqtt_mock):
     hass = SimpleNamespace()
     probe = asyncio.create_task(HoymilesMqttDriver.probe(hass, "MSA-legacy", timeout=0.2))
     await asyncio.sleep(0)
+    mqtt_mock.callbacks["homeassistant/number/MSA-legacy/power_ctrl/config"](SimpleNamespace(payload="{}"))
     mqtt_mock.callbacks["homeassistant/sensor/MSA-legacy/quick/state"](
         SimpleNamespace(payload='{"soc":"50.0","bat_p":"-100.0"}')
     )
@@ -428,6 +440,7 @@ async def test_probe_preserves_manual_model_hint_without_discovery_config(mqtt_m
         )
     )
     await asyncio.sleep(0)
+    mqtt_mock.callbacks["homeassistant/number/HB-4020/power_ctrl/config"](SimpleNamespace(payload="{}"))
     mqtt_mock.callbacks["homeassistant/sensor/HB-4020/quick/state"](
         SimpleNamespace(payload='{"soc":50,"bat_p":-100}')
     )
