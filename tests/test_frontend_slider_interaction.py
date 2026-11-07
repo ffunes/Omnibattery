@@ -18,6 +18,11 @@ def test_dashboard_sliders_track_touch_without_relying_on_focus():
 def test_dashboard_sliders_hold_the_submitted_value_until_ha_confirms_it():
     panel = PANEL.read_text(encoding="utf-8")
 
-    assert panel.count("this._markRangePending(range, value);") == 2
+    # Both slider builders, and the typed exact value (#783), which commits
+    # the same way and must not be overwritten by a stale patch either.
+    assert panel.count("this._markRangePending(range, value);") == 3
+    edit = panel[panel.index("_wireValueEdit(valEl, range, id, fmt) {"):]
+    edit = edit[: edit.index("\n  }\n")]
+    assert "this._markRangePending(range, value);" in edit
     assert "range.__pendingUntil = Date.now() + 4000;" in panel
     assert "Math.abs(actual - pending) <= tolerance" in panel
