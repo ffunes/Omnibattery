@@ -161,3 +161,157 @@ def test_no_reserve_manager_keeps_nothing():
         )
         == ()
     )
+
+
+# ----------------------------------------------------------------------
+# Energy that only arrives later: the reserve is asked at each slot
+# ----------------------------------------------------------------------
+
+from custom_components.omnibattery.const import (  # noqa: E402
+    PREDICTIVE_MODE_DYNAMIC_PRICING,
+)
+from custom_components.omnibattery.control.discharge_reserve import (  # noqa: E402
+    DischargeReserveManager,
+)
+from custom_components.omnibattery.pricing.discharge_reserve import (  # noqa: E402
+    ReservePlan,
+    ReserveSlot,
+)
+
+DAY = datetime(2026, 11, 7)
+
+
+def _reserve_slot(hour, price, demand=0.0, surplus=0.0):
+    start = DAY + timedelta(hours=hour)
+    return ReserveSlot(start, start + timedelta(hours=1), price, demand, surplus)
+
+
+def _midday_plan():
+    """Sun at 13:00, a cheap 14:00 and a dear evening from 15:00 on."""
+    return ReservePlan(
+        slots=[
+            _reserve_slot(13, 0.47, surplus=0.4),
+            _reserve_slot(14, 0.47, demand=0.3),
+            _reserve_slot(15, 0.60, demand=0.5),
+            _reserve_slot(16, 0.60, demand=0.5),
+            _reserve_slot(17, 0.60, demand=0.5),
+        ]
+    )
+
+
+def _reserve_manager(plan=None, **overrides):
+    controller = SimpleNamespace(
+        discharge_reserve_enabled=True,
+        discharge_reserve_min_saving=0.02,
+        predictive_charging_enabled=True,
+        predictive_charging_overridden=False,
+        predictive_charging_mode=PREDICTIVE_MODE_DYNAMIC_PRICING,
+        manual_mode_enabled=False,
+        _manual_slot_owned=None,
+        coordinators=[],
+        _curtailment_runtime_status=None,
+        _capacity_protection_active=False,
+    )
+    for key, value in overrides.items():
+        setattr(controller, key, value)
+    manager = DischargeReserveManager(SimpleNamespace(), controller)
+    manager._now = lambda: DAY + timedelta(hours=13)
+    manager._plan = plan if plan is not None else _midday_plan()
+    manager._plan_date = DAY.date()
+    return manager
+
+
+def _sunny_midday(count=20):
+    """13:00 on, 15-minute steps: 0.1 kWh of sun in each of the first four,
+    then the house alone."""
+    start = DAY.replace(tzinfo=BERLIN) + timedelta(hours=13)
+    return [
+        ProjectionIntervalInput(
+            start + QUARTER * i,
+            start + QUARTER * (i + 1),
+            solar_kwh=0.1 if i < 4 else 0.0,
+            consumption_kwh=0.0 if i < 4 else 0.1,
+        )
+        for i in range(count)
+    ]
+
+
+def test_the_sun_stored_at_midday_waits_for_the_dear_evening():
+    """The battery is empty now, so the live reserve holds nothing. The
+    reserve asked at 14:00 keeps what the sun put in for 15:00 on."""
+    fn = _reserve_manager().projected_reserve_fn()
+    battery = BatteryProjectionInput("a", 0.0, 10.0, 0.0, 100.0, 4000.0, 4000.0)
+
+    plain = simulate_battery_projection(_sunny_midday(), [battery])
+    held = simulate_battery_projection(
+        _sunny_midday(), [battery], discharge_reserve_fn=fn
+    )
+
+    # 14:00 to 15:00: spent at once without the reserve, kept with it.
+    assert sum(_discharged(plain)[4:8]) > 0.3
+    assert _discharged(held)[4:8] == [0.0] * 4
+    # From 15:00 the dear slots get it.
+    assert sum(_discharged(held)[8:]) == pytest.approx(sum(_discharged(plain)))
+
+
+def test_nothing_is_held_when_no_later_slot_is_dearer():
+    plan = ReservePlan(
+        slots=[
+            _reserve_slot(13, 0.47, surplus=0.4),
+            _reserve_slot(14, 0.47, demand=0.3),
+            _reserve_slot(15, 0.48, demand=0.5),
+        ]
+    )
+    fn = _reserve_manager(plan).projected_reserve_fn()
+
+    assert fn(DAY + timedelta(hours=14), 0.4, 9.6) == 0.0
+
+
+def test_asking_the_reserve_leaves_its_status_alone():
+    plan = _midday_plan()
+    plan.claimed_kwh = 1.25
+    plan.threshold_price = 0.5
+    fn = _reserve_manager(plan).projected_reserve_fn()
+
+    assert fn(DAY.replace(tzinfo=BERLIN) + timedelta(hours=14), 0.4, 9.6) > 0.0
+    assert plan.claimed_kwh == 1.25
+    assert plan.threshold_price == 0.5
+
+
+def test_outside_the_plan_the_projection_keeps_its_claims():
+    fn = _reserve_manager().projected_reserve_fn()
+
+    assert fn(DAY + timedelta(hours=20), 0.4, 9.6) is None
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"discharge_reserve_enabled": False},
+        {"manual_mode_enabled": True},
+        {"_capacity_protection_active": True},
+    ],
+)
+def test_a_reserve_that_would_not_apply_asks_nothing(overrides):
+    assert _reserve_manager(**overrides).projected_reserve_fn() is None
+
+
+def test_the_request_hands_the_reserve_to_the_projection():
+    fn = _reserve_manager().projected_reserve_fn()
+    request = DailyOperationProjectionRequest(
+        now=DAY.replace(tzinfo=BERLIN) + timedelta(hours=13),
+        plan_intervals=tuple(_sunny_midday()),
+        allocations=(),
+        battery_inputs=(
+            BatteryProjectionInput("a", 0.0, 10.0, 0.0, 100.0, 4000.0, 4000.0),
+        ),
+        mode="dynamic_pricing",
+        decision_data={},
+        reserve_floor=fn,
+    )
+
+    projection = build_daily_operation_projection(request)
+
+    out = [item["battery_to_home_kwh"] for item in projection["intervals"]]
+    assert out[4:8] == pytest.approx([0.0] * 4)
+    assert sum(out[8:]) > 0.3

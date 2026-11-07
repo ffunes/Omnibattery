@@ -13,7 +13,7 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from types import MappingProxyType
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from ..pricing.daily_timeline import (
     CONTEXT_CHARGE_DELAY,
@@ -70,6 +70,11 @@ class DailyOperationProjectionRequest:
     extension_hours: int = 12
     # (slot start, stored kWh) the discharge reserve keeps for each later slot.
     reserve_claims: Sequence[tuple[datetime, float]] = ()
+    # What the reserve would keep at a slot, given (slot start, usable kWh,
+    # free space kWh) as projected there. Also holds the energy that only
+    # arrives later, which the claims above cannot: they come from what is
+    # stored now. Must be side-effect free.
+    reserve_floor: Callable[[datetime, float, float], float | None] | None = None
 
     def __post_init__(self) -> None:
         """Detach every collection from its controller-owned source."""
@@ -279,6 +284,7 @@ def build_daily_operation_projection(
             else None
         ),
         discharge_reserve_kwh=discharge_reserve_kwh,
+        discharge_reserve_fn=request.reserve_floor,
         system_charge_power_w=request.system_charge_power_w,
         system_discharge_power_w=request.system_discharge_power_w,
     )

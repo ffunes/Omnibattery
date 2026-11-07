@@ -2290,6 +2290,9 @@ class ChargeDischargeController:
                 reserve_claims=ChargeDischargeController._daily_operation_reserve_claims(
                     self, now
                 ),
+                reserve_floor=ChargeDischargeController._daily_operation_reserve_floor(
+                    self
+                ),
             )
         )
 
@@ -2339,6 +2342,17 @@ class ChargeDischargeController:
         scale = min(1.0, held / total)
         return tuple((start, kwh * scale) for start, kwh in claims)
 
+
+    def _daily_operation_reserve_floor(self):
+        """The reserve's decision at a later slot, for the projection, or None."""
+        manager = getattr(self, "_discharge_reserve_mgr", None)
+        projected = getattr(manager, "projected_reserve_fn", None)
+        if not callable(projected):
+            return None
+        try:
+            return projected()
+        except Exception:  # noqa: BLE001 - dashboard projection is optional
+            return None
 
     def _daily_operation_update_prices(self, manager, current: datetime) -> None:
         """Give the timeline the grid price of today and the extended horizon."""
