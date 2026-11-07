@@ -3,8 +3,10 @@
 It showed a fixed 12 hours of the next day. The discharge reserve can plan to
 the first slot where the sun covers the house, which in winter is past noon,
 and once tomorrow's prices are out they reach midnight. The part after
-midnight now runs to the later of the planner's energy horizon and the
-reserve's horizon: at least to noon, at most the whole next day.
+midnight now runs to the latest of the planner's energy horizon, the
+reserve's horizon and, with dynamic pricing, the last published price: at
+least to noon, at most the whole next day. Without price data the plan alone
+decides.
 """
 from __future__ import annotations
 
@@ -96,10 +98,23 @@ async def test_a_store_from_before_keeps_twelve_hours():
     assert [item["extension_index"] for item in snapshot["extended_projection"]] == [4]
 
 
-def _controller(energy_end=None, reserve_end=None):
+def _controller(energy_end=None, reserve_end=None, prices_until=None, mode="dynamic_pricing"):
+    def price_slots_between(start, end):
+        if prices_until is None:
+            return []
+        slots, slot_start = [], datetime(2026, 8, 23)
+        while slot_start < prices_until:
+            slot_end = slot_start + timedelta(minutes=15)
+            if slot_end > start and slot_start < end:
+                slots.append(SimpleNamespace(start=slot_start, end=slot_end, price=0.3))
+            slot_start = slot_end
+        return slots
+
     return SimpleNamespace(
         _last_decision_data={"energy_horizon_end": energy_end},
         _discharge_reserve_mgr=SimpleNamespace(plan_horizon_end=lambda: reserve_end),
+        _pricing_mgr=SimpleNamespace(price_slots_between=price_slots_between),
+        predictive_charging_mode=mode,
     )
 
 
@@ -117,6 +132,47 @@ def test_the_controller_takes_the_later_horizon(energy_end, reserve_end, hours):
     controller = _controller(energy_end, reserve_end)
 
     assert ChargeDischargeController._daily_operation_extension_hours(controller, NOW) == hours
+
+
+SUNRISE = "2026-08-24T07:24:46"
+
+
+@pytest.mark.parametrize(
+    ("prices_until", "mode", "hours"),
+    [
+        (datetime(2026, 8, 25), "dynamic_pricing", 24),  # tomorrow's prices are out
+        (datetime(2026, 8, 24, 14, 0), "dynamic_pricing", 14),  # published up to 14:00
+        (datetime(2026, 8, 24), "dynamic_pricing", 12),  # today only: the plan decides
+        (None, "dynamic_pricing", 12),  # no price data at all
+        (datetime(2026, 8, 25), "time_slot", 12),  # no market prices in this mode
+        (datetime(2026, 8, 25), None, 12),  # predictive charging without a mode
+    ],
+)
+def test_published_prices_carry_the_extension(prices_until, mode, hours):
+    controller = _controller(SUNRISE, None, prices_until, mode)
+
+    assert ChargeDischargeController._daily_operation_extension_hours(controller, NOW) == hours
+
+
+def test_the_plan_still_counts_when_prices_end_earlier():
+    controller = _controller(SUNRISE, datetime(2026, 8, 24, 16, 0), datetime(2026, 8, 24, 13, 0))
+
+    assert ChargeDischargeController._daily_operation_extension_hours(controller, NOW) == 16
+
+
+@pytest.mark.parametrize(
+    "pricing",
+    [
+        None,  # no pricing manager
+        SimpleNamespace(),  # a planner without the display helper
+        SimpleNamespace(price_slots_between=lambda start, end: 1 / 0),  # broken source
+    ],
+)
+def test_a_missing_or_broken_price_source_keeps_the_plan(pricing):
+    controller = _controller(SUNRISE, datetime(2026, 8, 24, 13, 30))
+    controller._pricing_mgr = pricing
+
+    assert ChargeDischargeController._daily_operation_extension_hours(controller, NOW) == 14
 
 
 def test_the_sensor_pads_to_the_published_length():

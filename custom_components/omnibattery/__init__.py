@@ -2311,9 +2311,10 @@ class ChargeDischargeController:
     def _daily_operation_extension_hours(self, now: datetime) -> int:
         """Hours after midnight the timeline shows: as far as the plan reaches.
 
-        At least the next morning, at most the whole next day: the later of
-        the predictive planner's energy horizon and the discharge reserve's
-        horizon, rounded up to the full hour.
+        At least the next morning, at most the whole next day: the latest of
+        the predictive planner's energy horizon, the discharge reserve's
+        horizon and, with dynamic pricing, the last published price slot,
+        rounded up to the full hour.
         """
         from .tracking.daily_timeline import (
             EXTENDED_HORIZON_HOURS,
@@ -2332,6 +2333,25 @@ class ChargeDischargeController:
         if callable(reserve_end):
             try:
                 ends.append(reserve_end())
+            except Exception:  # noqa: BLE001 - dashboard projection is optional
+                pass
+        # Once tomorrow's prices are out the chart shows them in full, even
+        # while the plan itself still ends at sunrise.
+        price_slots = getattr(
+            getattr(self, "_pricing_mgr", None), "price_slots_between", None
+        )
+        if (
+            callable(price_slots)
+            and getattr(self, "predictive_charging_mode", None)
+            == PREDICTIVE_MODE_DYNAMIC_PRICING
+        ):
+            # Price slots are on local wall clock, like the planner.
+            start = midnight.replace(tzinfo=None)
+            try:
+                slots = price_slots(
+                    start, start + timedelta(hours=EXTENDED_MAX_HORIZON_HOURS)
+                )
+                ends.append(max((slot.end for slot in slots or ()), default=None))
             except Exception:  # noqa: BLE001 - dashboard projection is optional
                 pass
         hours = EXTENDED_HORIZON_HOURS
