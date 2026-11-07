@@ -4362,7 +4362,14 @@ class ChargeDischargeController:
         if abs(error) <= self.deadband:
             return False
         demand_is_charging = error < 0
-        if self._is_operation_allowed(demand_is_charging):
+        # Effective = global blockers OR every PD-owned battery blocked, so a
+        # per-battery block (charge hysteresis, limits) on all of them counts.
+        blocked = (
+            self.is_charge_effectively_blocked()
+            if demand_is_charging
+            else self.is_discharge_effectively_blocked()
+        )
+        if not blocked:
             return False
         demand_sign = 1 if demand_is_charging else -1
         # Opposite-signed command = room to move toward the demand without
