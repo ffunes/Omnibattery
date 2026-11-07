@@ -17,7 +17,10 @@ from types import SimpleNamespace
 import pytest
 
 from custom_components.omnibattery import ChargeDischargeController
-from custom_components.omnibattery.const import PREDICTIVE_MODE_DYNAMIC_PRICING
+from custom_components.omnibattery.const import (
+    CHARGE_EFFICIENCY,
+    PREDICTIVE_MODE_DYNAMIC_PRICING,
+)
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.engine import PricingManager
 from custom_components.omnibattery.tracking.consumption_profile import ConsumptionForecast
@@ -866,7 +869,14 @@ def test_floor_lifts_the_margin_only_for_the_floor_energy():
     )
 
     assert decision["floor_active"] is True
-    assert plan.allocated_kwh == pytest.approx((20.0 - 12.0) / 100.0 * _FLOOR_CAP, abs=0.02)
+    # The grid feeds the house while the slot charges, so the battery stores
+    # the floor energy less the load it no longer has to carry meanwhile.
+    floor_kwh = (20.0 - 12.0) / 100.0 * _FLOOR_CAP
+    rate = 1.5 * CHARGE_EFFICIENCY
+    load_kw = plan.intervals[0].consumption_kwh * 4
+    assert plan.allocated_kwh == pytest.approx(
+        floor_kwh * rate / (rate + load_kw), abs=0.02
+    )
 
 
 # --- no-discharge intervals still net household load against solar (#616) -----
