@@ -31,7 +31,11 @@
 const FALLBACK_DOMAIN = "omnibattery";
 const FALLBACK_TITLE = "Omnibattery";
 const DAILY_OPERATION_BASE_INTERVALS = 96;
-const DAILY_OPERATION_EXTENSION_INTERVALS = 48;
+// The part after midnight follows the plan: the timeline publishes how many
+// quarters it covers (extended_horizon.interval_count), 48 by default and at
+// most a whole day. The chart is built for the maximum and sized per snapshot.
+const DAILY_OPERATION_EXTENSION_INTERVALS = 96;
+const DAILY_OPERATION_DEFAULT_EXTENSION_INTERVALS = 48;
 const DAILY_OPERATION_TOTAL_INTERVALS = DAILY_OPERATION_BASE_INTERVALS + DAILY_OPERATION_EXTENSION_INTERVALS;
 const DAILY_OPERATION_TOTAL_HOURS = DAILY_OPERATION_TOTAL_INTERVALS / 4;
 const DAILY_OPERATION_CONTEXT_HOURLY_BALANCE = 32;
@@ -2759,7 +2763,7 @@ class MarstekVenusPanel extends HTMLElement {
           }
           if (event.key === "Home" || event.key === "End") {
             event.preventDefault();
-            const target = this._r.dailyOperation && this._r.dailyOperation.cells[event.key === "Home" ? 0 : DAILY_OPERATION_TOTAL_INTERVALS - 1];
+            const target = this._r.dailyOperation && this._r.dailyOperation.cells[event.key === "Home" ? 0 : this._dailyOperationTotalIntervals() - 1];
             if (target) target.focus();
           }
         });
@@ -2841,6 +2845,9 @@ class MarstekVenusPanel extends HTMLElement {
       scrollState,
       localDate: null,
     };
+    this._applyDailyOperationSpan({
+      totalIntervals: DAILY_OPERATION_BASE_INTERVALS + DAILY_OPERATION_DEFAULT_EXTENSION_INTERVALS,
+    });
     this._attachDailyOperationGlobalListeners();
     return card;
   }
@@ -3027,6 +3034,11 @@ class MarstekVenusPanel extends HTMLElement {
     const repeated = this._dailyOperationExtendedArray(repeatedBase, [], []);
     const extensionHorizon = data.extended_horizon && typeof data.extended_horizon === "object"
       ? data.extended_horizon : {};
+    const extensionCount = Math.max(0, Math.min(DAILY_OPERATION_EXTENSION_INTERVALS, Math.floor(
+      this._dailyOperationNumber(extensionHorizon.interval_count) ?? DAILY_OPERATION_DEFAULT_EXTENSION_INTERVALS
+    )));
+    // Whole hours, so the hour grid and its labels stay aligned.
+    const totalIntervals = DAILY_OPERATION_BASE_INTERVALS + Math.ceil(extensionCount / 4) * 4;
     const extensionSkipped = Array.isArray(extensionHorizon.dst_skipped)
       ? extensionHorizon.dst_skipped : [];
     const extensionRepeated = Array.isArray(extensionHorizon.dst_repeated)
@@ -3148,7 +3160,7 @@ class MarstekVenusPanel extends HTMLElement {
       planEvaluatedAt: data.plan_evaluated_at || null,
       setpointInfo: data.setpoint && typeof data.setpoint === "object" ? data.setpoint : null,
       delayInfo: data.delay && typeof data.delay === "object" ? data.delay : null,
-      currentIndex, currentProgress,
+      currentIndex, currentProgress, totalIntervals,
       mode: data.mode == null ? null : String(data.mode),
       stale: this._dailyOperationBool(data.stale),
       staleReason: data.stale_reason == null ? null : String(data.stale_reason),
@@ -3653,19 +3665,54 @@ class MarstekVenusPanel extends HTMLElement {
     const center = () => {
       if (ref.scrollState.initialized || ref.scrollState.manual) return;
       if (!ref.viewport.clientWidth) return;
-      const hourWidth = ref.stage.scrollWidth / DAILY_OPERATION_TOTAL_HOURS;
-      const target = snapshot.currentIndex / 4 * hourWidth - (ref.viewport.clientWidth - hourWidth) / 2;
-      // Keep the optional post-midnight extension outside the initial view.
-      // The existing navigation buttons are the deliberate way to reveal it.
-      const baseEnd = ref.stage.scrollWidth * DAILY_OPERATION_BASE_INTERVALS / DAILY_OPERATION_TOTAL_INTERVALS;
-      const baseMax = Math.max(0, baseEnd - ref.viewport.clientWidth);
+      // Put "now" in the middle of the first view. The part after midnight
+      // may fill the right half in the evening; in the first hours of the
+      // day the view starts at 00:00, as there is nothing before it.
+      const intervalWidth = ref.stage.scrollWidth / this._dailyOperationTotalIntervals();
+      const now = (snapshot.currentIndex + snapshot.currentProgress) * intervalWidth;
+      const max = Math.max(0, ref.viewport.scrollWidth - ref.viewport.clientWidth);
       ref.scrollState.programmaticUntil = Date.now() + 250;
-      ref.viewport.scrollLeft = Math.max(0, Math.min(baseMax, target));
+      ref.viewport.scrollLeft = Math.max(0, Math.min(max, now - ref.viewport.clientWidth / 2));
       ref.scrollState.initialized = true;
       this._updateDailyOperationNav();
     };
     if (ref.viewport.clientWidth) center();
     else if (typeof requestAnimationFrame === "function") requestAnimationFrame(center);
+  }
+
+  /** Quarters on the chart now: today plus as far after midnight as the
+   *  plan reaches (see _applyDailyOperationSpan). */
+  _dailyOperationTotalIntervals() {
+    const ref = this._r.dailyOperation;
+    return (ref && ref.totalIntervals)
+      || DAILY_OPERATION_BASE_INTERVALS + DAILY_OPERATION_DEFAULT_EXTENSION_INTERVALS;
+  }
+
+  /** Size the chart to the snapshot's span; hours past it are hidden. */
+  _applyDailyOperationSpan(snapshot) {
+    const ref = this._r.dailyOperation;
+    const total = snapshot.totalIntervals;
+    if (!ref || !total || ref.totalIntervals === total) return;
+    ref.totalIntervals = total;
+    const hours = total / 4;
+    if (ref.stage && ref.stage.style && typeof ref.stage.style.setProperty === "function") {
+      ref.stage.style.setProperty("--daily-op-hours", String(hours));
+    }
+    if (ref.svg) {
+      ref.svg.setAttribute("viewBox", `0 0 ${total * 10} 190`);
+      // The SVG draws with overflow visible: lines past the span would widen
+      // the scroll area.
+      const gridLines = ref.svg.querySelector(".daily-op-grid-lines");
+      if (gridLines) {
+        gridLines.innerHTML =
+          Array.from({ length: 6 }, (_, i) => `<line x1="0" y1="${32 + i * 26.4}" x2="${total * 10}" y2="${32 + i * 26.4}"/>`).join("") +
+          Array.from({ length: hours + 1 }, (_, i) => `<line class="daily-op-hour-line" x1="${i * 40}" y1="24" x2="${i * 40}" y2="170"/>`).join("");
+      }
+    }
+    for (const container of [ref.labels, ref.hours]) {
+      if (!container || !container.children) continue;
+      Array.from(container.children).forEach((child, hour) => { child.hidden = hour >= hours; });
+    }
   }
 
   _updateDailyOperationNav() {
@@ -3763,10 +3810,11 @@ class MarstekVenusPanel extends HTMLElement {
     if (!ref || !ref.stage.scrollWidth || !ref.viewport.clientWidth) {
       return [0, DAILY_OPERATION_BASE_INTERVALS - 1];
     }
-    const scale = DAILY_OPERATION_TOTAL_INTERVALS / ref.stage.scrollWidth;
+    const total = this._dailyOperationTotalIntervals();
+    const scale = total / ref.stage.scrollWidth;
     const start = Math.max(0, Math.floor(ref.viewport.scrollLeft * scale) - 1);
     const end = Math.min(
-      DAILY_OPERATION_TOTAL_INTERVALS - 1,
+      total - 1,
       Math.ceil((ref.viewport.scrollLeft + ref.viewport.clientWidth) * scale) + 1,
     );
     return [start, end];
@@ -3910,7 +3958,7 @@ class MarstekVenusPanel extends HTMLElement {
       }
     }
     const now = (snapshot.currentIndex + snapshot.currentProgress) * 10;
-    ref.nowMarker.style.left = `${now / (DAILY_OPERATION_TOTAL_INTERVALS * 0.1)}%`;
+    ref.nowMarker.style.left = `${now / (this._dailyOperationTotalIntervals() * 0.1)}%`;
     ref.nowText.textContent = this._t("dailyOperationNow");
   }
 
@@ -4002,7 +4050,8 @@ class MarstekVenusPanel extends HTMLElement {
     ref.notice.textContent = notices.join(" · ");
     ref.notice.hidden = !notices.length;
     ref.viewport.setAttribute("aria-label", `${this._t("dailyOperationTitle")}. ${badgeText}`);
-    for (let index = 0; index < DAILY_OPERATION_TOTAL_INTERVALS; index++) this._dailyOperationUpdateCell(snapshot, index);
+    this._applyDailyOperationSpan(snapshot);
+    for (let index = 0; index < this._dailyOperationTotalIntervals(); index++) this._dailyOperationUpdateCell(snapshot, index);
     this._dailyOperationUpdatePaths(snapshot);
     this._centerDailyOperationNow(snapshot);
     this._updateDailyOperationNav();
@@ -7643,7 +7692,7 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-op-soc-axis-ticks { position: absolute; top: 32px; left: 8px; bottom: 26px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; }
       .daily-op-viewport { position: relative; min-width: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; scrollbar-width: thin; overscroll-behavior-x: contain; outline: none; }
       .daily-op-viewport:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-line); border-radius: 8px; }
-      .daily-op-stage { position: relative; width: 150%; min-width: 1440px; height: 190px; }
+      .daily-op-stage { position: relative; width: calc(150% * var(--daily-op-hours, 36) / 36); min-width: calc(40px * var(--daily-op-hours, 36)); height: 190px; }
       .daily-op-svg { position: absolute; inset: 0; z-index: 1; display: block; width: 100%; height: 190px; overflow: visible; pointer-events: none; }
       .daily-op-grid-lines line { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
       .daily-op-grid-lines .daily-op-hour-line { stroke: var(--line-strong); }
@@ -7660,7 +7709,8 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-op-now-marker::before { content: ""; position: absolute; top: 21px; bottom: 0; left: 0; border-left: 1.5px solid var(--accent); }
       .daily-op-now-marker::after { content: ""; position: absolute; top: 18px; left: -3px; width: 7px; height: 7px; border: 1px solid var(--bg-1); border-radius: 50%; background: var(--accent); }
       .daily-op-now-text { position: absolute; top: 0; left: 0; transform: translateX(-50%); padding: 2px 7px; border: 1px solid var(--accent-line); border-radius: 999px; background: var(--bg-2); color: var(--accent); box-shadow: 0 2px 8px oklch(0 0 0 / .22); font-size: 9px; line-height: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
-      .daily-op-hour-labels, .daily-op-hours { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); min-width: 0; }
+      .daily-op-hour-labels, .daily-op-hours { display: grid; grid-template-columns: repeat(var(--daily-op-hours, 36), minmax(0, 1fr)); min-width: 0; }
+      .daily-op-hour[hidden], .daily-op-hour-label[hidden] { display: none; }
       .daily-op-hour-label { padding-left: 4px; color: var(--ink-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
       .daily-op-hour { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-width: 0; scroll-snap-align: start; border-right: 1px solid var(--line-strong); }
       .daily-op-cell { position: relative; display: block; min-width: 0; height: 146px; padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; background-color: transparent; background-repeat: repeat; background-size: 8px 8px; cursor: pointer; pointer-events: auto; transition: filter .12s, opacity .12s; }
