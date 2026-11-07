@@ -591,9 +591,19 @@ def test_the_gap_is_bought_in_the_cheap_night_not_after_sunrise(monkeypatch):
     assert morning.start not in starts
 
 
-def test_in_the_night_after_the_target_day_the_gap_is_reserved_from_now():
+@pytest.mark.parametrize(
+    "since_target_day_start",
+    [
+        # The target day's evening, after its sun: a restart there dropped
+        # the run until midnight.
+        timedelta(hours=20),
+        timedelta(days=1, hours=2),  # the night after it
+    ],
+    ids=["evening", "night"],
+)
+def test_after_the_target_day_s_sun_the_gap_is_reserved_from_now(since_target_day_start):
     target_day = datetime(2026, 9, 21)
-    now = target_day + timedelta(days=1, hours=2)
+    now = target_day + since_target_day_start
     coord = _Coord(60.0, 10.0)
     ctrl = _ctrl([coord], weekly=True, solar=None, consumption=2.0)
     decision = _run(ctrl)

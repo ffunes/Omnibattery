@@ -3274,21 +3274,28 @@ class PricingManager:
                 self._controller, "_weekly_full_charge_pending", None
             )
             weekly_window_end, weekly_overnight = self._weekly_charge_window(now)
+            # Once the target day's sun is over (its evening, or the night after
+            # it) an evaluation, a restart for one, must still book the run.
+            weekly_from_now = weekly_overnight or (
+                weekly_window_end is not None
+                and solar_end_dt is not None
+                and solar_end_dt <= now
+            )
             if (
                 callable(weekly_pending)
                 and weekly_pending()
                 and (
-                    weekly_overnight
+                    weekly_from_now
                     or (solar_end_dt is not None and solar_end_dt > now)
                 )
             ):
                 # An unreliable solar forecast is why this reservation exists;
                 # crediting it would reproduce #489.  Over-reserving is safe because
                 # the pre-slot re-evaluation cancels or resizes against the real SOC.
-                # In the night after the target day the sun has had its turn, so
-                # the gap is bought from now on, up to the sunrise ending the run.
+                # After the target day's sun the gap is bought from now on, up
+                # to the sunrise ending the run.
                 drained_until = (
-                    weekly_window_end if weekly_overnight else solar_end_dt
+                    weekly_window_end if weekly_from_now else solar_end_dt
                 )
                 projected_usable = min(
                     usable + headroom,
@@ -3303,7 +3310,7 @@ class PricingManager:
                     ),
                 )
                 decision_data["weekly_reserve_not_before"] = (
-                    now if weekly_overnight else solar_end_dt
+                    now if weekly_from_now else solar_end_dt
                 ).isoformat()
                 if weekly_window_end is not None:
                     decision_data["weekly_reserve_not_after"] = (
