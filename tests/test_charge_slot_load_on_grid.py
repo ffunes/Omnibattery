@@ -237,3 +237,37 @@ def test_carried_load_only_shrinks_a_real_shortfall():
     assert plan.allocated_kwh == pytest.approx(CHARGE_EFFICIENCY)
     # 2.4 needed, 0.85 stored, 0.4 carried during the hour.
     assert plan.total_shortfall_kwh == pytest.approx(2.4 - CHARGE_EFFICIENCY - 0.4)
+
+
+def test_timeline_charges_the_slot_first_then_covers_the_house():
+    """The Daily Operation projection follows the controller: full power from
+    the slot start until the quota is stored, then the battery covers the
+    house for the rest of the slot. Spreading the quota over the slot kept
+    the house on the grid for all three hours and projected the battery
+    0.8 kWh above its floor at sunrise."""
+    from custom_components.omnibattery.pricing.daily_timeline import (
+        BatteryProjectionInput,
+        simulate_battery_projection,
+    )
+
+    intervals = _night(0.4)
+    slot = PriceSlot(BASE + timedelta(hours=2), BASE + timedelta(hours=5), 0.1)
+    plan = evaluate_chronological_request(
+        _request(intervals, slot, required=2.0, carried=True, usable=0.8)
+    ).plan
+    floor = 1.0  # 10% of 10 kWh
+    battery = BatteryProjectionInput(
+        "b", floor + 0.8, 10.0, 10.0, 100.0, 2000.0, 2000.0,
+        charge_efficiency=CHARGE_EFFICIENCY, discharge_efficiency=1.0,
+    )
+    flows = simulate_battery_projection(
+        intervals, [battery], allocations=plan.allocations
+    ).intervals
+
+    in_slot = [f for f in flows if slot.start <= f.start < slot.end]
+    assert in_slot[0].grid_to_battery_kwh == pytest.approx(0.5)  # 2 kW quarter
+    assert in_slot[-1].grid_to_battery_kwh == pytest.approx(0.0)
+    assert in_slot[-1].battery_to_home_kwh == pytest.approx(0.1)
+    # The quarter in which the charge stops does not discharge at all, so
+    # the projection ends a few Wh above the floor (it was 0.8 kWh).
+    assert flows[-1].stored_energy_end_kwh == pytest.approx(floor, abs=0.03)

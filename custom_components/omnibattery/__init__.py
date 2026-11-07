@@ -2164,6 +2164,14 @@ class ChargeDischargeController:
                         * duration_h
                         * CHARGE_EFFICIENCY
                     )
+                elif slot.start <= now < slot.end:
+                    # The projection starts now and charges the slot's
+                    # quota from there, so only what is left of it.
+                    target = max(
+                        0.0,
+                        target
+                        - ChargeDischargeController._charged_in_slot(self, raw_slot),
+                    )
                 if target > 0.0:
                     allocations.append(
                         SlotAllocation(
