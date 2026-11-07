@@ -26,7 +26,9 @@ battery keeps behaving exactly as it does today.
 """
 from __future__ import annotations
 
+import copy
 import logging
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any
@@ -234,6 +236,54 @@ class DischargeReserveManager:
             snapshot.name: round(share, 2) for snapshot, share in zip(fleet, shares)
         }
         return pct
+
+    def projected_reserve_fn(
+        self,
+    ) -> Callable[[datetime, float, float], float | None] | None:
+        """What the reserve would keep at a later slot, for the projection.
+
+        The live reserve only sees what is stored now, so with an empty battery
+        the Daily Operation projection spent the midday sun at once although the
+        reserve keeps it for the dearer evening as soon as it lands. The
+        callable runs the same decision at a later slot's start, at that slot's
+        price and with the usable energy and free space the projection has
+        there. It works on a copy of the plan, so the status the entities show
+        is not touched; None where no slot of the plan covers the time.
+        """
+        if not self.feature_enabled() or self._release_guard() is not None:
+            return None
+        plan = self._plan
+        if plan is None or (
+            self._plan_date is not None and self._now().date() != self._plan_date
+        ):
+            return None
+        snapshot = copy.copy(plan)
+        snapshot.min_saving = max(
+            0.0,
+            float(getattr(self._controller, "discharge_reserve_min_saving", 0.0) or 0.0),
+        )
+        slots = list(snapshot.slots)
+        if not slots:
+            return None
+        naive = slots[0].start.tzinfo is None
+
+        def reserve_at(start: datetime, usable_kwh: float, free_kwh: float) -> float | None:
+            if naive and start.tzinfo is not None:
+                start = start.replace(tzinfo=None)
+            elif not naive and start.tzinfo is None:
+                start = start.replace(tzinfo=slots[0].start.tzinfo)
+            slot = next((s for s in slots if s.start <= start < s.end), None)
+            if slot is None:
+                return None
+            try:
+                reserve_kwh, _claiming, _reason = snapshot.reserve_kwh_at(
+                    start, slot.price, usable_kwh, free_kwh
+                )
+            except Exception:  # noqa: BLE001 - dashboard projection is optional
+                return None
+            return reserve_kwh
+
+        return reserve_at
 
     def battery_reserve_soc_pct(self, coordinator) -> float | None:
         """This cycle's reserve for one battery, in points above its own floor.
