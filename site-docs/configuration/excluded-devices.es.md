@@ -34,9 +34,6 @@ Main sensor measures only the domestic circuit and cannot see this device
 
 ![Configurar un dispositivo excluido](../assets/screenshots/configuration/excluded-device-form.png){ width="650" style="display: block; margin: 0 auto;"}
 
-!!! warning "La captura de pantalla necesita actualizarse"
-    El formulario actual también incluye la demanda restante esperada y su entidad de presencia, que no son visibles en esta captura de pantalla.
-
 ## lo que veras
 
 Cada dispositivo guardado expone controles en vivo en el dispositivo del sistema Omnibattery:

@@ -34,9 +34,6 @@ Main sensor measures only the domestic circuit and cannot see this device
 
 ![Configure an excluded device](../assets/screenshots/configuration/excluded-device-form.png){ width="650" style="display: block; margin: 0 auto;"}
 
-!!! warning "Screenshot needs updating"
-    The current form also includes expected remaining demand and its presence entity, which are not visible in this screenshot.
-
 ## What you will see
 
 Each saved device exposes live controls on the Omnibattery system device:
