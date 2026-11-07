@@ -6325,8 +6325,7 @@ class ChargeDischargeController:
             except (TypeError, ValueError):
                 continue
 
-        # 100 W is the existing relay-cooldown hold and the minimum operating
-        # floor reported by the Anker driver. It is only a fallback for drivers
+        # 100 W is the existing relay-cooldown hold. It is only a fallback for drivers
         # that do not publish a hardware floor; the available battery capacity
         # remains the final cap.
         floor = max(configured_floor, hardware_floor, float(RELAY_COOLDOWN_HOLD_POWER))

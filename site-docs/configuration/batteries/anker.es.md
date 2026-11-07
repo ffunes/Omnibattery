@@ -44,7 +44,7 @@ El mapa de registros común proporciona estado de carga (SOC), potencia de bater
 | SoH no está disponible | El modelo devolvió un valor no compatible o cero | Confirma la lectura en diagnósticos; cero se trata como no disponible |
 
 ??? "Detalles avanzados"
-    Omnibattery limita las órdenes Anker a los límites de hardware en vivo y a una envolvente de integración de `3,500 W`. El objetivo mínimo de funcionamiento distinto de cero es `100 W`; los objetivos menores se cambian a reposo o a ese mínimo según corresponda.
+    Omnibattery limita las órdenes Anker a los límites de hardware en vivo y a una envolvente de integración de `3,500 W`. Los objetivos por debajo de `100 W` se envían tal cual, como en la integración oficial de Anker; el equipo puede regularlos con menos precisión.
 
     Los controles de SOC del dispositivo permiten un máximo de `80–100%` y un mínimo de `0–20%`. Los cortes de hardware permanecen activos. Anker no utiliza la reducción gradual por tensión de celda de Marstek.
 
