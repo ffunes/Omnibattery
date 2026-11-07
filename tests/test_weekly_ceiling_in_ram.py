@@ -123,8 +123,9 @@ async def test_a_rebooted_zendure_is_raised_again_once_a_minute_at_most(monkeypa
     clock[0] += 40.0
     await manager.handle_registers()
     assert zendure.set_temporary_charge_cutoff.await_count == 2
-    # The Marstek, still at 100 %, is not written again.
-    assert venus.set_charge_cutoff.await_count == 1
+    # The Marstek's register write is unchanged: it is written again along
+    # with the other battery, as before.
+    assert [call.args for call in venus.set_charge_cutoff.await_args_list] == [(100,), (100,)]
     # The saved ceiling is still the one from before the first raise.
     assert controller._weekly_charge_saved_max_soc["Zendure"] == 95
 
