@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date, datetime, time, timedelta
 from datetime import timezone as dt_timezone
@@ -1039,6 +1039,8 @@ def simulate_battery_projection(
     charge_availability: Any = None,
     charge_ceiling_pct: Any = None,
     discharge_reserve_kwh: Any = None,
+    discharge_reserve_fn: Callable[[datetime, float, float], float | None]
+    | None = None,
     system_charge_power_w: float | None = None,
     system_discharge_power_w: float | None = None,
 ) -> BatteryProjectionResult:
@@ -1061,7 +1063,12 @@ def simulate_battery_projection(
     latch does not apply while raised.  Optional ``discharge_reserve_kwh``
     values are the stored energy above the batteries' floors that the discharge
     reserve keeps for later, dearer slots: discharge in that interval leaves at
-    least that much in the fleet.  System-wide charge/discharge
+    least that much in the fleet.  Optional ``discharge_reserve_fn`` asks the
+    reserve itself, with ``(interval start, usable kWh, free space kWh)`` as
+    the projection has them after the interval's charge, so energy that only
+    arrives later is held too; a number it returns replaces that interval's
+    ``discharge_reserve_kwh``, None keeps it.  It must not have side effects.
+    System-wide charge/discharge
     limits cap the aggregate AC-side flow in each interval in addition to every
     battery's own power limit.
     """
@@ -1282,6 +1289,7 @@ def simulate_battery_projection(
                 "charge_eff": charge_eff,
                 "discharge_eff": discharge_eff,
                 "minimum": minimum,
+                "maximum": interval_maximum,
                 "discharge_power": discharge_power,
                 "discharge_output": 0.0,
             }
@@ -1291,6 +1299,18 @@ def simulate_battery_projection(
         # may still coexist in opposite directions.  Energy the discharge
         # reserve keeps for a later slot is not spent here.
         reserve_floor = _metadata_value(discharge_reserve_kwh, index, interval_list)
+        if discharge_reserve_fn is not None and interval.start is not None:
+            usable = sum(
+                max(0.0, states[key] - values["minimum"])
+                for key, values in per_battery.items()
+            )
+            space = sum(
+                max(0.0, values["maximum"] - states[key])
+                for key, values in per_battery.items()
+            )
+            asked = discharge_reserve_fn(interval.start, usable, space)
+            if asked is not None:
+                reserve_floor = asked
         reserve_room = (
             max(
                 0.0,
