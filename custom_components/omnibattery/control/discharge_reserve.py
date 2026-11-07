@@ -237,6 +237,15 @@ class DischargeReserveManager:
         }
         return pct
 
+    def plan_horizon_end(self) -> datetime | None:
+        """Where today's reserve plan ends, or None without a plan."""
+        plan = self._plan
+        if plan is None or (
+            self._plan_date is not None and self._now().date() != self._plan_date
+        ):
+            return None
+        return plan.horizon_end
+
     def projected_reserve_fn(
         self,
     ) -> Callable[[datetime, float, float], float | None] | None:

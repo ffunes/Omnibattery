@@ -1277,7 +1277,9 @@ class NonResponsiveBatteriesSensor(SensorEntity):
 
 _DAILY_OPERATION_INTERVAL_COUNT = 96
 _DAILY_OPERATION_INTERVAL_MINUTES = 15
+# The part after midnight follows the plan: 48 quarters by default, up to 96.
 _DAILY_OPERATION_EXTENDED_INTERVAL_COUNT = 48
+_DAILY_OPERATION_EXTENDED_MAX_INTERVAL_COUNT = 96
 _DAILY_OPERATION_EVENT_THROTTLE_S = 60.0
 _TIMELINE_MISSING = object()
 
@@ -1541,7 +1543,7 @@ def _timeline_projection_extension(value: object) -> list[dict[str, object]]:
     }
     boolean_fields = {"setpoint_active", "delay_active", "simultaneous"}
     result: list[dict[str, object]] = []
-    for raw in value[:_DAILY_OPERATION_EXTENDED_INTERVAL_COUNT]:
+    for raw in value[:_DAILY_OPERATION_EXTENDED_MAX_INTERVAL_COUNT]:
         if not isinstance(raw, Mapping):
             continue
         item: dict[str, object] = {}
@@ -1588,6 +1590,12 @@ def _timeline_horizon(value: object) -> dict[str, object]:
         number = _timeline_number(value.get(key), 0)
         if number is not None:
             result[key] = max(0, int(number))
+    count = min(
+        _DAILY_OPERATION_EXTENDED_MAX_INTERVAL_COUNT,
+        int(result.get("interval_count", _DAILY_OPERATION_EXTENDED_INTERVAL_COUNT)),
+    )
+    if "interval_count" in result:
+        result["interval_count"] = count
     for key, converter, default in (
         ("duration_s", _timeline_number, 0.0),
         ("dst_skipped", _timeline_bool, False),
@@ -1598,13 +1606,10 @@ def _timeline_horizon(value: object) -> dict[str, object]:
         if not isinstance(raw, (list, tuple)):
             continue
         converted: list[object] = []
-        for item in raw[:_DAILY_OPERATION_EXTENDED_INTERVAL_COUNT]:
+        for item in raw[:count]:
             parsed = converter(item)
             converted.append(default if parsed is None else parsed)
-        converted.extend(
-            [default]
-            * (_DAILY_OPERATION_EXTENDED_INTERVAL_COUNT - len(converted))
-        )
+        converted.extend([default] * (count - len(converted)))
         result[key] = converted
     return result
 

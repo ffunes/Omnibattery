@@ -2062,7 +2062,10 @@ class ChargeDischargeController:
         local_midnight = now.replace(
             hour=0, minute=0, second=0, microsecond=0
         ) + timedelta(days=1)
-        projection_horizon_end = local_midnight + timedelta(hours=12)
+        extension_hours = ChargeDischargeController._daily_operation_extension_hours(
+            self, now
+        )
+        projection_horizon_end = local_midnight + timedelta(hours=extension_hours)
         if mode == "dynamic_pricing" and schedule is not None:
             raw_slots = list(getattr(schedule, "selected_slots", ()) or ())
         elif mode == "time_slot":
@@ -2295,6 +2298,7 @@ class ChargeDischargeController:
                 system_discharge_power_w=system_discharge_power_w,
                 operation_plan_source=operation_plan_source,
                 plan_evaluated_at=evaluated_at,
+                extension_hours=extension_hours,
                 reserve_claims=ChargeDischargeController._daily_operation_reserve_claims(
                     self, now
                 ),
@@ -2303,6 +2307,71 @@ class ChargeDischargeController:
                 ),
             )
         )
+
+    def _daily_operation_extension_hours(self, now: datetime) -> int:
+        """Hours after midnight the timeline shows: as far as the plan reaches.
+
+        At least the next morning, at most the whole next day: the latest of
+        the predictive planner's energy horizon, the discharge reserve's
+        horizon and, with dynamic pricing, the last published price slot,
+        rounded up to the full hour.
+        """
+        from .tracking.daily_timeline import (
+            EXTENDED_HORIZON_HOURS,
+            EXTENDED_MAX_HORIZON_HOURS,
+        )
+
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(
+            days=1
+        )
+        ends: list[Any] = [
+            (getattr(self, "_last_decision_data", None) or {}).get("energy_horizon_end")
+        ]
+        reserve_end = getattr(
+            getattr(self, "_discharge_reserve_mgr", None), "plan_horizon_end", None
+        )
+        if callable(reserve_end):
+            try:
+                ends.append(reserve_end())
+            except Exception:  # noqa: BLE001 - dashboard projection is optional
+                pass
+        # Once tomorrow's prices are out the chart shows them in full, even
+        # while the plan itself still ends at sunrise.
+        price_slots = getattr(
+            getattr(self, "_pricing_mgr", None), "price_slots_between", None
+        )
+        if (
+            callable(price_slots)
+            and getattr(self, "predictive_charging_mode", None)
+            == PREDICTIVE_MODE_DYNAMIC_PRICING
+        ):
+            # Price slots are on local wall clock, like the planner.
+            start = midnight.replace(tzinfo=None)
+            try:
+                slots = price_slots(
+                    start, start + timedelta(hours=EXTENDED_MAX_HORIZON_HOURS)
+                )
+                ends.append(max((slot.end for slot in slots or ()), default=None))
+            except Exception:  # noqa: BLE001 - dashboard projection is optional
+                pass
+        hours = EXTENDED_HORIZON_HOURS
+        for end in ends:
+            if isinstance(end, str):
+                try:
+                    end = datetime.fromisoformat(end)
+                except ValueError:
+                    continue
+            if not isinstance(end, datetime):
+                continue
+            # The planner works on local wall clock; align it with ``now``.
+            if end.tzinfo is None and now.tzinfo is not None:
+                end = end.replace(tzinfo=now.tzinfo)
+            elif end.tzinfo is not None and now.tzinfo is None:
+                end = dt_util.as_local(end).replace(tzinfo=None)
+            elif end.tzinfo is not None:
+                end = end.astimezone(now.tzinfo)
+            hours = max(hours, math.ceil((end - midnight).total_seconds() / 3600.0))
+        return int(min(EXTENDED_MAX_HORIZON_HOURS, hours))
 
     def _daily_operation_reserve_claims(
         self, now: datetime
@@ -2396,7 +2465,7 @@ class ChargeDischargeController:
             return
         day_start = datetime.combine(current.date(), datetime.min.time())
         try:
-            update(pricing.price_slots_between(day_start, day_start + timedelta(hours=36)))
+            update(pricing.price_slots_between(day_start, day_start + timedelta(hours=48)))
         except Exception:  # noqa: BLE001 - display data must not block the projection
             _LOGGER.debug("Daily operation timeline price update failed", exc_info=True)
 
