@@ -749,6 +749,44 @@ def test_guaranteed_floor_deadline_ignores_the_import_value():
     assert plan.cheaper_to_import_kwh == 0.0
 
 
+def _unpriced_plan(deadlines=None):
+    # 1 kWh used at 10:00 (import 0.30) and 1 kWh at 02:00 the next night,
+    # after the last published price (11:15).
+    intervals = [_interval(40, 1.0), _interval(104, 1.0)]
+    slots = [_slot(0, 60, 0.15), _slot(600, 615, 0.30), _slot(660, 675, 0.20)]
+    return allocate_price_slots(
+        intervals,
+        deadlines or build_energy_deadlines(intervals, usable_initial_kwh=0.0),
+        slots,
+        total_required_kwh=2.0,
+        effective_power_kw=2.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=27),
+        import_value_efficiency=0.82,
+        import_value_margin=0.06,
+    )
+
+
+def test_a_deadline_after_the_last_published_price_waits_for_its_price():
+    """Its import price is unknown, so no slot is shown to repay it: the
+    night slot must not be bought for it at 00:05 (it was, under the slot
+    ceiling only, and the energy then went into whatever came first)."""
+    plan = _unpriced_plan()
+
+    assert [a.slot.price for a in plan.allocations] == [0.15]
+    assert plan.allocated_kwh == pytest.approx(1.0)
+    assert plan.cheaper_to_import_kwh == pytest.approx(1.0)
+    assert plan.deadline_shortfall_kwh == pytest.approx(0.0)
+
+
+def test_an_unpriced_guaranteed_floor_deadline_is_still_bought():
+    deadline = EnergyDeadline(BASE + timedelta(hours=26, minutes=15), 2.0, "guaranteed_floor")
+    plan = _unpriced_plan(deadlines=[deadline])
+
+    assert plan.allocated_kwh == pytest.approx(2.0)
+    assert plan.cheaper_to_import_kwh == 0.0
+
+
 def test_price_threshold_names_the_cheapest_rejected_slot():
     plan = _import_value_plan(max_price_threshold=0.10)
 
