@@ -7,7 +7,7 @@ charge efficiency when its usable capacity is calculated.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 import math
 from typing import Iterable, Mapping, Sequence
 
@@ -376,6 +376,40 @@ def _net_of_load_carried_by_grid(
         stored += rate * hours
         avoided += load_rate * hours
     return max(0.0, amount - min(avoided, amount))
+
+
+def _load_carried_while_storing(
+    intervals: Sequence[EnergyInterval],
+    stored_kwh: float,
+    start: datetime,
+    end: datetime,
+    rate_kwh_h: float,
+) -> float:
+    """House load the grid carries while a slot stores ``stored_kwh``.
+
+    The slot charges at ``rate_kwh_h`` from ``start`` until the energy is
+    stored (or ``end``); only the load solar does not cover counts.
+    """
+    rate = _finite_non_negative(rate_kwh_h)
+    if rate <= _EPSILON or end <= start:
+        return 0.0
+    stop = min(end, start + timedelta(hours=_finite_non_negative(stored_kwh) / rate))
+    carried = 0.0
+    for interval in intervals:
+        if interval.end <= start:
+            continue
+        if interval.start >= stop:
+            break
+        interval_hours = _duration_hours(interval.start, interval.end)
+        if interval_hours <= 0.0:
+            continue
+        load_rate = (
+            max(0.0, interval.consumption_kwh - interval.solar_kwh) / interval_hours
+        )
+        carried += load_rate * _duration_hours(
+            max(start, interval.start), min(stop, interval.end)
+        )
+    return carried
 
 
 def _unclipped_room(
@@ -782,35 +816,53 @@ def allocate_price_slots(
         # inside a charging slot as battery drain, but the grid feeds the
         # house while the slot charges. Charging that load into the battery
         # as well left it well above its floor at sunrise.
+        shortfall = max(0.0, required - sum(allocations.values()))
+        covered = 0.0
         carried_deadline = 0.0
         carried_flexible = 0.0
-        for slot in list(allocations):
+        for slot in sorted(allocations, key=lambda item: item.start):
             amount = allocations[slot]
-            served = allocation_deadlines.get(slot)
+            start, end = max(now, slot.start), min(slot.end, horizon_end)
+            # A slot at full capacity cannot stop sooner: the load carried
+            # while it runs first covers the shortfall (#785: trimming such
+            # slots emptied the battery before sunrise). A slot below capacity
+            # was held there on purpose (price, premium budget, clipping), so
+            # its carried load trims it.
+            cover = 0.0
+            if amount >= capacity(slot) - _EPSILON:
+                cover = min(
+                    shortfall - covered,
+                    _load_carried_while_storing(
+                        intervals, amount, start, end, power * efficiency
+                    ),
+                )
+                covered += cover
             # The controller charges from the slot start until the amount is
             # stored, whichever deadline the energy was allocated to.
-            net = _net_of_load_carried_by_grid(
-                intervals,
+            net = min(
                 amount,
-                max(now, slot.start),
-                min(slot.end, horizon_end),
-                power * efficiency,
+                _net_of_load_carried_by_grid(
+                    intervals, amount + cover, start, end, power * efficiency
+                ),
             )
-            carried = amount - net
-            if carried <= _EPSILON:
-                continue
-            if served is None:
-                carried_flexible += carried
+            if allocation_deadlines.get(slot) is None:
+                carried_flexible += amount - net
             else:
-                carried_deadline += carried
+                carried_deadline += amount - net
             if net <= _EPSILON:
                 del allocations[slot]
                 allocation_deadlines.pop(slot, None)
             else:
                 allocations[slot] = net
-        deadline_required = max(0.0, deadline_required - carried_deadline)
-        flexible_required = max(0.0, flexible_required - carried_flexible)
-        required = max(0.0, required - carried_deadline - carried_flexible)
+        covered_deadline = min(covered, deadline_shortfall)
+        deadline_shortfall -= covered_deadline
+        deadline_required = max(
+            0.0, deadline_required - carried_deadline - covered_deadline
+        )
+        flexible_required = max(
+            0.0, flexible_required - carried_flexible - (covered - covered_deadline)
+        )
+        required = max(0.0, required - carried_deadline - carried_flexible - covered)
 
     result_allocations = [
         SlotAllocation(

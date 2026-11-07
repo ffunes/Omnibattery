@@ -145,3 +145,95 @@ def test_weekly_full_charge_keeps_the_whole_gap():
 
     assert _tonight_kwh(trimmed) == pytest.approx(_tonight_kwh(normal))
     assert _tonight_kwh(untrimmed) > _tonight_kwh(trimmed) + 0.5
+
+
+def _simulate(intervals, allocations, start_kwh, rate):
+    """Battery energy per interval when each slot charges from its start until
+    its planned energy is stored, the grid carrying the house meanwhile.
+
+    Returns (minimum, final) battery energy.
+    """
+    left = {a.slot: a.planned_battery_kwh for a in allocations}
+    energy = start_kwh
+    low = energy
+    for interval in intervals:
+        slot = next(
+            (s for s in left if s.start <= interval.start < s.end and left[s] > 1e-9),
+            None,
+        )
+        hours = (interval.end - interval.start).total_seconds() / 3600.0
+        drain = max(0.0, interval.consumption_kwh - interval.solar_kwh)
+        if slot is None:
+            energy -= drain
+        else:
+            # Charging part of the interval: the grid feeds the house then;
+            # the battery drains the house for the rest of it.
+            stored = min(left[slot], rate * hours)
+            charging_share = stored / (rate * hours)
+            left[slot] -= stored
+            energy += stored - drain * (1.0 - charging_share)
+        low = min(low, energy)
+    return low, energy
+
+
+def test_slots_at_full_capacity_keep_their_charge():
+    """#785 follow-up: the slots cannot store the whole need.
+
+    Same night at 1 kW: each slot stores at most 0.85 kWh. Both run the whole
+    hour, so the grid carries 0.8 kWh of house load, which covers the 0.7 kWh
+    the slots lack. Trimming them as if they stopped early left the battery
+    0.7 kWh short before sunrise.
+    """
+    intervals = _night(0.4)
+    slots = (
+        PriceSlot(BASE + timedelta(hours=1), BASE + timedelta(hours=2), 0.10),
+        PriceSlot(BASE + timedelta(hours=2), BASE + timedelta(hours=3), 0.12),
+    )
+    plan = evaluate_chronological_request(
+        ChronologicalEvaluationRequest(
+            now=BASE,
+            horizon_end=BASE + timedelta(hours=7),
+            intervals=tuple(intervals),
+            price_slots=slots,
+            total_required_kwh=2.4,
+            effective_power_kw=1.0,
+            headroom_kwh=10.0,
+            usable_initial_kwh=0.4,
+            grid_carries_load_while_charging=True,
+        )
+    ).plan
+
+    assert plan.total_shortfall_kwh == pytest.approx(0.0, abs=1e-6)
+    assert plan.reason == "ok"
+    # The earlier slot keeps its full hour; the later one stops once the
+    # stored energy plus the carried load cover the night.
+    first, second = plan.allocations
+    assert first.planned_battery_kwh == pytest.approx(CHARGE_EFFICIENCY)
+    assert second.planned_battery_kwh < CHARGE_EFFICIENCY
+    low, final = _simulate(intervals, plan.allocations, 0.4, CHARGE_EFFICIENCY)
+    assert low >= -1e-6
+    assert final == pytest.approx(0.0, abs=1e-6)
+
+
+def test_carried_load_only_shrinks_a_real_shortfall():
+    """Slots far too small: the carried load reduces the shortfall, and the
+    slots still charge their whole capacity."""
+    intervals = _night(0.4)
+    slot = PriceSlot(BASE + timedelta(hours=1), BASE + timedelta(hours=2), 0.10)
+    plan = evaluate_chronological_request(
+        ChronologicalEvaluationRequest(
+            now=BASE,
+            horizon_end=BASE + timedelta(hours=7),
+            intervals=tuple(intervals),
+            price_slots=(slot,),
+            total_required_kwh=2.4,
+            effective_power_kw=1.0,
+            headroom_kwh=10.0,
+            usable_initial_kwh=0.4,
+            grid_carries_load_while_charging=True,
+        )
+    ).plan
+
+    assert plan.allocated_kwh == pytest.approx(CHARGE_EFFICIENCY)
+    # 2.4 needed, 0.85 stored, 0.4 carried during the hour.
+    assert plan.total_shortfall_kwh == pytest.approx(2.4 - CHARGE_EFFICIENCY - 0.4)
