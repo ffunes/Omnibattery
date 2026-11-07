@@ -3391,6 +3391,11 @@ class PricingManager:
                         margin if value_deadlines else 0.0
                     ),
                     reserve_holds=value_deadlines and self._discharge_reserve_holds(),
+                    # A weekly full charge fills the gap to 100%; the load
+                    # the grid carries meanwhile does not shrink that gap.
+                    grid_carries_load_while_charging=not (
+                        callable(weekly_pending) and weekly_pending()
+                    ),
                 )
             )
             plan = evaluation.plan

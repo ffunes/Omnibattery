@@ -136,6 +136,11 @@ class ChronologicalEvaluationRequest:
     # covers the house, so a valued deadline may be served across an hour left
     # to the grid up to then.
     reserve_holds: bool = False
+    # While a slot charges, the grid carries the house load, so the battery
+    # does not drain then and needs that much less charge. Off for a weekly
+    # full charge, whose target is the gap to 100%, not a drain. The runtime
+    # planner turns this on; the pure evaluator keeps the plain model.
+    grid_carries_load_while_charging: bool = False
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:
@@ -323,6 +328,56 @@ def _duration_hours(start: datetime, end: datetime) -> float:
     return max(0.0, (end - start).total_seconds() / 3600.0)
 
 
+def _net_of_load_carried_by_grid(
+    intervals: Sequence[EnergyInterval],
+    amount_kwh: float,
+    start: datetime,
+    end: datetime,
+    rate_kwh_h: float,
+) -> float:
+    """Battery energy a slot still has to store when the grid feeds the house.
+
+    The intervals drain the battery by the house load in every interval,
+    including those in which a slot is charging. The grid carries that load
+    while the slot charges, so the battery needs less. The charge starts at
+    ``start`` and stops once stored energy plus avoided drain reaches
+    ``amount_kwh``; a shorter charge carries less load, so this solves
+    ``stored + avoided = amount`` along the intervals.
+    """
+    amount = _finite_non_negative(amount_kwh)
+    rate = _finite_non_negative(rate_kwh_h)
+    if amount <= _EPSILON or rate <= _EPSILON or end <= start:
+        return amount
+    stored = 0.0
+    avoided = 0.0
+    for interval in intervals:
+        if interval.end <= start:
+            continue
+        if interval.start >= end:
+            break
+        seg_start = max(start, interval.start)
+        seg_end = min(end, interval.end)
+        hours = _duration_hours(seg_start, seg_end)
+        interval_hours = _duration_hours(interval.start, interval.end)
+        if hours <= 0.0 or interval_hours <= 0.0:
+            continue
+        # Solar feeds the house first; only the rest would have come out of
+        # the battery.
+        load_rate = (
+            max(0.0, interval.consumption_kwh - interval.solar_kwh) / interval_hours
+        )
+        left = amount - stored - avoided
+        if left <= _EPSILON:
+            break
+        needed_hours = left / (rate + load_rate)
+        if needed_hours <= hours:
+            avoided += load_rate * needed_hours
+            break
+        stored += rate * hours
+        avoided += load_rate * hours
+    return max(0.0, amount - min(avoided, amount))
+
+
 def _unclipped_room(
     intervals: Sequence[EnergyInterval],
     usable_initial_kwh: float,
@@ -379,6 +434,7 @@ def allocate_price_slots(
     import_value_efficiency: float | None = None,
     import_value_margin: float = 0.0,
     reserve_holds: bool = False,
+    grid_carries_load_while_charging: bool = False,
 ) -> ChronologicalPlan:
     """Allocate the cheapest feasible slot capacity to energy deadlines.
 
@@ -721,6 +777,41 @@ def allocate_price_slots(
     required -= cut
     flexible_required -= cut
 
+    if grid_carries_load_while_charging:
+        # The deadlines and the scalar balance both count the house load
+        # inside a charging slot as battery drain, but the grid feeds the
+        # house while the slot charges. Charging that load into the battery
+        # as well left it well above its floor at sunrise.
+        carried_deadline = 0.0
+        carried_flexible = 0.0
+        for slot in list(allocations):
+            amount = allocations[slot]
+            served = allocation_deadlines.get(slot)
+            # The controller charges from the slot start until the amount is
+            # stored, whichever deadline the energy was allocated to.
+            net = _net_of_load_carried_by_grid(
+                intervals,
+                amount,
+                max(now, slot.start),
+                min(slot.end, horizon_end),
+                power * efficiency,
+            )
+            carried = amount - net
+            if carried <= _EPSILON:
+                continue
+            if served is None:
+                carried_flexible += carried
+            else:
+                carried_deadline += carried
+            if net <= _EPSILON:
+                del allocations[slot]
+                allocation_deadlines.pop(slot, None)
+            else:
+                allocations[slot] = net
+        deadline_required = max(0.0, deadline_required - carried_deadline)
+        flexible_required = max(0.0, flexible_required - carried_flexible)
+        required = max(0.0, required - carried_deadline - carried_flexible)
+
     result_allocations = [
         SlotAllocation(
             slot,
@@ -817,6 +908,7 @@ def evaluate_chronological_request(
         import_value_efficiency=request.import_value_efficiency,
         import_value_margin=request.import_value_margin,
         reserve_holds=request.reserve_holds,
+        grid_carries_load_while_charging=request.grid_carries_load_while_charging,
     )
     return ChronologicalEvaluationResult(
         plan=plan,

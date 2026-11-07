@@ -16,6 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from custom_components.omnibattery.const import CHARGE_EFFICIENCY
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.engine import PricingManager
 from custom_components.omnibattery.solar_forecast import (
@@ -32,6 +33,11 @@ MIDNIGHT = datetime(2026, 11, 6, 0, 0)
 CAP = datetime(2026, 11, 7, 0, 0)
 UTC = timezone.utc
 LOAD_KW = 0.5  # flat house load
+# Tonight's gap: the load until the sun (20:00-10:00) less what is stored.
+# The grid feeds the house while the 3 kW slot charges, so the battery only
+# stores the part the load does not take meanwhile.
+_RATE = 3.0 * CHARGE_EFFICIENCY
+TONIGHT_GAP_KWH = 5.0 * _RATE / (_RATE + LOAD_KW)
 
 
 def _slot(day_offset, hour, price):
@@ -207,7 +213,7 @@ def test_strong_tomorrow_sun_buys_no_extra_energy_tonight():
     plan, decision = _plan(manager, slots, CAP)
 
     # Only tonight's own gap (consumption until the sun is up, less what is stored).
-    assert _tonight_kwh(plan) == pytest.approx(5.0, abs=0.3)
+    assert _tonight_kwh(plan) == pytest.approx(TONIGHT_GAP_KWH, abs=0.3)
     assert plan.total_required_kwh == pytest.approx(_tonight_kwh(plan), abs=0.3)
     # A scalar balance that netted tomorrow's sun would have said "no charge".
     assert decision["should_charge"] is True
@@ -224,7 +230,7 @@ def test_cheaper_tomorrow_midday_is_not_pre_bought_tonight():
     )
     assert tomorrow_kwh > 1.0
     # Tonight only covers the gap before the sun, not the evening.
-    assert _tonight_kwh(plan) == pytest.approx(5.0, abs=0.3)
+    assert _tonight_kwh(plan) == pytest.approx(TONIGHT_GAP_KWH, abs=0.3)
 
 
 def test_unextended_plan_is_sized_from_the_scalar_as_before():
