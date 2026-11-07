@@ -30,6 +30,9 @@ from ..pricing.daily_timeline import (
 )
 
 
+_QUARTER_S = 15 * 60
+
+
 def _finite(value: Any, default: float = 0.0) -> float:
     """Coerce untrusted snapshots without allowing non-finite sensor values."""
     try:
@@ -186,10 +189,20 @@ def build_daily_operation_projection(
     ]
     # The simulation must only see the energy left in an in-progress interval,
     # but the published forecast series has to stay a full-quarter quantity.
+    # The planner's own first bin already starts now and holds only the rest
+    # of its quarter; scale it back up, or the last value written before the
+    # quarter closes freezes a sliver of it into the past.
+    def _full_quarter_factor(interval: Any) -> float:
+        covered_s = (interval.end - interval.start).total_seconds()
+        if interval.start <= now and 0.0 < covered_s < _QUARTER_S:
+            return _QUARTER_S / covered_s
+        return 1.0
+
     full_forecasts = [
         (
-            _finite(getattr(interval, "solar_kwh", 0.0)),
-            _finite(getattr(interval, "consumption_kwh", 0.0)),
+            _finite(getattr(interval, "solar_kwh", 0.0)) * _full_quarter_factor(interval),
+            _finite(getattr(interval, "consumption_kwh", 0.0))
+            * _full_quarter_factor(interval),
         )
         for interval, _remaining_start, _remaining_ratio in remaining_intervals
     ]

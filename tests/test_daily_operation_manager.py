@@ -1280,6 +1280,47 @@ def test_in_progress_interval_publishes_the_full_quarter_forecast():
     assert closed["solar_forecast_kwh"][52] == pytest.approx(0.4)
 
 
+def test_a_plan_starting_now_still_publishes_the_full_quarter_forecast():
+    """The planner's first bin starts now and holds only the rest of its
+    quarter; the past must not keep that sliver once the quarter closes."""
+    now = datetime(2026, 8, 23, 13, 7, tzinfo=MADRID)
+    quarter_end = now.replace(minute=15)
+    intervals = [
+        ProjectionIntervalInput(
+            now, quarter_end, consumption_kwh=0.2 * 8 / 15, solar_kwh=0.4 * 8 / 15
+        ),
+        ProjectionIntervalInput(
+            quarter_end,
+            quarter_end + timedelta(minutes=15),
+            consumption_kwh=0.2,
+            solar_kwh=0.4,
+        ),
+    ]
+    projection = build_daily_operation_projection(
+        DailyOperationProjectionRequest(
+            now=now,
+            plan_intervals=tuple(intervals),
+            allocations=(),
+            battery_inputs=(BatteryProjectionInput("a", 5, 10, 0, 100, 4000, 4000),),
+            mode="normal",
+            decision_data={},
+        )
+    )
+    current = next(item for item in projection["intervals"] if item["index"] == 52)
+    assert current["consumption_kwh"] == pytest.approx(0.2 * 8 / 15)
+
+    clock = MutableClock(now)
+    manager = _manager(clock, mode="normal")
+    manager.rebuild_future_projection(projection, mode="normal")
+    clock.value = now.replace(minute=20)
+    manager.rebuild_future_projection(projection, mode="normal")
+    closed = manager.build_public_snapshot()["series"]
+
+    assert closed["consumption_forecast_kwh"][52] == pytest.approx(0.2)
+    assert closed["solar_forecast_kwh"][52] == pytest.approx(0.4)
+    assert closed["consumption_forecast_kwh"][53] == pytest.approx(0.2)
+
+
 def test_memoized_wall_grid_is_not_mutated_between_builds():
     """The wall-clock grid is cached per local day, so builds must only read it."""
     clock = MutableClock(datetime(2026, 10, 25, 12, 0, tzinfo=MADRID))
