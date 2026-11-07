@@ -53,8 +53,8 @@ def test_capabilities():
     assert caps.has_daily_energy_counters is False
     assert caps.max_charge_power_w == 3500
     assert caps.max_discharge_power_w == 3500
-    assert caps.min_charge_power_w == 100
-    assert caps.min_discharge_power_w == 100
+    assert caps.min_charge_power_w == 0
+    assert caps.min_discharge_power_w == 0
     assert caps.setpoint_confirm_reliable is False
 
 
@@ -497,13 +497,14 @@ async def test_apply_setpoint_idle_writes_zero():
 
 
 @pytest.mark.asyncio
-async def test_apply_setpoint_snaps_forbidden_band_to_idle():
+async def test_apply_setpoint_passes_sub_100w_target():
+    """#734: 10071 accepts 1-99 W (official integration min 0, step 1)."""
     client = _fake_client()
     drv = _driver(client=client)
     result = await drv.apply_setpoint(50)
     assert result.ok is True
-    assert result.net_power_w == 0
-    client.async_write_registers_int32.assert_awaited_with(10071, 0)
+    assert result.net_power_w == 50
+    client.async_write_registers_int32.assert_awaited_with(10071, -50)
 
 
 @pytest.mark.asyncio
