@@ -5,6 +5,7 @@
 ### Added
 
 - **Daily operation chart shows the grid price**: with Dynamic Pricing, each interval's tooltip lists its import price, and a stepped grey line draws the price over the day and after midnight, scaled to the visible range, with its high and low labelled at the right edge. The price comes from the configured price source, past intervals included. Thanks to @anorakophobia.
+- **Panel: type an exact value into any slider** (#783): tap the value next to a slider to enter a number (Enter or tap away to apply, Escape to cancel), so a precise setting like a +20 W grid target no longer depends on dragging. Thanks to @BHNDNL.
 
 ### Changed
 

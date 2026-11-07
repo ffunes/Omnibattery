@@ -6432,6 +6432,7 @@ class MarstekVenusPanel extends HTMLElement {
           value,
         });
       });
+      this._wireValueEdit(valEl, range, id, (v) => `${Math.round(v)}${unit ? " " + unit : ""}`);
       wrap.appendChild(range);
       wrap.appendChild(valEl);
       frag.appendChild(wrap);
@@ -7057,6 +7058,45 @@ class MarstekVenusPanel extends HTMLElement {
     return v;
   }
 
+  /** Tap a slider's value to type an exact number (#783): wide ranges move
+   *  10-20 units per pixel, so a precise target is hard to hit by dragging.
+   *  Enter/blur commits (clamped to the entity's range), Escape cancels. */
+  _wireValueEdit(valEl, range, id, fmt) {
+    valEl.classList.add("ctl-val-edit");
+    valEl.addEventListener("click", () => {
+      if (valEl.hidden) return;
+      const input = document.createElement("input");
+      input.type = "number";
+      input.step = "any";
+      input.className = "ctl-val-input";
+      input.value = (this._hass.states[id] || {}).state;
+      let done = false;
+      const finish = (commit) => {
+        if (done) return;
+        done = true;
+        const raw = input.value;
+        input.remove();
+        valEl.hidden = false;
+        const v = Number(raw);
+        if (!commit || raw === "" || !Number.isFinite(v)) return;
+        const value = this._clampToEntity(id, v);
+        range.value = value;
+        valEl.textContent = fmt(value);
+        this._markRangePending(range, value);
+        this._hass.callService("number", "set_value", { entity_id: id, value });
+      };
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") finish(true);
+        else if (e.key === "Escape") finish(false);
+      });
+      input.addEventListener("blur", () => finish(true));
+      valEl.hidden = true;
+      valEl.after(input);
+      input.focus();
+      input.select();
+    });
+  }
+
   /** Track range interaction explicitly: iOS Safari does not reliably focus a
    *  range input on touch, so activeElement alone cannot protect a drag from
    *  the frequent HA state patches. */
@@ -7224,6 +7264,7 @@ class MarstekVenusPanel extends HTMLElement {
         this._markRangePending(range, value);
         hass.callService("number", "set_value", { entity_id: id, value });
       });
+      this._wireValueEdit(valEl, range, id, (v) => this._fmtCtlNum(v, step, unit));
       wrap.appendChild(range);
       wrap.appendChild(valEl);
       frag.appendChild(wrap);
@@ -7855,6 +7896,8 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-num { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
       .ctl-num input[type="range"] { flex: 1 1 auto; accent-color: var(--accent); cursor: pointer; min-width: 0; }
       .ctl-num .ctl-val { font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 56px; text-align: right; }
+      .ctl-num .ctl-val-edit { cursor: text; text-decoration: underline dotted var(--ink-dim); text-underline-offset: 3px; }
+      .ctl-num .ctl-val-input { width: 72px; font-family: var(--font-display); font-size: 13px; color: var(--ink); background: var(--bg-2); border: 1px solid var(--accent-line); border-radius: 6px; padding: 2px 6px; text-align: right; }
       .ctl-btn { grid-column: 1 / -1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 8px 12px; border-radius: 11px; border: 1px solid var(--line-strong); background: var(--bg-2); color: var(--ink-mid); font-family: var(--font-ui); font-weight: 600; font-size: 13px; cursor: pointer; --mdc-icon-size: 16px; transition: background 0.15s, color 0.15s; }
       .ctl-btn:hover { background: var(--bg-hover); color: var(--ink); }
       @media (max-width: 480px) { .bat-grid { grid-template-columns: 1fr; } }
@@ -7872,7 +7915,7 @@ class MarstekVenusPanel extends HTMLElement {
         color: var(--ink-mid); cursor: pointer; font-size: 13px; --mdc-icon-size: 16px; }
       .ctl-arrange-btn:hover { color: var(--ink); }
       .ctl-arrange-btn.active { color: var(--accent); border-color: var(--accent); }
-      .ctl-root.sliders-locked :is(.ctl-num input[type="range"], .ctl-btn, .ctl-toggle, .ctl-select) { pointer-events: none; opacity: 0.5; }
+      .ctl-root.sliders-locked :is(.ctl-num input[type="range"], .ctl-val-edit, .ctl-btn, .ctl-toggle, .ctl-select) { pointer-events: none; opacity: 0.5; }
       /* column/row steppers (arrange mode only): pin a fixed grid shape */
       .ctl-tools { display: inline-flex; align-items: center; gap: 16px; }
       .ctl-cols { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-mid); font-size: 13px; }
