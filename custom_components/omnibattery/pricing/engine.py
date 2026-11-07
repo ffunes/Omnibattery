@@ -4125,12 +4125,14 @@ class PricingManager:
             )
             # ponytail: the price ceiling was computed from the pre-reservation
             # deficit_hours_needed and is deliberately not recomputed here.
+            # A full charge is maintenance, not arbitrage: the arbitrage gate
+            # would reject every slot on a day without spread and the run
+            # would never charge, so only the user's static ceiling applies.
             weekly_selected = calculations.select_cheapest_hours(
                 post_solar,
                 weekly_hours_needed,
                 ceiling,
                 now=eval_now,
-                slot_ceilings=slot_ceilings,
             )
             if weekly_selected:
                 if deficit_charging_needed:

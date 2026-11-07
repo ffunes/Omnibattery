@@ -203,7 +203,14 @@ def test_weekly_reserve_survives_a_fully_covering_solar_forecast():
 
 
 def _evaluate_with_weekly_reserve(
-    monkeypatch, now, slots, build_plan, reserve=None, **decision_overrides
+    monkeypatch,
+    now,
+    slots,
+    build_plan,
+    reserve=None,
+    min_arbitrage_margin=0.0,
+    max_price_threshold=1.0,
+    **decision_overrides,
 ):
     """Run a daily evaluation whose plan publishes a 5 kWh weekly reserve."""
 
@@ -233,8 +240,8 @@ def _evaluate_with_weekly_reserve(
     ctrl._dynamic_pricing_schedule = None
     ctrl.max_contracted_power = 5000
     ctrl.max_charge_capacity = 5000
-    ctrl.max_price_threshold = 1.0
-    ctrl.min_arbitrage_margin = 0.0
+    ctrl.max_price_threshold = max_price_threshold
+    ctrl.min_arbitrage_margin = min_arbitrage_margin
     ctrl.round_trip_efficiency = 1.0
     ctrl.discharge_price_threshold = 1.0
     ctrl._predictive_min_soc_floor_enabled = False
@@ -442,6 +449,43 @@ def test_weekly_slots_after_the_plan_count_in_the_estimated_cost(monkeypatch):
     battery_cost = sum(slot.price * kwh for slot, kwh in battery_kwh.items())
     assert schedule.estimated_cost == pytest.approx(battery_cost / CHARGE_EFFICIENCY)
     assert schedule.average_price == pytest.approx(battery_cost / 7.0)
+
+
+def _flat_evening(now, price):
+    return [
+        PriceSlot(now.replace(hour=h), now.replace(hour=h + 1), price)
+        for h in (19, 20, 21)
+    ]
+
+
+def test_weekly_reserve_is_placed_on_a_day_without_spread(monkeypatch):
+    """A full charge is not arbitrage: a flat evening fails the arbitrage gate
+    in every slot, and the run then never charged from the grid."""
+    now = datetime(2026, 9, 21, 0, 5)
+    slots = _flat_evening(now, 0.47)
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch, now, slots, lambda _decision: None, min_arbitrage_margin=0.05
+    )
+
+    schedule = ctrl._dynamic_pricing_schedule
+    assert schedule is not None
+    assert schedule.selected_slots
+    assert {slot.start for slot in schedule.selected_slots} <= {slot.start for slot in slots}
+
+
+def test_weekly_reserve_still_respects_the_static_price_ceiling(monkeypatch):
+    now = datetime(2026, 9, 21, 0, 5)
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch,
+        now,
+        _flat_evening(now, 0.47),
+        lambda _decision: None,
+        min_arbitrage_margin=0.05,
+        max_price_threshold=0.40,
+    )
+
+    schedule = ctrl._dynamic_pricing_schedule
+    assert schedule is None or not schedule.selected_slots
 
 
 # ----------------------------------------------------------------------
