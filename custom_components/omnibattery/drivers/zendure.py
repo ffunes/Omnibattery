@@ -56,6 +56,11 @@ from .base import (
 _LOGGER = logging.getLogger(__name__)
 
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)
+# The device's small web server closes idle keep-alive connections and now and
+# then rejects a request with 431. Both pass on a second try, so one immediate
+# retry keeps a single dropped request from marking the battery unavailable.
+_RETRY_STATUSES = frozenset({431})
+_RETRY_EXCEPTIONS = (aiohttp.ServerDisconnectedError, aiohttp.ClientOSError)
 _PROBE_TIMEOUT = aiohttp.ClientTimeout(total=5)
 
 # Supported device model identifiers.  The product field of /properties/report
@@ -892,22 +897,35 @@ class ZendureLocalDriver(BatteryDriver):
     async def _get_report(self) -> Optional[dict]:
         """GET /properties/report, return the parsed JSON or None on failure."""
         url = f"{self._base_url}/properties/report"
-        try:
-            session = self._ensure_session()
-            async with session.get(url, timeout=_HTTP_TIMEOUT) as resp:
-                if resp.status != 200:
-                    if not self._shutting_down:
-                        _LOGGER.warning("Zendure GET %s → HTTP %s", url, resp.status)
-                    return None
-                return await resp.json(content_type=None)
-        except asyncio.TimeoutError:
-            if not self._shutting_down:
-                _LOGGER.warning("Zendure GET %s timed out", url)
-            return None
-        except Exception as exc:
-            if not self._shutting_down:
-                _LOGGER.warning("Zendure GET %s failed: %s", url, exc)
-            return None
+        for attempt in range(2):
+            retry = attempt == 0
+            try:
+                session = self._ensure_session()
+                async with session.get(url, timeout=_HTTP_TIMEOUT) as resp:
+                    if resp.status != 200:
+                        if retry and resp.status in _RETRY_STATUSES:
+                            _LOGGER.debug("Zendure GET %s → HTTP %s, retrying", url, resp.status)
+                            continue
+                        if not self._shutting_down:
+                            _LOGGER.warning("Zendure GET %s → HTTP %s", url, resp.status)
+                        return None
+                    return await resp.json(content_type=None)
+            except asyncio.TimeoutError:
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure GET %s timed out", url)
+                return None
+            except _RETRY_EXCEPTIONS as exc:
+                if retry and not self._shutting_down:
+                    _LOGGER.debug("Zendure GET %s failed: %s, retrying", url, exc)
+                    continue
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure GET %s failed: %s", url, exc)
+                return None
+            except Exception as exc:
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure GET %s failed: %s", url, exc)
+                return None
+        return None
 
     async def _post_write(self, properties: dict) -> bool:
         """POST /properties/write with the given property dict."""
@@ -918,22 +936,37 @@ class ZendureLocalDriver(BatteryDriver):
             return False
         url = f"{self._base_url}/properties/write"
         body = {"sn": self._sn, "properties": properties}
-        try:
-            session = self._ensure_session()
-            async with session.post(url, json=body, timeout=_HTTP_TIMEOUT) as resp:
-                if resp.status != 200:
-                    if not self._shutting_down:
-                        _LOGGER.warning("Zendure POST %s → HTTP %s", url, resp.status)
-                    return False
-                return True
-        except asyncio.TimeoutError:
-            if not self._shutting_down:
-                _LOGGER.warning("Zendure POST %s timed out", url)
-            return False
-        except Exception as exc:
-            if not self._shutting_down:
-                _LOGGER.warning("Zendure POST %s failed: %s", url, exc)
-            return False
+        # Every write sets absolute values, so sending it again is safe even
+        # when the dropped connection had already delivered the first one.
+        for attempt in range(2):
+            retry = attempt == 0
+            try:
+                session = self._ensure_session()
+                async with session.post(url, json=body, timeout=_HTTP_TIMEOUT) as resp:
+                    if resp.status != 200:
+                        if retry and resp.status in _RETRY_STATUSES:
+                            _LOGGER.debug("Zendure POST %s → HTTP %s, retrying", url, resp.status)
+                            continue
+                        if not self._shutting_down:
+                            _LOGGER.warning("Zendure POST %s → HTTP %s", url, resp.status)
+                        return False
+                    return True
+            except asyncio.TimeoutError:
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure POST %s timed out", url)
+                return False
+            except _RETRY_EXCEPTIONS as exc:
+                if retry and not self._shutting_down:
+                    _LOGGER.debug("Zendure POST %s failed: %s, retrying", url, exc)
+                    continue
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure POST %s failed: %s", url, exc)
+                return False
+            except Exception as exc:
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure POST %s failed: %s", url, exc)
+                return False
+        return False
 
     @classmethod
     async def probe(cls, host: str, port: int = 80) -> tuple[bool, str | None]:
