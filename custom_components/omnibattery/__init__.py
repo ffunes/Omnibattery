@@ -1288,9 +1288,9 @@ class ChargeDischargeController:
         self._weekly_full_charge_skip_delay = config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
         )
-        self._predictive_safety_margin_kwh: float = config_entry.data.get(
-            CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
-            default_predictive_safety_margin_kwh(config_entry.data),
+        # None until the user sets one: the default then follows the fleet.
+        self._predictive_safety_margin_stored: float | None = config_entry.data.get(
+            CONF_PREDICTIVE_SAFETY_MARGIN_KWH
         )
         self._predictive_min_soc_floor: float = config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
         # Backward-compat default: if the key is absent but floor > 0 was stored, keep it active.
@@ -3215,9 +3215,8 @@ class ChargeDischargeController:
         self._weekly_full_charge_skip_delay = self.config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
         )
-        self._predictive_safety_margin_kwh = self.config_entry.data.get(
-            CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
-            default_predictive_safety_margin_kwh(self.config_entry.data),
+        self._predictive_safety_margin_stored = self.config_entry.data.get(
+            CONF_PREDICTIVE_SAFETY_MARGIN_KWH
         )
         self._predictive_min_soc_floor = self.config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
         self._predictive_min_soc_floor_enabled = self.config_entry.data.get(CONF_ENABLE_MIN_SOC_FLOOR, self._predictive_min_soc_floor_enabled)
@@ -3908,6 +3907,36 @@ class ChargeDischargeController:
             return False
         target = WEEKDAY_MAP.get(getattr(self, "weekly_full_charge_day", None))
         return target is not None and (now.weekday() + 1) % 7 == target
+
+    def _reported_battery_capacity_kwh(self) -> dict:
+        """Each battery's capacity as its coordinator reports it, by name."""
+        return {
+            coordinator.name: (coordinator.data or {}).get("battery_total_energy")
+            for coordinator in getattr(self, "coordinators", None) or []
+            if getattr(coordinator, "data", None)
+        }
+
+    @property
+    def _predictive_safety_margin_kwh(self) -> float:
+        """The margin the user set, or 5% of the fleet's capacity.
+
+        The default counts a battery that reports its own capacity (Marstek over
+        Modbus, a Zendure or Hoymiles left at 0 for auto-detection) with what it
+        reports, so it is read when used rather than frozen at setup, before the
+        first poll.
+        """
+        stored = getattr(self, "_predictive_safety_margin_stored", None)
+        if stored is not None:
+            return stored
+        entry = getattr(self, "config_entry", None)
+        return default_predictive_safety_margin_kwh(
+            getattr(entry, "data", None) or {},
+            ChargeDischargeController._reported_battery_capacity_kwh(self),
+        )
+
+    @_predictive_safety_margin_kwh.setter
+    def _predictive_safety_margin_kwh(self, value: float) -> None:
+        self._predictive_safety_margin_stored = value
 
     def _weekly_full_charge_pending(self) -> bool:
         """Return True while a weekly full charge still has to reach 100% today."""
