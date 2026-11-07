@@ -3605,6 +3605,7 @@ class ChargeDischargeController:
             "price_reserve",
             "curtailment_negative_window",
             "weekly_refill_hold",
+            "weekly_full_hold",
         }
         global_blockers = self._global_discharge_blockers
         if ignore_economic:
