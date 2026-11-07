@@ -271,3 +271,17 @@ def test_timeline_charges_the_slot_first_then_covers_the_house():
     # The quarter in which the charge stops does not discharge at all, so
     # the projection ends a few Wh above the floor (it was 0.8 kWh).
     assert flows[-1].stored_energy_end_kwh == pytest.approx(floor, abs=0.03)
+
+
+def test_scalar_fallback_solves_stored_plus_carried():
+    """Without a profile the scalar plan uses the same balance (#785)."""
+    from custom_components.omnibattery.pricing.calculations import (
+        net_of_load_carried_by_grid,
+    )
+
+    rate = 2.0 * CHARGE_EFFICIENCY
+    assert net_of_load_carried_by_grid(2.0, 2.0, 0.4) == pytest.approx(
+        2.0 * rate / (rate + 0.4)
+    )
+    assert net_of_load_carried_by_grid(2.0, 2.0, 0.0) == pytest.approx(2.0)
+    assert net_of_load_carried_by_grid(2.0, 0.0, 0.4) == pytest.approx(2.0)

@@ -24,6 +24,7 @@ import pytest
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.button import ReevaluateDynamicPricingButton
 from custom_components.omnibattery.const import (
+    CHARGE_EFFICIENCY,
     DEFAULT_ROUND_TRIP_EFFICIENCY,
     CONF_SOLAR_FORECAST_REMAINING_SENSOR,
     PRICE_INTEGRATION_CKW,
@@ -2289,8 +2290,13 @@ def test_dynamic_pricing_sizes_slots_from_planned_charge_not_full_deficit():
         )
     )
 
-    assert ctrl._dynamic_pricing_schedule.hours_needed == 2.0
-    assert len(ctrl._dynamic_pricing_schedule.selected_slots) == 8
+    # 1.58 kWh planned, less the house load (4.55 kWh/day) the grid carries
+    # while 1.2 kW charges (#785): about 1.33 kWh, so 1.5 h instead of 2 h.
+    assert ctrl._dynamic_pricing_schedule.hours_needed == 1.5
+    assert len(ctrl._dynamic_pricing_schedule.selected_slots) == 6
+    assert ctrl._last_decision_data["planned_grid_charge_kwh"] == pytest.approx(
+        1.5808 * (1.2 * CHARGE_EFFICIENCY) / (1.2 * CHARGE_EFFICIENCY + 4.552857 / 24)
+    )
 
 
 # ----------------------------------------------------------------------
