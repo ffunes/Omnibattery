@@ -129,3 +129,15 @@ def test_measured_includes_zendure_via_battery_power():
 def test_measured_none_when_no_battery_reports():
     coord = SimpleNamespace(data={})
     assert _measured([coord]) is None
+
+
+def test_delivered_prefers_ac_port_over_cell_side_battery_power():
+    # #634: Zendure Mix Pro with 400 W DC PV charging the cells and 0 W on the
+    # AC port. battery_power (+400) is cell-side; the PD must see the AC port.
+    coord = SimpleNamespace(data={"battery_power": 400, "ac_delivered_power": 0})
+    assert ChargeDischargeController._coordinator_delivered_power(coord) == 0.0
+
+
+def test_delivered_falls_back_to_battery_power_without_ac_port():
+    coord = SimpleNamespace(data={"battery_power": 400, "ac_delivered_power": None})
+    assert ChargeDischargeController._coordinator_delivered_power(coord) == 400.0

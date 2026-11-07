@@ -8040,11 +8040,13 @@ class ChargeDischargeController:
         """Measured delivery for one battery in controller convention (+charge/-discharge).
 
         Marstek exposes ``ac_power`` (+discharge/-charge), so it is negated.
-        Registerless drivers (e.g. Zendure) never populate ``ac_power`` — they only
-        synthesise ``battery_power`` (already +charge/-discharge), so fall back to it.
-        Without this fallback the controller reads the Zendure as delivering 0 W and
-        the anti-windup re-anchors the command to ~0 on every cycle. Returns None
-        when neither value is reported (e.g. right after a restart).
+        Registerless drivers (e.g. Zendure) never populate ``ac_power``; they publish
+        their AC port as ``DELIVERED_AC_POWER_KEY`` (+charge/-discharge). That comes
+        before ``battery_power``, which is cell-side and includes the device's own
+        DC PV: with sun it reads a charge the grid never sees, so the PD re-anchored
+        to it and commanded grid charge while the house imported (#634).
+        ``battery_power`` stays the last fallback so the controller never reads the
+        battery as 0 W. Returns None when nothing is reported (e.g. after a restart).
         """
         data = getattr(coordinator, "data", None)
         if not data:
@@ -8053,6 +8055,12 @@ class ChargeDischargeController:
         if ac is not None:
             try:
                 return -float(ac)
+            except (TypeError, ValueError):
+                return None
+        delivered = data.get(DELIVERED_AC_POWER_KEY)
+        if delivered is not None:
+            try:
+                return float(delivered)
             except (TypeError, ValueError):
                 return None
         battery_power = data.get("battery_power")
