@@ -1,4 +1,4 @@
-"""Flash-write regression suite for the Indevolt integration.
+"""Tests that the Indevolt integration writes flash only on a direct user action.
 
 Indevolt R&D: only the realtime tuple 47015 is RAM-backed. Every other writable
 point (work mode, reserve, limits, grid charging, ...) lives in flash, which
