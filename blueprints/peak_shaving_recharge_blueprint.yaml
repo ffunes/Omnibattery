@@ -72,7 +72,7 @@ blueprint:
 
     charge_target_w:
       name: "Grid Target While Recharging"
-      description: "Positive values mean import from grid (battery charges). Values outside the number entity's own range are rejected by Home Assistant; that range follows your total configured battery power."
+      description: "Total grid import while recharging, not the charge power: the battery charges with this value minus the house load, and not at all while the house draws more. Set it to your Peak Limit to charge whatever fits under the peak. Values outside the number entity's own range are rejected by Home Assistant; that range follows your total configured battery power."
       default: 500
       selector:
         number:

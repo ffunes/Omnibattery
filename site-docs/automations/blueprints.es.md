@@ -87,6 +87,8 @@ Comprueba los cambios y también cada 15 segundos.
 
 Configura el suelo de SOC, un objetivo de recuperación de SOC más alto, la potencia de carga y el objetivo en reposo. Restaura el objetivo en reposo cuando el SOC alcanza el objetivo de recuperación o termina la protección de capacidad.
 
+El objetivo de red es la importación total, no la potencia de carga: la batería carga con el objetivo menos el consumo de la casa, y no carga mientras la casa consume más que el objetivo. Si lo igualas a tu Peak Limit, carga todo lo que cabe bajo el pico. El SOC del sistema solo cuenta las baterías bajo control automático, así que una batería en modo manual (por ejemplo, equilibrando celdas) no lo mantiene alto.
+
 ## Reenviar notificaciones persistentes a Telegram
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/persistent_notification_to_telegram_blueprint.yaml)

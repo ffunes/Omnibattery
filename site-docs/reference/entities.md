@@ -14,7 +14,7 @@ Home Assistant may preserve an older entity ID or add a suffix. Fresh system ent
 
 | Visible name | Typical fresh-install pattern | Use |
 |---|---|---|
-| **System SOC** | `sensor.omnibattery_system_soc` | Combined state of charge (SOC) |
+| **System SOC** | `sensor.omnibattery_system_soc` | Combined state of charge (SOC) of the batteries under automatic control (all of them if every battery is in manual mode) |
 | **System Charge Power** | `sensor.omnibattery_system_charge_power` | Total charging power |
 | **System Discharge Power** | `sensor.omnibattery_system_discharge_power` | Total discharging power |
 | **Home Consumption** | `sensor.omnibattery_home_consumption` | Current household demand |

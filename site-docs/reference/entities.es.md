@@ -14,7 +14,7 @@ Home Assistant puede conservar un ID de entidad anterior o añadir un sufijo. La
 
 | Nombre visible | Patrón habitual de una instalación nueva | Uso |
 |---|---|---|
-| **System SOC** | `sensor.omnibattery_system_soc` | Estado de carga (SOC) combinado |
+| **System SOC** | `sensor.omnibattery_system_soc` | Estado de carga (SOC) combinado de las baterías bajo control automático (todas si todas están en modo manual) |
 | **System Charge Power** | `sensor.omnibattery_system_charge_power` | Potencia total de carga |
 | **System Discharge Power** | `sensor.omnibattery_system_discharge_power` | Potencia total de descarga |
 | **Home Consumption** | `sensor.omnibattery_home_consumption` | Demanda actual del hogar |
