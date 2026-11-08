@@ -829,18 +829,6 @@ async def test_set_charge_cutoff_scales_restore_value():
     assert props == {"socSet": 950, "smartMode": 0}
 
 
-async def test_a_temporary_ceiling_stays_out_of_flash():
-    """The weekly run's ceiling goes to RAM (smartMode=1); the device keeps
-    its Target SOC in flash and falls back to it on a reboot."""
-    sess = _session()
-
-    ok = await _driver(session=sess).set_temporary_charge_cutoff(100)
-
-    assert ok is True
-    props = sess.post.call_args.kwargs["json"]["properties"]
-    assert props == {"socSet": 1000, "smartMode": 1}
-
-
 async def test_write_control_grid_off_mode_posts_raw_enum():
     sess = _session()
     ok = await _driver(session=sess).write_control("grid_off_mode", 2)

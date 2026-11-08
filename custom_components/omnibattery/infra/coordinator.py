@@ -1956,32 +1956,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning("[%s] One or more battery config writes failed", self.name)
             return ok
 
-    async def set_temporary_charge_cutoff(self, soc_pct: float) -> bool:
-        """Write a charge ceiling that is undone, without persisting it.
-
-        Drivers that keep a volatile copy (Zendure: socSet with smartMode=1)
-        write only that; the rest write their ordinary cut-off.
-        """
-        writer = getattr(self.driver, "set_temporary_charge_cutoff", None)
-        if not callable(writer):
-            return await self.set_charge_cutoff(soc_pct)
-        async with self.lock:
-            try:
-                ok = await writer(soc_pct)
-            except Exception as e:
-                if not self._is_shutting_down:
-                    _LOGGER.error("[%s] Exception writing temporary charge cutoff: %s", self.name, e)
-                return False
-            if ok:
-                self._consecutive_failures = 0
-                self._is_connected = True
-            return bool(ok)
-
-    @property
-    def charge_cutoff_is_temporary(self) -> bool:
-        """True when a temporary ceiling stays out of the device's flash."""
-        return callable(getattr(self.driver, "set_temporary_charge_cutoff", None))
-
     async def set_charge_cutoff(self, soc_pct: float) -> bool:
         """Write the hardware charge-cutoff register via the driver, holding self.lock.
 

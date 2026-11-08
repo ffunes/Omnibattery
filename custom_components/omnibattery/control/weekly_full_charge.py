@@ -543,27 +543,15 @@ class WeeklyFullChargeManager:
                 saved[str(name)] = value_int
 
     @staticmethod
-    def _cutoff_is_temporary(coordinator: Any) -> bool:
-        """True when the battery takes the run's ceiling without persisting it."""
-        return bool(getattr(coordinator, "charge_cutoff_is_temporary", False))
-
-    @staticmethod
-    async def _write_run_cutoff(coordinator: Any, soc_pct: float) -> bool:
-        """Raise or restore the ceiling for this run, in RAM where the battery can."""
-        if WeeklyFullChargeManager._cutoff_is_temporary(coordinator):
-            return bool(await coordinator.set_temporary_charge_cutoff(soc_pct))
-        return bool(await coordinator.set_charge_cutoff(soc_pct))
-
-    @staticmethod
     def _original_max_soc(coordinator: Any) -> int:
         """The ceiling to restore after the run.
 
-        A battery that keeps its Target SOC on the device (and takes the run's
-        ceiling only in RAM) is restored to what it reported before the raise:
-        that is what its flash holds. The integration's stored config may be
-        older, because the device's own number entity writes only the device.
+        A battery that reports its own Target SOC (Zendure: ``socSet``) is
+        restored to what it reported before the raise. The integration's stored
+        config may be older, because the device's own Target SOC entity writes
+        only the device.
         """
-        if WeeklyFullChargeManager._cutoff_is_temporary(coordinator):
+        if "soc_set" in (getattr(coordinator, "data", None) or {}):
             try:
                 live = int(getattr(coordinator, "max_soc", 100))
             except (TypeError, ValueError):
@@ -609,7 +597,7 @@ class WeeklyFullChargeManager:
                 coordinator.name, self._get_configured_max_soc(coordinator)
             )
             try:
-                ok = await self._write_run_cutoff(coordinator, original_max_soc)
+                ok = await coordinator.set_charge_cutoff(original_max_soc)
             except Exception as e:
                 ok = False
                 _LOGGER.error(
@@ -701,24 +689,6 @@ class WeeklyFullChargeManager:
         # in-memory _cutoff_applied_names set starts empty on every restart, so the
         # persisted original SOC can be retained while 100% is re-applied.
         applied_names = getattr(self, "_cutoff_applied_names", set())
-        # A battery that took the 100 % only in RAM falls back to its stored
-        # Target SOC when it reboots. Write it again, at most once a minute so
-        # a poll that has not caught up yet does not repeat the write.
-        applied_at = self.__dict__.setdefault("_cutoff_applied_at", {})
-        for coordinator in ctrl.coordinators:
-            name = getattr(coordinator, "name", None)
-            if (
-                name in applied_names
-                and self._cutoff_is_temporary(coordinator)
-                and getattr(coordinator, "max_soc", 100) < 100
-                and monotonic() - applied_at.get(name, 0.0) >= 60.0
-            ):
-                _LOGGER.info(
-                    "%s: charge ceiling fell back to %s%% (battery restarted?), applying 100%% again",
-                    name,
-                    getattr(coordinator, "max_soc", None),
-                )
-                applied_names.discard(name)
         pending_hardware = {
             coordinator.name
             for coordinator in ctrl.coordinators
@@ -758,11 +728,6 @@ class WeeklyFullChargeManager:
                     applied_names.add(coordinator.name)
                     continue
 
-                if coordinator.name in applied_names and self._cutoff_is_temporary(coordinator):
-                    # Already at 100 % in RAM this session; only a fallen-back
-                    # battery is written again.
-                    continue
-
                 # v2 batteries: write hardware register
                 try:
                     # Save original max_soc before overwriting the hardware register.
@@ -772,10 +737,9 @@ class WeeklyFullChargeManager:
                         coordinator.name, self._original_max_soc(coordinator)
                     )
                     # Raise the hardware charging cutoff to 100%
-                    ok = await self._write_run_cutoff(coordinator, 100)
+                    ok = await coordinator.set_charge_cutoff(100)
                     if ok:
                         applied_names.add(coordinator.name)
-                        applied_at[coordinator.name] = monotonic()
                         _LOGGER.debug(
                             "%s: Set hardware charging cutoff to 100%% (saved original max_soc=%d%%)",
                             coordinator.name,
