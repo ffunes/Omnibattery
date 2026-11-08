@@ -29,7 +29,7 @@
       
       
       <link rel="icon" href="../../assets/logo.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -2404,6 +2404,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#backup-reserve-for-power-outages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backup reserve for power outages
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2986,6 +2997,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#backup-reserve-for-power-outages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backup reserve for power outages
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3117,6 +3139,16 @@
 <summary>Advanced details</summary>
 <p>The calculation includes a fixed 78% charge-efficiency assumption and the safety margin.</p>
 </details>
+<h2 id="backup-reserve-for-power-outages">Backup reserve for power outages<a class="headerlink" href="#backup-reserve-for-power-outages" title="Permanent link">&para;</a></h2>
+<p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/backup_reserve_discharge_blueprint.yaml">Import blueprint</a></p>
+<ul>
+<li><strong>Purpose:</strong> keeps a fixed SOC reserve (for example 90% in winter) for power outages, above the battery's own minimum-SOC limit.</li>
+<li><strong>Requires:</strong> the Allow Discharge switches to control and the system SOC sensor. Optionally, binary sensors that are ON during a grid outage.</li>
+<li><strong>Controls:</strong> the selected <strong>Allow Discharge</strong> switches only.</li>
+<li><strong>Compatible with:</strong> any installation.</li>
+<li><strong>Does not do:</strong> write Modbus registers, force battery modes or block charging. Solar and grid charging refill the reserve normally.</li>
+</ul>
+<p>Discharge stops when SOC falls to the reserve and resumes once SOC rises above the reserve plus the hysteresis. While any outage sensor is ON, discharge is allowed. When you no longer want the reserve, disable the automation and turn the Allow Discharge switches back on.</p>
 
 
 
@@ -3244,7 +3276,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "navigation.footer", "toc.follow", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
     
   </body>
