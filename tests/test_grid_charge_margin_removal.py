@@ -90,6 +90,71 @@ def test_a_stored_margin_wins_over_the_default(stored):
 
 
 # ----------------------------------------------------------------------
+# Batteries that report their own capacity count too
+# ----------------------------------------------------------------------
+
+# A Marstek reads its capacity over Modbus (nothing configured); a Zendure left
+# at 0 detects it from its packs. Only the reported figures size the fleet.
+REPORTING = {"batteries": [{"name": "Venus"}, {"name": "SolarFlow", "battery_capacity_kwh": 0}]}
+REPORTED = {"Venus": 5.12, "SolarFlow": 8.16}
+
+
+def test_default_margin_counts_the_reported_capacity():
+    assert default_predictive_safety_margin_kwh(REPORTING) == DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
+    assert default_predictive_safety_margin_kwh(REPORTING, REPORTED) == 0.66
+
+
+def test_a_configured_capacity_wins_over_the_reported_one():
+    data = {"batteries": [{"name": "SolarFlow", "battery_capacity_kwh": 10.0}]}
+    assert default_predictive_safety_margin_kwh(data, {"SolarFlow": 8.16}) == 0.5
+
+
+def _controller(data, stored=None):
+    from custom_components.omnibattery import ChargeDischargeController
+
+    controller = object.__new__(ChargeDischargeController)
+    controller.config_entry = SimpleNamespace(data=data, entry_id="entry")
+    controller.coordinators = [
+        SimpleNamespace(name=name, data={"battery_total_energy": kwh})
+        for name, kwh in REPORTED.items()
+    ]
+    controller._predictive_safety_margin_stored = stored
+    return controller
+
+
+def test_the_controller_sizes_the_default_to_the_reported_fleet():
+    assert _controller(REPORTING)._predictive_safety_margin_kwh == 0.66
+
+
+def test_the_default_follows_the_first_poll():
+    """Read when used, not frozen at setup before the batteries have reported."""
+    controller = _controller(REPORTING)
+    for coordinator in controller.coordinators:
+        coordinator.data = None
+    assert controller._predictive_safety_margin_kwh == DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
+
+    controller.coordinators[0].data = {"battery_total_energy": 5.12}
+    controller.coordinators[1].data = {"battery_total_energy": 8.16}
+    assert controller._predictive_safety_margin_kwh == 0.66
+
+
+def test_a_margin_the_user_set_wins_in_the_controller():
+    controller = _controller(REPORTING, stored=0.0)
+    assert controller._predictive_safety_margin_kwh == 0.0
+
+    controller._predictive_safety_margin_kwh = 1.5
+    assert controller._predictive_safety_margin_kwh == 1.5
+
+
+def test_the_slider_shows_the_controller_s_default():
+    controller = _controller(REPORTING)
+    hass = SimpleNamespace(data={DOMAIN: {"entry": {"controller": controller}}})
+    entry = SimpleNamespace(data=REPORTING, entry_id="entry")
+
+    assert MarstekConfigNumberEntity(hass, entry, MARGIN_DEF).native_value == 0.66
+
+
+# ----------------------------------------------------------------------
 # The v13 -> v14 migration
 # ----------------------------------------------------------------------
 
