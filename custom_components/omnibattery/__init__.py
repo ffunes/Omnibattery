@@ -4692,6 +4692,32 @@ class ChargeDischargeController:
                           {k: v[1] for k, v in self._setpoint_overrides.items()})
             self._setpoint_overrides.clear()
 
+    def _capacity_protection_coordinators(self) -> list:
+        """Batteries whose SOC may drive the peak-shaving decision.
+
+        A battery the control loop cannot move - unavailable or cooling down
+        in ``_non_responsive`` - keeps its last SOC in ``data`` while
+        delivering nothing. Averaging that stale value in held the fleet
+        average above the threshold while the remaining battery drained past
+        it (#803), so only batteries that can actually discharge count here,
+        mirroring the pool the control path selects.
+        """
+        is_excluded = getattr(
+            getattr(self, "_non_responsive", None), "is_excluded", None
+        )
+        eligible = []
+        for coordinator in self.coordinators:
+            if not coordinator.data:
+                continue
+            if ChargeDischargeController._is_battery_manual_owned(coordinator):
+                continue
+            if not getattr(coordinator, "is_available", True):
+                continue
+            if callable(is_excluded) and is_excluded(coordinator):
+                continue
+            eligible.append(coordinator)
+        return eligible
+
     def _apply_capacity_protection(
         self, sensor_actual: float, active_target: float
     ) -> tuple[float, float]:
@@ -4707,16 +4733,18 @@ class ChargeDischargeController:
             )
             return self.compute_active_target(), sensor_actual
 
-        coordinators_with_data = [
-            c for c in self.coordinators
-            if c.data and not ChargeDischargeController._is_battery_manual_owned(c)
-        ]
+        # Stale SOC from a battery that cannot answer stays in ``data`` and
+        # used to be averaged in here (#803): the fleet average sat above the
+        # threshold while the remaining battery drained past it.
+        coordinators_with_data = self._capacity_protection_coordinators()
         if coordinators_with_data:
             avg_soc = (
                 sum(c.data.get("battery_soc", 0) for c in coordinators_with_data)
                 / len(coordinators_with_data)
             )
         else:
+            # No battery can respond: assume full so peak shaving stays idle
+            # rather than acting on SOC it cannot influence.
             avg_soc = 100  # Assume full if no data, don't activate protection
 
         # Use the non-capacity-protection target for decisions. The previous
@@ -4914,10 +4942,9 @@ class ChargeDischargeController:
         """Return True when peak shaving should be active based on current SOC."""
         if not self.capacity_protection_enabled:
             return False
-        coordinators_with_data = [
-            c for c in self.coordinators
-            if c.data and not ChargeDischargeController._is_battery_manual_owned(c)
-        ]
+        # Same pool as _apply_capacity_protection: a non-responsive battery's
+        # last SOC must not keep this "still holding?" check False (#803).
+        coordinators_with_data = self._capacity_protection_coordinators()
         if not coordinators_with_data:
             return False
         avg_soc = (
