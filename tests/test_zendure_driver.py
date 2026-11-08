@@ -1051,6 +1051,30 @@ async def test_a_dropped_write_is_sent_once_more(first):
     assert sess.post.call_count == 2
 
 
+async def test_the_retry_waits_before_trying_again():
+    """7 Nov 17:14: the retry went out 33 ms after 'Server disconnected' and
+    met the same drop; a short pause lets the device's server recover."""
+    import asyncio
+
+    sleep = asyncio.sleep  # the autouse fixture's AsyncMock
+    sess = _flaky_session(aiohttp.ServerDisconnectedError())
+    await _driver(session=sess).read_telemetry()
+    sleep.assert_awaited_once_with(0.5)
+
+    sleep.reset_mock()
+    sess = _flaky_session(431)
+    res = await _driver(session=sess).apply_setpoint(600, read_back=False)
+    assert res.ok is True
+    sleep.assert_awaited_once_with(0.5)
+
+
+async def test_a_read_that_works_first_time_does_not_wait():
+    import asyncio
+
+    await _driver().read_telemetry()
+    asyncio.sleep.assert_not_awaited()
+
+
 async def test_a_second_drop_still_fails_without_a_third_try():
     sess = _flaky_session(aiohttp.ServerDisconnectedError(), then_status=431)
     assert await _driver(session=sess).read_telemetry() == {}
