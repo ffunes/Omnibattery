@@ -29,6 +29,9 @@ You need:
 4. **Add the battery.** Open **Settings → Devices & services → Add integration → Omnibattery**, choose **Hoymiles MQTT**, enter the device ID, and leave **Battery model** on **Auto-detect**.
 5. **Review and verify.** Keep the detected capacity and safe power envelope, complete the common limits, and confirm that state of charge, battery power, voltage, temperature, and daily energy update.
 
+!!! note "Paired systems"
+    Add a paired master/slave system **once**, with the **master** device ID only. The master reports and controls the whole pair; the slave accepts no power commands, so setup refuses its ID. Do not add the slave as a second battery.
+
 ## What you will see
 
 Charging is positive battery power in Omnibattery, discharging is negative, and idle is zero. Automatic control and the software manual controls use the same convention; turn on **Battery Manual Control** before testing a manual target.
