@@ -22,6 +22,7 @@ Check [whether your exact battery is compatible](compatibility.md) before instal
 | **Huawei SUN2000 + LUNA2000** | Modbus TCP through the inverter | [Huawei setup](configuration/batteries/huawei.md) |
 | **Sessy Home Battery** | Local HTTP API through the Sessy dongle | [Sessy setup](configuration/batteries/sessy.md) |
 | **Hoymiles MS-A2 and HiBattery** | MQTT through Home Assistant | [Hoymiles MQTT setup](configuration/batteries/hoymiles.md) |
+| **Indevolt SolidFlex and PowerFlex** | Local HTTP API | [Indevolt setup](configuration/batteries/indevolt.md) |
 
 Omnibattery can coordinate supported brands in the same installation. Check the [installation requirements](installation.md#before-you-start) before changing any manufacturer settings.
 

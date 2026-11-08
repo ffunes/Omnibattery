@@ -4,7 +4,7 @@ Omnibattery controls an Indevolt battery through the battery's local HTTP API. N
 
 ## Do I need it?
 
-**Use it if** you own an Indevolt SolidFlex or PowerFlex battery and Home Assistant can reach it on your local network. The SolidFlex 2000 and the SolidFlex 3000 AC have been tested. The PowerFlex 2000 and 3000, the SolidFlex and PowerFlex 1200 and the SolidFlex 3600 use the same API; please report your model and firmware if you use one of them. The BK1600 uses an older API and is not supported. The battery reports its model family, not the exact product, so Home Assistant shows for example SolidFlex/PowerFlex 3000 for a SolidFlex 3000 AC. Control works the same for all of them.
+**Use it if** you own an Indevolt SolidFlex or PowerFlex battery and Home Assistant can reach it on your local network. The SolidFlex 2000, the SolidFlex 3000 AC and the PowerFlex 2000 have been tested. The PowerFlex 3000, the SolidFlex and PowerFlex 1200 and the SolidFlex 3600 use the same API; please report your model and firmware if you use one of them. The BK1600 uses an older API and is not supported. The battery reports its model family, not the exact product, so Home Assistant shows for example SolidFlex/PowerFlex 3000 for a SolidFlex 3000 AC. Control works the same for all of them.
 
 **Use Omnibattery instead of the official Indevolt integration.** Both poll the same battery, and the battery answers requests one at a time. Omnibattery shows the same measurements, including the AC energy counters for the Energy dashboard, so disable or remove the official integration for a battery that Omnibattery controls (see [Moving from the official Indevolt integration](#moving-from-the-official-indevolt-integration)).
 
