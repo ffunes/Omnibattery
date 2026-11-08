@@ -125,3 +125,15 @@ Configure the reserve, release hysteresis, forecast margin, and daytime window.
 
 ??? "Advanced details"
     The calculation includes a fixed 78% charge-efficiency assumption and the safety margin.
+
+## Backup reserve for power outages
+
+[Import blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/backup_reserve_discharge_blueprint.yaml)
+
+- **Purpose:** keeps a fixed SOC reserve (for example 90% in winter) for power outages, above the battery's own minimum-SOC limit.
+- **Requires:** the Allow Discharge switches to control and the system SOC sensor. Optionally, binary sensors that are ON during a grid outage.
+- **Controls:** the selected **Allow Discharge** switches only.
+- **Compatible with:** any installation.
+- **Does not do:** write Modbus registers, force battery modes or block charging. Solar and grid charging refill the reserve normally.
+
+Discharge stops when SOC falls to the reserve and resumes once SOC rises above the reserve plus the hysteresis. While any outage sensor is ON, discharge is allowed. When you no longer want the reserve, disable the automation and turn the Allow Discharge switches back on.

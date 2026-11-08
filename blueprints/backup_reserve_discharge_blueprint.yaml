@@ -1,0 +1,128 @@
+blueprint:
+  name: "Omnibattery - Backup Reserve"
+  description: >
+    Keeps a fixed SOC reserve for power outages by disabling automatic
+    discharge when system SOC falls to the reserve, and allowing it again once
+    SOC has recovered above the reserve plus a hysteresis. If an outage sensor
+    is selected, discharge is allowed while the outage lasts.
+
+    Typical use:
+    - In winter, keep around 90% SOC in the battery for a power cut.
+    - Disable this automation (and turn the Allow Discharge switches back on)
+      when the reserve is no longer wanted.
+
+    This blueprint controls the Omnibattery Allow Discharge switches only. It
+    does not write battery Modbus registers or force charge/discharge modes,
+    so charging (solar or grid) still refills the reserve normally.
+  domain: automation
+  source_url: "https://github.com/ffunes/omnibattery/blob/main/blueprints/backup_reserve_discharge_blueprint.yaml"
+
+  input:
+    allow_discharge_switches:
+      name: "Allow Discharge Switches"
+      description: "Select all Omnibattery Allow Discharge switches that should be controlled."
+      selector:
+        entity:
+          domain: switch
+          multiple: true
+
+    system_soc_sensor:
+      name: "System SOC Sensor"
+      description: "Omnibattery system SOC sensor."
+      default: sensor.omnibattery_system_soc
+      selector:
+        entity:
+          filter:
+            domain: sensor
+
+    reserve_soc_pct:
+      name: "Backup Reserve SOC"
+      description: "Automatic discharge stops when system SOC falls to this value."
+      default: 90
+      selector:
+        number:
+          min: 5
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: box
+
+    release_hysteresis_pct:
+      name: "Reserve Release Hysteresis"
+      description: "After discharge has been blocked, allow it again only when SOC rises above reserve plus this hysteresis."
+      default: 3
+      selector:
+        number:
+          min: 1
+          max: 20
+          step: 1
+          unit_of_measurement: "%"
+          mode: box
+
+    outage_sensors:
+      name: "Power Outage Sensors (optional)"
+      description: >
+        Binary sensors that are ON during a grid outage (for example a template
+        binary sensor on grid voltage). While any of them is ON, discharge is
+        allowed so the house can use the reserve. Leave empty if not needed.
+      default: []
+      selector:
+        entity:
+          domain: binary_sensor
+          multiple: true
+
+variables:
+  system_soc_sensor: !input system_soc_sensor
+  outage_sensors: !input outage_sensors
+  reserve_soc_pct: !input reserve_soc_pct
+  release_hysteresis_pct: !input release_hysteresis_pct
+  soc_pct: "{{ states(system_soc_sensor) | float(0) }}"
+  release_soc_pct: "{{ [reserve_soc_pct | float(0) + release_hysteresis_pct | float(0), 100] | min }}"
+  outage_active: "{{ expand(outage_sensors) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
+
+trigger:
+  - platform: homeassistant
+    event: start
+  - platform: state
+    entity_id: !input system_soc_sensor
+  - platform: state
+    entity_id: !input outage_sensors
+
+condition: []
+
+mode: restart
+
+action:
+  - choose:
+      - alias: "Allow discharge during a power outage"
+        conditions:
+          - condition: template
+            value_template: "{{ outage_active }}"
+        sequence:
+          - service: switch.turn_on
+            target:
+              entity_id: !input allow_discharge_switches
+
+      - alias: "Block discharge at the reserve"
+        conditions:
+          - condition: template
+            value_template: >
+              {{ is_number(states(system_soc_sensor))
+                 and (soc_pct | float(0)) <= (reserve_soc_pct | float(0)) }}
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id: !input allow_discharge_switches
+
+      - alias: "Allow discharge after SOC recovers above the reserve hysteresis"
+        conditions:
+          - condition: template
+            value_template: >
+              {{ is_number(states(system_soc_sensor))
+                 and (soc_pct | float(0)) >= (release_soc_pct | float(0)) }}
+        sequence:
+          - service: switch.turn_on
+            target:
+              entity_id: !input allow_discharge_switches
+
+    default: []

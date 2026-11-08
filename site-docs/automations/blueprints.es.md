@@ -125,3 +125,15 @@ Configura la reserva, la histéresis de liberación, el margen de previsión y l
 
 ??? "Detalles avanzados"
     El cálculo incluye una hipótesis fija de eficiencia de carga del 78% y el margen de seguridad.
+
+## Reserva de respaldo para cortes de luz
+
+[Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/backup_reserve_discharge_blueprint.yaml)
+
+- **Finalidad:** mantiene una reserva fija de SOC (por ejemplo, 90% en invierno) para cortes de luz, por encima del límite de SOC mínimo de la propia batería.
+- **Requiere:** los interruptores Allow Discharge que se controlarán y el sensor de SOC del sistema. Opcionalmente, sensores binarios que estén en ON durante un corte de red.
+- **Controla:** solo los interruptores **Allow Discharge** seleccionados.
+- **Compatible con:** cualquier instalación.
+- **No hace:** escribir registros Modbus, forzar modos de batería ni bloquear la carga. La carga solar y de red rellena la reserva con normalidad.
+
+La descarga se detiene cuando el SOC baja hasta la reserva y se reanuda cuando sube por encima de la reserva más la histéresis. Mientras algún sensor de corte esté en ON, la descarga está permitida. Cuando ya no quieras la reserva, desactiva la automatización y vuelve a encender los interruptores Allow Discharge.
