@@ -30,5 +30,21 @@ def test_system_soc_falls_back_to_mean_without_capacity():
     assert _sensor([a, b])._calculate_system_soc() == 50
 
 
+def test_system_soc_excludes_manual_batteries():
+    # #693: a balancing battery at 99 % hid two drained automatic ones.
+    manual = FakeCoordinator(data={"battery_soc": 99, "battery_total_energy": 5.12})
+    manual.battery_manual_mode_enabled = True
+    a = FakeCoordinator(data={"battery_soc": 12, "battery_total_energy": 5.12})
+    b = FakeCoordinator(data={"battery_soc": 12, "battery_total_energy": 5.12})
+    assert _sensor([manual, a, b])._calculate_system_soc() == 12
+
+
+def test_system_soc_all_manual_counts_all():
+    a = FakeCoordinator(data={"battery_soc": 40})
+    b = FakeCoordinator(data={"battery_soc": 60})
+    a.battery_manual_mode_enabled = b.battery_manual_mode_enabled = True
+    assert _sensor([a, b])._calculate_system_soc() == 50
+
+
 def test_system_soc_none_without_any_soc():
     assert _sensor([FakeCoordinator(data={"battery_power": 100})])._calculate_system_soc() is None

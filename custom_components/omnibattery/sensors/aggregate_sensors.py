@@ -23,6 +23,7 @@ from ..const import (
     CONF_OFFGRID_POWER_SENSOR,
     CONF_OFFGRID_METER_INVERTED,
     CONF_OFFGRID_MODE_ENABLED,
+    CONF_BATTERY_MANUAL_MODE_ENABLED,
     pd_profile_from_params,
 )
 from ..drivers.base import DELIVERED_AC_POWER_KEY
@@ -429,12 +430,21 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
         return round(total, self.definition.get("precision", 0))
 
     def _calculate_system_soc(self) -> float | None:
-        """Calculate capacity-weighted SOC across all batteries."""
+        """Calculate capacity-weighted SOC across the automatically controlled batteries.
+
+        A battery in manual mode is outside Omnibattery's control (cell balancing,
+        winter storage), so its SOC would hide how much the controlled fleet has
+        left (#693). Only when every battery is manual do they all count.
+        """
         total_capacity = 0
         total_stored = 0
         socs = []
 
-        for coordinator in self.coordinators:
+        automatic = [
+            c for c in self.coordinators
+            if not getattr(c, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+        ]
+        for coordinator in automatic or self.coordinators:
             if coordinator.data:
                 soc = coordinator.data.get("battery_soc")
                 if soc is None:
