@@ -385,7 +385,7 @@ SENSOR_DEFINITIONS = [
                         5: "Schedule"}),
     _definition("inverter_state", "Inverter State", state_class=None, scan="medium",
                 diagnostic=True, icon="mdi:state-machine",
-                states={1: "Standby", 2: "Charging", 3: "Discharging"}),
+                states={1: "Standby", 2: "Charge", 3: "Discharge"}),
     _text("control_status", "Control Status", icon="mdi:remote", scan="medium"),
     # How the device keeps up with the pacing: the interval grows when the
     # scheduler backs off, the latencies are the 95th percentile of the last

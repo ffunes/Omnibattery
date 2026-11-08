@@ -112,6 +112,14 @@ async def test_sign_conventions_live_in_one_place():
     await driver.close()
 
 
+def test_inverter_state_labels_are_the_ones_the_battery_card_translates():
+    """The battery card recognises a state by the words Standby, Charge and Discharge."""
+    from custom_components.omnibattery.drivers.indevolt import SENSOR_DEFINITIONS
+
+    inverter_state = next(d for d in SENSOR_DEFINITIONS if d["key"] == "inverter_state")
+    assert inverter_state["states"] == {1: "Standby", 2: "Charge", 3: "Discharge"}
+
+
 async def test_auto_acquire_sends_stop_first_and_confirms_standby():
     clock = VirtualClock()
     device = FakeIndevoltDevice(clock)

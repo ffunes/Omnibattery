@@ -58,7 +58,7 @@ Omnibattery muestra las medidas de la integración oficial de Indevolt con sus p
 | Off-grid output energy, Bypass input energy | Off-Grid Output Energy, Bypass Input Energy | Bypass input energy en kWh en lugar de Wh |
 | DC output power, Daily production, Cumulative production | Solar Output Power, Daily Solar Energy, Total Solar Energy | Total solar energy en kWh en lugar de Wh |
 | Meter power, Meter connected | Indevolt Meter Power, Indevolt Meter Connected | Desactivados por defecto |
-| Battery charge/discharge state | Inverter State | Standby, Charging o Discharging |
+| Battery charge/discharge state | Inverter State | Standby, Charge o Discharge |
 | Energy mode | Working Mode | Solo lectura |
 | Real-time mode, Real-time target SOC, Real-time power limit | Realtime Command, Realtime Target SOC, Realtime Command Power | |
 | Rated capacity | Battery Total Energy | |
