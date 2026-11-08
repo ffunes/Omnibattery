@@ -11539,7 +11539,27 @@ async def _setup_batteries_per_link(batteries, setup_battery):
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Omnibattery from a config entry."""
+    """Set up Omnibattery from a config entry.
+
+    A setup that raises or is cancelled after a battery connected is never
+    unloaded, so its connections stayed open. A Marstek v3 or a single-slot
+    bridge (EW11B) accepts one Modbus TCP client, and that orphaned one refused
+    every later setup and reload until Home Assistant restarted. Each battery
+    coordinator is released here before the failure is passed on.
+    """
+    opened: list = []
+    try:
+        return await _async_setup_entry(hass, entry, opened)
+    except BaseException:
+        for coordinator in opened:
+            with contextlib.suppress(Exception):
+                coordinator.set_shutting_down(True)
+                await coordinator.disconnect()
+        raise
+
+
+async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: list) -> bool:
+    """Set up the entry; every battery coordinator created is added to ``opened``."""
     _async_register_services(hass)
     hass.data.setdefault(DOMAIN, {})
 
@@ -11705,6 +11725,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             for k, v in battery_config.items()
             if k.startswith("shadow_select_")
         }
+
+        opened.append(coordinator)
 
         # Connect and fetch initial data
         try:
