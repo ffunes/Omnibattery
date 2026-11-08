@@ -379,14 +379,24 @@ class HoymilesMqttDriver(BatteryDriver):
                                ("pack_num", "pack_count")):
             value = self._number(data, source)
             if value is not None: self._cache[target] = value
-        pack_count = self._number(data, "pack_num")
-        if pack_count is not None:
-            capacity = hoymiles_capacity_kwh(
-                self._model_raw,
-                pack_count=int(pack_count),
-            )
-            if capacity:
-                self._cache["battery_total_energy"] = capacity
+        if self._number(data, "pack_num") is not None:
+            self._refresh_capacity()
+
+    def _refresh_capacity(
+        self,
+        charge_power_w: int | None = None,
+        discharge_power_w: int | None = None,
+    ) -> None:
+        """Recompute total energy, preferring the last reported pack count (#794)."""
+        pack_count = self._cache.get("pack_count")
+        capacity = hoymiles_capacity_kwh(
+            self._model_raw,
+            charge_power_w,
+            discharge_power_w,
+            pack_count=int(pack_count) if pack_count is not None else None,
+        )
+        if capacity:
+            self._cache["battery_total_energy"] = capacity
 
     @callback
     def _handle_system(self, message) -> None:
@@ -430,11 +440,7 @@ class HoymilesMqttDriver(BatteryDriver):
             self._cache["max_charge_power"] = device_charge_w
         if device_discharge_w is not None:
             self._cache["max_discharge_power"] = device_discharge_w
-        capacity = hoymiles_capacity_kwh(
-            self._model_raw, device_charge_w, device_discharge_w
-        )
-        if capacity:
-            self._cache["battery_total_energy"] = capacity
+        self._refresh_capacity(device_charge_w, device_discharge_w)
         if self._last_net_power_w is not None:
             self._last_net_power_w = self._clamp(self._last_net_power_w)
             self._cache["commanded_net_power"] = self._last_net_power_w

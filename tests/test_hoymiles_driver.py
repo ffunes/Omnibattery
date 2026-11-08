@@ -318,6 +318,28 @@ async def test_configured_4020_x_overrides_incorrect_ms_a2_discovery_model(mqtt_
     await driver.close()
 
 
+@pytest.mark.asyncio
+async def test_4020_ac_power_config_after_pack_count_keeps_stack_capacity(mqtt_mock):
+    """#794: a later power_ctrl envelope must not reset capacity to one pack."""
+    driver = HoymilesMqttDriver(_hass(), "HB-4020", model="hibattery_4020_ac")
+    await driver.connect()
+
+    mqtt_mock.callbacks[driver._device_topic](
+        SimpleNamespace(payload='{"pack_num":3}')
+    )
+    assert (await driver.read_telemetry())["battery_total_energy"] == 12.06
+
+    mqtt_mock.callbacks[driver._power_config_topic](SimpleNamespace(payload='''{
+        "min": -2500,
+        "max": 2500,
+        "device": {"model": "HB-4020-AC"}
+    }'''))
+    snapshot = await driver.read_telemetry()
+    assert snapshot["pack_count"] == 3
+    assert snapshot["battery_total_energy"] == 12.06
+    await driver.close()
+
+
 def test_hoymiles_profiles_cover_scalable_1920_and_4020_variants():
     assert hoymiles_model_profile("HB-1920-AC-SV").label == "HiBattery 1920 AC"
     assert hoymiles_capacity_kwh("HB-1920-AC-SV", 6000, 6000) == 11.52
