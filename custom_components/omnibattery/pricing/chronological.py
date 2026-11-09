@@ -870,10 +870,12 @@ def allocate_price_slots(
             return False
         return not any(slot.start <= cover < deadline for cover in sun_covers)
 
-    def lasts(slot: PriceSlot, start: datetime, deadline: datetime) -> bool:
+    def lasts(
+        slot: PriceSlot, deadline: datetime, until: datetime | None
+    ) -> bool:
         # The grid covers the house during a charge slot, so a slot ending at
-        # or after the hour left to the grid still serves later deadlines.
-        until = left_until.get(start)
+        # or after the hour left to the grid (``until``) still serves later
+        # deadlines.
         return (
             until is None
             or slot.end >= until
@@ -882,10 +884,18 @@ def allocate_price_slots(
         )
 
     segment_unusable: dict[datetime, float] = {}
+    # Each deadline the loop served, with the segment it ran in, the
+    # cumulative target it aimed for, whether it was valued against the
+    # import price and the hour left to the grid it saw: replayed below to
+    # label the slots.
+    served_deadlines: list[
+        tuple[EnergyDeadline, datetime, float, bool, datetime | None]
+    ] = []
     for deadline in deadlines:
         clip = deadline.kind != "guaranteed_floor"
         blocked = 0.0
         start = allocation_start(deadline.deadline)
+        until = left_until.get(start)
         allocated_before_segment = sum(
             amount
             for slot, amount in allocations.items()
@@ -910,11 +920,14 @@ def allocate_price_slots(
             awaiting_prices += missing
             segment_unusable[start] = segment_unusable.get(start, 0.0) + missing
             continue
+        served_deadlines.append(
+            (deadline, start, cumulative_target, cap is not None, until)
+        )
         pool = (
             candidates if cap is None
             else [
                 slot for slot in under_static
-                if slot.price <= cap and lasts(slot, start, deadline.deadline)
+                if slot.price <= cap and lasts(slot, deadline.deadline, until)
             ]
         )
         any_valued_pool = any_valued_pool or (cap is not None and bool(pool))
@@ -926,7 +939,7 @@ def allocate_price_slots(
                 capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
             )
             for slot in under_static
-            if (slot.price > cap or not lasts(slot, start, deadline.deadline))
+            if (slot.price > cap or not lasts(slot, deadline.deadline, until))
             and in_segment(slot, start, deadline.deadline)
         )
         eligible = sorted(
@@ -953,10 +966,6 @@ def allocate_price_slots(
             if take <= _EPSILON:
                 continue
             allocations[slot] = allocations.get(slot, 0.0) + take
-            previous = allocation_deadlines.get(slot)
-            allocation_deadlines[slot] = (
-                deadline.deadline if previous is None else min(previous, deadline.deadline)
-            )
             missing -= take
             if missing <= _EPSILON:
                 break
@@ -978,10 +987,6 @@ def allocate_price_slots(
             if take <= _EPSILON:
                 continue
             allocations[slot] = allocations.get(slot, 0.0) + take
-            previous = allocation_deadlines.get(slot)
-            allocation_deadlines[slot] = (
-                deadline.deadline if previous is None else min(previous, deadline.deadline)
-            )
             missing -= take
             premium_budget -= take
             if missing <= _EPSILON or premium_budget <= _EPSILON:
@@ -1013,7 +1018,6 @@ def allocate_price_slots(
         if take <= _EPSILON:
             continue
         allocations[slot] = allocations.get(slot, 0.0) + take
-        allocation_deadlines.setdefault(slot, None)
         missing_total -= take
         if missing_total <= _EPSILON:
             break
@@ -1025,7 +1029,6 @@ def allocate_price_slots(
         if take <= _EPSILON:
             continue
         allocations[slot] = allocations.get(slot, 0.0) + take
-        allocation_deadlines.setdefault(slot, None)
         missing_total -= take
         premium_budget -= take
         if missing_total <= _EPSILON or premium_budget <= _EPSILON:
@@ -1033,6 +1036,38 @@ def allocate_price_slots(
     cut = min(missing_total, blocked)
     required -= cut
     flexible_required -= cut
+
+    # Label each slot with the earliest deadline its energy serves. The loop
+    # above books the cheapest capacity for each deadline in turn, so the
+    # deadline a slot was booked under only says which requirement first ran
+    # out of cheaper slots: a dear slot before midnight that only tomorrow
+    # evening's requirement had to fall back on read "before 19:15" while
+    # the battery spent its energy at midnight. The battery covers the house
+    # with the energy charged first, so walk the deadlines in order and let
+    # each take the earliest energy still unassigned in its segment, under
+    # the same segment and hour-left-to-the-grid rules the loop applied.
+    allocation_deadlines = {slot: None for slot in allocations}
+    unassigned = dict(allocations)
+    served_in_segment: dict[datetime, float] = {}
+    by_start = sorted(allocations, key=lambda item: item.start)
+    for deadline, start, target, valued, until in served_deadlines:
+        need = max(0.0, target - served_in_segment.get(start, 0.0))
+        for slot in by_start:
+            if need <= _EPSILON:
+                break
+            left = unassigned[slot]
+            if (
+                left <= _EPSILON
+                or not in_segment(slot, start, deadline.deadline)
+                or (valued and not lasts(slot, deadline.deadline, until))
+            ):
+                continue
+            take = min(need, left)
+            unassigned[slot] = left - take
+            need -= take
+            served_in_segment[start] = served_in_segment.get(start, 0.0) + take
+            if allocation_deadlines[slot] is None:
+                allocation_deadlines[slot] = deadline.deadline
 
     if grid_carries_load_while_charging:
         # The deadlines and the scalar balance both count the house load

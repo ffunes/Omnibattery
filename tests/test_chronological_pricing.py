@@ -1088,3 +1088,56 @@ def test_a_deficit_after_the_last_price_is_awaiting_prices_not_cheaper():
     assert plan.reason == "awaiting_prices"
     assert plan.awaiting_prices_kwh == pytest.approx(plan.cheaper_to_import_kwh)
     assert plan.awaiting_prices_kwh > 0
+
+
+def test_slot_deadlines_name_when_the_energy_is_needed_not_which_deadline_booked_it():
+    """A slot's deadline is the earliest one its energy serves.
+
+    Regression: the allocator labelled a slot with the deadline that booked
+    it. Deadlines are served in order and each takes the cheapest capacity,
+    so a dear slot before midnight was booked last, by the latest deadline,
+    and read "[before 03:15]" while the battery spent its energy at
+    midnight. The labels along the night then jumped back and forth.
+    """
+    now = BASE - timedelta(hours=1)
+    # 1 kWh lasts the four quarters to midnight; from then on the house
+    # drains 0.25 kWh a quarter, a requirement every 15 minutes.
+    intervals = [
+        EnergyInterval(
+            now + timedelta(minutes=15 * i),
+            now + timedelta(minutes=15 * (i + 1)),
+            0.25,
+            0.0,
+        )
+        for i in range(4 + 13)
+    ]
+    deadlines = build_energy_deadlines(intervals, 1.0)
+    dear = _slot(-60, -45, 0.30)  # 23:00, before the battery runs out
+    cheap = [_slot(15 * i, 15 * (i + 1), 0.10) for i in range(12)]  # 00:00-03:00
+
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        [dear, *cheap],
+        total_required_kwh=3.25,
+        effective_power_kw=1.0,
+        charge_efficiency=1.0,
+        now=now,
+        horizon_end=BASE + timedelta(hours=3, minutes=15),
+        headroom_kwh=10.0,
+        usable_initial_kwh=1.0,
+    )
+
+    by_slot = {a.slot: a for a in plan.allocations}
+    # Every slot is needed: 13 quarters of 0.25 kWh and 13 slots of 0.25 kWh.
+    assert plan.deadline_shortfall_kwh == pytest.approx(0.0)
+    assert len(by_slot) == 13
+    # The dear slot was booked by the 03:15 requirement, the only one the
+    # cheap slots could not cover, but its energy is the first the battery
+    # spends: it is needed before 00:15.
+    assert by_slot[dear].deadline == BASE + timedelta(minutes=15)
+    assert by_slot[dear].kind == "deadline"
+    # Along the night each slot's deadline is later than the previous one's.
+    labels = [a.deadline for a in sorted(plan.allocations, key=lambda a: a.slot.start)]
+    assert labels == sorted(labels)
+    assert labels[-1] == BASE + timedelta(hours=3, minutes=15)

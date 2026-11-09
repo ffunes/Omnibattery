@@ -12,6 +12,7 @@
 - **Robustness** (PR#818): a failing predictive step falls back to normal control instead of stopping the cycle; one failing driver no longer aborts unloading the integration; Config Backup restores stored data before the entry loads; a lost Huawei EMMA meter connection is reconnected; a refused Indevolt write counts as failed. Thanks to @pocketware.
 - **Restore previous configuration keeps learned profiles and daily counters** (PR#819): the restored files are now loaded without a restart instead of being overwritten by the entry's first save; an unreadable file is skipped with a warning instead of aborting the restore. Thanks to @tkaspersNL.
 - **Venus E v2/v3 max power sliders go down to 100 W** (#815): the Max Charge/Discharge Power sliders in the dashboard and device page now start at 100 W, like the battery limits in the options flow, instead of 800 W. Thanks to @effevee.
+- **Dynamic Pricing: a slot's "before HH:MM" names when its energy is needed**: the planner labelled each selected slot with the deadline that booked it. Deadlines are served in order and each takes the cheapest capacity left, so a dear slot before midnight that only tomorrow evening's requirement fell back on read "before 19:15" while the battery spent its energy at midnight, and the labels along the night jumped back and forth. Each slot now carries the earliest deadline its energy serves, which also bounds where an under-delivered slot's energy may be moved. Thanks to @pocketware.
 
 ## [1.6.0] - 2026-11-09
 
