@@ -1281,6 +1281,7 @@ class ChargeDischargeController:
 
         # Weekly Full Charge state
         self.weekly_full_charge_enabled = config_entry.data.get(CONF_ENABLE_WEEKLY_FULL_CHARGE, False)
+        self.full_charge_schedule = config_entry.data.get("full_charge_schedule", "weekly")
         self.weekly_full_charge_day = config_entry.data.get(CONF_WEEKLY_FULL_CHARGE_DAY, "sun")
         self.weekly_full_charge_complete = False  # True when the weekly charge to 100% has completed
         self.last_checked_weekday = None  # Track day transitions for reset logic
@@ -3198,9 +3199,12 @@ class ChargeDischargeController:
         # Update weekly full charge settings; reset completion state if day changed
         new_weekly_day = self.config_entry.data.get(CONF_WEEKLY_FULL_CHARGE_DAY, "sun")
         new_weekly_enabled = self.config_entry.data.get(CONF_ENABLE_WEEKLY_FULL_CHARGE, False)
+        new_schedule = self.config_entry.data.get("full_charge_schedule", "weekly")
+        mode_changed = new_schedule != getattr(self, "full_charge_schedule", "weekly")
         day_changed = new_weekly_day != self.weekly_full_charge_day
         feature_disabled = self.weekly_full_charge_enabled and not new_weekly_enabled
-        if day_changed or feature_disabled:
+        if day_changed or feature_disabled or mode_changed:
+            self._weekly_charge_mgr.monthly.run_date = None
             _LOGGER.info("Weekly Full Charge: %s - resetting completion state",
                          f"day changed from {self.weekly_full_charge_day.upper()} to {new_weekly_day.upper()}"
                          if day_changed else "feature disabled")
@@ -3210,6 +3214,7 @@ class ChargeDischargeController:
                 self._weekly_charge_needs_restore = True
             self.weekly_full_charge_complete = False
             self.weekly_full_charge_registers_written = False
+        self.full_charge_schedule = new_schedule
         self.weekly_full_charge_enabled = new_weekly_enabled
         self.weekly_full_charge_day = new_weekly_day
 
@@ -3957,6 +3962,12 @@ class ChargeDischargeController:
 
         if not getattr(self, "weekly_full_charge_enabled", False):
             return False
+        manager = getattr(self, "_weekly_charge_mgr", None)
+        if manager is not None and manager._monthly_enabled():
+            from homeassistant.util import dt as dt_util
+
+            local = now.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE) if now.tzinfo is None else now
+            return manager.monthly.target_day(local + timedelta(days=1)) == (local + timedelta(days=1)).date()
         target = WEEKDAY_MAP.get(getattr(self, "weekly_full_charge_day", None))
         return target is not None and (now.weekday() + 1) % 7 == target
 

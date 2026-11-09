@@ -1522,6 +1522,9 @@
   },
   "entity": {
     "switch": {
+      "monthly_full_charge_price_enabled": {
+        "name": "Monthly Early Price Trigger"
+      },
       "surplus_price_hold": {
         "name": "Retenue de surplus selon le prix"
       },
@@ -2562,6 +2565,27 @@
       }
     },
     "select": {
+      "full_charge_schedule": {
+        "name": "Full Charge Schedule",
+        "state": {
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        }
+      },
+      "monthly_full_charge_source": {
+        "name": "Monthly Scheduling",
+        "state": {
+          "simple": "Simple (no forecast)",
+          "sensor": "Smart: forecast sensor",
+          "jeroen_nl": "Smart: Jeroen.nl (Netherlands)"
+        }
+      },
+      "monthly_full_charge_forecast_sensor": {
+        "name": "Monthly Price Forecast Sensor",
+        "state": {
+          "none": "None"
+        }
+      },
       "force_mode": {
         "name": "Mode Forcé"
       },
@@ -2643,6 +2667,9 @@
       }
     },
     "number": {
+      "monthly_full_charge_price": {
+        "name": "Monthly Full Charge Price"
+      },
       "surplus_hold_min_saving": {
         "name": "Économie minimale de retenue du surplus"
       },

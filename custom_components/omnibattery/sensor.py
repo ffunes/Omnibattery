@@ -755,6 +755,16 @@ class WeeklyFullChargeSensor(SensorEntity):
             "weekly_charge_day": self._controller.weekly_full_charge_day,
             "charge_delay_enabled": self._controller.charge_delay_enabled,
         }
+        manager = self._controller._weekly_charge_mgr
+        if manager._monthly_enabled():
+            monthly = manager.monthly
+            attrs.update({
+                "schedule": "monthly", "forecast_source": monthly.source,
+                "selected_date": monthly.selected_date.isoformat() if monthly.selected_date else None,
+                "monthly_reason": monthly.reason,
+                "last_full": dict(monthly.last_full),
+                "forecast_updated": monthly.forecast_received_at.isoformat() if monthly.forecast_received_at else None,
+            })
         completion_reason = self._controller._weekly_charge_status.get("completion_reason")
         if completion_reason:
             attrs["completion_reason"] = completion_reason

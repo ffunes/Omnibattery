@@ -66,6 +66,11 @@ async def async_setup_entry(
     # switch is always available, so the day must be pickable before enabling —
     # toggling the switch does not reload platforms).
     entities.append(WeeklyFullChargeDaySelect(hass, entry))
+    entities.extend([
+        FullChargeOptionSelect(hass, entry, "full_charge_schedule", ["weekly", "monthly"]),
+        FullChargeOptionSelect(hass, entry, "monthly_full_charge_source", ["simple", "sensor", "jeroen_nl"]),
+        FullChargeForecastSensorSelect(hass, entry),
+    ])
 
     # Add PD tuning profile select (system-level, always available)
     entities.append(PdTuningProfileSelect(hass, entry))
@@ -591,3 +596,47 @@ class HighPriceSaleSelect(SelectEntity):
             "manufacturer": "Omnibattery",
             "model": "Multi-Battery System",
         }
+
+
+class FullChargeOptionSelect(WeeklyFullChargeDaySelect):
+    """Persist an optional full-charge scheduling choice."""
+
+    def __init__(self, hass, entry, key, options):
+        super().__init__(hass, entry)
+        self._key = key
+        self._attr_translation_key = key
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}{key}"
+        self.entity_id = system_entity_id("select", key)
+        self._attr_options = options
+        self._attr_should_poll = True
+
+    @property
+    def current_option(self):
+        return self.entry.data.get(self._key, self._attr_options[0])
+
+    async def async_select_option(self, option):
+        if option not in self.options:
+            raise ValueError("Unsupported full-charge option")
+        self.hass.config_entries.async_update_entry(
+            self.entry, data={**self.entry.data, self._key: option}
+        )
+        controller = self.hass.data[DOMAIN][self.entry.entry_id].get("controller")
+        if controller is not None:
+            controller.update_pd_parameters()
+        self.async_write_ha_state()
+
+
+class FullChargeForecastSensorSelect(FullChargeOptionSelect):
+    """Choose a price-series entity; no external provider is required."""
+
+    def __init__(self, hass, entry):
+        super().__init__(hass, entry, "monthly_full_charge_forecast_sensor", ["none"])
+
+    @property
+    def options(self):
+        selected = self.current_option
+        entities = {s.entity_id for s in self.hass.states.async_all("sensor")
+                    if "raw_forecast" in s.attributes}
+        if selected != "none":
+            entities.add(selected)
+        return ["none", *sorted(entities)]

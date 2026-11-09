@@ -1522,6 +1522,9 @@
   },
   "entity": {
     "switch": {
+      "monthly_full_charge_price_enabled": {
+        "name": "Maandelijks vroeg laden bij lage prijs"
+      },
       "surplus_price_hold": {
         "name": "Prijsrem zonne-overschot"
       },
@@ -2562,6 +2565,27 @@
       }
     },
     "select": {
+      "full_charge_schedule": {
+        "name": "Volledig laden schema",
+        "state": {
+          "weekly": "Wekelijks",
+          "monthly": "Maandelijks"
+        }
+      },
+      "monthly_full_charge_source": {
+        "name": "Maandelijkse planning",
+        "state": {
+          "simple": "Eenvoudig (zonder voorspelling)",
+          "sensor": "Slim: voorspellingssensor",
+          "jeroen_nl": "Slim: Jeroen.nl (Nederland)"
+        }
+      },
+      "monthly_full_charge_forecast_sensor": {
+        "name": "Maandelijkse prijsvoorspellingssensor",
+        "state": {
+          "none": "Geen"
+        }
+      },
       "force_mode": {
         "name": "Geforceerde Modus"
       },
@@ -2643,6 +2667,9 @@
       }
     },
     "number": {
+      "monthly_full_charge_price": {
+        "name": "Prijs voor maandelijks volledig laden"
+      },
       "surplus_hold_min_saving": {
         "name": "Minimale besparing overschotrem"
       },

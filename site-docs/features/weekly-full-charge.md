@@ -26,6 +26,64 @@ A weekly full charge gives a lithium iron phosphate (LFP) battery regular time a
 
 ## What you will see
 
+### Monthly cadence and optional smart scheduling
+
+The existing enable switch also controls **Full Charge Schedule → Monthly**.
+Weekly remains the default for existing installations. Monthly defaults to
+**Simple (no forecast)**: it starts on the last occurrence of the selected
+weekday in each calendar month. If Home Assistant misses that day, the next
+available day in the same month starts the cycle. An unfinished cycle can keep
+trying through the remainder of that month.
+
+Each automatically controlled battery's natural or forced full charge counts
+toward the month, using the same SOC/BMS completion rules as weekly charging.
+Completion history and an active run survive restarts. An unavailable battery
+does not acquire a completion record. Manual batteries remain excluded.
+
+**Monthly Scheduling** optionally offers:
+
+- **Smart: forecast sensor**: select a price-series sensor in **Monthly Price
+  Forecast Sensor**. Supported attributes are `raw_forecast`, `raw_tomorrow`,
+  and `raw_today`, each containing `{start, end, value}` intervals. Timestamps
+  must include UTC offsets; intervals must be at most one hour. Supported units
+  are EUR/kWh, €/kWh, EUR/MWh, and ct/kWh. All intervals must use the same price
+  basis. Published values take precedence over predictions for matching starts.
+  Energy Price Forecast EU's price-series sensor exposes this format; its full
+  five-day horizon requires the provider's appropriate subscription.
+- **Smart: Jeroen.nl (Netherlands)**: fetches the Dutch price forecast from
+  [Jeroen.nl](https://jeroen.nl/dynamische-energie/stroom/prijzen/voorspelling)
+  through its public MCP endpoint. No account token is required. This is
+  explicitly opt-in and only fetches during the final week when charging is
+  still due. Successful requests are cached for six hours, failures retry after
+  one hour, and forecasts older than 36 hours are rejected. Review the
+  [provider's usage terms](https://jeroen.nl/api-voorwaarden): personal home
+  automation is permitted; use in an app for others requires written permission.
+
+Smart scheduling compares today and the next four days within the final seven
+calendar days of the month. It ranks the cost of enough cheap intervals to cover
+the estimated charging duration, including the existing planner's taper margin.
+Days with less than 20 hours of coverage are excluded. The selection may change
+until a cycle starts; a started cycle stays active until completion or month end.
+If forecasts are missing, a final-day fallback starts the cycle. A long charging
+estimate can bring this fallback forward to leave time before month end.
+
+**Monthly Early Price Trigger** optionally starts the monthly cycle earlier
+when the configured actual import price is at or below **Monthly Full Charge
+Price**. Zero and negative prices are supported. Use the same per-kWh tariff
+basis as the configured import price source. This requires predictive charging
+in dynamic-pricing or real-time-price mode. The trigger starts a cycle; it is
+not a price ceiling for every subsequent charging interval.
+
+All modes retain the existing grid-charging configuration, manual ownership,
+temperature protection, charge-delay behavior and battery power limits.
+Predictive charging must be enabled to buy grid energy; without it the cycle
+depends on solar. Price caps, unavailable hardware, or insufficient charging
+time can still prevent completion. The fallback schedules an attempt, not an
+unconditional guarantee of reaching 100%.
+
+The full-charge sensor exposes the monthly source, selected date, decision
+reason, forecast timestamp and per-battery completion history.
+
 **Weekly Full Charge** reports `idle`, `charging`, or `complete`. On the selected day, Omnibattery temporarily raises the charge target to 100% for batteries under automatic control. It marks the cycle complete only after every participating battery is considered full, then restores each configured limit.
 
 With [predictive charging](../configuration/predictive-charging/index.md), the remaining energy needed for the weekly target enters the plan. Omnibattery can buy that energy during the configured charging period when forecast solar will not cover it. Without predictive charging, the cycle relies on available solar and may not complete on a cloudy day.

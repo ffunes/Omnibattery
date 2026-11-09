@@ -106,6 +106,7 @@ async def async_setup_entry(
         # Weekly full charge enable/disable (system-level, always present so it can
         # be turned on from the dashboard even if configured off at setup).
         entities.append(WeeklyFullChargeEnableSwitch(hass, entry, controller))
+        entities.append(MonthlyFullChargePriceSwitch(hass, entry, controller))
         entities.append(VacationModeSwitch(hass, entry, controller))
 
     # Keep mode-specific predictive controls registered while the master switch
@@ -2469,3 +2470,24 @@ class NegativePriceChargingSwitch(SwitchEntity):
             "manufacturer": "Omnibattery",
             "model": "Multi-Battery System",
         }
+
+
+class MonthlyFullChargePriceSwitch(WeeklyFullChargeEnableSwitch):
+    """Allow an early monthly cycle at a configured actual import price."""
+
+    def __init__(self, hass, entry, controller):
+        super().__init__(hass, entry, controller)
+        key = "monthly_full_charge_price_enabled"
+        self._attr_translation_key = key
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}{key}"
+        self.entity_id = system_entity_id("switch", key)
+
+    @property
+    def is_on(self):
+        return self.entry.data.get("monthly_full_charge_price_enabled", False)
+
+    def _set_enabled(self, enabled):
+        self.hass.config_entries.async_update_entry(self.entry, data={
+            **self.entry.data, "monthly_full_charge_price_enabled": enabled,
+        })
+        self.async_write_ha_state()

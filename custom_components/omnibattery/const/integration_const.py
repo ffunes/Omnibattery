@@ -280,6 +280,9 @@ CONF_MANUAL_MODE_ENABLED = "manual_mode_enabled"
 CONF_BATTERY_MANUAL_MODE_ENABLED = "battery_manual_mode_enabled"
 CONF_PREDICTIVE_CHARGING_OVERRIDDEN = "predictive_charging_overridden"
 CONF_WEEKLY_FULL_CHARGE_DAY = "weekly_full_charge_day"
+CONF_FULL_CHARGE_SCHEDULE = "full_charge_schedule"
+CONF_MONTHLY_FULL_CHARGE_PRICE_ENABLED = "monthly_full_charge_price_enabled"
+CONF_MONTHLY_FULL_CHARGE_PRICE = "monthly_full_charge_price"
 CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY = "enable_weekly_full_charge_delay"
 CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY = "weekly_full_charge_skip_delay"
 # Default True preserves the historic behaviour: the weekly full charge bypasses
@@ -1131,6 +1134,16 @@ DYNAMIC_BOUNDS_SYSTEM_POWER_CAP = "system_power_cap"
 
 # Configuration Number Definitions (for config entities exposed in the UI)
 CONFIG_NUMBER_DEFINITIONS = [
+    {
+        "key": CONF_MONTHLY_FULL_CHARGE_PRICE,
+        "name": "Monthly Full Charge Price",
+        "min": -2.0,
+        "max": 2.0,
+        "step": 0.001,
+        "unit": "€/kWh",
+        "default": 0.0,
+        "icon": "mdi:currency-eur",
+    },
     {
         "key": CONF_PD_KP,
         "name": "PD Kp",

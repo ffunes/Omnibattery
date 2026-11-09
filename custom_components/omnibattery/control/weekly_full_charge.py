@@ -21,6 +21,9 @@ from time import monotonic
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
+
+from .monthly_full_charge import MonthlyFullChargeSchedule
 
 from .pack_soc import control_vmax, soc_vs_ceiling
 from ..const import (
@@ -77,6 +80,17 @@ class WeeklyFullChargeManager:
         # Edge-trigger guard so the "already completed" debug line logs once per
         # completion, not once per is_active() call (called per-battery per-cycle).
         self._already_complete_logged = False
+
+    @property
+    def monthly(self) -> MonthlyFullChargeSchedule:
+        """Lazily construct the optional schedule, including for legacy callers."""
+        if "_monthly" not in self.__dict__:
+            self._monthly = MonthlyFullChargeSchedule(self)
+        return self._monthly
+
+    def _monthly_enabled(self) -> bool:
+        entry = getattr(self._controller, "config_entry", None)
+        return getattr(entry, "data", {}).get("full_charge_schedule", "weekly") == "monthly"
 
     def _create_background_task(self, coroutine, name: str) -> asyncio.Task | None:
         """Create persistence work through the owning entry controller."""
@@ -326,6 +340,12 @@ class WeeklyFullChargeManager:
         known sunrise the window ends at midnight, as it always did. Returned in
         ``now``'s timezone (naive for a naive ``now``); None outside the window.
         """
+        if self._monthly_enabled():
+            if not self._controller.weekly_full_charge_enabled:
+                return None
+            if not self.monthly.is_active(now.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE) if now.tzinfo is None else now):
+                return None
+            return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         target_weekday = WEEKDAY_MAP[self._controller.weekly_full_charge_day]
         local = now.replace(tzinfo=None) if now.tzinfo else now
         if local.weekday() == target_weekday:
@@ -339,6 +359,8 @@ class WeeklyFullChargeManager:
 
     def in_overnight_extension(self, now: datetime) -> bool:
         """True in the night after the target day, before its sunrise."""
+        if self._monthly_enabled():
+            return False
         target_weekday = WEEKDAY_MAP[self._controller.weekly_full_charge_day]
         local = now.replace(tzinfo=None) if now.tzinfo else now
         if local.weekday() != (target_weekday + 1) % 7:
@@ -359,6 +381,10 @@ class WeeklyFullChargeManager:
         ctrl = self._controller
         if not ctrl.weekly_full_charge_enabled:
             return False
+
+        if self._monthly_enabled():
+            self.monthly.observe_full(dt_util.now())
+            return self.monthly.is_active(dt_util.now())
 
         # Re-arm the "already completed" edge-trigger log whenever completion clears
         # (day boundary, feature toggle, force-charge reset — wherever it happens).
@@ -437,6 +463,8 @@ class WeeklyFullChargeManager:
                 _LOGGER.debug("Weekly Full Charge: No persisted state found")
                 return
 
+            self.monthly.load(data.get("monthly", {}))
+
             today_iso = date.today().isoformat()
             stored_date = data.get("date")
             # A run saved on the target day carries on in the night after it.
@@ -444,6 +472,10 @@ class WeeklyFullChargeManager:
                 stored_date == (date.today() - timedelta(days=1)).isoformat()
                 and self.in_overnight_extension(datetime.now())
             )
+            if self._monthly_enabled():
+                now = dt_util.now()
+                run = self.monthly.run_date
+                same_run = run is not None and (run.year, run.month) == (now.year, now.month)
 
             # Only restore state if saved on the same calendar date (prevents last week's
             # completion from being incorrectly restored on the same weekday next week)
@@ -506,6 +538,7 @@ class WeeklyFullChargeManager:
         try:
             now = datetime.now()
             data = {
+                "monthly": self.monthly.dump(),
                 "complete": ctrl.weekly_full_charge_complete,
                 "registers_written": ctrl.weekly_full_charge_registers_written,
                 "state": ctrl._weekly_charge_status.get("state", "Idle"),
@@ -641,6 +674,9 @@ class WeeklyFullChargeManager:
         # Always tick BMS-cutoff counters unconditionally — _get_available_batteries()
         # reads is_battery_full() later in the same cycle for the normal max_soc=100% case.
         self.tick_bms_cutoff()
+        if self._monthly_enabled() and ctrl.weekly_full_charge_enabled:
+            self.monthly.observe_full(dt_util.now())
+            self.monthly.refresh_if_due(dt_util.now())
 
         # Mid-charge abort: day changed (or feature disabled) while registers were already at 100%.
         # Restore hardware cutoff to max_soc before anything else.
@@ -772,7 +808,7 @@ class WeeklyFullChargeManager:
         batteries_with_data = [
             c
             for c in ctrl.coordinators
-            if c.data
+            if (c.data or self._monthly_enabled())
             and not getattr(c, "battery_manual_mode_enabled", False)
         ]
         all_batteries_full = bool(batteries_with_data) and all(
@@ -799,6 +835,8 @@ class WeeklyFullChargeManager:
         ctrl = self._controller
         _LOGGER.info("Weekly Full Charge: Complete (%s) - reverting to configured limits", reason)
         ctrl.weekly_full_charge_complete = True
+        if self._monthly_enabled():
+            self.monthly.observe_full(dt_util.now())
         ctrl._weekly_charge_status["state"] = "Complete"
         ctrl._weekly_charge_status["completion_reason"] = reason
         completion_batteries: dict = {}
