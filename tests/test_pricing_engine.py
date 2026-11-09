@@ -3732,3 +3732,22 @@ def test_charge_ceiling_without_peak_shaving_is_the_contracted_power(overrides):
 
     assert manager._peak_shaving_limit() is None
     assert manager._contracted_charge_ceiling() == 5000
+
+
+def test_excluded_demand_reeval_cap_rolls_over_at_midnight():
+    """P7: yesterday's spent cap must not block today's re-evaluations.
+
+    The counter was only cleared in the Dynamic Pricing new-day block, which
+    is skipped while the evaluated date is unset or already tomorrow.
+    """
+    yesterday = _CLAIM_NOW - timedelta(days=1)
+    ctrl = _claim_ctrl(
+        0.0,
+        7.0,
+        _dp_excluded_demand_reeval_count=4,
+        _dp_excluded_demand_reeval_at=yesterday,
+    )
+    manager = _claim_mgr(ctrl)
+
+    assert manager._excluded_demand_reeval_count_today(_CLAIM_NOW) == 0
+    assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is True

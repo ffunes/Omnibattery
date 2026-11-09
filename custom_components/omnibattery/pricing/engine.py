@@ -5054,7 +5054,7 @@ class PricingManager:
         if abs(current - ref) < EXCLUDED_DEMAND_REEVAL_KWH:
             return False
         cap_spent = (
-            getattr(controller, "_dp_excluded_demand_reeval_count", 0)
+            self._excluded_demand_reeval_count_today(now)
             >= EXCLUDED_DEMAND_REEVAL_MAX_PER_DAY
         )
         if cap_spent and current > ref:
@@ -5215,6 +5215,21 @@ class PricingManager:
         if getattr(controller, "_current_price_slot_active", False):
             return False
         return self._prices_reach_beyond_today(now)
+
+    def _excluded_demand_reeval_count_today(self, now: datetime) -> int:
+        """Claim-driven re-evaluations already run today (#341 daily cap).
+
+        The counter was only cleared in Dynamic Pricing's new-day block, which
+        is skipped while the evaluated date is unset or already tomorrow (a
+        plan reaching past midnight), so yesterday's spent cap blocked today.
+        The last re-evaluation's time dates the count instead.
+        """
+        count = int(getattr(self._controller, "_dp_excluded_demand_reeval_count", 0) or 0)
+        last_at = getattr(self._controller, "_dp_excluded_demand_reeval_at", None)
+        # An undated count belongs to today, as for the solar-forecast counter.
+        if isinstance(last_at, datetime) and last_at.date() != now.date():
+            return 0
+        return count
 
     def _roll_solar_forecast_reeval_day(self, now: datetime) -> int:
         """Return today's forecast-driven re-evaluation count, rolled at midnight.
@@ -6624,10 +6639,10 @@ class PricingManager:
         # and that is the intended outcome. The cooldown and the daily cap in
         # _is_excluded_demand_reeval bound how often a live charge is disturbed.
         elif self._is_excluded_demand_reeval(now):
-            self._controller._dp_excluded_demand_reeval_at = now
             self._controller._dp_excluded_demand_reeval_count = (
-                getattr(self._controller, "_dp_excluded_demand_reeval_count", 0) + 1
+                self._excluded_demand_reeval_count_today(now) + 1
             )
+            self._controller._dp_excluded_demand_reeval_at = now
             # Moved here as well as after the rebuild: an evaluation that fails
             # before it refreshes the reference must not re-fire on the same
             # move, since a release is exempt from the daily cap.
