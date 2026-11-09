@@ -36,6 +36,7 @@ async def _flow(hass, device_key="192.0.2.1_8080"):
     flow.handler = DOMAIN
     flow.flow_id = "flow"
     flow.context = {"issue_id": ISSUE}
+    flow.issue_id = ISSUE  # set by the Repairs manager on older HA (2025.1)
     return flow
 
 

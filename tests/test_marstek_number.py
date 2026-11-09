@@ -160,6 +160,23 @@ async def test_a_refused_register_write_keeps_showing_the_old_value():
     entity.async_write_ha_state.assert_called_once()
 
 
+@pytest.mark.asyncio
+async def test_venus_e_max_power_write_keeps_hardware_selector_in_data():
+    """v2/v3 data holds the 800/2500 W selector (device cap), not the user cap."""
+    entity = _number_entity("max_charge_power", venus_e=True)
+    entity._scale = 1.0
+    entity.hass = SimpleNamespace(data={})
+    entity.coordinator.write_control = AsyncMock(return_value=True)
+    entity.coordinator.persist_battery_config = Mock()
+    entity.coordinator.name = "Venus E"
+    entity.coordinator.configured_max_charge_power = 500
+
+    await entity.async_set_native_value(1500)
+
+    assert entity.coordinator.data["max_charge_power"] == 2500
+    assert entity.coordinator.configured_max_charge_power == 1500
+
+
 @pytest.mark.parametrize(
     ("kind", "limit"),
     [

@@ -373,7 +373,13 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
         # to 5s for "medium"), so Home Assistant's own device page snapped the
         # slider back to the old value until then. A refused write keeps the
         # old value, and the next poll corrects either way.
-        if written and isinstance(self.coordinator.data, dict):
+        # Venus E v2/v3 max-power keys hold the 800/2500 W hardware selector in
+        # coordinator.data (read as device_max_*); the user value lives in
+        # configured_max_* and native_value already shows it.
+        software_capped = key in ("max_charge_power", "max_discharge_power") and getattr(
+            self.coordinator, "needs_software_power_cap", False
+        )
+        if written and not software_capped and isinstance(self.coordinator.data, dict):
             self.coordinator.data[key] = value
             self.async_write_ha_state()
 
