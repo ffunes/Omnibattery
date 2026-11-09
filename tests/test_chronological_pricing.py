@@ -1026,3 +1026,38 @@ def test_extended_horizon_counts_earlier_charge_as_drained_before_a_later_slot()
         intervals, 0.0, plan.allocations, usable_capacity_kwh=capacity
     )
     assert simulation.earliest_depletion_at is None
+
+
+def test_a_slot_stores_only_what_the_house_leaves_of_the_grid_ceiling():
+    """P10: with a 3 kW import ceiling and 1 kW of house load, one hour stores
+    (3 - 1) kW x efficiency, not the full 3 kW.
+
+    The planner booked 2.55 kWh into such an hour; the controller, which
+    holds import (house + charge) at the ceiling, stores 1.7 kWh, so the slot
+    ended short and the remainder had to be carried over or was lost.
+    """
+    now = BASE
+    intervals = [_interval(i, 0.25) for i in range(32)]  # 1 kW for 8 h
+    slot = PriceSlot(now, now + timedelta(hours=1), 0.1)
+    deadlines = build_energy_deadlines(intervals, 0.0, usable_capacity_kwh=20.0)
+
+    def stored(ceiling):
+        plan = allocate_price_slots(
+            intervals,
+            deadlines,
+            [slot],
+            total_required_kwh=20.0,
+            effective_power_kw=3.0,
+            now=now,
+            horizon_end=now + timedelta(hours=8),
+            headroom_kwh=20.0,
+            usable_initial_kwh=0.0,
+            grid_carries_load_while_charging=True,
+            grid_ceiling_kw=ceiling,
+        )
+        return plan.allocations[0].planned_battery_kwh
+
+    assert stored(None) == pytest.approx(3.0 * CHARGE_EFFICIENCY)
+    assert stored(3.0) == pytest.approx(2.0 * CHARGE_EFFICIENCY)
+    # A ceiling the house never reaches leaves the battery's own limit.
+    assert stored(10.0) == pytest.approx(3.0 * CHARGE_EFFICIENCY)

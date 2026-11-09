@@ -3578,6 +3578,9 @@ class PricingManager:
                     grid_carries_load_while_charging=not (
                         callable(weekly_pending) and weekly_pending()
                     ),
+                    # The runtime regulates import incl. the house load to this
+                    # ceiling, so a slot stores less while the house draws.
+                    grid_ceiling_kw=self._contracted_charge_ceiling() / 1000.0,
                 )
             )
             plan = evaluation.plan

@@ -144,6 +144,10 @@ class ChronologicalEvaluationRequest:
     # full charge, whose target is the gap to 100%, not a drain. The runtime
     # planner turns this on; the pure evaluator keeps the plain model.
     grid_carries_load_while_charging: bool = False
+    # Grid import ceiling (kW) the controller regulates to while a slot
+    # charges. The house load comes out of it, so a slot stores at most
+    # ``min(power, ceiling - net load)``. None keeps the flat ``power``.
+    grid_ceiling_kw: float | None = None
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:
@@ -511,6 +515,7 @@ def allocate_price_slots(
     import_value_margin: float = 0.0,
     reserve_holds: bool = False,
     grid_carries_load_while_charging: bool = False,
+    grid_ceiling_kw: float | None = None,
 ) -> ChronologicalPlan:
     """Allocate the cheapest feasible slot capacity to energy deadlines.
 
@@ -553,6 +558,11 @@ def allocate_price_slots(
         headroom,
     )
     power = _finite_non_negative(effective_power_kw)
+    ceiling_kw = (
+        None
+        if grid_ceiling_kw is None or not math.isfinite(float(grid_ceiling_kw))
+        else max(0.0, float(grid_ceiling_kw))
+    )
     efficiency = max(0.0, min(1.0, float(charge_efficiency)))
     price_slots = [
         slot for slot in price_slots if math.isfinite(float(slot.price))
@@ -608,6 +618,8 @@ def allocate_price_slots(
     cheaper_to_import = 0.0
     any_valued_pool = False
 
+    capacity_cache: dict[tuple[datetime, datetime], float] = {}
+
     def capacity(
         slot: PriceSlot,
         deadline: datetime | None = None,
@@ -615,7 +627,33 @@ def allocate_price_slots(
     ) -> float:
         start = max(now, slot.start, not_before or now)
         end = min(slot.end, horizon_end, deadline or horizon_end)
-        return power * _duration_hours(start, end) * efficiency
+        if ceiling_kw is None or end <= start:
+            return power * _duration_hours(start, end) * efficiency
+        cached = capacity_cache.get((start, end))
+        if cached is not None:
+            return cached
+        # The controller holds grid import (house load + charge) at the
+        # ceiling, so the battery only gets what the house leaves of it.
+        stored = 0.0
+        covered = 0.0
+        for interval in intervals:
+            if interval.end <= start:
+                continue
+            if interval.start >= end:
+                break
+            hours = _duration_hours(max(start, interval.start), min(end, interval.end))
+            interval_hours = _duration_hours(interval.start, interval.end)
+            if hours <= 0.0 or interval_hours <= 0.0:
+                continue
+            net_load_kw = max(
+                0.0, interval.consumption_kwh - interval.solar_kwh
+            ) / interval_hours
+            stored += min(power, max(0.0, ceiling_kw - net_load_kw)) * hours
+            covered += hours
+        # Any part of the slot without a forecast interval keeps full power.
+        stored += power * max(0.0, _duration_hours(start, end) - covered)
+        capacity_cache[(start, end)] = stored * efficiency
+        return stored * efficiency
 
     no_grid = simulate_allocations(
         intervals,
@@ -1140,6 +1178,7 @@ def evaluate_chronological_request(
         import_value_margin=request.import_value_margin,
         reserve_holds=request.reserve_holds,
         grid_carries_load_while_charging=request.grid_carries_load_while_charging,
+        grid_ceiling_kw=request.grid_ceiling_kw,
     )
     return ChronologicalEvaluationResult(
         plan=plan,
