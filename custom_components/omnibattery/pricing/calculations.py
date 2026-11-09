@@ -1100,7 +1100,12 @@ def select_cheapest_hours(
     selected = []
     hours_accumulated = 0.0
     for slot in sorted_slots:
-        slot_duration = (slot.end - slot.start).total_seconds() / 3600.0
+        # Only the part still ahead can charge: a slot already running at
+        # hh:40 offers 20 minutes, not the hour (as in
+        # select_cheapest_slots_by_duration).
+        slot_duration = max(
+            0.0, (slot.end - max(slot.start, now)).total_seconds() / 3600.0
+        )
         selected.append(slot)
         hours_accumulated += slot_duration
         if hours_accumulated >= hours_needed:

@@ -101,3 +101,19 @@ def test_select_cheapest_blocks_guards_a_zero_duration():
     slots = [PriceSlot(base + timedelta(minutes=15 * i), base + timedelta(minutes=15 * (i + 1)), 0.1) for i in range(8)]
 
     assert calc.select_cheapest_blocks(slots, 1.0, 0.0)
+
+
+def test_select_cheapest_hours_counts_only_what_is_left_of_the_current_slot():
+    """P6: at 00:40 the running hourly slot offers 20 minutes, not an hour."""
+    base = datetime(2026, 11, 9)
+    slots = [
+        PriceSlot(base + timedelta(hours=h), base + timedelta(hours=h + 1), price)
+        for h, price in ((0, 0.10), (1, 0.20), (2, 0.30))
+    ]
+
+    selected = calc.select_cheapest_hours(
+        slots, 1.0, None, now=base + timedelta(minutes=40)
+    )
+
+    # 20 min left of 00:00 is not enough for 1 h: the next cheapest joins.
+    assert [slot.start.hour for slot in selected] == [0, 1]
