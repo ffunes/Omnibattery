@@ -11,6 +11,7 @@ Choose the route that matches your battery and the way it is connected to Home A
 | Zendure SolarFlow 800, 800 Plus, 800 Pro, 1600 AC+, 2400 AC Pro/+, 3000 Mix AC+, 4000 Mix AC+, or 4000 Mix Pro | The device's local IP address and HEMS disabled | **Zendure SolarFlow** | [Zendure](zendure.md) |
 | Anker SOLIX Solarbank Max AC, 4 E5000 Pro, or XE AC | Modbus TCP and Third-Party Control enabled | **Anker SOLIX Solarbank Max AC / 4 E5000 Pro** (also detects XE AC) | [Anker SOLIX](anker.md) |
 | Sessy Home Battery | A reachable Sessy dongle and its credentials | **Sessy** | [Sessy](sessy.md) |
+| Indevolt SolidFlex or PowerFlex | The local API enabled and Realtime mode selected in the Indevolt app | **Indevolt SolidFlex / PowerFlex** | [Indevolt](indevolt.md) |
 | Hoymiles MS-A2 or supported HiBattery | MQTT configured in Home Assistant and the complete device ID | **Hoymiles MQTT** | [Hoymiles MQTT](hoymiles.md) |
 | Huawei SUN2000 with LUNA2000 | A Modbus TCP endpoint and either Huawei Solar or direct Modbus writes | **Huawei SUN2000 + LUNA2000** | [Huawei](huawei.md) |
 
@@ -37,11 +38,20 @@ The LilyGo option is a separate connection route for a Marstek battery. Choose i
 | **Name** | Identifies the battery in Home Assistant and the Omnibattery dashboard. |
 | **Max charge power** / **Max discharge power** | Caps what Omnibattery may request. A device-reported hardware limit can reduce the effective value. |
 | **Max SOC** / **Min SOC** | Sets the upper charging limit and lower discharging limit. SOC means state of charge. |
-| **Charge hysteresis** | Prevents rapid cycling after the battery reaches its upper limit. The minimum is 2%. |
+| **Charge hysteresis** | Prevents rapid cycling after the battery reaches its upper limit. The minimum is 2%; see [charge hysteresis](#charge-hysteresis). |
 | **Backup Offgrid Threshold** | Keeps a battery out of automatic control while its backup output is serving a load above this value. |
 | **Nominal capacity** | Enables stored-energy and efficiency calculations when the battery does not report its capacity. |
 
 The integration creates runtime controls for state-of-charge and power limits, so you can adjust them without running the setup flow again. **Battery Manual Control** reserves one battery for your own charge, discharge, or idle commands; see [manual control in a multi-battery installation](../../features/multi-battery.md#manual-control-per-battery).
+
+## Charge hysteresis
+
+When a battery reaches its upper limit, Omnibattery records the SOC at that moment and stops charging it. Charging resumes only when the SOC drops **below** that recorded value minus the hysteresis. With Max SOC 90% and the default 2%, the battery charges again only once its SOC is below 88%.
+
+The minimum of 2% is deliberate and cannot be lowered. Near the top, the SOC a battery reports drifts and often moves in whole-percent steps. With a smaller margin, that noise alone would restart charging over and over at the upper limit. Each restart switches the battery relay on and off; avoiding those repeated cycles reduces relay wear and preserves battery life.
+
+!!! note "Self-consumption at the top"
+    Some batteries, such as some Anker models, use a little of their own energy while idle. Once full, their SOC can slowly drift from 90% to 88% without discharging to the home. This is expected: the battery stays inside the hysteresis band and Omnibattery does not top it up. If you want it to end the day higher, raise **Max SOC** instead of trying to remove the hysteresis.
 
 ## If the battery route is unclear
 

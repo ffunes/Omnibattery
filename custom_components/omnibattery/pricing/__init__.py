@@ -39,6 +39,9 @@ class DynamicPricingSchedule:
     negative_price_hours_needed: float = 0.0
     negative_price_energy_kwh: float = 0.0
     slot_energy_targets_kwh: dict = field(default_factory=dict)
+    # Battery-side kWh each slot is expected to charge, for the cost estimate
+    # only: the plan's targets plus the Weekly Full Charge share (#715).
+    slot_cost_energy_kwh: dict = field(default_factory=dict)
     slot_deadlines: dict = field(default_factory=dict)
     slot_plan_kinds: dict = field(default_factory=dict)
     chronological_planning_active: bool = False
@@ -49,6 +52,7 @@ class DynamicPricingSchedule:
     flexible_required_kwh: float = 0.0
     deadline_shortfall_kwh: float = 0.0
     total_shortfall_kwh: float = 0.0
+    cheaper_to_import_kwh: float = 0.0
     energy_deadlines: list = field(default_factory=list)
     chronological_plan_reason: str | None = None
 

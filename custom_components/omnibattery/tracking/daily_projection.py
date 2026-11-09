@@ -13,7 +13,7 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from types import MappingProxyType
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from ..pricing.daily_timeline import (
     CONTEXT_CHARGE_DELAY,
@@ -28,6 +28,9 @@ from ..pricing.daily_timeline import (
     project_charge_delay,
     simulate_battery_projection,
 )
+
+
+_QUARTER_S = 15 * 60
 
 
 def _finite(value: Any, default: float = 0.0) -> float:
@@ -54,6 +57,7 @@ class DailyOperationProjectionRequest:
     setpoint_enabled: bool = False
     setpoint_reached: bool = False
     weekly_charge_bypasses_delay: bool = False
+    weekly_full_charge_tomorrow: bool = False
     delay_active: bool = False
     delay_planned: bool = False
     delay_unlock: datetime | None = None
@@ -67,12 +71,20 @@ class DailyOperationProjectionRequest:
     operation_plan_source: str = "profile_projection"
     plan_evaluated_at: datetime | None = None
     extension_hours: int = 12
+    # (slot start, stored kWh) the discharge reserve keeps for each later slot.
+    reserve_claims: Sequence[tuple[datetime, float]] = ()
+    # What the reserve would keep at a slot, given (slot start, usable kWh,
+    # free space kWh) as projected there. Also holds the energy that only
+    # arrives later, which the claims above cannot: they come from what is
+    # stored now. Must be side-effect free.
+    reserve_floor: Callable[[datetime, float, float], float | None] | None = None
 
     def __post_init__(self) -> None:
         """Detach every collection from its controller-owned source."""
         object.__setattr__(self, "plan_intervals", tuple(self.plan_intervals))
         object.__setattr__(self, "allocations", tuple(self.allocations))
         object.__setattr__(self, "battery_inputs", tuple(self.battery_inputs))
+        object.__setattr__(self, "reserve_claims", tuple(self.reserve_claims))
         object.__setattr__(
             self,
             "decision_data",
@@ -177,10 +189,20 @@ def build_daily_operation_projection(
     ]
     # The simulation must only see the energy left in an in-progress interval,
     # but the published forecast series has to stay a full-quarter quantity.
+    # The planner's own first bin already starts now and holds only the rest
+    # of its quarter; scale it back up, or the last value written before the
+    # quarter closes freezes a sliver of it into the past.
+    def _full_quarter_factor(interval: Any) -> float:
+        covered_s = (interval.end - interval.start).total_seconds()
+        if interval.start <= now and 0.0 < covered_s < _QUARTER_S:
+            return _QUARTER_S / covered_s
+        return 1.0
+
     full_forecasts = [
         (
-            _finite(getattr(interval, "solar_kwh", 0.0)),
-            _finite(getattr(interval, "consumption_kwh", 0.0)),
+            _finite(getattr(interval, "solar_kwh", 0.0)) * _full_quarter_factor(interval),
+            _finite(getattr(interval, "consumption_kwh", 0.0))
+            * _full_quarter_factor(interval),
         )
         for interval, _remaining_start, _remaining_ratio in remaining_intervals
     ]
@@ -242,6 +264,22 @@ def build_daily_operation_projection(
             else 0.0
         )
 
+    # The reserve keeps each claim's energy until its slot starts, so every
+    # interval leaves the claims of the slots after it in the battery.
+    reserve_claims = [
+        (start, _finite(kwh))
+        for start, kwh in request.reserve_claims
+        if isinstance(start, datetime) and _finite(kwh) > 0.0
+    ]
+    discharge_reserve_kwh = (
+        [
+            sum(kwh for start, kwh in reserve_claims if start >= interval.end)
+            for interval in projection_inputs
+        ]
+        if reserve_claims
+        else None
+    )
+
     result = simulate_battery_projection(
         projection_inputs,
         request.battery_inputs,
@@ -249,6 +287,17 @@ def build_daily_operation_projection(
         context_masks=context_masks,
         grid_charge_decisions=grid_decisions,
         charge_availability=charge_availability,
+        # Tomorrow's weekly full charge lifts the ceiling from midnight on.
+        charge_ceiling_pct=(
+            [
+                100.0 if interval.start >= local_midnight else None
+                for interval in projection_inputs
+            ]
+            if request.weekly_full_charge_tomorrow
+            else None
+        ),
+        discharge_reserve_kwh=discharge_reserve_kwh,
+        discharge_reserve_fn=request.reserve_floor,
         system_charge_power_w=request.system_charge_power_w,
         system_discharge_power_w=request.system_discharge_power_w,
     )

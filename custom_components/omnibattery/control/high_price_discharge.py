@@ -35,10 +35,9 @@ from datetime import datetime, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.helpers import entity_registry as er
-from homeassistant.loader import async_get_integration
 from homeassistant.util import dt as dt_util
 
+from ..energy import effective_round_trip_efficiency
 from ..const import PREDICTIVE_MODE_DYNAMIC_PRICING
 from ..pricing import PriceSlot
 from ..pricing.curtailment import distribute_solar_forecast
@@ -50,7 +49,10 @@ from ..pricing.high_price_discharge import (
     HorizonSlot,
     plan_high_price_discharge,
 )
-from ..solar_forecast import get_configured_solar_forecast_sensor
+from ..solar_forecast import (
+    async_fetch_energy_solar_forecast,
+    get_configured_solar_forecast_sensor,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -290,21 +292,10 @@ class HighPriceDischargeManager:
 
     async def _fetch_solar_forecast(self) -> None:
         """Refresh the Energy dashboard hourly forecast for the configured sensor."""
-        data = None
-        try:
-            controller = self._controller
-            sensor = (get_configured_solar_forecast_sensor(controller, "remaining")
-                      or get_configured_solar_forecast_sensor(controller, "today"))
-            entry = er.async_get(self._hass).async_get(sensor) if sensor else None
-            config_entry = (self._hass.config_entries.async_get_entry(entry.config_entry_id)
-                            if entry is not None and entry.config_entry_id else None)
-            if config_entry is not None:
-                integration = await async_get_integration(self._hass, config_entry.domain)
-                platform = await integration.async_get_platform("energy")
-                data = await platform.async_get_solar_forecast(self._hass, config_entry.entry_id)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("High-price discharge: solar forecast unavailable: %s", err)
-        self._solar_wh_hours = data.get("wh_hours", {}) if isinstance(data, dict) else {}
+        controller = self._controller
+        sensor = (get_configured_solar_forecast_sensor(controller, "remaining")
+                  or get_configured_solar_forecast_sensor(controller, "today"))
+        self._solar_wh_hours = await async_fetch_energy_solar_forecast(self._hass, sensor)
         self._solar_wh_fetched_mono = monotonic()
         self._last_rebuild_mono = None
 
@@ -357,7 +348,7 @@ class HighPriceDischargeManager:
                 # It is the round trip, so it understates the AC energy a full
                 # battery can deliver — the safe direction for a sale.
                 discharge_efficiency=float(
-                    getattr(self._controller, "round_trip_efficiency", 1.0) or 1.0
+                    effective_round_trip_efficiency(self._controller)[0] or 1.0
                 ),
             )
         except Exception as err:  # noqa: BLE001
@@ -381,7 +372,9 @@ class HighPriceDischargeManager:
         The export curve provides the timeline; consumption and solar are
         integrated onto it, and the import price is sampled from its own curve.
         """
-        slots = pricing.get_future_export_price_slots(horizon_end=horizon_end)
+        slots = pricing.get_future_export_price_slots(
+            horizon_end=horizon_end, solar_bonus=False
+        )
         if not slots:
             return []
         import_slots = pricing.get_future_price_slots(horizon_end=horizon_end)

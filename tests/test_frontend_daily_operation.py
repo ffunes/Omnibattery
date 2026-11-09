@@ -97,6 +97,18 @@ def test_solar_forecast_needs_a_sustained_zero_run_before_erasing_the_day():
     assert "if (zeroIntervals < 1 || !priorProduction)" not in panel
 
 
+def test_daily_forecast_rows_open_the_configured_forecast_entities():
+    panel = PANEL.read_text(encoding="utf-8")
+
+    assert "this._r.dForecastRow = rows[6];" in panel
+    assert "this._r.dRemainingRow = rows[7];" in panel
+    assert "this._linkMoreInfo(this._r.dForecastRow, cfg.solar_forecast_entity);" in panel
+    assert (
+        "this._linkMoreInfo(this._r.dRemainingRow, cfg.solar_forecast_remaining_entity);"
+        in panel
+    )
+
+
 def test_solar_phase_skips_an_open_cell_without_a_minute_of_coverage():
     panel = PANEL.read_text(encoding="utf-8")
 
@@ -139,3 +151,48 @@ def test_the_empty_solar_budget_reason_has_its_own_label():
     for language in ("en", "es", "ca", "de", "fr", "nl"):
         block = dictionaries.split(f"  {language}: {{", 1)[1].split("  },", 1)[0]
         assert "zeroBudget:" in block, language
+
+
+def test_unmeasured_quarter_has_one_action_row_and_no_raw_source():
+    """A quarter without measured power shows one action row, "Commanded".
+
+    No "Source" fallback on the action row, and no second row with the raw
+    runtime string ("runtime command").
+    """
+    panel = PANEL.read_text(encoding="utf-8")
+
+    assert ': this._t("dailyOperationSource");' not in panel
+    assert (
+        'return item.observationTrusted ? this._t("dailyOperationObserved") : this._t("dailyOperationCommanded");'
+        in panel
+    )
+    assert panel.count("this._dailyOperationActionKind(item)") == 2
+    assert panel.count("this._dailyOperationUntrustedSourceLabel(item);") == 2
+    assert '      runtime_command: "dailyOperationRuntimeCommand",' in panel
+    assert '      runtime_measured: "dailyOperationRuntimeMeasured",' in panel
+    dictionaries = panel.split("const I18N = {", 1)[1]
+    for language in ("en", "es", "ca", "de", "fr", "nl"):
+        block = dictionaries.split(f"  {language}: {{", 1)[1].split("\n  },", 1)[0]
+        for key in (
+            "dailyOperationCommanded:",
+            "dailyOperationRuntimeCommand:",
+            "dailyOperationRuntimeMeasured:",
+        ):
+            assert key in block, (language, key)
+
+
+def test_grid_price_label_exists_in_every_language():
+    panel = PANEL.read_text(encoding="utf-8")
+
+    for label in ("Grid price", "Precio de red", "Preu de xarxa", "Netzpreis", "Prix du réseau", "Netprijs"):
+        assert f'dailyOperationPrice: "{label}"' in panel
+    assert 'rows.push(row(this._t("dailyOperationPrice"), this._dailyOperationFormatPrice(item.price)))' in panel
+
+
+def test_the_legend_puts_the_lines_on_their_own_row():
+    panel = PANEL.read_text(encoding="utf-8")
+    not_needed = panel.index("daily-op-swatch-not-needed\"></i>")
+    row_break = panel.index('class="daily-op-legend-break"')
+    first_line = panel.index('daily-op-line daily-op-line-solar"></i>')
+    assert not_needed < row_break < first_line
+    assert ".daily-op-legend-break { flex-basis: 100%; height: 0; }" in panel

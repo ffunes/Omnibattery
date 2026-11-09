@@ -35,6 +35,7 @@ from .const import (
     CONF_OFFGRID_MODE_ENABLED,
     CONF_PRIMARY_FEEDFORWARD_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
+    CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED,
     CONF_PREDICTIVE_CHARGING_MODE,
     CONF_PRICE_DISCHARGE_CONTROL,
     CONF_SMART_PREDISCHARGE_ENABLED,
@@ -44,6 +45,10 @@ from .const import (
     CONF_SYSTEM_MAX_CHARGE_POWER,
     CONF_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_ENABLE_MIN_SOC_FLOOR,
+    CONF_MAX_PRICE_THRESHOLD,
+    CONF_DISCHARGE_PRICE_THRESHOLD,
+    CONF_MAX_PRICE_THRESHOLD_ENABLED,
+    CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED,
     CONF_ENABLE_PREDICTIVE_CHARGING,
     CONF_VACATION_MODE_ENABLED,
     CONF_THREE_PHASE_ENABLED,
@@ -80,8 +85,9 @@ async def async_setup_entry(
             entities.append(BatteryAllowDischargeSwitch(hass, entry, controller, coordinator))
             entities.append(BatteryManualModeSwitch(hass, entry, controller, coordinator))
             # Marstek-only cell maintenance: voltage taper needs per-cell
-            # voltages that Anker/Zendure do not expose in the same way.
-            if coordinator.brand not in ("zendure", "anker"):
+            # voltages the other brands do not expose in the same way. Same
+            # brand list as the taper option in the config flow.
+            if coordinator.brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt"):
                 entities.append(BatteryFullChargeVoltageTaperSwitch(hass, entry, controller, coordinator))
 
     # Add manual mode switch (system-level, always present)
@@ -115,6 +121,16 @@ async def async_setup_entry(
         elif mode == PREDICTIVE_MODE_REALTIME_PRICE:
             entities.append(PriceDischargeControlSwitch(hass, entry, controller))
 
+    # Manual/automatic toggle for each price threshold (#612). Same gate as the
+    # threshold numbers in number.py so each switch appears exactly with its number.
+    if (
+        controller
+        and entry.data.get(CONF_ENABLE_PREDICTIVE_CHARGING)
+        and entry.data.get(CONF_PREDICTIVE_CHARGING_MODE) == PREDICTIVE_MODE_DYNAMIC_PRICING
+    ):
+        entities.append(PriceThresholdEnabledSwitch(hass, entry, "charge"))
+        entities.append(PriceThresholdEnabledSwitch(hass, entry, "discharge"))
+
     # Add predictive charging switch (system-level, not per-battery). Shown
     # whenever predictive charging has been through config (the key is always
     # written, True or False), not only when currently enabled, so the enable
@@ -125,6 +141,9 @@ async def async_setup_entry(
     # leaving orphaned settings with no toggle (#68).
     if controller and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data:
         entities.append(PredictiveChargingSwitch(hass, entry, controller))
+        # Mute toggle for the evaluation notifications (#141); lives next to the
+        # master switch so it exists on every install that can produce them.
+        entities.append(PredictiveChargingNotificationsSwitch(hass, entry, controller))
 
     # Add capacity protection switch (system-level, when configured, regardless of enabled state)
     if controller and CONF_CAPACITY_PROTECTION_ENABLED in entry.data:
@@ -675,6 +694,78 @@ class PredictiveChargingSwitch(SwitchEntity):
     @property
     def device_info(self):
         """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+# Notification IDs created by the pricing engine for predictive-charging
+# evaluations. The "disabled" confirmation (``predictive_charging_override``) is
+# direct feedback to a user action and is deliberately not muted.
+_PREDICTIVE_EVALUATION_NOTIFICATION_IDS = (
+    f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation",
+    f"{NOTIFICATION_ID_PREFIX}predictive_charging_evening_reeval",
+)
+
+
+class PredictiveChargingNotificationsSwitch(SwitchEntity):
+    """Mute or unmute predictive-charging evaluation notifications (#141).
+
+    ON (default) = the daily/dynamic-pricing evaluation, price-slot start,
+    pre-slot and evening re-evaluation results are posted as persistent
+    notifications, as before.
+    OFF = those notifications are not created. Evaluations, schedules and
+    diagnostics run unchanged; battery alarm, cell-balance and manual-mode
+    notifications are unaffected. Turning it off also dismisses any
+    predictive-charging evaluation notification that is currently shown.
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "predictive_charging_notifications"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}predictive_charging_notifications"
+        self.entity_id = system_entity_id("switch", "predictive_charging_notifications")
+        self._attr_icon = "mdi:bell-ring-outline"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        return bool(
+            getattr(self.controller, "predictive_charging_notifications_enabled", True)
+        )
+
+    async def _set_enabled(self, enabled: bool) -> None:
+        self.controller.predictive_charging_notifications_enabled = enabled
+        data = dict(self.entry.data)
+        data[CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=data)
+        if not enabled:
+            for notification_id in _PREDICTIVE_EVALUATION_NOTIFICATION_IDS:
+                await self.hass.services.async_call(
+                    "persistent_notification",
+                    "dismiss",
+                    {"notification_id": notification_id},
+                )
+        _LOGGER.info(
+            "Predictive charging notifications %s",
+            "enabled" if enabled else "muted",
+        )
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._set_enabled(False)
+
+    @property
+    def device_info(self):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",
@@ -2193,6 +2284,66 @@ class PriceDischargeControlSwitch(SwitchEntity):
     @property
     def device_info(self):
         """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class PriceThresholdEnabledSwitch(SwitchEntity):
+    """Manual (ON) vs automatic (OFF) for one dynamic-pricing threshold (#612).
+
+    A number entity cannot be cleared from the UI, so OFF is how a user returns
+    to the automatic fallback. The stored value is kept; the controller reads
+    both through effective_price_threshold on the entry update this triggers.
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, kind: str) -> None:
+        """kind = 'charge' (max_price_threshold) or 'discharge' (discharge floor)."""
+        self.hass = hass
+        self.entry = entry
+        self._kind = kind
+        if kind == "charge":
+            self._value_key, self._conf_key = CONF_MAX_PRICE_THRESHOLD, CONF_MAX_PRICE_THRESHOLD_ENABLED
+        else:
+            self._value_key, self._conf_key = CONF_DISCHARGE_PRICE_THRESHOLD, CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED
+        self._attr_has_entity_name = True
+        self._attr_translation_key = self._conf_key
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}{self._conf_key}"
+        self.entity_id = system_entity_id("switch", self._conf_key)
+        self._attr_icon = "mdi:cash-plus" if kind == "charge" else "mdi:cash-minus"
+        self._attr_should_poll = False
+
+    async def async_added_to_hass(self) -> None:
+        """Refresh state when config_entry.data changes (e.g. first value typed)."""
+        self.async_on_remove(self.entry.add_update_listener(self._handle_entry_update))
+
+    async def _handle_entry_update(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def is_on(self) -> bool:
+        # Missing key: legacy entries were manual iff a value was set.
+        return bool(self.entry.data.get(self._conf_key, self.entry.data.get(self._value_key) is not None))
+
+    def _set_enabled(self, enabled: bool) -> None:
+        new_data = dict(self.entry.data)
+        new_data[self._conf_key] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info("Dynamic pricing %s price threshold %s",
+                     self._kind, "MANUAL" if enabled else "AUTOMATIC")
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        self._set_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        self._set_enabled(False)
+
+    @property
+    def device_info(self):
         return {
             "identifiers": {(DOMAIN, "marstek_venus_system")},
             "name": "Omnibattery System",

@@ -75,7 +75,6 @@ def test_the_mismatch_is_logged_rather_than_swallowed(caplog):
     with caplog.at_level(logging.WARNING):
         _sync({"max_charge_power": 0})
     assert "max_charge_power = 0" in caplog.text
-    assert "restarts" in caplog.text or "restart" in caplog.text
 
 
 # ----------------------------------------------------------------------
@@ -288,3 +287,55 @@ def test_a_writable_register_driver_keeps_its_configured_ceiling_on_disk():
     _sync_device_reported_limits(coordinator)
     assert "written" not in entry_data
     assert total_battery_power(entry_data) == (2500, 2500)
+
+
+class _RestoreCoordinator(_Coordinator):
+    """Adds the write path the #548 restore drives."""
+
+    _restore_zeroed_power_limit = MarstekVenusDataUpdateCoordinator._restore_zeroed_power_limit
+
+    def __init__(self, data, number_keys=("max_charge_power", "max_discharge_power")):
+        super().__init__(data)
+        self.number_definitions = [{"key": k} for k in number_keys]
+        self._power_limit_restored_at = {}
+        self.writes = []
+
+    async def write_control(self, key, value, do_refresh=True):
+        self.writes.append((key, value))
+        return True
+
+
+async def _restore(coordinator):
+    for key in _sync_device_reported_limits(coordinator):
+        await coordinator._restore_zeroed_power_limit(key)
+
+
+async def test_a_zeroed_ceiling_is_written_back():
+    """Venus D on EMS V151 honours the zero until the register is rewritten (#548)."""
+    coordinator = _RestoreCoordinator({"max_charge_power": 0, "max_discharge_power": 0})
+    await _restore(coordinator)
+    assert coordinator.writes == [("max_charge_power", 2500), ("max_discharge_power", 2500)]
+
+
+async def test_the_restore_is_rate_limited():
+    coordinator = _RestoreCoordinator({"max_charge_power": 2500, "max_discharge_power": 0})
+    await _restore(coordinator)
+    await _restore(coordinator)
+    assert coordinator.writes == [("max_discharge_power", 2500)]
+
+
+async def test_a_read_only_ceiling_is_not_written():
+    """Soft-max drivers report the ceiling as telemetry; there is nothing to write."""
+    coordinator = _RestoreCoordinator(
+        {"max_charge_power": 0, "max_discharge_power": 0}, number_keys=()
+    )
+    await _restore(coordinator)
+    assert coordinator.writes == []
+
+
+async def test_venus_e_restores_the_device_cap_not_the_user_limit():
+    coordinator = _RestoreCoordinator({"max_charge_power": 0})
+    coordinator.needs_software_power_cap = True
+    coordinator._configured_max_charge_power = 1200
+    await _restore(coordinator)
+    assert coordinator.writes == [("max_charge_power", 2500)]

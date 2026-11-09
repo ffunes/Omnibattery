@@ -31,7 +31,11 @@
 const FALLBACK_DOMAIN = "omnibattery";
 const FALLBACK_TITLE = "Omnibattery";
 const DAILY_OPERATION_BASE_INTERVALS = 96;
-const DAILY_OPERATION_EXTENSION_INTERVALS = 48;
+// The part after midnight follows the plan: the timeline publishes how many
+// quarters it covers (extended_horizon.interval_count), 48 by default and at
+// most a whole day. The chart is built for the maximum and sized per snapshot.
+const DAILY_OPERATION_EXTENSION_INTERVALS = 96;
+const DAILY_OPERATION_DEFAULT_EXTENSION_INTERVALS = 48;
 const DAILY_OPERATION_TOTAL_INTERVALS = DAILY_OPERATION_BASE_INTERVALS + DAILY_OPERATION_EXTENSION_INTERVALS;
 const DAILY_OPERATION_TOTAL_HOURS = DAILY_OPERATION_TOTAL_INTERVALS / 4;
 const DAILY_OPERATION_CONTEXT_HOURLY_BALANCE = 32;
@@ -67,11 +71,12 @@ const I18N = {
     dailyOperationSolarWindow: "Solar window", dailyOperationSolarCharge: "Solar charge", dailyOperationGridCharge: "Grid charge", dailyOperationDischarge: "Battery discharge", dailyOperationEnergyToBattery: "Energy to battery", dailyOperationEnergyFromBattery: "Energy from battery", dailyOperationCause: "Cause", dailyOperationHourlyBalance: "Hourly net balance",
     dailyOperationNotNeeded: "Grid charge not needed", dailyOperationNoAction: "No action", dailyOperationSetpoint: "Until setpoint",
     dailyOperationDelay: "Charge delayed", dailyOperationUnlock: "Estimated unlock: {time}", dailyOperationAxis: "kWh/15 min",
-    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consumption", dailyOperationSoc: "Total SOC", dailyOperationLearned: "Learned profile",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consumption", dailyOperationSoc: "Total SOC", dailyOperationPrice: "Grid price", dailyOperationLearned: "Learned profile",
     dailyOperationSinusoidal: "Sinusoidal fallback", dailyOperationGenericFallback: "Fallback estimate", dailyOperationZeroFallback: "Zero-solar fallback", dailyOperationFallback: "Fallback: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Observed", dailyOperationProjected: "Projected", dailyOperationPrevious: "Previous",
     dailyOperationNext: "Next", dailyOperationNow: "Now", dailyOperationCoverage: "Coverage", dailyOperationMode: "Mode",
-    dailyOperationSource: "Source", dailyOperationDSTSkipped: "DST interval skipped", dailyOperationDSTRepeated: "Repeated local hour",
+    dailyOperationSource: "Source", dailyOperationCommanded: "Commanded", dailyOperationRuntimeCommand: "Commanded setpoint, not measured", dailyOperationRuntimeMeasured: "Measured",
+    dailyOperationDSTSkipped: "DST interval skipped", dailyOperationDSTRepeated: "Repeated local hour",
     dailyOperationProvider: "Provider forecast", dailyOperationConsumptionProfile: "Consumption profile", dailyOperationLegacyDaily: "Daily estimate", dailyOperationDynamicSchedule: "Dynamic schedule", dailyOperationTimeSlot: "Time slot", dailyOperationProfileProjection: "Profile projection", dailyOperationUnavailable: "Unavailable",
     dailyOperationRealtimeNoFuture: "Real-time price has no future calendar", dailyOperationUnknown: "Unknown",
     forecastToday: "Solar forecast · 00:05", solarRemaining: "Solar remaining", expectedConsumption: "Expected consumption",
@@ -89,7 +94,7 @@ const I18N = {
     diagActiveBatteries: "Active batteries", diagNonResponsive: "No response",
     diagDischargeWindow: "Discharge window", diagPredictive: "Predictive charging", diagCurtailment: "Smart pre-discharge", diagSurplusHold: "Surplus price hold", highPriceSale: "High-price sale", diagHighPriceDischarge: "High-price sale status", diagDischargeReserve: "Discharge reserve",
     diagPeak: "Peak shaving reserve", diagWeeklyCharge: "Weekly charge", diagChargeDelay: "Charge delay",
-    nResponsive: "{n} no response", none: "None",
+    nResponsive: "{n} no response", none: "None", disabled: "Disabled",
     noBatteriesTitle: "No batteries",
     noBatteriesMsg: "No battery devices were detected in this integration.",
     healthCells: "Health & cells",
@@ -99,7 +104,7 @@ const I18N = {
     acOutput: "AC output", acInput: "AC input", toHomeGrid: "To home / grid", fromAcBus: "From AC bus",
     inverterMode: "Inverter · {state}",
     offgrid: "Off-grid", infoComm: "Comm module",
-    invBackup: "Backup", invUpdating: "Updating", invStandby: "Standby", invBypass: "Bypass",
+    invBackup: "Backup", invUpdating: "Updating", invCalibrating: "Calibrating", invStandby: "Standby", invBypass: "Bypass",
     active: "Active", inactive: "Inactive",
     ctlEmpty: "No controls enabled. Enable them on the device (Settings → disabled entities).",
     ctlAdvanced: "Advanced settings",
@@ -113,14 +118,14 @@ const I18N = {
     bcSocMax: "Max SOC", bcSocMin: "Min SOC", bcForceMode: "Force mode",
     bcChargePower: "Charge power", bcDischargePower: "Discharge power",
     bcMaxCharge: "Max charge", bcMaxDischarge: "Max discharge",
-    bcChargeToSoc: "Charge to SOC", bcChargeHysteresis: "Charge hysteresis", bcBackup: "Backup function", bcOffgridMode: "Off-grid mode",
+    bcChargeToSoc: "Charge to SOC", bcChargeHysteresis: "Charge hysteresis", bcBackup: "Backup function", bcOffgridMode: "Off-grid mode", bcEnergyExport: "Energy export",
     bcBackupThreshold: "Backup threshold", bcVoltageTaper: "100% charge taper", bcBatteryPhase: "Battery phase",
     secPhaseProtection: "Three-phase protection", threePhaseProtection: "Three-phase current protection",
     secManual: "Manual mode", secOffgridMeter: "Off-grid meter mode", secVacation: "Vacation mode", itemEnable: "Enable",
     secTempLimit: "Temperature charge limit", itemTempLimitC: "Temperature limit", itemTempLimitBand: "Ramp band", itemTempLimitFloor: "Minimum charge power", itemTempApplyDischarge: "Also throttle discharge",
     itemMaxContracted: "Max contracted power", itemSolarSafety: "Solar safety margin", itemMinSocFloorEnable: "SOC floor", itemMinSocFloor: "Guaranteed minimum SOC",
     itemSocThreshold: "SOC threshold", itemPeakLimit: "Peak limit", itemExcludedPeakShaving: "Peak shaving for excluded devices",
-    itemArbitrageMargin: "Min. arbitrage margin", itemRoundTripEfficiency: "Round-trip efficiency", itemMaxPrice: "Max price (charge)", itemDischargePrice: "Discharge price floor", itemPriceDischarge: "Discharge only above price", itemReevaluatePrices: "Re-evaluate now", itemNegativePriceCharging: "Charge at negative prices", itemSmartPredischarge: "Smart pre-discharge", itemNegativeThreshold: "Negative injection threshold", itemPredischargeReserve: "Pre-discharge reserve SOC", itemSurplusHoldSaving: "Surplus hold min. saving", itemDischargeReserveSaving: "Discharge reserve min. saving",
+    itemArbitrageMargin: "Min. arbitrage margin", itemRoundTripEfficiency: "Round-trip efficiency", itemMaxPrice: "Max price (charge)", itemDischargePrice: "Discharge price floor", itemMaxPriceManual: "Manual charge price", itemDischargePriceManual: "Manual discharge price", itemPriceDischarge: "Discharge only above price", itemReevaluatePrices: "Re-evaluate now", itemNegativePriceCharging: "Charge at negative prices", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Smart pre-discharge", itemNegativeThreshold: "Negative injection threshold", itemPredischargeReserve: "Pre-discharge reserve SOC", itemSurplusHoldSaving: "Surplus hold min. saving", itemDischargeReserveSaving: "Discharge reserve min. saving",
     itemDelaySafety: "Safety margin", itemDelaySoc: "Delay target SOC", itemDelaySocEnable: "Delay target SOC enabled", itemDelayDeadband: "Balance deadband",
     secHourly: "Hourly balance", hourlyEsOnly: "Only useful in Spain (RD 244/2019) · detected country: {c}", secWeeklyFull: "Weekly full charge", itemWeeklyDay: "Full charge day", itemWeeklyDelay: "Wait for solar charge delay", itemHourlyTarget: "Target net balance", itemHourlyMaxOffset: "Max power offset", itemHourlyDeadband: "Deadband", itemHourlyHysteresis: "Hysteresis",
     secSlots: "Configured slots", itemSlot: "Slot",
@@ -157,11 +162,12 @@ const I18N = {
     dailyOperationSolarWindow: "Ventana solar", dailyOperationSolarCharge: "Carga solar", dailyOperationGridCharge: "Carga de red", dailyOperationDischarge: "Descarga de batería", dailyOperationEnergyToBattery: "Energía a batería", dailyOperationEnergyFromBattery: "Energía desde batería", dailyOperationCause: "Causa", dailyOperationHourlyBalance: "Balance neto horario",
     dailyOperationNotNeeded: "Carga de red no necesaria", dailyOperationNoAction: "Sin acción", dailyOperationSetpoint: "Hasta el setpoint",
     dailyOperationDelay: "Carga retrasada", dailyOperationUnlock: "Desbloqueo estimado: {time}", dailyOperationAxis: "kWh/15 min",
-    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consumo", dailyOperationSoc: "SOC total", dailyOperationLearned: "Perfil aprendido",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consumo", dailyOperationSoc: "SOC total", dailyOperationPrice: "Precio de red", dailyOperationLearned: "Perfil aprendido",
     dailyOperationSinusoidal: "Curva sinusoidal alternativa", dailyOperationGenericFallback: "Estimación alternativa", dailyOperationZeroFallback: "Previsión solar nula", dailyOperationFallback: "Estimación alternativa: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Observado", dailyOperationProjected: "Previsto", dailyOperationPrevious: "Anterior",
     dailyOperationNext: "Siguiente", dailyOperationNow: "Ahora", dailyOperationCoverage: "Cobertura", dailyOperationMode: "Modo",
-    dailyOperationSource: "Fuente", dailyOperationDSTSkipped: "Intervalo DST omitido", dailyOperationDSTRepeated: "Hora local repetida",
+    dailyOperationSource: "Fuente", dailyOperationCommanded: "Comandado", dailyOperationRuntimeCommand: "Consigna enviada, sin medir", dailyOperationRuntimeMeasured: "Medido",
+    dailyOperationDSTSkipped: "Intervalo DST omitido", dailyOperationDSTRepeated: "Hora local repetida",
     dailyOperationProvider: "Previsión del proveedor", dailyOperationConsumptionProfile: "Perfil de consumo", dailyOperationLegacyDaily: "Estimación diaria", dailyOperationDynamicSchedule: "Plan dinámico", dailyOperationTimeSlot: "Franja horaria", dailyOperationProfileProjection: "Proyección del perfil", dailyOperationUnavailable: "No disponible",
     dailyOperationRealtimeNoFuture: "El precio en tiempo real no tiene calendario futuro", dailyOperationUnknown: "Desconocido",
     forecastToday: "Previsión solar · 00:05", solarRemaining: "Solar restante", expectedConsumption: "Consumo esperado",
@@ -179,7 +185,7 @@ const I18N = {
     diagActiveBatteries: "Baterías activas", diagNonResponsive: "Sin respuesta",
     diagDischargeWindow: "Ventana de descarga", diagPredictive: "Carga predictiva", diagCurtailment: "Predescarga inteligente", diagSurplusHold: "Retención de excedente por precio", highPriceSale: "Venta a precio alto", diagHighPriceDischarge: "Estado de venta a precio alto", diagDischargeReserve: "Reserva de descarga",
     diagPeak: "Reserva para reducción de picos", diagWeeklyCharge: "Carga semanal", diagChargeDelay: "Retardo de carga",
-    nResponsive: "{n} sin respuesta", none: "Ninguna",
+    nResponsive: "{n} sin respuesta", none: "Ninguna", disabled: "Desactivado",
     noBatteriesTitle: "Sin baterías",
     noBatteriesMsg: "No se detectaron dispositivos de batería en esta integración.",
     healthCells: "Salud y celdas",
@@ -189,7 +195,7 @@ const I18N = {
     acOutput: "Salida AC", acInput: "Entrada AC", toHomeGrid: "A casa / red", fromAcBus: "Desde bus AC",
     inverterMode: "Inversor · {state}",
     offgrid: "Offgrid", infoComm: "Módulo com.",
-    invBackup: "Respaldo", invUpdating: "Actualizando", invStandby: "En espera", invBypass: "Bypass",
+    invBackup: "Respaldo", invUpdating: "Actualizando", invCalibrating: "Calibrando", invStandby: "En espera", invBypass: "Bypass",
     active: "Activa", inactive: "Inactiva",
     ctlEmpty: "No hay controles habilitados. Actívalos en el dispositivo (Ajustes → entidades deshabilitadas).",
     ctlAdvanced: "Ajustes avanzados",
@@ -203,14 +209,14 @@ const I18N = {
     bcSocMax: "SOC máximo", bcSocMin: "SOC mínimo", bcForceMode: "Modo forzado",
     bcChargePower: "Potencia de carga", bcDischargePower: "Potencia de descarga",
     bcMaxCharge: "Máx. carga", bcMaxDischarge: "Máx. descarga",
-    bcChargeToSoc: "Cargar hasta SOC", bcChargeHysteresis: "Histéresis de carga", bcBackup: "Función de respaldo", bcOffgridMode: "Modo off-grid",
+    bcChargeToSoc: "Cargar hasta SOC", bcChargeHysteresis: "Histéresis de carga", bcBackup: "Función de respaldo", bcOffgridMode: "Modo off-grid", bcEnergyExport: "Exportación de energía",
     bcBackupThreshold: "Umbral de respaldo", bcVoltageTaper: "Reducción carga 100%", bcBatteryPhase: "Fase de la batería",
     secPhaseProtection: "Protección trifásica", threePhaseProtection: "Protección de corriente trifásica",
     secManual: "Modo manual", secOffgridMeter: "Modo de medidor off-grid", secVacation: "Modo vacaciones", itemEnable: "Activar",
     secTempLimit: "Límite de carga por temperatura", itemTempLimitC: "Límite de temperatura", itemTempLimitBand: "Banda de reducción", itemTempLimitFloor: "Potencia de carga mínima", itemTempApplyDischarge: "Reducir también la descarga",
     itemMaxContracted: "Potencia contratada máx.", itemSolarSafety: "Margen de seguridad solar", itemMinSocFloorEnable: "Suelo de SOC", itemMinSocFloor: "SOC mínimo garantizado",
     itemSocThreshold: "Umbral de SOC", itemPeakLimit: "Límite de pico", itemExcludedPeakShaving: "Reducción de picos para dispositivos excluidos",
-    itemArbitrageMargin: "Margen mínimo de arbitraje", itemRoundTripEfficiency: "Eficiencia de ciclo completo", itemMaxPrice: "Precio máximo (carga)", itemDischargePrice: "Precio mínimo de descarga", itemPriceDischarge: "Descargar solo si precio alto", itemReevaluatePrices: "Reevaluar ahora", itemNegativePriceCharging: "Cargar con precios negativos", itemSmartPredischarge: "Predescarga inteligente", itemNegativeThreshold: "Umbral de inyección negativa", itemPredischargeReserve: "SOC de reserva de predescarga", itemSurplusHoldSaving: "Ahorro mínimo para retener excedente", itemDischargeReserveSaving: "Ahorro mínimo de reserva de descarga",
+    itemArbitrageMargin: "Margen mínimo de arbitraje", itemRoundTripEfficiency: "Eficiencia de ciclo completo", itemMaxPrice: "Precio máximo (carga)", itemDischargePrice: "Precio mínimo de descarga", itemMaxPriceManual: "Precio de carga manual", itemDischargePriceManual: "Precio de descarga manual", itemPriceDischarge: "Descargar solo si precio alto", itemReevaluatePrices: "Reevaluar ahora", itemNegativePriceCharging: "Cargar con precios negativos", itemPredictiveNotifications: "Notificaciones", itemSmartPredischarge: "Predescarga inteligente", itemNegativeThreshold: "Umbral de inyección negativa", itemPredischargeReserve: "SOC de reserva de predescarga", itemSurplusHoldSaving: "Ahorro mínimo para retener excedente", itemDischargeReserveSaving: "Ahorro mínimo de reserva de descarga",
     itemDelaySafety: "Margen de seguridad", itemDelaySoc: "SOC objetivo de retardo", itemDelaySocEnable: "SOC objetivo de retardo activo", itemDelayDeadband: "Banda muerta de balance",
     secHourly: "Balance horario", hourlyEsOnly: "Solo útil en España (RD 244/2019) · país detectado: {c}", secWeeklyFull: "Carga semanal completa", itemWeeklyDay: "Día de carga completa", itemWeeklyDelay: "Esperar al retraso por solar", itemHourlyTarget: "Objetivo de balance neto", itemHourlyMaxOffset: "Offset máx. de potencia", itemHourlyDeadband: "Banda muerta", itemHourlyHysteresis: "Histéresis",
     secSlots: "Franjas configuradas", itemSlot: "Franja",
@@ -248,11 +254,12 @@ const I18N = {
     dailyOperationSolarWindow: "Finestra solar", dailyOperationSolarCharge: "Càrrega solar", dailyOperationGridCharge: "Càrrega de xarxa", dailyOperationDischarge: "Descàrrega de bateria", dailyOperationEnergyToBattery: "Energia a la bateria", dailyOperationEnergyFromBattery: "Energia des de la bateria", dailyOperationCause: "Causa", dailyOperationHourlyBalance: "Balanç net horari",
     dailyOperationNotNeeded: "Càrrega de xarxa no necessària", dailyOperationNoAction: "Sense acció", dailyOperationSetpoint: "Fins al setpoint",
     dailyOperationDelay: "Càrrega retardada", dailyOperationUnlock: "Desbloqueig estimat: {time}", dailyOperationAxis: "kWh/15 min",
-    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consum", dailyOperationSoc: "SOC total", dailyOperationLearned: "Perfil après",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Consum", dailyOperationSoc: "SOC total", dailyOperationPrice: "Preu de xarxa", dailyOperationLearned: "Perfil après",
     dailyOperationSinusoidal: "Corba sinusoidal alternativa", dailyOperationGenericFallback: "Estimació alternativa", dailyOperationZeroFallback: "Previsió solar nul·la", dailyOperationFallback: "Estimació alternativa: {reason}", dailyOperationPlan: "Pla",
     dailyOperationObserved: "Observat", dailyOperationProjected: "Previst", dailyOperationPrevious: "Anterior",
     dailyOperationNext: "Següent", dailyOperationNow: "Ara", dailyOperationCoverage: "Cobertura", dailyOperationMode: "Mode",
-    dailyOperationSource: "Font", dailyOperationDSTSkipped: "Interval DST omès", dailyOperationDSTRepeated: "Hora local repetida",
+    dailyOperationSource: "Font", dailyOperationCommanded: "Comandat", dailyOperationRuntimeCommand: "Consigna enviada, sense mesurar", dailyOperationRuntimeMeasured: "Mesurat",
+    dailyOperationDSTSkipped: "Interval DST omès", dailyOperationDSTRepeated: "Hora local repetida",
     dailyOperationProvider: "Previsió del proveïdor", dailyOperationConsumptionProfile: "Perfil de consum", dailyOperationLegacyDaily: "Estimació diària", dailyOperationDynamicSchedule: "Pla dinàmic", dailyOperationTimeSlot: "Franja horària", dailyOperationProfileProjection: "Projecció del perfil", dailyOperationUnavailable: "No disponible",
     dailyOperationRealtimeNoFuture: "El preu en temps real no té calendari futur", dailyOperationUnknown: "Desconegut",
     forecastToday: "Previsió solar · 00:05", solarRemaining: "Solar restant", expectedConsumption: "Consum esperat",
@@ -270,7 +277,7 @@ const I18N = {
     diagActiveBatteries: "Bateries actives", diagNonResponsive: "Sense resposta",
     diagDischargeWindow: "Finestra de descàrrega", diagPredictive: "Càrrega predictiva", diagCurtailment: "Predescàrrega intel·ligent", diagSurplusHold: "Retenció d'excedent per preu", highPriceSale: "Venda a preu alt", diagHighPriceDischarge: "Estat de venda a preu alt", diagDischargeReserve: "Reserva de descàrrega",
     diagPeak: "Reserva per a reducció de pics", diagWeeklyCharge: "Càrrega setmanal", diagChargeDelay: "Retard de càrrega",
-    nResponsive: "{n} sense resposta", none: "Cap",
+    nResponsive: "{n} sense resposta", none: "Cap", disabled: "Desactivat",
     noBatteriesTitle: "Sense bateries",
     noBatteriesMsg: "No s'han detectat dispositius de bateria en aquesta integració.",
     healthCells: "Salut i cel·les",
@@ -280,7 +287,7 @@ const I18N = {
     acOutput: "Sortida CA", acInput: "Entrada CA", toHomeGrid: "A casa / xarxa", fromAcBus: "Des del bus CA",
     inverterMode: "Inversor · {state}",
     offgrid: "Offgrid", infoComm: "Mòdul com.",
-    invBackup: "Reserva", invUpdating: "Actualitzant", invStandby: "En espera", invBypass: "Bypass",
+    invBackup: "Reserva", invUpdating: "Actualitzant", invCalibrating: "Calibrant", invStandby: "En espera", invBypass: "Bypass",
     active: "Activa", inactive: "Inactiva",
     ctlEmpty: "No hi ha controls habilitats. Activa'ls al dispositiu (Configuració → entitats deshabilitades).",
     ctlAdvanced: "Ajustos avançats",
@@ -290,13 +297,13 @@ const I18N = {
     bcSocMax: "SOC màxim", bcSocMin: "SOC mínim", bcForceMode: "Mode forçat",
     bcChargePower: "Potència de càrrega", bcDischargePower: "Potència de descàrrega",
     bcMaxCharge: "Màx. càrrega", bcMaxDischarge: "Màx. descàrrega",
-    bcChargeToSoc: "Carregar fins a SOC", bcChargeHysteresis: "Histèresi de càrrega", bcBackup: "Funció de reserva", bcOffgridMode: "Mode fora de xarxa",
+    bcChargeToSoc: "Carregar fins a SOC", bcChargeHysteresis: "Histèresi de càrrega", bcBackup: "Funció de reserva", bcOffgridMode: "Mode fora de xarxa", bcEnergyExport: "Exportació d'energia",
     bcBackupThreshold: "Llindar de reserva", bcVoltageTaper: "Reducció càrrega 100%", bcActiveBalance: "Balanç actiu",
     secManual: "Mode manual", secOffgridMeter: "Mode de mesurador off-grid", secVacation: "Mode vacances", itemEnable: "Activar",
     secTempLimit: "Límit de càrrega per temperatura", itemTempLimitC: "Límit de temperatura", itemTempLimitBand: "Banda de reducció", itemTempLimitFloor: "Potència de càrrega mínima", itemTempApplyDischarge: "Redueix també la descàrrega",
     itemMaxContracted: "Potència contractada màx.", itemSolarSafety: "Marge de seguretat solar", itemMinSocFloorEnable: "SOC Mínim", itemMinSocFloor: "SOC mínim garantit",
     itemSocThreshold: "Llindar de SOC", itemPeakLimit: "Límit de pic", itemExcludedPeakShaving: "Reducció de pics per a dispositius exclosos",
-    itemArbitrageMargin: "Marge mínim d'arbitratge", itemRoundTripEfficiency: "Eficiència de cicle complet", itemMaxPrice: "Preu màxim (càrrega)", itemDischargePrice: "Preu mínim de descàrrega", itemPriceDischarge: "Descarregar només si preu alt", itemReevaluatePrices: "Reavaluar ara", itemNegativePriceCharging: "Carregar amb preus negatius", itemSmartPredischarge: "Predescàrrega intel·ligent", itemNegativeThreshold: "Llindar d'injecció negativa", itemPredischargeReserve: "SOC de reserva de predescàrrega", itemSurplusHoldSaving: "Estalvi mínim per retenir excedent", itemDischargeReserveSaving: "Estalvi mínim de reserva de descàrrega",
+    itemArbitrageMargin: "Marge mínim d'arbitratge", itemRoundTripEfficiency: "Eficiència de cicle complet", itemMaxPrice: "Preu màxim (càrrega)", itemDischargePrice: "Preu mínim de descàrrega", itemMaxPriceManual: "Preu de càrrega manual", itemDischargePriceManual: "Preu de descàrrega manual", itemPriceDischarge: "Descarregar només si preu alt", itemReevaluatePrices: "Reavaluar ara", itemNegativePriceCharging: "Carregar amb preus negatius", itemPredictiveNotifications: "Notificacions", itemSmartPredischarge: "Predescàrrega intel·ligent", itemNegativeThreshold: "Llindar d'injecció negativa", itemPredischargeReserve: "SOC de reserva de predescàrrega", itemSurplusHoldSaving: "Estalvi mínim per retenir excedent", itemDischargeReserveSaving: "Estalvi mínim de reserva de descàrrega",
     itemDelaySafety: "Marge de seguretat", itemDelaySoc: "SOC objectiu de retard", itemDelaySocEnable: "SOC objectiu de retard actiu", itemDelayDeadband: "Banda morta de balanç",
     secHourly: "Balanç horari", hourlyEsOnly: "Només útil a Espanya (RD 244/2019) · país detectat: {c}", secWeeklyFull: "Càrrega setmanal completa", itemWeeklyDay: "Dia de càrrega completa", itemWeeklyDelay: "Espera el retard per solar", itemHourlyTarget: "Objectiu de balanç net", itemHourlyMaxOffset: "Offset màx. de potència", itemHourlyDeadband: "Banda morta", itemHourlyHysteresis: "Histèresi",
     secSlots: "Franges configurades", itemSlot: "Franja",
@@ -334,11 +341,12 @@ const I18N = {
     dailyOperationSolarWindow: "Solarfenster", dailyOperationSolarCharge: "Solarladung", dailyOperationGridCharge: "Netzladung", dailyOperationDischarge: "Batterieentladung", dailyOperationEnergyToBattery: "Energie zur Batterie", dailyOperationEnergyFromBattery: "Energie aus der Batterie", dailyOperationCause: "Ursache", dailyOperationHourlyBalance: "Stündlicher Netzausgleich",
     dailyOperationNotNeeded: "Keine Netzladung erforderlich", dailyOperationNoAction: "Keine Aktion", dailyOperationSetpoint: "Bis zum Sollwert",
     dailyOperationDelay: "Laden verzögert", dailyOperationUnlock: "Voraussichtliche Freigabe: {time}", dailyOperationAxis: "kWh/15 Min.",
-    dailyOperationSolar: "Solar", dailyOperationConsumption: "Verbrauch", dailyOperationSoc: "Gesamt-SOC", dailyOperationLearned: "Gelerntes Profil",
+    dailyOperationSolar: "Solar", dailyOperationConsumption: "Verbrauch", dailyOperationSoc: "Gesamt-SOC", dailyOperationPrice: "Netzpreis", dailyOperationLearned: "Gelerntes Profil",
     dailyOperationSinusoidal: "Sinusförmige Ersatzkurve", dailyOperationGenericFallback: "Ersatzprognose", dailyOperationZeroFallback: "Solarprognose ohne Ertrag", dailyOperationFallback: "Ersatzprognose: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Beobachtet", dailyOperationProjected: "Prognostiziert", dailyOperationPrevious: "Zurück",
     dailyOperationNext: "Weiter", dailyOperationNow: "Jetzt", dailyOperationCoverage: "Abdeckung", dailyOperationMode: "Modus",
-    dailyOperationSource: "Quelle", dailyOperationDSTSkipped: "DST-Intervall übersprungen", dailyOperationDSTRepeated: "Wiederholte Ortszeit",
+    dailyOperationSource: "Quelle", dailyOperationCommanded: "Angesteuert", dailyOperationRuntimeCommand: "Vorgegebener Sollwert, nicht gemessen", dailyOperationRuntimeMeasured: "Gemessen",
+    dailyOperationDSTSkipped: "DST-Intervall übersprungen", dailyOperationDSTRepeated: "Wiederholte Ortszeit",
     dailyOperationProvider: "Anbieterprognose", dailyOperationConsumptionProfile: "Verbrauchsprofil", dailyOperationLegacyDaily: "Tagesschätzung", dailyOperationDynamicSchedule: "Dynamischer Zeitplan", dailyOperationTimeSlot: "Zeitfenster", dailyOperationProfileProjection: "Profilprojektion", dailyOperationUnavailable: "Nicht verfügbar",
     dailyOperationRealtimeNoFuture: "Echtzeitpreis hat keinen Zukunftskalender", dailyOperationUnknown: "Unbekannt",
     forecastToday: "Solarprognose · 00:05", solarRemaining: "Verbleibende Solarenergie", expectedConsumption: "Erwarteter Verbrauch",
@@ -356,7 +364,7 @@ const I18N = {
     diagActiveBatteries: "Aktive Batterien", diagNonResponsive: "Keine Antwort",
     diagDischargeWindow: "Entladefenster", diagPredictive: "Prädiktives Laden", diagCurtailment: "Intelligente Vorentladung", diagSurplusHold: "Preisbremse Solarüberschuss", highPriceSale: "Verkauf bei Hochpreis", diagHighPriceDischarge: "Status Verkauf bei Hochpreis", diagDischargeReserve: "Entladereserve",
     diagPeak: "Reserve für Spitzenlastkappung", diagWeeklyCharge: "Wöchentliche Ladung", diagChargeDelay: "Ladeverzögerung",
-    nResponsive: "{n} ohne Antwort", none: "Keine",
+    nResponsive: "{n} ohne Antwort", none: "Keine", disabled: "Deaktiviert",
     noBatteriesTitle: "Keine Batterien",
     noBatteriesMsg: "In dieser Integration wurden keine Batteriegeräte erkannt.",
     healthCells: "Zustand & Zellen",
@@ -366,7 +374,7 @@ const I18N = {
     acOutput: "AC-Ausgang", acInput: "AC-Eingang", toHomeGrid: "Zu Haus / Netz", fromAcBus: "Vom AC-Bus",
     inverterMode: "Wechselrichter · {state}",
     offgrid: "Inselbetrieb", infoComm: "Komm.-Modul",
-    invBackup: "Backup", invUpdating: "Aktualisierung", invStandby: "Standby", invBypass: "Bypass",
+    invBackup: "Backup", invUpdating: "Aktualisierung", invCalibrating: "Kalibrierung", invStandby: "Standby", invBypass: "Bypass",
     active: "Aktiv", inactive: "Inaktiv",
     ctlEmpty: "Keine Steuerungen aktiviert. Aktiviere sie am Gerät (Einstellungen → deaktivierte Entitäten).",
     ctlAdvanced: "Erweiterte Einstellungen",
@@ -376,13 +384,13 @@ const I18N = {
     bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcForceMode: "Betriebsmodus erzwingen",
     bcChargePower: "Ladeleistung", bcDischargePower: "Entladeleistung",
     bcMaxCharge: "Max. Ladeleistung", bcMaxDischarge: "Max. Entladeleistung",
-    bcChargeToSoc: "Laden bis SOC", bcChargeHysteresis: "Ladehysterese", bcBackup: "Backup-Funktion", bcOffgridMode: "Inselnetz-Modus",
+    bcChargeToSoc: "Laden bis SOC", bcChargeHysteresis: "Ladehysterese", bcBackup: "Backup-Funktion", bcOffgridMode: "Inselnetz-Modus", bcEnergyExport: "Energieeinspeisung",
     bcBackupThreshold: "Backup-Schwelle", bcVoltageTaper: "100%-Ladungsreduktion", bcActiveBalance: "Aktiver Zellabgleich",
     secManual: "Manueller Modus", secOffgridMeter: "Off-Grid-Zählermodus", secVacation: "Urlaubsmodus", itemEnable: "Aktivieren",
     secTempLimit: "Temperaturbasierte Ladebegrenzung", itemTempLimitC: "Temperaturgrenze", itemTempLimitBand: "Drosselbereich", itemTempLimitFloor: "Minimale Ladeleistung", itemTempApplyDischarge: "Auch Entladung drosseln",
     itemMaxContracted: "Max. Vertragsleistung", itemSolarSafety: "Sicherheitspuffer Solar", itemMinSocFloorEnable: "SOC-Untergrenze", itemMinSocFloor: "Garantierter Mindest-SOC",
     itemSocThreshold: "SOC-Schwelle", itemPeakLimit: "Spitzenlimit", itemExcludedPeakShaving: "Spitzenlastkappung für ausgeschlossene Geräte",
-    itemArbitrageMargin: "Min. Arbitragemarge", itemRoundTripEfficiency: "Round-Trip-Wirkungsgrad", itemMaxPrice: "Max. Preis (Laden)", itemDischargePrice: "Entlade-Preisuntergrenze", itemPriceDischarge: "Nur über Preis entladen", itemReevaluatePrices: "Jetzt neu bewerten", itemNegativePriceCharging: "Bei negativen Preisen laden", itemSmartPredischarge: "Intelligente Vorentladung", itemNegativeThreshold: "Schwelle für negative Einspeisung", itemPredischargeReserve: "Vorentlade-Reserve-SOC", itemSurplusHoldSaving: "Min. Ersparnis für Überschussbremse", itemDischargeReserveSaving: "Min. Ersparnis für Entladereserve",
+    itemArbitrageMargin: "Min. Arbitragemarge", itemRoundTripEfficiency: "Round-Trip-Wirkungsgrad", itemMaxPrice: "Max. Preis (Laden)", itemDischargePrice: "Entlade-Preisuntergrenze", itemMaxPriceManual: "Manueller Ladepreis", itemDischargePriceManual: "Manueller Entladepreis", itemPriceDischarge: "Nur über Preis entladen", itemReevaluatePrices: "Jetzt neu bewerten", itemNegativePriceCharging: "Bei negativen Preisen laden", itemPredictiveNotifications: "Benachrichtigungen", itemSmartPredischarge: "Intelligente Vorentladung", itemNegativeThreshold: "Schwelle für negative Einspeisung", itemPredischargeReserve: "Vorentlade-Reserve-SOC", itemSurplusHoldSaving: "Min. Ersparnis für Überschussbremse", itemDischargeReserveSaving: "Min. Ersparnis für Entladereserve",
     itemDelaySafety: "Sicherheitspuffer", itemDelaySoc: "Verzögerungs-Ziel-SOC", itemDelaySocEnable: "Verzögerungs-Ziel-SOC aktiv", itemDelayDeadband: "Bilanz-Totband",
     secHourly: "Stündliche Balance", hourlyEsOnly: "Nur in Spanien sinnvoll (RD 244/2019) · erkanntes Land: {c}", secWeeklyFull: "Wöchentliche Vollladung", itemWeeklyDay: "Tag der Vollladung", itemWeeklyDelay: "Auf Solar-Ladeverzögerung warten", itemHourlyTarget: "Ziel-Nettobalance", itemHourlyMaxOffset: "Max. Leistungs-Offset", itemHourlyDeadband: "Totband", itemHourlyHysteresis: "Hysterese",
     secSlots: "Konfigurierte Zeitfenster", itemSlot: "Zeitfenster",
@@ -420,11 +428,12 @@ const I18N = {
     dailyOperationSolarWindow: "Fenêtre solaire", dailyOperationSolarCharge: "Charge solaire", dailyOperationGridCharge: "Charge réseau", dailyOperationDischarge: "Décharge batterie", dailyOperationEnergyToBattery: "Énergie vers la batterie", dailyOperationEnergyFromBattery: "Énergie depuis la batterie", dailyOperationCause: "Cause", dailyOperationHourlyBalance: "Bilan net horaire",
     dailyOperationNotNeeded: "Charge réseau non nécessaire", dailyOperationNoAction: "Aucune action", dailyOperationSetpoint: "Jusqu'au point de consigne",
     dailyOperationDelay: "Charge retardée", dailyOperationUnlock: "Déblocage estimé : {time}", dailyOperationAxis: "kWh/15 min",
-    dailyOperationSolar: "Solaire", dailyOperationConsumption: "Consommation", dailyOperationSoc: "SOC total", dailyOperationLearned: "Profil appris",
+    dailyOperationSolar: "Solaire", dailyOperationConsumption: "Consommation", dailyOperationSoc: "SOC total", dailyOperationPrice: "Prix du réseau", dailyOperationLearned: "Profil appris",
     dailyOperationSinusoidal: "Courbe sinusoïdale de secours", dailyOperationGenericFallback: "Estimation de secours", dailyOperationZeroFallback: "Prévision solaire nulle", dailyOperationFallback: "Estimation de secours : {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Observé", dailyOperationProjected: "Prévu", dailyOperationPrevious: "Précédent",
     dailyOperationNext: "Suivant", dailyOperationNow: "Maintenant", dailyOperationCoverage: "Couverture", dailyOperationMode: "Mode",
-    dailyOperationSource: "Source", dailyOperationDSTSkipped: "Intervalle DST ignoré", dailyOperationDSTRepeated: "Heure locale répétée",
+    dailyOperationSource: "Source", dailyOperationCommanded: "Commandé", dailyOperationRuntimeCommand: "Consigne envoyée, non mesurée", dailyOperationRuntimeMeasured: "Mesuré",
+    dailyOperationDSTSkipped: "Intervalle DST ignoré", dailyOperationDSTRepeated: "Heure locale répétée",
     dailyOperationProvider: "Prévision du fournisseur", dailyOperationConsumptionProfile: "Profil de consommation", dailyOperationLegacyDaily: "Estimation quotidienne", dailyOperationDynamicSchedule: "Plan dynamique", dailyOperationTimeSlot: "Créneau horaire", dailyOperationProfileProjection: "Projection du profil", dailyOperationUnavailable: "Indisponible",
     dailyOperationRealtimeNoFuture: "Le prix en temps réel n'a pas de calendrier futur", dailyOperationUnknown: "Inconnu",
     forecastToday: "Prévision solaire · 00:05", solarRemaining: "Solaire restant", expectedConsumption: "Consommation prévue",
@@ -442,7 +451,7 @@ const I18N = {
     diagActiveBatteries: "Batteries actives", diagNonResponsive: "Sans réponse",
     diagDischargeWindow: "Fenêtre de décharge", diagPredictive: "Charge prédictive", diagCurtailment: "Pré-décharge intelligente", diagSurplusHold: "Retenue de surplus selon le prix", highPriceSale: "Vente à prix élevé", diagHighPriceDischarge: "État de la vente à prix élevé", diagDischargeReserve: "Réserve de décharge",
     diagPeak: "Réserve pour écrêtement de pointe", diagWeeklyCharge: "Charge hebdomadaire", diagChargeDelay: "Délai de charge",
-    nResponsive: "{n} sans réponse", none: "Aucune",
+    nResponsive: "{n} sans réponse", none: "Aucune", disabled: "Désactivé",
     noBatteriesTitle: "Aucune batterie",
     noBatteriesMsg: "Aucun appareil de batterie n'a été détecté dans cette intégration.",
     healthCells: "Santé et cellules",
@@ -452,7 +461,7 @@ const I18N = {
     acOutput: "Sortie CA", acInput: "Entrée CA", toHomeGrid: "Vers maison / réseau", fromAcBus: "Depuis bus CA",
     inverterMode: "Onduleur · {state}",
     offgrid: "Hors réseau", infoComm: "Module comm.",
-    invBackup: "Secours", invUpdating: "Mise à jour", invStandby: "En attente", invBypass: "Bypass",
+    invBackup: "Secours", invUpdating: "Mise à jour", invCalibrating: "Calibrage", invStandby: "En attente", invBypass: "Bypass",
     active: "Active", inactive: "Inactive",
     ctlEmpty: "Aucun contrôle activé. Activez-les sur l'appareil (Paramètres → entités désactivées).",
     ctlAdvanced: "Paramètres avancés",
@@ -462,13 +471,13 @@ const I18N = {
     bcSocMax: "SOC max.", bcSocMin: "SOC min.", bcForceMode: "Mode forcé",
     bcChargePower: "Puissance de charge", bcDischargePower: "Puissance de décharge",
     bcMaxCharge: "Charge max.", bcMaxDischarge: "Décharge max.",
-    bcChargeToSoc: "Charger jusqu'à SOC", bcChargeHysteresis: "Hystérésis de charge", bcBackup: "Fonction de secours", bcOffgridMode: "Mode hors-réseau",
+    bcChargeToSoc: "Charger jusqu'à SOC", bcChargeHysteresis: "Hystérésis de charge", bcBackup: "Fonction de secours", bcOffgridMode: "Mode hors-réseau", bcEnergyExport: "Export d'énergie",
     bcBackupThreshold: "Seuil de secours", bcVoltageTaper: "Réduction charge 100%", bcActiveBalance: "Équilibrage actif",
     secManual: "Mode manuel", secOffgridMeter: "Mode compteur hors réseau", secVacation: "Mode vacances", itemEnable: "Activer",
     secTempLimit: "Limite de charge par température", itemTempLimitC: "Limite de température", itemTempLimitBand: "Plage de réduction", itemTempLimitFloor: "Puissance de charge minimale", itemTempApplyDischarge: "Réduire aussi la décharge",
     itemMaxContracted: "Puissance contractuelle max.", itemSolarSafety: "Marge de sécurité solaire", itemMinSocFloorEnable: "Plancher SOC", itemMinSocFloor: "SOC minimum garanti",
     itemSocThreshold: "Seuil SOC", itemPeakLimit: "Limite de pointe", itemExcludedPeakShaving: "Écrêtement des pointes pour appareils exclus",
-    itemArbitrageMargin: "Marge d'arbitrage min.", itemRoundTripEfficiency: "Rendement aller-retour", itemMaxPrice: "Prix max. (charge)", itemDischargePrice: "Prix plancher de décharge", itemPriceDischarge: "Décharger si prix élevé", itemReevaluatePrices: "Réévaluer maintenant", itemNegativePriceCharging: "Charger aux prix négatifs", itemSmartPredischarge: "Pré-décharge intelligente", itemNegativeThreshold: "Seuil d'injection négative", itemPredischargeReserve: "SOC de réserve de pré-décharge", itemSurplusHoldSaving: "Économie min. pour retenir le surplus", itemDischargeReserveSaving: "Économie min. pour réserve de décharge",
+    itemArbitrageMargin: "Marge d'arbitrage min.", itemRoundTripEfficiency: "Rendement aller-retour", itemMaxPrice: "Prix max. (charge)", itemDischargePrice: "Prix plancher de décharge", itemMaxPriceManual: "Prix de charge manuel", itemDischargePriceManual: "Prix de décharge manuel", itemPriceDischarge: "Décharger si prix élevé", itemReevaluatePrices: "Réévaluer maintenant", itemNegativePriceCharging: "Charger aux prix négatifs", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Pré-décharge intelligente", itemNegativeThreshold: "Seuil d'injection négative", itemPredischargeReserve: "SOC de réserve de pré-décharge", itemSurplusHoldSaving: "Économie min. pour retenir le surplus", itemDischargeReserveSaving: "Économie min. pour réserve de décharge",
     itemDelaySafety: "Marge de sécurité", itemDelaySoc: "SOC cible du délai", itemDelaySocEnable: "SOC cible du délai actif", itemDelayDeadband: "Bande morte de bilan",
     secHourly: "Bilan horaire", hourlyEsOnly: "Utile uniquement en Espagne (RD 244/2019) · pays détecté : {c}", secWeeklyFull: "Charge complète hebdomadaire", itemWeeklyDay: "Jour de charge complète", itemWeeklyDelay: "Attendre le délai de charge solaire", itemHourlyTarget: "Cible bilan net", itemHourlyMaxOffset: "Décalage max. puissance", itemHourlyDeadband: "Bande morte", itemHourlyHysteresis: "Hystérésis",
     secSlots: "Créneaux configurés", itemSlot: "Créneau",
@@ -506,11 +515,12 @@ const I18N = {
     dailyOperationSolarWindow: "Zonnevenster", dailyOperationSolarCharge: "Laden met zonne-energie", dailyOperationGridCharge: "Laden vanaf net", dailyOperationDischarge: "Batterij ontladen", dailyOperationEnergyToBattery: "Energie naar batterij", dailyOperationEnergyFromBattery: "Energie uit batterij", dailyOperationCause: "Oorzaak", dailyOperationHourlyBalance: "Uurbalans",
     dailyOperationNotNeeded: "Laden vanaf net niet nodig", dailyOperationNoAction: "Geen actie", dailyOperationSetpoint: "Tot setpoint",
     dailyOperationDelay: "Laden vertraagd", dailyOperationUnlock: "Geschatte vrijgave: {time}", dailyOperationAxis: "kWh/15 min",
-    dailyOperationSolar: "Zon", dailyOperationConsumption: "Verbruik", dailyOperationSoc: "Totale SOC", dailyOperationLearned: "Geleerd profiel",
+    dailyOperationSolar: "Zon", dailyOperationConsumption: "Verbruik", dailyOperationSoc: "Totale SOC", dailyOperationPrice: "Netprijs", dailyOperationLearned: "Geleerd profiel",
     dailyOperationSinusoidal: "Alternatieve sinuscurve", dailyOperationGenericFallback: "Alternatieve prognose", dailyOperationZeroFallback: "Zonneprognose zonder opbrengst", dailyOperationFallback: "Alternatieve prognose: {reason}", dailyOperationPlan: "Plan",
     dailyOperationObserved: "Geobserveerd", dailyOperationProjected: "Verwacht", dailyOperationPrevious: "Vorige",
     dailyOperationNext: "Volgende", dailyOperationNow: "Nu", dailyOperationCoverage: "Dekking", dailyOperationMode: "Modus",
-    dailyOperationSource: "Bron", dailyOperationDSTSkipped: "DST-interval overgeslagen", dailyOperationDSTRepeated: "Herhaalde lokale tijd",
+    dailyOperationSource: "Bron", dailyOperationCommanded: "Aangestuurd", dailyOperationRuntimeCommand: "Aangestuurd setpoint, niet gemeten", dailyOperationRuntimeMeasured: "Gemeten",
+    dailyOperationDSTSkipped: "DST-interval overgeslagen", dailyOperationDSTRepeated: "Herhaalde lokale tijd",
     dailyOperationProvider: "Prognose van aanbieder", dailyOperationConsumptionProfile: "Verbruiksprofiel", dailyOperationLegacyDaily: "Dagelijkse schatting", dailyOperationDynamicSchedule: "Dynamische planning", dailyOperationTimeSlot: "Tijdvak", dailyOperationProfileProjection: "Profielprojectie", dailyOperationUnavailable: "Niet beschikbaar",
     dailyOperationRealtimeNoFuture: "Realtimeprijs heeft geen toekomstige kalender", dailyOperationUnknown: "Onbekend",
     forecastToday: "Zonneverwachting · 00:05", solarRemaining: "Resterende zonne-energie", expectedConsumption: "Verwacht verbruik",
@@ -528,7 +538,7 @@ const I18N = {
     diagActiveBatteries: "Actieve batterijen", diagNonResponsive: "Geen reactie",
     diagDischargeWindow: "Ontlaadvenster", diagPredictive: "Voorspellend laden", diagCurtailment: "Slim voorontladen", diagSurplusHold: "Prijsrem zonne-overschot", highPriceSale: "Verkoop bij hoge prijs", diagHighPriceDischarge: "Status verkoop bij hoge prijs", diagDischargeReserve: "Ontlaadreserve",
     diagPeak: "Reserve voor piekbegrenzing", diagWeeklyCharge: "Wekelijkse lading", diagChargeDelay: "Laadvertraging",
-    nResponsive: "{n} geen reactie", none: "Geen",
+    nResponsive: "{n} geen reactie", none: "Geen", disabled: "Uitgeschakeld",
     noBatteriesTitle: "Geen batterijen",
     noBatteriesMsg: "Er zijn geen batterijapparaten gedetecteerd in deze integratie.",
     healthCells: "Gezondheid & cellen",
@@ -538,7 +548,7 @@ const I18N = {
     acOutput: "AC-uitgang", acInput: "AC-ingang", toHomeGrid: "Naar huis / net", fromAcBus: "Vanaf AC-bus",
     inverterMode: "Omvormer · {state}",
     offgrid: "Eilandbedrijf", infoComm: "Comm.-module",
-    invBackup: "Back-up", invUpdating: "Bijwerken", invStandby: "Stand-by", invBypass: "Bypass",
+    invBackup: "Back-up", invUpdating: "Bijwerken", invCalibrating: "Kalibreren", invStandby: "Stand-by", invBypass: "Bypass",
     active: "Actief", inactive: "Inactief",
     ctlEmpty: "Geen bedieningen ingeschakeld. Schakel ze in op het apparaat (Instellingen → uitgeschakelde entiteiten).",
     ctlAdvanced: "Geavanceerde instellingen",
@@ -548,13 +558,13 @@ const I18N = {
     bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcForceMode: "Geforceerde modus",
     bcChargePower: "Laadvermogen", bcDischargePower: "Ontlaadvermogen",
     bcMaxCharge: "Max. laden", bcMaxDischarge: "Max. ontladen",
-    bcChargeToSoc: "Laden tot SOC", bcChargeHysteresis: "Laadhysterese", bcBackup: "Back-upfunctie", bcOffgridMode: "Off-grid-modus",
+    bcChargeToSoc: "Laden tot SOC", bcChargeHysteresis: "Laadhysterese", bcBackup: "Back-upfunctie", bcOffgridMode: "Off-grid-modus", bcEnergyExport: "Energie-export",
     bcBackupThreshold: "Back-updrempel", bcVoltageTaper: "100%-laadbegrenzing", bcActiveBalance: "Actieve celbalans",
     secManual: "Handmatige modus", secOffgridMeter: "Off-grid metermodus", secVacation: "Vakantiemodus", itemEnable: "Inschakelen",
     secTempLimit: "Temperatuurbegrenzing laden", itemTempLimitC: "Temperatuurlimiet", itemTempLimitBand: "Afbouwband", itemTempLimitFloor: "Minimaal laadvermogen", itemTempApplyDischarge: "Ook ontladen terugregelen",
     itemMaxContracted: "Max. gecontracteerd vermogen", itemSolarSafety: "Veiligheidsmarge zon", itemMinSocFloorEnable: "SOC-vloer", itemMinSocFloor: "Gegarandeerde min. SOC",
     itemSocThreshold: "SOC-drempel", itemPeakLimit: "Pieklimiet", itemExcludedPeakShaving: "Piekbegrenzing voor uitgesloten apparaten",
-    itemArbitrageMargin: "Min. arbitragemarge", itemRoundTripEfficiency: "Retourrendement", itemMaxPrice: "Max. prijs (laden)", itemDischargePrice: "Ontlaad-prijsondergrens", itemPriceDischarge: "Alleen ontladen bij hoge prijs", itemReevaluatePrices: "Nu herberekenen", itemNegativePriceCharging: "Laden bij negatieve prijzen", itemSmartPredischarge: "Slim voorontladen", itemNegativeThreshold: "Drempel negatieve injectie", itemPredischargeReserve: "Reserve-SOC voorontladen", itemSurplusHoldSaving: "Min. besparing voor prijsrem", itemDischargeReserveSaving: "Min. besparing voor ontlaadreserve",
+    itemArbitrageMargin: "Min. arbitragemarge", itemRoundTripEfficiency: "Retourrendement", itemMaxPrice: "Max. prijs (laden)", itemDischargePrice: "Ontlaad-prijsondergrens", itemMaxPriceManual: "Handmatige laadprijs", itemDischargePriceManual: "Handmatige ontlaadprijs", itemPriceDischarge: "Alleen ontladen bij hoge prijs", itemReevaluatePrices: "Nu herberekenen", itemNegativePriceCharging: "Laden bij negatieve prijzen", itemPredictiveNotifications: "Meldingen", itemSmartPredischarge: "Slim voorontladen", itemNegativeThreshold: "Drempel negatieve injectie", itemPredischargeReserve: "Reserve-SOC voorontladen", itemSurplusHoldSaving: "Min. besparing voor prijsrem", itemDischargeReserveSaving: "Min. besparing voor ontlaadreserve",
     itemDelaySafety: "Veiligheidsmarge", itemDelaySoc: "Doel-SOC vertraging", itemDelaySocEnable: "Doel-SOC vertraging actief", itemDelayDeadband: "Balans dode band",
     secHourly: "Uurbalans", hourlyEsOnly: "Alleen nuttig in Spanje (RD 244/2019) · gedetecteerd land: {c}", secWeeklyFull: "Wekelijkse volledige lading", itemWeeklyDay: "Dag volledige lading", itemWeeklyDelay: "Wachten op zonne-laadvertraging", itemHourlyTarget: "Doel nettosaldo", itemHourlyMaxOffset: "Max. vermogensoffset", itemHourlyDeadband: "Dodeband", itemHourlyHysteresis: "Hysterese",
     secSlots: "Geconfigureerde tijdvakken", itemSlot: "Tijdvak",
@@ -851,6 +861,7 @@ const K = {
   storedEnergy: "stored_energy", // kWh
   batteryTotalEnergy: "battery_total_energy", // capacity kWh
   inverterState: "inverter_state",
+  controlStatus: "control_status", // Indevolt: whether Omnibattery is steering it
   dailyCharge: "total_daily_charging_energy",
   dailyDischarge: "total_daily_discharging_energy",
   maxChargePower: "max_charge_power",
@@ -914,6 +925,7 @@ const K = {
   dischargeWindow: "discharge_window",
   predictiveSwitch: "predictive_charging",
   peakSwitch: "capacity_protection",
+  hourlyBalanceSwitch: "hourly_balance",
   // diagnostic-category entities of the "Marstek Venus System" device
   predictiveActive: "predictive_charging_active",
   curtailmentActive: "curtailment_status",
@@ -992,6 +1004,8 @@ const BAT_CONTROLS = [
   // Zendure off-grid output port mode (select: normal/economy/off). Distinct from
   // the Marstek backup_function switch; only one exists per device.
   { key: "grid_off_mode", domain: "select", lk: "bcOffgridMode", icon: "mdi:transmission-tower-off" },
+  // Zendure grid feed-in (gridReverse): only "allowed" lets PV bypass at target SOC (#631).
+  { key: "grid_reverse", domain: "select", lk: "bcEnergyExport", icon: "mdi:transmission-tower-export" },
   // Cell-maintenance switch (Marstek only): 100% charge voltage taper.
   { key: "full_charge_voltage_taper", domain: "switch", lk: "bcVoltageTaper", icon: "mdi:battery-clock" },
 ];
@@ -1154,6 +1168,7 @@ const SYS_SECTIONS = [
       // charge pricing, then one group per discharge feature (switch + its
       // sliders + its status readout), then the action button.
       { key: "predictive_charging", domain: "switch", lk: "itemEnable", icon: "mdi:brain", gate: true, grp: "base" },
+      { key: "predictive_charging_notifications", domain: "switch", lk: "itemPredictiveNotifications", icon: "mdi:bell-ring-outline", grp: "base" },
       { key: "predictive_safety_margin_kwh", lk: "itemSolarSafety", icon: "mdi:solar-power-variant", adv: true, grp: "base" },
       { key: "min_soc_floor_enabled", domain: "switch", lk: "itemMinSocFloorEnable", icon: "mdi:battery-arrow-up", adv: true, grp: "base" },
       { key: "predictive_min_soc_floor", lk: "itemMinSocFloor", icon: "mdi:battery-arrow-up", adv: true, grp: "base" },
@@ -1161,8 +1176,10 @@ const SYS_SECTIONS = [
       // price-based (price_discharge_control switch; thresholds are dynamic-pricing
       // only), so on time-slot installs these rows simply don't render.
       { key: "price_discharge_control", domain: "switch", lk: "itemPriceDischarge", icon: "mdi:cash-clock", grp: "price" },
-      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus", adv: true, grp: "price" },
-      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus", adv: true, grp: "price" },
+      { key: "max_price_threshold_enabled", domain: "switch", lk: "itemMaxPriceManual", icon: "mdi:cash-plus", adv: true, grp: "price" },
+      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus", adv: true, grp: "price", dep: "max_price_threshold_enabled" },
+      { key: "discharge_price_threshold_enabled", domain: "switch", lk: "itemDischargePriceManual", icon: "mdi:cash-minus", adv: true, grp: "price" },
+      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus", adv: true, grp: "price", dep: "discharge_price_threshold_enabled" },
       { key: "min_arbitrage_margin", lk: "itemArbitrageMargin", icon: "mdi:scale-balance", adv: true, grp: "price" },
       { key: "round_trip_efficiency", lk: "itemRoundTripEfficiency", icon: "mdi:battery-sync", adv: true, grp: "price" },
       { key: "negative_price_charging", domain: "switch", lk: "itemNegativePriceCharging", icon: "mdi:battery-charging-100", grp: "price" },
@@ -1294,6 +1311,7 @@ const SYS_HELP = {
     no_pd_command_delay: "Collapse-debounce window for No-PD mode. Grid-sensor updates arriving within this window collapse into a single command issued on the latest value, so a fast meter can't flood the bus. 0 = act on every event (paced only by PD min cycle interval). Range: 0–3 s, step 0.1, default: 0 s.",
     diagPredictive: "Charges batteries from the grid during off-peak hours when today's solar forecast is insufficient.",
     smart_predischarge: "Opt-in dynamic-pricing anti-curtailment. It creates headroom before forecast PV reaches a negative-price window, while preserving SOC floors, user ownership and battery safety limits.",
+    predictive_charging_notifications: "When ON (default), predictive-charging results are posted as Home Assistant notifications: the daily evaluation, the start of each charging slot, pre-slot and evening re-evaluations. Turn it OFF to stop these notifications; evaluations, schedules and diagnostics keep running and stay visible here. Battery alarms, cell-balance and manual-mode notifications are not affected.",
     negative_price_charging: "Opt-in dynamic-pricing charging when the normalized grid import price is negative, even when the forecast has no energy deficit. Charging stops at each battery's configured maximum SOC.",
     negative_injection_threshold: "Price at or below which a future slot is protected when forecast PV exceeds estimated household consumption. The comparison is inclusive (<=).",
     predischarge_reserve_soc: "Additional SOC floor for pre-discharge. 0 uses each battery's existing minimum and guaranteed SOC floors.",
@@ -1333,8 +1351,8 @@ const SYS_HELP = {
     pd_min_charge_power: "Minimum power for charging. Below this threshold, the controller stays idle instead of charging at low power. 0 = disabled.",
     pd_min_discharge_power: "Minimum power for discharging. Below this threshold, the controller stays idle instead of discharging at low power. 0 = disabled.",
     pd_relay_cooldown: "Anti-chatter: once the battery engages, it stays on at least this long before returning to idle, so the relay doesn't toggle when the grid hovers at the deadband edge during solar ramp-up/down. While held it runs at the PD min charge/discharge power (or 100 W if that is 0). Large imbalances bypass it. 0 = disabled.",
-    pd_min_cycle_interval: "Minimum spacing between event-driven control cycles. Grid-sensor updates arriving sooner than this are dropped, so a fast meter can't flood slow Modbus bridges (e.g. Elfin EW11) with write bursts. The 2 s safety timer is never gated. 0 = disabled.",
-    pd_target_grid_power: "Grid power setpoint the controller regulates to. Positive = import from grid (battery charges), negative = export to grid (battery discharges), 0 = net zero. The range follows your total configured battery power, narrowed by the system power limits when enabled. Default: 0 W.",
+    pd_min_cycle_interval: "Minimum spacing between event-driven control cycles. Grid-sensor updates arriving sooner than this are dropped, so a fast meter can't flood slow Modbus bridges (e.g. Elfin EW11) with write bursts. The 2 s safety timer also keeps the last command inside this window (safety checks still act at once). 0 = disabled.",
+    pd_target_grid_power: "Grid power setpoint the controller regulates to. Positive = import from grid (battery charges), negative = export to grid (battery discharges), 0 = net zero. The export range follows your total configured battery power, narrowed by the system power limits when enabled; the import range reaches your contracted power when it is set, since the house draws from the same meter. Default: 0 W.",
     system_max_charge_power: "Optional cap for combined charge power across all active batteries. 0 = disabled; per-battery limits still apply.",
     system_max_discharge_power: "Optional cap for combined discharge power across all active batteries. 0 = disabled; per-battery limits still apply.",
     max_contracted_power: "Total contracted power (ICP) in watts. System won't exceed this limit when charging to avoid tripping the breaker",
@@ -1353,8 +1371,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperature range above the limit over which charge power ramps down to the minimum.",
     temp_charge_limit_floor_pct: "Charge power at the limit plus the band, as a percentage of the normal charge ceiling. 0% stops charging entirely when very hot.",
     temp_charge_limit_discharge: "Apply the same temperature derate to discharge power. Discharge tolerates heat better, so this shares the charge threshold as a compromise; mainly it keeps discharge under the BMS hard cutoff.",
-    max_price_threshold: "Charge ceiling for dynamic pricing: the battery only grid-charges when the price is at or below this. Leave empty to fall back to the daily-average price. Must stay ≤ the discharge floor.",
-    discharge_price_threshold: "Discharge floor for dynamic pricing: the battery only discharges when the price is at or above this. Leave empty to fall back (charge ceiling, else daily average). Must stay ≥ the charge ceiling.",
+    max_price_threshold_enabled: "On: grid charging uses the charge ceiling below. Off (automatic): no fixed ceiling; the cheapest slots are picked (still subject to the arbitrage margin, if set). The value is kept.",
+    discharge_price_threshold_enabled: "On: discharge uses the floor below. Off (automatic): falls back to the charge ceiling, else the daily-average price. The value is kept.",
+    max_price_threshold: "Charge ceiling for dynamic pricing: the battery only grid-charges when the price is at or below this. Only applies while its manual switch is on. Must stay ≤ the discharge floor.",
+    discharge_price_threshold: "Discharge floor for dynamic pricing: the battery only discharges when the price is at or above this. Only applies while its manual switch is on. Must stay ≥ the charge ceiling.",
     min_arbitrage_margin: "Minimum profit per kWh required before grid charging. 0 or empty = off, and the charge ceiling alone decides. When set, the ceiling follows the day's spread: charging is skipped when the expensive hours are not far enough above the cheap ones to repay conversion losses. The same margin works the other way round: with high-price discharge on, a sale must beat the later buy-back price by at least this much.",
     round_trip_efficiency: "Battery round-trip efficiency (kWh out / kWh in) used to value stored energy for the arbitrage margin. Lower values make the gate stricter. Only used when a minimum arbitrage margin is set.",
   },
@@ -1378,6 +1398,7 @@ const SYS_HELP = {
     no_pd_command_delay: "Ventana de agrupación (debounce) para el modo sin PD. Las actualizaciones del sensor de red que llegan dentro de esta ventana se agrupan en una sola orden emitida con el último valor, para que un medidor rápido no sature el bus. 0 = actuar en cada evento (acotado solo por el intervalo mín. de ciclo PD). Rango: 0–3 s, paso 0,1, por defecto: 0 s.",
     diagPredictive: "Carga las baterías desde red durante horas valle cuando la predicción solar del día de hoy es insuficiente.",
     smart_predischarge: "Anticurtailment opcional con precios dinámicos. Crea margen de SOC antes de que la producción solar prevista llegue a una ventana de precio negativo, respetando los suelos de SOC, el control del usuario y los límites de seguridad de la batería.",
+    predictive_charging_notifications: "Al ACTIVARLO (por defecto), los resultados de la carga predictiva se publican como notificaciones de Home Assistant: la evaluación diaria, el inicio de cada franja de carga y las reevaluaciones previas a la franja y de la tarde. DESACTÍVALO para dejar de recibirlas; las evaluaciones, la planificación y los diagnósticos siguen funcionando y visibles aquí. Las notificaciones de alarmas de batería, balanceo de celdas y modo manual no se ven afectadas.",
     negative_price_charging: "Carga opcional con precios dinámicos cuando el precio normalizado de importación es negativo, aunque no exista déficit previsto. Se detiene en el SOC máximo configurado de cada batería.",
     negative_injection_threshold: "Los precios iguales o inferiores a este umbral son franjas de riesgo cuando se espera excedente solar. La comparación es inclusiva (<=).",
     predischarge_reserve_soc: "SOC que debe reservar la predescarga, además de los límites mínimos existentes. 0 usa los suelos de SOC mínimo y garantizado de cada batería.",
@@ -1417,8 +1438,8 @@ const SYS_HELP = {
     pd_min_charge_power: "Potencia mínima para cargar. Por debajo de este umbral, el controlador queda en reposo en vez de cargar a baja potencia. 0 = desactivado.",
     pd_min_discharge_power: "Potencia mínima para descargar. Por debajo de este umbral, el controlador queda en reposo en vez de descargar a baja potencia. 0 = desactivado.",
     pd_relay_cooldown: "Anti-chasquido: una vez la batería engancha, sigue activa al menos este tiempo antes de volver a reposo, para que el relé no conmute cuando la red ronda el borde de la banda muerta durante la rampa solar (amanecer/anochecer). Mientras se mantiene, funciona a la potencia mín. de carga/descarga PD (o 100 W si es 0). Desequilibrios grandes lo saltan. 0 = desactivado.",
-    pd_min_cycle_interval: "Separación mínima entre ciclos de control disparados por evento. Las actualizaciones del sensor de red que llegan antes de este tiempo se descartan, para que un medidor rápido no sature puentes Modbus lentos (p. ej. Elfin EW11) con ráfagas de escritura. El temporizador de seguridad de 2 s nunca se frena. 0 = desactivado.",
-    pd_target_grid_power: "Consigna de potencia de red que regula el controlador. Positivo = importar de red (la batería carga), negativo = exportar a red (la batería descarga), 0 = balance neto cero. El rango sigue la potencia total configurada de tus baterías, limitado por los límites de potencia del sistema cuando están activos. Valor por defecto: 0 W.",
+    pd_min_cycle_interval: "Separación mínima entre ciclos de control disparados por evento. Las actualizaciones del sensor de red que llegan antes de este tiempo se descartan, para que un medidor rápido no sature puentes Modbus lentos (p. ej. Elfin EW11) con ráfagas de escritura. El temporizador de seguridad de 2 s también mantiene la última orden dentro de esta ventana (las protecciones actúan igualmente al momento). 0 = desactivado.",
+    pd_target_grid_power: "Consigna de potencia de red que regula el controlador. Positivo = importar de red (la batería carga), negativo = exportar a red (la batería descarga), 0 = balance neto cero. El rango de exportación sigue la potencia total configurada de tus baterías, limitado por los límites de potencia del sistema cuando están activos; el de importación llega hasta tu potencia contratada si está configurada, porque la casa consume del mismo contador. Valor por defecto: 0 W.",
     system_max_charge_power: "Limite opcional para la potencia de carga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose.",
     system_max_discharge_power: "Limite opcional para la potencia de descarga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose.",
     max_contracted_power: "Potencia total contratada (ICP) en vatios. El sistema no superará este límite al cargar para evitar que salte el diferencial",
@@ -1437,8 +1458,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Rango de temperatura por encima del límite a lo largo del cual la potencia de carga baja hasta el mínimo.",
     temp_charge_limit_floor_pct: "Potencia de carga en el límite más la banda, como porcentaje del techo de carga normal. 0 % detiene la carga por completo cuando hace mucho calor.",
     temp_charge_limit_discharge: "Aplica la misma reducción por temperatura a la potencia de descarga. La descarga tolera mejor el calor, así que comparte el umbral de carga como compromiso; sobre todo mantiene la descarga por debajo del corte duro del BMS.",
-    max_price_threshold: "Techo de carga para precios dinámicos: la batería solo carga de red cuando el precio está en o por debajo de este valor. Vacío = precio medio diario. Debe mantenerse ≤ el suelo de descarga.",
-    discharge_price_threshold: "Suelo de descarga para precios dinámicos: la batería solo descarga cuando el precio está en o por encima de este valor. Vacío = techo de carga o precio medio diario. Debe mantenerse ≥ el techo de carga.",
+    max_price_threshold_enabled: "Activado: la carga de red usa el techo de carga de abajo. Desactivado (automático): sin techo fijo; se eligen las horas más baratas (con el margen de arbitraje, si está fijado). El valor se conserva.",
+    discharge_price_threshold_enabled: "Activado: la descarga usa el suelo de abajo. Desactivado (automático): usa el techo de carga o, si no hay, el precio medio diario. El valor se conserva.",
+    max_price_threshold: "Techo de carga para precios dinámicos: la batería solo carga de red cuando el precio está en o por debajo de este valor. Solo se aplica con su interruptor manual activado. Debe mantenerse ≤ el suelo de descarga.",
+    discharge_price_threshold: "Suelo de descarga para precios dinámicos: la batería solo descarga cuando el precio está en o por encima de este valor. Solo se aplica con su interruptor manual activado. Debe mantenerse ≥ el techo de carga.",
     min_arbitrage_margin: "Beneficio mínimo por kWh exigido antes de cargar de red. 0 o vacío = desactivado. Si se define, el techo sigue el diferencial del día: no se carga cuando las horas caras no superan lo suficiente a las baratas para compensar las pérdidas de conversión. El mismo margen actúa en sentido contrario: con la descarga por precio alto activa, una venta debe superar el precio de recompra posterior al menos en esta cantidad.",
     round_trip_efficiency: "Eficiencia de ciclo completo (kWh de salida / kWh de entrada) usada para valorar la energía almacenada. Valores más bajos endurecen el filtro. Solo se usa si hay un margen mínimo de arbitraje.",
   },
@@ -1462,6 +1485,7 @@ const SYS_HELP = {
     no_pd_command_delay: "Finestra d'agrupació (debounce) per al mode sense PD. Les actualitzacions del sensor de xarxa que arriben dins d'aquesta finestra s'agrupen en una sola ordre emesa amb l'últim valor, perquè un mesurador ràpid no saturi el bus. 0 = actuar en cada esdeveniment (acotat només per l'interval mín. de cicle PD). Rang: 0–3 s, pas 0,1, per defecte: 0 s.",
     diagPredictive: "Carrega les bateries des de la xarxa durant hores vall quan la previsió solar d'avui és insuficient.",
     smart_predischarge: "Anticurtailment opcional amb preus dinàmics. Crea marge de SOC abans que la producció solar prevista arribi a una finestra de preu negatiu, respectant els límits mínims de SOC, el control de l'usuari i els límits de seguretat de la bateria.",
+    predictive_charging_notifications: "Quan està ACTIVAT (per defecte), els resultats de la càrrega predictiva es publiquen com a notificacions de Home Assistant: l'avaluació diària, l'inici de cada franja de càrrega i les reavaluacions prèvies a la franja i del vespre. DESACTIVA'L per deixar de rebre-les; les avaluacions, la planificació i els diagnòstics continuen funcionant i visibles aquí. Les notificacions d'alarmes de bateria, balanceig de cel·les i mode manual no es veuen afectades.",
     negative_price_charging: "Càrrega opcional amb preus dinàmics quan el preu normalitzat d'importació és negatiu, encara que no hi hagi dèficit previst. S'atura al SOC màxim configurat de cada bateria.",
     negative_injection_threshold: "Preus iguals o inferiors a aquest llindar es consideren franges de risc quan hi ha excedent solar previst. La comparació és inclusiva (<=).",
     predischarge_reserve_soc: "SOC que la predescàrrega ha de reservar, a més dels límits mínims existents. 0 fa servir els límits de SOC mínim i garantit de cada bateria.",
@@ -1501,8 +1525,8 @@ const SYS_HELP = {
     pd_min_charge_power: "Potència mínima per carregar. Per sota d'aquest llindar, el controlador queda en repòs en lloc de carregar a baixa potència. 0 = desactivat.",
     pd_min_discharge_power: "Potència mínima per descarregar. Per sota d'aquest llindar, el controlador queda en repòs en lloc de descarregar a baixa potència. 0 = desactivat.",
     pd_relay_cooldown: "Anti-espetec: un cop la bateria s'enganxa, segueix activa almenys aquest temps abans de tornar al repòs, perquè el relé no commuti quan la xarxa ronda la vora de la banda morta durant la rampa solar (alba/capvespre). Mentre es manté, funciona a la potència mín. de càrrega/descàrrega PD (o 100 W si és 0). Desequilibris grans l'ometen. 0 = desactivat.",
-    pd_min_cycle_interval: "Separació mínima entre cicles de control disparats per esdeveniment. Les actualitzacions del sensor de xarxa que arriben abans d'aquest temps es descarten, perquè un mesurador ràpid no saturi ponts Modbus lents (p. ex. Elfin EW11) amb ràfegues d'escriptura. El temporitzador de seguretat de 2 s mai es bloqueja. 0 = desactivat.",
-    pd_target_grid_power: "Consigna de potència de xarxa que regula el controlador. Positiu = importar de la xarxa (la bateria carrega), negatiu = exportar a la xarxa (la bateria descarrega), 0 = balanç net zero. El rang segueix la potència total configurada de les teves bateries, limitat pels límits de potència del sistema quan estan actius. Per defecte: 0 W.",
+    pd_min_cycle_interval: "Separació mínima entre cicles de control disparats per esdeveniment. Les actualitzacions del sensor de xarxa que arriben abans d'aquest temps es descarten, perquè un mesurador ràpid no saturi ponts Modbus lents (p. ex. Elfin EW11) amb ràfegues d'escriptura. El temporitzador de seguretat de 2 s també manté l'última ordre dins d'aquesta finestra (les proteccions actuen igualment a l'instant). 0 = desactivat.",
+    pd_target_grid_power: "Consigna de potència de xarxa que regula el controlador. Positiu = importar de la xarxa (la bateria carrega), negatiu = exportar a la xarxa (la bateria descarrega), 0 = balanç net zero. El rang d'exportació segueix la potència total configurada de les teves bateries, limitat pels límits de potència del sistema quan estan actius; el d'importació arriba fins a la teva potència contractada si està configurada, perquè la casa consumeix del mateix comptador. Per defecte: 0 W.",
     system_max_charge_power: "Límit opcional per a la potència de càrrega combinada de totes les bateries actives. 0 = desactivat; els límits per bateria segueixen aplicant-se.",
     system_max_discharge_power: "Límit opcional per a la potència de descàrrega combinada de totes les bateries actives. 0 = desactivat; els límits per bateria segueixen aplicant-se.",
     max_contracted_power: "Potència total contractada (ICP) en watts. El sistema no superarà aquest límit en carregar per evitar que salti el diferencial.",
@@ -1521,8 +1545,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Rang de temperatura per sobre del límit al llarg del qual la potència de càrrega baixa fins al mínim.",
     temp_charge_limit_floor_pct: "Potència de càrrega al límit més la banda, com a percentatge del sostre de càrrega normal. 0 % atura la càrrega del tot quan fa molta calor.",
     temp_charge_limit_discharge: "Aplica la mateixa reducció per temperatura a la potència de descàrrega. La descàrrega tolera millor la calor, així que comparteix el llindar de càrrega com a compromís; sobretot manté la descàrrega per sota del tall dur del BMS.",
-    max_price_threshold: "Sostre de càrrega per a preus dinàmics: la bateria només carrega de xarxa quan el preu està en o per sota d'aquest valor. Buit = preu mitjà diari. S'ha de mantenir ≤ el terra de descàrrega.",
-    discharge_price_threshold: "Terra de descàrrega per a preus dinàmics: la bateria només descarrega quan el preu està en o per sobre d'aquest valor. Buit = sostre de càrrega o preu mitjà diari. S'ha de mantenir ≥ el sostre de càrrega.",
+    max_price_threshold_enabled: "Activat: la càrrega de xarxa fa servir el sostre de càrrega de sota. Desactivat (automàtic): sense sostre fix; es trien les hores més barates (amb el marge d'arbitratge, si està fixat). El valor es conserva.",
+    discharge_price_threshold_enabled: "Activat: la descàrrega fa servir el terra de sota. Desactivat (automàtic): fa servir el sostre de càrrega o, si no n'hi ha, el preu mitjà diari. El valor es conserva.",
+    max_price_threshold: "Sostre de càrrega per a preus dinàmics: la bateria només carrega de xarxa quan el preu està en o per sota d'aquest valor. Només s'aplica amb el seu interruptor manual activat. S'ha de mantenir ≤ el terra de descàrrega.",
+    discharge_price_threshold: "Terra de descàrrega per a preus dinàmics: la bateria només descarrega quan el preu està en o per sobre d'aquest valor. Només s'aplica amb el seu interruptor manual activat. S'ha de mantenir ≥ el sostre de càrrega.",
     min_arbitrage_margin: "Benefici mínim per kWh exigit abans de carregar de xarxa. 0 o buit = desactivat. Si es defineix, el sostre segueix el diferencial del dia: no es carrega quan les hores cares no superen prou les barates per compensar les pèrdues de conversió. El mateix marge actua en sentit contrari: amb la descàrrega per preu alt activa, una venda ha de superar el preu de recompra posterior com a mínim en aquesta quantitat.",
     round_trip_efficiency: "Eficiència de cicle complet (kWh de sortida / kWh d'entrada) per valorar l'energia emmagatzemada. Valors més baixos endureixen el filtre. Només s'usa si hi ha un marge mínim d'arbitratge.",
   },
@@ -1546,6 +1572,7 @@ const SYS_HELP = {
     no_pd_command_delay: "Debounce-Fenster für den No-PD-Modus. Netz-Sensor-Updates innerhalb dieses Fensters werden zu einem einzigen Befehl mit dem neuesten Wert zusammengefasst, damit ein schneller Zähler den Bus nicht überflutet. 0 = bei jedem Ereignis handeln (nur durch das PD-Min.-Zyklusintervall begrenzt). Bereich: 0–3 s, Schritt 0,1, Standard: 0 s.",
     diagPredictive: "Lädt die Batterien während der Nebenzeiten aus dem Netz, wenn die heutige Solarprognose nicht ausreicht.",
     smart_predischarge: "Optionaler Abregelungsschutz bei dynamischen Preisen. Schafft Ladereserve, bevor die prognostizierte PV-Leistung ein Fenster mit negativem Preis erreicht, und respektiert dabei SOC-Untergrenzen, die Kontrolle des Nutzers und die Sicherheitsgrenzen der Batterie.",
+    predictive_charging_notifications: "Wenn EIN (Standard), werden Ergebnisse des prädiktiven Ladens als Home-Assistant-Benachrichtigungen veröffentlicht: die tägliche Bewertung, der Beginn jedes Ladeslots sowie Neubewertungen vor dem Slot und am Abend. Schalte AUS, um diese Benachrichtigungen zu stoppen; Bewertungen, Zeitplan und Diagnosen laufen weiter und bleiben hier sichtbar. Benachrichtigungen zu Batteriealarmen, Zellbalance und manuellem Modus sind nicht betroffen.",
     negative_price_charging: "Optionales Laden bei dynamischen Preisen, wenn der normalisierte Netzbezugspreis negativ ist, auch ohne prognostiziertes Energiedefizit. Das Laden endet beim konfigurierten maximalen SOC jeder Batterie.",
     negative_injection_threshold: "Preise gleich oder unter diesem Wert gelten bei erwarteter Solarüberschussenergie als Risikofenster. Der Vergleich ist einschließlich (<=).",
     predischarge_reserve_soc: "SOC, der zusätzlich zu den vorhandenen Mindestgrenzen reserviert wird. 0 verwendet die vorhandenen Mindest- und garantierten SOC-Untergrenzen jeder Batterie.",
@@ -1585,8 +1612,8 @@ const SYS_HELP = {
     pd_min_charge_power: "Mindestleistung zum Laden. Unter diesem Schwellenwert bleibt der Regler im Leerlauf, statt mit niedriger Leistung zu laden. 0 = deaktiviert.",
     pd_min_discharge_power: "Mindestleistung zum Entladen. Unter diesem Schwellenwert bleibt der Regler im Leerlauf, statt mit niedriger Leistung zu entladen. 0 = deaktiviert.",
     pd_relay_cooldown: "Anti-Klappern: Sobald die Batterie einschaltet, bleibt sie mindestens diese Zeit aktiv, bevor sie in den Leerlauf zurückkehrt, damit das Relais nicht schaltet, wenn das Netz während der Solar-Rampe (Sonnenauf-/-untergang) am Totband-Rand pendelt. Während des Haltens läuft sie mit der PD-Min.-Lade-/Entladeleistung (oder 100 W bei 0). Große Ungleichgewichte umgehen sie. 0 = deaktiviert.",
-    pd_min_cycle_interval: "Mindestabstand zwischen ereignisgesteuerten Regelzyklen. Netz-Sensor-Updates, die früher eintreffen, werden verworfen, damit ein schneller Zähler langsame Modbus-Bridges (z. B. Elfin EW11) nicht mit Schreib-Bursts überflutet. Der 2-s-Sicherheitstimer wird nie blockiert. 0 = deaktiviert.",
-    pd_target_grid_power: "Netzleistungs-Sollwert, auf den der Regler regelt. Positiv = Bezug aus dem Netz (Batterie lädt), negativ = Einspeisung ins Netz (Batterie entlädt), 0 = Nettonull. Der Bereich richtet sich nach der insgesamt konfigurierten Batterieleistung, begrenzt durch die System-Leistungsgrenzen, wenn diese aktiv sind. Standard: 0 W.",
+    pd_min_cycle_interval: "Mindestabstand zwischen ereignisgesteuerten Regelzyklen. Netz-Sensor-Updates, die früher eintreffen, werden verworfen, damit ein schneller Zähler langsame Modbus-Bridges (z. B. Elfin EW11) nicht mit Schreib-Bursts überflutet. Auch der 2-s-Sicherheitstimer behält innerhalb dieses Fensters den letzten Befehl bei (Schutzfunktionen greifen weiterhin sofort). 0 = deaktiviert.",
+    pd_target_grid_power: "Netzleistungs-Sollwert, auf den der Regler regelt. Positiv = Bezug aus dem Netz (Batterie lädt), negativ = Einspeisung ins Netz (Batterie entlädt), 0 = Nettonull. Der Einspeisebereich richtet sich nach der insgesamt konfigurierten Batterieleistung, begrenzt durch die System-Leistungsgrenzen, wenn diese aktiv sind; der Bezugsbereich reicht bis zur vertraglichen Anschlussleistung, wenn diese gesetzt ist, da das Haus am selben Zähler hängt. Standard: 0 W.",
     system_max_charge_power: "Optionale Begrenzung der kombinierten Ladeleistung aller aktiven Batterien. 0 = deaktiviert; Limits pro Batterie gelten weiterhin.",
     system_max_discharge_power: "Optionale Begrenzung der kombinierten Entladeleistung aller aktiven Batterien. 0 = deaktiviert; Limits pro Batterie gelten weiterhin.",
     max_contracted_power: "Gesamte Vertragsleistung (ICP) in Watt. Das System überschreitet dieses Limit beim Laden nicht, um ein Auslösen des Leitungsschutzschalters zu vermeiden.",
@@ -1605,8 +1632,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperaturbereich oberhalb der Grenze, über den die Ladeleistung bis zum Minimum absinkt.",
     temp_charge_limit_floor_pct: "Ladeleistung an der Grenze plus Bereich, als Prozentsatz der normalen Ladeobergrenze. 0 % stoppt die Ladung bei großer Hitze vollständig.",
     temp_charge_limit_discharge: "Wendet dieselbe temperaturabhängige Drosselung auf die Entladeleistung an. Die Entladung verträgt Hitze besser, daher teilt sie sich als Kompromiss die Ladeschwelle; vor allem hält sie die Entladung unter der harten BMS-Abschaltung.",
-    max_price_threshold: "Lade-Obergrenze für dynamische Preise: die Batterie lädt nur aus dem Netz, wenn der Preis auf oder unter diesem Wert liegt. Leer = Tagesdurchschnittspreis. Muss ≤ der Entlade-Untergrenze bleiben.",
-    discharge_price_threshold: "Entlade-Untergrenze für dynamische Preise: die Batterie entlädt nur, wenn der Preis auf oder über diesem Wert liegt. Leer = Lade-Obergrenze oder Tagesdurchschnitt. Muss ≥ der Lade-Obergrenze bleiben.",
+    max_price_threshold_enabled: "Ein: die Netzladung nutzt die Lade-Obergrenze darunter. Aus (automatisch): keine feste Obergrenze; die günstigsten Stunden werden gewählt (mit Arbitragemarge, falls gesetzt). Der Wert bleibt erhalten.",
+    discharge_price_threshold_enabled: "Ein: die Entladung nutzt die Untergrenze darunter. Aus (automatisch): nutzt die Lade-Obergrenze, sonst den Tagesdurchschnittspreis. Der Wert bleibt erhalten.",
+    max_price_threshold: "Lade-Obergrenze für dynamische Preise: die Batterie lädt nur aus dem Netz, wenn der Preis auf oder unter diesem Wert liegt. Gilt nur, solange der manuelle Schalter an ist. Muss ≤ der Entlade-Untergrenze bleiben.",
+    discharge_price_threshold: "Entlade-Untergrenze für dynamische Preise: die Batterie entlädt nur, wenn der Preis auf oder über diesem Wert liegt. Gilt nur, solange der manuelle Schalter an ist. Muss ≥ der Lade-Obergrenze bleiben.",
     min_arbitrage_margin: "Mindestgewinn pro kWh, der vor dem Netzladen erforderlich ist. 0 oder leer = aus. Wenn gesetzt, folgt die Obergrenze der Tagesspreizung: es wird nicht geladen, wenn die teuren Stunden nicht weit genug über den günstigen liegen, um die Umwandlungsverluste zu decken. Dieselbe Marge gilt in der Gegenrichtung: Bei aktivierter Hochpreis-Entladung muss ein Verkauf den späteren Rückkaufpreis um mindestens diesen Betrag übertreffen.",
     round_trip_efficiency: "Round-Trip-Wirkungsgrad der Batterie (kWh raus / kWh rein) zur Bewertung gespeicherter Energie. Niedrigere Werte machen den Filter strenger. Nur bei gesetzter Mindest-Arbitragemarge aktiv.",
   },
@@ -1630,6 +1659,7 @@ const SYS_HELP = {
     no_pd_command_delay: "Fenêtre de regroupement (debounce) pour le mode sans PD. Les mises à jour du capteur réseau arrivant dans cette fenêtre sont regroupées en une seule commande émise avec la dernière valeur, pour qu'un compteur rapide n'inonde pas le bus. 0 = agir à chaque événement (limité uniquement par l'intervalle min. de cycle PD). Plage : 0–3 s, pas 0,1, défaut : 0 s.",
     diagPredictive: "Charge les batteries depuis le réseau pendant les heures creuses lorsque la prévision solaire du jour est insuffisante.",
     smart_predischarge: "Protection anti-écrêtage optionnelle avec tarification dynamique. Elle libère de la capacité avant que la production solaire prévue n'atteigne une fenêtre à prix négatif, tout en respectant les seuils de SOC, le contrôle de l'utilisateur et les limites de sécurité de la batterie.",
+    predictive_charging_notifications: "Quand il est ACTIVÉ (par défaut), les résultats de la charge prédictive sont publiés comme notifications Home Assistant : l'évaluation quotidienne, le début de chaque créneau de charge et les réévaluations avant le créneau et du soir. DÉSACTIVE-le pour ne plus les recevoir ; les évaluations, la planification et les diagnostics continuent et restent visibles ici. Les notifications d'alarme batterie, d'équilibrage des cellules et de mode manuel ne sont pas concernées.",
     negative_price_charging: "Charge optionnelle en tarification dynamique lorsque le prix d'achat normalisé est négatif, même sans déficit énergétique prévu. La charge s'arrête au SOC maximal configuré de chaque batterie.",
     negative_injection_threshold: "Les prix inférieurs ou égaux à ce seuil sont considérés comme des créneaux à risque lorsqu'un surplus solaire est prévu. La comparaison est inclusive (<=).",
     predischarge_reserve_soc: "SOC à réserver en plus des limites minimales existantes. 0 utilise les seuils de SOC minimal et garanti de chaque batterie.",
@@ -1669,8 +1699,8 @@ const SYS_HELP = {
     pd_min_charge_power: "Puissance minimale pour charger. En dessous de ce seuil, le contrôleur reste au repos au lieu de charger à faible puissance. 0 = désactivé.",
     pd_min_discharge_power: "Puissance minimale pour décharger. En dessous de ce seuil, le contrôleur reste au repos au lieu de décharger à faible puissance. 0 = désactivé.",
     pd_relay_cooldown: "Anti-claquement : une fois la batterie engagée, elle reste active au moins ce temps avant de revenir au repos, pour que le relais ne commute pas quand le réseau oscille au bord de la bande morte pendant la rampe solaire (lever/coucher). Pendant le maintien, elle fonctionne à la puissance min. de charge/décharge PD (ou 100 W si 0). Les grands déséquilibres l'ignorent. 0 = désactivé.",
-    pd_min_cycle_interval: "Espacement minimal entre les cycles de contrôle déclenchés par événement. Les mises à jour du capteur réseau arrivant plus tôt sont ignorées, pour qu'un compteur rapide n'inonde pas les ponts Modbus lents (p. ex. Elfin EW11) de rafales d'écriture. La temporisation de sécurité de 2 s n'est jamais bloquée. 0 = désactivé.",
-    pd_target_grid_power: "Consigne de puissance réseau que le contrôleur régule. Positif = soutirage du réseau (la batterie charge), négatif = injection vers le réseau (la batterie décharge), 0 = net zéro. La plage suit la puissance totale configurée de vos batteries, limitée par les limites de puissance système lorsqu'elles sont actives. Défaut : 0 W.",
+    pd_min_cycle_interval: "Espacement minimal entre les cycles de contrôle déclenchés par événement. Les mises à jour du capteur réseau arrivant plus tôt sont ignorées, pour qu'un compteur rapide n'inonde pas les ponts Modbus lents (p. ex. Elfin EW11) de rafales d'écriture. La temporisation de sécurité de 2 s conserve aussi la dernière commande dans cette fenêtre (les protections agissent toujours immédiatement). 0 = désactivé.",
+    pd_target_grid_power: "Consigne de puissance réseau que le contrôleur régule. Positif = soutirage du réseau (la batterie charge), négatif = injection vers le réseau (la batterie décharge), 0 = net zéro. La plage d'injection suit la puissance totale configurée de vos batteries, limitée par les limites de puissance système lorsqu'elles sont actives ; la plage de soutirage va jusqu'à votre puissance souscrite si elle est définie, car la maison consomme sur le même compteur. Défaut : 0 W.",
     system_max_charge_power: "Plafond optionnel pour la puissance de charge combinée de toutes les batteries actives. 0 = désactivé ; les limites par batterie s'appliquent toujours.",
     system_max_discharge_power: "Plafond optionnel pour la puissance de décharge combinée de toutes les batteries actives. 0 = désactivé ; les limites par batterie s'appliquent toujours.",
     max_contracted_power: "Puissance totale souscrite (ICP) en watts. Le système ne dépassera pas cette limite lors de la charge pour éviter de faire disjoncter.",
@@ -1689,8 +1719,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Plage de température au-dessus de la limite sur laquelle la puissance de charge diminue jusqu'au minimum.",
     temp_charge_limit_floor_pct: "Puissance de charge à la limite plus la plage, en pourcentage du plafond de charge normal. 0 % arrête complètement la charge en cas de forte chaleur.",
     temp_charge_limit_discharge: "Applique la même réduction liée à la température à la puissance de décharge. La décharge tolère mieux la chaleur, elle partage donc le seuil de charge par compromis ; surtout, elle maintient la décharge sous la coupure dure du BMS.",
-    max_price_threshold: "Plafond de charge pour la tarification dynamique : la batterie ne charge depuis le réseau que si le prix est à ce niveau ou en dessous. Vide = prix moyen journalier. Doit rester ≤ au plancher de décharge.",
-    discharge_price_threshold: "Plancher de décharge pour la tarification dynamique : la batterie ne décharge que si le prix est à ce niveau ou au-dessus. Vide = plafond de charge ou prix moyen journalier. Doit rester ≥ au plafond de charge.",
+    max_price_threshold_enabled: "Activé : la charge réseau utilise le plafond de charge ci-dessous. Désactivé (automatique) : pas de plafond fixe ; les heures les moins chères sont choisies (avec la marge d'arbitrage, si définie). La valeur est conservée.",
+    discharge_price_threshold_enabled: "Activé : la décharge utilise le plancher ci-dessous. Désactivé (automatique) : utilise le plafond de charge, sinon le prix moyen journalier. La valeur est conservée.",
+    max_price_threshold: "Plafond de charge pour la tarification dynamique : la batterie ne charge depuis le réseau que si le prix est à ce niveau ou en dessous. S'applique uniquement si son interrupteur manuel est activé. Doit rester ≤ au plancher de décharge.",
+    discharge_price_threshold: "Plancher de décharge pour la tarification dynamique : la batterie ne décharge que si le prix est à ce niveau ou au-dessus. S'applique uniquement si son interrupteur manuel est activé. Doit rester ≥ au plafond de charge.",
     min_arbitrage_margin: "Profit minimal par kWh exigé avant la charge réseau. 0 ou vide = désactivé. Si défini, le plafond suit l'écart du jour : la charge est ignorée lorsque les heures chères ne dépassent pas assez les heures creuses pour couvrir les pertes de conversion. La même marge joue dans l'autre sens : avec la décharge à prix élevé active, une vente doit dépasser le prix de rachat ultérieur d'au moins autant.",
     round_trip_efficiency: "Rendement aller-retour de la batterie (kWh sortis / kWh entrés) servant à valoriser l'énergie stockée. Des valeurs plus basses rendent le filtre plus strict. Utilisé uniquement si une marge d'arbitrage minimale est définie.",
   },
@@ -1714,6 +1746,7 @@ const SYS_HELP = {
     no_pd_command_delay: "Debounce-venster voor de No-PD-modus. Net-sensorupdates die binnen dit venster binnenkomen worden samengevoegd tot één commando met de laatste waarde, zodat een snelle meter de bus niet overspoelt. 0 = bij elke gebeurtenis handelen (alleen begrensd door het PD-min.-cyclusinterval). Bereik: 0–3 s, stap 0,1, standaard: 0 s.",
     diagPredictive: "Laadt de batterijen uit het net tijdens daluren wanneer de zonneprognose van vandaag onvoldoende is.",
     smart_predischarge: "Optionele anti-afschakelbescherming bij dynamische prijzen. Maakt ruimte vrij voordat de voorspelde PV-opbrengst een venster met negatieve prijs bereikt, met behoud van de SOC-ondergrenzen, de controle van de gebruiker en de veiligheidsgrenzen van de batterij.",
+    predictive_charging_notifications: "Wanneer AAN (standaard), worden resultaten van voorspellend laden als Home Assistant-meldingen geplaatst: de dagelijkse evaluatie, de start van elk laadslot en de herevaluaties vóór een slot en 's avonds. Zet UIT om deze meldingen te stoppen; evaluaties, planning en diagnostiek blijven gewoon werken en hier zichtbaar. Meldingen over batterijalarmen, celbalans en handmatige modus worden niet beïnvloed.",
     negative_price_charging: "Optioneel laden bij dynamische prijzen wanneer de genormaliseerde inkoopprijs negatief is, ook zonder voorspeld energietekort. Het laden stopt bij de ingestelde maximale SOC van elke batterij.",
     negative_injection_threshold: "Prijzen gelijk aan of lager dan deze drempel zijn risicoslots wanneer een zonne-overschot wordt verwacht. De vergelijking is inclusief (<=).",
     predischarge_reserve_soc: "SOC die naast de bestaande minimumgrenzen moet worden gereserveerd. 0 gebruikt de bestaande minimale en gegarandeerde SOC-ondergrenzen van elke batterij.",
@@ -1753,8 +1786,8 @@ const SYS_HELP = {
     pd_min_charge_power: "Minimaal vermogen om te laden. Onder deze drempel blijft de regelaar in rust in plaats van met laag vermogen te laden. 0 = uitgeschakeld.",
     pd_min_discharge_power: "Minimaal vermogen om te ontladen. Onder deze drempel blijft de regelaar in rust in plaats van met laag vermogen te ontladen. 0 = uitgeschakeld.",
     pd_relay_cooldown: "Anti-klapperen: zodra de batterij inschakelt, blijft hij minstens deze tijd actief voordat hij naar rust terugkeert, zodat het relais niet schakelt wanneer het net tijdens de zonne-ramp (op-/ondergang) op de rand van de dode band schommelt. Tijdens het vasthouden draait hij op het PD min. laad-/ontlaadvermogen (of 100 W bij 0). Grote onbalans omzeilt het. 0 = uitgeschakeld.",
-    pd_min_cycle_interval: "Minimale tussenruimte tussen gebeurtenisgestuurde regelcycli. Net-sensorupdates die eerder binnenkomen worden genegeerd, zodat een snelle meter trage Modbus-bridges (bijv. Elfin EW11) niet overspoelt met schrijfbursts. De 2 s-veiligheidstimer wordt nooit geblokkeerd. 0 = uitgeschakeld.",
-    pd_target_grid_power: "Netvermogen-setpoint waarop de regelaar regelt. Positief = afname van het net (batterij laadt), negatief = teruglevering aan het net (batterij ontlaadt), 0 = netto nul. Het bereik volgt het totaal geconfigureerde batterijvermogen, begrensd door de systeemvermogenslimieten wanneer die actief zijn. Standaard: 0 W.",
+    pd_min_cycle_interval: "Minimale tussenruimte tussen gebeurtenisgestuurde regelcycli. Net-sensorupdates die eerder binnenkomen worden genegeerd, zodat een snelle meter trage Modbus-bridges (bijv. Elfin EW11) niet overspoelt met schrijfbursts. Ook de 2 s-veiligheidstimer houdt binnen dit venster het laatste commando aan (beveiligingen grijpen nog steeds direct in). 0 = uitgeschakeld.",
+    pd_target_grid_power: "Netvermogen-setpoint waarop de regelaar regelt. Positief = afname van het net (batterij laadt), negatief = teruglevering aan het net (batterij ontlaadt), 0 = netto nul. Het terugleverbereik volgt het totaal geconfigureerde batterijvermogen, begrensd door de systeemvermogenslimieten wanneer die actief zijn; het afnamebereik loopt tot je gecontracteerd vermogen als dat is ingesteld, omdat het huis via dezelfde meter afneemt. Standaard: 0 W.",
     system_max_charge_power: "Optionele begrenzing voor het gecombineerde laadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden.",
     system_max_discharge_power: "Optionele begrenzing voor het gecombineerde ontlaadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden.",
     max_contracted_power: "Totaal gecontracteerd vermogen (ICP) in watt. Het systeem overschrijdt deze limiet niet bij het laden om te voorkomen dat de hoofdzekering uitschakelt.",
@@ -1773,8 +1806,10 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperatuurbereik boven de limiet waarover het laadvermogen tot het minimum afbouwt.",
     temp_charge_limit_floor_pct: "Laadvermogen op de limiet plus de band, als percentage van het normale laadplafond. 0 % stopt het laden volledig bij grote hitte.",
     temp_charge_limit_discharge: "Past dezelfde temperatuurterugregeling toe op het ontlaadvermogen. Ontladen verdraagt warmte beter, dus deelt het als compromis de laaddrempel; vooral houdt het het ontladen onder de harde BMS-uitschakeling.",
-    max_price_threshold: "Laadplafond voor dynamische prijzen: de batterij laadt alleen van het net wanneer de prijs op of onder deze waarde ligt. Leeg = daggemiddelde prijs. Moet ≤ de ontlaadondergrens blijven.",
-    discharge_price_threshold: "Ontlaadondergrens voor dynamische prijzen: de batterij ontlaadt alleen wanneer de prijs op of boven deze waarde ligt. Leeg = laadplafond of daggemiddelde. Moet ≥ het laadplafond blijven.",
+    max_price_threshold_enabled: "Aan: het laden van het net gebruikt het laadplafond hieronder. Uit (automatisch): geen vast plafond; de goedkoopste uren worden gekozen (met de arbitragemarge, indien ingesteld). De waarde blijft bewaard.",
+    discharge_price_threshold_enabled: "Aan: het ontladen gebruikt de ondergrens hieronder. Uit (automatisch): gebruikt het laadplafond, anders de daggemiddelde prijs. De waarde blijft bewaard.",
+    max_price_threshold: "Laadplafond voor dynamische prijzen: de batterij laadt alleen van het net wanneer de prijs op of onder deze waarde ligt. Geldt alleen zolang de handmatige schakelaar aan staat. Moet ≤ de ontlaadondergrens blijven.",
+    discharge_price_threshold: "Ontlaadondergrens voor dynamische prijzen: de batterij ontlaadt alleen wanneer de prijs op of boven deze waarde ligt. Geldt alleen zolang de handmatige schakelaar aan staat. Moet ≥ het laadplafond blijven.",
     min_arbitrage_margin: "Minimale winst per kWh die vereist is voordat er van het net geladen wordt. 0 of leeg = uit, dan beslist alleen het laadplafond. Ingesteld laat het plafond de dagspreiding volgen: er wordt niet geladen wanneer de dure uren niet ver genoeg boven de goedkope liggen om de omzettingsverliezen terug te verdienen. Dezelfde marge werkt ook andersom: met hoogprijs-ontlading aan moet een verkoop de latere terugkoopprijs met minstens dit bedrag overtreffen.",
     round_trip_efficiency: "Retourrendement van de batterij (kWh eruit / kWh erin) om opgeslagen energie te waarderen. Lagere waarden maken het filter strenger. Alleen gebruikt als er een minimale arbitragemarge is ingesteld.",
   },
@@ -1820,6 +1855,7 @@ class MarstekVenusPanel extends HTMLElement {
     // Home Assistant may assign/refresh `panel` after `hass`. Recompute now so
     // payload-backed sources (notably excluded devices) do not remain hidden
     // until an unrelated entity state update happens to arrive.
+    this._linkForecastRows();
     if (this._hass) this._update();
   }
   set narrow(v) {
@@ -2012,13 +2048,23 @@ class MarstekVenusPanel extends HTMLElement {
     const unit = String((stateObj.attributes || {}).unit_of_measurement || "kWh").toLowerCase();
     return unit === "wh" ? n / 1000 : n;
   }
-  /** Sum numeric states for a key across all batteries. */
+  /** Sum numeric states for a key across all batteries: one value per device.
+   *  A device can expose two entities with the same translation_key (Anker:
+   *  read-only hardware-cap sensor + soft-limit number for max charge /
+   *  discharge power, #716). Those are the same limit, not two units; the
+   *  effective ceiling is the lower of the two, as the coordinator applies. */
   _sum(byKey, key) {
-    let total = null;
-    for (const s of this._statesFor(byKey, key)) {
-      const n = this._num(s);
-      if (n != null) total = (total || 0) + n;
+    const reg = (this._hass && this._hass.entities) || {};
+    const perDevice = new Map();
+    for (const id of byKey.get(key) || []) {
+      const n = this._num(this._hass.states[id]);
+      if (n == null) continue;
+      const dev = (reg[id] && reg[id].device_id) || id;
+      const prev = perDevice.get(dev);
+      perDevice.set(dev, prev == null ? n : Math.min(prev, n));
     }
+    let total = null;
+    for (const n of perDevice.values()) total = (total || 0) + n;
     return total;
   }
   /** Convert a power state to Watts regardless of W/kW unit. */
@@ -2149,6 +2195,9 @@ class MarstekVenusPanel extends HTMLElement {
         const s = this._watts(get(mk));
         if (s != null) mpptW = (mpptW || 0) + s;
       }
+      // Only per-MPPT PV is added to cell power. Anker Solarbank 4's ac_power is
+      // the negated pack power, which already includes PV (#738).
+      const cellMpptW = mpptW;
       // Some batteries (Anker Solarbank 4) publish only the aggregate DC PV
       // value. It uses the same canonical translation key as the Venus total,
       // so it can fill the per-battery model without inventing MPPT channels.
@@ -2169,7 +2218,7 @@ class MarstekVenusPanel extends HTMLElement {
       const invBackup = /backup/i.test(this._sval(get(K.inverterState)) || "");
       const cellAcoW = invBackup ? acoW || 0 : 0;
       const powerW =
-        acW != null ? -acW - cellAcoW + (mpptW || 0) : battPwrW;
+        acW != null ? -acW - cellAcoW + (cellMpptW || 0) : battPwrW;
       batteries.push({
         dev,
         soc: this._num(socObj),
@@ -2311,6 +2360,10 @@ class MarstekVenusPanel extends HTMLElement {
     const diagStates = {};
     for (const row of DIAG_ROWS) diagStates[row.key] = this._stateFor(byKey, row.key);
     const alarmObj = diagStates[K.sysAlarm];
+    // The net-balance sensor exists whenever the feature was configured, also
+    // while its switch is off; the switch tells the row which case it shows.
+    const hbSwitch = this._stateFor(byKey, K.hourlyBalanceSwitch);
+    const hourlyBalanceOff = hbSwitch != null && hbSwitch.state === "off";
 
     // exact daily solar/home/grid energy (kWh) from the backend accumulator sensors
     const dailySolar = this._num(this._stateFor(byKey, K.sysDailySolar));
@@ -2366,6 +2419,7 @@ class MarstekVenusPanel extends HTMLElement {
       maxDischarge: maxDis,
       alarm: alarmObj ? alarmObj.state : null,
       diagStates,
+      hourlyBalanceOff,
     };
   }
 
@@ -2567,9 +2621,12 @@ class MarstekVenusPanel extends HTMLElement {
       `<span class="daily-op-legend-item daily-op-legend-hourly-balance"><i class="daily-op-swatch daily-op-swatch-hourly-balance"></i>${this._t("dailyOperationHourlyBalance")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-discharge"></i>${this._t("dailyOperationDischarge")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-not-needed"></i>${this._t("dailyOperationNotNeeded")}</span>` +
+      // The areas on one row, the lines on the next.
+      `<span class="daily-op-legend-break" aria-hidden="true"></span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-solar"></i>${this._t("dailyOperationSolar")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-consumption"></i>${this._t("dailyOperationConsumption")}</span>` +
-      `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-soc"></i>${this._t("dailyOperationSoc")}</span>`;
+      `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-soc"></i>${this._t("dailyOperationSoc")}</span>` +
+      `<span class="daily-op-legend-item daily-op-legend-price" hidden><i class="daily-op-line daily-op-line-price"></i><span class="daily-op-legend-price-text"></span></span>`;
     toolbar.appendChild(legend);
 
     const nav = document.createElement("div");
@@ -2630,7 +2687,8 @@ class MarstekVenusPanel extends HTMLElement {
       `<path class="daily-op-path daily-op-path-consumption-actual" fill="none"></path>` +
       `<path class="daily-op-path daily-op-path-consumption-forecast" fill="none"></path>` +
       `<path class="daily-op-path daily-op-path-soc-actual" fill="none"></path>` +
-      `<path class="daily-op-path daily-op-path-soc-forecast" fill="none"></path>`;
+      `<path class="daily-op-path daily-op-path-soc-forecast" fill="none"></path>` +
+      `<path class="daily-op-path daily-op-path-price" fill="none"></path>`;
     stage.appendChild(svg);
 
     // Keep the current-time marker in HTML so its label has a stable pixel
@@ -2708,7 +2766,7 @@ class MarstekVenusPanel extends HTMLElement {
           }
           if (event.key === "Home" || event.key === "End") {
             event.preventDefault();
-            const target = this._r.dailyOperation && this._r.dailyOperation.cells[event.key === "Home" ? 0 : DAILY_OPERATION_TOTAL_INTERVALS - 1];
+            const target = this._r.dailyOperation && this._r.dailyOperation.cells[event.key === "Home" ? 0 : this._dailyOperationTotalIntervals() - 1];
             if (target) target.focus();
           }
         });
@@ -2737,6 +2795,14 @@ class MarstekVenusPanel extends HTMLElement {
     socAxis.innerHTML = `<small>SOC %</small><div class="daily-op-soc-axis-ticks">` +
       [100, 75, 50, 25, 0].map((value) => `<span>${value}</span>`).join("") + `</div>`;
     layout.appendChild(socAxis);
+    // Price high/low labels pinned over the viewport's right edge: the price
+    // line spans the full height, so these give it a scale while scrolling.
+    const priceScale = document.createElement("div");
+    priceScale.className = "daily-op-price-scale";
+    priceScale.setAttribute("aria-hidden", "true");
+    priceScale.hidden = true;
+    priceScale.innerHTML = `<span class="daily-op-price-high"></span><span class="daily-op-price-low"></span>`;
+    layout.appendChild(priceScale);
     card.appendChild(layout);
     // The tooltip is positioned against the card, outside the horizontally
     // clipped viewport, so the first and last intervals remain fully visible.
@@ -2761,6 +2827,11 @@ class MarstekVenusPanel extends HTMLElement {
     this._r.dailyOperation = {
       card, badge, notice, legend,
       hourlyBalanceLegend: legend.querySelector(".daily-op-legend-hourly-balance"),
+      priceLegend: legend.querySelector(".daily-op-legend-price"),
+      priceLegendText: legend.querySelector(".daily-op-legend-price-text"),
+      priceScale,
+      priceHigh: priceScale.querySelector(".daily-op-price-high"),
+      priceLow: priceScale.querySelector(".daily-op-price-low"),
       yAxis, socAxis, viewport, stage, svg, tooltip, previous, next,
       cells, labels, hours,
       paths: {
@@ -2770,12 +2841,16 @@ class MarstekVenusPanel extends HTMLElement {
         consumptionForecast: svg.querySelector(".daily-op-path-consumption-forecast"),
         socActual: svg.querySelector(".daily-op-path-soc-actual"),
         socForecast: svg.querySelector(".daily-op-path-soc-forecast"),
+        price: svg.querySelector(".daily-op-path-price"),
       },
       nowMarker,
       nowText,
       scrollState,
       localDate: null,
     };
+    this._applyDailyOperationSpan({
+      totalIntervals: DAILY_OPERATION_BASE_INTERVALS + DAILY_OPERATION_DEFAULT_EXTENSION_INTERVALS,
+    });
     this._attachDailyOperationGlobalListeners();
     return card;
   }
@@ -2962,6 +3037,11 @@ class MarstekVenusPanel extends HTMLElement {
     const repeated = this._dailyOperationExtendedArray(repeatedBase, [], []);
     const extensionHorizon = data.extended_horizon && typeof data.extended_horizon === "object"
       ? data.extended_horizon : {};
+    const extensionCount = Math.max(0, Math.min(DAILY_OPERATION_EXTENSION_INTERVALS, Math.floor(
+      this._dailyOperationNumber(extensionHorizon.interval_count) ?? DAILY_OPERATION_DEFAULT_EXTENSION_INTERVALS
+    )));
+    // Whole hours, so the hour grid and its labels stay aligned.
+    const totalIntervals = DAILY_OPERATION_BASE_INTERVALS + Math.ceil(extensionCount / 4) * 4;
     const extensionSkipped = Array.isArray(extensionHorizon.dst_skipped)
       ? extensionHorizon.dst_skipped : [];
     const extensionRepeated = Array.isArray(extensionHorizon.dst_repeated)
@@ -2970,6 +3050,16 @@ class MarstekVenusPanel extends HTMLElement {
       skipped[DAILY_OPERATION_BASE_INTERVALS + index] = extensionSkipped[index] ?? null;
       repeated[DAILY_OPERATION_BASE_INTERVALS + index] = extensionRepeated[index] ?? null;
     }
+    // Grid price per interval: today in ``series``, after midnight in the
+    // extended horizon. Display only; empty without dynamic pricing.
+    const priceBase = pickSeries(["price_per_kwh"]);
+    const extensionPrices = Array.isArray(extensionHorizon.price_per_kwh)
+      ? extensionHorizon.price_per_kwh : [];
+    const price = Array.from({ length: DAILY_OPERATION_TOTAL_INTERVALS }, (_, index) =>
+      this._dailyOperationNumber(index < DAILY_OPERATION_BASE_INTERVALS
+        ? priceBase && priceBase[index]
+        : extensionPrices[index - DAILY_OPERATION_BASE_INTERVALS])
+    );
     const isSkipped = Array.from({ length: DAILY_OPERATION_TOTAL_INTERVALS }, (_, index) =>
       this._dailyOperationBool(skipped && skipped[index]) || String(flagArray[index] || "").toLowerCase() === "dst_skipped"
     );
@@ -3073,11 +3163,12 @@ class MarstekVenusPanel extends HTMLElement {
       planEvaluatedAt: data.plan_evaluated_at || null,
       setpointInfo: data.setpoint && typeof data.setpoint === "object" ? data.setpoint : null,
       delayInfo: data.delay && typeof data.delay === "object" ? data.delay : null,
-      currentIndex, currentProgress,
+      currentIndex, currentProgress, totalIntervals,
       mode: data.mode == null ? null : String(data.mode),
       stale: this._dailyOperationBool(data.stale),
       staleReason: data.stale_reason == null ? null : String(data.stale_reason),
       actualSolar, forecastSolar, actualConsumption, forecastConsumption, actualSoc, forecastSoc,
+      price,
       actualMask,
       plannedMask: plannedActions,
       actualCoexistence,
@@ -3177,6 +3268,8 @@ class MarstekVenusPanel extends HTMLElement {
       unavailable: "dailyOperationUnavailable",
       zero_fallback: "dailyOperationZeroFallback",
       fallback: "dailyOperationGenericFallback",
+      runtime_command: "dailyOperationRuntimeCommand",
+      runtime_measured: "dailyOperationRuntimeMeasured",
     };
     if (sourceKeys[normalized]) return this._t(sourceKeys[normalized]);
     if (normalized.includes("learned")) return this._t("dailyOperationLearned");
@@ -3187,6 +3280,18 @@ class MarstekVenusPanel extends HTMLElement {
   _dailyOperationSourceIsObserved(value) {
     if (!value) return true; // Preserve the legacy contract when no per-cell source exists.
     return !/(?:^|[_ -])(command|unavailable|unknown|error)(?:$|[_ -])/i.test(String(value));
+  }
+
+  _dailyOperationActionKind(item) {
+    if (item.status === "forecast") return this._t("dailyOperationPlan");
+    return item.observationTrusted ? this._t("dailyOperationObserved") : this._t("dailyOperationCommanded");
+  }
+
+  _dailyOperationUntrustedSourceLabel(item) {
+    if (item.observationTrusted || !item.operationSource) return null;
+    // "Commanded" on the action row already says the quarter was not measured.
+    if (/(?:^|[_ -])command(?:$|[_ -])/i.test(String(item.operationSource))) return null;
+    return this._dailyOperationSourceLabel(item.operationSource);
   }
 
   _dailyOperationReasonDict() {
@@ -3298,7 +3403,7 @@ class MarstekVenusPanel extends HTMLElement {
     const solarOpportunity = !snapshot.isSkipped[index]
       && ((mask || 0) & 1) === 0
       && (projectedSolarChargePending || solarSurplus);
-    const delayState = snapshot.delayInfo && String(snapshot.delayInfo.state || snapshot.delayInfo.status || "").toLowerCase();
+    const delayState = String(snapshot.delayInfo?.state || snapshot.delayInfo?.status || "").toLowerCase();
     // Missing means an older payload, which remains compatible. An explicit
     // false is authoritative and suppresses stale stored boundaries/statuses.
     const delayEnabled = !snapshot.delayInfo || snapshot.delayInfo.enabled == null
@@ -3347,6 +3452,7 @@ class MarstekVenusPanel extends HTMLElement {
       consumptionForecast: this._dailyOperationValueAt(snapshot.forecastConsumption, index),
       socActual: this._dailyOperationValueAt(snapshot.actualSoc, index),
       socForecast: this._dailyOperationValueAt(snapshot.forecastSoc, index),
+      price: this._dailyOperationValueAt(snapshot.price, index),
       coverage: this._dailyOperationValueAt(snapshot.coverage, index),
       chargePower: this._dailyOperationValueAt(snapshot.chargePower, index),
       dischargePower: this._dailyOperationValueAt(snapshot.dischargePower, index),
@@ -3377,6 +3483,23 @@ class MarstekVenusPanel extends HTMLElement {
     return value == null ? "—" : `${this._nf(value, 3)} kWh`;
   }
 
+  _dailyOperationPriceUnit() {
+    const code = this._hass && this._hass.config && this._hass.config.currency;
+    let symbol = code || "";
+    if (code) {
+      try {
+        const part = new Intl.NumberFormat(this._lang(), { style: "currency", currency: code })
+          .formatToParts(0).find((item) => item.type === "currency");
+        if (part) symbol = part.value;
+      } catch (_err) { /* unknown currency code: keep it as text */ }
+    }
+    return `${symbol}/kWh`;
+  }
+
+  _dailyOperationFormatPrice(value) {
+    return value == null ? "—" : `${this._nf(value, 3)} ${this._dailyOperationPriceUnit()}`;
+  }
+
   _dailyOperationFormatPower(value) {
     return value == null ? "—" : `${this._nf(value, 0)} W`;
   }
@@ -3399,19 +3522,17 @@ class MarstekVenusPanel extends HTMLElement {
     if (item.consumptionForecast != null) parts.push(`${this._t("dailyOperationConsumption")} (${this._t("dailyOperationForecast")}): ${this._dailyOperationFormatKwh(item.consumptionForecast)}`);
     if (item.socActual != null) parts.push(`${this._t("dailyOperationSoc")} (${this._t("dailyOperationReal")}): ${this._nf(item.socActual, 1)} %`);
     if (item.socForecast != null) parts.push(`${this._t("dailyOperationSoc")} (${this._t("dailyOperationForecast")}): ${this._nf(item.socForecast, 1)} %`);
+    if (item.price != null) parts.push(`${this._t("dailyOperationPrice")}: ${this._dailyOperationFormatPrice(item.price)}`);
     if (item.coverage != null) parts.push(`${this._t("dailyOperationCoverage")}: ${Math.round(item.coverage)} s`);
     if (item.actions.length) {
-      const actionKind = item.status === "forecast"
-        ? this._t("dailyOperationPlan")
-        : item.observationTrusted ? this._t("dailyOperationObserved") : this._t("dailyOperationSource");
+      const actionKind = this._dailyOperationActionKind(item);
       parts.push(`${actionKind}: ${item.actions.map((key) => this._dailyOperationActionLabel(key === "solar" ? 1 : key === "grid" ? 2 : 4)).join(", ")}`);
     }
     else if (item.solarWindow) parts.push(this._t("dailyOperationSolarWindow"));
     else if (item.decision === "not_needed") parts.push(this._t("dailyOperationNotNeeded"));
     else parts.push(this._t("dailyOperationNoAction"));
-    if (!item.observationTrusted && item.operationSource) {
-      parts.push(`${this._t("dailyOperationSource")}: ${this._dailyOperationSourceLabel(item.operationSource)}`);
-    }
+    const untrustedSource = this._dailyOperationUntrustedSourceLabel(item);
+    if (untrustedSource) parts.push(`${this._t("dailyOperationSource")}: ${untrustedSource}`);
     if (item.hourlyBalance) {
       parts.push(`${this._t("dailyOperationCause")}: ${this._t("dailyOperationHourlyBalance")}`);
     }
@@ -3463,17 +3584,14 @@ class MarstekVenusPanel extends HTMLElement {
     if (solar != null) rows.push(row(this._t("dailyOperationSolar"), this._dailyOperationFormatKwh(solar)));
     if (consumption != null) rows.push(row(this._t("dailyOperationConsumption"), this._dailyOperationFormatKwh(consumption)));
     if (soc != null) rows.push(row(this._t("dailyOperationSoc"), `${this._nf(soc, 1)} %`));
+    if (item.price != null) rows.push(row(this._t("dailyOperationPrice"), this._dailyOperationFormatPrice(item.price)));
     const actionLabels = item.actions.length
       ? item.actions.map((key) => this._dailyOperationActionLabel(key === "solar" ? 1 : key === "grid" ? 2 : 4)).join(", ")
       : item.solarWindow ? this._t("dailyOperationSolarWindow")
         : item.decision === "not_needed" ? this._t("dailyOperationNotNeeded") : this._t("dailyOperationNoAction");
-    const actionKind = useForecast
-      ? this._t("dailyOperationPlan")
-      : item.observationTrusted ? this._t("dailyOperationObserved") : this._t("dailyOperationSource");
-    rows.push(row(actionKind, actionLabels));
-    if (!item.observationTrusted && item.operationSource) {
-      rows.push(row(this._t("dailyOperationSource"), this._dailyOperationSourceLabel(item.operationSource)));
-    }
+    rows.push(row(this._dailyOperationActionKind(item), actionLabels));
+    const untrustedSource = this._dailyOperationUntrustedSourceLabel(item);
+    if (untrustedSource) rows.push(row(this._t("dailyOperationSource"), untrustedSource));
     if (item.hourlyBalance) {
       rows.push(row(this._t("dailyOperationCause"), this._t("dailyOperationHourlyBalance")));
     }
@@ -3550,19 +3668,54 @@ class MarstekVenusPanel extends HTMLElement {
     const center = () => {
       if (ref.scrollState.initialized || ref.scrollState.manual) return;
       if (!ref.viewport.clientWidth) return;
-      const hourWidth = ref.stage.scrollWidth / DAILY_OPERATION_TOTAL_HOURS;
-      const target = snapshot.currentIndex / 4 * hourWidth - (ref.viewport.clientWidth - hourWidth) / 2;
-      // Keep the optional post-midnight extension outside the initial view.
-      // The existing navigation buttons are the deliberate way to reveal it.
-      const baseEnd = ref.stage.scrollWidth * DAILY_OPERATION_BASE_INTERVALS / DAILY_OPERATION_TOTAL_INTERVALS;
-      const baseMax = Math.max(0, baseEnd - ref.viewport.clientWidth);
+      // Put "now" in the middle of the first view. The part after midnight
+      // may fill the right half in the evening; in the first hours of the
+      // day the view starts at 00:00, as there is nothing before it.
+      const intervalWidth = ref.stage.scrollWidth / this._dailyOperationTotalIntervals();
+      const now = (snapshot.currentIndex + snapshot.currentProgress) * intervalWidth;
+      const max = Math.max(0, ref.viewport.scrollWidth - ref.viewport.clientWidth);
       ref.scrollState.programmaticUntil = Date.now() + 250;
-      ref.viewport.scrollLeft = Math.max(0, Math.min(baseMax, target));
+      ref.viewport.scrollLeft = Math.max(0, Math.min(max, now - ref.viewport.clientWidth / 2));
       ref.scrollState.initialized = true;
       this._updateDailyOperationNav();
     };
     if (ref.viewport.clientWidth) center();
     else if (typeof requestAnimationFrame === "function") requestAnimationFrame(center);
+  }
+
+  /** Quarters on the chart now: today plus as far after midnight as the
+   *  plan reaches (see _applyDailyOperationSpan). */
+  _dailyOperationTotalIntervals() {
+    const ref = this._r.dailyOperation;
+    return (ref && ref.totalIntervals)
+      || DAILY_OPERATION_BASE_INTERVALS + DAILY_OPERATION_DEFAULT_EXTENSION_INTERVALS;
+  }
+
+  /** Size the chart to the snapshot's span; hours past it are hidden. */
+  _applyDailyOperationSpan(snapshot) {
+    const ref = this._r.dailyOperation;
+    const total = snapshot.totalIntervals;
+    if (!ref || !total || ref.totalIntervals === total) return;
+    ref.totalIntervals = total;
+    const hours = total / 4;
+    if (ref.stage && ref.stage.style && typeof ref.stage.style.setProperty === "function") {
+      ref.stage.style.setProperty("--daily-op-hours", String(hours));
+    }
+    if (ref.svg) {
+      ref.svg.setAttribute("viewBox", `0 0 ${total * 10} 190`);
+      // The SVG draws with overflow visible: lines past the span would widen
+      // the scroll area.
+      const gridLines = ref.svg.querySelector(".daily-op-grid-lines");
+      if (gridLines) {
+        gridLines.innerHTML =
+          Array.from({ length: 6 }, (_, i) => `<line x1="0" y1="${32 + i * 26.4}" x2="${total * 10}" y2="${32 + i * 26.4}"/>`).join("") +
+          Array.from({ length: hours + 1 }, (_, i) => `<line class="daily-op-hour-line" x1="${i * 40}" y1="24" x2="${i * 40}" y2="170"/>`).join("");
+      }
+    }
+    for (const container of [ref.labels, ref.hours]) {
+      if (!container || !container.children) continue;
+      Array.from(container.children).forEach((child, hour) => { child.hidden = hour >= hours; });
+    }
   }
 
   _updateDailyOperationNav() {
@@ -3660,10 +3813,11 @@ class MarstekVenusPanel extends HTMLElement {
     if (!ref || !ref.stage.scrollWidth || !ref.viewport.clientWidth) {
       return [0, DAILY_OPERATION_BASE_INTERVALS - 1];
     }
-    const scale = DAILY_OPERATION_TOTAL_INTERVALS / ref.stage.scrollWidth;
+    const total = this._dailyOperationTotalIntervals();
+    const scale = total / ref.stage.scrollWidth;
     const start = Math.max(0, Math.floor(ref.viewport.scrollLeft * scale) - 1);
     const end = Math.min(
-      DAILY_OPERATION_TOTAL_INTERVALS - 1,
+      total - 1,
       Math.ceil((ref.viewport.scrollLeft + ref.viewport.clientWidth) * scale) + 1,
     );
     return [start, end];
@@ -3704,6 +3858,32 @@ class MarstekVenusPanel extends HTMLElement {
     });
     flush();
     return parts.join(" ");
+  }
+
+  /** A stepped line: each price holds for its whole interval. It spans the
+   *  visible price range (there is no price axis; the legend names the range
+   *  and the tooltip the value). */
+  _dailyOperationPricePath(values, snapshot, low, high) {
+    if (!Array.isArray(values)) return "";
+    const top = 40, bottom = 156;
+    const span = high - low;
+    const y = (value) => span > 0
+      ? bottom - ((value - low) / span) * (bottom - top)
+      : (top + bottom) / 2;
+    const parts = [];
+    let segment = "";
+    values.forEach((value, index) => {
+      const number = this._dailyOperationNumber(value);
+      if (snapshot.isSkipped[index] || number == null) {
+        if (segment) parts.push(segment);
+        segment = "";
+        return;
+      }
+      const level = y(number).toFixed(2);
+      segment += `${segment ? "L" : "M"}${index * 10},${level} L${(index + 1) * 10},${level} `;
+    });
+    if (segment) parts.push(segment);
+    return parts.join(" ").trim();
   }
 
   _dailyOperationUpdatePaths(snapshot) {
@@ -3750,8 +3930,38 @@ class MarstekVenusPanel extends HTMLElement {
       path.setAttribute("d", d);
       path.style.display = d ? "" : "none";
     }
+    const visiblePrices = (Array.isArray(snapshot.price) ? snapshot.price : [])
+      .slice(visibleStart, visibleEnd + 1)
+      .map((value) => this._dailyOperationNumber(value))
+      .filter((value) => value != null);
+    const priceLow = visiblePrices.length ? Math.min(...visiblePrices) : null;
+    const priceHigh = visiblePrices.length ? Math.max(...visiblePrices) : null;
+    const priceD = priceLow == null
+      ? "" : this._dailyOperationPricePath(snapshot.price, snapshot, priceLow, priceHigh);
+    if (ref.paths.price) {
+      ref.paths.price.setAttribute("d", priceD);
+      ref.paths.price.style.display = priceD ? "" : "none";
+    }
+    if (ref.priceLegend) {
+      ref.priceLegend.hidden = !priceD;
+      if (priceD) {
+        ref.priceLegendText.textContent = `${this._t("dailyOperationPrice")} ` +
+          `${this._nf(priceLow, 3)}–${this._nf(priceHigh, 3)} ${this._dailyOperationPriceUnit()}`;
+      }
+    }
+    if (ref.priceScale) {
+      ref.priceScale.hidden = !priceD;
+      if (priceD) {
+        // Same y as _dailyOperationPricePath: high at 40, low at 156, flat at the middle.
+        const flat = priceHigh === priceLow;
+        ref.priceHigh.textContent = this._nf(priceHigh, 3);
+        ref.priceHigh.style.top = flat ? "98px" : "40px";
+        ref.priceLow.textContent = this._nf(priceLow, 3);
+        ref.priceLow.hidden = flat;
+      }
+    }
     const now = (snapshot.currentIndex + snapshot.currentProgress) * 10;
-    ref.nowMarker.style.left = `${now / (DAILY_OPERATION_TOTAL_INTERVALS * 0.1)}%`;
+    ref.nowMarker.style.left = `${now / (this._dailyOperationTotalIntervals() * 0.1)}%`;
     ref.nowText.textContent = this._t("dailyOperationNow");
   }
 
@@ -3843,7 +4053,8 @@ class MarstekVenusPanel extends HTMLElement {
     ref.notice.textContent = notices.join(" · ");
     ref.notice.hidden = !notices.length;
     ref.viewport.setAttribute("aria-label", `${this._t("dailyOperationTitle")}. ${badgeText}`);
-    for (let index = 0; index < DAILY_OPERATION_TOTAL_INTERVALS; index++) this._dailyOperationUpdateCell(snapshot, index);
+    this._applyDailyOperationSpan(snapshot);
+    for (let index = 0; index < this._dailyOperationTotalIntervals(); index++) this._dailyOperationUpdateCell(snapshot, index);
     this._dailyOperationUpdatePaths(snapshot);
     this._centerDailyOperationNow(snapshot);
     this._updateDailyOperationNav();
@@ -4186,8 +4397,9 @@ class MarstekVenusPanel extends HTMLElement {
     this._linkMoreInfo(rows[3], this._sysEntityId(K.sysDailyHome));
     this._linkMoreInfo(rows[4], this._sysEntityId(K.sysDailyGridImport));
     this._linkMoreInfo(rows[5], this._sysEntityId(K.sysDailyGridExport));
-    this._linkMoreInfo(rows[6], this._sysEntityId(K.predictiveActive));
-    this._linkMoreInfo(rows[7], this._sysEntityId(K.predictiveActive));
+    this._r.dForecastRow = rows[6];
+    this._r.dRemainingRow = rows[7];
+    this._linkForecastRows();
     this._linkMoreInfo(rows[8], this._sysEntityId(K.consumptionProfile));
     this._r.dChV = body.querySelector(".daily-ch-v");
     this._r.dChBar = body.querySelector(".daily-ch-bar");
@@ -4851,6 +5063,9 @@ class MarstekVenusPanel extends HTMLElement {
         : so.state;
     switch (key) {
       case K.netBalance: {
+        // Switched off, the sensor holds 0.0; show the feature as disabled
+        // like the other status rows instead of a green "+0.00 kWh".
+        if (m.hourlyBalanceOff) return { text: this._t("disabled"), tone: "neutral" };
         const n = this._num(so);
         if (n == null) return { text: "—", tone: "neutral" };
         return { text: `${n >= 0 ? "+" : ""}${this._nf(n, 2)} kWh`, tone: n >= 0 ? "good" : "warn" };
@@ -5671,6 +5886,7 @@ class MarstekVenusPanel extends HTMLElement {
         stored: this._num(byTk[K.storedEnergy]),
         capacity: this._num(byTk[K.batteryTotalEnergy]),
         inverter,
+        controlStatus: byTk[K.controlStatus] || null,
         temp: this._num(byTk[K.internalTemp]),
         soh: this._num(byTk[K.batterySoh]),
         voltage: this._num(byTk[K.batteryVoltage]),
@@ -5776,7 +5992,8 @@ class MarstekVenusPanel extends HTMLElement {
     head.innerHTML =
       `<div class="bat-title"><span class="ic"><ha-icon icon="mdi:battery-high"></ha-icon></span>` +
       `<span class="bat-name"></span></div>` +
-      `<div class="bat-chips"><span class="chip bat-state">—</span></div>`;
+      `<div class="bat-chips"><span class="chip bat-control" style="display:none"></span>` +
+      `<span class="chip bat-state">—</span></div>`;
     card.appendChild(head);
 
     // ----- top: SOC ring + power readout -----
@@ -5894,6 +6111,7 @@ class MarstekVenusPanel extends HTMLElement {
       card,
       name: head.querySelector(".bat-name"),
       state: head.querySelector(".bat-state"),
+      control: head.querySelector(".bat-control"),
       ringFg: ring.fg,
       ringCirc: ring.circ,
       ringVal: ring.val,
@@ -5954,7 +6172,12 @@ class MarstekVenusPanel extends HTMLElement {
     // inverter-state chip (localized; tone by state)
     const inv = b.inverter;
     const invState = this._sval(inv);
-    if (invState) {
+    const ctlState = this._sval(b.controlStatus);
+    if (ctlState === "soc_calibration") {
+      // Zendure SOC calibration (#799): ignores setpoints, charges on its own.
+      this._setChip(r.state, this._t("invCalibrating"), "warn");
+      r.state.style.display = "";
+    } else if (invState) {
       const raw = invState.toLowerCase();
       let tone = "neutral", disp;
       // inverter_state exposes the English label (sensor.py states map); localize
@@ -5981,6 +6204,20 @@ class MarstekVenusPanel extends HTMLElement {
       r.state.style.display = "";
     } else {
       r.state.style.display = "none";
+    }
+
+    // control-status chip: only while Omnibattery is not steering the battery.
+    // The inverter chip above still shows what the battery itself is doing
+    // (in its own self-consumption mode it may well be discharging).
+    if (ctlState && ctlState !== "active" && ctlState !== "starting" && ctlState !== "soc_calibration") {
+      const disp =
+        typeof this._hass.formatEntityState === "function"
+          ? this._hass.formatEntityState(b.controlStatus)
+          : ctlState;
+      this._setChip(r.control, disp, ctlState === "not_configured" ? "neutral" : "warn");
+      r.control.style.display = "";
+    } else if (r.control) {
+      r.control.style.display = "none";
     }
 
     // SOC ring
@@ -6269,6 +6506,7 @@ class MarstekVenusPanel extends HTMLElement {
           value,
         });
       });
+      this._wireValueEdit(valEl, range, id, (v) => `${Math.round(v)}${unit ? " " + unit : ""}`);
       wrap.appendChild(range);
       wrap.appendChild(valEl);
       frag.appendChild(wrap);
@@ -6578,6 +6816,10 @@ class MarstekVenusPanel extends HTMLElement {
       // It's gated like a normal row, and marked `adv` when every live row of the
       // group it opens is advanced, so it can't linger alone with Advanced off.
       let lastGrp = null;
+      // `dep: "<switch key>"` hides a row while that switch in the same card is
+      // OFF (e.g. a threshold behind its manual switch). It toggles the `sub-off`
+      // class rather than inline display, so it composes with the section gate.
+      const depNodes = {};
       for (const r of rows) {
         const g = r.item.grp;
         if (g && lastGrp && g !== lastGrp) {
@@ -6591,6 +6833,7 @@ class MarstekVenusPanel extends HTMLElement {
         const frag = this._buildSysControl(r.item, r.id, store, r.multi);
         const nodes = [...frag.childNodes];
         if (r.item.adv) for (const n of nodes) n.classList?.add("adv-row");
+        if (r.item.dep) (depNodes[r.item.dep] ||= []).push(...nodes);
         grid.appendChild(frag);
         if (r.item.gate) gateKey = this._sysStoreKey(r.item, r.id);
         else gatedNodes.push(...nodes);
@@ -6601,6 +6844,13 @@ class MarstekVenusPanel extends HTMLElement {
         const on = (this._hass.states[w.realId || gateKey] || {}).state === "on";
         const shown = w.invert ? !on : on;
         for (const n of gatedNodes) n.style.display = shown ? "" : "none";
+      }
+      for (const r of rows) {
+        const w = depNodes[r.item.key] && store[this._sysStoreKey(r.item, r.id)];
+        if (!w) continue;
+        w.depNodes = depNodes[r.item.key];
+        const on = (this._hass.states[r.id] || {}).state === "on";
+        for (const n of w.depNodes) n.classList?.toggle("sub-off", !on);
       }
       if (sec.tk === "secHourly") {
         const warn = this._hourlyWarnEl();
@@ -6882,6 +7132,45 @@ class MarstekVenusPanel extends HTMLElement {
     return v;
   }
 
+  /** Tap a slider's value to type an exact number (#783): wide ranges move
+   *  10-20 units per pixel, so a precise target is hard to hit by dragging.
+   *  Enter/blur commits (clamped to the entity's range), Escape cancels. */
+  _wireValueEdit(valEl, range, id, fmt) {
+    valEl.classList.add("ctl-val-edit");
+    valEl.addEventListener("click", () => {
+      if (valEl.hidden) return;
+      const input = document.createElement("input");
+      input.type = "number";
+      input.step = "any";
+      input.className = "ctl-val-input";
+      input.value = (this._hass.states[id] || {}).state;
+      let done = false;
+      const finish = (commit) => {
+        if (done) return;
+        done = true;
+        const raw = input.value;
+        input.remove();
+        valEl.hidden = false;
+        const v = Number(raw);
+        if (!commit || raw === "" || !Number.isFinite(v)) return;
+        const value = this._clampToEntity(id, v);
+        range.value = value;
+        valEl.textContent = fmt(value);
+        this._markRangePending(range, value);
+        this._hass.callService("number", "set_value", { entity_id: id, value });
+      };
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") finish(true);
+        else if (e.key === "Escape") finish(false);
+      });
+      input.addEventListener("blur", () => finish(true));
+      valEl.hidden = true;
+      valEl.after(input);
+      input.focus();
+      input.select();
+    });
+  }
+
   /** Track range interaction explicitly: iOS Safari does not reliably focus a
    *  range input on touch, so activeElement alone cannot protect a drag from
    *  the frequent HA state patches. */
@@ -7049,6 +7338,7 @@ class MarstekVenusPanel extends HTMLElement {
         this._markRangePending(range, value);
         hass.callService("number", "set_value", { entity_id: id, value });
       });
+      this._wireValueEdit(valEl, range, id, (v) => this._fmtCtlNum(v, step, unit));
       wrap.appendChild(range);
       wrap.appendChild(valEl);
       frag.appendChild(wrap);
@@ -7071,6 +7361,7 @@ class MarstekVenusPanel extends HTMLElement {
       w.el.classList.toggle("on", shown);
       // gated feature switch: show/hide its sibling param rows when toggled
       if (w.gatedNodes) for (const n of w.gatedNodes) n.style.display = shown ? "" : "none";
+      if (w.depNodes) for (const n of w.depNodes) n.classList?.toggle("sub-off", !shown);
     } else if (w.type === "select") {
       const opts = Array.isArray(state.attributes.options) ? state.attributes.options : [];
       const sig = opts.join("|");
@@ -7198,13 +7489,35 @@ class MarstekVenusPanel extends HTMLElement {
   // Mark an element as a more-info trigger (cursor + tooltip + click). No-op when
   // the entity is absent, so missing sensors stay non-clickable.
   _linkMoreInfo(el, entityId) {
-    if (!el || !entityId) return;
+    if (!el) return;
+    if (!entityId) {
+      // The sensor disappeared: drop the stale listener so the row stops opening it.
+      if (el._moreInfoHandler) {
+        el.removeEventListener("click", el._moreInfoHandler);
+        el._moreInfoHandler = null;
+      }
+      el._moreInfoEntity = null;
+      el.classList.remove("clickable");
+      el.title = "";
+      return;
+    }
     el.classList.add("clickable");
     el.title = this._t("moreInfo");
-    el.addEventListener("click", (e) => {
+    // Re-linking only swaps the target; the listener is attached once.
+    el._moreInfoEntity = entityId;
+    if (el._moreInfoHandler) return;
+    el._moreInfoHandler = (e) => {
       e.stopPropagation();
-      this._moreInfo(entityId);
-    });
+      this._moreInfo(el._moreInfoEntity);
+    };
+    el.addEventListener("click", el._moreInfoHandler);
+  }
+
+  _linkForecastRows() {
+    const cfg = this._panelConfig || {};
+    // Each row opens only its own sensor; a missing one stays unlinked.
+    this._linkMoreInfo(this._r.dForecastRow, cfg.solar_forecast_entity);
+    this._linkMoreInfo(this._r.dRemainingRow, cfg.solar_forecast_remaining_entity);
   }
 
   // --- styles ----------------------------------------------------------------
@@ -7233,6 +7546,7 @@ class MarstekVenusPanel extends HTMLElement {
         --daily-op-discharge: var(--flow-blue);
         --daily-op-not-needed: var(--ink-dim);
         --daily-op-soc: oklch(0.74 0.18 330);
+        --daily-op-price: var(--ink-mid);
         --daily-op-delay: oklch(0.78 0.15 58);
         --font-ui: "Manrope", system-ui, sans-serif;
         --font-display: "Space Grotesk", system-ui, sans-serif;
@@ -7261,11 +7575,16 @@ class MarstekVenusPanel extends HTMLElement {
 
       .app {
         display: flex; flex-direction: column; height: 100%;
-        background: radial-gradient(120% 80% at 80% -10%, oklch(0.78 0.15 var(--accent-h) / 0.06), transparent 60%), var(--bg-0);
+        /* cap at the viewport: when HA's panel wrapper gives no height, 100% is
+           ignored and the whole app grew, so the page scrolled outside .main. */
+        max-height: 100vh; max-height: 100dvh;
+        --app-glow: radial-gradient(120% 80% at 80% -10%, oklch(0.78 0.15 var(--accent-h) / 0.06), transparent 60%);
+        --appbar-h: 66px;
+        background: var(--app-glow), var(--bg-0);
         color: var(--ink);
       }
       .appbar {
-        display: flex; align-items: center; gap: 26px; height: 66px; padding: 0 30px; flex-shrink: 0;
+        display: flex; align-items: center; gap: 26px; height: var(--appbar-h); padding: 0 30px; flex-shrink: 0;
         border-bottom: 1px solid var(--line);
         background: color-mix(in oklab, var(--bg-1) 80%, transparent);
         backdrop-filter: blur(10px);
@@ -7293,7 +7612,10 @@ class MarstekVenusPanel extends HTMLElement {
       .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 
-      .main { flex: 1; overflow-y: auto; padding: 26px 30px 44px; }
+      /* min-height:0 lets .main shrink to the viewport and be the real scroller
+         (else it grows to its content and the page scrolls outside it, so the
+         sticky Control bar has nothing to stick to). */
+      .main { --main-pt: 26px; --main-px: 30px; flex: 1; min-height: 0; overflow-y: auto; padding: var(--main-pt) var(--main-px) 44px; }
       .main::-webkit-scrollbar { width: 10px; }
       .main::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
 
@@ -7368,7 +7690,8 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-operation-card[hidden], .daily-operation-card [hidden] { display: none !important; }
       .daily-op-description { font-size: 12px; line-height: 1.45; margin: -7px 0 12px; }
       .daily-op-toolbar { display: flex; align-items: center; gap: 12px; min-width: 0; margin-bottom: 9px; }
-      .daily-op-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+      .daily-op-legend { display: flex; align-items: center; gap: 12px; row-gap: 6px; flex-wrap: wrap; min-width: 0; }
+      .daily-op-legend-break { flex-basis: 100%; height: 0; }
       .daily-op-legend-item { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-mid); font-size: 11px; white-space: nowrap; }
       .daily-op-swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--line-strong); border-radius: 3px; }
       .daily-op-swatch-solar-window { background: color-mix(in oklab, var(--daily-op-solar-window) var(--daily-op-shade-opacity), transparent); }
@@ -7381,6 +7704,7 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-op-line-solar { border-color: var(--daily-op-solar-line); }
       .daily-op-line-consumption { border-color: var(--home); border-top-style: dashed; }
       .daily-op-line-soc { border-color: var(--daily-op-soc); }
+      .daily-op-line-price { border-color: var(--daily-op-price); border-top-width: 1.5px; }
       .daily-op-nav { display: inline-flex; gap: 5px; margin-left: auto; flex-shrink: 0; }
       .daily-op-nav-btn { display: grid; place-items: center; width: 29px; height: 29px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); color: var(--ink-mid); cursor: pointer; --mdc-icon-size: 18px; }
       .daily-op-nav-btn:hover:not(:disabled) { color: var(--ink); background: var(--bg-hover); }
@@ -7389,7 +7713,10 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-op-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
       .daily-op-badge-stale { color: oklch(0.82 0.14 75); border-color: oklch(0.82 0.14 75 / .4); background: oklch(0.82 0.14 75 / .1); }
       .daily-op-notice { margin: 0 0 9px; padding: 7px 10px; border: 1px solid oklch(0.82 0.14 75 / .35); border-radius: 9px; color: oklch(0.82 0.14 75); background: oklch(0.82 0.14 75 / .08); font-size: 11px; line-height: 1.4; }
-      .daily-op-layout { display: grid; grid-template-columns: 62px minmax(0, 1fr) 42px; gap: 0; min-width: 0; }
+      .daily-op-layout { position: relative; display: grid; grid-template-columns: 62px minmax(0, 1fr) 42px; gap: 0; min-width: 0; }
+      .daily-op-price-scale { position: absolute; top: 0; right: 42px; height: 190px; z-index: 2; pointer-events: none; color: var(--daily-op-price); font-size: 9px; line-height: 1; }
+      .daily-op-price-scale span { position: absolute; right: 2px; transform: translateY(-50%); padding: 1px 3px; border-radius: 4px; background: var(--bg-1); white-space: nowrap; }
+      .daily-op-price-low { top: 156px; }
       .daily-op-yaxis { position: relative; height: 190px; color: var(--ink-dim); font-size: 10px; line-height: 1; white-space: nowrap; }
       .daily-op-yaxis small { position: absolute; top: 7px; right: 8px; font-size: 9px; writing-mode: horizontal-tb; transform: none; }
       .daily-op-yaxis-ticks { position: absolute; top: 32px; right: 8px; bottom: 26px; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; }
@@ -7398,7 +7725,7 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-op-soc-axis-ticks { position: absolute; top: 32px; left: 8px; bottom: 26px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; }
       .daily-op-viewport { position: relative; min-width: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; scrollbar-width: thin; overscroll-behavior-x: contain; outline: none; }
       .daily-op-viewport:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-line); border-radius: 8px; }
-      .daily-op-stage { position: relative; width: 150%; min-width: 1440px; height: 190px; }
+      .daily-op-stage { position: relative; width: calc(150% * var(--daily-op-hours, 36) / 36); min-width: calc(40px * var(--daily-op-hours, 36)); height: 190px; }
       .daily-op-svg { position: absolute; inset: 0; z-index: 1; display: block; width: 100%; height: 190px; overflow: visible; pointer-events: none; }
       .daily-op-grid-lines line { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
       .daily-op-grid-lines .daily-op-hour-line { stroke: var(--line-strong); }
@@ -7409,12 +7736,14 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-op-path-consumption-forecast { stroke: var(--home); stroke-dasharray: 5 4; opacity: .78; }
       .daily-op-path-soc-actual { stroke: var(--daily-op-soc); }
       .daily-op-path-soc-forecast { stroke: var(--daily-op-soc); stroke-dasharray: 5 4; opacity: .82; }
+      .daily-op-path-price { stroke: var(--daily-op-price); stroke-width: 1.5; stroke-linecap: butt; stroke-linejoin: miter; opacity: .85; }
       .daily-op-grid { position: absolute; inset: 0; z-index: 2; display: grid; grid-template-rows: 24px 146px 20px; pointer-events: none; }
       .daily-op-now-marker { position: absolute; z-index: 5; top: 3px; bottom: 20px; width: 0; pointer-events: none; }
       .daily-op-now-marker::before { content: ""; position: absolute; top: 21px; bottom: 0; left: 0; border-left: 1.5px solid var(--accent); }
       .daily-op-now-marker::after { content: ""; position: absolute; top: 18px; left: -3px; width: 7px; height: 7px; border: 1px solid var(--bg-1); border-radius: 50%; background: var(--accent); }
       .daily-op-now-text { position: absolute; top: 0; left: 0; transform: translateX(-50%); padding: 2px 7px; border: 1px solid var(--accent-line); border-radius: 999px; background: var(--bg-2); color: var(--accent); box-shadow: 0 2px 8px oklch(0 0 0 / .22); font-size: 9px; line-height: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
-      .daily-op-hour-labels, .daily-op-hours { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); min-width: 0; }
+      .daily-op-hour-labels, .daily-op-hours { display: grid; grid-template-columns: repeat(var(--daily-op-hours, 36), minmax(0, 1fr)); min-width: 0; }
+      .daily-op-hour[hidden], .daily-op-hour-label[hidden] { display: none; }
       .daily-op-hour-label { padding-left: 4px; color: var(--ink-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
       .daily-op-hour { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-width: 0; scroll-snap-align: start; border-right: 1px solid var(--line-strong); }
       .daily-op-cell { position: relative; display: block; min-width: 0; height: 146px; padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; background-color: transparent; background-repeat: repeat; background-size: 8px 8px; cursor: pointer; pointer-events: auto; transition: filter .12s, opacity .12s; }
@@ -7446,6 +7775,7 @@ class MarstekVenusPanel extends HTMLElement {
         .daily-op-toolbar { align-items: flex-start; }
         .daily-op-legend { gap: 8px; }
         .daily-op-layout { grid-template-columns: 54px minmax(0, 1fr) 38px; }
+        .daily-op-price-scale { right: 38px; }
         .daily-op-yaxis { padding-right: 6px; }
       }
 
@@ -7567,12 +7897,12 @@ class MarstekVenusPanel extends HTMLElement {
       /* ===== Baterías tab ===== */
       .bat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: var(--gap); align-items: start; }
       .bat-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-      .bat-head { display: flex; align-items: center; gap: 10px; }
+      .bat-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
       .bat-title { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 auto; --mdc-icon-size: 18px; }
       .bat-title .ic { color: var(--ink-dim); display: grid; place-items: center; flex-shrink: 0; }
       .bat-name { font-family: var(--font-display); font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .bat-head .chip { flex-shrink: 0; }
-      .bat-chips { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+      .bat-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-shrink: 0; max-width: 100%; }
       .bat-top { display: flex; align-items: center; gap: 18px; }
       .bat-ring { flex: 0 0 auto; }
       .bat-ring .ring-val { font-size: 30px; font-weight: 600; line-height: 1; }
@@ -7649,6 +7979,8 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-num { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
       .ctl-num input[type="range"] { flex: 1 1 auto; accent-color: var(--accent); cursor: pointer; min-width: 0; }
       .ctl-num .ctl-val { font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 56px; text-align: right; }
+      .ctl-num .ctl-val-edit { cursor: text; text-decoration: underline dotted var(--ink-dim); text-underline-offset: 3px; }
+      .ctl-num .ctl-val-input { width: 72px; font-family: var(--font-display); font-size: 13px; color: var(--ink); background: var(--bg-2); border: 1px solid var(--accent-line); border-radius: 6px; padding: 2px 6px; text-align: right; }
       .ctl-btn { grid-column: 1 / -1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 8px 12px; border-radius: 11px; border: 1px solid var(--line-strong); background: var(--bg-2); color: var(--ink-mid); font-family: var(--font-ui); font-weight: 600; font-size: 13px; cursor: pointer; --mdc-icon-size: 16px; transition: background 0.15s, color 0.15s; }
       .ctl-btn:hover { background: var(--bg-hover); color: var(--ink); }
       @media (max-width: 480px) { .bat-grid { grid-template-columns: 1fr; } }
@@ -7659,14 +7991,24 @@ class MarstekVenusPanel extends HTMLElement {
          appear/collapse with width; dense backfills empty trailing cells). Cards
          can be drag-reordered in arrange mode; order persists in localStorage. */
       .ctl-root { display: flex; flex-direction: column; gap: var(--gap); }
-      .ctl-bar { display: flex; align-items: center; gap: 10px; }
+      /* sticky so the padlock stays reachable while scrolling: lock → scroll → unlock → adjust. */
+      .ctl-bar { display: flex; align-items: center; gap: 10px;
+        position: sticky; z-index: 5;
+        /* sticky stops at .main's padding edge, leaving a see-through strip under the
+           tabs; pull the bar over .main's top/side padding so it spans edge to edge. */
+        top: calc(-1 * var(--main-pt));
+        margin: calc(-1 * var(--main-pt)) calc(-1 * var(--main-px)) 0;
+        padding: calc(var(--main-pt) + 8px) var(--main-px) 8px;
+        /* same glow as .app, mapped to app coordinates (the bar's top always sits
+           at the appbar's bottom) so the bar blends into the page background. */
+        background: var(--app-glow) 0 calc(-1 * var(--appbar-h)) / 100% 100dvh no-repeat, var(--bg-0); }
       .ctl-hint { margin-right: auto; color: var(--ink-dim); font-size: 12px; }
       .ctl-arrange-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
         border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-1);
         color: var(--ink-mid); cursor: pointer; font-size: 13px; --mdc-icon-size: 16px; }
       .ctl-arrange-btn:hover { color: var(--ink); }
       .ctl-arrange-btn.active { color: var(--accent); border-color: var(--accent); }
-      .ctl-root.sliders-locked :is(.ctl-num input[type="range"], .ctl-btn, .ctl-toggle, .ctl-select) { pointer-events: none; opacity: 0.5; }
+      .ctl-root.sliders-locked :is(.ctl-num input[type="range"], .ctl-val-edit, .ctl-btn, .ctl-toggle, .ctl-select) { pointer-events: none; opacity: 0.5; }
       /* column/row steppers (arrange mode only): pin a fixed grid shape */
       .ctl-tools { display: inline-flex; align-items: center; gap: 16px; }
       .ctl-cols { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-mid); font-size: 13px; }
@@ -7715,6 +8057,7 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-adv-btn:hover { color: var(--ink); }
       .ctl-adv-btn.active { color: var(--accent); }
       .card.adv-off .adv-row { display: none; }
+      .card .sub-off { display: none; }
       .card-head .ctl-adv-btn + .card-info, .card-head .ctl-adv-btn + .ctl-hide-btn { margin-left: 8px; }
       .ctl-root.arranging .ctl-hide-btn { display: grid; }
       .card-head .card-info + .ctl-hide-btn, .card-head .ctl-hide-btn + .card-info { margin-left: 8px; }
@@ -7754,11 +8097,12 @@ class MarstekVenusPanel extends HTMLElement {
         box-shadow: 0 8px 24px oklch(0 0 0 / 0.4); }
 
       @media (max-width: 720px) {
-        .appbar { padding: 0 14px; gap: 14px; height: 60px; }
+        .app { --appbar-h: 60px; }
+        .appbar { padding: 0 14px; gap: 14px; }
         .brand .btext { display: none; }
         .tab { padding: 0 12px; }
         .tab .tab-label { display: none; }
-        .main { padding: 18px 14px 32px; }
+        .main { --main-pt: 18px; --main-px: 14px; padding: var(--main-pt) var(--main-px) 32px; }
       }
     `;
     return style;

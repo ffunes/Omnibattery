@@ -89,6 +89,26 @@ def _restore_current_event_loop():
         policy.set_event_loop(policy.new_event_loop())
 
 
+@pytest.fixture(autouse=True)
+def _indevolt_no_flash_writes():
+    """No Indevolt fake device may receive a write outside the RAM tuple 47015.
+
+    Applies to every test, so a new Indevolt test is covered without opting in.
+    A test of the user-settings channel opts in per device
+    (``allow_config_writes``), and even then only 1142/1138/1147 may arrive.
+    See tests/test_indevolt_no_flash_writes.py for why this matters.
+    """
+    from tests.indevolt_fake import FLASH_WEAR_MESSAGE, FakeIndevoltDevice
+    from tests.indevolt_fake import unexpected_flash_writes as flash_writes
+
+    FakeIndevoltDevice.instances.clear()
+    yield
+    for device in FakeIndevoltDevice.instances:
+        offending = flash_writes(device)
+        assert not offending, f"{FLASH_WEAR_MESSAGE}\nOffending requests: {offending}"
+    FakeIndevoltDevice.instances.clear()
+
+
 class _FakeMarstekDriver:
     """Minimal driver stub with Marstek net_power_from_data logic for unit tests."""
 
@@ -198,3 +218,33 @@ class FakeCoordinator:
             has_rs485_control=True,
             actuator_latency_s=0.8 if v3_family else 0.3,
         )
+
+
+class _BmsCutoffClock:
+    """Fake ``monotonic`` for tick_bms_cutoff(): every read is one control cycle.
+
+    tick_bms_cutoff() reads the clock once per call, so each tick lands ``step``
+    seconds after the previous one. The default step makes the required number
+    of refusal samples span exactly the confirmation window.
+    """
+
+    def __init__(self, step: float) -> None:
+        self.now = 1000.0
+        self.step = step
+
+    def __call__(self) -> float:
+        self.now += self.step
+        return self.now
+
+
+@pytest.fixture
+def bms_cutoff_clock(monkeypatch) -> _BmsCutoffClock:
+    """Run the BMS-cutoff detector on a fake clock (see ``_BmsCutoffClock``)."""
+    from custom_components.omnibattery.control import weekly_full_charge
+
+    clock = _BmsCutoffClock(
+        weekly_full_charge._BMS_CUTOFF_CONFIRM_S
+        / (weekly_full_charge._BMS_CUTOFF_REQUIRED_CYCLES - 1)
+    )
+    monkeypatch.setattr(weekly_full_charge, "monotonic", clock)
+    return clock

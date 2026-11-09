@@ -55,7 +55,9 @@ _DEVICE_SN_REG_COUNT = 12
 # Family continuous envelope (Max AC). Live caps come from 10036/10038; this is
 # only an upper clamp so peak/aggregate readings cannot inflate PD limits.
 _HW_MAX_POWER_W = 3500
-_MIN_OPERATING_POWER_W = 100
+# A setpoint at least this large counts as "latched" for the 0 W glitch filter.
+# Not a hardware floor: 10071 accepts any value from 0 W (#734).
+_GLITCH_LATCH_MIN_W = 100
 # Consecutive near-zero battery_power polls required before publishing 0 W while
 # a non-trivial setpoint is still latched (filters one-shot Modbus glitches).
 _ZERO_POWER_GLITCH_POLLS = 3
@@ -330,8 +332,6 @@ class AnkerModbusDriver(BatteryDriver):
             push_telemetry=False,
             max_charge_power_w=_HW_MAX_POWER_W,
             max_discharge_power_w=_HW_MAX_POWER_W,
-            min_charge_power_w=_MIN_OPERATING_POWER_W,
-            min_discharge_power_w=_MIN_OPERATING_POWER_W,
             has_mppt_pv=False,
             has_solar_telemetry=True,
             has_alarm_registers=False,
@@ -339,6 +339,7 @@ class AnkerModbusDriver(BatteryDriver):
             has_energy_counters=True,
             has_daily_energy_counters=False,
             setpoint_confirm_reliable=False,
+            delivered_power_reliable=False,
             actuator_latency_s=1.0,
         )
 
@@ -625,9 +626,9 @@ class AnkerModbusDriver(BatteryDriver):
                 last_good = self._last_good_battery_power_w
                 if (
                     last_cmd is not None
-                    and abs(last_cmd) >= _MIN_OPERATING_POWER_W
+                    and abs(last_cmd) >= _GLITCH_LATCH_MIN_W
                     and last_good is not None
-                    and abs(last_good) >= _MIN_OPERATING_POWER_W
+                    and abs(last_good) >= _GLITCH_LATCH_MIN_W
                 ):
                     self._zero_power_streak += 1
                     if self._zero_power_streak < _ZERO_POWER_GLITCH_POLLS:
@@ -690,7 +691,7 @@ class AnkerModbusDriver(BatteryDriver):
         )
 
     def _clamp_net_power(self, net_power_w: int) -> int:
-        """Clamp to envelope and snap the forbidden 1–99 W band to 0 or 100."""
+        """Clamp to the live hardware envelope."""
         max_charge = min(_HW_MAX_POWER_W, self._dynamic_max_charge_w)
         max_discharge = min(_HW_MAX_POWER_W, self._dynamic_max_discharge_w)
         if net_power_w > 0:
@@ -698,10 +699,6 @@ class AnkerModbusDriver(BatteryDriver):
         elif net_power_w < 0:
             net = -min(-net_power_w, max_discharge)
         else:
-            return 0
-        magnitude = abs(net)
-        if 0 < magnitude < _MIN_OPERATING_POWER_W:
-            # Prefer idle over an illegal sub-minimum command.
             return 0
         return net
 

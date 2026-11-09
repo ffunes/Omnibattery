@@ -5,6 +5,20 @@ Start with what you can see in Home Assistant. **Integration Status** and its bl
 !!! note "Marstek app compatibility"
     You do not need to change anything in the Marstek app for Omnibattery to work, including its energy meter setting. Once Omnibattery is running, do not change the operating mode or a setting from the Marstek app: doing so breaks compatibility until you disable and re-enable the integration.
 
+## Forecast history is missing
+
+The check runs for entries with predictive charging configured (even when temporarily switched off), Charge Delay enabled, or a pending accumulator rebuild. Older entries that use none of these do not receive this warning.
+
+Omnibattery raises a **Sensors excluded from Recorder** warning in **Settings → System → Repairs** when Recorder excludes a sensor used to recover learned profiles:
+
+- The integration's **Home Consumption** power sensor (including renamed entities).
+- The configured **Solar Production** power sensor while solar profile learning is enabled.
+- Enabled excluded/additional-device power sensors, except devices configured without telemetry.
+
+Update Recorder's include/exclude rules so the listed entities are recorded, then restart Home Assistant to apply the Recorder configuration. The warning clears when those entities are included again; Omnibattery checks after startup and every five minutes. Recording new data does not restore samples that were never saved. Live learning continues, and existing stored profiles are retained.
+
+The check uses Recorder's effective filter, including domain and wildcard rules. It does not diagnose database failures, paused recording, retention gaps, or insufficient history. A newly included sensor with no history is not treated as excluded. The provider's forecast energy sensor is read live and does not need Recorder history for forecasting.
+
 ## Battery does nothing
 
 The battery may be idle by design when the grid is already near target. If household load changes and the battery still neither charges nor discharges, use this table.
@@ -72,8 +86,10 @@ The battery may be idle by design when the grid is already near target. If house
 
 ## Grid meter is unavailable or frozen
 
-!!! warning "An unavailable meter can leave the last battery command active"
-    When the grid sensor becomes `unavailable` or `unknown`, the control loop sends no new command. A battery can therefore continue at its last requested power — for example 2000 W discharge — until meter data returns. There is no automatic timeout that ramps the battery to idle; only SOC and other safety limits still apply.
+!!! warning "A silent meter stops automatic control after 5 minutes"
+    When the grid sensor becomes `unavailable` or `unknown`, or stops updating, the control loop no longer follows the house load, and a battery can continue at its last requested power, for example 2000W of discharge. After 5 minutes without a valid reading, Omnibattery raises a Home Assistant Repair and sets every battery under automatic control to 0W. Manual mode and manual time slots are left as they are, and predictive grid charging is paused. Automatic control resumes by itself as soon as the sensor publishes a valid reading again.
+
+    The same applies when the sensor never reports after a Home Assistant restart. After a crash or a power cut, a battery can still be running its last command from before the restart; the 5 minutes then count from when Home Assistant has finished starting.
 
 | Likely cause | What to check | Action |
 |---|---|---|

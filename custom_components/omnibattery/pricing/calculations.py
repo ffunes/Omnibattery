@@ -5,6 +5,7 @@ side-effect-free functions: price-sensor attribute parsers (one per supported
 integration) plus the cheap-slot selection / charging-hours math. The controller
 keeps thin delegating wrappers so its internal call sites are unchanged.
 """
+import heapq
 import logging
 import math
 from datetime import datetime, timedelta
@@ -15,7 +16,10 @@ from ..const import (
     DEFAULT_ROUND_TRIP_EFFICIENCY,
     PRICE_INTEGRATION_CKW,
     PRICE_INTEGRATION_ENTSOE,
+    PRICE_INTEGRATION_ENERGYZERO,
+    PRICE_INTEGRATION_BE_ELECTRICITY,
     PRICE_INTEGRATION_EPEX,
+    PRICE_INTEGRATION_FRANK_ENERGIE,
     PRICE_INTEGRATION_NORDPOOL,
     PRICE_INTEGRATION_PVPC,
     PRICE_INTEGRATION_ZONNEPLAN,
@@ -32,6 +36,8 @@ PRICE_LIST_ATTRS = {
     PRICE_INTEGRATION_CKW: ("prices",),
     PRICE_INTEGRATION_EPEX: ("data",),
     PRICE_INTEGRATION_ENTSOE: ("prices_today", "prices_tomorrow"),
+    PRICE_INTEGRATION_FRANK_ENERGIE: ("prices",),
+    PRICE_INTEGRATION_BE_ELECTRICITY: ("today", "tomorrow"),
 }
 
 
@@ -60,6 +66,12 @@ def parse_prices_for_integration(integration_type: str, attrs: dict) -> list:
         return parse_entsoe_prices(attrs)
     if integration_type == PRICE_INTEGRATION_ZONNEPLAN:
         return parse_zonneplan_prices(attrs)
+    if integration_type == PRICE_INTEGRATION_FRANK_ENERGIE:
+        return parse_frank_energie_prices(attrs)
+    if integration_type == PRICE_INTEGRATION_ENERGYZERO:
+        return parse_energyzero_prices(attrs)
+    if integration_type == PRICE_INTEGRATION_BE_ELECTRICITY:
+        return parse_be_electricity_prices(attrs)
     return parse_nordpool_prices(attrs)
 
 
@@ -182,28 +194,32 @@ def parse_nordpool_service_prices(response: dict, area: str | None = None) -> li
 def parse_pvpc_prices(attrs: dict) -> list:
     """Parse PVPC (ESIOS REE, Spain) price attributes.
 
-    Expected format: "price_00h", "price_01h", ..., "price_23h" (float, €/kWh).
-    PVPC publishes next-day prices around 20:00; at 00:05 the attributes
-    reflect the current day's prices (already in effect).
-    Returns list[PriceSlot] for today in local time.
+    Expected format: "price_00h", "price_01h", ..., "price_23h" (float, €/kWh)
+    for today, plus "price_next_day_00h" ... "price_next_day_23h" for tomorrow
+    once PVPC publishes them (around 20:00).
+    Returns list[PriceSlot] in local time.
     """
     from datetime import date as _date, time as _time
 
     slots = []
-    target_date = _date.today()
-    for hour in range(24):
-        attr_name = f"price_{hour:02d}h"
-        price_val = attrs.get(attr_name)
-        if price_val is None:
-            continue
-        try:
-            price = float(price_val)
-        except (ValueError, TypeError):
-            _LOGGER.debug("Dynamic pricing: failed to parse PVPC attribute %s=%s", attr_name, price_val)
-            continue
-        start = datetime.combine(target_date, _time(hour=hour, minute=0))
-        end = start + timedelta(hours=1)
-        slots.append(PriceSlot(start=start, end=end, price=price))
+    today = _date.today()
+    for prefix, target_date in (
+        ("price_", today),
+        ("price_next_day_", today + timedelta(days=1)),
+    ):
+        for hour in range(24):
+            attr_name = f"{prefix}{hour:02d}h"
+            price_val = attrs.get(attr_name)
+            if price_val is None:
+                continue
+            try:
+                price = float(price_val)
+            except (ValueError, TypeError):
+                _LOGGER.debug("Dynamic pricing: failed to parse PVPC attribute %s=%s", attr_name, price_val)
+                continue
+            start = datetime.combine(target_date, _time(hour=hour, minute=0))
+            end = start + timedelta(hours=1)
+            slots.append(PriceSlot(start=start, end=end, price=price))
     return slots
 
 
@@ -284,7 +300,7 @@ def parse_epex_prices(attrs: dict) -> list:
     return slots
 
 
-def parse_zonneplan_prices(attrs: dict) -> list:
+def parse_zonneplan_prices(attrs: dict, *, tax_excluded: bool = False) -> list:
     """Parse zonneplan_one hourly, quarter-hourly and legacy forecasts.
 
     Forecast amounts are tax-inclusive EUR/kWh multiplied by 10,000,000;
@@ -292,6 +308,8 @@ def parse_zonneplan_prices(attrs: dict) -> list:
     Modern entries have explicit start_date/end_date. Legacy electricity_price
     entries are hourly, with only datetime/start_date. Never bridge missing
     intervals by inferring an end from the next available price.
+    With ``tax_excluded`` the ``price_tax_excluded`` amount is used instead and
+    legacy entries (which carry no such amount) are skipped.
     """
     from homeassistant.util import dt as dt_util
 
@@ -310,12 +328,14 @@ def parse_zonneplan_prices(attrs: dict) -> list:
             if not isinstance(start, datetime):
                 continue
             if "price_tax_included" in entry:
-                amount = entry["price_tax_included"]["amount"]
+                amount = entry["price_tax_excluded" if tax_excluded else "price_tax_included"]["amount"]
                 end = entry.get("end_date")
                 if isinstance(end, str):
                     end = datetime.fromisoformat(end)
                 if not isinstance(end, datetime):
                     continue
+            elif tax_excluded:
+                continue
             else:
                 amount = entry["electricity_price"]
                 # Add elapsed time in UTC across daylight-saving changes.
@@ -337,6 +357,99 @@ def parse_zonneplan_prices(attrs: dict) -> list:
             slots[(start, end)] = PriceSlot(start, end, price)
         except (AttributeError, KeyError, TypeError, ValueError, OverflowError) as exc:
             _LOGGER.debug("Dynamic pricing: invalid Zonneplan forecast entry %s: %s", entry, exc)
+    return sorted(slots.values(), key=lambda slot: slot.start)
+
+
+def parse_frank_energie_prices(attrs: dict) -> list:
+    """Parse the Frank Energie ``prices`` attribute.
+
+    Expected format:
+        prices: [{"from": "2026-09-28T10:00:00+00:00",
+                  "till": "2026-09-28T10:15:00+00:00",
+                  "price": 0.245}, ...]
+    Prices are tax-inclusive major currency/kWh and are not rescaled. Slots may
+    be hourly or 15-minute. Returns list[PriceSlot] in local naive time,
+    sorted and deduplicated.
+    """
+    from homeassistant.util import dt as dt_util
+
+    entries = attrs.get("prices")
+    if not isinstance(entries, (list, tuple)):
+        return []
+
+    slots = {}
+    for entry in entries:
+        try:
+            start = entry["from"]
+            end = entry["till"]
+            if isinstance(start, str):
+                start = datetime.fromisoformat(start)
+            if isinstance(end, str):
+                end = datetime.fromisoformat(end)
+            if not isinstance(start, datetime) or not isinstance(end, datetime):
+                continue
+            amount = entry["price"]
+            if isinstance(amount, bool):
+                continue
+            price = float(amount)
+            if not math.isfinite(price):
+                continue
+            if start.tzinfo is not None:
+                start = dt_util.as_local(start).replace(tzinfo=None)
+            if end.tzinfo is not None:
+                end = dt_util.as_local(end).replace(tzinfo=None)
+            if end <= start:
+                continue
+            slots[(start, end)] = PriceSlot(start, end, price)
+        except (AttributeError, KeyError, TypeError, ValueError, OverflowError) as exc:
+            _LOGGER.debug("Dynamic pricing: invalid Frank Energie entry %s: %s", entry, exc)
+    return sorted(slots.values(), key=lambda slot: slot.start)
+
+
+def parse_energyzero_prices(response: dict) -> list:
+    """Parse ``energyzero.get_energy_prices`` response data into local slots.
+
+    Expected response:
+        {"prices": [{"start": "2026-10-28T00:00:00+02:00",
+                     "end": "2026-10-28T01:00:00+02:00",
+                     "price": 0.245, "timestamp": "2026-10-28T00:00:00+02:00"}]}
+
+    The service returns tax-inclusive EUR/kWh prices with explicit interval
+    boundaries. ``timestamp`` is informational; the parser uses ``start`` and
+    ``end``. Its response is shared by the import and export price curves.
+    """
+    from homeassistant.util import dt as dt_util
+
+    entries = response.get("prices") if isinstance(response, dict) else None
+    if not isinstance(entries, (list, tuple)):
+        return []
+
+    slots = {}
+    for entry in entries:
+        try:
+            start = entry.get("start")
+            end = entry.get("end")
+            amount = entry.get("price")
+            if start is None or end is None or amount is None or isinstance(amount, bool):
+                continue
+            if isinstance(start, str):
+                start = datetime.fromisoformat(start)
+            if isinstance(end, str):
+                end = datetime.fromisoformat(end)
+            if not isinstance(start, datetime) or not isinstance(end, datetime):
+                continue
+            price = float(amount)
+            if not math.isfinite(price):
+                continue
+            if start.tzinfo is not None:
+                start = dt_util.as_local(start).replace(tzinfo=None)
+            if end.tzinfo is not None:
+                end = dt_util.as_local(end).replace(tzinfo=None)
+            if end <= start:
+                continue
+            slots[(start, end)] = PriceSlot(start, end, price)
+        except (AttributeError, KeyError, TypeError, ValueError, OverflowError) as exc:
+            _LOGGER.debug("Dynamic pricing: invalid EnergyZero price entry %s: %s", entry, exc)
     return sorted(slots.values(), key=lambda slot: slot.start)
 
 
@@ -374,6 +487,61 @@ def parse_entsoe_prices(attrs: dict) -> list:
     if not raw:
         return []
 
+    raw.sort(key=lambda x: x[0])
+    slots = []
+    for i, (start, price) in enumerate(raw):
+        if i + 1 < len(raw):
+            end = raw[i + 1][0]
+        elif i > 0:
+            end = start + (raw[i][0] - raw[i - 1][0])
+        else:
+            end = start + _td(hours=1)
+        slots.append(PriceSlot(start=start, end=end, price=price))
+    return slots
+
+
+def parse_be_electricity_prices(attrs: dict) -> list:
+    """Parse BE Electricity Prices (renaudallard/homeassistant_be_electricity_prices).
+
+    Its ``current_price`` sensor carries every slot of today and tomorrow, at
+    the grid the contract settles on (hourly or quarter-hourly), for every kind
+    of contract including time-of-use ones such as ENGIE Empower Flextime:
+        today / tomorrow:
+            [{"start": "2026-10-30T00:00:00+01:00", "energy": ..., "network": ...,
+              "taxes": ..., "all_in": 0.2913}, ...]
+    The all-in figure is what a household pays, so it is the one used. The
+    ``injection_price`` sensor exposes the same arrays with an ``injection``
+    key, so pointing the export curve at it works too. Each slot ends where the
+    next one starts; the last inherits the previous length (60 min if alone).
+    ``tomorrow`` is empty until the supplier's card covers it.
+    Returns list[PriceSlot] in local naive time, in chronological order.
+    """
+    from homeassistant.util import dt as dt_util
+    from datetime import datetime as _dt, timedelta as _td
+
+    raw = []
+    for key in ("today", "tomorrow"):
+        entries = attrs.get(key) or []
+        if isinstance(entries, str):
+            continue
+        for entry in entries:
+            try:
+                start = entry.get("start")
+                price_val = entry.get("all_in")
+                if price_val is None:
+                    price_val = entry.get("price", entry.get("injection"))
+                if start is None or price_val is None:
+                    continue
+                if isinstance(start, str):
+                    start = _dt.fromisoformat(start)
+                if getattr(start, "tzinfo", None) is not None:
+                    start = dt_util.as_local(start).replace(tzinfo=None)
+                raw.append((start, float(price_val)))
+            except Exception as exc:
+                _LOGGER.debug("Dynamic pricing: failed to parse BE electricity entry %s: %s", entry, exc)
+
+    if not raw:
+        return []
     raw.sort(key=lambda x: x[0])
     slots = []
     for i, (start, price) in enumerate(raw):
@@ -492,6 +660,64 @@ def calculate_planned_grid_charge_kwh(
     return min(headroom, deficit)
 
 
+def net_of_load_carried_by_grid(
+    planned_kwh: float,
+    charge_power_kw: float,
+    load_kw: float,
+    charge_efficiency: float = CHARGE_EFFICIENCY,
+) -> float:
+    """Battery energy to store when the grid feeds the house during the charge.
+
+    The scalar deficit counts the house load in the charge window as battery
+    drain, but the grid carries it while the battery charges (#785). The
+    charge stops once stored energy plus carried load reach the deficit:
+    ``stored + load * t = planned`` with ``stored = rate * t``.
+    """
+    planned = max(0.0, planned_kwh)
+    rate = max(0.0, charge_power_kw) * max(0.0, charge_efficiency)
+    load = max(0.0, load_kw)
+    if rate <= 0.0 or load <= 0.0:
+        return planned
+    return planned * rate / (rate + load)
+
+
+def schedule_price_summary(
+    slots: list,
+    effective_power_kw: float,
+    slot_energy_targets_kwh: dict | None = None,
+) -> tuple[float, float]:
+    """Return ``(average_price, estimated_cost)`` for selected slots.
+
+    When per-slot battery energy is known, cost and average are weighted by
+    it: slots without energy contribute nothing, and the cost pays for the
+    grid energy, i.e. the battery energy plus charging losses (#715).
+    Without it, each slot is assumed to run at full power for its whole
+    duration.
+    """
+    if not slots:
+        return 0.0, 0.0
+    plain_average = sum(slot.price for slot in slots) / len(slots)
+    targets = slot_energy_targets_kwh or {}
+    if not targets:
+        power_kw = max(0.0, effective_power_kw)
+        cost = sum(
+            slot.price
+            * power_kw
+            * max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
+            for slot in slots
+        )
+        return plain_average, cost
+    energy = {
+        slot: max(0.0, float(targets.get(slot, 0.0) or 0.0)) for slot in slots
+    }
+    total_kwh = sum(energy.values())
+    battery_cost = sum(slot.price * kwh for slot, kwh in energy.items())
+    cost = battery_cost / CHARGE_EFFICIENCY
+    if total_kwh > 0:
+        return battery_cost / total_kwh, cost
+    return plain_average, cost
+
+
 def select_cheapest_blocks(slots: list, hours_needed: float, slot_duration_h: float) -> list:
     """Select cheapest slots using a block strategy for sub-hourly granularity.
 
@@ -588,10 +814,12 @@ def select_cheapest_blocks(slots: list, hours_needed: float, slot_duration_h: fl
 
 
 def expected_discharge_price(slots: list, hours_needed: float) -> float | None:
-    """Average price of the most expensive ``hours_needed`` of remaining slots.
+    """Average price of the most expensive ``hours_needed`` of the given slots.
 
     This is the value a stored kWh is expected to realise: energy charged now
-    displaces grid import during the priciest part of the remaining horizon.
+    displaces grid import during the priciest part of the slots it can still
+    serve.  Pass only slots that start after the charge, or earlier peaks
+    justify later charging.
 
     Symmetry assumption: the discharge window is taken to be as long as the
     charge window. That is an approximation, since discharge rate follows
@@ -599,7 +827,7 @@ def expected_discharge_price(slots: list, hours_needed: float) -> float | None:
     insensitive to it: both sides of the comparison move together when the
     window widens.
 
-    Must be called with the *unfiltered* future slots. The expensive hours are
+    Must be called with the *unfiltered* later slots. The expensive hours are
     by definition above the charge ceiling, so computing this after the
     ``max_price_threshold`` filter would discard exactly the slots it needs.
 
@@ -631,7 +859,8 @@ def arbitrage_ceiling(
     min_arbitrage_margin,
     round_trip_efficiency: float = DEFAULT_ROUND_TRIP_EFFICIENCY,
 ) -> float | None:
-    """Highest slot price that still clears ``min_arbitrage_margin`` per kWh.
+    """Highest charge price that still clears ``min_arbitrage_margin`` per kWh
+    when the energy is discharged in ``slots``.
 
     Returns None when the gate is disabled or when there is no price data to
     estimate the discharge value, in which case the caller falls back to the
@@ -661,25 +890,73 @@ def arbitrage_ceiling(
     return ceiling
 
 
-def effective_charge_ceiling(
+def slot_arbitrage_ceilings(
     slots: list,
-    hours_needed: float,
+    min_arbitrage_margin,
+    round_trip_efficiency: float = DEFAULT_ROUND_TRIP_EFFICIENCY,
+) -> dict | None:
+    """Arbitrage ceiling per charge slot, keyed by ``slot.start``.
+
+    Each slot of stored energy is paired with one later slot whose import it
+    displaces (#662): the cheapest charge slots take the priciest later
+    slots, and each later slot is sold only once, so the first kWh is valued
+    against the evening peak and the seventh against whatever is left. Energy
+    can only be sold after it is stored (#649).
+
+    A slot kept by the pairing gets the best value of any later slot as its
+    ceiling, which is at or above its own price; a slot left out gets
+    ``-inf``. Returns None when the gate is disabled.
+    """
+    if min_arbitrage_margin is None or min_arbitrage_margin <= 0:
+        return None
+    ordered = sorted(slots, key=lambda s: s.start)
+
+    def value(slot) -> float:
+        return slot.price * round_trip_efficiency - min_arbitrage_margin
+
+    # Max-profit buy-low-sell-high with the undo trick: selling at a slot
+    # pushes its value back so a later, better slot can take the sale over.
+    # ponytail: one unit per slot whatever its length; a horizon mixing
+    # 15-min and hourly slots weighs an hour like a quarter. Weight by
+    # duration if mixed providers matter.
+    heap: list[tuple[float, int, bool, object]] = []
+    bought = set()
+    for index, slot in enumerate(ordered):
+        if heap and heap[0][0] <= value(slot):
+            _, _, is_buy, other = heapq.heappop(heap)
+            if is_buy:
+                bought.add(other.start)
+            heapq.heappush(heap, (value(slot), 2 * index, False, slot))
+        heapq.heappush(heap, (slot.price, 2 * index + 1, True, slot))
+
+    ceilings = {}
+    best_later = float("-inf")
+    for slot in reversed(ordered):
+        ceilings[slot.start] = best_later if slot.start in bought else float("-inf")
+        best_later = max(best_later, value(slot))
+    return ceilings
+
+
+def effective_charge_ceilings(
+    slots: list,
     max_price_threshold,
     min_arbitrage_margin=None,
     round_trip_efficiency: float = DEFAULT_ROUND_TRIP_EFFICIENCY,
     now=None,
-) -> tuple[float | None, float | None]:
-    """Return ``(effective_ceiling, arbitrage_ceiling)``.
+) -> tuple[dict | None, float | None]:
+    """Return ``(slot_ceilings, reported_arbitrage_ceiling)``.
 
-    ``effective_ceiling`` is the stricter of the static and arbitrage ceilings
-    and is what callers pass to ``select_cheapest_hours``.
+    ``slot_ceilings`` maps ``slot.start`` to the stricter of the static and the
+    slot's own arbitrage ceiling, and is None when the gate is off (callers then
+    use the static ``max_price_threshold`` alone). Pass it to
+    ``select_cheapest_hours`` / the chronological planner next to the static
+    threshold.
 
-    ``arbitrage_ceiling`` is returned separately for reporting, and is None when
-    the gate is off or could not be estimated. Note the two are equal only when
-    the arbitrage ceiling is the stricter one; when the static ceiling binds,
-    ``arbitrage_ceiling`` is a value that did not constrain anything. Callers
-    that explain a decision to the user must compare the two rather than assume
-    the arbitrage value was applied.
+    ``reported_arbitrage_ceiling`` is for notifications: the highest finite
+    arbitrage ceiling of any remaining slot, i.e. no slot is allowed above it.
+    It is None when the gate is off or no slot has an arbitrage value. It
+    constrains nothing when the static ceiling is lower, so callers that explain
+    a decision must compare the two.
 
     ``slots`` must be the unfiltered horizon: the expensive hours the arbitrage
     estimate needs are by definition above the static ceiling.
@@ -688,14 +965,28 @@ def effective_charge_ceiling(
         now = datetime.now()
     future_slots = [s for s in slots if s.end > now]
 
-    margin_ceiling = arbitrage_ceiling(
-        future_slots, hours_needed, min_arbitrage_margin, round_trip_efficiency
+    arb = slot_arbitrage_ceilings(
+        future_slots, min_arbitrage_margin, round_trip_efficiency
     )
-    if margin_ceiling is None:
-        return max_price_threshold, None
-    if max_price_threshold is None or margin_ceiling < max_price_threshold:
-        return margin_ceiling, margin_ceiling
-    return max_price_threshold, margin_ceiling
+    if arb is None:
+        return None, None
+    if not future_slots:
+        _LOGGER.warning(
+            "Dynamic pricing: arbitrage margin enabled but no price data to "
+            "estimate discharge value, skipping the margin check"
+        )
+        return None, None
+    finite = [c for c in arb.values() if c != float("-inf")]
+    reported = max(finite) if finite else None
+    _LOGGER.info(
+        "Dynamic pricing: per-slot arbitrage ceilings, highest %s "
+        "(efficiency %.2f, margin %.4f)",
+        "none" if reported is None else f"{reported:.4f}",
+        round_trip_efficiency, min_arbitrage_margin,
+    )
+    if max_price_threshold is not None:
+        arb = {k: min(v, max_price_threshold) for k, v in arb.items()}
+    return arb, reported
 
 
 def select_cheapest_hours(
@@ -703,6 +994,7 @@ def select_cheapest_hours(
     hours_needed: float,
     max_price_threshold,
     now=None,
+    slot_ceilings=None,
 ) -> list:
     """Filter slots by max_price_threshold, sort by price, return cheapest N.
 
@@ -712,10 +1004,11 @@ def select_cheapest_hours(
     Args:
         slots: list[PriceSlot] available in next 24h
         hours_needed: fractional hours of charging needed
-        max_price_threshold: optional price ceiling (None disables filtering);
-            pass the result of ``effective_charge_ceiling`` to apply the
-            arbitrage gate as well
+        max_price_threshold: optional price ceiling (None disables filtering)
         now: evaluation instant, defaults to the wall clock
+        slot_ceilings: optional per-slot ceilings from
+            ``effective_charge_ceilings`` (the arbitrage gate); a slot missing
+            from the mapping is limited by ``max_price_threshold`` alone
 
     Returns:
         Sorted (by start time) list of selected PriceSlot
@@ -733,6 +1026,11 @@ def select_cheapest_hours(
             "Dynamic pricing: %d slots after price threshold filter (max=%.3f)",
             len(future_slots), max_price_threshold
         )
+    if slot_ceilings is not None:
+        future_slots = [
+            s for s in future_slots
+            if s.price <= slot_ceilings.get(s.start, float("inf"))
+        ]
 
     if not future_slots:
         _LOGGER.warning("Dynamic pricing: no slots available after filtering")

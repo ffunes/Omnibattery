@@ -26,14 +26,41 @@ def _forecast_notification_context(decision: dict) -> dict:
     profile_days = int(decision.get("profile_days", 0) or 0)
 
     horizon_end = decision.get("energy_horizon_end")
-    horizon_extended = isinstance(horizon_end, datetime) and (
-        horizon_end.hour != 0 or horizon_end.minute != 0
+    # A planning horizon extended over tomorrow (#710) can end at 00:00 too,
+    # but that is tomorrow's midnight, not tonight's (#721).
+    covers_tomorrow = isinstance(horizon_end, datetime) and bool(
+        decision.get("planning_horizon_extended")
     )
-    horizon_label = (
-        f"until sunrise ({horizon_end.strftime('%H:%M')})"
-        if horizon_extended
-        else "until midnight"
+    ends_at_midnight = isinstance(horizon_end, datetime) and (
+        horizon_end.hour == 0 and horizon_end.minute == 0
     )
+    horizon_extended = covers_tomorrow or (
+        isinstance(horizon_end, datetime) and not ends_at_midnight
+    )
+    if covers_tomorrow:
+        horizon_label = (
+            "until tomorrow midnight"
+            if ends_at_midnight
+            else f"until {horizon_end.strftime('%a %H:%M')}"
+        )
+        overnight_label = (
+            "Of which tomorrow (00:00-24:00)"
+            if ends_at_midnight
+            else f"Of which after midnight ({horizon_label})"
+        )
+        horizon_phrase = (
+            "the rest of today and tomorrow"
+            if ends_at_midnight
+            else f"the rest of today and tomorrow ({horizon_label})"
+        )
+    elif horizon_extended:
+        horizon_label = f"until sunrise ({horizon_end.strftime('%H:%M')})"
+        overnight_label = "Overnight until sunrise"
+        horizon_phrase = f"the rest of today and tonight {horizon_label}"
+    else:
+        horizon_label = "until midnight"
+        overnight_label = "Overnight until sunrise"
+        horizon_phrase = "the rest of today"
     overnight_kwh_raw = decision.get("overnight_consumption_kwh")
     overnight_kwh = float(overnight_kwh_raw) if overnight_kwh_raw is not None else None
 
@@ -76,7 +103,21 @@ def _forecast_notification_context(decision: dict) -> dict:
         "remaining_sensor",
     }
     solar_label = "Solar remaining today" if solar_is_remaining else "Solar forecast today"
+    # On a horizon covering tomorrow the solar figure is today's remainder
+    # plus tomorrow's forecast; show the two parts instead of one "today" line.
+    solar_split = None
+    remaining_solar = decision.get("remaining_solar_kwh")
+    tomorrow_solar = decision.get("tomorrow_solar_kwh")
+    if covers_tomorrow and remaining_solar is not None and tomorrow_solar is not None:
+        solar_split = (
+            float(remaining_solar),
+            "Solar tomorrow" if ends_at_midnight else f"Solar after midnight ({horizon_label})",
+            float(tomorrow_solar),
+        )
     return {
+        "solar_split": solar_split,
+        "overnight_label": overnight_label,
+        "horizon_phrase": horizon_phrase,
         "is_remaining": is_remaining,
         "consumption_kwh": consumption_kwh,
         "consumption_label": consumption_label,
@@ -90,14 +131,24 @@ def _forecast_notification_context(decision: dict) -> dict:
 
 def _build_forecast_lines(context: dict, solar_str: str, consumption_for_horizon: float) -> str:
     """Render the shared solar/consumption forecast block, plus overnight if any."""
+    solar_split = context.get("solar_split")
+    if solar_split is not None and context["is_remaining"]:
+        today_kwh, tomorrow_label, tomorrow_kwh = solar_split
+        solar_lines = (
+            f"☀️ Solar remaining today: {today_kwh:.2f} kWh\n"
+            f"☀️ {tomorrow_label}: {tomorrow_kwh:.2f} kWh\n"
+        )
+    else:
+        solar_lines = f"☀️ {context['solar_label']}: {solar_str}\n"
     lines = (
-        f"☀️ {context['solar_label']}: {solar_str}\n"
+        f"{solar_lines}"
         f"📊 {context['consumption_label']}: {consumption_for_horizon:.2f} kWh\n"
         f"   Basis: {context['consumption_basis']}\n"
     )
     overnight_kwh = context.get("overnight_kwh")
     if overnight_kwh is not None and overnight_kwh > 0:
-        lines += f"🌙 Overnight until sunrise: {overnight_kwh:.2f} kWh\n"
+        overnight_label = context.get("overnight_label", "Overnight until sunrise")
+        lines += f"🌙 {overnight_label}: {overnight_kwh:.2f} kWh\n"
     return lines
 
 
@@ -106,9 +157,7 @@ def _horizon_text(context: dict, *, with_for: bool = False) -> str:
     if not context["is_remaining"]:
         return "today"
     prefix = "for " if with_for else ""
-    if context["horizon_extended"]:
-        return f"{prefix}the rest of today and tonight {context['horizon_label']}"
-    return f"{prefix}the rest of today"
+    return f"{prefix}{context['horizon_phrase']}"
 
 
 def _max_charge_power_str(
@@ -326,6 +375,16 @@ def format_dynamic_pricing_notification(
                     else "No grid charging required."
                 )
             )
+        elif decision_data.get("deferred_to_next_day"):
+            title = "Predictive Charging: Price Optimization - nothing to charge yet"
+            message = (
+                f"✓ The cheapest slots for the energy needed are tomorrow\n\n"
+                f"🔋 Battery: {avg_soc:.0f}% ({usable_energy:.2f} kWh usable)\n"
+                f"{forecast_lines}"
+                f"⚡ Energy needed: {energy_deficit:.2f} kWh\n\n"
+                f"{price_config_line}"
+                "No grid charging is scheduled now; it is planned again at the next daily evaluation."
+            )
         else:
             title = "Predictive Charging: Price Optimization - No slots available"
             message = (
@@ -426,6 +485,12 @@ def format_dynamic_pricing_notification(
                     f"🕒 Required before deadlines: {deadline:.2f} kWh\n"
                     f"💰 Flexible by price: {flexible:.2f} kWh\n"
                 )
+                imported = float(getattr(schedule, "cheaper_to_import_kwh", 0.0) or 0.0)
+                if imported > 0:
+                    chronological_lines += (
+                        f"🔌 Left to the grid (cheaper to import when used): "
+                        f"{imported:.2f} kWh\n"
+                    )
                 shortfall = float(getattr(schedule, "deadline_shortfall_kwh", 0.0) or 0.0)
                 if shortfall > 0:
                     chronological_lines += (

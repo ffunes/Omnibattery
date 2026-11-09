@@ -8,6 +8,11 @@ import pytest
 from custom_components.omnibattery.sensors.calculated_sensors import (
     MarstekVenusEfficiencySensor,
 )
+from custom_components.omnibattery.drivers.zendure import (
+    ZENDURE_MODEL_4000MIX_PRO,
+    ZENDURE_MODEL_SOLARFLOW_800_PLUS,
+    ZendureLocalDriver,
+)
 
 
 def _lifetime_efficiency_sensor(
@@ -106,3 +111,27 @@ def test_dual_plane_sampling_falls_back_to_the_measured_ac_port():
     assert sensor._discharge_dc_kwh == pytest.approx(0.05, abs=1e-3)
     assert sensor._discharge_ac_kwh == pytest.approx(0.045, abs=1e-3)
     assert sensor.native_value == pytest.approx(81.0, abs=0.5)
+
+
+@pytest.mark.parametrize("model", [
+    ZENDURE_MODEL_SOLARFLOW_800_PLUS,
+    ZENDURE_MODEL_4000MIX_PRO,
+])
+def test_zendure_pv_keeps_lifetime_counter_efficiency(model):
+    """#556: Zendure reports identical AC and cell power, so integrating the two
+    planes reads 100%; its PV capability must not switch efficiency off the
+    cumulative counters."""
+    coordinator = SimpleNamespace(
+        name="Zendure",
+        device_key="zendure_1",
+        capabilities=ZendureLocalDriver("192.168.1.100", model=model).capabilities,
+    )
+    sensor = MarstekVenusEfficiencySensor(coordinator, {
+        "key": "round_trip_efficiency_total",
+        "dependency_keys": {
+            "charge": "total_charging_energy",
+            "discharge": "total_discharging_energy",
+        },
+    })
+
+    assert sensor._integrate_mode is False

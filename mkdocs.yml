@@ -80,6 +80,7 @@ plugins:
             Zendure: Zendure
             Anker SOLIX: Anker SOLIX
             Sessy: Sessy
+            Indevolt: Indevolt
             Hoymiles MQTT: Hoymiles MQTT
             Huawei: Huawei
             Hoymiles MS-A2 setup: Instalación de Hoymiles MS-A2
@@ -173,6 +174,7 @@ nav:
           - Zendure: configuration/batteries/zendure.md
           - Anker SOLIX: configuration/batteries/anker.md
           - Sessy: configuration/batteries/sessy.md
+          - Indevolt: configuration/batteries/indevolt.md
           - Hoymiles MQTT: configuration/batteries/hoymiles.md
           - Huawei: configuration/batteries/huawei.md
           - Hoymiles MS-A2 setup: configuration/hoymiles-ms-a2.md

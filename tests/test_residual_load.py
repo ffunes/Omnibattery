@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from custom_components.omnibattery.control import residual_load
 from custom_components.omnibattery.control.residual_load import (
     apply_guards,
     feedforward_candidate_w,
@@ -23,6 +24,13 @@ from custom_components.omnibattery.control.residual_load import (
     surplus_blocks_discharge,
     uncovered_load_w,
 )
+
+
+@pytest.fixture(autouse=True)
+def _latch_on_first_sight(monkeypatch):
+    """Most tests here are about where the guard draws the line, not how long a
+    surplus must last; the persistence window has its own tests below."""
+    monkeypatch.setattr(residual_load, "SURPLUS_GUARD_MIN_HOLD_S", 0.0)
 
 
 def _battery(
@@ -278,6 +286,67 @@ def test_the_band_follows_the_configured_deadband():
     controller = _controller([], deadband=500, enabled=False)
     assert _drift(controller, [-300]) == [False]
     assert _drift(controller, [-800]) == [True]
+
+
+def _clock(monkeypatch, start):
+    now = [start]
+    monkeypatch.setattr(
+        residual_load, "dt_util", SimpleNamespace(utcnow=lambda: now[0])
+    )
+    return now
+
+
+def test_a_one_sample_surplus_from_a_lagging_reading_does_not_latch(monkeypatch):
+    """06:08:37 on a Venus 1 (automatic) + Venus 2 (manual, oscillating at its BMS
+    limit) installation: Venus 1 had just been told 500 W but its last poll still
+    said 146 W, and Venus 2's last poll said -61 W while it had swung to +77 W.
+    grid -210 + 146 - 61 against a -20 W target reads as 105 W of surplus, and the
+    guard cut Venus 1 to 0. Two seconds later the house was importing again."""
+    from datetime import datetime, timedelta, timezone
+
+    monkeypatch.setattr(residual_load, "SURPLUS_GUARD_MIN_HOLD_S", 5.0)
+    now = _clock(monkeypatch, datetime(2026, 10, 5, 6, 8, 37, tzinfo=timezone.utc))
+    venus2 = _battery("Venus 2", ac_power=-61)
+    venus2.battery_manual_mode_enabled = True
+    controller = _controller(
+        [_battery("Venus 1", ac_power=146), venus2], target=-20.0, enabled=False
+    )
+    assert residual_demand_w(controller, -210.0) == pytest.approx(-105.0)
+    assert apply_guards(controller, -397.0, -210.0) == -397.0
+
+    # Next sample the fresh readings show the real demand: the candidate is dropped.
+    now[0] += timedelta(seconds=2)
+    controller.coordinators = [_battery("Venus 1", ac_power=222), venus2]
+    venus2.data["ac_power"] = 77
+    assert surplus_blocks_discharge(controller, 272.0) is False
+    assert controller._surplus_guard_since is None
+
+
+def test_a_surplus_that_persists_still_latches(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    monkeypatch.setattr(residual_load, "SURPLUS_GUARD_MIN_HOLD_S", 5.0)
+    now = _clock(monkeypatch, datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc))
+    controller = _round_trip()
+    assert apply_guards(controller, -165.0, 3.0) == -165.0
+    now[0] += timedelta(seconds=4)
+    assert apply_guards(controller, -165.0, 3.0) == -165.0
+    now[0] += timedelta(seconds=1)
+    assert apply_guards(controller, -165.0, 3.0) == 0
+
+
+def test_a_slow_actuator_stretches_the_window(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    monkeypatch.setattr(residual_load, "SURPLUS_GUARD_MIN_HOLD_S", 5.0)
+    now = _clock(monkeypatch, datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc))
+    controller = _round_trip()
+    controller.coordinators[1].capabilities.actuator_latency_s = 3.0   # Zendure
+    assert surplus_blocks_discharge(controller, 3.0) is False
+    now[0] += timedelta(seconds=5)
+    assert surplus_blocks_discharge(controller, 3.0) is False
+    now[0] += timedelta(seconds=1)
+    assert surplus_blocks_discharge(controller, 3.0) is True
 
 
 def test_a_missing_reading_leaves_the_verdict_where_it_was():

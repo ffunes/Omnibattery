@@ -149,6 +149,22 @@ def test_disabled_returns_false():
     assert ctrl._charge_delay_status["state"] == "Disabled"
 
 
+def test_unknown_capacity_does_not_block_charge_delay_evaluation(monkeypatch):
+    _at_hour(monkeypatch, 9)
+    ctrl = _controller(coordinators=[_coord(total_energy=None)])
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(100.0)})
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_unlocked is False
+
+
+def test_charge_delay_projects_known_battery_when_other_capacity_unknown(monkeypatch):
+    _at_hour(monkeypatch, 9)
+    ctrl = _controller(coordinators=[_coord(soc=0, total_energy=4.25), _coord(total_energy=None)])
+    mgr = _make_mgr(ctrl, states={"sensor.forecast": _state(100.0)})
+    assert mgr.is_charge_delayed() is True
+    assert ctrl._charge_delay_status["charge_time_h"] == pytest.approx(1.33)
+
+
 def test_balance_monitor_override_skips_delay():
     ctrl = _controller(_balance_monitor_overrides_delay=lambda: True)
     mgr = _make_mgr(ctrl)

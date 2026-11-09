@@ -21,6 +21,7 @@ from custom_components.omnibattery.drivers.zendure import (
     ZENDURE_MODEL_SOLARFLOW_800_PRO,
     ZENDURE_MODEL_1600AC_PLUS,
     ZENDURE_MODEL_2400AC_PLUS,
+    ZENDURE_MODEL_2400AC_PRO,
     ZENDURE_MODEL_3000MIX_AC_PLUS,
     ZENDURE_MODEL_4000MIX_AC_PLUS,
     ZENDURE_MODEL_4000MIX_PRO,
@@ -69,7 +70,7 @@ _REPORT = {
         "gridInputPower": 150,
         "packInputPower": 0,
         "outputPackPower": 50,
-        "hyperTmp": 3035,         # centi-°C → 30.35 °C
+        "hyperTmp": 3035,         # deci-Kelvin → 30.4 °C
         "faultLevel": 0,
         "acStatus": 1,
         "remainOutTime": 120,
@@ -140,6 +141,47 @@ def test_capabilities_flags():
     assert caps.has_alarm_registers is True
     assert caps.has_energy_counters is False  # no kWh / capacity in the report
     assert caps.has_nominal_capacity is False
+
+
+@pytest.mark.asyncio
+async def test_capacity_detected_for_solarflow_800_plus_even_with_filtered_keys():
+    report = {"properties": {"packNum": 1},
+              "packData": [{"sn": "CO4ATEST000001", "packType": 70}]}
+    drv = _driver(session=_session(get_data=report))
+    snapshot = await drv.read_telemetry(["battery_soc"])
+    assert snapshot["battery_total_energy"] == 1.92
+
+
+@pytest.mark.parametrize(("serial", "pack_type", "capacity"), [
+    ("AO00TEST", 0, 0.96), ("AO03TEST", 0, 2.4),
+    ("BO00TEST", 0, 0.96), ("BO00TEST", 70, 8.0),
+    ("CO4ATEST", 70, 1.92), ("FO00TEST", 0, 2.88),
+    ("GO00TEST", 0, 2.88), ("JO4ATEST", 0, 2.4),
+])
+def test_report_capacity_recognizes_pack_families(serial, pack_type, capacity):
+    snapshot = _driver()._snapshot_from_report({
+        "properties": {"packNum": 1},
+        "packData": [{"sn": serial, "packType": pack_type}],
+    })
+    assert snapshot["battery_total_energy"] == capacity
+
+
+def test_report_capacity_sums_mixed_packs_and_tracks_removal():
+    drv = _driver()
+    packs = [{"sn": "CO4ATEST"}, {"sn": "FO00TEST"}]
+    assert drv._snapshot_from_report({"packData": packs})["battery_total_energy"] == 4.8
+    assert drv._snapshot_from_report({"packData": packs[:1]})["battery_total_energy"] == 1.92
+
+
+@pytest.mark.parametrize("report", [
+    {}, {"packData": []}, {"packData": [{}]},
+    {"packData": [{"sn": ""}]}, {"packData": [{"sn": "C"}]},
+    {"packData": [{"sn": "CO4ATEST"}, {"sn": "UNKNOWN"}]},
+    {"packData": [{"sn": "CO4ATEST"}, {"sn": "CO4ATEST"}]},
+    {"properties": {"packNum": 2}, "packData": [{"sn": "CO4ATEST"}]},
+])
+def test_unknown_or_incomplete_capacity_is_not_guessed(report):
+    assert _driver()._snapshot_from_report(report)["battery_total_energy"] is None
 
 
 def test_capabilities_power_envelope():
@@ -231,6 +273,39 @@ def test_solarflow_4000_mix_pro_exposes_dc_mppt_entities():
     assert driver.capabilities.has_mppt_pv is True
     assert {"mppt1_power", "mppt2_power"} <= keys
     assert "solar_power" in keys
+
+
+@pytest.mark.parametrize("model", [
+    ZENDURE_MODEL_SOLARFLOW_800,
+    ZENDURE_MODEL_SOLARFLOW_800_PLUS,
+    ZENDURE_MODEL_SOLARFLOW_800_PRO,
+])
+def test_solarflow_800_reports_aggregate_pv(model):
+    """#556: solarInputPower must count toward system solar production."""
+    caps = ZendureLocalDriver("192.168.1.100", model=model).capabilities
+
+    assert caps.has_solar_telemetry is True
+    assert caps.has_mppt_pv is False
+
+
+@pytest.mark.parametrize("model", [
+    ZENDURE_MODEL_2400AC_PLUS,
+    ZENDURE_MODEL_4000MIX_PRO,
+])
+def test_non_800_models_do_not_report_aggregate_pv(model):
+    caps = ZendureLocalDriver("192.168.1.100", model=model).capabilities
+
+    assert caps.has_solar_telemetry is False
+
+
+def test_solarflow_2400_pro_reports_aggregate_pv():
+    """#630: the 2400 Pro's solarInputPower counts toward system solar."""
+    driver = ZendureLocalDriver("192.168.1.100", model=ZENDURE_MODEL_2400AC_PRO)
+    caps = driver.capabilities
+
+    assert caps.has_solar_telemetry is True
+    assert caps.has_mppt_pv is False
+    assert "solar_power" in {d["key"] for d in driver.sensor_definitions}
 
 
 @pytest.mark.parametrize(("product", "model"), [
@@ -335,6 +410,8 @@ def test_select_definitions_include_grid_off_mode():
     assert "grid_off_mode" in by_key
     # Confirmed on a 2400 AC+: 0=normal, 1=economy, 2=off.
     assert by_key["grid_off_mode"]["options"] == {"normal": 0, "economy": 1, "off": 2}
+    # Confirmed on a 2400 Pro (#631): 0=disabled, 1=allowed, 2=forbidden.
+    assert by_key["grid_reverse"]["options"] == {"disabled": 0, "allowed": 1, "forbidden": 2}
 
 
 def test_all_definitions_is_sensor_plus_number_plus_select_plus_switch():
@@ -374,19 +451,18 @@ async def test_read_telemetry_maps_properties_to_keys():
 
 
 async def test_read_telemetry_returns_raw_centi_units_for_coordinator_scaling():
-    # Driver returns raw device values under the reused Marstek keys; the
-    # coordinator applies the ×0.01 scale from the entity definition (same path
-    # as Marstek register sensors). Scaling in the driver would double it.
+    # BatVolt stays raw (coordinator applies ×0.01); hyperTmp is deci-Kelvin,
+    # converted in the driver because the offset can't ride the scale (#566).
     snap = await _driver(session=_session(get_data=_REPORT)).read_telemetry()
-    assert snap["internal_temperature"] == 3035  # hyperTmp raw (→30.35 °C scaled)
+    assert snap["internal_temperature"] == 30.4  # (3035 - 2731) / 10
     assert snap["battery_voltage"] == 5010        # BatVolt raw (→50.10 V scaled)
 
 
 def test_centi_scaled_keys_carry_scale_for_coordinator():
     by_key = {d["key"]: d for d in _driver().sensor_definitions}
-    for k in ("internal_temperature", "battery_voltage",
-              "max_cell_voltage", "min_cell_voltage"):
+    for k in ("battery_voltage", "max_cell_voltage", "min_cell_voltage"):
         assert by_key[k]["scale"] == 0.01
+    assert by_key["internal_temperature"]["scale"] == 1  # pre-converted (#566)
 
 
 async def test_read_telemetry_maps_grid_off_mode():
@@ -518,6 +594,7 @@ async def test_read_telemetry_key_filter():
     assert {"battery_soc", "battery_power"} <= set(snap)
     extras = set(snap) - {
         "battery_soc", "battery_power", "max_charge_power", "ac_delivered_power",
+        "battery_total_energy",
     }
     assert all(re.match(r"pack\d+_", k) for k in extras)
 
@@ -536,7 +613,7 @@ async def test_read_telemetry_emits_per_pack_keys():
     assert snap["pack1_voltage"] == 50.05          # totalVol / 100
     assert snap["pack1_max_cell_voltage"] == 3.34  # maxVol / 100
     assert snap["pack1_min_cell_voltage"] == 3.33
-    assert snap["pack1_temperature"] == 30.11      # maxTemp / 100
+    assert snap["pack1_temperature"] == 28.0       # (maxTemp - 2731) / 10
     assert snap["pack1_power"] == 120
     assert snap["pack1_sn"] == "PK1"
     assert snap["pack1_model"] == 500              # packType
@@ -647,6 +724,17 @@ async def test_apply_setpoint_confirmed_on_matching_readback():
     assert res.battery_power_w == 580
 
 
+@pytest.mark.parametrize("packs", [[], [{"sn": "CO4ATEST", "packType": 70}]])
+async def test_setpoint_readback_does_not_replace_configured_capacity(packs):
+    report = {"properties": {"acMode": 1, "inputLimit": 600}, "packData": packs}
+    result = await _driver(session=_session(get_data=report)).apply_setpoint(600, read_back=True)
+    assert result.confirmed is True
+    # The coordinator merges applied telemetry into its existing cache.
+    cached = {"battery_total_energy": 5.28}
+    cached.update(result.applied)
+    assert cached["battery_total_energy"] == 5.28
+
+
 async def test_apply_setpoint_unconfirmed_on_mismatched_readback():
     readback = {
         "sn": "ZB123456",
@@ -752,6 +840,16 @@ async def test_write_control_grid_off_mode_posts_raw_enum():
     # port mode persists to flash across reboots.
     props = sess.post.call_args.kwargs["json"]["properties"]
     assert props == {"gridOffMode": 2, "smartMode": 0}
+
+
+async def test_write_control_grid_reverse_posts_raw_enum():
+    # #631: "Energy Export" must be "allowed" (1) for PV bypass at target SOC.
+    sess = _session()
+    ok = await _driver(session=sess).write_control("grid_reverse", 1)
+
+    assert ok is True
+    props = sess.post.call_args.kwargs["json"]["properties"]
+    assert props == {"gridReverse": 1, "smartMode": 0}
 
 
 async def test_write_control_unknown_key_returns_false():
@@ -905,3 +1003,108 @@ async def test_probe_returns_false_on_exception(monkeypatch):
         MagicMock(return_value=fake),
     )
     assert await ZendureLocalDriver.probe("192.168.1.100") == (False, None)
+
+
+# ---------------------------------------------------------------------------
+# One retry when the device drops the connection
+# ---------------------------------------------------------------------------
+
+import aiohttp  # noqa: E402
+
+
+def _flaky_session(first, then_status: int = 200, then_data: dict | None = None) -> MagicMock:
+    """A session whose first GET and POST fail with ``first``, then succeed.
+
+    ``first`` is an exception to raise or an HTTP status to answer with.
+    """
+    s = MagicMock()
+    s.closed = False
+
+    def calls():
+        if isinstance(first, int):
+            yield _cm(_resp(first))
+        else:
+            failing = MagicMock()
+            failing.__aenter__ = AsyncMock(side_effect=first)
+            failing.__aexit__ = AsyncMock(return_value=False)
+            yield failing
+        while True:
+            yield _cm(_resp(then_status, then_data if then_data is not None else _REPORT))
+
+    gets, posts = calls(), calls()
+    s.get = MagicMock(side_effect=lambda *a, **k: next(gets))
+    s.post = MagicMock(side_effect=lambda *a, **k: next(posts))
+    return s
+
+
+@pytest.mark.parametrize(
+    "first",
+    [aiohttp.ServerDisconnectedError(), aiohttp.ClientOSError(104, "Connection reset by peer"), 431],
+)
+async def test_a_dropped_read_is_tried_once_more(first):
+    """6 Nov: 'Server disconnected' and one HTTP 431 each marked the
+    SolarFlow unavailable for a cycle, although the next request worked."""
+    sess = _flaky_session(first)
+    snap = await _driver(session=sess).read_telemetry()
+
+    assert snap["battery_soc"] is not None
+    assert sess.get.call_count == 2
+
+
+@pytest.mark.parametrize(
+    "first",
+    [aiohttp.ServerDisconnectedError(), aiohttp.ClientOSError(104, "Connection reset by peer"), 431],
+)
+async def test_a_dropped_write_is_sent_once_more(first):
+    sess = _flaky_session(first)
+    res = await _driver(session=sess).apply_setpoint(600, read_back=False)
+
+    assert res.ok is True
+    assert sess.post.call_count == 2
+
+
+async def test_the_retry_waits_before_trying_again():
+    """7 Nov 17:14: the retry went out 33 ms after 'Server disconnected' and
+    met the same drop; a short pause lets the device's server recover."""
+    import asyncio
+
+    sleep = asyncio.sleep  # the autouse fixture's AsyncMock
+    sess = _flaky_session(aiohttp.ServerDisconnectedError())
+    await _driver(session=sess).read_telemetry()
+    sleep.assert_awaited_once_with(0.5)
+
+    sleep.reset_mock()
+    sess = _flaky_session(431)
+    res = await _driver(session=sess).apply_setpoint(600, read_back=False)
+    assert res.ok is True
+    sleep.assert_awaited_once_with(0.5)
+
+
+async def test_a_read_that_works_first_time_does_not_wait():
+    import asyncio
+
+    await _driver().read_telemetry()
+    asyncio.sleep.assert_not_awaited()
+
+
+async def test_a_second_drop_still_fails_without_a_third_try():
+    sess = _flaky_session(aiohttp.ServerDisconnectedError(), then_status=431)
+    assert await _driver(session=sess).read_telemetry() == {}
+    assert sess.get.call_count == 2
+
+
+async def test_other_errors_are_not_retried():
+    sess = _flaky_session(503)
+    assert await _driver(session=sess).read_telemetry() == {}
+    assert sess.get.call_count == 1
+
+
+async def test_read_telemetry_keeps_soc_status_for_control():
+    # #799: socStatus is a control-only key (no entity), kept past the filter.
+    data = {**_REPORT, "properties": {**_REPORT["properties"], "socStatus": 1}}
+    snap = await _driver(session=_session(get_data=data)).read_telemetry(["battery_soc"])
+    assert snap["soc_status"] == 1
+    assert (await _driver(session=_session(get_data=data)).read_telemetry(
+        ["control_status"]))["control_status"] == "soc_calibration"
+    assert (await _driver(session=_session(get_data=_REPORT)).read_telemetry(
+        ["control_status"]))["control_status"] == "active"

@@ -153,7 +153,7 @@ A driver chooses the cadence for each `ReadGroup`. During a real command change,
 | `charge_order.py` | `charge_order()`, `charge_allocation_weights()` | Orders mixed AC/DC fleets and weights charging by remaining capacity. |
 | `residual_load.py` | `residual_demand_w()`, `apply_guards()`, `guards_pending()` | Reconstructs uncovered load and applies the shared guard pipeline. |
 | `phase_power_limit.py` | `PhasePowerLimiter`, `PhaseSensorReading` | Constrains final allocations from per-phase current measurements. |
-| `pack_soc.py` | `pack_socs()`, `soc_vs_ceiling()`, `soc_vs_floor()`, `control_vmax()` | Normalizes pack-level SOC and cell-voltage decisions. |
+| `pack_soc.py` | `pack_socs()`, `soc_vs_ceiling()`, `control_vmax()` | Normalizes pack-level SOC and cell-voltage decisions. |
 | `charge_delay.py` | `ChargeDelayManager` | Owns solar charge-delay state, forecasts, persistence, and release decisions. |
 | `max_soc_charge.py` | `MaxSocChargeManager` | Applies top-of-charge taper, recalibration, and cell-delta measurement. |
 | `weekly_full_charge.py` | `WeeklyFullChargeManager` | Schedules and persists periodic full-charge behavior and temporary cutoff changes. |

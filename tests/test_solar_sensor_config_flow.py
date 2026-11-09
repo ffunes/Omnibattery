@@ -1,5 +1,6 @@
 """Regression tests for the optional solar-sensor validation."""
 
+import asyncio
 from types import SimpleNamespace
 
 from custom_components.omnibattery.config_flow import (
@@ -123,6 +124,7 @@ async def test_options_flow_reports_production_sensor_unit_error_on_that_field()
     )
     flow = OptionsFlowHandler(entry)
     flow.hass = SimpleNamespace(
+        async_create_task=lambda coro, _name=None: asyncio.ensure_future(coro),
         states=SimpleNamespace(
             get={"sensor.grid_power_va": _state("VA")}.get
         ),
@@ -156,6 +158,7 @@ async def test_options_flow_rejects_legacy_omnibattery_solar_output_as_input():
     )
     flow = OptionsFlowHandler(entry)
     flow.hass = SimpleNamespace(
+        async_create_task=lambda coro, _name=None: asyncio.ensure_future(coro),
         states=SimpleNamespace(
             get={"sensor.marstek_venus_system_solar_power": _state("W")}.get
         ),
@@ -195,6 +198,7 @@ async def test_options_merge_replaces_legacy_forecast_with_remaining():
         return True
 
     flow.hass = SimpleNamespace(
+        async_create_task=lambda coro, _name=None: asyncio.ensure_future(coro),
         config_entries=SimpleNamespace(
             async_get_known_entry=lambda _entry_id: entry,
             async_update_entry=lambda _entry, data: updated.update(data),
@@ -224,6 +228,7 @@ async def test_options_merge_can_change_remaining_forecast_back_to_today():
         return True
 
     flow.hass = SimpleNamespace(
+        async_create_task=lambda coro, _name=None: asyncio.ensure_future(coro),
         config_entries=SimpleNamespace(
             async_get_known_entry=lambda _entry_id: entry,
             async_update_entry=lambda _entry, data: updated.update(data),
@@ -256,6 +261,7 @@ async def test_options_merge_can_clear_remaining_forecast():
         return True
 
     flow.hass = SimpleNamespace(
+        async_create_task=lambda coro, _name=None: asyncio.ensure_future(coro),
         config_entries=SimpleNamespace(
             async_get_known_entry=lambda _entry_id: entry,
             async_update_entry=lambda _entry, data: updated.update(data),
@@ -272,3 +278,39 @@ async def test_options_merge_can_clear_remaining_forecast():
 
     assert CONF_SOLAR_FORECAST_SENSOR not in updated
     assert CONF_SOLAR_FORECAST_REMAINING_SENSOR not in updated
+
+
+async def test_options_save_reloads_outside_the_flow():
+    """Closing the dialog cancels the flow; the reload must not be part of it."""
+    from custom_components.omnibattery.infra.lifecycle import is_reload_pending
+
+    entry = SimpleNamespace(entry_id="test-entry", data={}, options={})
+    flow = OptionsFlowHandler(entry)
+    flow.handler = entry.entry_id
+    gate = asyncio.Event()
+    tasks = []
+
+    async def reload_entry(_entry_id):
+        await gate.wait()
+
+    def create_task(coro, _name=None):
+        tasks.append(asyncio.ensure_future(coro))
+
+    flow.hass = SimpleNamespace(
+        async_create_task=create_task,
+        config_entries=SimpleNamespace(
+            async_get_known_entry=lambda _entry_id: entry,
+            async_update_entry=lambda _entry, data: None,
+            async_reload=reload_entry,
+        ),
+    )
+    flow.config_data = {}
+    flow.async_create_entry = lambda **_kwargs: {}
+
+    await flow._save_and_finish()
+
+    assert len(tasks) == 1 and not tasks[0].done()
+    assert is_reload_pending(flow.hass, entry.entry_id)
+    gate.set()
+    await tasks[0]
+    assert not is_reload_pending(flow.hass, entry.entry_id)

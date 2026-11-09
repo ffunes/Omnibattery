@@ -4,8 +4,8 @@ The gate makes the grid-charge ceiling follow the day's spread instead of
 sitting at a fixed price: a slot only qualifies when the expensive hours are far
 enough above it to repay round-trip losses and still clear a required margin.
 
-``effective_charge_ceiling`` does the combining and is the single place the
-ceiling is computed; ``select_cheapest_hours`` just receives the result. These
+``effective_charge_ceilings`` does the combining and is the single place the
+per-slot ceilings are computed; ``select_cheapest_hours`` just receives the result. These
 tests exercise that pairing the same way the engine does.
 
 Same conventions as ``test_pricing_calculations.py``: no hardware, no running
@@ -44,10 +44,12 @@ def _quarter(prices):
 
 def _gated(slots, hours, static=None, margin=None, eff=_EFF, now=None):
     """Run the engine's two-step: compute the ceiling, then select against it."""
-    ceiling, _ = calculations.effective_charge_ceiling(
-        slots, hours, static, margin, eff, now=now
+    slot_ceilings, _ = calculations.effective_charge_ceilings(
+        slots, static, margin, eff, now=now
     )
-    return calculations.select_cheapest_hours(slots, hours, ceiling, now=now)
+    return calculations.select_cheapest_hours(
+        slots, hours, static, now=now, slot_ceilings=slot_ceilings
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -103,28 +105,81 @@ def test_arbitrage_ceiling_none_without_price_data():
 
 
 # ---------------------------------------------------------------------------
-# effective_charge_ceiling: reported vs applied
+# effective_charge_ceilings: per-slot, causal (#649)
 # ---------------------------------------------------------------------------
 
-def test_effective_ceiling_reports_the_value_it_applies():
+def test_slot_ceiling_values_only_later_slots():
     slots = _hourly([0.10, 0.12, 0.38, 0.42])
-    effective, reported = calculations.effective_charge_ceiling(slots, 2, None, 0.02, _EFF)
-    assert effective == reported
-    assert effective == 0.40 * _EFF - 0.02
+    ceilings, reported = calculations.effective_charge_ceilings(slots, None, 0.02, _EFF)
+    # Both cheap hours pair with a peak after them; the peaks themselves have
+    # nothing left to sell into.
+    assert ceilings[slots[0].start] == 0.42 * _EFF - 0.02
+    assert ceilings[slots[1].start] == 0.42 * _EFF - 0.02
+    assert ceilings[slots[2].start] == float("-inf")
+    assert ceilings[slots[3].start] == float("-inf")
+    assert reported == 0.42 * _EFF - 0.02
 
 
-def test_effective_ceiling_static_wins_when_stricter():
-    """The arbitrage value is still reported, but the static ceiling is applied."""
+def test_one_peak_pays_for_one_slot_not_the_whole_deficit():
+    """#662: the first kWh displaces the peak, so it must not be priced with
+    the cheaper hours a larger deficit would also displace."""
+    slots = _hourly([0.15, 0.16, 0.20, 0.20, 0.30])
+    # 0.30 x 0.82 - 0.06 = 0.186 repays 0.15; the 0.20 hours repay nothing.
+    assert [s.price for s in _gated(slots, 3, margin=0.06, eff=0.82)] == [0.15]
+
+
+def test_each_peak_is_sold_once():
+    slots = _hourly([0.10, 0.10, 0.10, 0.40])
+    ceilings, _ = calculations.effective_charge_ceilings(slots, None, 0.02, _EFF)
+    kept = [s for s in slots if ceilings[s.start] != float("-inf")]
+    assert len(kept) == 1
+
+
+def test_pairing_reaches_a_peak_between_two_charges():
+    """A cheap slot before an early peak and one before a late peak both pay."""
+    slots = _hourly([0.10, 0.40, 0.12, 0.40])
+    ceilings, _ = calculations.effective_charge_ceilings(slots, None, 0.02, _EFF)
+    assert ceilings[slots[0].start] != float("-inf")
+    assert ceilings[slots[2].start] != float("-inf")
+
+
+def test_slot_ceiling_static_wins_when_stricter():
     slots = _hourly([0.10, 0.15, 0.40, 0.45])
-    effective, reported = calculations.effective_charge_ceiling(slots, 2, 0.12, 0.02, _EFF)
-    assert effective == 0.12
-    assert reported > effective
+    ceilings, reported = calculations.effective_charge_ceilings(slots, 0.12, 0.02, _EFF)
+    assert ceilings[slots[0].start] == 0.12
+    assert reported > 0.12
 
 
-def test_effective_ceiling_passes_static_through_when_gate_off():
+def test_slot_ceilings_none_when_gate_off():
     slots = _hourly([0.10, 0.20, 0.30, 0.40])
-    assert calculations.effective_charge_ceiling(slots, 2, 0.25, None, _EFF) == (0.25, None)
-    assert calculations.effective_charge_ceiling(slots, 2, None, None, _EFF) == (None, None)
+    assert calculations.effective_charge_ceilings(slots, 0.25, None, _EFF) == (None, None)
+    assert calculations.effective_charge_ceilings(slots, None, 0, _EFF) == (None, None)
+
+
+def test_evening_peak_before_the_night_does_not_justify_night_charging():
+    """#649: the 18-20h peak is gone by the time the night slots would discharge."""
+    prices = [0.40, 0.45, 0.10, 0.10, 0.10]  # peak first, cheap night after
+    slots = _hourly(prices)
+    assert _gated(slots, 2, margin=0.02) == []
+
+
+def test_night_followed_by_a_peak_is_eligible():
+    slots = _hourly([0.10, 0.10, 0.10, 0.40, 0.45])
+    assert [s.price for s in _gated(slots, 2, margin=0.02)] == [0.10, 0.10]
+
+
+def test_night_ceiling_stable_when_the_earlier_peak_leaves_the_horizon():
+    """Dropping past slots must not move the ceiling of a later slot."""
+    slots = _hourly([0.40, 0.45, 0.10, 0.10, 0.30, 0.35])
+    full, _ = calculations.effective_charge_ceilings(slots, None, 0.02, _EFF)
+    shrunk, _ = calculations.effective_charge_ceilings(slots[2:], None, 0.02, _EFF)
+    night = slots[2].start
+    assert full[night] == shrunk[night]
+
+
+def test_slot_without_later_slots_fails_the_gate():
+    slots = _hourly([0.10])
+    assert _gated(slots, 1, margin=0.02) == []
 
 
 # ---------------------------------------------------------------------------

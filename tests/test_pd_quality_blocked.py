@@ -26,18 +26,54 @@ from custom_components.omnibattery.sensors.aggregate_sensors import PdControlQua
 def _ctrl(*, charge_blocked=False, discharge_blocked=False, deadband=40):
     return SimpleNamespace(
         deadband=deadband,
-        is_charge_blocked=lambda: charge_blocked,
-        is_discharge_blocked=lambda: discharge_blocked,
-        _is_operation_allowed=ChargeDischargeController._is_operation_allowed,
+        is_charge_effectively_blocked=lambda: charge_blocked,
+        is_discharge_effectively_blocked=lambda: discharge_blocked,
     )
 
 
 def _demand_blocked(ctrl, error, commanded_power=0):
-    # _is_operation_allowed is unbound on the stub, so bind both by hand.
-    ctrl._is_operation_allowed = lambda is_charging: ChargeDischargeController._is_operation_allowed(
-        ctrl, is_charging
-    )
     return ChargeDischargeController._pd_demand_blocked(ctrl, error, commanded_power)
+
+
+def _fleet_ctrl(*, global_charge=None, per_battery_charge=None, n=2):
+    """Real blocker registry over n PD-owned batteries."""
+    class _Battery:  # hashable: the registry is keyed by coordinator
+        data = {}
+        is_available = True
+        battery_manual_mode_enabled = False
+
+    batteries = [_Battery() for _ in range(n)]
+    ctrl = SimpleNamespace(
+        deadband=20,
+        coordinators=batteries,
+        _global_charge_blockers=global_charge or {},
+        _battery_charge_blockers={
+            b: dict(per_battery_charge or {}) for b in batteries
+        },
+    )
+    for name in (
+        "is_charge_blocked",
+        "_known_batteries_for_block_summary",
+        "is_charge_effectively_blocked",
+    ):
+        method = getattr(ChargeDischargeController, name)
+        setattr(ctrl, name, lambda *a, _m=method: _m(ctrl, *a))
+    return ctrl
+
+
+def test_per_battery_hysteresis_on_every_battery_is_blocked():
+    # Live case 2026-11-07: both batteries at 94% in charge hysteresis (95 -> 90),
+    # 815W export, command 0W. Hysteresis is a per-battery blocker, so the global
+    # registry is empty; the sensor read "sluggish" (rms 1035W, osc 0).
+    ctrl = _fleet_ctrl(per_battery_charge={"charge_hysteresis": {"reason": "hysteresis"}})
+    assert _demand_blocked(ctrl, error=-967) is True
+
+
+def test_one_battery_still_free_is_not_blocked():
+    ctrl = _fleet_ctrl()
+    first = ctrl.coordinators[0]
+    ctrl._battery_charge_blockers[first] = {"charge_hysteresis": {}}
+    assert _demand_blocked(ctrl, error=-967) is False
 
 
 def test_charge_demand_blocked_while_output_is_zero():
@@ -99,6 +135,7 @@ class _MetricCtrl:
         self._pd_quality_step_grace_s = 10.0
         self._pd_quality_settle_until = 0.0
         self._pd_quality_prev_target = 0.0
+        self._pd_quality_warmup_start = None
 
     def update(self, error, *, blocked):
         ChargeDischargeController._update_pd_quality_metrics(

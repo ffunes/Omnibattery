@@ -28,6 +28,7 @@ from typing import Sequence
 
 EPSILON = 1e-9
 _QUARTER = timedelta(minutes=15)
+_SUN_COVERS_WINDOW = timedelta(hours=1)
 
 STATUS_DISABLED = "disabled"
 STATUS_RESERVING = "reserving"
@@ -160,14 +161,21 @@ class ReservePlan:
             return 0.0, [], REASON_NOTHING_DEARER
 
         # Most expensive first: stored energy is worth what the hour it replaces
-        # costs, so the dearest hour has first claim on it.
+        # costs, so the dearest hour has first claim on it. The claims run against
+        # the stored energy plus the sun still to land. Against stored energy
+        # alone, the credit below came off a figure that already equalled the
+        # battery, so whenever demand exceeded it the reserve was usable minus
+        # credit: always just under the SOC, following it down without ever
+        # holding anything (#700).
+        space = self.free_space_kwh if free_space_kwh is None else _positive(free_space_kwh)
+        budget = available + self._expected_pv_into_battery(now, space, available)
         candidates.sort(key=lambda slot: (-slot.price, slot.start))
         claimed = 0.0
         claims: list[tuple[ReserveSlot, float]] = []
         for slot in candidates:
-            if claimed >= available - EPSILON:
+            if claimed >= budget - EPSILON:
                 break
-            take = min(slot.net_demand_kwh, available - claimed)
+            take = min(slot.net_demand_kwh, budget - claimed)
             if take <= EPSILON:
                 continue
             claimed += take
@@ -176,9 +184,10 @@ class ReservePlan:
 
         # Sun that lands in the battery before a claim pays for part of it, so
         # holding the same energy back now would import at today's price and
-        # export the PV that was going to replace it.
-        space = self.free_space_kwh if free_space_kwh is None else _positive(free_space_kwh)
+        # export the PV that was going to replace it. What is left cannot be more
+        # than the battery holds.
         reserve, credits = self._reserve_after_pv(now, claims, space, available)
+        reserve = min(reserve, available)
         self.claimed_kwh = claimed
         self.pv_credit_kwh = sum(credits)
         self.claim_breakdown = [
@@ -187,6 +196,33 @@ class ReservePlan:
         if reserve <= EPSILON:
             return 0.0, [], REASON_PV_COVERS_IT
         return reserve, [slot for slot, _take in claims], REASON_RESERVED
+
+    def _pv_absorbed(
+        self, now: datetime, free_space_kwh: float, available_kwh: float
+    ):
+        """Yield ``(slot, kWh of PV the battery takes in it)`` for each slot ahead.
+
+        The battery serves each slot's demand, which is room the sun can land
+        in; what it cannot hold is exported and never pays a claim.
+        """
+        room = _positive(free_space_kwh)
+        ceiling = room + _positive(available_kwh)
+        for slot in self.slots:
+            if slot.start < now:
+                continue
+            room = min(ceiling, room + _positive(slot.net_demand_kwh))
+            absorbed = min(_positive(slot.expected_surplus_kwh), room)
+            room -= absorbed
+            yield slot, absorbed
+
+    def _expected_pv_into_battery(
+        self, now: datetime, free_space_kwh: float, available_kwh: float
+    ) -> float:
+        """Sum the PV the battery can take, by the same room as the sweep below."""
+        return sum(
+            absorbed
+            for _slot, absorbed in self._pv_absorbed(now, free_space_kwh, available_kwh)
+        )
 
     def _reserve_after_pv(
         self,
@@ -218,15 +254,11 @@ class ReservePlan:
         order as ``claims`` so the attributes can show which claim the sun paid
         for.
         """
-        room = _positive(free_space_kwh)
-        ceiling = room + _positive(available_kwh)
         stored = 0.0
         reserve = 0.0
         credits = [0.0] * len(claims)
         pending = 0
-        for slot in self.slots:
-            if slot.start < now:
-                continue
+        for slot, absorbed in self._pv_absorbed(now, free_space_kwh, available_kwh):
             while pending < len(claims) and claims[pending][0].start <= slot.start:
                 take = claims[pending][1]
                 credit = min(take, stored)
@@ -234,11 +266,6 @@ class ReservePlan:
                 reserve += take - credit
                 credits[pending] = credit
                 pending += 1
-            # The battery serves this slot's demand, which is room the sun can
-            # land in; what it cannot hold is exported and never pays a claim.
-            room = min(ceiling, room + _positive(slot.net_demand_kwh))
-            absorbed = min(_positive(slot.expected_surplus_kwh), room)
-            room -= absorbed
             stored += absorbed
         # No claim can be left pending: every claim is one of these slots, so
         # the last pass of the inner walk settles whatever is still open.
@@ -338,6 +365,30 @@ def net_demand_by_slot(consumption: dict, solar: dict | None = None) -> dict:
     }
 
 
+def first_sun_covered_start(
+    price_slots: Sequence, consumption: dict, solar: dict
+) -> datetime | None:
+    """Return when the sun takes over from the battery, or None if it never does.
+
+    That is the first slot where expected PV meets the load, both in the slot
+    itself and over the hour it starts. The learned profile is spiky at 15
+    minutes, and one quiet quarter-hour at 08:30 is not the sun carrying the
+    house.
+    """
+    ordered = sorted(price_slots, key=lambda slot: slot.start)
+    for index, slot in enumerate(ordered):
+        sun = _positive(solar.get(slot, 0.0))
+        if sun <= EPSILON or sun < _positive(consumption.get(slot, 0.0)):
+            continue
+        window_end = slot.start + _SUN_COVERS_WINDOW
+        window = [other for other in ordered[index:] if other.start < window_end]
+        window_sun = sum(_positive(solar.get(other, 0.0)) for other in window)
+        window_load = sum(_positive(consumption.get(other, 0.0)) for other in window)
+        if window_sun >= window_load:
+            return slot.start
+    return None
+
+
 def plan_discharge_reserve(
     price_slots: Sequence,
     demand_by_slot: dict,
@@ -381,20 +432,53 @@ def plan_discharge_reserve(
 
 
 def reserve_soc_pct(reserve_kwh: float, total_capacity_kwh: float) -> float:
-    """Convert a system-wide reserve into the SOC each battery must keep.
+    """Express a system-wide reserve as a share of the fleet's capacity.
 
-    One percentage for every battery, deliberately: it is independent of the mix
-    of capacities and does not move when one battery discharges faster than
-    another. It reserves exactly ``reserve_kwh`` only when every battery has at
-    least that share of its own capacity left; a battery already below it simply
-    stops discharging, and the fleet then holds back less than planned. Under-
-    reserving is the safe direction — the alternative would block a battery for
-    energy its neighbour is holding.
+    The headline figure the status publishes. The blocker does not apply it to
+    each battery: with batteries at different charge levels or floors that holds
+    one and releases the other, see :func:`battery_reserve_soc_pct`.
     """
     capacity = _positive(total_capacity_kwh)
     if capacity <= EPSILON:
         return 0.0
     return max(0.0, min(100.0, 100.0 * _positive(reserve_kwh) / capacity))
+
+
+def battery_reserve_soc_pct(reserve_kwh: float, snapshots: Sequence) -> list[float]:
+    """Split a fleet reserve into the SOC each battery keeps above its own floor.
+
+    Every battery keeps the same share of what it holds above its floor, so the
+    fleet keeps exactly ``reserve_kwh`` and every battery reaches its reserved
+    floor at the same moment: when the fleet's usable energy has come down to
+    the reserve. The single fleet percentage of :func:`reserve_soc_pct` sits at
+    a different height in each battery instead. The one with more above it
+    discharges, the fleet's usable energy and with it the floor drop below the
+    held one too, and the two take turns sliding down (#700).
+
+    One entry per snapshot, in order; zero for a battery that does not back the
+    reserve.
+    """
+    above_floor: list[float] = []
+    usable = 0.0
+    for snapshot in snapshots:
+        if not getattr(snapshot, "eligible", True) or not getattr(
+            snapshot, "can_discharge", True
+        ):
+            above_floor.append(0.0)
+            continue
+        capacity = _positive(getattr(snapshot, "capacity_kwh", 0.0))
+        points = max(
+            0.0,
+            _positive(getattr(snapshot, "soc_pct", 0.0))
+            - _positive(getattr(snapshot, "floor_soc_pct", 0.0)),
+        )
+        above_floor.append(points if capacity > EPSILON else 0.0)
+        usable += capacity * above_floor[-1] / 100.0
+    reserve = _positive(reserve_kwh)
+    if reserve <= EPSILON or usable <= EPSILON:
+        return [0.0] * len(above_floor)
+    share = min(1.0, reserve / usable)
+    return [share * points for points in above_floor]
 
 
 def free_space_kwh(snapshots: Sequence) -> float:

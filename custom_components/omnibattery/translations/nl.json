@@ -1,12 +1,30 @@
 {
   "issues": {
+    "recorder_excluded_sensors": {
+      "title": "Sensoren uitgesloten van Recorder",
+      "description": "Recorder sluit deze sensoren uit die Omnibattery gebruikt om zonne- en huishoudelijke verbruiksprofielen te herstellen: {sensors}. Pas de include/exclude-regels van Recorder aan zodat deze sensoren worden opgenomen en herstart Home Assistant om de configuratie toe te passen. De waarschuwing verdwijnt automatisch zodra ze worden opgenomen. Ontbrekende historische metingen kunnen niet worden hersteld; live leren en bestaande opgeslagen profielen blijven werken."
+    },
+    "indevolt_flash_writes_paused": {
+      "title": "Schrijven van Indevolt-instellingen gepauzeerd ter bescherming van de batterij: {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Indevolt-instellingen weer laten schrijven",
+            "description": "Omnibattery heeft de minimale SOC en de vermogenslimieten van **{name}** het afgelopen jaar {allowance} keer geschreven en heeft het schrijven daarom gepauzeerd. Dit is een vangnet, geen beperking voor jou: het voorkomt dat een automatisering of script die deze instellingen te vaak wijzigt ongemerkt het flashgeheugen van de batterij verslijt; dat slijt een beetje bij elke schrijfactie. Wijzigingen in de Indevolt-app worden nog wel overgenomen.\n\nControleer je automatiseringen en scripts op iets dat deze instellingen vaak wijzigt. Bevestig daarna hier om het schrijven weer aan te zetten; er begint dan een nieuw tegoed van {allowance} schrijfacties. Waren de wijzigingen de bedoeling, bevestig dan gewoon."
+          }
+        },
+        "abort": {
+          "battery_unavailable": "De batterij is nu niet geladen. Probeer het opnieuw zodra Omnibattery ermee verbonden is."
+        }
+      }
+    },
     "excluded_device_ev_type": {
       "title": "Markeer je EV-lader bij de uitgesloten apparaten",
       "description": "Het nieuwe energiestroomdiagram (inschakelen met de knop in de kop van de stroomkaart) tekent EV-laders op een eigen kabel, naast de auto. Omnibattery kan niet weten welk uitgesloten apparaat de lader is; totdat je het markeert, wordt het vermogen ervan op de kabel van de overige uitgesloten apparaten (de buitenunit) getoond en blijft de EV-kabel leeg. Open Opties → Uitgesloten apparaten en sla je apparaten opnieuw op, met \"EV-lader\" aangevinkt bij de lader (laat het uit bij de andere). Dit heeft alleen invloed op hoe het diagram wordt getekend, niet op de batterijbesturing. De melding verdwijnt zodra de apparaten zijn opgeslagen."
     },
     "battery_not_delivering": {
       "title": "Batterij {battery} levert geen vermogen",
-      "description": "{battery} neemt al {minutes} minuten laad-/ontlaadopdrachten aan zonder vermogen te leveren ({reason}). Omnibattery houdt hem buiten de verdeling en probeert het elke {cooldown} minuten opnieuw, zodat de rest van de vloot het huis ondertussen dekt. De batterij zelf, zijn Modbus-verbinding of de bridge ervoor heeft aandacht nodig: controleer of hij niet in stand-by staat onder besturing van zijn eigen app en of de verbinding niet verzadigd is. Handmatige batterijbesturing voor die batterij aan- en weer uitzetten herstelt hem vaak."
+      "description": "{battery} neemt al {minutes} minuten laad-/ontlaadopdrachten aan zonder vermogen te leveren ({reason}). Omnibattery houdt hem buiten de verdeling en probeert het elke {cooldown} minuten opnieuw, zodat de rest van de vloot het huis ondertussen dekt. De batterij zelf of de verbinding ermee heeft aandacht nodig: controleer of hij niet in stand-by staat onder besturing van zijn eigen app en of de verbinding niet overbelast is. Handmatige batterijbesturing voor die batterij aan- en weer uitzetten herstelt hem vaak."
     },
     "configured_sensor_missing": {
       "title": "Geconfigureerde sensor bestaat niet meer",
@@ -22,7 +40,11 @@
     },
     "dead_main_sensor": {
       "title": "Netvermogenssensor publiceert niet meer",
-      "description": "De ingestelde netsensor {sensor} heeft al {minutes} minuten geen meting gepubliceerd. Omnibattery kan zonder die meting niet regelen en houdt daarom het laatste commando van {power} W vast: voorbij de verouderingstolerantie verwerkt de regelaar geen nieuwe correcties meer in plaats van te handelen op een meting waarvan hij weet dat die oud is. Laad- en ontlaadlimieten, SOC-blokkades en de driefasenbeveiliging gelden nog steeds, dus er loopt niets uit de hand, maar de batterijen blijven op dat vaste vermogen laden of ontladen tegen een huisverbruik dat niemand meer uitleest, totdat een SOC-limiet ze stopt. Let op: een sensor die op een geldige waarde is vastgelopen ziet er in Home Assistant volkomen gezond uit. Controleer of {sensor} nog bijwerkt en of de integratie of bridge erachter niet is vastgelopen."
+      "description": "De ingestelde netsensor {sensor} heeft al {minutes} minuten geen meting gepubliceerd. Omnibattery kan zonder die meting niet regelen en heeft daarom de automatische regeling gestopt: elke batterij onder automatische regeling staat op 0W (het laatste commando was {power}W) en voorspellend laden van het net is gepauzeerd. Handmatige modus en handmatige tijdsloten blijven zoals ze zijn. De automatische regeling hervat vanzelf zodra {sensor} weer een geldige meting publiceert. Let op: een sensor die op een geldige waarde is vastgelopen ziet er in Home Assistant volkomen gezond uit. Controleer of {sensor} nog bijwerkt en of de integratie of bridge erachter niet is vastgelopen."
+    },
+    "dead_main_sensor_since_start": {
+      "title": "Netvermogenssensor publiceert niet sinds de herstart",
+      "description": "De ingestelde netsensor {sensor} heeft in de {minutes} minuten sinds Home Assistant is gestart geen geldige meting gepubliceerd. Omnibattery kan zonder die meting niet regelen. Als Home Assistant niet netjes is afgesloten, kan een batterij nog het laatste commando van vóór de herstart uitvoeren. Omnibattery heeft daarom de automatische regeling gestopt: elke batterij onder automatische regeling staat op 0W en voorspellend laden van het net is gepauzeerd. Handmatige modus en handmatige tijdsloten blijven zoals ze zijn. De automatische regeling start vanzelf zodra {sensor} een geldige meting publiceert. Controleer of {sensor} bestaat en bijwerkt, en of de integratie of het apparaat erachter na de herstart weer werkt."
     },
     "slow_main_sensor": {
       "title": "De netvermogenssensor werkt te langzaam bij",
@@ -194,7 +216,7 @@
           "charge_hysteresis_percent": "Altijd aan (minimaal 2%). Na het bereiken van het maximum laadt de batterij pas weer als de SOC daalt naar (Max SOC − hysterese). Bijv.: Max SOC 100% met 2% = geen laden tot 98%.",
           "backup_offgrid_threshold": "Een offgrid-belasting boven deze waarde wordt behandeld als een actieve back-upgebeurtenis en sluit de batterij uit van PD-regeling. Verhoog dit als er permanente lasten (router, camera's) op de offgrid-poort zijn aangesloten.",
           "full_charge_voltage_taper_enabled": "Wanneer het doel 100% is, wordt laden vanaf 3.48 V maximale celspanning beperkt tot 200 W. Venus E-modellen stoppen bij 3.60 V om de onbalans na 60 seconden te meten; Venus A/D met gekoppelde packs blijven laden op 200 W totdat de BMS uitschakelt.",
-          "battery_capacity_kwh": "Nominale bruikbare capaciteit van het batterijpakket. Deze wordt gebruikt om opgeslagen energie en efficiëntie uit SOC te berekenen. Voor Sessy is de werkelijke capaciteit verplicht; laat voor andere batterijen 0 staan als deze onbekend is.",
+          "battery_capacity_kwh": "Nominale bruikbare capaciteit van het batterijpakket. Deze wordt gebruikt om opgeslagen energie en efficiëntie uit SOC te berekenen. Stel 0 in voor automatische detectie van ondersteunde batterijmodellen/pakketten. Voer een positieve waarde in om de detectie te overschrijven of als de pakketten onbekend zijn. Voor Sessy is de werkelijke capaciteit verplicht.",
           "battery_phase": "Fysieke AC-fase (L1/L2/L3) waarop deze batterij is aangesloten, of Niet toegewezen buiten het beschermde faseschema. Een batterij zonder fase valt buiten de driefasenbeveiliging en blijft normaal automatisch werken.",
           "dc_pv_connected": "Alleen Venus A/D. Schakel dit in wanneer zonnepanelen op de MPPT-ingangen van de batterij zijn aangesloten. Schakel het uit wanneer die ingangen ongebruikt zijn, zodat het batterijvermogen op AC-vermogen gebaseerd blijft zonder MPPT-productie toe te voegen.",
           "track_mac": "Het MAC-adres is het permanente hardware-adres van de batterij: anders dan het IP-adres hierboven verandert het nooit. Home Assistant gebruikt het om de batterij terug te vinden en het IP-adres zelf bij te werken. Achter een wifi-naar-LAN-bridge of een powerline-adapter is het zichtbare adres dat van de adapter zelf, gedeeld met alles erachter, dus het bijhouden werkt alleen zolang er één batterij achter die adapter zit.",
@@ -390,7 +412,7 @@
           "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
           "export_price_sensor": "Sensor met de terugleverprijzen. Laat leeg om de importprijscurve te gebruiken; dat klopt wanneer teruglevering tegen de importprijs wordt vergoed (salderen).",
           "export_price_integration_type": "Attribuutindeling van de exportprijssensor. Laat leeg om de importintegratie te hergebruiken. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve.",
-          "zonneplan_export_bonus_enabled": "Telt alleen bij Zonneplan-exportprijzen €0,02/kWh en 10% op. Heeft geen effect tenzij de effectieve exportprijsintegratie Zonneplan is.",
+          "zonneplan_export_bonus_enabled": "Telt de Zonneplan-zonnebonus op bij de exportprijs van zonnestroom inclusief belastingen: de bonus is €0,02/kWh bovenop de prijs exclusief belastingen, daarna +10%. Geldt alleen tussen zonsopkomst en zonsondergang en alleen als die prijs plus €0,02 positief is. Export vanuit de accu wordt nooit met de bonus gewaardeerd. Heeft geen effect tenzij de effectieve exportprijsintegratie Zonneplan is.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt."
         }
       },
@@ -521,7 +543,7 @@
           "pd_direction_hysteresis": "Vermogensdrempel vereist om te schakelen tussen laden en ontladen. Voorkomt snelle richtingsveranderingen. Bereik: 0-200W, standaard: 60W",
           "pd_min_charge_power": "Minimaal vermogen om te laden. Onder deze drempel blijft de regelaar inactief in plaats van laden op laag vermogen. 0 = uitgeschakeld.",
           "pd_min_discharge_power": "Minimaal vermogen om te ontladen. Onder deze drempel blijft de regelaar inactief in plaats van ontladen op laag vermogen. 0 = uitgeschakeld.",
-          "pd_target_grid_power": "Netvermogen-setpoint waarop de regelaar regelt. Positief = afname van het net (batterij laadt), negatief = teruglevering aan het net (batterij ontlaadt), 0 = netto nul. Het bereik volgt het totaal geconfigureerde batterijvermogen, begrensd door de systeemvermogenslimieten wanneer die actief zijn. Standaard: 0 W.",
+          "pd_target_grid_power": "Netvermogen-setpoint waarop de regelaar regelt. Positief = afname van het net (batterij laadt), negatief = teruglevering aan het net (batterij ontlaadt), 0 = netto nul. Het terugleverbereik volgt het totaal geconfigureerde batterijvermogen, begrensd door de systeemvermogenslimieten wanneer die actief zijn; het afnamebereik loopt tot je gecontracteerd vermogen als dat is ingesteld, omdat het huis via dezelfde meter afneemt. Standaard: 0 W.",
           "enable_system_power_limits": "Wanneer ingeschakeld beperken de twee sliders hieronder het gecombineerde laad-/ontlaadvermogen van alle actieve batterijen.",
           "system_max_charge_power": "Optionele limiet voor gecombineerd laadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden.",
           "system_max_discharge_power": "Optionele limiet voor gecombineerd ontlaadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden."
@@ -591,6 +613,30 @@
         "description": "Werk de verbindingsgegevens voor de Sessy-batterij {battery_num} bij. Alle overige instellingen blijven behouden.",
         "data": {"name": "Naam", "host": "IP-adres", "port": "HTTP-poort", "username": "Gebruikersnaam", "password": "Wachtwoord"},
         "data_description": {"name": "Beschrijvende naam om deze batterij te identificeren", "host": "IP-adres van het Sessy-apparaat op het lokale netwerk", "port": "HTTP-poort (standaard 80)", "username": "Lokale gebruikersnaam op de Sessy-dongle", "password": "Lokaal wachtwoord op de Sessy-dongle"}
+      },
+      "reconfigure_battery_indevolt": {
+        "title": "Batterij {battery_num} opnieuw configureren — Verbinding (Indevolt)",
+        "description": "Werk de verbindingsgegevens van Indevolt-batterij {battery_num} bij. Alle andere instellingen blijven behouden.",
+        "data": {
+          "name": "Naam",
+          "host": "IP-adres",
+          "port": "HTTP-poort"
+        },
+        "data_description": {
+          "name": "Beschrijvende naam om deze batterij te herkennen",
+          "host": "IP-adres van de Indevolt-batterij in je lokale netwerk",
+          "port": "HTTP-poort van de lokale API (standaard 8080)"
+        }
+      },
+      "reconfigure_battery_indevolt_request_speed": {
+        "title": "Batterij {battery_num} opnieuw configureren — Verzoeksnelheid (Indevolt)",
+        "description": "Met een hogere verzoeksnelheid reageert je batterij sneller op meterveranderingen, wat een betere nul-op-de-meter (NoM) kan opleveren. De opties:\n\n- **Conservatief** (5s) is het advies van Indevolt en de standaard. Het past bij een meter die elke 5s bijwerkt, het gebruikelijke tempo in Home Assistant: met zo'n meter reageert de batterij bij een hogere snelheid niet sneller.\n- **Normaal** (3s) past bij een meter die elke 3s bijwerkt.\n- **Snel** (2s) past bij een meter die elke 2s bijwerkt. Met een meter die elke seconde bijwerkt is het de veilige keuze: de batterij krijgt dan hooguit elke 2s een nieuwe opdracht.\n- **Maximaal** (1s) stuurt tot elke seconde een opdracht en wacht niet langer 1s tussen verzoeken, wat onder het gedocumenteerde minimum van Indevolt ligt. Het helpt alleen met een meter die elke seconde bijwerkt; kies bij een tragere meter **Snel**. Zet bij **Maximaal** ook PD Min. Cyclusinterval op 0 als elke batterij in Omnibattery een Indevolt is.",
+        "data": {
+          "indevolt_request_speed": "Verzoeksnelheid"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Elke snelheid sneller dan 5s is op eigen risico: je bent zelf verantwoordelijk om te controleren of je batterij, Home Assistant en netwerk het kunnen bijhouden. Op de apparaatpagina hoort Verzoekinterval (effectief) gelijk te blijven aan je keuze, en horen Leeslatentie (P95) en Schrijflatentie (P95) ruim onder 1s te blijven.\n\nUitproberen kan: antwoordt de batterij traag of niet, dan schakelt de Indevolt-driver van Omnibattery automatisch terug naar een rustiger tempo, totdat de reactiesnelheid weer hersteld is."
+        }
       },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
@@ -666,6 +712,34 @@
         "data": {"name": "Naam", "host": "IP-adres", "port": "HTTP-poort", "username": "Gebruikersnaam", "password": "Wachtwoord"},
         "data_description": {"name": "Beschrijvende naam om deze batterij te identificeren", "host": "IP-adres van het Sessy-apparaat op het lokale netwerk", "port": "HTTP-poort (standaard 80)", "username": "Lokale gebruikersnaam op de Sessy-dongle", "password": "Lokaal wachtwoord op de Sessy-dongle"}
       },
+      "battery_connection_indevolt": {
+        "title": "Batterij {battery_num} configureren — Verbinding (Indevolt)",
+        "description": "Voer het IP-adres van Indevolt-batterij {battery_num} in. Schakel in de Indevolt-app de lokale API in met het protocol **HTTP** (niet HTTP Digest). Omnibattery stuurt de batterij alleen aan in de modus **Realtime**, die je in de Indevolt-app kiest; de modus zelf wijzigt Omnibattery nooit.",
+        "data": {
+          "name": "Naam",
+          "host": "IP-adres",
+          "port": "HTTP-poort"
+        },
+        "data_description": {
+          "name": "Beschrijvende naam om deze batterij te herkennen",
+          "host": "IP-adres van de Indevolt-batterij in je lokale netwerk",
+          "port": "HTTP-poort van de lokale API (standaard 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Batterij {battery_num} configureren — Verzoeksnelheid (Indevolt)",
+        "description": "Met een hogere verzoeksnelheid reageert je batterij sneller op meterveranderingen, wat een betere nul-op-de-meter (NoM) kan opleveren. De opties:\n\n- **Conservatief** (5s) is het advies van Indevolt en de standaard. Het past bij een meter die elke 5s bijwerkt, het gebruikelijke tempo in Home Assistant: met zo'n meter reageert de batterij bij een hogere snelheid niet sneller.\n- **Normaal** (3s) past bij een meter die elke 3s bijwerkt.\n- **Snel** (2s) past bij een meter die elke 2s bijwerkt. Met een meter die elke seconde bijwerkt is het de veilige keuze: de batterij krijgt dan hooguit elke 2s een nieuwe opdracht.\n- **Maximaal** (1s) stuurt tot elke seconde een opdracht en wacht niet langer 1s tussen verzoeken, wat onder het gedocumenteerde minimum van Indevolt ligt. Het helpt alleen met een meter die elke seconde bijwerkt; kies bij een tragere meter **Snel**. Zet bij **Maximaal** ook PD Min. Cyclusinterval op 0 als elke batterij in Omnibattery een Indevolt is.",
+        "data": {
+          "indevolt_request_speed": "Verzoeksnelheid"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Elke snelheid sneller dan 5s is op eigen risico: je bent zelf verantwoordelijk om te controleren of je batterij, Home Assistant en netwerk het kunnen bijhouden. Op de apparaatpagina hoort Verzoekinterval (effectief) gelijk te blijven aan je keuze, en horen Leeslatentie (P95) en Schrijflatentie (P95) ruim onder 1s te blijven.\n\nUitproberen kan: antwoordt de batterij traag of niet, dan schakelt de Indevolt-driver van Omnibattery automatisch terug naar een rustiger tempo, totdat de reactiesnelheid weer hersteld is."
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batterij {battery_num} — Realtime-modus vereist",
+        "description": "De batterij staat niet in de Realtime-modus. De installatie gaat verder en Omnibattery houdt de batterij in de gaten, maar stuurt haar pas aan zodra je in de Indevolt-app **Realtime** kiest. De aansturing start dan vanzelf."
+      },
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
         "description": "Omnibattery reads this battery over Modbus and sends its set-points through the Huawei Solar integration, so it needs both: a Modbus endpoint and the battery device. Point the Modbus address at a Modbus proxy rather than straight at the inverter — the Huawei Solar integration already holds a connection to it.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
@@ -697,6 +771,8 @@
     "error": {
       "invalid_mac": "Dit lijkt geen MAC-adres te zijn. Er worden zes paren hexadecimale cijfers verwacht, bijvoorbeeld dc:04:5a:14:6b:33.",
       "cannot_connect": "Kan geen verbinding maken met de batterij. Controleer het IP-adres en of de batterij toegankelijk is op het netwerk.",
+      "hoymiles_no_power_ctrl": "Deze MQTT-apparaat-ID publiceert telemetrie maar geen vermogensregeling. In een gekoppeld Hoymiles-systeem is alleen de master aanstuurbaar: voeg de apparaat-ID van de master één keer toe, niet die van de slave.",
+      "indevolt_http_digest": "De batterij vraagt om een wachtwoord: de lokale API staat op HTTP Digest. Kies HTTP in de Indevolt-app en probeer het opnieuw.",
       "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
       "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
@@ -722,8 +798,10 @@
       "midnight_crossing": "De starttijd moet vóór de eindtijd liggen. Maak voor nachtperiodes twee aparte tijdslots aan (bijv. 22:00-23:59 en 00:00-06:00).",
       "slot_does_nothing": "Het slot moet ten minste één richting toestaan (laden of ontladen).",
       "manual_requires_power": "Handmatige modus vereist dat vermogenscontrole is ingeschakeld.",
+      "manual_requires_single_direction": "Handmatige modus forceert één richting: vink Laden toestaan of Ontladen toestaan aan, niet beide.",
       "no_price_data": "De geselecteerde sensor is geen ondersteunde prijsbron. Nord Pool: selecteer een entiteit van de officiële integratie of een HACS-sensor met `raw_today`. PVPC vereist `price_00h` … `price_23h`, CKW een `prices`-lijst, EPEX een `data`-lijst en ENTSO-e een `prices_today`-lijst.",
       "tibber_unavailable": "De Tibber-integratie is niet geïnstalleerd, of de service `tibber.get_prices` is niet beschikbaar. Installeer en configureer eerst Tibber.",
+      "energyzero_unavailable": "De EnergyZero-integratie is niet geïnstalleerd of de service `energyzero.get_energy_prices` is niet beschikbaar. Installeer en configureer eerst EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "De ontlaad-prijsondergrens mag niet lager zijn dan de maximale (laad)prijsdrempel. Stel deze gelijk of hoger in, of laat leeg om de laaddrempel te hergebruiken.",
@@ -917,7 +995,7 @@
           "charge_hysteresis_percent": "Altijd aan (minimaal 2%). Na het bereiken van het maximum laadt de batterij pas weer als de SOC daalt naar (Max SOC − hysterese). Bijv.: Max SOC 100% met 2% = geen laden tot 98%.",
           "backup_offgrid_threshold": "Een offgrid-belasting boven deze waarde wordt behandeld als een actieve back-upgebeurtenis en sluit de batterij uit van PD-regeling. Verhoog dit als er permanente lasten (router, camera's) op de offgrid-poort zijn aangesloten.",
           "full_charge_voltage_taper_enabled": "Wanneer het doel 100% is, wordt laden vanaf 3.48 V maximale celspanning beperkt tot 200 W. Venus E-modellen stoppen bij 3.60 V om de onbalans na 60 seconden te meten; Venus A/D met gekoppelde packs blijven laden op 200 W totdat de BMS uitschakelt.",
-          "battery_capacity_kwh": "Nominale bruikbare capaciteit van het batterijpakket. Deze wordt gebruikt om opgeslagen energie en efficiëntie uit SOC te berekenen. Voor Sessy is de werkelijke capaciteit verplicht; laat voor andere batterijen 0 staan als deze onbekend is.",
+          "battery_capacity_kwh": "Nominale bruikbare capaciteit van het batterijpakket. Deze wordt gebruikt om opgeslagen energie en efficiëntie uit SOC te berekenen. Stel 0 in voor automatische detectie van ondersteunde batterijmodellen/pakketten. Voer een positieve waarde in om de detectie te overschrijven of als de pakketten onbekend zijn. Voor Sessy is de werkelijke capaciteit verplicht.",
           "battery_phase": "Fysieke AC-fase (L1/L2/L3) waarop deze batterij is aangesloten, of Niet toegewezen buiten het beschermde faseschema. Een batterij zonder fase valt buiten de driefasenbeveiliging en blijft normaal automatisch werken.",
           "dc_pv_connected": "Alleen Venus A/D. Schakel dit in wanneer zonnepanelen op de MPPT-ingangen van de batterij zijn aangesloten. Schakel het uit wanneer die ingangen ongebruikt zijn, zodat het batterijvermogen op AC-vermogen gebaseerd blijft zonder MPPT-productie toe te voegen.",
           "track_mac": "Het MAC-adres is het permanente hardware-adres van de batterij: anders dan het IP-adres hierboven verandert het nooit. Home Assistant gebruikt het om de batterij terug te vinden en het IP-adres zelf bij te werken. Achter een wifi-naar-LAN-bridge of een powerline-adapter is het zichtbare adres dat van de adapter zelf, gedeeld met alles erachter, dus het bijhouden werkt alleen zolang er één batterij achter die adapter zit.",
@@ -1113,7 +1191,7 @@
           "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
           "export_price_sensor": "Sensor met de terugleverprijzen. Laat leeg om de importprijscurve te gebruiken; dat klopt wanneer teruglevering tegen de importprijs wordt vergoed (salderen).",
           "export_price_integration_type": "Attribuutindeling van de exportprijssensor. Laat leeg om de importintegratie te hergebruiken. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve.",
-          "zonneplan_export_bonus_enabled": "Telt alleen bij Zonneplan-exportprijzen 10% en €0,02/kWh op. Heeft geen effect tenzij de effectieve exportprijsintegratie Zonneplan is.",
+          "zonneplan_export_bonus_enabled": "Telt de Zonneplan-zonnebonus op bij de exportprijs van zonnestroom inclusief belastingen: de bonus is €0,02/kWh bovenop de prijs exclusief belastingen, daarna +10%. Geldt alleen tussen zonsopkomst en zonsondergang en alleen als die prijs plus €0,02 positief is. Export vanuit de accu wordt nooit met de bonus gewaardeerd. Heeft geen effect tenzij de effectieve exportprijsintegratie Zonneplan is.",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt."
         }
       },
@@ -1244,7 +1322,7 @@
           "pd_direction_hysteresis": "Vermogensdrempel vereist om te schakelen tussen laden en ontladen. Voorkomt snelle richtingsveranderingen. Bereik: 0-200W, standaard: 60W",
           "pd_min_charge_power": "Minimaal vermogen om te laden. Onder deze drempel blijft de regelaar inactief in plaats van laden op laag vermogen. 0 = uitgeschakeld.",
           "pd_min_discharge_power": "Minimaal vermogen om te ontladen. Onder deze drempel blijft de regelaar inactief in plaats van ontladen op laag vermogen. 0 = uitgeschakeld.",
-          "pd_target_grid_power": "Netvermogen-setpoint waarop de regelaar regelt. Positief = afname van het net (batterij laadt), negatief = teruglevering aan het net (batterij ontlaadt), 0 = netto nul. Het bereik volgt het totaal geconfigureerde batterijvermogen, begrensd door de systeemvermogenslimieten wanneer die actief zijn. Standaard: 0 W.",
+          "pd_target_grid_power": "Netvermogen-setpoint waarop de regelaar regelt. Positief = afname van het net (batterij laadt), negatief = teruglevering aan het net (batterij ontlaadt), 0 = netto nul. Het terugleverbereik volgt het totaal geconfigureerde batterijvermogen, begrensd door de systeemvermogenslimieten wanneer die actief zijn; het afnamebereik loopt tot je gecontracteerd vermogen als dat is ingesteld, omdat het huis via dezelfde meter afneemt. Standaard: 0 W.",
           "enable_system_power_limits": "Wanneer ingeschakeld beperken de twee sliders hieronder het gecombineerde laad-/ontlaadvermogen van alle actieve batterijen.",
           "system_max_charge_power": "Optionele limiet voor gecombineerd laadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden.",
           "system_max_discharge_power": "Optionele limiet voor gecombineerd ontlaadvermogen van alle actieve batterijen. 0 = uitgeschakeld; limieten per batterij blijven gelden."
@@ -1279,6 +1357,34 @@
         "data": {"name": "Naam", "host": "IP-adres", "port": "HTTP-poort", "username": "Gebruikersnaam", "password": "Wachtwoord"},
         "data_description": {"name": "Beschrijvende naam om deze batterij te identificeren", "host": "IP-adres van het Sessy-apparaat op het lokale netwerk", "port": "HTTP-poort (standaard 80)", "username": "Lokale gebruikersnaam op de Sessy-dongle", "password": "Lokaal wachtwoord op de Sessy-dongle"}
       },
+      "battery_connection_indevolt": {
+        "title": "Batterij {battery_num} configureren — Verbinding (Indevolt)",
+        "description": "Wijzig de verbindingsgegevens van Indevolt-batterij {battery_num}.",
+        "data": {
+          "name": "Naam",
+          "host": "IP-adres",
+          "port": "HTTP-poort"
+        },
+        "data_description": {
+          "name": "Beschrijvende naam om deze batterij te herkennen",
+          "host": "IP-adres van de Indevolt-batterij in je lokale netwerk",
+          "port": "HTTP-poort van de lokale API (standaard 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Batterij {battery_num} configureren — Verzoeksnelheid (Indevolt)",
+        "description": "Met een hogere verzoeksnelheid reageert je batterij sneller op meterveranderingen, wat een betere nul-op-de-meter (NoM) kan opleveren. De opties:\n\n- **Conservatief** (5s) is het advies van Indevolt en de standaard. Het past bij een meter die elke 5s bijwerkt, het gebruikelijke tempo in Home Assistant: met zo'n meter reageert de batterij bij een hogere snelheid niet sneller.\n- **Normaal** (3s) past bij een meter die elke 3s bijwerkt.\n- **Snel** (2s) past bij een meter die elke 2s bijwerkt. Met een meter die elke seconde bijwerkt is het de veilige keuze: de batterij krijgt dan hooguit elke 2s een nieuwe opdracht.\n- **Maximaal** (1s) stuurt tot elke seconde een opdracht en wacht niet langer 1s tussen verzoeken, wat onder het gedocumenteerde minimum van Indevolt ligt. Het helpt alleen met een meter die elke seconde bijwerkt; kies bij een tragere meter **Snel**. Zet bij **Maximaal** ook PD Min. Cyclusinterval op 0 als elke batterij in Omnibattery een Indevolt is.",
+        "data": {
+          "indevolt_request_speed": "Verzoeksnelheid"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Elke snelheid sneller dan 5s is op eigen risico: je bent zelf verantwoordelijk om te controleren of je batterij, Home Assistant en netwerk het kunnen bijhouden. Op de apparaatpagina hoort Verzoekinterval (effectief) gelijk te blijven aan je keuze, en horen Leeslatentie (P95) en Schrijflatentie (P95) ruim onder 1s te blijven.\n\nUitproberen kan: antwoordt de batterij traag of niet, dan schakelt de Indevolt-driver van Omnibattery automatisch terug naar een rustiger tempo, totdat de reactiesnelheid weer hersteld is."
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batterij {battery_num} — Realtime-modus vereist",
+        "description": "De batterij staat niet in de Realtime-modus. De installatie gaat verder en Omnibattery houdt de batterij in de gaten, maar stuurt haar pas aan zodra je in de Indevolt-app **Realtime** kiest. De aansturing start dan vanzelf."
+      },
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
         "description": "Modify the Modbus endpoint and the Huawei Solar battery device used for battery {battery_num}.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
@@ -1310,6 +1416,8 @@
     "error": {
       "invalid_mac": "Dit lijkt geen MAC-adres te zijn. Er worden zes paren hexadecimale cijfers verwacht, bijvoorbeeld dc:04:5a:14:6b:33.",
       "cannot_connect": "Kan geen verbinding maken met de batterij. Controleer het IP-adres en of de batterij toegankelijk is op het netwerk.",
+      "hoymiles_no_power_ctrl": "Deze MQTT-apparaat-ID publiceert telemetrie maar geen vermogensregeling. In een gekoppeld Hoymiles-systeem is alleen de master aanstuurbaar: voeg de apparaat-ID van de master één keer toe, niet die van de slave.",
+      "indevolt_http_digest": "De batterij vraagt om een wachtwoord: de lokale API staat op HTTP Digest. Kies HTTP in de Indevolt-app en probeer het opnieuw.",
       "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
       "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
@@ -1335,8 +1443,10 @@
       "midnight_crossing": "De starttijd moet vóór de eindtijd liggen. Maak voor nachtperiodes twee aparte tijdslots aan (bijv. 22:00-23:59 en 00:00-06:00).",
       "slot_does_nothing": "Het slot moet ten minste één richting toestaan (laden of ontladen).",
       "manual_requires_power": "Handmatige modus vereist dat vermogenscontrole is ingeschakeld.",
+      "manual_requires_single_direction": "Handmatige modus forceert één richting: vink Laden toestaan of Ontladen toestaan aan, niet beide.",
       "no_price_data": "De geselecteerde sensor is geen ondersteunde prijsbron. Nord Pool: selecteer een entiteit van de officiële integratie of een HACS-sensor met `raw_today`. PVPC vereist `price_00h` … `price_23h`, CKW een `prices`-lijst, EPEX een `data`-lijst en ENTSO-e een `prices_today`-lijst.",
       "tibber_unavailable": "De Tibber-integratie is niet geïnstalleerd, of de service `tibber.get_prices` is niet beschikbaar. Installeer en configureer eerst Tibber.",
+      "energyzero_unavailable": "De EnergyZero-integratie is niet geïnstalleerd of de service `energyzero.get_energy_prices` is niet beschikbaar. Installeer en configureer eerst EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "De ontlaad-prijsondergrens mag niet lager zijn dan de maximale (laad)prijsdrempel. Stel deze gelijk of hoger in, of laat leeg om de laaddrempel te hergebruiken.",
@@ -1346,6 +1456,14 @@
     }
   },
   "selector": {
+    "indevolt_request_speed": {
+      "options": {
+        "maximum": "Maximaal: 1s",
+        "fast": "Snel: 2s",
+        "normal": "Normaal: 3s",
+        "conservative": "Conservatief: 5s (standaard, aanbevolen door Indevolt)"
+      }
+    },
     "hoymiles_model": {
       "options": {
         "auto": "Automatisch detecteren (aanbevolen)",
@@ -1395,7 +1513,10 @@
         "epex": "EPEX Spot (bijv. aWATTar)",
         "entsoe": "ENTSO-e (Transparency Platform)",
         "zonneplan": "Zonneplan",
-        "tibber": "Tibber (servicegebaseerd)"
+        "frank_energie": "Frank Energie",
+        "energyzero": "EnergyZero",
+        "tibber": "Tibber (servicegebaseerd)",
+        "be_electricity_prices": "BE Electricity Prices (België, all-in)"
       }
     }
   },
@@ -1425,11 +1546,20 @@
       "min_soc_floor_enabled": {
         "name": "Gegarandeerd Minimum SOC"
       },
+      "max_price_threshold_enabled": {
+        "name": "Handmatig laadprijsplafond"
+      },
+      "discharge_price_threshold_enabled": {
+        "name": "Handmatige ontlaad-prijsondergrens"
+      },
       "system_power_limits": {
         "name": "Systeemvermogenslimieten"
       },
       "predictive_charging": {
         "name": "Voorspellend Laden"
+      },
+      "predictive_charging_notifications": {
+        "name": "Meldingen Voorspellend Laden"
       },
       "vacation_mode": {
         "name": "Vakantiemodus"
@@ -1850,6 +1980,308 @@
       "software_version": {
         "name": "Softwareversie"
       },
+      "energy_mode": {
+        "name": "Werkmodus"
+      },
+      "control_status": {
+        "name": "Regelstatus",
+        "state": {
+          "active": "Actief",
+          "starting": "Overnemen",
+          "realtime_mode_required": "Gepauzeerd: niet in Realtime-modus",
+          "not_configured": "Alleen uitlezen",
+          "telemetry_stale": "Gepauzeerd: geen actuele gegevens",
+          "soc_calibration": "Gepauzeerd: SOC-kalibratie",
+          "handover_failed": "Gepauzeerd: overname mislukt",
+          "unknown_model": "Alleen uitlezen: onbekend model"
+        }
+      },
+      "native_min_soc": {
+        "name": "Batterijreserve"
+      },
+      "realtime_power": {
+        "name": "Realtime-opdrachtvermogen"
+      },
+      "realtime_target_soc": {
+        "name": "Realtime-doel-SOC"
+      },
+      "grid_charging_allowed": {
+        "name": "Laden van het net"
+      },
+      "inverter_battery_temperature": {
+        "name": "Temperatuur omvormerbatterij"
+      },
+      "transformer_temperature": {
+        "name": "Temperatuur transformator"
+      },
+      "request_interval": {
+        "name": "Verzoekinterval (effectief)"
+      },
+      "ac_input_power": {
+        "name": "AC-ingangsvermogen"
+      },
+      "ac_output_power": {
+        "name": "AC-uitgangsvermogen"
+      },
+      "bypass_power": {
+        "name": "Bypass-vermogen"
+      },
+      "indevolt_meter_power": {
+        "name": "Indevolt-metervermogen"
+      },
+      "solar_output_power": {
+        "name": "Zonne-uitgangsvermogen"
+      },
+      "total_ac_input_energy": {
+        "name": "Totale AC-ingangsenergie"
+      },
+      "total_ac_output_energy": {
+        "name": "Totale AC-uitgangsenergie"
+      },
+      "off_grid_output_energy": {
+        "name": "Off-grid uitgangsenergie"
+      },
+      "bypass_input_energy": {
+        "name": "Bypass-ingangsenergie"
+      },
+      "daily_solar_energy": {
+        "name": "Dagelijkse zonne-energie"
+      },
+      "total_solar_energy": {
+        "name": "Totale zonne-energie"
+      },
+      "feed_in_limit": {
+        "name": "Terugleverlimiet"
+      },
+      "grid_voltage": {
+        "name": "Netspanning"
+      },
+      "grid_frequency": {
+        "name": "Netfrequentie"
+      },
+      "remaining_charging_time": {
+        "name": "Resterende laadtijd"
+      },
+      "remaining_discharging_time": {
+        "name": "Resterende ontlaadtijd"
+      },
+      "realtime_command": {
+        "name": "Realtime-opdracht",
+        "state": {
+          "standby": "Stand-by",
+          "charging": "Laden",
+          "discharging": "Ontladen"
+        }
+      },
+      "device_mode": {
+        "name": "Apparaatmodus",
+        "state": {
+          "cluster_main": "Cluster (hoofd)",
+          "cluster_sub": "Cluster (sub)",
+          "standalone": "Zelfstandig"
+        }
+      },
+      "operating_status": {
+        "name": "Bedrijfsstatus",
+        "state": {
+          "powered_off": "Uitgeschakeld",
+          "sleep": "Slaapstand",
+          "starting": "Opstarten",
+          "mppt_operating": "MPPT actief",
+          "current_limiting": "Stroombegrenzing",
+          "shutting_down": "Afsluiten",
+          "inverter_fault": "Omvormerstoring",
+          "standby": "Stand-by",
+          "grid_charging": "Laden van het net",
+          "grid_discharging": "Ontladen naar het net",
+          "off_grid_charging": "Off-grid laden",
+          "off_grid_discharging": "Off-grid ontladen",
+          "low_battery_charging": "Laden bij lage batterij",
+          "deep_sleep": "Diepe slaap",
+          "scheduled_full_charge": "Geplande volledige lading",
+          "off_grid_deep_sleep": "Off-grid diepe slaap"
+        }
+      },
+      "full_charge_interval": {
+        "name": "Interval geforceerde volledige lading"
+      },
+      "full_charge_time": {
+        "name": "Tijdstip geforceerde volledige lading"
+      },
+      "highest_cell_voltage": {
+        "name": "Hoogste celspanning"
+      },
+      "lowest_cell_voltage": {
+        "name": "Laagste celspanning"
+      },
+      "pv1_power": {
+        "name": "PV1 Vermogen"
+      },
+      "pv1_current": {
+        "name": "PV1 Stroom"
+      },
+      "pv2_power": {
+        "name": "PV2 Vermogen"
+      },
+      "pv2_current": {
+        "name": "PV2 Stroom"
+      },
+      "pv3_power": {
+        "name": "PV3 Vermogen"
+      },
+      "pv3_current": {
+        "name": "PV3 Stroom"
+      },
+      "pv4_power": {
+        "name": "PV4 Vermogen"
+      },
+      "pv4_current": {
+        "name": "PV4 Stroom"
+      },
+      "inverter_battery_soc": {
+        "name": "SOC omvormerbatterij"
+      },
+      "inverter_battery_cycles": {
+        "name": "Cycli omvormerbatterij"
+      },
+      "inverter_battery_mos_temperature": {
+        "name": "MOS-temperatuur omvormerbatterij"
+      },
+      "inverter_battery_voltage": {
+        "name": "Spanning omvormerbatterij"
+      },
+      "inverter_battery_current": {
+        "name": "Stroom omvormerbatterij"
+      },
+      "inverter_battery_serial_number": {
+        "name": "Serienummer omvormerbatterij"
+      },
+      "expansion_battery_1_soc": {
+        "name": "SOC uitbreidingsbatterij 1"
+      },
+      "expansion_battery_1_cycles": {
+        "name": "Cycli uitbreidingsbatterij 1"
+      },
+      "expansion_battery_1_mos_temperature": {
+        "name": "MOS-temperatuur uitbreidingsbatterij 1"
+      },
+      "expansion_battery_1_voltage": {
+        "name": "Spanning uitbreidingsbatterij 1"
+      },
+      "expansion_battery_1_current": {
+        "name": "Stroom uitbreidingsbatterij 1"
+      },
+      "expansion_battery_1_serial_number": {
+        "name": "Serienummer uitbreidingsbatterij 1"
+      },
+      "expansion_battery_2_soc": {
+        "name": "SOC uitbreidingsbatterij 2"
+      },
+      "expansion_battery_2_cycles": {
+        "name": "Cycli uitbreidingsbatterij 2"
+      },
+      "expansion_battery_2_mos_temperature": {
+        "name": "MOS-temperatuur uitbreidingsbatterij 2"
+      },
+      "expansion_battery_2_voltage": {
+        "name": "Spanning uitbreidingsbatterij 2"
+      },
+      "expansion_battery_2_current": {
+        "name": "Stroom uitbreidingsbatterij 2"
+      },
+      "expansion_battery_2_serial_number": {
+        "name": "Serienummer uitbreidingsbatterij 2"
+      },
+      "expansion_battery_3_soc": {
+        "name": "SOC uitbreidingsbatterij 3"
+      },
+      "expansion_battery_3_cycles": {
+        "name": "Cycli uitbreidingsbatterij 3"
+      },
+      "expansion_battery_3_mos_temperature": {
+        "name": "MOS-temperatuur uitbreidingsbatterij 3"
+      },
+      "expansion_battery_3_voltage": {
+        "name": "Spanning uitbreidingsbatterij 3"
+      },
+      "expansion_battery_3_current": {
+        "name": "Stroom uitbreidingsbatterij 3"
+      },
+      "expansion_battery_3_serial_number": {
+        "name": "Serienummer uitbreidingsbatterij 3"
+      },
+      "expansion_battery_4_soc": {
+        "name": "SOC uitbreidingsbatterij 4"
+      },
+      "expansion_battery_4_cycles": {
+        "name": "Cycli uitbreidingsbatterij 4"
+      },
+      "expansion_battery_4_mos_temperature": {
+        "name": "MOS-temperatuur uitbreidingsbatterij 4"
+      },
+      "expansion_battery_4_voltage": {
+        "name": "Spanning uitbreidingsbatterij 4"
+      },
+      "expansion_battery_4_current": {
+        "name": "Stroom uitbreidingsbatterij 4"
+      },
+      "expansion_battery_4_serial_number": {
+        "name": "Serienummer uitbreidingsbatterij 4"
+      },
+      "expansion_battery_5_soc": {
+        "name": "SOC uitbreidingsbatterij 5"
+      },
+      "expansion_battery_5_cycles": {
+        "name": "Cycli uitbreidingsbatterij 5"
+      },
+      "expansion_battery_5_mos_temperature": {
+        "name": "MOS-temperatuur uitbreidingsbatterij 5"
+      },
+      "expansion_battery_5_voltage": {
+        "name": "Spanning uitbreidingsbatterij 5"
+      },
+      "expansion_battery_5_current": {
+        "name": "Stroom uitbreidingsbatterij 5"
+      },
+      "expansion_battery_5_serial_number": {
+        "name": "Serienummer uitbreidingsbatterij 5"
+      },
+      "request_speed": {
+        "name": "Verzoeksnelheid",
+        "state": {
+          "maximum": "Maximaal (1s)",
+          "fast": "Snel (2s)",
+          "normal": "Normaal (3s)",
+          "conservative": "Conservatief (5s)"
+        }
+      },
+      "read_latency": {
+        "name": "Leeslatentie (P95)"
+      },
+      "write_latency": {
+        "name": "Schrijflatentie (P95)"
+      },
+      "request_failures": {
+        "name": "Mislukte verzoeken"
+      },
+      "flash_writes": {
+        "name": "Flashschrijfacties"
+      },
+      "expansion_battery_1_temperature": {
+        "name": "Temperatuur uitbreidingsbatterij 1"
+      },
+      "expansion_battery_2_temperature": {
+        "name": "Temperatuur uitbreidingsbatterij 2"
+      },
+      "expansion_battery_3_temperature": {
+        "name": "Temperatuur uitbreidingsbatterij 3"
+      },
+      "expansion_battery_4_temperature": {
+        "name": "Temperatuur uitbreidingsbatterij 4"
+      },
+      "expansion_battery_5_temperature": {
+        "name": "Temperatuur uitbreidingsbatterij 5"
+      },
       "pv1_voltage": {
         "name": "PV1 Spanning"
       },
@@ -2023,6 +2455,9 @@
       }
     },
     "binary_sensor": {
+      "indevolt_meter_connected": {
+        "name": "Indevolt-meter verbonden"
+      },
       "capacity_protection_active": {
         "name": "Piekbegrenzing Actief"
       },
@@ -2188,6 +2623,14 @@
           "aggressive": "Agressief",
           "very_aggressive": "Zeer agressief",
           "custom": "Aangepast"
+        }
+      },
+      "grid_reverse": {
+        "name": "Energie-export",
+        "state": {
+          "disabled": "Uitgeschakeld",
+          "allowed": "Toegestaan",
+          "forbidden": "Verboden"
         }
       },
       "grid_off_mode": {

@@ -1,12 +1,30 @@
 {
   "issues": {
+    "recorder_excluded_sensors": {
+      "title": "Sensores excluidos de Recorder",
+      "description": "Recorder excluye estos sensores que Omnibattery utiliza para recuperar los perfiles solares y de consumo doméstico: {sensors}. Ajusta las reglas include/exclude de Recorder para incluirlos y reinicia Home Assistant para aplicar la configuración. El aviso desaparece automáticamente cuando estén incluidos. Las muestras históricas que faltan no se pueden recuperar; el aprendizaje en directo y los perfiles ya guardados siguen funcionando."
+    },
+    "indevolt_flash_writes_paused": {
+      "title": "Escritura de ajustes de Indevolt en pausa para proteger la batería: {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Volver a permitir la escritura de ajustes de Indevolt",
+            "description": "Omnibattery ha escrito el SOC mínimo y los límites de potencia de **{name}** {allowance} veces en el último año, así que ha pausado su escritura. Es una red de seguridad, no una limitación para ti: evita que una automatización o un script que cambia estos ajustes demasiado a menudo desgaste sin que nadie lo note la memoria flash de la batería, que se desgasta un poco con cada escritura. Los cambios hechos en la app de Indevolt se siguen adoptando.\n\nRevisa tus automatizaciones y scripts en busca de algo que cambie estos ajustes a menudo. Después confirma aquí para volver a permitir la escritura; empieza un nuevo margen de {allowance} escrituras. Si los cambios eran intencionados, simplemente confirma."
+          }
+        },
+        "abort": {
+          "battery_unavailable": "La batería no está cargada ahora mismo. Inténtalo de nuevo cuando Omnibattery esté conectado a ella."
+        }
+      }
+    },
     "excluded_device_ev_type": {
       "title": "Marca tu cargador de VE entre los dispositivos excluidos",
       "description": "El nuevo diagrama de flujos de energía (actívalo con el botón de la cabecera de la tarjeta de flujo) dibuja los cargadores de VE en su propio cable, junto al coche. Omnibattery no puede saber qué dispositivo excluido es el cargador, así que hasta que lo marques su potencia se muestra en el cable de los demás dispositivos excluidos (la unidad exterior) y el cable del VE queda vacío. Abre Opciones → Dispositivos excluidos y vuelve a guardar tus dispositivos, marcando \"Cargador de VE\" en el cargador (déjalo sin marcar en los demás). Solo afecta a cómo se dibuja el diagrama, no al control de la batería. El aviso desaparece al guardar los dispositivos."
     },
     "battery_not_delivering": {
       "title": "La batería {battery} no entrega potencia",
-      "description": "{battery} lleva {minutes} minutos aceptando órdenes de carga/descarga sin entregar potencia ({reason}). Omnibattery la mantiene fuera del reparto y la reintenta cada {cooldown} minutos, así que el resto de la flota cubre la casa mientras tanto. Hay que revisar la batería, su enlace Modbus o el puente que tenga delante: comprueba que no esté en espera bajo el control de su propia app y que la conexión no esté saturada. Activar y desactivar el Control Manual de esa batería suele recuperarla."
+      "description": "{battery} lleva {minutes} minutos aceptando órdenes de carga/descarga sin entregar potencia ({reason}). Omnibattery la mantiene fuera del reparto y la reintenta cada {cooldown} minutos, así que el resto de la flota cubre la casa mientras tanto. Hay que revisar la batería o su conexión: comprueba que no esté en espera bajo el control de su propia app y que la conexión no esté saturada. Activar y desactivar el Control Manual de esa batería suele recuperarla."
     },
     "configured_sensor_missing": {
       "title": "Un sensor configurado ya no existe",
@@ -22,7 +40,11 @@
     },
     "dead_main_sensor": {
       "title": "El sensor de potencia de red ha dejado de publicar",
-      "description": "El sensor de red configurado {sensor} lleva {minutes} minutos sin publicar ninguna lectura. Omnibattery no puede regular sin él, así que mantiene su última orden de {power} W: pasada la tolerancia de antigüedad, el controlador deja de integrar correcciones nuevas en lugar de actuar sobre una lectura que sabe vieja. Los límites de carga y descarga, los bloqueos por SOC y la protección trifásica siguen aplicándose, así que no es una fuga de control, pero las baterías seguirán cargando o descargando a esa potencia fija contra un consumo que nadie está leyendo, hasta que un límite de SOC las detenga. Ten en cuenta que un sensor congelado en un valor válido parece perfectamente sano en Home Assistant: comprueba que {sensor} sigue actualizándose y que la integración o el puente que hay detrás no se ha atascado."
+      "description": "El sensor de red configurado {sensor} lleva {minutes} minutos sin publicar ninguna lectura. Omnibattery no puede regular sin él, así que ha detenido el control automático: cada batería bajo control automático queda a 0W (la última orden era de {power}W) y la carga predictiva desde la red está en pausa. El modo manual y las franjas manuales se mantienen como están. El control automático se reanuda solo en cuanto {sensor} vuelva a publicar una lectura válida. Ten en cuenta que un sensor congelado en un valor válido parece perfectamente sano en Home Assistant: comprueba que {sensor} sigue actualizándose y que la integración o el puente que hay detrás no se ha atascado."
+    },
+    "dead_main_sensor_since_start": {
+      "title": "El sensor de potencia de red no publica desde el reinicio",
+      "description": "El sensor de red configurado {sensor} no ha publicado ninguna lectura válida en los {minutes} minutos desde que se inició Home Assistant. Omnibattery no puede regular sin él. Si Home Assistant no se apagó correctamente, una batería puede seguir ejecutando su última orden de antes del reinicio, así que Omnibattery ha detenido el control automático: cada batería bajo control automático queda a 0W y la carga predictiva desde la red está en pausa. El modo manual y las franjas manuales se mantienen como están. El control automático se inicia solo en cuanto {sensor} publique una lectura válida. Comprueba que {sensor} existe y se actualiza, y que la integración o el dispositivo que hay detrás vuelve a funcionar tras el reinicio."
     },
     "slow_main_sensor": {
       "title": "El sensor de potencia de red actualiza demasiado despacio",
@@ -194,7 +216,7 @@
           "charge_hysteresis_percent": "Siempre activa (mínimo 2%). Tras llegar al tope, la batería no volverá a cargar hasta que el SOC baje a (SOC máx − histéresis). Ej: SOC máx 100% con 2% = no carga hasta 98%.",
           "backup_offgrid_threshold": "Una carga offgrid superior a este valor se considera un evento de backup activo, excluyendo la batería del control PD. Auméntalo si tienes cargas permanentes (router, cámaras) en el puerto offgrid.",
           "full_charge_voltage_taper_enabled": "Cuando el objetivo es 100%, limita la carga a 200 W desde 3.48 V de celda máxima. En Venus E se detiene a 3.60 V para medir el desbalanceo tras 60 segundos; Venus A/D con packs acoplados siguen a 200 W hasta que corta la BMS.",
-          "battery_capacity_kwh": "Capacidad utilizable nominal del pack de baterías. Se usa para calcular la energía almacenada y la eficiencia a partir del SOC. Para Sessy, introduce la capacidad real; en otras baterías puedes dejar 0 si no la conoces.",
+          "battery_capacity_kwh": "Capacidad utilizable nominal del pack de baterías. Se usa para calcular la energía almacenada y la eficiencia a partir del SOC. Pon 0 para detectarla automáticamente en modelos/packs compatibles. Introduce un valor positivo para sustituir la detección o si los packs son desconocidos. Sessy requiere su capacidad real.",
           "battery_phase": "Fase AC física (L1/L2/L3) donde está cableada esta batería, o Sin asignar si queda fuera del esquema de fases protegidas. Una batería sin fase queda fuera de la envolvente trifásica y sigue funcionando normalmente en automático.",
           "dc_pv_connected": "Solo Venus A/D. Actívalo cuando haya paneles conectados a las entradas MPPT de la batería. Desactívalo si esas entradas no se usan para que la potencia de batería siga basándose en la potencia AC sin añadir producción MPPT.",
           "track_mac": "La dirección MAC es la dirección física permanente de la batería: a diferencia de la dirección IP de arriba, no cambia nunca. Home Assistant la usa para volver a encontrar la batería y actualizar la dirección IP por sí solo. Detrás de un puente Wi-Fi a Ethernet o de un adaptador PLC, la dirección que ves es la del propio adaptador y la comparte todo lo que hay detrás, así que el seguimiento solo funciona si hay una única batería detrás de ese adaptador.",
@@ -390,7 +412,7 @@
           "price_sensor": "Sensor de precios (por ejemplo, el sensor de precio actual de Nord Pool oficial, un sensor Nordpool de HACS, sensor.esios_pvpc o tu sensor de CKW)",
           "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
           "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
-          "zonneplan_export_bonus_enabled": "Añade 0,02 €/kWh y un 10% solo a los precios de exportación de Zonneplan. No tiene efecto si la integración efectiva del precio de exportación no es Zonneplan.",
+          "zonneplan_export_bonus_enabled": "Suma la bonificación solar de Zonneplan al precio de exportación con impuestos de la energía solar: la bonificación son 0,02 €/kWh sobre el precio sin impuestos, más un 10%. Solo se aplica entre la salida y la puesta del sol y solo si ese precio más 0,02 € es positivo. La exportación desde la batería nunca se valora con la bonificación. No tiene efecto si la integración efectiva del precio de exportación no es Zonneplan.",
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
@@ -528,7 +550,7 @@
           "pd_direction_hysteresis": "Umbral de potencia requerido para cambiar entre carga y descarga. Previene cambios rápidos de dirección. Rango: 0-200W, predeterminado: 60W",
           "pd_min_charge_power": "Potencia mínima para cargar. Por debajo de este umbral, el controlador queda en reposo en vez de cargar a baja potencia. 0 = desactivado.",
           "pd_min_discharge_power": "Potencia mínima para descargar. Por debajo de este umbral, el controlador queda en reposo en vez de descargar a baja potencia. 0 = desactivado.",
-          "pd_target_grid_power": "Consigna de potencia de red que regula el controlador. Positivo = importar de red (la batería carga), negativo = exportar a red (la batería descarga), 0 = balance neto cero. El rango sigue la potencia total configurada de tus baterías, limitado por los límites de potencia del sistema cuando están activos. Valor por defecto: 0 W.",
+          "pd_target_grid_power": "Consigna de potencia de red que regula el controlador. Positivo = importar de red (la batería carga), negativo = exportar a red (la batería descarga), 0 = balance neto cero. El rango de exportación sigue la potencia total configurada de tus baterías, limitado por los límites de potencia del sistema cuando están activos; el de importación llega hasta tu potencia contratada si está configurada, porque la casa consume del mismo contador. Valor por defecto: 0 W.",
           "enable_system_power_limits": "Al activarlo, los dos sliders inferiores limitan la potencia combinada de carga/descarga de todas las baterias activas.",
           "system_max_charge_power": "Limite opcional para la potencia de carga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose.",
           "system_max_discharge_power": "Limite opcional para la potencia de descarga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose."
@@ -591,6 +613,30 @@
         "description": "Actualiza los datos de conexión de la batería Sessy {battery_num}. El resto de ajustes se conserva.",
         "data": {"name": "Nombre", "host": "Dirección IP", "port": "Puerto HTTP", "username": "Usuario", "password": "Contraseña"},
         "data_description": {"name": "Nombre descriptivo para identificar esta batería", "host": "Dirección IP del dispositivo Sessy en tu red local", "port": "Puerto HTTP (por defecto 80)", "username": "Usuario local impreso en el dongle Sessy", "password": "Contraseña local impresa en el dongle Sessy"}
+      },
+      "reconfigure_battery_indevolt": {
+        "title": "Reconfigurar batería {battery_num} — Conexión (Indevolt)",
+        "description": "Actualiza los datos de conexión de la batería Indevolt {battery_num}. El resto de ajustes se conserva.",
+        "data": {
+          "name": "Nombre",
+          "host": "Dirección IP",
+          "port": "Puerto HTTP"
+        },
+        "data_description": {
+          "name": "Nombre descriptivo para identificar esta batería",
+          "host": "Dirección IP de la batería Indevolt en tu red local",
+          "port": "Puerto HTTP de la API local (por defecto 8080)"
+        }
+      },
+      "reconfigure_battery_indevolt_request_speed": {
+        "title": "Reconfigurar batería {battery_num} — Velocidad de solicitudes (Indevolt)",
+        "description": "Una velocidad mayor hace que tu batería reaccione antes a los cambios del contador, lo que puede mejorar el balance neto cero. Las opciones:\n\n- **Conservadora** (5s) es la recomendación de Indevolt y la predeterminada. Es adecuada para un contador que se actualiza cada 5s, el ritmo habitual en Home Assistant: con un contador así, una velocidad mayor no hace que la batería reaccione antes.\n- **Normal** (3s) es adecuada para un contador que se actualiza cada 3s.\n- **Rápida** (2s) es adecuada para un contador que se actualiza cada 2s. Con un contador que se actualiza cada segundo es la opción segura: la batería recibe entonces una orden nueva como mucho cada 2s.\n- **Máxima** (1s) envía una orden hasta cada segundo y ya no espera 1s entre solicitudes, lo que está por debajo del mínimo documentado por Indevolt. Solo ayuda con un contador que se actualiza cada segundo; con un contador más lento, elige **Rápida**. Con **Máxima**, pon también PD Intervalo Mínimo de Ciclo a 0 si todas las baterías de Omnibattery son Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Velocidad de solicitudes"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Cualquier velocidad más rápida que 5s es bajo tu responsabilidad: te corresponde comprobar que tu batería, Home Assistant y tu red pueden dar abasto. En la página del dispositivo, Intervalo de solicitudes (efectivo) debe seguir coincidiendo con tu elección, y Latencia de lectura (P95) y Latencia de escritura (P95) deben quedarse muy por debajo de 1s.\n\nPuedes probarlo: si la batería responde despacio o no responde, el driver de Indevolt de Omnibattery vuelve automáticamente a un ritmo más tranquilo hasta que el tiempo de respuesta se recupera."
+        }
       },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
@@ -666,6 +712,34 @@
         "data": {"name": "Nombre", "host": "Dirección IP", "port": "Puerto HTTP", "username": "Usuario", "password": "Contraseña"},
         "data_description": {"name": "Nombre descriptivo para identificar esta batería", "host": "Dirección IP del dispositivo Sessy en tu red local", "port": "Puerto HTTP (por defecto 80)", "username": "Usuario local impreso en el dongle Sessy", "password": "Contraseña local impresa en el dongle Sessy"}
       },
+      "battery_connection_indevolt": {
+        "title": "Configurar batería {battery_num} — Conexión (Indevolt)",
+        "description": "Introduce la dirección IP de la batería Indevolt {battery_num}. En la app de Indevolt, activa la API local con el protocolo **HTTP** (no HTTP Digest). Omnibattery solo controla la batería en modo **Tiempo real** (Realtime), que eliges en la app de Indevolt; nunca cambia el modo por sí mismo.",
+        "data": {
+          "name": "Nombre",
+          "host": "Dirección IP",
+          "port": "Puerto HTTP"
+        },
+        "data_description": {
+          "name": "Nombre descriptivo para identificar esta batería",
+          "host": "Dirección IP de la batería Indevolt en tu red local",
+          "port": "Puerto HTTP de la API local (por defecto 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Configurar batería {battery_num} — Velocidad de solicitudes (Indevolt)",
+        "description": "Una velocidad mayor hace que tu batería reaccione antes a los cambios del contador, lo que puede mejorar el balance neto cero. Las opciones:\n\n- **Conservadora** (5s) es la recomendación de Indevolt y la predeterminada. Es adecuada para un contador que se actualiza cada 5s, el ritmo habitual en Home Assistant: con un contador así, una velocidad mayor no hace que la batería reaccione antes.\n- **Normal** (3s) es adecuada para un contador que se actualiza cada 3s.\n- **Rápida** (2s) es adecuada para un contador que se actualiza cada 2s. Con un contador que se actualiza cada segundo es la opción segura: la batería recibe entonces una orden nueva como mucho cada 2s.\n- **Máxima** (1s) envía una orden hasta cada segundo y ya no espera 1s entre solicitudes, lo que está por debajo del mínimo documentado por Indevolt. Solo ayuda con un contador que se actualiza cada segundo; con un contador más lento, elige **Rápida**. Con **Máxima**, pon también PD Intervalo Mínimo de Ciclo a 0 si todas las baterías de Omnibattery son Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Velocidad de solicitudes"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Cualquier velocidad más rápida que 5s es bajo tu responsabilidad: te corresponde comprobar que tu batería, Home Assistant y tu red pueden dar abasto. En la página del dispositivo, Intervalo de solicitudes (efectivo) debe seguir coincidiendo con tu elección, y Latencia de lectura (P95) y Latencia de escritura (P95) deben quedarse muy por debajo de 1s.\n\nPuedes probarlo: si la batería responde despacio o no responde, el driver de Indevolt de Omnibattery vuelve automáticamente a un ritmo más tranquilo hasta que el tiempo de respuesta se recupera."
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batería {battery_num} — Se requiere el modo Tiempo real",
+        "description": "La batería no está en modo Tiempo real. La configuración continúa y Omnibattery supervisa la batería, pero solo la controla cuando eliges **Tiempo real** (Realtime) en la app de Indevolt. Entonces el control empieza automáticamente."
+      },
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
         "description": "Omnibattery reads this battery over Modbus and sends its set-points through the Huawei Solar integration, so it needs both: a Modbus endpoint and the battery device. Point the Modbus address at a Modbus proxy rather than straight at the inverter — the Huawei Solar integration already holds a connection to it.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
@@ -697,6 +771,8 @@
     "error": {
       "invalid_mac": "Eso no parece una dirección MAC. Se esperan seis pares de dígitos hexadecimales, por ejemplo dc:04:5a:14:6b:33.",
       "cannot_connect": "No se puede conectar a la batería. Verifica la dirección IP y que la batería esté accesible en la red.",
+      "hoymiles_no_power_ctrl": "Este ID de dispositivo MQTT publica telemetría pero no control de potencia. En un sistema Hoymiles emparejado solo se controla el maestro: añade una sola vez el ID del maestro, no el del esclavo.",
+      "indevolt_http_digest": "La batería pide una contraseña: su API local está en HTTP Digest. Elige HTTP en la app de Indevolt y vuelve a intentarlo.",
       "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
       "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
@@ -722,8 +798,10 @@
       "midnight_crossing": "La hora de inicio debe ser anterior a la hora de fin. Para períodos nocturnos, cree dos franjas separadas (ej: 22:00-23:59 y 00:00-06:00).",
       "slot_does_nothing": "La franja debe permitir al menos una dirección (carga o descarga).",
       "manual_requires_power": "El modo manual requiere activar el control de potencia.",
+      "manual_requires_single_direction": "El modo manual fuerza una sola dirección: marca Permitir carga o Permitir descarga, no ambas.",
       "no_price_data": "El sensor seleccionado no es una fuente de precios compatible. Nord Pool: selecciona una entidad de la integración oficial o un sensor de HACS con `raw_today`. PVPC necesita `price_00h` … `price_23h`; CKW, una lista `prices`; EPEX, una lista `data`; y ENTSO-e, una lista `prices_today`.",
       "tibber_unavailable": "La integración Tibber no está instalada, o su servicio `tibber.get_prices` no está disponible. Instala y configura Tibber primero.",
+      "energyzero_unavailable": "La integración EnergyZero no está instalada o su servicio `energyzero.get_energy_prices` no está disponible. Instala y configura EnergyZero primero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El precio mínimo de descarga no puede ser inferior al precio máximo (de carga). Ponlo igual o superior, o déjalo vacío para reutilizar el umbral de carga.",
@@ -917,7 +995,7 @@
           "charge_hysteresis_percent": "Siempre activa (mínimo 2%). Tras llegar al tope, la batería no volverá a cargar hasta que el SOC baje a (SOC máx − histéresis). Ej: SOC máx 100% con 2% = no carga hasta 98%.",
           "backup_offgrid_threshold": "Una carga offgrid superior a este valor se considera un evento de backup activo, excluyendo la batería del control PD. Auméntalo si tienes cargas permanentes (router, cámaras) en el puerto offgrid.",
           "full_charge_voltage_taper_enabled": "Cuando el objetivo es 100%, limita la carga a 200 W desde 3.48 V de celda máxima. En Venus E se detiene a 3.60 V para medir el desbalanceo tras 60 segundos; Venus A/D con packs acoplados siguen a 200 W hasta que corta la BMS.",
-          "battery_capacity_kwh": "Capacidad utilizable nominal del pack de baterías. Se usa para calcular la energía almacenada y la eficiencia a partir del SOC. Para Sessy, introduce la capacidad real; en otras baterías puedes dejar 0 si no la conoces.",
+          "battery_capacity_kwh": "Capacidad utilizable nominal del pack de baterías. Se usa para calcular la energía almacenada y la eficiencia a partir del SOC. Pon 0 para detectarla automáticamente en modelos/packs compatibles. Introduce un valor positivo para sustituir la detección o si los packs son desconocidos. Sessy requiere su capacidad real.",
           "battery_phase": "Fase AC física (L1/L2/L3) donde está cableada esta batería, o Sin asignar si queda fuera del esquema de fases protegidas. Una batería sin fase queda fuera de la envolvente trifásica y sigue funcionando normalmente en automático.",
           "dc_pv_connected": "Solo Venus A/D. Actívalo cuando haya paneles conectados a las entradas MPPT de la batería. Desactívalo si esas entradas no se usan para que la potencia de batería siga basándose en la potencia AC sin añadir producción MPPT.",
           "track_mac": "La dirección MAC es la dirección física permanente de la batería: a diferencia de la dirección IP de arriba, no cambia nunca. Home Assistant la usa para volver a encontrar la batería y actualizar la dirección IP por sí solo. Detrás de un puente Wi-Fi a Ethernet o de un adaptador PLC, la dirección que ves es la del propio adaptador y la comparte todo lo que hay detrás, así que el seguimiento solo funciona si hay una única batería detrás de ese adaptador.",
@@ -1113,7 +1191,7 @@
           "price_sensor": "Sensor de precios (por ejemplo, el sensor de precio actual de Nord Pool oficial, un sensor Nordpool de HACS, sensor.esios_pvpc o tu sensor de CKW)",
           "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
           "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
-          "zonneplan_export_bonus_enabled": "Añade un 10% y 0,02 €/kWh solo a los precios de exportación de Zonneplan. No tiene efecto si la integración efectiva del precio de exportación no es Zonneplan.",
+          "zonneplan_export_bonus_enabled": "Suma la bonificación solar de Zonneplan al precio de exportación con impuestos de la energía solar: la bonificación son 0,02 €/kWh sobre el precio sin impuestos, más un 10%. Solo se aplica entre la salida y la puesta del sol y solo si ese precio más 0,02 € es positivo. La exportación desde la batería nunca se valora con la bonificación. No tiene efecto si la integración efectiva del precio de exportación no es Zonneplan.",
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
@@ -1244,7 +1322,7 @@
           "pd_direction_hysteresis": "Umbral de potencia requerido para cambiar entre carga y descarga. Previene cambios rápidos de dirección. Rango: 0-200W, predeterminado: 60W",
           "pd_min_charge_power": "Potencia mínima para cargar. Por debajo de este umbral, el controlador queda en reposo en vez de cargar a baja potencia. 0 = desactivado.",
           "pd_min_discharge_power": "Potencia mínima para descargar. Por debajo de este umbral, el controlador queda en reposo en vez de descargar a baja potencia. 0 = desactivado.",
-          "pd_target_grid_power": "Consigna de potencia de red que regula el controlador. Positivo = importar de red (la batería carga), negativo = exportar a red (la batería descarga), 0 = balance neto cero. El rango sigue la potencia total configurada de tus baterías, limitado por los límites de potencia del sistema cuando están activos. Valor por defecto: 0 W.",
+          "pd_target_grid_power": "Consigna de potencia de red que regula el controlador. Positivo = importar de red (la batería carga), negativo = exportar a red (la batería descarga), 0 = balance neto cero. El rango de exportación sigue la potencia total configurada de tus baterías, limitado por los límites de potencia del sistema cuando están activos; el de importación llega hasta tu potencia contratada si está configurada, porque la casa consume del mismo contador. Valor por defecto: 0 W.",
           "enable_system_power_limits": "Al activarlo, los dos sliders inferiores limitan la potencia combinada de carga/descarga de todas las baterias activas.",
           "system_max_charge_power": "Limite opcional para la potencia de carga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose.",
           "system_max_discharge_power": "Limite opcional para la potencia de descarga combinada de todas las baterias activas. 0 = desactivado; los limites por bateria siguen aplicandose."
@@ -1279,6 +1357,34 @@
         "data": {"name": "Nombre", "host": "Dirección IP", "port": "Puerto HTTP", "username": "Usuario", "password": "Contraseña"},
         "data_description": {"name": "Nombre descriptivo para identificar esta batería", "host": "Dirección IP del dispositivo Sessy en tu red local", "port": "Puerto HTTP (por defecto 80)", "username": "Usuario local impreso en el dongle Sessy", "password": "Contraseña local impresa en el dongle Sessy"}
       },
+      "battery_connection_indevolt": {
+        "title": "Configurar batería {battery_num} — Conexión (Indevolt)",
+        "description": "Modifica los datos de conexión de la batería Indevolt {battery_num}.",
+        "data": {
+          "name": "Nombre",
+          "host": "Dirección IP",
+          "port": "Puerto HTTP"
+        },
+        "data_description": {
+          "name": "Nombre descriptivo para identificar esta batería",
+          "host": "Dirección IP de la batería Indevolt en tu red local",
+          "port": "Puerto HTTP de la API local (por defecto 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Configurar batería {battery_num} — Velocidad de solicitudes (Indevolt)",
+        "description": "Una velocidad mayor hace que tu batería reaccione antes a los cambios del contador, lo que puede mejorar el balance neto cero. Las opciones:\n\n- **Conservadora** (5s) es la recomendación de Indevolt y la predeterminada. Es adecuada para un contador que se actualiza cada 5s, el ritmo habitual en Home Assistant: con un contador así, una velocidad mayor no hace que la batería reaccione antes.\n- **Normal** (3s) es adecuada para un contador que se actualiza cada 3s.\n- **Rápida** (2s) es adecuada para un contador que se actualiza cada 2s. Con un contador que se actualiza cada segundo es la opción segura: la batería recibe entonces una orden nueva como mucho cada 2s.\n- **Máxima** (1s) envía una orden hasta cada segundo y ya no espera 1s entre solicitudes, lo que está por debajo del mínimo documentado por Indevolt. Solo ayuda con un contador que se actualiza cada segundo; con un contador más lento, elige **Rápida**. Con **Máxima**, pon también PD Intervalo Mínimo de Ciclo a 0 si todas las baterías de Omnibattery son Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Velocidad de solicitudes"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Cualquier velocidad más rápida que 5s es bajo tu responsabilidad: te corresponde comprobar que tu batería, Home Assistant y tu red pueden dar abasto. En la página del dispositivo, Intervalo de solicitudes (efectivo) debe seguir coincidiendo con tu elección, y Latencia de lectura (P95) y Latencia de escritura (P95) deben quedarse muy por debajo de 1s.\n\nPuedes probarlo: si la batería responde despacio o no responde, el driver de Indevolt de Omnibattery vuelve automáticamente a un ritmo más tranquilo hasta que el tiempo de respuesta se recupera."
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batería {battery_num} — Se requiere el modo Tiempo real",
+        "description": "La batería no está en modo Tiempo real. La configuración continúa y Omnibattery supervisa la batería, pero solo la controla cuando eliges **Tiempo real** (Realtime) en la app de Indevolt. Entonces el control empieza automáticamente."
+      },
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
         "description": "Modify the Modbus endpoint and the Huawei Solar battery device used for battery {battery_num}.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
@@ -1310,6 +1416,8 @@
     "error": {
       "invalid_mac": "Eso no parece una dirección MAC. Se esperan seis pares de dígitos hexadecimales, por ejemplo dc:04:5a:14:6b:33.",
       "cannot_connect": "No se puede conectar a la batería. Verifica la dirección IP y que la batería esté accesible en la red.",
+      "hoymiles_no_power_ctrl": "Este ID de dispositivo MQTT publica telemetría pero no control de potencia. En un sistema Hoymiles emparejado solo se controla el maestro: añade una sola vez el ID del maestro, no el del esclavo.",
+      "indevolt_http_digest": "La batería pide una contraseña: su API local está en HTTP Digest. Elige HTTP en la app de Indevolt y vuelve a intentarlo.",
       "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
       "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
@@ -1335,8 +1443,10 @@
       "midnight_crossing": "La hora de inicio debe ser anterior a la hora de fin. Para períodos nocturnos, cree dos franjas separadas (ej: 22:00-23:59 y 00:00-06:00).",
       "slot_does_nothing": "La franja debe permitir al menos una dirección (carga o descarga).",
       "manual_requires_power": "El modo manual requiere activar el control de potencia.",
+      "manual_requires_single_direction": "El modo manual fuerza una sola dirección: marca Permitir carga o Permitir descarga, no ambas.",
       "no_price_data": "El sensor seleccionado no es una fuente de precios compatible. Nord Pool: selecciona una entidad de la integración oficial o un sensor de HACS con `raw_today`. PVPC necesita `price_00h` … `price_23h`; CKW, una lista `prices`; EPEX, una lista `data`; y ENTSO-e, una lista `prices_today`.",
       "tibber_unavailable": "La integración Tibber no está instalada, o su servicio `tibber.get_prices` no está disponible. Instala y configura Tibber primero.",
+      "energyzero_unavailable": "La integración EnergyZero no está instalada o su servicio `energyzero.get_energy_prices` no está disponible. Instala y configura EnergyZero primero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
       "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El precio mínimo de descarga no puede ser inferior al precio máximo (de carga). Ponlo igual o superior, o déjalo vacío para reutilizar el umbral de carga.",
@@ -1346,6 +1456,14 @@
     }
   },
   "selector": {
+    "indevolt_request_speed": {
+      "options": {
+        "maximum": "Máxima: 1s",
+        "fast": "Rápida: 2s",
+        "normal": "Normal: 3s",
+        "conservative": "Conservadora: 5s (predeterminada, recomendada por Indevolt)"
+      }
+    },
     "hoymiles_model": {
       "options": {
         "auto": "Detección automática (recomendado)",
@@ -1395,7 +1513,10 @@
         "epex": "EPEX Spot (p. ej. aWATTar)",
         "entsoe": "ENTSO-e (Plataforma de Transparencia)",
         "zonneplan": "Zonneplan",
-        "tibber": "Tibber (basado en servicio)"
+        "frank_energie": "Frank Energie",
+        "energyzero": "EnergyZero",
+        "tibber": "Tibber (basado en servicio)",
+        "be_electricity_prices": "BE Electricity Prices (Bélgica, todo incluido)"
       }
     }
   },
@@ -1440,11 +1561,20 @@
       "min_soc_floor_enabled": {
         "name": "SOC Mínimo Garantizado"
       },
+      "max_price_threshold_enabled": {
+        "name": "Precio máximo de carga manual"
+      },
+      "discharge_price_threshold_enabled": {
+        "name": "Precio mínimo de descarga manual"
+      },
       "system_power_limits": {
         "name": "Límites de Potencia del Sistema"
       },
       "predictive_charging": {
         "name": "Carga Predictiva"
+      },
+      "predictive_charging_notifications": {
+        "name": "Notificaciones de Carga Predictiva"
       },
       "vacation_mode": {
         "name": "Modo vacaciones"
@@ -1850,6 +1980,308 @@
       "software_version": {
         "name": "Versión de Software"
       },
+      "energy_mode": {
+        "name": "Modo de trabajo"
+      },
+      "control_status": {
+        "name": "Estado del control",
+        "state": {
+          "active": "Activo",
+          "starting": "Tomando el control",
+          "realtime_mode_required": "En pausa: no está en modo Realtime",
+          "not_configured": "Solo supervisión",
+          "telemetry_stale": "En pausa: sin datos recientes",
+          "soc_calibration": "En pausa: calibrando el SOC",
+          "handover_failed": "En pausa: no se pudo tomar el control",
+          "unknown_model": "Solo supervisión: modelo desconocido"
+        }
+      },
+      "native_min_soc": {
+        "name": "Reserva de batería"
+      },
+      "realtime_power": {
+        "name": "Potencia de la orden en tiempo real"
+      },
+      "realtime_target_soc": {
+        "name": "SOC objetivo en tiempo real"
+      },
+      "grid_charging_allowed": {
+        "name": "Carga desde la red"
+      },
+      "inverter_battery_temperature": {
+        "name": "Temperatura de la batería del inversor"
+      },
+      "transformer_temperature": {
+        "name": "Temperatura del transformador"
+      },
+      "request_interval": {
+        "name": "Intervalo de solicitudes (efectivo)"
+      },
+      "ac_input_power": {
+        "name": "Potencia de entrada CA"
+      },
+      "ac_output_power": {
+        "name": "Potencia de salida CA"
+      },
+      "bypass_power": {
+        "name": "Potencia de bypass"
+      },
+      "indevolt_meter_power": {
+        "name": "Potencia del medidor Indevolt"
+      },
+      "solar_output_power": {
+        "name": "Potencia de salida solar"
+      },
+      "total_ac_input_energy": {
+        "name": "Energía total de entrada CA"
+      },
+      "total_ac_output_energy": {
+        "name": "Energía total de salida CA"
+      },
+      "off_grid_output_energy": {
+        "name": "Energía de salida sin red"
+      },
+      "bypass_input_energy": {
+        "name": "Energía de entrada bypass"
+      },
+      "daily_solar_energy": {
+        "name": "Energía solar diaria"
+      },
+      "total_solar_energy": {
+        "name": "Energía solar total"
+      },
+      "feed_in_limit": {
+        "name": "Límite de inyección"
+      },
+      "grid_voltage": {
+        "name": "Tensión de red"
+      },
+      "grid_frequency": {
+        "name": "Frecuencia de red"
+      },
+      "remaining_charging_time": {
+        "name": "Tiempo de carga restante"
+      },
+      "remaining_discharging_time": {
+        "name": "Tiempo de descarga restante"
+      },
+      "realtime_command": {
+        "name": "Orden en tiempo real",
+        "state": {
+          "standby": "En espera",
+          "charging": "Cargando",
+          "discharging": "Descargando"
+        }
+      },
+      "device_mode": {
+        "name": "Modo del dispositivo",
+        "state": {
+          "cluster_main": "Clúster (principal)",
+          "cluster_sub": "Clúster (secundario)",
+          "standalone": "Independiente"
+        }
+      },
+      "operating_status": {
+        "name": "Estado de funcionamiento",
+        "state": {
+          "powered_off": "Apagado",
+          "sleep": "Reposo",
+          "starting": "Arrancando",
+          "mppt_operating": "MPPT en funcionamiento",
+          "current_limiting": "Limitación de corriente",
+          "shutting_down": "Apagándose",
+          "inverter_fault": "Fallo del inversor",
+          "standby": "En espera",
+          "grid_charging": "Carga desde la red",
+          "grid_discharging": "Descarga a la red",
+          "off_grid_charging": "Carga sin red",
+          "off_grid_discharging": "Descarga sin red",
+          "low_battery_charging": "Carga por batería baja",
+          "deep_sleep": "Reposo profundo",
+          "scheduled_full_charge": "Carga completa programada",
+          "off_grid_deep_sleep": "Reposo profundo sin red"
+        }
+      },
+      "full_charge_interval": {
+        "name": "Intervalo de carga completa forzada"
+      },
+      "full_charge_time": {
+        "name": "Hora de carga completa forzada"
+      },
+      "highest_cell_voltage": {
+        "name": "Tensión de celda más alta"
+      },
+      "lowest_cell_voltage": {
+        "name": "Tensión de celda más baja"
+      },
+      "pv1_power": {
+        "name": "Potencia PV1"
+      },
+      "pv1_current": {
+        "name": "Corriente PV1"
+      },
+      "pv2_power": {
+        "name": "Potencia PV2"
+      },
+      "pv2_current": {
+        "name": "Corriente PV2"
+      },
+      "pv3_power": {
+        "name": "Potencia PV3"
+      },
+      "pv3_current": {
+        "name": "Corriente PV3"
+      },
+      "pv4_power": {
+        "name": "Potencia PV4"
+      },
+      "pv4_current": {
+        "name": "Corriente PV4"
+      },
+      "inverter_battery_soc": {
+        "name": "SOC de la batería del inversor"
+      },
+      "inverter_battery_cycles": {
+        "name": "Ciclos de la batería del inversor"
+      },
+      "inverter_battery_mos_temperature": {
+        "name": "Temperatura MOS de la batería del inversor"
+      },
+      "inverter_battery_voltage": {
+        "name": "Tensión de la batería del inversor"
+      },
+      "inverter_battery_current": {
+        "name": "Corriente de la batería del inversor"
+      },
+      "inverter_battery_serial_number": {
+        "name": "Número de serie de la batería del inversor"
+      },
+      "expansion_battery_1_soc": {
+        "name": "SOC de la batería de expansión 1"
+      },
+      "expansion_battery_1_cycles": {
+        "name": "Ciclos de la batería de expansión 1"
+      },
+      "expansion_battery_1_mos_temperature": {
+        "name": "Temperatura MOS de la batería de expansión 1"
+      },
+      "expansion_battery_1_voltage": {
+        "name": "Tensión de la batería de expansión 1"
+      },
+      "expansion_battery_1_current": {
+        "name": "Corriente de la batería de expansión 1"
+      },
+      "expansion_battery_1_serial_number": {
+        "name": "Número de serie de la batería de expansión 1"
+      },
+      "expansion_battery_2_soc": {
+        "name": "SOC de la batería de expansión 2"
+      },
+      "expansion_battery_2_cycles": {
+        "name": "Ciclos de la batería de expansión 2"
+      },
+      "expansion_battery_2_mos_temperature": {
+        "name": "Temperatura MOS de la batería de expansión 2"
+      },
+      "expansion_battery_2_voltage": {
+        "name": "Tensión de la batería de expansión 2"
+      },
+      "expansion_battery_2_current": {
+        "name": "Corriente de la batería de expansión 2"
+      },
+      "expansion_battery_2_serial_number": {
+        "name": "Número de serie de la batería de expansión 2"
+      },
+      "expansion_battery_3_soc": {
+        "name": "SOC de la batería de expansión 3"
+      },
+      "expansion_battery_3_cycles": {
+        "name": "Ciclos de la batería de expansión 3"
+      },
+      "expansion_battery_3_mos_temperature": {
+        "name": "Temperatura MOS de la batería de expansión 3"
+      },
+      "expansion_battery_3_voltage": {
+        "name": "Tensión de la batería de expansión 3"
+      },
+      "expansion_battery_3_current": {
+        "name": "Corriente de la batería de expansión 3"
+      },
+      "expansion_battery_3_serial_number": {
+        "name": "Número de serie de la batería de expansión 3"
+      },
+      "expansion_battery_4_soc": {
+        "name": "SOC de la batería de expansión 4"
+      },
+      "expansion_battery_4_cycles": {
+        "name": "Ciclos de la batería de expansión 4"
+      },
+      "expansion_battery_4_mos_temperature": {
+        "name": "Temperatura MOS de la batería de expansión 4"
+      },
+      "expansion_battery_4_voltage": {
+        "name": "Tensión de la batería de expansión 4"
+      },
+      "expansion_battery_4_current": {
+        "name": "Corriente de la batería de expansión 4"
+      },
+      "expansion_battery_4_serial_number": {
+        "name": "Número de serie de la batería de expansión 4"
+      },
+      "expansion_battery_5_soc": {
+        "name": "SOC de la batería de expansión 5"
+      },
+      "expansion_battery_5_cycles": {
+        "name": "Ciclos de la batería de expansión 5"
+      },
+      "expansion_battery_5_mos_temperature": {
+        "name": "Temperatura MOS de la batería de expansión 5"
+      },
+      "expansion_battery_5_voltage": {
+        "name": "Tensión de la batería de expansión 5"
+      },
+      "expansion_battery_5_current": {
+        "name": "Corriente de la batería de expansión 5"
+      },
+      "expansion_battery_5_serial_number": {
+        "name": "Número de serie de la batería de expansión 5"
+      },
+      "request_speed": {
+        "name": "Velocidad de solicitudes",
+        "state": {
+          "maximum": "Máxima (1s)",
+          "fast": "Rápida (2s)",
+          "normal": "Normal (3s)",
+          "conservative": "Conservadora (5s)"
+        }
+      },
+      "read_latency": {
+        "name": "Latencia de lectura (P95)"
+      },
+      "write_latency": {
+        "name": "Latencia de escritura (P95)"
+      },
+      "request_failures": {
+        "name": "Solicitudes fallidas"
+      },
+      "flash_writes": {
+        "name": "Escrituras en flash"
+      },
+      "expansion_battery_1_temperature": {
+        "name": "Temperatura de la batería de expansión 1"
+      },
+      "expansion_battery_2_temperature": {
+        "name": "Temperatura de la batería de expansión 2"
+      },
+      "expansion_battery_3_temperature": {
+        "name": "Temperatura de la batería de expansión 3"
+      },
+      "expansion_battery_4_temperature": {
+        "name": "Temperatura de la batería de expansión 4"
+      },
+      "expansion_battery_5_temperature": {
+        "name": "Temperatura de la batería de expansión 5"
+      },
       "pv1_voltage": {
         "name": "Tensión PV1"
       },
@@ -2023,6 +2455,9 @@
       }
     },
     "binary_sensor": {
+      "indevolt_meter_connected": {
+        "name": "Medidor Indevolt conectado"
+      },
       "capacity_protection_active": {
         "name": "Reducción de Picos Activa"
       },
@@ -2137,6 +2572,14 @@
           "l1": "L1",
           "l2": "L2",
           "l3": "L3"
+        }
+      },
+      "grid_reverse": {
+        "name": "Exportación de energía",
+        "state": {
+          "disabled": "Desactivada",
+          "allowed": "Permitida",
+          "forbidden": "Prohibida"
         }
       },
       "grid_off_mode": {

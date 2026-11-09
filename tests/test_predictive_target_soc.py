@@ -42,6 +42,14 @@ def _compute(ctrl):
     return ChargeDischargeController._compute_predictive_target_soc(ctrl)
 
 
+def test_unknown_capacity_preserves_known_battery_target():
+    known = _Coord("known", 50, 10)
+    unknown = _Coord("unknown", 50, None)
+    targets = _compute(_ctrl([known, unknown], {"energy_deficit_kwh": 2.0}))
+    assert targets[known] == 70
+    assert targets[unknown] == 100
+
+
 def test_no_solar_surplus_targets_deficit_not_max_soc():
     # Issue #409 scenario: solar (12.1) < consumption (17.1) → no surplus.
     # Two 5.12 kWh batteries at 36.5%, deficit 3.20 kWh. Total gap = 6.5 kWh,

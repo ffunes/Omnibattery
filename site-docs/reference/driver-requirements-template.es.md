@@ -225,21 +225,64 @@ Cada definición usa claves canónicas e incluye la metadata consumida por su pl
 
 Añade nombres y descripciones visibles a `custom_components/omnibattery/strings.json` y cada archivo bajo `custom_components/omnibattery/translations/`. Reutiliza una clave canónica existente y traducción cuando el significado y unidad sean idénticos.
 
-## Conectar el controlador en la configuración
+## Archivos que se tocan
 
-Un archivo de controlador por sí solo no es soporte seleccionable. Completa cada punto de integración:
+El objetivo es que una marca nueva sea un archivo de driver más sus tests, traducciones y documentación de usuario. El código de control compartido (`__init__.py`, `control/`, `pricing/`, `tracking/`, `sensors/` y las plataformas de entidades) nunca debería conocer un nombre de marca. Si tu dispositivo se comporta de forma distinta y el código compartido necesita saberlo, añade un campo a `DriverCapabilities` o un hook semántico en `BatteryDriver`. No añadas una rama `brand ==`.
 
-1. Exporta la clase de `drivers/__init__.py` y añádela a `__all__`.
-2. Añade la marca a los selectores añadir-batería y editar-batería en `config_flow.py`.
-3. Añade un paso específico de flujo de configuración que valide credenciales o acceso al transporte en hardware real y almacene solo los campos necesarios en tiempo de ejecución.
-4. Construye el controlador en `MarstekVenusDataUpdateCoordinator.__init__()` y pasa límites de modelo probados o identidad cuando sea necesario.
-5. Establece indicadores de control y límite por software desde capacidades y comportamiento hardware real; no inferirlos solo desde el nombre de marca.
-6. Expo solo definiciones de entidad soportadas, luego añade todas las claves de traducción.
-7. Añade cualquier valor C configurado por el usuario, tal como capacidad nominal, con validación y etiquetas claras.
-8. Comprobar la configuración mientras la batería es accesible e inaccesible, luego comprobar recarga, reconexión y eliminación.
-9. Verificar el nuevo dispositivo en una flota de múltiples marcas para que selección, asignación, propiedad manual y apagado no dependan de controladores homogéneos.
+Hoy el código no cumple del todo ese objetivo. Todavía no hay un registro de drivers, así que algunos módulos de configuración siguen eligiendo el comportamiento por el nombre de la marca. Esos módulos aparecen abajo como **puntos de registro**. Tócalos siguiendo el patrón de las marcas existentes y no añadas ramas por marca en ningún otro sitio.
 
-Si la configuración requiere una biblioteca nueva, documenta por qué es necesaria, áncoral según política de repositorio e incluye licencia y información de mantenimiento en la solicitud de extracción.
+### Archivos propios del driver
+
+| Archivo | Contenido |
+|---|---|
+| `drivers/<marca>.py` | La subclase de `BatteryDriver`, capacidades, definiciones de entidades, decodificación, traducción de comandos y un método estático `probe()` para el config flow. |
+| `infra/<transporte>_client.py` | Solo si el transporte necesita su propio cliente y ninguno de los existentes sirve. Reutiliza el cliente Modbus existente cuando sea posible. |
+| `tests/test_<marca>_driver.py` | Tests del driver contra un transporte falso (ver [Probar el controlador](#probar-el-controlador)). |
+| `strings.json` y todos los `translations/*.json` | Nombres de entidades y títulos, campos y errores de los pasos del config flow de la nueva marca. Reutiliza las claves canónicas existentes cuando coincidan significado y unidad. |
+| `site-docs/configuration/batteries/<marca>.md` y `.es.md` | Página de configuración para usuarios. Enlázala también desde `configuration/batteries/index`, `compatibility` y el `nav` de `mkdocs.yml`. |
+| `manifest.json` | Solo si hace falta una biblioteca nueva. Fija la versión e indica su licencia y estado de mantenimiento en el pull request. |
+| `CHANGELOG.md` | Una línea en la versión sin publicar. |
+
+### Puntos de registro (actuales)
+
+| Archivo | Dónde | Qué añadir |
+|---|---|---|
+| `drivers/__init__.py` | imports y `__all__` | Exportar la clase del driver. |
+| `infra/coordinator.py` | `MarstekVenusDataUpdateCoordinator.__init__()`, la cadena `if self.brand == ...` | Construir el driver a partir de los campos de la config entry. |
+| `infra/coordinator.py` | `device_info` | Fabricante y etiqueta de modelo por defecto. |
+| `config_flow.py` | `async_step_battery_brand()` en **ambos** flujos, el de configuración y el de opciones | Opción del selector y salto a tu paso de conexión. |
+| `config_flow.py` | `async_step_battery_connection_<marca>()` en **ambos** flujos | Formulario de conexión. Llama a `<Driver>.probe()` y guarda solo los campos que necesita el runtime. |
+| `config_flow.py` | `async_step_reconfigure_battery_<marca>()` y su despacho | Editar el host o las credenciales de una batería existente. |
+| `config_flow.py` | Rangos de SOC por defecto, límites de potencia por defecto, el esquema de ajustes de batería y el despacho de `probe` | Rango de SOC mínimo de tu marca, envolvente de potencia, exclusión del taper y un campo de capacidad cuando el dispositivo no la reporta. |
+| `infra/mac_tracking.py` | `IP_BASED_BRANDS` | Solo si la batería se direcciona por IP y debe seguir los cambios de DHCP. |
+
+El config flow está duplicado entre el flujo de alta inicial y el de opciones. Una marca añadida solo a uno de ellos se puede dar de alta pero no editar, o al revés. Revisa los dos.
+
+### Deuda conocida: ramas por marca que deberían ser capacidades
+
+Estas ramas del código de configuración compartido codifican rasgos de hardware por nombre de marca. Cada una debería convertirse en una capacidad, un hook del driver o una entrada de registro. Mientras tanto, un driver nuevo se añade a ellas a mano. Si tu driver es el que tiene que ampliar una de estas listas, plantéate convertirla en capacidad en el mismo pull request.
+
+| Rama | Ubicación | Qué debería ser |
+|---|---|---|
+| Cadena de construcción del driver | `infra/coordinator.py` `__init__()` | Registro de drivers: marca → clase y fábrica a partir de la config entry. |
+| Fabricante y modelo por defecto | `infra/coordinator.py` `device_info` | Propiedades del driver (`manufacturer` y un valor por defecto para `model_label`). |
+| Taper de carga completa por voltaje desactivado para `zendure`, `anker`, `hoymiles`, `huawei` (y `sessy` en el config flow) | `infra/coordinator.py` `__init__()`, `config_flow.py` | Una capacidad del tipo "el voltaje de celda es fiable para el taper de final de carga". |
+| Clamp de envolvente fija para `sessy` y techo EMS para Marstek `vD` | `infra/coordinator.py` `__init__()` | Límites propios del driver. El driver ya informa `max_*_power_w`; el clamp del coordinator no debería depender de la marca. |
+| Claves de PV descartadas para `anker` sin PV independiente | `infra/coordinator.py` `_sync_driver_definitions()` | Un hook del driver que elimine las claves que ya no forman parte de su contrato. |
+| `configuration_url` para `sessy` | `infra/coordinator.py` `device_info` | Una propiedad opcional del driver. |
+| `needs_software_power_cap` para Marstek `v2`/`v3` | `infra/coordinator.py` | Una capacidad: el límite hardware solo acepta valores fijos. |
+| El dispositivo conserva su configuración inicial (`zendure`) | `__init__.py` `_device_owns_initial_config()` | Una capacidad. |
+| Rango de SOC, potencias por defecto, campo de capacidad y despacho de `probe` por marca | `config_flow.py`, ambos flujos | Un esquema de configuración declarado por el driver y `probe()` resuelto mediante el registro. |
+| `IP_BASED_BRANDS` | `infra/mac_tracking.py` | Una propiedad del driver: se direcciona por IP. |
+
+No todas las decisiones de control por software dependen de la marca. `needs_software_manual_control`, `needs_software_max_charge` y `needs_software_max_discharge` se derivan de tus definiciones de entidades. Si no defines un select `force_mode`, un number `set_charge_power` o un number escribible `max_charge_power` / `max_discharge_power`, la integración añade los controles por software automáticamente. Declara solo los controles que el hardware tiene de verdad.
+
+### Antes de abrir el pull request
+
+1. Comprueba el alta con la batería accesible e inaccesible; después, la recarga, la reconexión y la eliminación.
+2. Da de alta la batería y luego edítala desde el flujo de opciones, no solo desde el alta inicial.
+3. Verifica el dispositivo nuevo en una flota de varias marcas para que la selección, el reparto, la propiedad manual y el apagado no dependan de drivers homogéneos.
+4. Ejecuta `git diff --stat`. No debería mostrar cambios en `control/`, `pricing/`, `tracking/`, `sensors/` ni en el controlador de `__init__.py`. Si los muestra, explica el motivo en el pull request: el cambio es una capacidad nueva o un bug.
 
 ## Probar el controlador
 

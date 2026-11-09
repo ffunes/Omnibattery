@@ -7,29 +7,25 @@ it can read the ceiling while the last pack is still half empty. Per-pack SOC
 become asymmetric:
 
 * **full** when the *least* full pack reaches the ceiling — ``min(pack_soc)``;
-* **empty** when the *first* pack reaches the floor — ``min(pack_soc)`` again.
+* **empty** when the *aggregate* reaches the floor — no per-pack reading at all.
 
 The floor is not the mirror of the ceiling, because the hardware is not
 symmetric. Charging walks on to the next pack when one fills, which is what the
-#350 handovers showed. Discharging does not: a Venus D stops the whole battery
-the moment its first pack reaches the cutoff, and leaves the charge in the
-others where it is.
+#350 handovers showed. Discharging walks on too, but the BMS rotates packs on
+its own per-pack threshold and stops the battery when the *total* reaches the
+cutoff (issue #545: BMS 109, 116 and 118, Venus A and D). Neither pack extreme
+tracks that: ``min(pack_soc)`` stopped a Venus A at 20 % with a pack at 29.9 %,
+and ``max(pack_soc)`` kept commanding a battery that had gone to Bypass for five
+hours. Per-pack SOC is not even reliable while a pack is active — a BMS 116
+pack read 12.0 % throughout ten minutes of delivering 300 W.
 
-Measured on a six-pack Venus D, 4 September, with the cutoff at 12 %::
+A battery that stops before its aggregate floor (#408: a v150 Venus D at 15 %)
+is caught by what it delivers, not by its pack readings: see the low-SOC
+refusal latch in ``_check_non_delivery``.
 
-    pack 1  12.1 %    pack 4  12.0 %      aggregate      15 %
-    pack 2  12.0 %    pack 5  20.3 %      device usable  3.4 %
-    pack 3  19.0 %    pack 6  19.3 %      delivered      0 W
-
-``max(pack_soc)`` reads 20.3 % there and says keep going, so the control layer
-commanded ~938 W into a battery that had already stopped, for six hours, while
-the house imported. ``min(pack_soc)`` reads 12.0 %, which is the cutoff, and is
-the number the device itself acts on.
-
-Both helpers fall back to the aggregate when the battery publishes no per-pack
-telemetry, which is every model except Venus A/D and any Venus A/D slot that did
-not answer the driver's probe. So a battery with one pack, or none exposed,
-behaves exactly as it did before.
+``soc_vs_ceiling`` falls back to the aggregate when the battery publishes no
+per-pack telemetry, which is every model except Venus A/D and any Venus A/D slot
+that did not answer the driver's probe.
 """
 from __future__ import annotations
 
@@ -131,17 +127,6 @@ def worst_pack_delta(coordinator) -> dict | None:
 
 def soc_vs_ceiling(coordinator, aggregate):
     """SOC that decides whether to keep *charging*: the least full pack."""
-    packs = pack_socs(coordinator)
-    return min(packs) if packs else aggregate
-
-
-def soc_vs_floor(coordinator, aggregate):
-    """SOC that decides whether to keep *discharging*: the first pack to empty.
-
-    Not the fullest one. The battery stops when any pack reaches the cutoff, so
-    the charge left in the others is not available and must not be counted as
-    though it were.
-    """
     packs = pack_socs(coordinator)
     return min(packs) if packs else aggregate
 

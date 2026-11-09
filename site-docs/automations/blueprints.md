@@ -87,6 +87,8 @@ Checks on changes and every 15 seconds.
 
 Configure the SOC floor, a higher SOC recovery target, charge power, and idle target. It restores the idle target when SOC reaches the recovery target or capacity protection ends.
 
+The grid target is the total import, not the charge power: the battery charges with the target minus the house load, and does not charge while the house draws more than the target. Setting it to your Peak Limit charges whatever fits under the peak. System SOC counts only batteries under automatic control, so a battery in manual mode (for example balancing) does not hold it up.
+
 ## Forward persistent notifications to Telegram
 
 [Import blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/persistent_notification_to_telegram_blueprint.yaml)
@@ -110,6 +112,8 @@ It sends the notification title, ID, and message with HTML-safe escaping.
 - **Does not do:** touch battery alarms, cell-balance messages, or manual-mode notifications — only predictive-charging notifications are dismissed.
 
 The notification may be visible briefly before Home Assistant executes the automation. Disable the automation at any time to receive predictive-charging notifications again.
+
+To stop these notifications at the source instead, turn off the **Predictive Charging Notifications** switch; see [Predictive charging](../configuration/predictive-charging/index.md).
 
 ## Solar forecast reserve discharge
 

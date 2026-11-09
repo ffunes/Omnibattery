@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import pytest
+
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.curtailment import BatterySnapshot
 from custom_components.omnibattery.pricing.discharge_reserve import (
@@ -16,8 +18,11 @@ from custom_components.omnibattery.pricing.discharge_reserve import (
     REASON_NO_PRICE,
     REASON_NO_SLOTS,
     REASON_NO_USABLE_ENERGY,
+    REASON_PV_COVERS_IT,
     STATUS_NO_RESERVE,
     STATUS_RESERVING,
+    ReserveSlot,
+    battery_reserve_soc_pct,
     consumption_by_slot,
     eligible_capacity_kwh,
     net_demand_by_slot,
@@ -179,10 +184,55 @@ def test_live_recompute_shrinks_with_the_battery():
 # ----------------------------------------------------------------------
 
 
-def test_reserve_soc_pct_is_the_same_share_for_every_battery():
+def test_reserve_soc_pct_is_the_fleet_share_of_capacity():
     assert reserve_soc_pct(2.5, 10.0) == 25.0
     assert reserve_soc_pct(20.0, 10.0) == 100.0
     assert reserve_soc_pct(1.0, 0.0) == 0.0
+
+
+def test_a_reserve_of_everything_stored_keeps_every_battery_where_it_is():
+    """#700, two Venus E at 68 % and 65 % above a 12 % floor, all claimed.
+
+    The fleet figure puts both floors at 65.73 %, so only the emptier one held.
+    """
+    fleet = [
+        _snapshot(soc=68.0, floor=12.0, capacity=5.12),
+        _snapshot(soc=65.0, floor=12.0, capacity=5.12),
+    ]
+    shares = battery_reserve_soc_pct(usable_energy_kwh(fleet), fleet)
+    assert shares == pytest.approx([56.0, 53.0])
+
+
+def test_every_battery_keeps_the_same_share_of_its_own_charge():
+    fleet = [
+        _snapshot(soc=80.0, floor=10.0, capacity=10.0),  # 7 kWh above its floor
+        _snapshot(soc=40.0, floor=5.0, capacity=4.0),  # 1.4 kWh above its floor
+    ]
+    shares = battery_reserve_soc_pct(4.2, fleet)  # half of the 8.4 kWh stored
+    assert shares == pytest.approx([35.0, 17.5])
+    held = sum(s.capacity_kwh * share / 100.0 for s, share in zip(fleet, shares))
+    assert held == pytest.approx(4.2)
+
+
+def test_a_reserve_above_what_is_stored_holds_everything_and_no_more():
+    fleet = [_snapshot(soc=30.0, floor=12.0, capacity=5.12)]
+    assert battery_reserve_soc_pct(50.0, fleet) == pytest.approx([18.0])
+
+
+def test_a_battery_that_does_not_back_the_reserve_keeps_none_of_it():
+    fleet = [
+        _snapshot(soc=80.0, floor=10.0),
+        _snapshot(soc=80.0, floor=10.0, eligible=False),
+        _snapshot(soc=80.0, floor=10.0, can_discharge=False),
+        _snapshot(soc=8.0, floor=10.0),
+    ]
+    assert battery_reserve_soc_pct(3.5, fleet) == pytest.approx([35.0, 0.0, 0.0, 0.0])
+
+
+def test_no_reserve_or_nothing_stored_keeps_nothing():
+    assert battery_reserve_soc_pct(0.0, [_snapshot()]) == [0.0]
+    assert battery_reserve_soc_pct(2.0, [_snapshot(soc=10.0, floor=10.0)]) == [0.0]
+    assert battery_reserve_soc_pct(2.0, []) == []
 
 
 def test_usable_energy_counts_only_the_band_above_the_floor():
@@ -262,3 +312,73 @@ def test_a_slot_the_sun_covers_claims_no_reserve():
     sunny = _slot(15, 0.50)
     plan = _plan([sunny], net_demand_by_slot({sunny: 2.0}, {sunny: 2.5}))
     assert plan.reserve_kwh == 0.0
+
+
+# ----------------------------------------------------------------------
+# PV credit against demand the battery cannot cover alone (#700)
+# ----------------------------------------------------------------------
+
+
+def _sun_then_evening(evening_kwh: float, sun_kwh: float, **overrides):
+    """Sun in the afternoon, then dearer evening hours; the battery has the room."""
+    sun = ReserveSlot(DAY + timedelta(hours=14), DAY + timedelta(hours=15), 0.15, 0.0, sun_kwh)
+    evening = _slot(18, 0.45)
+    price_slot = _slot(14, 0.15)
+    kwargs = dict(free_space_kwh=5.0)
+    kwargs.update(overrides)
+    plan = _plan(
+        [price_slot, evening],
+        {price_slot: 0.0, evening: evening_kwh},
+        surplus_by_slot={price_slot: sun_kwh},
+        **kwargs,
+    )
+    assert plan.slots[0].start == sun.start
+    return plan
+
+
+def test_demand_beyond_stored_plus_sun_holds_everything_stored():
+    """#700, 27 Oct 14:07: 3.21 kWh dearer demand, 1.958 stored, 0.347 of sun."""
+    plan = _sun_then_evening(3.21, 0.347, usable_energy_kwh=1.958)
+    assert plan.reserve_kwh == pytest.approx(1.958)
+
+
+def test_the_floor_does_not_slide_down_with_the_soc():
+    """The same credit used to be granted again after every drop in SOC.
+
+    31 Oct: usable 2.829 to 2.400 kWh, credit 2.436 kWh, 9.73 kWh of dearer
+    demand, and the reserve fell from 0.393 kWh to nothing without ever blocking.
+    """
+    plan = _sun_then_evening(9.73, 2.436, usable_energy_kwh=2.829)
+    for usable in (2.829, 2.584, 2.451, 2.400):
+        reserve, _claiming, _reason = plan.reserve_kwh_at(NOW, 0.20, usable)
+        assert reserve == pytest.approx(usable)
+
+
+def test_the_sun_still_pays_for_what_stored_energy_need_not_cover():
+    """Demand within stored plus sun: the battery only keeps what the sun cannot."""
+    plan = _sun_then_evening(3.0, 2.0, usable_energy_kwh=4.0)
+    assert plan.reserve_kwh == pytest.approx(1.0)
+    # Once the SOC reaches that level the battery holds there; it does not slide.
+    reserve, _claiming, _reason = plan.reserve_kwh_at(NOW, 0.20, 1.0)
+    assert reserve == pytest.approx(1.0)
+
+
+def test_sun_that_covers_all_demand_still_releases_the_battery():
+    """The credit keeps its job: no hold when the sun refills in time (#446)."""
+    plan = _sun_then_evening(2.0, 3.0, usable_energy_kwh=2.714, free_space_kwh=4.0)
+    assert plan.reserve_kwh == 0.0
+    assert plan.reason == REASON_PV_COVERS_IT
+
+
+def test_sun_that_does_not_fit_in_the_battery_pays_nothing_extra():
+    """With no room, the forecast cannot extend what the claims may count on."""
+    plan = _sun_then_evening(3.0, 2.0, usable_energy_kwh=2.0, free_space_kwh=0.0)
+    assert plan.pv_credit_kwh == pytest.approx(0.0)
+    assert plan.reserve_kwh == pytest.approx(2.0)
+
+
+def test_claims_show_what_stored_energy_and_sun_can_serve_together():
+    """The dearest hours still come first, up to stored plus sun, not stored alone."""
+    plan = _sun_then_evening(9.73, 2.436, usable_energy_kwh=2.584)
+    assert plan.claimed_kwh == pytest.approx(2.584 + 2.436)
+    assert plan.pv_credit_kwh == pytest.approx(2.436)

@@ -356,12 +356,13 @@ async def test_sessy_is_probed_with_its_stored_credentials(monkeypatch, no_settl
         ("zendure", "ZendureLocalDriver", True),
         ("anker", "AnkerModbusDriver", True),
         ("sessy", "SessyLocalDriver", False),
+        ("indevolt", "IndevoltDriver", False),
     ],
 )
 async def test_every_ip_based_brand_is_probed_through_its_own_driver(
     monkeypatch, no_settle_delay, brand, driver_name, tuple_result
 ):
-    """The four brands that can drift are the four brands that must be probed."""
+    """Every brand whose address can drift is probed through its own driver."""
     entry = FakeEntry([battery(host="192.168.1.181") | {"brand": brand}])
     hass = FakeHass([entry])
     calls: list = []
@@ -376,6 +377,33 @@ async def test_every_ip_based_brand_is_probed_through_its_own_driver(
     assert await flow._async_apply_dhcp_lease(MAC_A, "192.168.1.180") == "ip_updated"
     assert len(calls) == 1
     assert calls[0][0][0] == "192.168.1.180"
+
+
+@pytest.mark.parametrize(
+    "answer", [None, cf.IndevoltAuthenticationError("local API set to HTTP Digest")]
+)
+async def test_an_indevolt_that_does_not_answer_over_plain_http_stays_put(
+    monkeypatch, no_settle_delay, answer
+):
+    """No reply, or a local API set to HTTP Digest, leaves the address unchanged."""
+    indevolt = battery(host="192.0.2.11") | {"brand": "indevolt", "port": 8080}
+    entry = FakeEntry([indevolt])
+    hass = FakeHass([entry])
+    calls: list = []
+
+    async def _probe(*args, **kwargs):
+        calls.append(args)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(cf.IndevoltDriver, "probe", _probe)
+    flow = make_flow_probing_for_real(hass)
+
+    assert await flow._async_apply_dhcp_lease(MAC_A, "192.0.2.10") == "candidate_silent"
+    assert calls == [("192.0.2.10", 8080)]
+    assert entry.data["batteries"][0]["host"] == "192.0.2.11"
+    assert hass.config_entries.updated == []
 
 
 # --- the migration helper actually preserves entity ids ---------------------

@@ -171,8 +171,15 @@ async def async_setup_entry(
         # Drivers without hardware energy counters (Zendure): synthesise the
         # charge/discharge energy totals by integrating power, and expose per-pack
         # telemetry sized to the live pack count (the first refresh already ran).
+        # Hoymiles reports native daily counters only, so just the lifetime
+        # totals are synthesised there.
         if not coordinator.capabilities.has_energy_counters:
             for definition in SYNTHETIC_ENERGY_SENSOR_DEFINITIONS:
+                if (
+                    definition["period"] == "daily"
+                    and coordinator.capabilities.has_daily_energy_counters
+                ):
+                    continue
                 entities.append(SyntheticEnergySensor(coordinator, definition))
         elif not coordinator.capabilities.has_daily_energy_counters:
             for definition in CUMULATIVE_DAILY_ENERGY_SENSOR_DEFINITIONS:
@@ -1270,8 +1277,10 @@ class NonResponsiveBatteriesSensor(SensorEntity):
 
 _DAILY_OPERATION_INTERVAL_COUNT = 96
 _DAILY_OPERATION_INTERVAL_MINUTES = 15
+# The part after midnight follows the plan: 48 quarters by default, up to 96.
 _DAILY_OPERATION_EXTENDED_INTERVAL_COUNT = 48
-_DAILY_OPERATION_EVENT_THROTTLE_S = 15.0
+_DAILY_OPERATION_EXTENDED_MAX_INTERVAL_COUNT = 96
+_DAILY_OPERATION_EVENT_THROTTLE_S = 60.0
 _TIMELINE_MISSING = object()
 
 
@@ -1534,7 +1543,7 @@ def _timeline_projection_extension(value: object) -> list[dict[str, object]]:
     }
     boolean_fields = {"setpoint_active", "delay_active", "simultaneous"}
     result: list[dict[str, object]] = []
-    for raw in value[:_DAILY_OPERATION_EXTENDED_INTERVAL_COUNT]:
+    for raw in value[:_DAILY_OPERATION_EXTENDED_MAX_INTERVAL_COUNT]:
         if not isinstance(raw, Mapping):
             continue
         item: dict[str, object] = {}
@@ -1581,22 +1590,26 @@ def _timeline_horizon(value: object) -> dict[str, object]:
         number = _timeline_number(value.get(key), 0)
         if number is not None:
             result[key] = max(0, int(number))
+    count = min(
+        _DAILY_OPERATION_EXTENDED_MAX_INTERVAL_COUNT,
+        int(result.get("interval_count", _DAILY_OPERATION_EXTENDED_INTERVAL_COUNT)),
+    )
+    if "interval_count" in result:
+        result["interval_count"] = count
     for key, converter, default in (
         ("duration_s", _timeline_number, 0.0),
         ("dst_skipped", _timeline_bool, False),
         ("dst_repeated", _timeline_bool, False),
+        ("price_per_kwh", _timeline_number, None),
     ):
         raw = value.get(key)
         if not isinstance(raw, (list, tuple)):
             continue
         converted: list[object] = []
-        for item in raw[:_DAILY_OPERATION_EXTENDED_INTERVAL_COUNT]:
+        for item in raw[:count]:
             parsed = converter(item)
             converted.append(default if parsed is None else parsed)
-        converted.extend(
-            [default]
-            * (_DAILY_OPERATION_EXTENDED_INTERVAL_COUNT - len(converted))
-        )
+        converted.extend([default] * (count - len(converted)))
         result[key] = converted
     return result
 
@@ -2040,6 +2053,11 @@ def _daily_operation_timeline_attributes(controller: object) -> dict[str, object
                 _timeline_energy,
                 None,
             ),
+            "price_per_kwh": _timeline_array(
+                _timeline_find(source, ("price_per_kwh",), series),
+                _timeline_number,
+                None,
+            ),
         },
         "operations": {
             "actual_action_mask": _timeline_array(actual_action, _timeline_mask, 0),
@@ -2300,6 +2318,9 @@ class DailyOperationTimelineSensor(SensorEntity):
         ):
             return self._attributes_cache
         attributes = _daily_operation_timeline_attributes(self._controller)
+        # Building the snapshot can advance the clock and bump the revision;
+        # cache under the post-build value or the next read rebuilds again.
+        revision = _timeline_read(manager, "revision", _TIMELINE_MISSING)
         if revision is not _TIMELINE_MISSING:
             self._attributes_cache_revision = revision
             self._attributes_cache = attributes

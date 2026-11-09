@@ -670,11 +670,9 @@ class MarstekModbusDriver(BatteryDriver):
         The zeros a written-off slot produced have to be purged, not merely
         stopped. They were stored on every probe cycle, and the coordinator keeps
         what it was last given: dropping the slot from the read groups leaves the
-        last 0 behind for good. That is harmless to a verdict taken on the
-        fullest pack and fatal to one taken on the first, which is what the floor
-        now is — a battery whose real packs sit at 80 % would read 0 and be
-        excluded from discharge permanently, since the min-SOC latch releases
-        only on a recovery the stale key can never show. So the slot's key is
+        last 0 behind for good. That is fatal to a verdict taken on the least
+        full pack, which is what the charge ceiling is — a battery whose real
+        packs sit at 100 % would read 0 and never be judged full. So the slot's key is
         overwritten with None on the cycle it is written off; the coordinator
         stores None as given and the control layer filters it out.
         """
@@ -1025,23 +1023,40 @@ class MarstekModbusDriver(BatteryDriver):
         ok = True
         cutoff_charge_reg = self.get_register("charging_cutoff_capacity")
         if cutoff_charge_reg is not None:
-            ok &= await self._client.async_write_register(cutoff_charge_reg, int(max_soc_pct / 0.1))
+            ok &= await self._write_config_register(cutoff_charge_reg, int(max_soc_pct / 0.1))
         cutoff_discharge_reg = self.get_register("discharging_cutoff_capacity")
         if cutoff_discharge_reg is not None:
-            ok &= await self._client.async_write_register(cutoff_discharge_reg, int(min_soc_pct / 0.1))
+            ok &= await self._write_config_register(cutoff_discharge_reg, int(min_soc_pct / 0.1))
         max_charge_reg = self.get_register("max_charge_power")
         if max_charge_reg is not None:
-            ok &= await self._client.async_write_register(
+            ok &= await self._write_config_register(
                 max_charge_reg,
                 self._normalize_power_cap("max_charge_power", max_charge_power_w),
             )
         max_discharge_reg = self.get_register("max_discharge_power")
         if max_discharge_reg is not None:
-            ok &= await self._client.async_write_register(
+            ok &= await self._write_config_register(
                 max_discharge_reg,
                 self._normalize_power_cap("max_discharge_power", max_discharge_power_w),
             )
         return bool(ok)
+
+    async def _write_config_register(self, register: int, value: int) -> bool:
+        """Write a setting register only when it does not hold ``value`` already.
+
+        These are the battery's own settings (charge cut-offs, power caps),
+        presumably kept in its non-volatile memory, and setup wrote them on every
+        Home Assistant start although they rarely change. A register that cannot
+        be read is written as before.
+        """
+        current = await self._client.async_read_register(register, "uint16")
+        if current is not None:
+            try:
+                if int(current) == int(value):
+                    return True
+            except (TypeError, ValueError):
+                pass
+        return bool(await self._client.async_write_register(register, value))
 
     async def set_charge_cutoff(self, soc_pct: float) -> bool:
         """Write only the hardware charge-cutoff register to a SOC percentage.

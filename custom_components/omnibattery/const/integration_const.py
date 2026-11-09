@@ -46,6 +46,11 @@ SERIAL_BAUDRATE = 115200
 # spacing to MESSAGE_WAIT_MS_RS485_GATEWAY for any Marstek firmware version.
 CONF_RS485_GATEWAY = "rs485_gateway"
 
+# Per-battery Indevolt request speed (maximum / fast / normal / conservative): how
+# often the driver may talk to the battery. The slot per speed, the default and
+# the floors live in infra/indevolt_client.py; backoff applies on top of every speed.
+CONF_INDEVOLT_REQUEST_SPEED = "indevolt_request_speed"
+
 # Maximum power (W) per battery version — used by config_flow to set slider limits
 MAX_POWER_BY_VERSION = {
     "v2": 2500,
@@ -117,6 +122,12 @@ CONF_ENABLE_PREDICTIVE_CHARGING = "enable_predictive_charging"
 # measured overnight baseline live in ConsumptionTracker's Store; this flag is
 # kept in the entry so the switch restores before the first control cycle.
 CONF_VACATION_MODE_ENABLED = "vacation_mode_enabled"
+# Whether predictive-charging evaluations (daily/dynamic-pricing evaluation,
+# price-slot start, pre-slot and evening re-evaluations) are announced as
+# persistent notifications. Absent means True so existing installs keep the
+# current behaviour. Battery alarm, cell-balance, manual-mode and the
+# predictive-charging "disabled" confirmation are not affected.
+CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED = "predictive_charging_notifications_enabled"
 CONF_CHARGING_TIME_SLOT = "charging_time_slot"
 CONF_SOLAR_FORECAST_SENSOR = "solar_forecast_sensor"
 # Explicit post-now forecast.  The old key remains a whole-day ``today`` value
@@ -236,8 +247,8 @@ DEFAULT_BASE_CONSUMPTION_KWH = 5.0  # Fallback when no consumption history avail
 # it before predictive charging decides whether to charge, and the same margin
 # reserves anti-curtailment headroom in Dynamic Pricing. 0.0 is the sentinel
 # for "no margin" and also the fallback when the fleet's capacity is unknown
-# (see default_predictive_safety_margin_kwh() below, which the config flow
-# uses to size the default for *new* entries only).
+# (see default_predictive_safety_margin_kwh() below: the margin used while
+# none is stored, sized to the fleet's configured or reported capacity).
 CONF_PREDICTIVE_SAFETY_MARGIN_KWH = "predictive_safety_margin_kwh"
 DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH = 0.0
 
@@ -344,8 +355,13 @@ NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE = 3.57
 # e.g. a weak cell sagging under load) even though the reported SOC is still
 # above the configured min_soc. The battery then ACKs the discharge command but
 # delivers ~0W. Treat that as an expected BMS cutoff instead of a non-responsive
-# fault, so the battery stays in the PD pool.
+# fault: no repair, no wake. A refusal that lasts LOW_SOC_REFUSAL_CONFIRM_S takes
+# the battery out of the discharge pool until its SOC recovers (issue #545), so
+# the share goes to a battery that delivers instead of into one that stopped.
 BMS_DISCHARGE_CUTOFF_SOC = 20                  # %: below this, refused discharge = BMS cutoff, not a fault
+# Long enough to ride out a pack hand-off on a coupled-pack Venus A/D, short
+# against the hours a stopped battery was commanded before (#408, #545).
+LOW_SOC_REFUSAL_CONFIRM_S = 60
 
 # Bus-load reduction: the PD loop normally reads 4 registers back after every
 # power write (ACK verify + non-delivery detection). Those reads are the bulk of
@@ -407,14 +423,15 @@ SLOW_SENSOR_WARNING_INTERVAL_S = 10.0
 # shorten the promised tolerance.
 MAX_SENSOR_STALE_S = 65.0
 
-# How long the main grid sensor may go without publishing anything before a
-# Repairs issue is raised. Past MAX_SENSOR_STALE_S the loop already stops
-# integrating P/D, so it simply holds the last command for as long as the
-# silence lasts - bounded by the SOC blockers, not by time. That is silent
-# today: a sensor frozen on a valid value logs nothing at all, and an
-# unavailable one only logs at debug. Long enough to ride out a restart or a
-# brief integration reload, short enough to catch a wedged P1 bridge or a
-# template sensor whose inputs stopped moving.
+# How long the main grid sensor may go without publishing a valid reading
+# before it counts as dead: a Repairs issue is raised and automatic control is
+# stopped (every automatic battery to 0W) until it publishes again. Past
+# MAX_SENSOR_STALE_S the loop already stops integrating P/D and holds the last
+# command; without this limit that hold lasts as long as the silence, bounded
+# only by the SOC blockers. Long enough to ride out a restart or a brief
+# integration reload, and far above any supported sensor cadence (slow sensors
+# are authoritative up to MAX_SENSOR_STALE_S), short enough to catch a wedged
+# P1 bridge or a template sensor whose inputs stopped moving.
 MAIN_SENSOR_DEAD_S = 300.0
 
 # How long a phase sensor must stay unreadable before the degradation becomes a
@@ -471,6 +488,29 @@ HOT_PATH_READBACK_MAX_LATENCY_S = 1.5
 # inverter is not excluded before it has had time to engage. A battery that never
 # engages is still caught, just this many seconds later.
 DISCHARGE_ENGAGE_GRACE_S = 30
+
+# A step up in commanded power by at least this factor restarts that direction's
+# engage grace too, when the battery met the delivery bar (10% of the command)
+# for the previous command: it needs time to ramp to the new power, and a driver
+# that serves cached telemetry keeps showing the pre-step power for seconds. The
+# PD's re-ramp after an anti-windup re-anchor adds near-equal increments onto the
+# measured power, so each of its steps stays below 2x while the battery delivers
+# anything, and a battery stuck at 0 W never meets the previous bar. Neither
+# restarts the grace, so a battery that stalls under that cycle is still caught.
+ENGAGE_GRACE_STEP_FACTOR = 2
+
+# PD Quality only updates while the PD controls the grid. A gap longer than
+# PD_QUALITY_RESTART_GAP_S between two updates means the PD was not in control
+# meanwhile (a grid-charge slot, the weekly full charge, manual mode, a long
+# block). Its numbers then describe the situation before the gap, and when the
+# PD takes over the batteries are still running the previous command. So the
+# metric starts over: it skips the first PD_QUALITY_RESTART_SETTLE_S, the time
+# a battery gets to engage after a direction switch, and then averages one
+# metric window of fresh readings before the sensor shows a verdict again. The
+# gap is two 60s metric windows, well above the slowest supported meter
+# (MAX_SENSOR_STALE_S), which keeps updating the metric on every reading.
+PD_QUALITY_RESTART_GAP_S = 120.0
+PD_QUALITY_RESTART_SETTLE_S = float(DISCHARGE_ENGAGE_GRACE_S)
 
 # Top-of-charge tail: the last stretch before 100% often tapers hard (CC/CV
 # tail current) well before is_battery_full() reports the battery full or
@@ -576,6 +616,16 @@ EXTERNAL_NET_BALANCE_CANDIDATES: list[str] = ["sensor.balance_neto"]
 # Weekly Full Charge Delay Constants
 CHARGE_EFFICIENCY = 0.85  # Conservative factor for charge power estimation
 
+# Weekly Full Charge slot sizing. The last few percent charge slower than the
+# battery's limit: at NORMAL_BALANCE_CHARGE_POWER_W with the 100 % voltage
+# taper, otherwise as the BMS derates near full. A margin on top covers
+# temperature derating and discharge between slot blocks; slots not needed
+# are cancelled before they start once the battery is full.
+WEEKLY_CHARGE_TAIL_PCT = 5.0
+WEEKLY_CHARGE_TAIL_POWER_RATIO = 0.5
+WEEKLY_CHARGE_MARGIN_RATIO = 0.25
+WEEKLY_CHARGE_MARGIN_MIN_H = 0.5
+
 # Round-trip efficiency used by the arbitrage-margin gate (see
 # CONF_MIN_ARBITRAGE_MARGIN). Distinct from CHARGE_EFFICIENCY, which derates
 # charge *power* to size a charging window; this one is the AC-to-AC energy
@@ -655,6 +705,12 @@ GUARD_PENDING_TOLERANCE_W = 100
 # meter noise, so a cloud edge does not toggle the battery every cycle; release
 # has no band at all, because by then the house genuinely needs the battery.
 SURPLUS_GUARD_HYSTERESIS_W = 100
+# How long that surplus has to persist before the guard latches. The figure mixes
+# a meter reading with battery readings polled seconds apart: a battery just told
+# to ramp up still reports its old output while the meter already sees the new
+# one, and reads as a surplus for one sample. The effective window is
+# max(this, 2 * slowest actuator_latency_s), as for the zero-cross hold.
+SURPLUS_GUARD_MIN_HOLD_S = 5.0
 # How far the outlook has to move before the scarce/ample verdict flips. A
 # forecast wanders all day; without this the charge order would follow it.
 SCARCITY_HYSTERESIS_KWH = 2.0
@@ -685,8 +741,8 @@ RELAY_COOLDOWN_HOLD_POWER = 100
 # Minimum spacing (s) between event-driven control cycles. The grid sensor can
 # publish several times per second; without a floor, each out-of-deadband cycle
 # issues a Modbus write burst, which slow TCP-serial bridges (e.g. Elfin EW11)
-# can choke on. Drops surplus sensor-triggered cycles; the 2 s safety timer is
-# never gated. 0 = disabled (pre-feature behaviour); default 1 s caps bursts.
+# can choke on. Drops surplus sensor-triggered cycles; 2 s safety-timer ticks
+# inside the window keep the last command (#654). 0 = disabled (pre-feature behaviour); default 1 s caps bursts.
 DEFAULT_PD_MIN_CYCLE_INTERVAL = 1.0
 # Grid-sample EMA smoothing time constant (s). Single source of truth so no-PD
 # mode can drop it to 0 (raw passthrough) and restore it when the mode is off.
@@ -786,6 +842,16 @@ def system_power_limits_enabled(data) -> bool:
     )
 
 
+def effective_price_threshold(data, conf_key: str, enabled_key: str) -> float | None:
+    """Return the price threshold the engine should use, or None (automatic).
+
+    Entries predating the enable key had the threshold active iff a value was
+    set, so that stays the default for the missing key.
+    """
+    value = data.get(conf_key)
+    return value if data.get(enabled_key, value is not None) else None
+
+
 def effective_system_power(data) -> tuple[int, int]:
     """Return (charge_w, discharge_w) after the optional system-wide cap.
 
@@ -809,13 +875,24 @@ def effective_system_power(data) -> tuple[int, int]:
     )
 
 
-def total_battery_capacity_kwh(data) -> float:
-    """Return the sum of each configured battery's rated capacity, in kWh."""
-    batteries = data.get("batteries") or []
-    return sum(float(battery.get("battery_capacity_kwh", 0.0) or 0.0) for battery in batteries)
+def total_battery_capacity_kwh(data, reported_kwh=None) -> float:
+    """Return the fleet's capacity in kWh: each battery's configured value, or what it reports.
+
+    A battery without a configured capacity -- one whose driver reads it (Marstek
+    over Modbus) or one left at 0 for auto-detection (Zendure, Hoymiles) -- counts
+    with ``reported_kwh[name]``, the capacity its coordinator reports, when known.
+    """
+    reported_kwh = reported_kwh or {}
+    total = 0.0
+    for battery in data.get("batteries") or []:
+        configured = float(battery.get("battery_capacity_kwh", 0.0) or 0.0)
+        if configured <= 0:
+            configured = float(reported_kwh.get(battery.get("name")) or 0.0)
+        total += max(0.0, configured)
+    return total
 
 
-def default_predictive_safety_margin_kwh(data) -> float:
+def default_predictive_safety_margin_kwh(data, reported_kwh=None) -> float:
     """Return ~5% of the fleet's total capacity, or the no-margin sentinel.
 
     Mirrors ``default_high_price_discharge_max_power()``: the only forecast
@@ -823,7 +900,7 @@ def default_predictive_safety_margin_kwh(data) -> float:
     Falls back to ``DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH`` (0.0, no margin)
     when no battery capacity can be determined yet.
     """
-    capacity_kwh = total_battery_capacity_kwh(data)
+    capacity_kwh = total_battery_capacity_kwh(data, reported_kwh)
     if capacity_kwh <= 0:
         return DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
     return round(capacity_kwh * 0.05, 2)
@@ -907,8 +984,13 @@ CONF_MAX_PRICE_THRESHOLD = "max_price_threshold"
 # while price <= this value; unset → falls back to max_price_threshold so
 # existing single-threshold installs keep identical behavior.
 CONF_DISCHARGE_PRICE_THRESHOLD = "discharge_price_threshold"
+# Per-threshold manual/automatic toggle (#612). A number entity cannot be
+# cleared from the UI, so OFF makes the engine see None (automatic fallback)
+# while the stored value is kept for when it is turned back on.
+CONF_MAX_PRICE_THRESHOLD_ENABLED = "max_price_threshold_enabled"
+CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED = "discharge_price_threshold_enabled"
 # Minimum arbitrage margin (currency/kWh) required before a slot is eligible for
-# grid charging. Unset (None) → disabled, and slot selection behaves exactly as
+# grid charging, valued against the slots that follow it only. Unset (None) → disabled, and slot selection behaves exactly as
 # before. When set, a candidate slot must satisfy
 #   expected_discharge_price * round_trip_efficiency - slot_price >= margin
 # so that charging is skipped on days where the intraday spread cannot repay the
@@ -1028,12 +1110,18 @@ PRICE_INTEGRATION_PVPC = "pvpc"
 PRICE_INTEGRATION_CKW = "ckw"
 PRICE_INTEGRATION_EPEX = "epex"
 PRICE_INTEGRATION_ENTSOE = "entsoe"
+PRICE_INTEGRATION_ENERGYZERO = "energyzero"
 PRICE_INTEGRATION_TIBBER = "tibber"
 PRICE_INTEGRATION_ZONNEPLAN = "zonneplan"
+PRICE_INTEGRATION_FRANK_ENERGIE = "frank_energie"
+# renaudallard/homeassistant_be_electricity_prices: all-in Belgian prices for
+# every supplier contract (fixed, variable, time-of-use, dynamic).
+PRICE_INTEGRATION_BE_ELECTRICITY = "be_electricity_prices"
 
 # Tibber and the official Nord Pool integration are service-based rather than
 # forecast-attribute based. How stale either cache may get before a refresh.
 TIBBER_REFRESH_MINUTES = 60
+ENERGYZERO_REFRESH_MINUTES = 60
 NORDPOOL_REFRESH_MINUTES = 60
 
 # Marker for CONFIG_NUMBER_DEFINITIONS entries whose slider bounds are derived
@@ -1125,7 +1213,7 @@ CONFIG_NUMBER_DEFINITIONS = [
         "key": CONF_PD_MIN_CYCLE_INTERVAL,
         "name": "PD Min Cycle Interval",
         "min": 0,
-        "max": 2,
+        "max": 5,
         "step": 0.1,
         "unit": "s",
         "default": DEFAULT_PD_MIN_CYCLE_INTERVAL,

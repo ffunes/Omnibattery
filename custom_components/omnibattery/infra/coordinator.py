@@ -25,6 +25,10 @@ from ..drivers.marstek import MarstekModbusDriver
 from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
 from ..drivers.anker import AnkerModbusDriver
 from ..drivers.sessy import SessyLocalDriver
+from ..drivers.indevolt import IndevoltDriver
+from ..drivers.indevolt_settings import stored_battery_value
+from .indevolt_client import slot_for_request_speed
+from .indevolt_notify import IndevoltNotifier
 from ..drivers.hoymiles import HoymilesMqttDriver
 from ..drivers.huawei import HuaweiSolarDriver
 from ..drivers.base import SetpointResult
@@ -34,6 +38,9 @@ from .alarm_notifier import AlarmNotifier
 from .mac_tracking import normalise_mac
 
 _LOGGER = logging.getLogger(__name__)
+
+# Minimum gap between rewrites of a power ceiling the device reports as 0.
+POWER_LIMIT_RESTORE_COOLDOWN_S = 60.0
 
 # Logical telemetry keys _measured_battery_power() / _coordinator_delivered_power()
 # read to see what a battery is actually delivering (see __init__.py). A read
@@ -149,7 +156,7 @@ def _persist_device_cap(coordinator, key: str, value: int) -> None:
     persist(key, int(value))
 
 
-def _sync_device_reported_limits(coordinator) -> None:
+def _sync_device_reported_limits(coordinator) -> tuple[str, ...]:
     """Adopt the power ceilings the device reports, ignoring a zero.
 
     A reported ceiling of zero is not a limit, it is a missing answer. A
@@ -158,16 +165,19 @@ def _sync_device_reported_limits(coordinator) -> None:
     neither charge nor discharge, and nothing would ever write those
     registers again, because the controller had stopped addressing a
     battery it believed could do nothing. The last good figure stands
-    instead, and the mismatch is worth a line in the log.
+    instead. Returns the keys that read 0 so the caller can write the
+    ceiling back: a Venus D on EMS V151 honours the zeroed register and
+    refuses to discharge until it is rewritten (issue #548).
     """
-    for key in ("max_charge_power", "max_discharge_power"):
-        if key in coordinator.data and not coordinator.data[key]:
-            _LOGGER.warning(
-                "[%s] Device reports %s = 0; keeping the last known ceiling. "
-                "The battery may have lost its limits on a restart — writing "
-                "the corresponding number entity restores them.",
-                coordinator.name, key,
-            )
+    zeroed = tuple(
+        key for key in ("max_charge_power", "max_discharge_power")
+        if key in coordinator.data and not coordinator.data[key]
+    )
+    for key in zeroed:
+        _LOGGER.warning(
+            "[%s] Device reports %s = 0; keeping the last known ceiling.",
+            coordinator.name, key,
+        )
     if coordinator.data.get("max_charge_power"):
         device_cap = int(coordinator.data["max_charge_power"])
         # Soft-max drivers (Zendure telemetry, Anker read-only sensor) and
@@ -211,6 +221,7 @@ def _sync_device_reported_limits(coordinator) -> None:
                 if coordinator.needs_software_max_discharge or coordinator.needs_software_power_cap
                 else device_cap
             )
+    return zeroed
 
 
 def group_scan_interval_s(
@@ -322,6 +333,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  hoymiles_model: str | None = None,
                  serial_port: str | None = None,
                  rs485_gateway: bool = False,
+                 indevolt_request_speed: str | None = None,
                  esphome_device_id: str | None = None,
                  huawei_battery_device_id: str | None = None,
                  huawei_direct_write: bool = False,
@@ -360,11 +372,14 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # Marstek reached through an RS485 gateway instead of its own Modbus
         # TCP server: drops the inter-message wait (issue #411).
         self.rs485_gateway = bool(rs485_gateway)
+        # Indevolt request speed (infra/indevolt_client.REQUEST_SPEED_SLOT_S); None or an
+        # unknown value gets the driver's default slot.
+        self.indevolt_request_speed = indevolt_request_speed
         self.consumption_sensor = consumption_sensor
         self.brand = brand
         self.ems_version = ems_version
         self.zendure_model = zendure_model
-        if self.brand in ("zendure", "anker", "hoymiles", "huawei"):
+        if self.brand in ("zendure", "anker", "hoymiles", "huawei", "indevolt"):
             full_charge_voltage_taper_enabled = False
 
         # Validate and store battery version
@@ -402,6 +417,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self._configured_max_discharge_power = initial_discharge_limit
         self._effective_max_charge_power = initial_charge_limit
         self._effective_max_discharge_power = initial_discharge_limit
+        self._power_limit_restored_at: dict[str, float] = {}
         self.max_soc = max_soc
         self.min_soc = min_soc
         # Hysteresis is mandatory; floor the percent so SOC drift can't shrink the
@@ -436,6 +452,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         setattr(self, CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, full_charge_voltage_taper_enabled)
         self._hysteresis_active = False  # Tracks if battery reached max_soc (for hysteresis)
         self._hysteresis_base_soc = None  # SOC that triggered hysteresis (used as threshold base)
+        self._hysteresis_latch_max_soc = None  # max_soc in force when that base was latched
         self._scan_counter = 0
         self.lock = asyncio.Lock()
         self._is_shutting_down = False  # Flag to suppress errors during shutdown
@@ -531,6 +548,20 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 password=password,
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
+            )
+        elif self.brand == "indevolt":
+            # The driver paces all device traffic itself; polls read its cache.
+            self.driver = IndevoltDriver(
+                self.host, port=self.port,
+                max_charge_power_w=self.configured_max_charge_power,
+                max_discharge_power_w=self.configured_max_discharge_power,
+                notifier=IndevoltNotifier(hass, name, f"{self.host}_{self.port}"),
+                # The settings sync stores what it adopted from or wrote to the
+                # device in this battery's config.
+                persist=self.persist_battery_config,
+                stored=lambda key: stored_battery_value(self, key),
+                slot_s=slot_for_request_speed(self.indevolt_request_speed),
+                name=name,
             )
         elif self.brand == "huawei":
             # Telemetry is read natively over Modbus; set-points go out through
@@ -888,6 +919,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Sessy" if self.brand == "sessy"
                 else "Hoymiles" if self.brand == "hoymiles"
                 else "Huawei" if self.brand == "huawei"
+                else "Indevolt" if self.brand == "indevolt"
                 else "Marstek"
             ),
             "model": self.driver.model_label or (
@@ -895,6 +927,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Solarbank Max AC" if self.brand == "anker"
                 else "Sessy" if self.brand == "sessy"
                 else "MS-A2" if self.brand == "hoymiles"
+                else "Indevolt" if self.brand == "indevolt"
                 else "Venus"
             ),
         }
@@ -915,7 +948,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 + (f":{self.port}" if self.port != 80 else "")
                 + "/"
             )
-            software_version = (self.data or {}).get("software_version")
+        # The firmware line on the device page. Home Assistant keeps the last
+        # value written there, so a brand whose software version is the
+        # battery's firmware writes it on every start.
+        if self.brand in ("sessy", "indevolt"):
+            software_version = (getattr(self, "data", None) or {}).get("software_version")
             if software_version:
                 info["sw_version"] = str(software_version)
         return info
@@ -1060,8 +1097,12 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         (single TCP connection) refuse new connections because they still
         hold a zombie connection from the old client.
 
-        Returns True if reconnection succeeded.
+        Returns True if reconnection succeeded. A coordinator being torn down
+        never reconnects: on a single-slot link the new connection would lock
+        out the setup that replaces it.
         """
+        if getattr(self, "_is_shutting_down", False):
+            return False
         _LOGGER.warning(
             "[%s] Creating fresh connection to %s:%s (consecutive failures: %d)",
             self.name, self.host, self.port, self._consecutive_failures
@@ -1293,6 +1334,10 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         now = utcnow()
         updated_data = {}
+        # Per-key read times for readings_from_same_poll(), published together
+        # with updated_data: the loop below yields between groups, so a check
+        # made mid-poll must not see a fresh time next to the previous value.
+        updated_times = {}
         critical_groups_attempted = set()
         critical_groups_succeeded = set()
 
@@ -1502,7 +1547,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                         continue
 
                 updated_data[key] = value
-                self._key_update_times[key] = now
+                updated_times[key] = now
                 stored += 1
                 if DEBUG_POLL_SENSOR_VALUES and group.scan_interval == "high":
                     _LOGGER.debug("[%s] Updated %s: %s", self.name, key, value)
@@ -1597,6 +1642,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Update the coordinator's data
         self.data.update(updated_data)
+        self._key_update_times.update(updated_times)
 
         update_backup_discharge = getattr(
             self, "_update_backup_discharge_energy", None
@@ -1655,7 +1701,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # coordinator.min_soc stays at the construction default across restarts.
         if "min_soc" in self.data:
             self.min_soc = int(self.data["min_soc"])
-        _sync_device_reported_limits(self)
+        for key in _sync_device_reported_limits(self):
+            await self._restore_zeroed_power_limit(key)
         _stamp_native_daily_reset_dates(self)
 
         if updated_data:
@@ -1731,6 +1778,29 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         else:
             # Default to sensor if not found (telemetry-only / soft-max keys)
             return "sensor"
+
+    async def _restore_zeroed_power_limit(self, key: str) -> None:
+        """Write back a power ceiling the device reports as 0 (issue #548).
+
+        Only for drivers whose ceiling is a writable number entity; elsewhere
+        the reading is telemetry. Rate-limited so a link that is still
+        flapping after a reconnect does not turn into a write storm.
+        """
+        if not any(d["key"] == key for d in self.number_definitions):
+            return
+        now = time.monotonic()
+        if now - self._power_limit_restored_at.get(key, float("-inf")) < POWER_LIMIT_RESTORE_COOLDOWN_S:
+            return
+        self._power_limit_restored_at[key] = now
+        charge = key == "max_charge_power"
+        # Venus E v2/v3: the register holds the device cap (800|2500), not the
+        # user's limit, so restore the last cap the device reported.
+        if self.needs_software_power_cap:
+            value = self.device_max_charge_power if charge else self.device_max_discharge_power
+        else:
+            value = self.configured_max_charge_power if charge else self.configured_max_discharge_power
+        if await self.write_control(key, value, do_refresh=False):
+            _LOGGER.warning("[%s] Restored %s to %d W", self.name, key, value)
 
     async def write_control(self, key: str, value: int, do_refresh: bool = True):
         """Command a single logical control to a wire value via the driver.

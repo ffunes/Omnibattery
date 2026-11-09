@@ -164,6 +164,22 @@ def test_runtime_diary_composes_grid_and_dc_solar_charge():
     assert decision["simultaneous"] is True
 
 
+def test_runtime_diary_anker_aggregate_pv_is_not_added_to_pack_power():
+    # Anker SB4: ac_power = -pack power, which already includes PV (#738).
+    coordinator = SimpleNamespace(
+        capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=True),
+        data={"ac_power": -300, "solar_power": 500},
+    )
+    controller = _runtime_controller([coordinator])
+
+    decision = ChargeDischargeController._daily_operation_runtime_decision(
+        controller, datetime(2026, 8, 23, 11, 30, tzinfo=MADRID)
+    )
+
+    assert decision["charge_power_w"] == pytest.approx(300)
+    assert decision["action_mask"] & ACTION_SOLAR_CHARGE
+
+
 def test_runtime_diary_ignores_max_ac_derived_solar_for_charge_source():
     coordinator = SimpleNamespace(
         capabilities=SimpleNamespace(
@@ -443,6 +459,28 @@ def test_projection_keeps_manual_battery_as_fixed_soc_capacity():
     assert inputs[1].can_charge is False
     assert inputs[1].can_discharge is False
     assert inputs[1].stored_kwh == pytest.approx(4)
+
+
+@pytest.mark.parametrize(("weekly_active", "expected"), [(False, 90), (True, 100)])
+def test_projection_ceiling_follows_pending_weekly_full_charge(weekly_active, expected):
+    coordinator = SimpleNamespace(
+        name="battery",
+        min_soc=10,
+        max_soc=90,
+        max_charge_power=2000,
+        max_discharge_power=2000,
+        data={"battery_total_energy": 10, "battery_soc": 40},
+    )
+    controller = SimpleNamespace(
+        coordinators=[coordinator],
+        _daily_operation_float=ChargeDischargeController._daily_operation_float,
+        _is_battery_manual_owned=lambda coordinator: False,
+        _weekly_charge_mgr=SimpleNamespace(is_active=lambda: weekly_active),
+    )
+
+    inputs = ChargeDischargeController._daily_operation_battery_inputs(controller)
+
+    assert inputs[0].max_soc_pct == pytest.approx(expected)
 
 
 def test_projection_starts_from_measured_soc_now_instead_of_replaying_the_day():
@@ -1242,6 +1280,47 @@ def test_in_progress_interval_publishes_the_full_quarter_forecast():
     assert closed["solar_forecast_kwh"][52] == pytest.approx(0.4)
 
 
+def test_a_plan_starting_now_still_publishes_the_full_quarter_forecast():
+    """The planner's first bin starts now and holds only the rest of its
+    quarter; the past must not keep that sliver once the quarter closes."""
+    now = datetime(2026, 8, 23, 13, 7, tzinfo=MADRID)
+    quarter_end = now.replace(minute=15)
+    intervals = [
+        ProjectionIntervalInput(
+            now, quarter_end, consumption_kwh=0.2 * 8 / 15, solar_kwh=0.4 * 8 / 15
+        ),
+        ProjectionIntervalInput(
+            quarter_end,
+            quarter_end + timedelta(minutes=15),
+            consumption_kwh=0.2,
+            solar_kwh=0.4,
+        ),
+    ]
+    projection = build_daily_operation_projection(
+        DailyOperationProjectionRequest(
+            now=now,
+            plan_intervals=tuple(intervals),
+            allocations=(),
+            battery_inputs=(BatteryProjectionInput("a", 5, 10, 0, 100, 4000, 4000),),
+            mode="normal",
+            decision_data={},
+        )
+    )
+    current = next(item for item in projection["intervals"] if item["index"] == 52)
+    assert current["consumption_kwh"] == pytest.approx(0.2 * 8 / 15)
+
+    clock = MutableClock(now)
+    manager = _manager(clock, mode="normal")
+    manager.rebuild_future_projection(projection, mode="normal")
+    clock.value = now.replace(minute=20)
+    manager.rebuild_future_projection(projection, mode="normal")
+    closed = manager.build_public_snapshot()["series"]
+
+    assert closed["consumption_forecast_kwh"][52] == pytest.approx(0.2)
+    assert closed["solar_forecast_kwh"][52] == pytest.approx(0.4)
+    assert closed["consumption_forecast_kwh"][53] == pytest.approx(0.2)
+
+
 def test_memoized_wall_grid_is_not_mutated_between_builds():
     """The wall-clock grid is cached per local day, so builds must only read it."""
     clock = MutableClock(datetime(2026, 10, 25, 12, 0, tzinfo=MADRID))
@@ -1255,3 +1334,19 @@ def test_memoized_wall_grid_is_not_mutated_between_builds():
     assert second == first
     # A fall-back day still owns 25 physical hours after the second build.
     assert sum(second["duration_s"]) == 25 * 3600
+
+
+@pytest.mark.asyncio
+async def test_charge_delay_metadata_is_throttled_and_keeps_its_tail_keys():
+    clock = MutableClock(datetime(2026, 8, 23, 10, 7, tzinfo=MADRID))
+    manager = _manager(clock)
+    delay = {f"field_{index}": index for index in range(22)}
+    delay["weekly_full_charge_bypasses_delay"] = True
+
+    assert manager.update_runtime_metadata(delay=delay) is True
+    assert manager.last_notification_immediate is False
+    assert manager._delay_info["weekly_full_charge_bypasses_delay"] is True
+
+    manager.update_runtime_metadata(stale=True)
+    assert manager.last_notification_immediate is True
+    await manager.async_save_all()

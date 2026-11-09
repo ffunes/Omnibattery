@@ -199,22 +199,32 @@ class NonResponsiveTracker:
         battery is healthy - used on a commanded direction flip, which starts a
         fresh engage grace but proves nothing about delivery. Only a real
         delivery ends the spell the Repair below is timed from, so a fault that
-        survives every flip is still surfaced.
+        survives every flip is still surfaced. The spell keeps its reason too:
+        the full-battery exemption reads it to end a charge-side spell, and the
+        Repair names it.
         """
         info = self.batteries.get(coordinator)
         if info:
             was_excluded = info["excluded_at"] is not None
             if delivering:
                 info["degraded_since"] = None
+            if info.get("degraded_since") is None:
+                info["reason"] = None
             info["fail_count"] = 0
             info["excluded_at"] = None
-            info["reason"] = None
             info["retry_attempted"] = False
             info["wake_attempted"] = False
             info["wake_used"] = False
-            if was_excluded:
+            # delivering=True also comes from the full-battery, taper and
+            # low-SOC exemptions, so neither line claims power is flowing.
+            if was_excluded and delivering:
                 _LOGGER.info(
-                    "[%s] Battery is delivering power again - returned to pool",
+                    "[%s] No longer non-responsive - returned to pool",
+                    coordinator.name,
+                )
+            elif was_excluded:
+                _LOGGER.info(
+                    "[%s] Commanded direction changed - retrying battery",
                     coordinator.name,
                 )
 

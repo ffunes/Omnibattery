@@ -1,4 +1,4 @@
-"""Validation tests for the live price-threshold number entities (#408).
+"""Validation tests for the live price-threshold number entities (#408, #612).
 
 Cover the ordering guard in ``MarstekPriceThresholdNumber.async_set_native_value``
 (charge ceiling must stay <= discharge floor). Only the *rejecting* paths are
@@ -14,6 +14,7 @@ import pytest
 
 from homeassistant.exceptions import ServiceValidationError
 
+from custom_components.omnibattery.const import effective_price_threshold
 from custom_components.omnibattery.number import (
     MarstekBackupThresholdNumber,
     MarstekPriceThresholdNumber,
@@ -43,6 +44,28 @@ def test_no_sibling_threshold_skips_validation():
     e = _entity("discharge", {})  # no max_price_threshold
     with pytest.raises(AttributeError):  # hits hass.config_entries.* , not the guard
         asyncio.run(e.async_set_native_value(0.10))
+
+
+def test_disabled_sibling_threshold_skips_validation():
+    # #612: a stored-but-disabled sibling is ignored by the engine, so it must
+    # not block the write (gets past the guard → fails on the bare hass).
+    e = _entity("discharge", {"max_price_threshold": 0.20, "max_price_threshold_enabled": False})
+    with pytest.raises(AttributeError):
+        asyncio.run(e.async_set_native_value(0.10))
+
+
+@pytest.mark.parametrize(
+    ("data", "expected"),
+    [
+        ({}, None),  # never set → automatic
+        ({"max_price_threshold": 0.15}, 0.15),  # legacy entry, no enable key → manual
+        ({"max_price_threshold": 0.15, "max_price_threshold_enabled": False}, None),
+        ({"max_price_threshold": 0.15, "max_price_threshold_enabled": True}, 0.15),
+        ({"max_price_threshold_enabled": True}, None),  # manual but no value yet
+    ],
+)
+def test_effective_price_threshold(data, expected):
+    assert effective_price_threshold(data, "max_price_threshold", "max_price_threshold_enabled") == expected
 
 
 def test_backup_offgrid_threshold_range_matches_configuration_flow():

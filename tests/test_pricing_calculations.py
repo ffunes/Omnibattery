@@ -209,6 +209,17 @@ def test_parse_pvpc():
     assert all((s.end - s.start) == timedelta(hours=1) for s in slots)
 
 
+def test_parse_pvpc_next_day():
+    # #568: tomorrow's curve must be parsed so the dawn horizon can see it
+    from datetime import date
+    attrs = {"price_23h": 0.30, "price_next_day_00h": 0.28, "price_next_day_01h": 0.27}
+    slots = calculations.parse_pvpc_prices(attrs)
+    today = date.today()
+    assert [(s.start.date() - today).days for s in slots] == [0, 1, 1]
+    assert [s.start.hour for s in slots] == [23, 0, 1]
+    assert [s.price for s in slots] == [0.30, 0.28, 0.27]
+
+
 def test_parse_ckw():
     attrs = {
         "prices": [

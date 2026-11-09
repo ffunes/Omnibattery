@@ -24,7 +24,7 @@ Omnibattery controla las baterías Hoymiles compatibles mediante la integración
 ## Cómo añadirla
 
 1. En el asistente de configuración de Omnibattery, elige **Hoymiles MQTT**.
-2. Introduce un **Name** descriptivo y el **MQTT device ID** completo.
+2. Introduce un **Name** descriptivo y el **MQTT device ID** completo. En un sistema emparejado, añádelo una sola vez con el ID del maestro.
 3. Deja **Battery model** en **Auto-detect** salvo que el firmware publique un modelo incorrecto o genérico.
 4. Espera mientras Omnibattery recibe telemetría en vivo y el mensaje retenido de descubrimiento del control de potencia.
 5. Revisa la capacidad y los límites de potencia detectados, y después elige los límites comunes de estado de carga.

@@ -9,10 +9,9 @@ Two things are pinned here:
 * the start-up probe that learns which slots exist — an absent slot
   may either fail to answer or read a flat 0, and the probe must be right under
   both without knowing which the firmware does;
-* the *additional* discharge floor: a pack at min_soc blocks discharge even
-  when the aggregate is still above it. The symmetric swap (max(pack_soc)
-  replacing the aggregate, which would extend discharge) is deliberately not
-  implemented — see the plan's F3.
+* the discharge floor stays on the aggregate: the BMS rotates packs and stops
+  on the total, so neither a pack at min_soc nor one still above it decides
+  (issue #545).
 """
 from __future__ import annotations
 
@@ -137,16 +136,13 @@ async def test_v3_has_no_pack_sensors():
     assert not {d["key"] for d in driver.sensor_definitions}.intersection(PACK_SOC_KEYS)
 
 
-# --- control: pack-aware charge ceiling and discharge floor -----------------
+# --- control: pack-aware charge ceiling, aggregate discharge floor ----------
 #
-# Both verdicts read min(pack_soc), and the reason is that the hardware is not
-# symmetric:
 #   full  <=> the LEAST full pack reached the ceiling  -> min(pack_soc)
-#   empty <=> the FIRST pack reached the floor         -> min(pack_soc)
-# Charging walks on to the next pack when one fills, which is what the #350
-# handovers showed, so the ceiling must not fire on the first pack to get there.
-# Discharging does not walk on: a Venus D stops the whole battery at its first
-# pack and strands the rest, so the floor must fire exactly there.
+#   empty <=> the TOTAL reached the floor              -> aggregate
+# Charging walks on to the next pack when one fills (#350), so the ceiling must
+# not fire on the first pack to get there. Discharging walks on too, and the BMS
+# stops on the total (#545: BMS 109/116/118), so no pack reading decides it.
 
 
 def _discharge_blocks(data, *, min_soc=10):
@@ -197,15 +193,15 @@ def _chargeable(data, *, max_soc=100):
     return got == [coordinator]
 
 
-# --- discharge: the first pack to empty decides -----------------------------
+# --- discharge: the aggregate decides ---------------------------------------
 
 
-def test_one_pack_at_the_floor_ends_the_discharge():
-    # A Venus D stops the whole battery there. The 50% in the other pack is
-    # real but unreachable, and counting it commands into a stopped battery.
-    data = {"battery_soc": 30, "battery_soc_pack_1": 50.0, "battery_soc_pack_2": 10.0}
-    assert _discharge_blocks(data)
-    assert not _dischargeable(data)
+def test_one_pack_at_the_floor_does_not_end_the_discharge():
+    # #545, Venus A BMS 109: min(pack_soc) stopped it here while the device
+    # went on to deliver from pack 2.
+    data = {"battery_soc": 20, "battery_soc_pack_1": 12.0, "battery_soc_pack_2": 29.9}
+    assert not _discharge_blocks(data, min_soc=12)
+    assert _dischargeable(data, min_soc=12)
 
 
 def test_a_battery_above_the_floor_on_every_pack_keeps_going():
@@ -214,28 +210,18 @@ def test_a_battery_above_the_floor_on_every_pack_keeps_going():
     assert _dischargeable(data)
 
 
-def test_the_measured_six_pack_case():
-    """4 September, cutoff 12%: aggregate 15%, three packs on the floor, and the
-    device delivering nothing while the control layer commanded 938 W."""
+def test_the_measured_six_pack_case_is_not_judged_on_soc():
+    """#408, v150, cutoff 12%: aggregate 15% and the device delivering
+    nothing. No SOC reading predicts that stop; the low-SOC refusal latch in
+    _check_non_delivery catches it from the 0 W instead."""
     data = {
         "battery_soc": 15,
         "battery_soc_pack_1": 12.1, "battery_soc_pack_2": 12.0,
         "battery_soc_pack_3": 19.0, "battery_soc_pack_4": 12.0,
         "battery_soc_pack_5": 20.3, "battery_soc_pack_6": 19.3,
     }
-    assert _discharge_blocks(data, min_soc=12)
-    assert not _dischargeable(data, min_soc=12)
-
-
-def test_a_seventh_pack_decides_like_any_other():
-    # #415 added a seventh pack to this installation. A slot missing from
-    # PACK_SOC_KEYS is never polled, so its SOC never reaches the min() the
-    # floor is taken on and the battery keeps being commanded to discharge a
-    # pack that is already at the cutoff.
-    data = {"battery_soc": 40, "battery_soc_pack_7": 12.0}
-    data.update({f"battery_soc_pack_{n}": 40.0 for n in range(1, 7)})
-    assert _discharge_blocks(data, min_soc=12)
-    assert not _dischargeable(data, min_soc=12)
+    assert not _discharge_blocks(data, min_soc=12)
+    assert _dischargeable(data, min_soc=12)
 
 
 def test_every_pack_slot_has_its_stride_100_address():
@@ -250,12 +236,12 @@ def test_every_pack_slot_has_its_stride_100_address():
     }
 
 
-def test_packs_override_an_aggregate_already_at_the_floor():
-    # Unchanged by the swap to min(): the aggregate is at the floor but every
-    # pack is above it, so the battery keeps going.
-    data = {"battery_soc": 10, "battery_soc_pack_1": 40.0, "battery_soc_pack_2": 12.0}
-    assert not _discharge_blocks(data)
-    assert _dischargeable(data)
+def test_an_aggregate_at_the_floor_ends_the_discharge_whatever_the_packs():
+    # #545, Venus A BMS 109 at 19:06: total 12 %, pack 2 still at 14.1 %, and
+    # the device already in Bypass. max(pack_soc) commanded it for five hours.
+    data = {"battery_soc": 12, "battery_soc_pack_1": 11.9, "battery_soc_pack_2": 14.1}
+    assert _discharge_blocks(data, min_soc=12)
+    assert not _dischargeable(data, min_soc=12)
 
 
 def test_a_slot_written_off_by_the_probe_does_not_read_as_empty():
@@ -333,6 +319,8 @@ def _weekly(coord):
     m = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)
     m._controller = ctrl
     m._bms_cutoff_counts = {}
+    # Charging since long before the test starts: past the engage grace.
+    m._bms_charge_commanded_at = {coord.name: 0.0}
     m._already_complete_logged = False
     m.is_active = lambda: True
     return m
@@ -353,7 +341,7 @@ def test_taper_zone_does_not_arm_while_a_pack_is_still_filling():
     assert weekly.is_battery_full(coord) is False
 
 
-def test_taper_zone_still_arms_when_every_pack_is_at_the_top():
+def test_taper_zone_still_arms_when_every_pack_is_at_the_top(bms_cutoff_clock):
     coord = _PackCoord(
         battery_soc=94, max_cell_voltage=3.481,
         battery_soc_pack_1=100.0, battery_soc_pack_2=99.4,
@@ -364,7 +352,7 @@ def test_taper_zone_still_arms_when_every_pack_is_at_the_top():
     assert weekly._bms_cutoff_counts["bat"] >= _BMS_CUTOFF_REQUIRED_CYCLES
 
 
-def test_taper_zone_arming_unchanged_without_pack_telemetry():
+def test_taper_zone_arming_unchanged_without_pack_telemetry(bms_cutoff_clock):
     coord = _PackCoord(battery_soc=94, max_cell_voltage=3.481)
     weekly = _weekly(coord)
     for _ in range(_BMS_CUTOFF_REQUIRED_CYCLES):

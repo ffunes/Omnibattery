@@ -38,8 +38,12 @@ _LOGGER = logging.getLogger(__name__)
 INTERVAL_MINUTES = 15
 INTERVAL_SECONDS = INTERVAL_MINUTES * 60
 INTERVAL_COUNT = 96
+# The part after midnight: at least the next morning, at most the whole next
+# day. The projection says how far the plan reaches (``extended_horizon``).
 EXTENDED_HORIZON_HOURS = 12
 EXTENDED_INTERVAL_COUNT = EXTENDED_HORIZON_HOURS * 60 // INTERVAL_MINUTES
+EXTENDED_MAX_HORIZON_HOURS = 24
+EXTENDED_MAX_INTERVAL_COUNT = EXTENDED_MAX_HORIZON_HOURS * 60 // INTERVAL_MINUTES
 
 DAILY_TIMELINE_SCHEMA_VERSION = 1
 DAILY_TIMELINE_STORE_VERSION = 1
@@ -854,6 +858,7 @@ class DailyOperationTimelineManager:
         self._planned_consumption_kwh: list[float | None] = []
         self._planned_stored_energy_end_kwh: list[float | None] = []
         self._extended_projection: list[dict[str, Any]] = []
+        self._extended_interval_count = EXTENDED_INTERVAL_COUNT
         self._current_index = 0
         self._current_progress = 0.0
         self._last_clock_timestamp: float | None = None
@@ -1099,7 +1104,9 @@ class DailyOperationTimelineManager:
         if setpoint is not None:
             self._setpoint_info = self._safe_metadata(setpoint)
         if delay is not None:
-            self._delay_info = self._safe_metadata(delay)
+            # The charge-delay status carries ~23 keys; the default 16 dropped
+            # the tail (enabled/unlocked/weekly_full_charge_bypasses_delay).
+            self._delay_info = self._safe_metadata(delay, max_items=32)
         if freshness is not None:
             incoming_freshness = self._safe_metadata(freshness)
             # ``updated_at`` is useful in the DTO, but the control loop calls
@@ -1146,8 +1153,11 @@ class DailyOperationTimelineManager:
             stale_changed = old[6] != self._stale or old[7] != self._stale_reason
             restoration_changed = old[3] != self._restore_status
             kind = "stale" if stale_changed else "recovery" if restoration_changed else "plan"
-            self._mark_public_change(kind, immediate=True)
-            self.request_save(immediate=True)
+            # Charge-delay figures (energy needed, remaining time) change on
+            # every evaluation; only stale/recovery bypass the publish throttle.
+            structural = kind != "plan"
+            self._mark_public_change(kind, immediate=structural)
+            self.request_save(immediate=structural)
             self._notify_listeners()
         return changed
 
@@ -1265,7 +1275,10 @@ class DailyOperationTimelineManager:
         self._planned_solar_kwh = [None] * INTERVAL_COUNT
         self._planned_consumption_kwh = [None] * INTERVAL_COUNT
         self._planned_stored_energy_end_kwh = [None] * INTERVAL_COUNT
+        self._price_per_kwh = [None] * INTERVAL_COUNT
+        self._extended_price_per_kwh = [None] * EXTENDED_MAX_INTERVAL_COUNT
         self._extended_projection = []
+        self._extended_interval_count = EXTENDED_INTERVAL_COUNT
         self._current_index = 0
         self._current_progress = 0.0
         self._last_clock_timestamp = None
@@ -1286,6 +1299,54 @@ class DailyOperationTimelineManager:
             "consumption_fallback_reason": None,
             "operation_plan": None,
         }
+
+    def update_prices(self, slots: Any) -> bool:
+        """Store the grid price of each interval, today and the extended horizon.
+
+        ``slots`` are price slots with local ``start``/``end`` and ``price``;
+        an interval takes the price of the slot it starts in. Display only:
+        prices are not persisted and are read again on the next refresh.
+        Returns whether anything changed.
+        """
+        tz = self._timezone()
+
+        def wall(value: Any) -> datetime | None:
+            if not isinstance(value, datetime):
+                return None
+            if value.tzinfo is not None:
+                value = value.astimezone(tz).replace(tzinfo=None)
+            return value
+
+        ranges = []
+        for slot in slots or ():
+            start = wall(getattr(slot, "start", None))
+            end = wall(getattr(slot, "end", None))
+            price = _finite_float(getattr(slot, "price", None))
+            if start is not None and end is not None and end > start and price is not None:
+                ranges.append((start, end, round(price, 5)))
+        ranges.sort(key=lambda item: item[0])
+
+        def prices_for(day: date, count: int) -> list[float | None]:
+            values: list[float | None] = []
+            for index in range(count):
+                hour, quarter = divmod(index, 4)
+                at = datetime.combine(day, time(hour, quarter * INTERVAL_MINUTES))
+                values.append(
+                    next((price for start, end, price in ranges if start <= at < end), None)
+                )
+            return values
+
+        today = prices_for(self._local_date, INTERVAL_COUNT)
+        extended = prices_for(
+            self._local_date + timedelta(days=1), EXTENDED_MAX_INTERVAL_COUNT
+        )
+        if today == self._price_per_kwh and extended == self._extended_price_per_kwh:
+            return False
+        self._price_per_kwh = today
+        self._extended_price_per_kwh = extended
+        self._mark_public_change("prices")
+        self._notify_listeners()
+        return True
 
     def _clear_projection(self) -> None:
         """Discard forecast data while retaining measured current-day evidence."""
@@ -2060,6 +2121,18 @@ class DailyOperationTimelineManager:
         return fallback if 0 <= fallback < INTERVAL_COUNT else None
 
     @staticmethod
+    def _projection_extension_count(projection: Any) -> int:
+        """How many quarters after midnight the projection covers."""
+        mapping = _object_mapping(projection)
+        horizon = mapping.get("extended_horizon") if mapping is not None else None
+        raw = horizon.get("interval_count") if isinstance(horizon, Mapping) else None
+        try:
+            count = int(raw)
+        except (TypeError, ValueError, OverflowError):
+            return EXTENDED_INTERVAL_COUNT
+        return max(EXTENDED_INTERVAL_COUNT, min(EXTENDED_MAX_INTERVAL_COUNT, count))
+
+    @staticmethod
     def _projection_extension_items(projection: Any) -> list[Any]:
         """Return the optional cross-midnight dashboard projection items."""
         mapping = _object_mapping(projection)
@@ -2099,7 +2172,7 @@ class DailyOperationTimelineManager:
             time.min,
             tzinfo=self._timezone(),
         )
-        extension_end = extension_start + timedelta(hours=EXTENDED_HORIZON_HOURS)
+        extension_end = extension_start + timedelta(hours=EXTENDED_MAX_HORIZON_HOURS)
         if (
             local_start < extension_start
             or local_start >= extension_end
@@ -2115,9 +2188,9 @@ class DailyOperationTimelineManager:
             extension_index = int(raw_index)
         except (TypeError, ValueError, OverflowError):
             extension_index = local_start.hour * 4 + local_start.minute // INTERVAL_MINUTES
-        if not 0 <= extension_index < EXTENDED_INTERVAL_COUNT:
+        if not 0 <= extension_index < EXTENDED_MAX_INTERVAL_COUNT:
             extension_index = local_start.hour * 4 + local_start.minute // INTERVAL_MINUTES
-        if not 0 <= extension_index < EXTENDED_INTERVAL_COUNT:
+        if not 0 <= extension_index < EXTENDED_MAX_INTERVAL_COUNT:
             return None
 
         result: dict[str, Any] = {
@@ -2454,7 +2527,14 @@ class DailyOperationTimelineManager:
                 if parsed_item is not None:
                     extension_items.append(parsed_item)
             extension_items.sort(key=lambda value: value["extension_index"])
-            self._extended_projection = extension_items[:EXTENDED_INTERVAL_COUNT]
+            self._extended_interval_count = self._projection_extension_count(
+                projection
+            )
+            self._extended_projection = [
+                item
+                for item in extension_items
+                if item["extension_index"] < self._extended_interval_count
+            ]
             if self._sources.get("operation_plan") is None:
                 self._sources["operation_plan"] = "projection"
 
@@ -2477,11 +2557,14 @@ class DailyOperationTimelineManager:
             self._dirty = True
             mode_changed = old_mode != self._mode
             stale_changed = old_stale != self._stale or old_stale_reason != self._stale_reason
+            # The projection signature tracks live SOC, so it changes about
+            # once a minute; only structural changes bypass the throttle.
+            structural = mode_changed or stale_changed or day_changed
             self._mark_public_change(
                 "mode" if mode_changed else "stale" if stale_changed else "plan",
-                immediate=True,
+                immediate=structural,
             )
-            self.request_save(immediate=True)
+            self.request_save(immediate=structural)
             self._notify_listeners()
         return changed
 
@@ -2515,6 +2598,7 @@ class DailyOperationTimelineManager:
                 json.dumps(item, sort_keys=True, separators=(",", ":"), default=str)
                 for item in self._extended_projection
             ),
+            self._extended_interval_count,
             self._mode,
             self._stale,
             self._stale_reason,
@@ -2548,6 +2632,7 @@ class DailyOperationTimelineManager:
                     "stored_energy_end_kwh": list(self._planned_stored_energy_end_kwh),
                 },
                 "extended_projection": list(self._extended_projection),
+                "extended_interval_count": self._extended_interval_count,
                 "cells": [cell.as_dict() for cell in self._cells],
                 "metadata": {
                     "mode": self._mode,
@@ -2762,11 +2847,20 @@ class DailyOperationTimelineManager:
         restored_extension: list[dict[str, Any]] = []
         raw_extension = data.get("extended_projection")
         if isinstance(raw_extension, list):
-            for raw_item in raw_extension[:EXTENDED_INTERVAL_COUNT]:
+            for raw_item in raw_extension[:EXTENDED_MAX_INTERVAL_COUNT]:
                 parsed_item = self._normalise_projection_extension_item(raw_item)
                 if parsed_item is not None:
                     restored_extension.append(parsed_item)
         restored_extension.sort(key=lambda value: value["extension_index"])
+        # A store written before the extension followed the plan holds 48.
+        restored_count = self._projection_extension_count(
+            {"extended_horizon": {"interval_count": data.get("extended_interval_count")}}
+        )
+        restored_extension = [
+            item
+            for item in restored_extension
+            if item["extension_index"] < restored_count
+        ]
         self._closed = [bool(value) for value in closed]
         self._cells = parsed_cells
         self._actual_solar_kwh = actual_solar
@@ -2777,6 +2871,7 @@ class DailyOperationTimelineManager:
         self._planned_consumption_kwh = planned_consumption
         self._planned_stored_energy_end_kwh = stored_end
         self._extended_projection = restored_extension
+        self._extended_interval_count = restored_count
         metadata = data.get("metadata")
         if isinstance(metadata, Mapping):
             self._mode = _normalize_mode(metadata.get("mode", self._controller_mode()))
@@ -2789,7 +2884,7 @@ class DailyOperationTimelineManager:
                 for key in self._sources:
                     self._sources[key] = _safe_text(sources.get(key), max_length=128)
             self._setpoint_info = self._safe_metadata(metadata.get("setpoint"))
-            self._delay_info = self._safe_metadata(metadata.get("delay"))
+            self._delay_info = self._safe_metadata(metadata.get("delay"), max_items=32)
             self._freshness_info = self._safe_metadata(metadata.get("freshness"))
         if projection_configuration_changed:
             # A config update can legitimately reload this integration during
@@ -3066,22 +3161,26 @@ class DailyOperationTimelineManager:
             time.min,
             tzinfo=self._timezone(),
         )
+        extended_count = self._extended_interval_count
         extended_grid = [
             _wall_interval_info(
                 self._local_date + timedelta(days=1),
                 index,
                 self._timezone(),
             )
-            for index in range(EXTENDED_INTERVAL_COUNT)
+            for index in range(extended_count)
         ]
         extended_horizon = {
             "start": extended_start.isoformat(),
-            "end": (extended_start + timedelta(hours=EXTENDED_HORIZON_HOURS)).isoformat(),
+            "end": (
+                extended_start + timedelta(minutes=INTERVAL_MINUTES * extended_count)
+            ).isoformat(),
             "interval_minutes": INTERVAL_MINUTES,
-            "interval_count": EXTENDED_INTERVAL_COUNT,
+            "interval_count": extended_count,
             "duration_s": [item["duration_s"] for item in extended_grid],
             "dst_skipped": [item["dst_skipped"] for item in extended_grid],
             "dst_repeated": [item["dst_repeated"] for item in extended_grid],
+            "price_per_kwh": list(self._extended_price_per_kwh[:extended_count]),
         }
         actual_samples = [
             {
@@ -3221,6 +3320,7 @@ class DailyOperationTimelineManager:
                     round(value, 3) for value in self._actual_consumption_coverage_s
                 ],
                 "actual_samples": actual_samples,
+                "price_per_kwh": list(self._price_per_kwh),
             },
             "operations": {
                 "actual_action_mask": actual_masks,
@@ -3337,6 +3437,8 @@ __all__ = [
     "INTERVAL_SECONDS",
     "EXTENDED_HORIZON_HOURS",
     "EXTENDED_INTERVAL_COUNT",
+    "EXTENDED_MAX_HORIZON_HOURS",
+    "EXTENDED_MAX_INTERVAL_COUNT",
     "SCHEMA_VERSION",
     "STATE_CURRENT",
     "STATE_FUTURE",

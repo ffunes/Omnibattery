@@ -26,6 +26,7 @@ from custom_components.omnibattery.const import (
     HIGH_SOC_CHARGE_TAPER_FLOOR,
     HIGH_SOC_CHARGE_TAPER_GRACE_S,
     IDLE_RUNAWAY_GRACE_S,
+    LOW_SOC_REFUSAL_CONFIRM_S,
     PD_READBACK_EVERY_N_WRITES,
 )
 from custom_components.omnibattery.drivers import SetpointResult
@@ -1067,3 +1068,67 @@ async def test_missing_ac_key_keeps_cell_only_judgement():
 
     assert result is True
     record.assert_called_once()
+
+
+# --- low-SOC refusal (issue #545) ----------------------------------------------
+#
+# Below BMS_DISCHARGE_CUTOFF_SOC a 0 W discharge is a BMS cutoff, not a fault, so
+# it never reaches the tracker. Before #545 that also meant it was commanded
+# forever: five hours into Bypass on a Venus A, six on the #408 Venus D.
+
+
+def _available_for_discharge(ctrl, coord):
+    ctrl.coordinators = [coord]
+    ctrl._non_responsive.is_excluded = lambda c: False
+    ctrl.is_discharge_blocked = lambda c: False
+    return ChargeDischargeController._get_available_batteries(ctrl, is_charging=False)
+
+
+async def test_a_sustained_low_soc_refusal_takes_the_battery_out_of_discharge():
+    coord = _Coord({"battery_power": 0, "battery_soc": 15, "inverter_state": 0})
+    coord.min_soc = 12
+    ctrl = _controller()
+    record = MagicMock(return_value=None)
+    ctrl._non_responsive.record_non_delivery = record
+
+    await ctrl._check_non_delivery(coord, 900, 0, attempt=0)
+    assert _available_for_discharge(ctrl, coord) == [coord]
+
+    coord._low_soc_refusal_started -= timedelta(seconds=LOW_SOC_REFUSAL_CONFIRM_S)
+    await ctrl._check_non_delivery(coord, 900, 0, attempt=0)
+
+    record.assert_not_called()  # still no fault, no repair, no wake
+    assert _available_for_discharge(ctrl, coord) == []
+    coord.data["battery_soc"] = 16
+    assert _available_for_discharge(ctrl, coord) == []
+    coord.data["battery_soc"] = 17  # recharged past the re-entry margin
+    assert _available_for_discharge(ctrl, coord) == [coord]
+
+
+async def test_a_pack_hand_off_gap_does_not_latch_the_refusal():
+    coord = _Coord({"battery_power": 0, "battery_soc": 15, "inverter_state": 0})
+    coord.min_soc = 12
+    ctrl = _controller()
+
+    await ctrl._check_non_delivery(coord, 900, 0, attempt=0)
+    coord._low_soc_refusal_started -= timedelta(seconds=LOW_SOC_REFUSAL_CONFIRM_S - 5)
+    await ctrl._check_non_delivery(coord, 900, -880, attempt=0)  # next pack took over
+    await ctrl._check_non_delivery(coord, 900, 0, attempt=0)
+
+    assert coord._low_soc_refusal_started is not None
+    assert getattr(coord, "_discharge_refused_soc", None) is None
+    assert _available_for_discharge(ctrl, coord) == [coord]
+
+
+async def test_a_stale_refusal_clock_starts_over():
+    coord = _Coord({"battery_power": 0, "battery_soc": 15, "inverter_state": 0})
+    coord.min_soc = 12
+    ctrl = _controller()
+    coord._low_soc_refusal_started = dt_util.utcnow() - timedelta(
+        seconds=2 * LOW_SOC_REFUSAL_CONFIRM_S + 1
+    )
+
+    await ctrl._check_non_delivery(coord, 900, 0, attempt=0)
+
+    assert getattr(coord, "_discharge_refused_soc", None) is None
+    assert _available_for_discharge(ctrl, coord) == [coord]

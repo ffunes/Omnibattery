@@ -153,7 +153,7 @@ Un controlador escoge la cadencia de cada `ReadGroup`. Durante un cambio real de
 | `charge_order.py` | `charge_order()`, `charge_allocation_weights()` | Ordena flotas mixtas CA/CC y pondera la carga por capacidad restante. |
 | `residual_load.py` | `residual_demand_w()`, `apply_guards()`, `guards_pending()` | Reconstruye carga sin cubrir y aplica la canalización compartida de protecciones. |
 | `phase_power_limit.py` | `PhasePowerLimiter`, `PhaseSensorReading` | Restringe las asignaciones finales a partir de medidas de corriente por fase. |
-| `pack_soc.py` | `pack_socs()`, `soc_vs_ceiling()`, `soc_vs_floor()`, `control_vmax()` | Normaliza decisiones de SOC por paquete y tensión de celda. |
+| `pack_soc.py` | `pack_socs()`, `soc_vs_ceiling()`, `control_vmax()` | Normaliza decisiones de SOC por paquete y tensión de celda. |
 | `charge_delay.py` | `ChargeDelayManager` | Posee estado, previsiones, persistencia y decisiones de liberación del retraso de carga solar. |
 | `max_soc_charge.py` | `MaxSocChargeManager` | Aplica reducción gradual cerca de carga completa, recalibración y medición de diferencia de celdas. |
 | `weekly_full_charge.py` | `WeeklyFullChargeManager` | Programa y conserva el comportamiento periódico de carga completa y cambios temporales de corte. |

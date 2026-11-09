@@ -18,6 +18,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from custom_components.omnibattery import ChargeDischargeController
+from custom_components.omnibattery.binary_sensor import ChargeHysteresisActiveSensor
+from custom_components.omnibattery.control.weekly_full_charge import (
+    WeeklyFullChargeManager,
+)
 
 
 class _Coord:
@@ -84,6 +88,83 @@ def test_stale_latch_clears_when_target_raised_above_base():
     assert c._hysteresis_active is False
     assert c._hysteresis_base_soc is None
     assert not _hyst_blocked(ctrl, c)
+
+
+def test_target_lowered_then_raised_releases_the_latch():
+    # Target SOC lowered to the current SOC latches there; raising it again
+    # lets the battery charge on toward the new target.
+    c = _Coord(soc=90, max_soc=100)
+    ctrl = _controller(c)
+    ChargeDischargeController._refresh_battery_charge_limit_blocks(ctrl)
+    assert not _hyst_blocked(ctrl, c)
+
+    c.max_soc = 90
+    ChargeDischargeController._refresh_battery_charge_limit_blocks(ctrl)
+    assert _hyst_blocked(ctrl, c)
+    assert c._hysteresis_base_soc == 90
+
+    c.max_soc = 100
+    ChargeDischargeController._refresh_battery_charge_limit_blocks(ctrl)
+    assert not _hyst_blocked(ctrl, c)
+    assert c._hysteresis_base_soc is None
+
+
+# ----------------------------------------------------------------------
+# A BMS cutoff below max SOC holds until the hysteresis threshold
+# ----------------------------------------------------------------------
+
+def _cutoff_setup():
+    """A battery at 99% (max SOC 100, hysteresis 2%) asked to charge that its
+    BMS refuses."""
+    c = _Coord(soc=99, max_soc=100, pct=2)
+    c.data.update(battery_power=0, inverter_state=1)
+    c.commanded_charge_power = 2400
+    ctrl = _controller(c)
+    weekly = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)
+    weekly._controller = ctrl
+    weekly._bms_cutoff_counts = {}
+    weekly._bms_charge_commanded_at = {c.name: 0.0}  # charging for a while
+    weekly._already_complete_logged = False
+    weekly.is_active = lambda: False
+    ctrl._weekly_charge_mgr = weekly
+    ctrl._non_responsive = SimpleNamespace(is_excluded=lambda _coord: False)
+    ctrl._is_backup_function_active = lambda _coord: False
+    ctrl._is_manual_slot_owned = lambda _coord: False
+    sensor = ChargeHysteresisActiveSensor.__new__(ChargeHysteresisActiveSensor)
+    sensor.coordinator = c
+    return c, ctrl, weekly, sensor
+
+
+def _cycle(ctrl, weekly):
+    """One control cycle: detector tick, blocker refresh, charge availability."""
+    weekly.tick_bms_cutoff()
+    ChargeDischargeController._refresh_battery_charge_limit_blocks(ctrl)
+    return ChargeDischargeController._get_available_batteries(ctrl, True, False)
+
+
+def test_cutoff_below_max_soc_holds_until_the_resume_threshold(bms_cutoff_clock):
+    c, ctrl, weekly, sensor = _cutoff_setup()
+    for _ in range(10):
+        _cycle(ctrl, weekly)
+    assert weekly.is_battery_full(c)
+    assert _cycle(ctrl, weekly) == []
+    assert _hyst_blocked(ctrl, c)
+    assert c._hysteresis_base_soc == 99
+    assert sensor.extra_state_attributes["charge_resume_threshold"] == 97
+
+    # Full: no longer asked to charge. Standby draw takes it down slowly.
+    c.commanded_charge_power = 0
+    for soc in (99, 98, 97):
+        c.data["battery_soc"] = soc
+        for _ in range(5):
+            assert _cycle(ctrl, weekly) == []
+        assert _hyst_blocked(ctrl, c)
+        assert sensor.extra_state_attributes["charge_resume_threshold"] == 97
+
+    c.data["battery_soc"] = 96
+    assert _cycle(ctrl, weekly) == [c]
+    assert not _hyst_blocked(ctrl, c)
+    assert c._hysteresis_base_soc is None
 
 
 # ----------------------------------------------------------------------

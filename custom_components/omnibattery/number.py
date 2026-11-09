@@ -18,6 +18,9 @@ from .const import (
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
     CONF_MAX_PRICE_THRESHOLD,
     CONF_DISCHARGE_PRICE_THRESHOLD,
+    CONF_MAX_PRICE_THRESHOLD_ENABLED,
+    CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED,
+    effective_price_threshold,
     CONF_MIN_ARBITRAGE_MARGIN,
     CONF_ROUND_TRIP_EFFICIENCY,
     DEFAULT_ROUND_TRIP_EFFICIENCY,
@@ -43,6 +46,7 @@ from .const import (
     MIN_CHARGE_HYSTERESIS_PERCENT,
     MAX_CHARGE_HYSTERESIS_PERCENT,
     DOMAIN,
+    CONF_MAX_CONTRACTED_POWER,
     effective_system_power,
     total_battery_power,
 )
@@ -96,9 +100,17 @@ async def async_setup_entry(
         # software-enforced max/min SOC as live-editable entities. The PD controller
         # already enforces these in software; previously they were only changeable
         # through the options flow.
+        #
+        # A driver may still back one of the two with a device setting (Indevolt:
+        # its reserve is the min SOC, there is no max-SOC setting). Its register
+        # number then owns that limit, with the same unique ID, so the software
+        # twin is skipped.
         if not coordinator.capabilities.hardware_soc_cutoff:
-            entities.append(SoftSocLimitNumber(coordinator, "max"))
-            entities.append(SoftSocLimitNumber(coordinator, "min"))
+            register_keys = {d["key"] for d in coordinator.number_definitions}
+            if "charging_cutoff_capacity" not in register_keys:
+                entities.append(SoftSocLimitNumber(coordinator, "max"))
+            if "discharging_cutoff_capacity" not in register_keys:
+                entities.append(SoftSocLimitNumber(coordinator, "min"))
 
         if coordinator.enable_charge_hysteresis:
             entities.append(MarstekChargeHysteresisNumber(coordinator))
@@ -294,7 +306,7 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
             )
 
         # Write the converted value via the logical control key
-        await self.coordinator.write_control(key, register_value, do_refresh=True)
+        written = await self.coordinator.write_control(key, register_value, do_refresh=True)
         if key in ("set_charge_power", "set_discharge_power"):
             # Manual intent for the #477 re-assert (see select force_mode).
             setattr(self.coordinator, f"manual_{key}", int(value))
@@ -356,6 +368,21 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
                 int(value),
             )
 
+        # Show the written value at once. The entity reads coordinator.data,
+        # which only catches up when this key's read group is next polled (up
+        # to 5s for "medium"), so Home Assistant's own device page snapped the
+        # slider back to the old value until then. A refused write keeps the
+        # old value, and the next poll corrects either way.
+        # Venus E v2/v3 max-power keys hold the 800/2500 W hardware selector in
+        # coordinator.data (read as device_max_*); the user value lives in
+        # configured_max_* and native_value already shows it.
+        software_capped = key in ("max_charge_power", "max_discharge_power") and getattr(
+            self.coordinator, "needs_software_power_cap", False
+        )
+        if written and not software_capped and isinstance(self.coordinator.data, dict):
+            self.coordinator.data[key] = value
+            self.async_write_ha_state()
+
     @property
     def device_info(self):
         """Return device information."""
@@ -384,7 +411,9 @@ def config_number_bounds(definition: dict, data) -> tuple[float, float]:
 
     Entries without a ``dynamic_bounds`` marker keep their authored min/max.
     The system-power marker derives target-grid bounds from the configured
-    per-battery limits, narrowed by the optional system cap. The system-cap
+    per-battery limits, narrowed by the optional system cap; the import side is
+    widened to the contracted power when that is set (the house draws from the
+    same meter, see below). The system-cap
     marker derives each cap's own maximum from the configured sum for that
     direction:
 
@@ -415,6 +444,22 @@ def config_number_bounds(definition: dict, data) -> tuple[float, float]:
         return static_min, static_max
 
     charge_w, discharge_w = effective_system_power(data)
+    # A positive target is grid IMPORT, and the house draws from the same meter:
+    # during a grid charge the packs get whatever the house leaves of the target,
+    # so a ceiling at the battery sum starves them whenever the house draws
+    # (2 x 3000 W packs, a 6000 W target, a car at 2.3 kW plus a washer: 1.8 kW
+    # into the packs). The ceiling on the import side is the grid connection,
+    # which the user configures as the contracted power; use it when it is set
+    # and larger than the battery sum. The per-battery limits still clip what
+    # each pack is told, so the packs never exceed their own ceilings, and a
+    # target the house no longer needs simply imports less. The export side
+    # keeps the battery sum: the house helps there, it never starves a sale.
+    try:
+        contracted_w = max(0, int(float(data.get(CONF_MAX_CONTRACTED_POWER, 0) or 0)))
+    except (TypeError, ValueError):
+        contracted_w = 0
+    if contracted_w > charge_w:
+        charge_w = contracted_w
     step = definition.get("step", 1)
     scale = definition.get("scale", 1) or 1
     hi = _floor_to_step(charge_w, step)
@@ -485,7 +530,14 @@ class MarstekConfigNumberEntity(NumberEntity):
         """Return the current value from config_entry.data, in display units."""
         default = self._definition["default"]
         if callable(default):
-            default = default(self.entry.data)
+            # The same fleet the controller sizes it to, reported capacities included.
+            controller = (
+                (getattr(self.hass, "data", None) or {}).get(DOMAIN, {})
+                .get(getattr(self.entry, "entry_id", None), {})
+                .get("controller")
+            )
+            reported = getattr(controller, "_reported_battery_capacity_kwh", None)
+            default = default(self.entry.data, reported() if callable(reported) else None)
         raw = self.entry.data.get(self._key, default)
         return raw / self._scale
 
@@ -598,8 +650,9 @@ class MarstekPriceThresholdNumber(NumberEntity):
     automation can rewrite it via ``number.set_value``. ``update_pd_parameters``
     re-reads both thresholds on every entry update (the same hot-reload hook the
     options flow uses), so changes take effect on the next control cycle. The
-    value may be unset (``None`` → ``unknown`` state); the engine then falls back
-    (discharge → charge ceiling → daily average).
+    value may be unset (``None`` → ``unknown`` state) or disabled by its sibling
+    switch (#612); the engine then falls back (discharge → charge ceiling →
+    daily average).
     """
 
     _attr_has_entity_name = True
@@ -639,9 +692,17 @@ class MarstekPriceThresholdNumber(NumberEntity):
         return self.entry.data.get(self._conf_key)
 
     async def async_set_native_value(self, value: float) -> None:
-        """Persist after enforcing charge ceiling <= discharge floor (#408)."""
-        max_price = self.entry.data.get(CONF_MAX_PRICE_THRESHOLD)
-        discharge_price = self.entry.data.get(CONF_DISCHARGE_PRICE_THRESHOLD)
+        """Persist after enforcing charge ceiling <= discharge floor (#408).
+
+        Only an active sibling constrains the value: a stored-but-disabled one
+        (#612) is ignored by the engine, so it must not block edits here.
+        """
+        max_price = effective_price_threshold(
+            self.entry.data, CONF_MAX_PRICE_THRESHOLD, CONF_MAX_PRICE_THRESHOLD_ENABLED
+        )
+        discharge_price = effective_price_threshold(
+            self.entry.data, CONF_DISCHARGE_PRICE_THRESHOLD, CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED
+        )
         if self._kind == "charge" and discharge_price is not None and value > discharge_price:
             raise ServiceValidationError(
                 f"Charge threshold ({value}) cannot exceed the discharge floor ({discharge_price})."

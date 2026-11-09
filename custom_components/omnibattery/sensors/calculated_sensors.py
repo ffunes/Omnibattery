@@ -89,8 +89,11 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
         # use integration.
         capabilities = getattr(coordinator, "capabilities", None)
         self._integrate_mode = bool(
-            getattr(capabilities, "has_mppt_pv", False)
-            or getattr(capabilities, "has_solar_telemetry", False)
+            (
+                getattr(capabilities, "has_mppt_pv", False)
+                or getattr(capabilities, "has_solar_telemetry", False)
+            )
+            and getattr(capabilities, "independent_power_planes", True)
         )
         self._mppt_keys = ["mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"]
         # Energy on each plane, split by direction (kWh), MPPT=0 windows only.
@@ -99,6 +102,8 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
         self._discharge_ac_kwh = 0.0   # AC delivered while discharging
         self._discharge_dc_kwh = 0.0   # DC extracted while discharging
         self._last_mono: float | None = None
+        # Lets the controller read the integrated legs (not in coordinator.data).
+        coordinator.efficiency_sensor = self
 
     def _leg_efficiencies(self):
         """Return (charge_eff, discharge_eff) or (None, None) if not yet sampled."""

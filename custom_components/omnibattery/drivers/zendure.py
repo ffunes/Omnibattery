@@ -56,6 +56,14 @@ from .base import (
 _LOGGER = logging.getLogger(__name__)
 
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)
+# The device's small web server closes idle keep-alive connections and now and
+# then rejects a request with 431. Both pass on a second try, so one
+# retry keeps a single dropped request from marking the battery unavailable.
+# The retry waits a moment first: one sent right after a drop (33 ms) can find
+# the server still resetting and fail the same way.
+_RETRY_STATUSES = frozenset({431})
+_RETRY_EXCEPTIONS = (aiohttp.ServerDisconnectedError, aiohttp.ClientOSError)
+_RETRY_DELAY_S = 0.5
 _PROBE_TIMEOUT = aiohttp.ClientTimeout(total=5)
 
 # Supported device model identifiers.  The product field of /properties/report
@@ -103,6 +111,14 @@ _AC_COUPLED_MODELS: frozenset[str] = frozenset({
     ZENDURE_MODEL_4000MIX_AC_PLUS,
 })
 _MPPT_MODELS: frozenset[str] = frozenset({ZENDURE_MODEL_4000MIX_PRO})
+# PV-input models whose solarInputPower is independent DC production (issue #556).
+_AGGREGATE_PV_MODELS: frozenset[str] = frozenset({
+    ZENDURE_MODEL_SOLARFLOW_800,
+    ZENDURE_MODEL_SOLARFLOW_800_PLUS,
+    ZENDURE_MODEL_SOLARFLOW_800_PRO,
+    # SolarFlow 2400 Pro has DC PV inputs reported as solarInputPower (#630).
+    ZENDURE_MODEL_2400AC_PRO,
+})
 
 # Zendure API property name → logical coordinator key.
 _PROP_TO_KEY: dict[str, str] = {
@@ -124,6 +140,10 @@ _PROP_TO_KEY: dict[str, str] = {
     # 0=normal, 1=economy, 2=off. Exposed as a select; write_control sends
     # smartMode=0 so the flash write survives reboots.
     "gridOffMode":      "grid_off_mode",
+    # Grid feed-in ("Energy Export" in the Zendure app), 3-state enum confirmed
+    # on a 2400 Pro: 0=disabled, 1=allowed, 2=forbidden. Only "allowed" lets PV
+    # bypass to the grid once the target SOC is reached (#631).
+    "gridReverse":      "grid_reverse",
     # Device's real AC charge ceiling (distinct from inverseMaxPower, which caps
     # discharge/inverter output). Mapped to the control-layer max_charge_power so
     # the coordinator syncs it and PD stops allocating charge the device cannot
@@ -143,6 +163,9 @@ _PROP_TO_KEY: dict[str, str] = {
     # Status LED ring on/off (0/1). The API spec marks it read-only, but the
     # device accepts a write and persists it — exposed as a switch.
     "lampSwitch":       "lamp_switch",
+    # 1 = SOC calibration running (zenSDK): the device ignores setpoints and
+    # charges itself. Control-only key, no entity (#799).
+    "socStatus":        "soc_status",
 }
 
 # Reverse map for write_control: logical key → API property name.
@@ -162,6 +185,11 @@ _DECIPERCENT_KEYS = frozenset({"soc_set", "min_soc"})
 # duration.
 _REMAIN_TIME_SENTINEL = 59940
 
+
+def _decikelvin_to_c(raw: float) -> float:
+    """zenSDK temperatures (hyperTmp, packData[].maxTemp) are deci-Kelvin (#566)."""
+    return round((raw - 2731) / 10, 1)
+
 # Per-pack telemetry from packData[] is exposed as `pack{N}_{suffix}` logical
 # keys (N is 1-based). They are not in SENSOR_DEFINITIONS — the platform builds
 # one ZendurePackSensor per (pack, spec) from PACK_FIELD_SPECS at setup, sized to
@@ -169,6 +197,37 @@ _REMAIN_TIME_SENTINEL = 59940
 # only scales keys that have a definition). Matches this regex; preserved through
 # the read_telemetry key filter even though no definition lists them.
 _PACK_KEY_RE = re.compile(r"^pack\d+_")
+
+
+def _pack_capacity_kwh(pack: dict) -> float | None:
+    """Identify nominal pack capacity using Zendure's serial families.
+
+    Reference: Zendure/Zendure-HA, ZendureBattery.get_battery_type in
+    custom_components/zendure_ha/device.py. packType alone is ambiguous:
+    both a CO4A 1.92 kWh pack and a B-family 8 kWh pack can report 70.
+    """
+    serial = pack.get("sn")
+    if not isinstance(serial, str) or len(serial) < 4:
+        return None
+    family = serial[0]
+    if family == "A":
+        return 2.4 if serial[3] == "3" else 0.96
+    if family == "B":
+        return 8.0 if pack.get("packType") in (70, "70") else 0.96
+    return {"C": 1.92, "F": 2.88, "G": 2.88, "J": 2.4}.get(family)
+
+
+def _reported_capacity_kwh(packs: list[dict], pack_count: int | None) -> float | None:
+    """Return a total only when every reported pack can be identified."""
+    if not packs or (pack_count is not None and pack_count != len(packs)):
+        return None
+    capacities = [_pack_capacity_kwh(pack) for pack in packs]
+    if any(capacity is None for capacity in capacities):
+        return None
+    serials = [pack["sn"] for pack in packs]
+    if len(set(serials)) != len(serials):
+        return None
+    return round(sum(capacities), 2)
 
 # Numeric per-pack sensor fields. Each becomes a sensor entity per pack; sn /
 # model / state ride along as attributes on the SoC sensor (see ZendurePackSensor).
@@ -199,7 +258,7 @@ SENSOR_DEFINITIONS: list[dict] = [
      "device_class": "power",       "state_class": "measurement",       "scale": 1, "precision": 0,
      "scan_interval": "high",       "enabled_by_default": True},
     {"key": "internal_temperature", "name": "Internal Temperature",     "unit": "°C",
-     "device_class": "temperature", "state_class": "measurement",       "scale": 0.01, "precision": 2,
+     "device_class": "temperature", "state_class": "measurement",       "scale": 1, "precision": 1,
      "scan_interval": "low",        "enabled_by_default": True},
     {"key": "remain_discharge_time","name": "Remaining Discharge Time", "unit": "min",
      "device_class": "duration",    "state_class": "measurement",       "scale": 1, "precision": 0,
@@ -247,6 +306,10 @@ SENSOR_DEFINITIONS: list[dict] = [
     {"key": "wifi_signal_strength", "name": "WiFi Signal Strength",     "unit": "dBm",
      "device_class": "signal_strength", "state_class": "measurement",   "scale": 1, "precision": 0,
      "category": "diagnostic",      "scan_interval": "low",             "enabled_by_default": True},
+    # Shared with Indevolt: the panel card shows a chip while not "active" (#799).
+    {"key": "control_status",       "name": "Control Status",           "data_type": "char",
+     "icon": "mdi:remote",          "category": "diagnostic",           "scan_interval": "high",
+     "enabled_by_default": True},
 ]
 
 NUMBER_DEFINITIONS: list[dict] = [
@@ -267,6 +330,9 @@ SELECT_DEFINITIONS: list[dict] = [
     # coordinator stores the raw enum value, which current_option matches back.
     {"key": "grid_off_mode", "name": "Off-Grid Mode",
      "options": {"normal": 0, "economy": 1, "off": 2},
+     "scan_interval": "low", "enabled_by_default": True},
+    {"key": "grid_reverse", "name": "Energy Export",
+     "options": {"disabled": 0, "allowed": 1, "forbidden": 2},
      "scan_interval": "low", "enabled_by_default": True},
 ]
 
@@ -339,12 +405,14 @@ class ZendureLocalDriver(BatteryDriver):
                 default_discharge_power if max_discharge_power_w is None else max_discharge_power_w
             ),
             has_mppt_pv=model in _MPPT_MODELS,
+            has_solar_telemetry=model in _AGGREGATE_PV_MODELS,
             has_alarm_registers=True,    # faultLevel + is_error
             has_rs485_control=False,
             has_energy_counters=False,   # no kWh / capacity in the report; synthesised
-            has_nominal_capacity=False,  # configured by the user; absent from the report
+            has_nominal_capacity=False,  # derived from packs; allow a configured override
             has_daily_energy_counters=False,
             setpoint_confirm_reliable=False,  # HTTP report echoes the previous limit for ~2 s
+            independent_power_planes=False,  # AC and cell power read identical (#556)
             actuator_latency_s=3.0,      # HTTP write + ~2-3 s engage/echo latency
         )
 
@@ -502,7 +570,7 @@ class ZendureLocalDriver(BatteryDriver):
             snapshot = {
                 k: v for k, v in snapshot.items()
                 if k in keys
-                or k in ("max_charge_power", DELIVERED_AC_POWER_KEY)
+                or k in ("max_charge_power", "battery_total_energy", DELIVERED_AC_POWER_KEY, "soc_status")
                 or _PACK_KEY_RE.match(k)
             }
 
@@ -521,14 +589,22 @@ class ZendureLocalDriver(BatteryDriver):
             if prop in props:
                 snapshot[key] = props[prop]
 
+        snapshot["control_status"] = (
+            "soc_calibration" if props.get("socStatus") == 1 else "active"
+        )
+
         # socSet/minSoc arrive in deci-percent; expose as whole percent.
         for key in _DECIPERCENT_KEYS:
             if snapshot.get(key) is not None:
                 snapshot[key] = snapshot[key] / 10
 
-        # hyperTmp (centi-°C) and BatVolt (centi-volt) are returned raw; the
-        # coordinator applies the ×0.01 scale from the entity definition, the
-        # same path Marstek register sensors use. Scaling here would double it.
+        # hyperTmp is deci-Kelvin (zenSDK); the offset can't ride the entity
+        # scale, so convert here (entity scale is 1).
+        if snapshot.get("internal_temperature") is not None:
+            snapshot["internal_temperature"] = _decikelvin_to_c(snapshot["internal_temperature"])
+
+        # BatVolt (centi-volt) is returned raw; the coordinator applies the
+        # ×0.01 scale from the entity definition. Scaling here would double it.
 
         # remainOutTime reports a 999 h sentinel when idle / not discharging;
         # surface as unknown (None) rather than a bogus ~41-day duration.
@@ -539,6 +615,11 @@ class ZendureLocalDriver(BatteryDriver):
         # Device-level cell-voltage extremes from packData[] (raw centi-volt;
         # the coordinator applies the ×0.01 scale from the entity definition).
         packs = data.get("packData") or []
+        # Publish None for an incomplete/unknown pack list rather than retaining
+        # a stale total after packs change. A manual capacity still overrides it.
+        snapshot["battery_total_energy"] = _reported_capacity_kwh(
+            packs, props.get("packNum")
+        )
         max_vols = [p["maxVol"] for p in packs if p.get("maxVol")]
         min_vols = [p["minVol"] for p in packs if p.get("minVol")]
         if max_vols:
@@ -561,7 +642,7 @@ class ZendureLocalDriver(BatteryDriver):
             if pack.get("minVol") is not None:
                 snapshot[prefix + "min_cell_voltage"] = round(pack["minVol"] / 100, 3)
             if pack.get("maxTemp") is not None:
-                snapshot[prefix + "temperature"] = round(pack["maxTemp"] / 100, 2)
+                snapshot[prefix + "temperature"] = _decikelvin_to_c(pack["maxTemp"])
             if pack.get("power") is not None:
                 snapshot[prefix + "power"] = pack["power"]
             if pack.get("sn") is not None:
@@ -631,6 +712,7 @@ class ZendureLocalDriver(BatteryDriver):
                 else default_discharge_power
             ),
             has_mppt_pv=detected in _MPPT_MODELS,
+            has_solar_telemetry=detected in _AGGREGATE_PV_MODELS,
         )
 
         # The AC+ profile omits DC MPPT entities; the Pro profile exposes them.
@@ -736,6 +818,9 @@ class ZendureLocalDriver(BatteryDriver):
 
         # Full snapshot echo so the coordinator cache reflects the readback.
         echo = self._snapshot_from_report(data)
+        # Capacity is merged during polling, where the configured override is
+        # applied. A setpoint echo must not bypass that override.
+        echo.pop("battery_total_energy", None)
         battery_power = echo["battery_power"]
 
         return SetpointResult(
@@ -750,7 +835,7 @@ class ZendureLocalDriver(BatteryDriver):
         """Write a single logical control property by key (entity-write path).
 
         smartMode=0: user-facing configuration writes (soc_set, min_soc,
-        inverse_max_power, grid_off_mode) must persist across reboots. smartMode
+        inverse_max_power, grid_off_mode, grid_reverse) must persist across reboots. smartMode
         is a sticky device property and the per-cycle power loop holds it at 1
         (RAM), so omitting it here would inherit that 1 and land the config in
         RAM, lost on the next reboot. Set it to 0 explicitly to commit to flash.
@@ -833,22 +918,37 @@ class ZendureLocalDriver(BatteryDriver):
     async def _get_report(self) -> Optional[dict]:
         """GET /properties/report, return the parsed JSON or None on failure."""
         url = f"{self._base_url}/properties/report"
-        try:
-            session = self._ensure_session()
-            async with session.get(url, timeout=_HTTP_TIMEOUT) as resp:
-                if resp.status != 200:
-                    if not self._shutting_down:
-                        _LOGGER.warning("Zendure GET %s → HTTP %s", url, resp.status)
-                    return None
-                return await resp.json(content_type=None)
-        except asyncio.TimeoutError:
-            if not self._shutting_down:
-                _LOGGER.warning("Zendure GET %s timed out", url)
-            return None
-        except Exception as exc:
-            if not self._shutting_down:
-                _LOGGER.warning("Zendure GET %s failed: %s", url, exc)
-            return None
+        for attempt in range(2):
+            retry = attempt == 0
+            if not retry:
+                await asyncio.sleep(_RETRY_DELAY_S)
+            try:
+                session = self._ensure_session()
+                async with session.get(url, timeout=_HTTP_TIMEOUT) as resp:
+                    if resp.status != 200:
+                        if retry and resp.status in _RETRY_STATUSES:
+                            _LOGGER.debug("Zendure GET %s → HTTP %s, retrying", url, resp.status)
+                            continue
+                        if not self._shutting_down:
+                            _LOGGER.warning("Zendure GET %s → HTTP %s", url, resp.status)
+                        return None
+                    return await resp.json(content_type=None)
+            except asyncio.TimeoutError:
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure GET %s timed out", url)
+                return None
+            except _RETRY_EXCEPTIONS as exc:
+                if retry and not self._shutting_down:
+                    _LOGGER.debug("Zendure GET %s failed: %s, retrying", url, exc)
+                    continue
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure GET %s failed: %s", url, exc)
+                return None
+            except Exception as exc:
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure GET %s failed: %s", url, exc)
+                return None
+        return None
 
     async def _post_write(self, properties: dict) -> bool:
         """POST /properties/write with the given property dict."""
@@ -859,22 +959,39 @@ class ZendureLocalDriver(BatteryDriver):
             return False
         url = f"{self._base_url}/properties/write"
         body = {"sn": self._sn, "properties": properties}
-        try:
-            session = self._ensure_session()
-            async with session.post(url, json=body, timeout=_HTTP_TIMEOUT) as resp:
-                if resp.status != 200:
-                    if not self._shutting_down:
-                        _LOGGER.warning("Zendure POST %s → HTTP %s", url, resp.status)
-                    return False
-                return True
-        except asyncio.TimeoutError:
-            if not self._shutting_down:
-                _LOGGER.warning("Zendure POST %s timed out", url)
-            return False
-        except Exception as exc:
-            if not self._shutting_down:
-                _LOGGER.warning("Zendure POST %s failed: %s", url, exc)
-            return False
+        # Every write sets absolute values, so sending it again is safe even
+        # when the dropped connection had already delivered the first one.
+        for attempt in range(2):
+            retry = attempt == 0
+            if not retry:
+                await asyncio.sleep(_RETRY_DELAY_S)
+            try:
+                session = self._ensure_session()
+                async with session.post(url, json=body, timeout=_HTTP_TIMEOUT) as resp:
+                    if resp.status != 200:
+                        if retry and resp.status in _RETRY_STATUSES:
+                            _LOGGER.debug("Zendure POST %s → HTTP %s, retrying", url, resp.status)
+                            continue
+                        if not self._shutting_down:
+                            _LOGGER.warning("Zendure POST %s → HTTP %s", url, resp.status)
+                        return False
+                    return True
+            except asyncio.TimeoutError:
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure POST %s timed out", url)
+                return False
+            except _RETRY_EXCEPTIONS as exc:
+                if retry and not self._shutting_down:
+                    _LOGGER.debug("Zendure POST %s failed: %s, retrying", url, exc)
+                    continue
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure POST %s failed: %s", url, exc)
+                return False
+            except Exception as exc:
+                if not self._shutting_down:
+                    _LOGGER.warning("Zendure POST %s failed: %s", url, exc)
+                return False
+        return False
 
     @classmethod
     async def probe(cls, host: str, port: int = 80) -> tuple[bool, str | None]:

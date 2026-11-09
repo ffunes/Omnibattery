@@ -72,8 +72,10 @@ La batería puede estar en reposo intencionadamente cuando la red ya está cerca
 
 ## El medidor de red no está disponible o está bloqueado
 
-!!! warning "Un medidor no disponible puede dejar activa la última orden de batería"
-    Cuando el sensor de red pasa a `unavailable` o `unknown`, el bucle de control no envía una orden nueva. Por tanto, una batería puede continuar a su última potencia solicitada —por ejemplo, 2000 W de descarga— hasta que regresen los datos del medidor. No hay un tiempo de espera automático que lleve la batería a reposo; solo siguen aplicándose los límites de SOC y otros de seguridad.
+!!! warning "Un medidor silencioso detiene el control automático tras 5 minutos"
+    Cuando el sensor de red pasa a `unavailable` o `unknown`, o deja de actualizarse, el bucle de control deja de seguir la carga de la casa, y una batería puede continuar a su última potencia solicitada, por ejemplo 2000W de descarga. Tras 5 minutos sin una lectura válida, Omnibattery crea una reparación de Home Assistant y pone a 0W cada batería bajo control automático. El modo manual y las franjas manuales se mantienen como están, y la carga predictiva desde la red se pausa. El control automático se reanuda solo en cuanto el sensor vuelve a publicar una lectura válida.
+
+    Lo mismo ocurre cuando el sensor no publica nada tras reiniciar Home Assistant. Después de un fallo o un corte de luz, una batería puede seguir ejecutando su última orden de antes del reinicio; los 5 minutos cuentan entonces desde que Home Assistant termina de iniciarse.
 
 | Causa probable | Qué comprobar | Acción |
 |---|---|---|

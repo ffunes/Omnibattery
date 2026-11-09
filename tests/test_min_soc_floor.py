@@ -14,7 +14,14 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import pytest
+
 from custom_components.omnibattery import ChargeDischargeController
+from custom_components.omnibattery.const import (
+    CHARGE_EFFICIENCY,
+    PREDICTIVE_MODE_DYNAMIC_PRICING,
+)
+from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.engine import PricingManager
 from custom_components.omnibattery.tracking.consumption_profile import ConsumptionForecast
 
@@ -719,6 +726,64 @@ def test_per_battery_no_discharge_window_is_not_projected_fleet_wide():
     assert _no_discharge_floor_decision("other_battery")["floor_active"] is True
 
 
+# --- price-based discharge control holding the battery overnight (#594) --------
+
+
+def _price_blocked_floor_decision(night_price, **thresholds):
+    manager = _floor_manager(45.0)
+    manager._controller.predictive_charging_mode = PREDICTIVE_MODE_DYNAMIC_PRICING
+    manager._controller.dp_price_discharge_control = True
+    manager._controller.discharge_price_threshold = None
+    manager._controller._dp_daily_avg_price = None
+    for name, value in thresholds.items():
+        setattr(manager._controller, name, value)
+    # The live feed is naive local wall time; the planner clock is aware.
+    midnight = datetime(2026, 9, 11, 0, 0)
+    prices = [
+        PriceSlot(
+            midnight + timedelta(hours=hour),
+            midnight + timedelta(hours=hour + 1),
+            night_price if hour < 7 else 0.30,
+        )
+        for hour in range(24)
+    ]
+    manager.get_future_price_slots = lambda horizon_end=None: prices
+    decision = {
+        "should_charge": False,
+        "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+        "energy_deficit_kwh": 0.0,
+        "planned_grid_charge_kwh": 0.0,
+        "excluded_demand_claim_kwh": 0.0,
+    }
+    manager._build_chronological_plan(
+        now=datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ),
+        # No charge candidates, as in the diagnostics refresh and the
+        # dashboard outside its selected slots: the block must not need them.
+        slots=[],
+        decision_data=decision,
+        price_ceiling=None,
+    )
+    return decision
+
+
+def test_price_blocked_night_does_not_project_a_floor_charge():
+    assert not _price_blocked_floor_decision(0.25, discharge_price_threshold=0.27).get(
+        "floor_active"
+    )
+
+
+def test_price_block_falls_back_to_the_daily_average():
+    assert not _price_blocked_floor_decision(0.25, _dp_daily_avg_price=0.28).get(
+        "floor_active"
+    )
+
+
+def test_night_above_the_price_threshold_still_projects_the_drain():
+    assert _price_blocked_floor_decision(0.29, discharge_price_threshold=0.27)[
+        "floor_active"
+    ] is True
+
+
 def test_peak_shaving_release_inside_the_window_re_evaluates():
     engine, ctrl, calls = _make_engine(
         soc=49.0, floor=20.0, grid_charging_active=False, last_evaluation_soc=50.0
@@ -780,3 +845,202 @@ def test_floor_below_the_band_charges_even_when_the_fleet_gap_is_small():
     assert decision["should_charge"] is True
     assert not decision.get("chronological_deferred")
     assert decision["active_slot_energy_target_kwh"] > 0.4
+
+
+def test_floor_lifts_the_margin_only_for_the_floor_energy():
+    # #724: 25% at 01:00 drains about 1.25 kWh past the 12% cutoff before
+    # sunrise; the 20% floor adds 0.41 kWh on top. Only those 0.41 kWh may be
+    # bought above the 0.35 arbitrage ceiling.
+    now = datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ)
+    slots = [
+        PriceSlot(now + timedelta(hours=h), now + timedelta(hours=h + 1), 0.50)
+        for h in range(5)
+    ]
+    decision = {
+        "should_charge": True,
+        "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+        "energy_deficit_kwh": 1.25,
+        "planned_grid_charge_kwh": 1.25,
+        "excluded_demand_claim_kwh": 0.0,
+    }
+
+    plan = _floor_manager(25.0)._build_chronological_plan(
+        now=now, slots=slots, decision_data=decision, price_ceiling=0.35
+    )
+
+    assert decision["floor_active"] is True
+    # The grid feeds the house while the slot charges, so the battery stores
+    # the floor energy less the load it no longer has to carry meanwhile.
+    floor_kwh = (20.0 - 12.0) / 100.0 * _FLOOR_CAP
+    rate = 1.5 * CHARGE_EFFICIENCY
+    load_kw = plan.intervals[0].consumption_kwh * 4
+    assert plan.allocated_kwh == pytest.approx(
+        floor_kwh * rate / (rate + load_kw), abs=0.02
+    )
+
+
+# --- no-discharge intervals still net household load against solar (#616) -----
+
+
+def _captured_intervals(monkeypatch, manager, now):
+    from custom_components.omnibattery.pricing import engine as engine_module
+
+    captured = []
+    real = engine_module.build_energy_deadlines
+
+    def capture(intervals, *args, **kwargs):
+        captured.append(list(intervals))
+        return real(intervals, *args, **kwargs)
+
+    monkeypatch.setattr(engine_module, "build_energy_deadlines", capture)
+    manager._build_chronological_plan(
+        now=now,
+        slots=[],
+        decision_data={
+            "should_charge": False,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 0.0,
+            "planned_grid_charge_kwh": 0.0,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        price_ceiling=None,
+    )
+    return captured[0]
+
+
+def test_daytime_no_discharge_window_credits_only_the_solar_surplus(monkeypatch):
+    # Battery may not discharge 11:00-17:00, but the house still eats solar
+    # first: only the surplus may be projected as battery charge.
+    manager = _floor_manager(45.0)
+    manager._controller.config_entry.data["no_discharge_time_slots"] = [{
+        "start_time": "11:00:00",
+        "end_time": "17:00:00",
+        "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+        "enabled": True,
+        "battery_scope": "all",
+    }]
+    now = datetime(2026, 9, 11, 10, 0, tzinfo=_FLOOR_TZ)
+    baseline = _captured_intervals(monkeypatch, _floor_manager(45.0), now)
+    blocked = _captured_intervals(monkeypatch, manager, now)
+
+    inside = [
+        (raw, item)
+        for raw, item in zip(baseline, blocked)
+        if 11 <= item.start.astimezone(_FLOOR_TZ).hour < 17
+    ]
+    assert inside
+    assert any(raw.solar_kwh > 0 and raw.consumption_kwh > 0 for raw, _ in inside)
+    for raw, item in inside:
+        assert item.consumption_kwh == 0.0
+        assert item.solar_kwh == pytest.approx(
+            max(0.0, raw.solar_kwh - raw.consumption_kwh)
+        )
+
+
+# --- peak shaving band is a peak reserve, not normal-load energy (#627) -------
+
+
+def test_peak_shaving_band_is_not_counted_as_usable_energy():
+    # 10 kWh at 30%, min_soc 12%, no sun, 2.5 kWh load. Without peak shaving
+    # 1.8 kWh is usable; with a 20% threshold only 1.0 kWh covers normal load.
+    plain = _run(_ctrl([_Coord(30.0, 10.0)], floor=0.0, solar="0.0", consumption=2.5))
+    ctrl = _ctrl([_Coord(30.0, 10.0)], floor=0.0, solar="0.0", consumption=2.5)
+    ctrl.capacity_protection_enabled = True
+    ctrl.capacity_protection_soc_threshold = 20
+    shaved = _run(ctrl)
+
+    assert abs(plain["usable_energy_kwh"] - 1.8) < 0.01
+    assert abs(shaved["usable_energy_kwh"] - 1.0) < 0.01
+    assert shaved["energy_deficit_kwh"] > plain["energy_deficit_kwh"] + 0.7
+
+
+def _shaving_floor_decision(threshold, *, held=False, floor=20.0):
+    manager = _floor_manager(45.0, floor=floor)
+    controller = manager._controller
+    if threshold is not None:
+        controller.capacity_protection_enabled = True
+        controller.capacity_protection_soc_threshold = threshold
+        controller.capacity_protection_limit = 14000  # never caps the grid charge
+        controller._is_capacity_protection_soc_limited = lambda: held
+        controller._planning_floor_soc = (
+            lambda c: ChargeDischargeController._planning_floor_soc(controller, c)
+        )
+    return manager._apply_time_slot_chronological_plan(
+        {
+            "should_charge": False,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 0.0,
+            "planned_grid_charge_kwh": 0.0,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        now=datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ),
+    )
+
+
+def test_peak_shaving_band_brings_projected_depletion_forward():
+    # Normal load stops drawing on the battery at the 30% threshold, not at
+    # min_soc, so the projection runs out earlier.
+    shaved = _shaving_floor_decision(30)["earliest_projected_depletion"]
+    plain = _shaving_floor_decision(None)["earliest_projected_depletion"]
+
+    assert datetime.fromisoformat(shaved) < datetime.fromisoformat(plain)
+
+
+def test_predictive_floor_above_threshold_keeps_the_same_floor_target():
+    # Reporter's setup: floor 25% over threshold 20%. Reaching 25% at sunrise
+    # costs the same energy whichever floor the usable figure is measured from.
+    assert _shaving_floor_decision(20, floor=25.0)[
+        "active_slot_energy_target_kwh"
+    ] == pytest.approx(
+        _shaving_floor_decision(None, floor=25.0)["active_slot_energy_target_kwh"]
+    )
+
+
+def test_peak_shaving_hold_keeps_min_soc_floor_for_the_projection():
+    # Held: intervals already carry only load above the limit, which the band
+    # covers, so the band must not be reserved twice.
+    held = _shaving_floor_decision(100, held=True)
+    unheld = _shaving_floor_decision(100)
+    assert held["active_slot_energy_target_kwh"] < unheld["active_slot_energy_target_kwh"]
+
+
+@pytest.mark.parametrize(
+    ("margin", "reserve_on", "expected"),
+    [(0.05, True, True), (0.05, False, False), (0.0, True, False)],
+)
+def test_the_plan_knows_whether_the_discharge_reserve_holds_energy(
+    margin, reserve_on, expected
+):
+    # The reserve lets a valued deadline be served across an hour left to the
+    # grid, so it only matters while deadlines are valued (margin on).
+    now = datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ)
+    slots = [
+        PriceSlot(now + timedelta(hours=h), now + timedelta(hours=h + 1), 0.40)
+        for h in range(5)
+    ]
+    manager = _floor_manager(25.0)
+    manager._controller.min_arbitrage_margin = margin
+    manager._controller.predictive_charging_mode = PREDICTIVE_MODE_DYNAMIC_PRICING
+    manager._controller._discharge_reserve_mgr = SimpleNamespace(
+        feature_enabled=lambda: reserve_on
+    )
+    requests = []
+    evaluate = manager.evaluate_chronological_projection
+    manager.evaluate_chronological_projection = lambda request: (
+        requests.append(request) or evaluate(request)
+    )
+
+    manager._build_chronological_plan(
+        now=now,
+        slots=slots,
+        decision_data={
+            "should_charge": True,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 1.25,
+            "planned_grid_charge_kwh": 1.25,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        price_ceiling=None,
+    )
+
+    assert requests[0].reserve_holds is expected

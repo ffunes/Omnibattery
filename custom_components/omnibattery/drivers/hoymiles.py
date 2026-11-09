@@ -222,7 +222,8 @@ class HoymilesMqttDriver(BatteryDriver):
         # alongside battery_power to judge delivery at the AC port.
         self._read_groups = [ReadGroup(
             "high",
-            tuple(d["key"] for d in SENSOR_DEFINITIONS) + (DELIVERED_AC_POWER_KEY,),
+            tuple(d["key"] for d in SENSOR_DEFINITIONS)
+            + (DELIVERED_AC_POWER_KEY, "battery_total_energy"),
         )]
 
     @property
@@ -378,14 +379,24 @@ class HoymilesMqttDriver(BatteryDriver):
                                ("pack_num", "pack_count")):
             value = self._number(data, source)
             if value is not None: self._cache[target] = value
-        pack_count = self._number(data, "pack_num")
-        if pack_count is not None:
-            capacity = hoymiles_capacity_kwh(
-                self._model_raw,
-                pack_count=int(pack_count),
-            )
-            if capacity:
-                self._cache["battery_total_energy"] = capacity
+        if self._number(data, "pack_num") is not None:
+            self._refresh_capacity()
+
+    def _refresh_capacity(
+        self,
+        charge_power_w: int | None = None,
+        discharge_power_w: int | None = None,
+    ) -> None:
+        """Recompute total energy, preferring the last reported pack count (#794)."""
+        pack_count = self._cache.get("pack_count")
+        capacity = hoymiles_capacity_kwh(
+            self._model_raw,
+            charge_power_w,
+            discharge_power_w,
+            pack_count=int(pack_count) if pack_count is not None else None,
+        )
+        if capacity:
+            self._cache["battery_total_energy"] = capacity
 
     @callback
     def _handle_system(self, message) -> None:
@@ -429,11 +440,7 @@ class HoymilesMqttDriver(BatteryDriver):
             self._cache["max_charge_power"] = device_charge_w
         if device_discharge_w is not None:
             self._cache["max_discharge_power"] = device_discharge_w
-        capacity = hoymiles_capacity_kwh(
-            self._model_raw, device_charge_w, device_discharge_w
-        )
-        if capacity:
-            self._cache["battery_total_energy"] = capacity
+        self._refresh_capacity(device_charge_w, device_discharge_w)
         if self._last_net_power_w is not None:
             self._last_net_power_w = self._clamp(self._last_net_power_w)
             self._cache["commanded_net_power"] = self._last_net_power_w
@@ -508,7 +515,8 @@ class HoymilesMqttDriver(BatteryDriver):
         return DriverCapabilities(
             False, False, True, self._max_charge_w, self._max_discharge_w,
             False, False, False, has_solar_telemetry=self._has_pv,
-            has_energy_counters=True,
+            # chg_e/dchg_e are daily-only; lifetime totals are synthesised.
+            has_energy_counters=False,
             has_daily_energy_counters=True, has_nominal_capacity=False,
             setpoint_confirm_reliable=False, actuator_latency_s=1.8,
             readback_latency_s=4.0,
@@ -696,6 +704,11 @@ class HoymilesMqttDriver(BatteryDriver):
                     await asyncio.wait_for(config_event.wait(), min(timeout, 0.25))
                 except asyncio.TimeoutError:
                     pass
+            if not config_event.is_set():
+                # #779: the slave of a paired system publishes quick/state but
+                # no power_ctrl, so it cannot be controlled; only the master can.
+                metadata["error"] = "hoymiles_no_power_ctrl"
+                return False, metadata
             return valid, metadata
         except Exception:
             return False, metadata

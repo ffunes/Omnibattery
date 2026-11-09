@@ -185,3 +185,116 @@ async def test_pending_restore_runs_before_weekly_state_is_evaluated():
     coordinator.set_charge_cutoff.assert_awaited_once_with(95)
     assert controller._weekly_charge_needs_restore is False
     assert controller._weekly_charge_saved_max_soc == {}
+
+
+# ----------------------------------------------------------------------
+# The night after the target day: the run ends at sunrise, not at midnight
+# ----------------------------------------------------------------------
+
+from custom_components.omnibattery.control import weekly_full_charge as weekly_module  # noqa: E402
+
+MONDAY = datetime(2026, 8, 17)  # the target day in _controller()
+SUNRISE_H = 7.5
+
+
+def _clock(monkeypatch, moment):
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return moment
+
+    monkeypatch.setattr(weekly_module, "datetime", FixedDateTime)
+
+
+def _night_manager(**overrides):
+    overrides.setdefault(
+        "_consumption_tracker",
+        SimpleNamespace(calculate_sunrise=lambda _day: SUNRISE_H),
+    )
+    controller = _controller(**overrides)
+    manager = _manager(controller)
+    manager.save_state = MagicMock()
+    manager._create_background_task = MagicMock()
+    return controller, manager
+
+
+def test_an_unfinished_run_carries_on_in_the_night_after_the_target_day(monkeypatch):
+    """The gap is bought after the sun, so the cheap night belongs to the run."""
+    controller, manager = _night_manager()
+    _clock(monkeypatch, MONDAY + timedelta(days=1, hours=2))
+
+    assert manager.is_active() is True
+    assert controller.weekly_full_charge_registers_written is True
+    assert controller._weekly_charge_needs_restore is False
+
+
+def test_the_run_ends_at_the_next_sunrise(monkeypatch):
+    controller, manager = _night_manager()
+    _clock(monkeypatch, MONDAY + timedelta(days=1, hours=2))
+    assert manager.is_active() is True
+
+    _clock(monkeypatch, MONDAY + timedelta(days=1, hours=8))
+    assert manager.is_active() is False
+    assert controller._weekly_charge_needs_restore is True
+    assert controller.weekly_full_charge_registers_written is False
+
+
+def test_a_finished_run_is_not_reopened_in_the_night(monkeypatch):
+    controller, manager = _night_manager(weekly_full_charge_complete=True)
+    _clock(monkeypatch, MONDAY + timedelta(days=1, hours=2))
+
+    assert manager.is_active() is False
+    assert controller._weekly_charge_needs_restore is False
+
+
+@pytest.mark.parametrize(
+    "moment, expected",
+    [
+        (MONDAY + timedelta(hours=15), MONDAY + timedelta(days=1, hours=SUNRISE_H)),
+        (MONDAY + timedelta(days=1, hours=2), MONDAY + timedelta(days=1, hours=SUNRISE_H)),
+        (MONDAY + timedelta(days=1, hours=9), None),
+        (MONDAY + timedelta(days=2, hours=2), None),
+    ],
+)
+def test_the_window_ends_at_the_sunrise_after_the_target_day(moment, expected):
+    _controller_, manager = _night_manager()
+
+    assert manager.window_end(moment) == expected
+
+
+def test_without_a_known_sunrise_the_run_still_ends_at_midnight(monkeypatch):
+    controller, manager = _night_manager(
+        _consumption_tracker=SimpleNamespace(calculate_sunrise=lambda _day: None)
+    )
+    _clock(monkeypatch, MONDAY + timedelta(days=1, hours=2))
+
+    assert manager.is_active() is False
+    assert controller._weekly_charge_needs_restore is True
+
+
+@pytest.mark.asyncio
+async def test_a_restart_in_the_night_keeps_the_run(monkeypatch):
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    day_names = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    controller, manager = _night_manager(
+        weekly_full_charge_day=day_names[yesterday.weekday()],
+        weekly_full_charge_registers_written=False,
+        _weekly_charge_saved_max_soc={},
+    )
+    _clock(monkeypatch, datetime.combine(today, datetime.min.time()) + timedelta(hours=2))
+    manager._store = SimpleNamespace(
+        async_load=AsyncMock(
+            return_value={
+                "date": yesterday.isoformat(),
+                "complete": False,
+                "registers_written": True,
+                "saved_max_soc": {"Zendure": 95},
+            }
+        )
+    )
+
+    await manager.load_state()
+
+    assert controller.weekly_full_charge_registers_written is True
+    assert controller._weekly_charge_needs_restore is False

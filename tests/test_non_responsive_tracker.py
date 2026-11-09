@@ -9,6 +9,11 @@ behaviour -- a wake nudge doesn't fix a comms-level fault.
 """
 from __future__ import annotations
 
+import logging
+
+from custom_components.omnibattery.tracking import (
+    non_responsive_tracker as tracker_module,
+)
 from custom_components.omnibattery.tracking.non_responsive_tracker import (
     NonResponsiveTracker,
 )
@@ -139,3 +144,39 @@ def test_cooldown_expiry_resets_wake_budget():
     assert tracker.record_non_delivery(coord, 300, 0) is None
     assert tracker.record_non_delivery(coord, 300, 0) is None
     assert tracker.record_non_delivery(coord, 300, 0) == "wake"  # fresh grace budget
+
+
+def test_a_flip_on_an_excluded_battery_logs_a_retry(caplog):
+    """A direction flip lifts the exclusion without any delivery seen, so the
+    log line says the battery is retried, not that it delivers again."""
+    tracker = NonResponsiveTracker(fail_threshold=3)
+    coord = _coord()
+    for _ in range(6):
+        tracker.record_non_delivery(coord, 300, 0)
+    assert tracker.is_excluded(coord) is True
+
+    caplog.clear()
+    with caplog.at_level("INFO", logger=tracker_module.__name__):
+        tracker.clear(coord, delivering=False)
+
+    assert tracker.is_excluded(coord) is False
+    messages = [r.getMessage() for r in caplog.records if r.levelno >= logging.INFO]
+    assert messages == ["[BAT1] Commanded direction changed - retrying battery"]
+
+
+def test_ending_an_exclusion_does_not_claim_delivery(caplog):
+    """clear() also ends an exclusion for a battery that is full, tapering or
+    at its low-SOC cutoff, so its log line says the battery is back in the
+    pool, not that it delivers again."""
+    tracker = NonResponsiveTracker(fail_threshold=3)
+    coord = _coord()
+    for _ in range(6):
+        tracker.record_non_delivery(coord, 300, 0, reason="charge_non_delivery")
+    assert tracker.is_excluded(coord) is True
+
+    caplog.clear()
+    with caplog.at_level("INFO", logger=tracker_module.__name__):
+        tracker.clear(coord)
+
+    messages = [r.getMessage() for r in caplog.records if r.levelno >= logging.INFO]
+    assert messages == ["[BAT1] No longer non-responsive - returned to pool"]

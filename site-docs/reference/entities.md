@@ -14,7 +14,7 @@ Home Assistant may preserve an older entity ID or add a suffix. Fresh system ent
 
 | Visible name | Typical fresh-install pattern | Use |
 |---|---|---|
-| **System SOC** | `sensor.omnibattery_system_soc` | Combined state of charge (SOC) |
+| **System SOC** | `sensor.omnibattery_system_soc` | Combined state of charge (SOC) of the batteries under automatic control (all of them if every battery is in manual mode) |
 | **System Charge Power** | `sensor.omnibattery_system_charge_power` | Total charging power |
 | **System Discharge Power** | `sensor.omnibattery_system_discharge_power` | Total discharging power |
 | **Home Consumption** | `sensor.omnibattery_home_consumption` | Current household demand |
@@ -76,7 +76,7 @@ These entities belong to **Omnibattery System** rather than one battery.
 ??? "System switches"
 
     - Always available controller choices: `manual_mode`, `no_pd_mode`, `three_phase_protection`, `weekly_full_charge_enabled`, `vacation_mode`
-    - Conditional features: `offgrid_mode`, `primary_feedforward`, `system_power_limits`, `predictive_charging`, `min_soc_floor_enabled`, `charge_delay`, `delay_soc_setpoint_enabled`, `weekly_full_charge_delay`, `temp_charge_limit`, `temp_charge_limit_discharge`, `capacity_protection`, `capacity_protection_excluded_devices`, `hourly_balance`
+    - Conditional features: `offgrid_mode`, `primary_feedforward`, `system_power_limits`, `predictive_charging`, `predictive_charging_notifications`, `min_soc_floor_enabled`, `charge_delay`, `delay_soc_setpoint_enabled`, `weekly_full_charge_delay`, `temp_charge_limit`, `temp_charge_limit_discharge`, `capacity_protection`, `capacity_protection_excluded_devices`, `hourly_balance`
     - Pricing controls: `price_discharge_control`, `smart_predischarge`, `negative_price_charging`, `surplus_price_hold`, `discharge_reserve`
     - Generated controls: `time_slot` for each configured time slot; `excluded_device_enabled`, `excluded_device_solar_surplus`, `excluded_device_dynamic_power_control`, and `excluded_device_cover_home` for each applicable excluded device
     - External automation compatibility: `automation_charging_active`
@@ -168,7 +168,7 @@ Battery entities depend on the driver. A missing entity usually means that the d
 
     Common attributes include `charging_needed`, `reason`, `price_data_status`, forecast and consumption values, selected price slots, target energy, and current progress.
 
-    Dynamic Pricing can also expose `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `energy_deadlines`, `slot_deadlines`, and `chronological_plan_reason`. They describe planning intent; live battery, grid, and safety limits remain authoritative.
+    Dynamic Pricing can also expose `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `cheaper_to_import_kwh`, `cheapest_rejected_slot`, `energy_deadlines`, `slot_deadlines`, and `chronological_plan_reason`. The diagnostics also expose `round_trip_efficiency_used` and `round_trip_efficiency_source` (`configured`, `measured` or `default`). They describe planning intent; live battery, grid, and safety limits remain authoritative.
 
 ??? "High-Price Sale Status attributes"
 

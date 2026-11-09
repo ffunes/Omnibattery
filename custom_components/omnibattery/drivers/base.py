@@ -120,6 +120,20 @@ class DriverCapabilities:
     # than warning — the retry still confirms it. Defaults True.
     setpoint_confirm_reliable: bool = True
 
+    # True if the reported delivered power tracks the real AC output closely
+    # enough to anchor control on. Anker reports 0 W or lagging values for
+    # seconds after a setpoint change (#522), so the PD skips the measured-power
+    # anchors that have no real limit behind them (the timed anti-windup
+    # fallback and the feedforward deadbeat). Defaults True.
+    delivered_power_reliable: bool = True
+
+    # True if the AC port and the cell terminal are measured independently, so
+    # their power difference is the real conversion loss. The efficiency sensor
+    # integrates the two planes on PV units only when this holds. Zendure reports
+    # identical AC and cell power while discharging, which reads as 100% (#556),
+    # so it keeps the cumulative charge/discharge counters. Defaults True.
+    independent_power_planes: bool = True
+
     # Approximate physical response time (seconds) after issuing a setpoint. The
     # zero-cross guard uses it to avoid commanding the opposite direction while
     # the previous command is still taking effect. Readback freshness is declared
@@ -179,6 +193,26 @@ def has_connected_mppt_pv(coordinator) -> bool:
     return bool(
         getattr(capabilities, "has_mppt_pv", False)
         and getattr(coordinator, "dc_pv_connected", True)
+    )
+
+
+def has_solar_production_source(controller) -> bool:
+    """True when production is actually measured, not merely accumulated.
+
+    The daily accumulator is rolled over at midnight whether or not any
+    source feeds it, so its date says nothing about whether a reading ever
+    arrives. Without a source it stays at 0.0 all day.
+    """
+    if getattr(controller, "solar_production_sensor", None):
+        return True
+    return any(
+        has_connected_mppt_pv(coordinator)
+        or getattr(
+            getattr(coordinator, "capabilities", None),
+            "has_solar_telemetry",
+            False,
+        )
+        for coordinator in getattr(controller, "coordinators", None) or ()
     )
 
 
@@ -430,6 +464,35 @@ class BatteryDriver(ABC):
         and inherit this default.
         """
         return None
+
+    def dynamic_charge_limit_w(self, data: dict) -> Optional[int]:
+        """Live charge ceiling below the static envelope, or None if there is none.
+
+        The charge-side counterpart of :meth:`dynamic_discharge_limit_w`. A
+        driver returns 0 while it cannot take a charge command at all (an
+        Indevolt outside Realtime mode), so battery selection skips it and the
+        other batteries take the load, instead of the controller allocating
+        power the battery refuses until the non-responsive tracker excludes it.
+        Near full it may return what the battery takes while its BMS tapers the
+        charge (an Indevolt in its constant-voltage phase), so the controller
+        commands that instead of a power the battery reports as not delivered.
+
+        Defaults to None: the static limit stands, so other drivers are
+        unaffected. See docs/indevolt-core-changes.md.
+        """
+        return None
+
+    async def async_fix_issue(self, issue_id: str) -> bool:
+        """Fix a Repairs issue this driver raised; True when it did.
+
+        Called by the fix flow in ``repairs.py`` when the user submits a fixable
+        issue whose data names this battery. The Indevolt driver uses it to turn
+        setting writes back on after its yearly flash allowance stopped them.
+
+        Defaults to False: other drivers raise no fixable issues, and the flow
+        then keeps the issue. See docs/indevolt-core-changes.md.
+        """
+        return False
 
     @abstractmethod
     def net_power_from_data(self, data: dict) -> Optional[int]:

@@ -14,7 +14,7 @@ Home Assistant puede conservar un ID de entidad anterior o añadir un sufijo. La
 
 | Nombre visible | Patrón habitual de una instalación nueva | Uso |
 |---|---|---|
-| **System SOC** | `sensor.omnibattery_system_soc` | Estado de carga (SOC) combinado |
+| **System SOC** | `sensor.omnibattery_system_soc` | Estado de carga (SOC) combinado de las baterías bajo control automático (todas si todas están en modo manual) |
 | **System Charge Power** | `sensor.omnibattery_system_charge_power` | Potencia total de carga |
 | **System Discharge Power** | `sensor.omnibattery_system_discharge_power` | Potencia total de descarga |
 | **Home Consumption** | `sensor.omnibattery_home_consumption` | Demanda actual del hogar |
@@ -76,7 +76,7 @@ Estas entidades pertenecen a **Omnibattery System**, no a una batería.
 ??? "Interruptores del sistema"
 
     - Opciones de controlador siempre disponibles: `manual_mode`, `no_pd_mode`, `three_phase_protection`, `weekly_full_charge_enabled`, `vacation_mode`
-    - Funciones condicionales: `offgrid_mode`, `primary_feedforward`, `system_power_limits`, `predictive_charging`, `min_soc_floor_enabled`, `charge_delay`, `delay_soc_setpoint_enabled`, `weekly_full_charge_delay`, `temp_charge_limit`, `temp_charge_limit_discharge`, `capacity_protection`, `capacity_protection_excluded_devices`, `hourly_balance`
+    - Funciones condicionales: `offgrid_mode`, `primary_feedforward`, `system_power_limits`, `predictive_charging`, `predictive_charging_notifications`, `min_soc_floor_enabled`, `charge_delay`, `delay_soc_setpoint_enabled`, `weekly_full_charge_delay`, `temp_charge_limit`, `temp_charge_limit_discharge`, `capacity_protection`, `capacity_protection_excluded_devices`, `hourly_balance`
     - Controles de precios: `price_discharge_control`, `smart_predischarge`, `negative_price_charging`, `surplus_price_hold`, `discharge_reserve`
     - Controles generados: `time_slot` para cada franja horaria configurada; `excluded_device_enabled`, `excluded_device_solar_surplus`, `excluded_device_dynamic_power_control` y `excluded_device_cover_home` para cada dispositivo excluido aplicable
     - Compatibilidad con automatización externa: `automation_charging_active`
@@ -168,7 +168,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
 
     Los atributos comunes incluyen `charging_needed`, `reason`, `price_data_status`, valores de previsión y consumo, franjas de precio seleccionadas, energía objetivo y progreso actual.
 
-    Precio dinámico también puede exponer `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `energy_deadlines`, `slot_deadlines` y `chronological_plan_reason`. Describen la intención de planificación; los límites activos de batería, red y seguridad mantienen la autoridad.
+    Precio dinámico también puede exponer `chronological_planning_active`, `energy_horizon_end`, `overnight_consumption_kwh`, `earliest_projected_depletion`, `deadline_shortfall_kwh`, `cheaper_to_import_kwh`, `cheapest_rejected_slot`, `energy_deadlines`, `slot_deadlines` y `chronological_plan_reason`. El diagnóstico también expone `round_trip_efficiency_used` y `round_trip_efficiency_source` (`configured`, `measured` o `default`). Describen la intención de planificación; los límites activos de batería, red y seguridad mantienen la autoridad.
 
 ??? "Atributos de Estado de venta a precio alto"
 

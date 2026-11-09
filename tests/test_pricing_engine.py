@@ -24,6 +24,7 @@ import pytest
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.button import ReevaluateDynamicPricingButton
 from custom_components.omnibattery.const import (
+    CHARGE_EFFICIENCY,
     DEFAULT_ROUND_TRIP_EFFICIENCY,
     CONF_SOLAR_FORECAST_REMAINING_SENSOR,
     PRICE_INTEGRATION_CKW,
@@ -460,6 +461,9 @@ def _claim_mgr(ctrl, remaining_solar=12.0):
     """Manager whose live remaining-solar read is stubbed out."""
     manager = _mgr(ctrl)
     manager._remaining_solar_today_kwh = lambda _now: remaining_solar
+    manager._read_remaining_solar_input = lambda **_kw: SimpleNamespace(
+        remaining_kwh=remaining_solar
+    )
     return manager
 
 
@@ -528,6 +532,85 @@ def test_excluded_demand_reeval_compares_raw_readings():
     ctrl = _claim_ctrl(20.0, 20.0)
     manager = _claim_mgr(ctrl, remaining_solar=5.0)
     assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_ignores_moves_above_remaining_solar():
+    # An overnight session draining from 39.14 to 29.82 kWh against 7.73 kWh of
+    # sun: the plan claims 7.73 either way, so the move must not spend a run.
+    ctrl = _claim_ctrl(39.14, 29.82)
+    manager = _claim_mgr(ctrl, remaining_solar=7.73)
+    assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_fires_when_move_crosses_remaining_solar():
+    # From above the forecast to 2 kWh below it changes what the plan claims.
+    ctrl = _claim_ctrl(39.14, 5.5)
+    manager = _claim_mgr(ctrl, remaining_solar=7.73)
+    assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is True
+
+
+def test_excluded_demand_reeval_session_end_bypasses_daily_cap():
+    # Car full after the cap was spent overnight: the stale claim would keep
+    # the battery off the sun all day, so the release must still re-plan.
+    ctrl = _claim_ctrl(7.53, 0.0, _dp_excluded_demand_reeval_count=4)
+    assert _claim_mgr(ctrl, remaining_solar=6.61)._is_excluded_demand_reeval(_CLAIM_NOW) is True
+
+
+def test_excluded_demand_reeval_release_with_residual_bypasses_daily_cap():
+    # evcc can keep a small remainder after the car stops at its own limit.
+    ctrl = _claim_ctrl(7.53, 0.3, _dp_excluded_demand_reeval_count=4)
+    assert _claim_mgr(ctrl, remaining_solar=6.61)._is_excluded_demand_reeval(_CLAIM_NOW) is True
+
+
+def test_excluded_demand_reeval_increase_still_respects_daily_cap():
+    ctrl = _claim_ctrl(0.0, 5.0, _dp_excluded_demand_reeval_count=4)
+    assert _claim_mgr(ctrl, remaining_solar=6.61)._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_release_still_respects_cooldown():
+    ctrl = _claim_ctrl(
+        7.53, 0.0,
+        _dp_excluded_demand_reeval_count=4,
+        _dp_excluded_demand_reeval_at=_CLAIM_NOW - timedelta(minutes=5),
+    )
+    assert _claim_mgr(ctrl, remaining_solar=6.61)._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_trigger_moves_reference_before_rebuilding(monkeypatch):
+    # A release is exempt from the cap, so a rebuild that fails before it
+    # refreshes the reference must not leave the same move armed.
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return _CLAIM_NOW
+
+    monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    ctrl = _claim_ctrl(
+        7.53, 0.0,
+        _dp_excluded_demand_reeval_count=4,
+        _dynamic_pricing_evaluated_date=_CLAIM_NOW.date(),
+        _dp_eval_retry_count=0,
+        _dp_config_dirty=False,
+    )
+    manager = _claim_mgr(ctrl, remaining_solar=6.61)
+
+    async def noop(*_args, **_kwargs):
+        return None
+
+    async def failing_rebuild(**_kwargs):
+        raise RuntimeError("rebuild failed")
+
+    manager._maybe_refresh_service_prices = noop
+    manager._check_dp_pre_slot_reevaluation = noop
+    manager._is_evening_reevaluation_time = lambda: False
+    manager._is_dp_soc_drop_reeval = lambda: False
+    manager._evaluate_dynamic_pricing = failing_rebuild
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+
+    assert ctrl._dp_last_eval_excluded_claim_kwh == 0.0
+    assert manager._is_excluded_demand_reeval(_CLAIM_NOW + timedelta(minutes=20)) is False
 
 
 # ----------------------------------------------------------------------
@@ -630,6 +713,21 @@ def test_solar_forecast_reeval_false_late_in_the_evening():
     ctrl = _forecast_ctrl(13.1, _daily_solar_energy_date=datetime(2026, 8, 28, 23, 10).date())
     manager = _forecast_mgr(ctrl, 0.0, produced=1.8)
     assert manager._is_solar_forecast_reeval(datetime(2026, 8, 28, 23, 10)) is False
+
+
+@pytest.mark.parametrize(
+    ("minute", "second", "expected"),
+    [(0, 17, False), (4, 59, False), (5, 2, False), (6, 0, True)],
+)
+def test_solar_forecast_reeval_leaves_the_new_day_to_the_00_05_evaluation(
+    minute, second, expected
+):
+    # The sensor rolls to the new day's total at midnight while the reference
+    # still holds last evening's 0 kWh. That is a new day, not a revision.
+    now = datetime(2026, 8, 29, 0, minute, second)
+    ctrl = _forecast_ctrl(0.0, _daily_solar_energy_date=now.date())
+    manager = _forecast_mgr(ctrl, 13.2, produced=0.0)
+    assert manager._is_solar_forecast_reeval(now) is expected
 
 
 def test_solar_forecast_reeval_respects_cooldown():
@@ -915,6 +1013,7 @@ def test_price_publication_reeval_never_runs_outside_dynamic_pricing_mode():
         _refresh_operation_blockers=lambda: None,
         _try_apply_manual_slot=_async_noop,
         _max_soc_mgr=SimpleNamespace(handle_measurement=_async_false),
+        _apply_dead_meter_fallback=_async_false,
         predictive_charging_enabled=True,
         predictive_charging_mode=PREDICTIVE_MODE_TIME_SLOT,
         # grid_charging_active True makes whichever branch runs return right
@@ -1195,6 +1294,59 @@ def test_evening_recharge_picks_informational_slots_on_price_and_arms_only_those
     assert schedule.selected_slots == [noon, afternoon]
     assert schedule.slot_purposes == {noon: "deficit", afternoon: "deficit"}
     assert schedule.deficit_charging_needed is True
+
+
+def test_evening_recharge_respects_the_arbitrage_ceiling(monkeypatch):
+    # #721: with no static ceiling, the evening top-up booked the evening peak.
+    # It must apply the same arbitrage ceiling as the main evaluation.
+    import datetime as datetime_module
+
+    now = datetime(2026, 11, 3, 16, 0)
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    monkeypatch.setattr(datetime_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine.calculations, "datetime", FixedDateTime)
+
+    def _slot(hour, price):
+        start = now.replace(hour=hour, minute=0)
+        return PriceSlot(start, start + timedelta(hours=1), price)
+
+    peak = [_slot(17, 0.50), _slot(18, 0.50), _slot(19, 0.50)]
+    night = _slot(22, 0.30)
+    # #649: a slot is only valued against peaks that start after it ends.
+    morning = [
+        PriceSlot(s.start + timedelta(days=1), s.end + timedelta(days=1), 0.50)
+        for s in (_slot(6, 0), _slot(7, 0))
+    ]
+    # 3 kWh deficit (4 kWh load, 1 kWh usable, no solar) at 1.5 kW: two hours.
+    ctrl = _evening_ctrl(
+        claim=0.0,
+        remaining_solar=0.0,
+        max_contracted_power=1500,
+        max_charge_capacity=1500,
+        min_arbitrage_margin=0.05,
+        round_trip_efficiency=0.85,
+    )
+    manager = _evening_mgr(ctrl, 0.0)
+    manager.energy_horizon_end = lambda _now: now.replace(
+        hour=0, minute=0
+    ) + timedelta(days=1, hours=7)
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [*peak, night, *morning]
+    ceilings = []
+    manager._build_chronological_plan = lambda **kwargs: ceilings.append(
+        kwargs["slot_ceilings"]
+    )
+    manager._send_evening_recharge_notification = _async_noop
+
+    asyncio.run(manager._evaluate_evening_recharge())
+
+    # Expected discharge 0.50 x 0.85 - 0.05 margin = 0.375.
+    assert ceilings[0][night.start] == pytest.approx(0.375)
+    assert ctrl._dynamic_pricing_schedule.selected_slots == [night]
 
 
 def test_dynamic_pricing_soc_drop_rebuilds_the_remaining_horizon():
@@ -1984,6 +2136,45 @@ def test_extended_projection_adapter_is_read_only_for_dashboard_callers():
         result.diagnostics["chronological_source"] = "mutated"
 
 
+def test_extended_projection_survives_the_autumn_dst_change():
+    """The repeated 02:00 hour must not make the projection fall back."""
+    madrid = ZoneInfo("Europe/Madrid")
+    now = datetime(2026, 10, 24, 10, 0, tzinfo=madrid)
+    horizon_end = now.replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ) + timedelta(days=1, hours=12)
+    forecast = ConsumptionForecast(1.0, [1.0 / INTERVAL_COUNT] * INTERVAL_COUNT, "profile", True)
+    tracker = SimpleNamespace(
+        consumption_profile=SimpleNamespace(),
+        forecast_consumption_between=lambda *_args, **_kwargs: forecast,
+    )
+    ctrl = _controller(
+        _consumption_tracker=tracker,
+        solar_profile_mode="off",
+        _predictive_safety_margin_kwh=0.0,
+        coordinators=[],
+        _is_battery_manual_owned=lambda _coordinator: False,
+        max_contracted_power=0.0,
+        max_charge_capacity=0.0,
+    )
+
+    result = _mgr(ctrl).build_extended_chronological_projection(
+        now=now,
+        slots=[],
+        base_decision_data={
+            "avg_consumption_kwh": 1.0,
+            "solar_forecast_input": SolarForecastInput(0.0, "none"),
+        },
+        price_ceiling=None,
+        horizon_end=horizon_end,
+    )
+
+    assert result.plan is not None
+    starts = [item.start for item in result.plan.intervals]
+    assert starts == sorted(starts)
+    assert sum(1 for start in starts if start.date() == now.date() + timedelta(days=1) and start.hour == 2) == 8
+
+
 def test_extended_projection_refreshes_the_live_solar_budget():
     """A dashboard redraw must not reuse a morning solar remainder."""
     madrid = ZoneInfo("Europe/Madrid")
@@ -2181,8 +2372,13 @@ def test_dynamic_pricing_sizes_slots_from_planned_charge_not_full_deficit():
         )
     )
 
-    assert ctrl._dynamic_pricing_schedule.hours_needed == 2.0
-    assert len(ctrl._dynamic_pricing_schedule.selected_slots) == 8
+    # 1.58 kWh planned, less the house load (4.55 kWh/day) the grid carries
+    # while 1.2 kW charges (#785): about 1.33 kWh, so 1.5 h instead of 2 h.
+    assert ctrl._dynamic_pricing_schedule.hours_needed == 1.5
+    assert len(ctrl._dynamic_pricing_schedule.selected_slots) == 6
+    assert ctrl._last_decision_data["planned_grid_charge_kwh"] == pytest.approx(
+        1.5808 * (1.2 * CHARGE_EFFICIENCY) / (1.2 * CHARGE_EFFICIENCY + 4.552857 / 24)
+    )
 
 
 # ----------------------------------------------------------------------
@@ -2366,7 +2562,8 @@ def test_official_nordpool_refresh_requests_today_and_selected_area(monkeypatch)
     asyncio.run(manager._maybe_refresh_nordpool_prices(force=True))
     asyncio.run(manager._maybe_refresh_nordpool_prices())
 
-    assert len(services.calls) == 1
+    # One refresh asks for today and tomorrow; the second call is cached.
+    assert len(services.calls) == 2
     domain, service, data = services.calls[0]
     assert (domain, service) == ("nordpool", "get_prices_for_date")
     assert data == {
@@ -2374,6 +2571,8 @@ def test_official_nordpool_refresh_requests_today_and_selected_area(monkeypatch)
         "date": dt_util.now().date(),
         "areas": ["ES"],
     }
+    assert services.calls[1][2]["date"] == dt_util.now().date() + timedelta(days=1)
+    # The fake echoes the same slot for both days; it must not be duplicated.
     assert len(ctrl._nordpool_price_slots) == 1
     assert ctrl._nordpool_price_slots[0].price == 0.12345
     assert manager._get_current_price() == 0.12345
@@ -2392,9 +2591,102 @@ def test_official_nordpool_refresh_requests_today_and_selected_area(monkeypatch)
     }
     asyncio.run(manager._maybe_refresh_nordpool_prices())
 
-    assert len(services.calls) == 2
-    assert services.calls[1][2]["areas"] == ["FR"]
+    assert len(services.calls) == 4
+    assert services.calls[2][2]["areas"] == ["FR"]
     assert ctrl._nordpool_price_slots[0].price == 0.2
+
+
+class _FakeNordPoolTwoDayServices:
+    """Answers per delivery date; ``tomorrow`` None raises like an unpublished day."""
+
+    def __init__(self, today, tomorrow):
+        self.today = today
+        self.tomorrow = tomorrow
+        self.calls: list = []
+
+    def has_service(self, domain, service):
+        return domain == "nordpool" and service == "get_prices_for_date"
+
+    async def async_call(self, domain, service, data, blocking=True, return_response=True):
+        from homeassistant.util import dt as dt_util
+
+        self.calls.append(data["date"])
+        if data["date"] == dt_util.now().date():
+            return self.today
+        if self.tomorrow is None:
+            raise ValueError("No data available for that date")
+        return self.tomorrow
+
+
+def _nordpool_entry(start, price):
+    return {
+        "start": start.isoformat(),
+        "end": (start + timedelta(hours=1)).isoformat(),
+        "price": price,
+    }
+
+
+def test_official_nordpool_refresh_includes_tomorrow_once_published(monkeypatch):
+    """An evening plan must see the cheaper post-midnight hours."""
+    import asyncio
+
+    midnight = datetime.now().replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ) + timedelta(days=1)
+    services = _FakeNordPoolTwoDayServices(
+        {"NL": [_nordpool_entry(midnight - timedelta(hours=1), 250.0)]},
+        {"NL": [_nordpool_entry(midnight + timedelta(hours=2), 80.0)]},
+    )
+    hass = SimpleNamespace(
+        services=services,
+        states=SimpleNamespace(get=lambda _entity_id: SimpleNamespace(attributes={})),
+    )
+    monkeypatch.setattr(
+        pricing_engine,
+        "resolve_official_nordpool_source",
+        lambda *_args: OfficialNordPoolSource("nordpool-entry", "NL"),
+    )
+    ctrl = _controller(
+        price_sensor="sensor.nord_pool_nl_current_price",
+        _nordpool_price_slots=[],
+        _nordpool_prices_fetched_at=None,
+    )
+    manager = PricingManager(hass, ctrl)
+
+    asyncio.run(manager._maybe_refresh_nordpool_prices(force=True))
+
+    assert [slot.price for slot in ctrl._nordpool_price_slots] == [0.25, 0.08]
+    horizon = manager._parse_price_data(horizon_end=midnight + timedelta(hours=8))
+    assert [slot.start for slot in horizon][-1] == midnight + timedelta(hours=2)
+
+
+def test_official_nordpool_refresh_keeps_today_when_tomorrow_unpublished(monkeypatch):
+    import asyncio
+
+    start = datetime.now().replace(minute=0, second=0, microsecond=0)
+    services = _FakeNordPoolTwoDayServices(
+        {"NL": [_nordpool_entry(start, 150.0)]},
+        None,
+    )
+    hass = SimpleNamespace(
+        services=services,
+        states=SimpleNamespace(get=lambda _entity_id: SimpleNamespace(attributes={})),
+    )
+    monkeypatch.setattr(
+        pricing_engine,
+        "resolve_official_nordpool_source",
+        lambda *_args: OfficialNordPoolSource("nordpool-entry", "NL"),
+    )
+    ctrl = _controller(
+        price_sensor="sensor.nord_pool_nl_current_price",
+        _nordpool_price_slots=[],
+        _nordpool_prices_fetched_at=None,
+    )
+
+    asyncio.run(PricingManager(hass, ctrl)._maybe_refresh_nordpool_prices(force=True))
+
+    assert len(services.calls) == 2
+    assert [slot.price for slot in ctrl._nordpool_price_slots] == [0.15]
 
 
 def test_hacs_nordpool_raw_today_does_not_call_official_service():
@@ -2666,6 +2958,54 @@ def test_remaining_forecast_is_not_scaled_against_daily_solar_accumulator():
 
     assert plan.solar_reserve_remaining_kwh == pytest.approx(1.5)
     assert plan.opportunistic_space_kwh == pytest.approx(2.5)
+
+
+@pytest.mark.parametrize("export_allowed, exports", [(True, True), (False, False)])
+def test_smart_predischarge_runtime_exports_only_when_the_slot_allows_it(
+    export_allowed, exports
+):
+    now = datetime.now()
+    active_pre_slot = PreDischargeSlot(
+        now - timedelta(minutes=1), now + timedelta(minutes=10), 0.40,
+        export_allowed=export_allowed,
+    )
+    future_risk = PriceSlot(now + timedelta(hours=1), now + timedelta(hours=2), -0.10)
+    calls = []
+    state = SimpleNamespace(state="0.0", attributes={})
+    hass = SimpleNamespace(states=SimpleNamespace(get=lambda _entity_id: state))
+    coordinator = SimpleNamespace(data={"battery_soc": 80.0}, is_available=True, name="b1")
+    ctrl = _controller(
+        smart_predischarge_enabled=True,
+        predictive_charging_enabled=True,
+        predictive_charging_mode=PREDICTIVE_MODE_DYNAMIC_PRICING,
+        predischarge_export_mode=EXPORT_MODE_AUTOMATIC,
+        coordinators=[coordinator],
+        consumption_sensor="sensor.grid",
+        _curtailment_plan=CurtailmentPlan(
+            status="planned",
+            reason="headroom_required",
+            risk_slots=[future_risk],
+            selected_discharge_slots=[active_pre_slot],
+            required_headroom_kwh=3.0,
+        ),
+        remove_setpoint_override=lambda source: None,
+        set_setpoint_override=lambda source, value, priority=0: calls.append(value),
+        remove_discharge_block=lambda source, coordinator=None: None,
+        set_discharge_block=lambda source, reason, details=None, coordinator=None: None,
+        _apply_meter_transform=lambda _state: 0.0,
+        _curtailment_active=False,
+        _curtailment_active_export_target_w=0.0,
+    )
+    manager = PricingManager(hass, ctrl)
+    manager._get_current_price = lambda: 0.30
+    manager._curtailment_battery_snapshots = lambda: [
+        BatterySnapshot("b1", 80.0, 10.0, 100.0, 10.0, 2000.0)
+    ]
+
+    manager.refresh_curtailment_runtime()
+
+    assert ctrl._curtailment_runtime_status == "predischarging"
+    assert (calls[-1] < 0) is exports
 
 
 def test_curtailment_export_settings_keep_legacy_compatibility_and_modes():

@@ -29,6 +29,9 @@ Necesitas:
 4. **Agrega la batería.** Abre **Configuración → Dispositivos y servicios → Agregar integración → Omnibattery**, elige **Hoymiles MQTT**, ingresa el ID del dispositivo y deja **Modelo de batería** en **Detección automática**.
 5. **Revisar y verificar.** Mantenga la capacidad detectada y el límite de energía seguro, complete los límites comunes y confirme el estado de carga, la energía de la batería, el voltaje, la temperatura y la actualización diaria de energía.
 
+!!! note "Sistemas emparejados"
+    Añade un sistema maestro/esclavo emparejado **una sola vez**, solo con el ID del **maestro**. El maestro informa y controla el par completo; el esclavo no acepta órdenes de potencia, así que la configuración rechaza su ID. No añadas el esclavo como segunda batería.
+
 ## lo que veras
 
 La carga es energía positiva de la batería en Omnibattery, la descarga es negativa y la inactividad es cero. El control automático y los controles manuales del software utilizan la misma convención; active el **Control manual de batería** antes de probar un objetivo manual.

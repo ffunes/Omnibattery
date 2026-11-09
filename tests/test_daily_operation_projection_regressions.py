@@ -728,3 +728,87 @@ def test_executable_schedule_still_plans_grid_charge():
     item = result["intervals"][0]
     assert item["grid_to_battery_kwh"] > 0.0
     assert item["action_mask"] & ACTION_GRID_CHARGE
+
+
+@pytest.mark.parametrize(("weekly_day", "expected_kwh"), [("tue", 10.0), ("wed", 9.5)])
+def test_extension_into_weekly_full_charge_day_projects_to_full(
+    weekly_day, expected_kwh
+):
+    now = datetime(2026, 8, 24, 23, 45, tzinfo=MADRID)  # Monday
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    intervals = [
+        ProjectionIntervalInput(now, midnight, solar_kwh=1.0),
+        ProjectionIntervalInput(
+            midnight, midnight + timedelta(minutes=15), solar_kwh=1.0
+        ),
+    ]
+    controller = _controller_for_projection(
+        now,
+        intervals,
+        [],
+        [BatteryProjectionInput("a", 9.5, 10, 10, 95, 4000, 4000)],
+        weekly_full_charge_enabled=True,
+        weekly_full_charge_day=weekly_day,
+    )
+
+    result = ChargeDischargeController._daily_operation_build_projection(
+        controller, now
+    )
+
+    assert result is not None
+    assert result["intervals"][-1]["stored_energy_end_kwh"] == pytest.approx(9.5)
+    assert result["extended_intervals"][0]["stored_energy_end_kwh"] == pytest.approx(
+        expected_kwh
+    )
+
+
+def test_active_slot_projects_only_what_is_left_of_its_quota():
+    """Mid-slot, the projection starts now: the energy already charged in the
+    slot is not charged again."""
+
+    class _Battery:
+        data = {"battery_soc": 55.0, "battery_total_energy": 10.0}
+
+    now = datetime(2026, 9, 1, 3, 0, tzinfo=MADRID)
+    slot = PriceSlot(now - timedelta(hours=1), now + timedelta(hours=2), 0.05)
+    schedule = SimpleNamespace(
+        selected_slots=[slot],
+        slot_energy_targets_kwh={slot: 1.0},
+        slot_deadlines={},
+        slot_plan_kinds={},
+        charging_needed=True,
+        evaluation_time=now - timedelta(hours=1),
+    )
+    battery = _Battery()
+    intervals = [
+        ProjectionIntervalInput(
+            now + timedelta(minutes=15 * i), now + timedelta(minutes=15 * (i + 1))
+        )
+        for i in range(8)
+    ]
+    controller = _controller_for_projection(
+        now,
+        intervals,
+        [],
+        [BatteryProjectionInput("a", 5.5, 10.0, 0, 100, 4000, 4000)],
+        _daily_operation_mode=lambda: "dynamic_pricing",
+        predictive_charging_enabled=True,
+        _last_decision_data={"should_charge": True},
+        _dynamic_pricing_schedule=schedule,
+        coordinators=[battery],
+        # 0.5 kWh stored since the slot opened at 50%.
+        _slot_charge_baseline=(
+            (slot.start, slot.end), schedule, {battery: 50.0}
+        ),
+        max_contracted_power=6000,
+        max_charge_capacity=4000,
+    )
+
+    result = ChargeDischargeController._daily_operation_build_projection(
+        controller, now
+    )
+
+    # No load, so the battery ends with what is left of the quota.
+    assert result["intervals"][-1]["stored_energy_end_kwh"] == pytest.approx(
+        5.5 + 0.5, abs=1e-6
+    )

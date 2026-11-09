@@ -24,7 +24,7 @@ Omnibattery controls supported Hoymiles batteries through the MQTT integration a
 ## How to add it
 
 1. In the Omnibattery setup flow, choose **Hoymiles MQTT**.
-2. Enter a descriptive **Name** and the complete **MQTT device ID**.
+2. Enter a descriptive **Name** and the complete **MQTT device ID**. For a paired system, add it once with the master ID only.
 3. Leave **Battery model** on **Auto-detect** unless the firmware publishes an incorrect or generic model.
 4. Wait while Omnibattery receives live telemetry and the retained power-control discovery message.
 5. Review the detected capacity and power ceilings, then choose the common state-of-charge limits.

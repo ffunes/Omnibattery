@@ -225,21 +225,64 @@ Each definition uses canonical keys and includes the metadata consumed by its Ho
 
 Add visible names and descriptions to `custom_components/omnibattery/strings.json` and every file under `custom_components/omnibattery/translations/`. Reuse an existing canonical key and translation when the meaning and unit are identical.
 
-## Wire the driver into setup
+## Files you touch
 
-A driver file alone is not selectable support. Complete every integration point:
+The target is that a new brand is one driver file plus its tests, translations, and user documentation. The shared control code (`__init__.py`, `control/`, `pricing/`, `tracking/`, `sensors/`, and the entity platforms) should never learn a brand name. If your device behaves differently in a way shared code must know about, add a `DriverCapabilities` field or a semantic hook on `BatteryDriver`. Do not add a `brand ==` branch.
 
-1. Export the class from `drivers/__init__.py` and add it to `__all__`.
-2. Add the brand to both add-battery and edit-battery selectors in `config_flow.py`.
-3. Add a brand-specific config-flow step that validates credentials or transport access on real hardware and stores only the fields needed at runtime.
-4. Construct the driver in `MarstekVenusDataUpdateCoordinator.__init__()` and pass probed model limits or identity where needed.
-5. Set software-control and software-limit flags from capabilities and actual hardware behavior; do not infer them only from the brand name.
-6. Expose only supported entity definitions, then add all translation keys.
-7. Add any user-configured C values, such as nominal capacity, with validation and clear labels.
-8. Check setup while the battery is reachable and unreachable, then check reload, reconnect, and removal.
-9. Verify the new device in a mixed-brand fleet so selection, allocation, manual ownership, and shutdown do not depend on homogeneous drivers.
+Today the codebase does not fully meet that target. There is no driver registry yet, so a few setup modules still select behavior by brand string. Those modules are listed below as **registration points**. Touch them following the pattern the existing brands already use, and do not add brand branches anywhere else.
 
-If setup requires a new library, document why it is needed, pin it according to repository policy, and include license and maintenance information in the pull request.
+### Files the driver owns
+
+| File | Contents |
+|---|---|
+| `drivers/<brand>.py` | The `BatteryDriver` subclass, capabilities, entity definitions, decoding, command translation, and a `probe()` static method for the config flow. |
+| `infra/<transport>_client.py` | Only when the transport needs its own client and none of the existing ones fits. Reuse the existing Modbus client when possible. |
+| `tests/test_<brand>_driver.py` | Driver tests against a fake transport (see [Test the driver](#test-the-driver)). |
+| `strings.json` and every `translations/*.json` | Entity names, plus config-flow step titles, fields, and errors for the new brand. Reuse existing canonical keys when meaning and unit match. |
+| `site-docs/configuration/batteries/<brand>.md` and `.es.md` | User setup page. Also link it from `configuration/batteries/index`, `compatibility`, and the `nav` in `mkdocs.yml`. |
+| `manifest.json` | Only when a new library is required. Pin it, and include its license and maintenance status in the pull request. |
+| `CHANGELOG.md` | One line under the unreleased version. |
+
+### Registration points (current)
+
+| File | Where | What to add |
+|---|---|---|
+| `drivers/__init__.py` | imports and `__all__` | Export the driver class. |
+| `infra/coordinator.py` | `MarstekVenusDataUpdateCoordinator.__init__()`, the `if self.brand == ...` chain | Construct the driver from its config-entry fields. |
+| `infra/coordinator.py` | `device_info` | Manufacturer and fallback model label. |
+| `config_flow.py` | `async_step_battery_brand()` in **both** the config flow and the options flow | Selector option and dispatch to your connection step. |
+| `config_flow.py` | `async_step_battery_connection_<brand>()` in **both** flows | Connection form. Call `<Driver>.probe()` and store only the fields the runtime needs. |
+| `config_flow.py` | `async_step_reconfigure_battery_<brand>()` and its dispatch | Edit the host or credentials of an existing battery. |
+| `config_flow.py` | SOC-range defaults, power-ceiling defaults, the battery-settings schema, and the probe dispatch | Your brand's minimum-SOC range, power envelope, taper opt-out, and a capacity field when the device reports no capacity. |
+| `infra/mac_tracking.py` | `IP_BASED_BRANDS` | Only when the battery is addressed by IP and should follow DHCP changes. |
+
+The config flow is duplicated between the initial setup flow and the options flow. A brand added to only one of them can be added but not edited, or the reverse. Check both.
+
+### Known debt: brand branches that should be capabilities
+
+These branches in shared setup code encode hardware traits by brand name. Each should become a capability, a driver hook, or a registry entry. Until then, a new driver is added to them by hand. If your driver is the one that has to extend one of these lists, consider converting it into a capability in the same pull request.
+
+| Branch | Location | What it should become |
+|---|---|---|
+| Driver construction chain | `infra/coordinator.py` `__init__()` | Driver registry: brand → class and config-entry factory. |
+| Manufacturer and model fallback | `infra/coordinator.py` `device_info` | Driver properties (`manufacturer`, a default for `model_label`). |
+| Full-charge voltage taper disabled for `zendure`, `anker`, `hoymiles`, `huawei` (plus `sessy` in the config flow) | `infra/coordinator.py` `__init__()`, `config_flow.py` | A capability such as "cell voltage is reliable for top-of-charge taper". |
+| Fixed-envelope clamp for `sessy` and the EMS ceiling for Marstek `vD` | `infra/coordinator.py` `__init__()` | Driver-owned limits. The driver already reports `max_*_power_w`; coordinator clamping should not depend on the brand. |
+| PV keys dropped for `anker` without independent PV | `infra/coordinator.py` `_sync_driver_definitions()` | A driver hook that prunes keys no longer in its contract. |
+| `configuration_url` for `sessy` | `infra/coordinator.py` `device_info` | An optional driver property. |
+| `needs_software_power_cap` for Marstek `v2`/`v3` | `infra/coordinator.py` | A capability: the hardware cap accepts only fixed choices. |
+| Device owns its initial configuration (`zendure`) | `__init__.py` `_device_owns_initial_config()` | A capability. |
+| Per-brand SOC range, power defaults, capacity field, and probe dispatch | `config_flow.py`, both flows | A driver-declared config schema and `probe()` resolved through the registry. |
+| `IP_BASED_BRANDS` | `infra/mac_tracking.py` | A driver property: addressed by IP. |
+
+Not every software-control decision is brand-based. `needs_software_manual_control`, `needs_software_max_charge`, and `needs_software_max_discharge` are derived from your entity definitions. If you do not define a writable `force_mode` select, `set_charge_power` number, or `max_charge_power` / `max_discharge_power` number, the integration adds software controls automatically. Declare only the controls the hardware really has.
+
+### Before you open the pull request
+
+1. Check setup with the battery reachable and unreachable, then reload, reconnect, and remove it.
+2. Add the battery, then edit it through the options flow, not only the initial setup flow.
+3. Verify the new device in a mixed-brand fleet so selection, allocation, manual ownership, and shutdown do not depend on homogeneous drivers.
+4. Run `git diff --stat`. It should show no change in `control/`, `pricing/`, `tracking/`, `sensors/`, or the controller in `__init__.py`. If it does, explain why in the pull request: the change is either a new capability or a bug.
 
 ## Test the driver
 

@@ -44,7 +44,7 @@ The common register map provides state of charge (SOC), battery power, temperatu
 | SoH is unavailable | The model returned an unsupported or zero value | Confirm the reading in diagnostics; zero is treated as unavailable |
 
 ??? "Advanced details"
-    Omnibattery clamps Anker commands to the live hardware ceilings and to a `3,500 W` integration envelope. The minimum non-zero operating target is `100 W`; smaller targets are changed to idle or to that minimum as appropriate.
+    Omnibattery clamps Anker commands to the live hardware ceilings and to a `3,500 W` integration envelope. Targets below `100 W` are sent as they are, as in the official Anker integration; the device may regulate them less precisely.
 
     The device's SOC controls allow a maximum of `80–100%` and a minimum of `0–20%`. Hardware cutoffs remain active. Anker does not use the Marstek cell-voltage taper.
 

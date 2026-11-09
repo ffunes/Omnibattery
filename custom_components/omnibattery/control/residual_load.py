@@ -39,9 +39,12 @@ from __future__ import annotations
 
 import logging
 
+from homeassistant.util import dt as dt_util
+
 from ..const import (
     GUARD_PENDING_TOLERANCE_W,
     SURPLUS_GUARD_HYSTERESIS_W,
+    SURPLUS_GUARD_MIN_HOLD_S,
 )
 from ..drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
 from ..energy import effective_total_discharging_energy
@@ -306,6 +309,12 @@ def surplus_blocks_discharge(controller, grid_w) -> bool:
     would chatter through every cloud edge; release is immediate once the demand
     turns positive, because by then the house genuinely needs the battery and
     making it wait would import instead.
+
+    Latching also waits for the surplus to persist. The meter and each battery
+    are read seconds apart, so a battery just told to ramp up still reports its
+    old output while the meter already sees the new one -- a surplus for exactly
+    one sample, which cut a discharging battery to 0 every 6-10 s behind a
+    manual battery oscillating at its BMS limit.
     """
     demand = residual_demand_w(controller, grid_w)
     latched = bool(getattr(controller, "_surplus_guard_latched", False))
@@ -313,12 +322,25 @@ def surplus_blocks_discharge(controller, grid_w) -> bool:
         # No reading is not evidence either way; the last verdict stands.
         return latched
     band = max(float(getattr(controller, "deadband", 0) or 0), SURPLUS_GUARD_HYSTERESIS_W)
+    since = None
     if latched:
         if demand > 0:
             latched = False
     elif demand < -band:
-        latched = True
+        now = dt_util.utcnow()
+        since = getattr(controller, "_surplus_guard_since", None) or now
+        latency_s = max(
+            (
+                getattr(getattr(c, "capabilities", None), "actuator_latency_s", 0.0)
+                for c in getattr(controller, "coordinators", [])
+            ),
+            default=0.0,
+        )
+        if (now - since).total_seconds() >= max(SURPLUS_GUARD_MIN_HOLD_S, 2.0 * latency_s):
+            latched = True
+            since = None
     controller._surplus_guard_latched = latched
+    controller._surplus_guard_since = since
     return latched
 
 

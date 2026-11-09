@@ -275,3 +275,88 @@ def test_remaining_solar_adapter_exposes_safe_fallback():
     assert result.remaining_kwh == 0.0
     assert result.source == "fallback"
     assert controller.solar_forecast_source == "fallback"
+
+
+@pytest.mark.asyncio
+async def test_remaining_sensor_borrows_energy_dashboard_periods(monkeypatch):
+    """#574: a remaining sensor has no curve; the Energy platform supplies tomorrow."""
+    import asyncio
+    import custom_components.omnibattery.solar_forecast as module
+
+    tomorrow = datetime(2026, 10, 13, tzinfo=MADRID)
+    # Solcast-style: 30-minute keys, zero periods omitted.
+    wh_hours = {
+        (tomorrow + timedelta(hours=12)).isoformat(): 2000,
+        (tomorrow + timedelta(hours=12, minutes=30)).isoformat(): 2500,
+        (tomorrow + timedelta(hours=13)).isoformat(): 1500,
+    }
+
+    class Platform:
+        @staticmethod
+        async def async_get_solar_forecast(hass, entry_id):
+            assert entry_id == "solcast_entry"
+            return {"wh_hours": wh_hours}
+
+    async def integration(hass, domain):
+        return SimpleNamespace(async_get_platform=lambda name: asyncio.sleep(0, Platform))
+
+    monkeypatch.setattr(module.er, "async_get", lambda hass: SimpleNamespace(
+        async_get=lambda sensor: SimpleNamespace(config_entry_id="solcast_entry")))
+    monkeypatch.setattr(module, "async_get_integration", integration)
+    tasks = []
+    hass = SimpleNamespace(
+        states=SimpleNamespace(get=lambda _entity_id: _state(0.0, estimate=0.0)),
+        config_entries=SimpleNamespace(
+            async_get_entry=lambda id: SimpleNamespace(domain="solcast_solar", entry_id=id)),
+        async_create_task=lambda coro: tasks.append(asyncio.ensure_future(coro)) or tasks[-1],
+    )
+    controller = SimpleNamespace(solar_forecast_remaining_sensor="sensor.remaining")
+
+    assert read_solar_forecast_kwh(hass, controller).periods == ()
+    await tasks[0]
+    periods = read_solar_forecast_kwh(hass, controller).periods
+
+    assert len(tasks) == 1  # fresh cache, no refetch
+    assert [p.end - p.start for p in periods] == [timedelta(minutes=30)] * 3
+    assert sum(p.energy_kwh for p in periods) == pytest.approx(6.0)
+
+
+@pytest.mark.asyncio
+async def test_energy_dashboard_forecasts_are_summed(monkeypatch):
+    """#558: one Forecast.Solar entry per array; the dashboard curve is their sum."""
+    import homeassistant.components.energy.data as energy_data
+    import custom_components.omnibattery.solar_forecast as module
+
+    curves = {
+        "east": {"2026-10-07T10:00:00+02:00": 1000, "2026-10-07T11:00:00+02:00": 500},
+        # Same instants, other offset form.
+        "west": {"2026-10-07T08:00:00+00:00": 300, "2026-10-07T09:00:00Z": 700},
+    }
+
+    class Platform:
+        @staticmethod
+        async def async_get_solar_forecast(hass, entry_id):
+            return {"wh_hours": curves[entry_id]}
+
+    async def platform(name):
+        return Platform
+
+    async def integration(hass, domain):
+        return SimpleNamespace(async_get_platform=platform)
+
+    async def manager(hass):
+        return SimpleNamespace(data={"energy_sources": [
+            {"type": "grid"},
+            {"type": "solar", "config_entry_solar_forecast": ["east"]},
+            {"type": "solar", "config_entry_solar_forecast": ["west", "east"]},
+        ]})
+
+    monkeypatch.setattr(energy_data, "async_get_manager", manager)
+    monkeypatch.setattr(module, "async_get_integration", integration)
+    hass = SimpleNamespace(config_entries=SimpleNamespace(
+        async_get_entry=lambda id: SimpleNamespace(domain="forecast_solar", entry_id=id)))
+
+    wh_hours = await module.async_fetch_energy_solar_forecast(hass, "sensor.template_sum")
+
+    # East counted once despite being listed twice; each instant merged.
+    assert sorted(wh_hours.values()) == [1200.0, 1300.0]

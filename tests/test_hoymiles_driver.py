@@ -69,8 +69,27 @@ async def test_mqtt_telemetry_uses_aggregate_values_and_inverts_wire_sign(mqtt_m
     assert driver.capabilities.max_charge_power_w == driver.capabilities.max_discharge_power_w == 1800
     assert driver.capabilities.actuator_latency_s == 1.8
     assert driver.capabilities.readback_latency_s == 4.0
+    # #557: daily counters only -> lifetime totals must be synthesised.
+    assert driver.capabilities.has_energy_counters is False
+    assert driver.capabilities.has_daily_energy_counters is True
     mqtt_mock.callbacks[driver._quick_topic](SimpleNamespace(payload="not json"))
     assert (await driver.read_telemetry())["battery_soc"] == 50
+    await driver.close()
+
+
+@pytest.mark.asyncio
+async def test_polling_groups_deliver_detected_capacity(mqtt_mock):
+    driver = HoymilesMqttDriver(
+        _hass(), "MSA-capacity", max_charge_power_w=1800, max_discharge_power_w=1800
+    )
+    await driver.connect()
+    mqtt_mock.callbacks["homeassistant/sensor/MSA-capacity/device/state"](
+        SimpleNamespace(payload='{"pack_num":2}')
+    )
+    snapshot = {}
+    for group in driver.read_groups:
+        snapshot.update(await driver.read_telemetry(list(group.keys)))
+    assert snapshot["battery_total_energy"] == 4.48
     await driver.close()
 
 
@@ -299,6 +318,28 @@ async def test_configured_4020_x_overrides_incorrect_ms_a2_discovery_model(mqtt_
     await driver.close()
 
 
+@pytest.mark.asyncio
+async def test_4020_ac_power_config_after_pack_count_keeps_stack_capacity(mqtt_mock):
+    """#794: a later power_ctrl envelope must not reset capacity to one pack."""
+    driver = HoymilesMqttDriver(_hass(), "HB-4020", model="hibattery_4020_ac")
+    await driver.connect()
+
+    mqtt_mock.callbacks[driver._device_topic](
+        SimpleNamespace(payload='{"pack_num":3}')
+    )
+    assert (await driver.read_telemetry())["battery_total_energy"] == 12.06
+
+    mqtt_mock.callbacks[driver._power_config_topic](SimpleNamespace(payload='''{
+        "min": -2500,
+        "max": 2500,
+        "device": {"model": "HB-4020-AC"}
+    }'''))
+    snapshot = await driver.read_telemetry()
+    assert snapshot["pack_count"] == 3
+    assert snapshot["battery_total_energy"] == 12.06
+    await driver.close()
+
+
 def test_hoymiles_profiles_cover_scalable_1920_and_4020_variants():
     assert hoymiles_model_profile("HB-1920-AC-SV").label == "HiBattery 1920 AC"
     assert hoymiles_capacity_kwh("HB-1920-AC-SV", 6000, 6000) == 11.52
@@ -380,9 +421,20 @@ async def test_probe_accepts_quick_telemetry_and_cleans_up(mqtt_mock):
     hass = SimpleNamespace()
     probe = asyncio.create_task(HoymilesMqttDriver.probe(hass, "MSA-1", timeout=0.2))
     await asyncio.sleep(0)
+    mqtt_mock.callbacks["homeassistant/number/MSA-1/power_ctrl/config"](SimpleNamespace(payload="{}"))
     mqtt_mock.callbacks["homeassistant/sensor/MSA-1/quick/state"](SimpleNamespace(payload='{"soc":50,"bat_p":-100}'))
     ok, metadata = await probe
     assert ok and metadata == {}
+    assert len(mqtt_mock.unsubscribed) == 2
+
+
+@pytest.mark.asyncio
+async def test_probe_rejects_slave_without_power_ctrl(mqtt_mock):
+    # #779: a paired system's slave publishes quick/state but no power_ctrl.
+    probe = asyncio.create_task(HoymilesMqttDriver.probe(SimpleNamespace(), "MSA-slave", timeout=0.2))
+    await asyncio.sleep(0)
+    mqtt_mock.callbacks["homeassistant/sensor/MSA-slave/quick/state"](SimpleNamespace(payload='{"soc":35,"bat_p":-100}'))
+    assert await probe == (False, {"error": "hoymiles_no_power_ctrl"})
     assert len(mqtt_mock.unsubscribed) == 2
 
 
@@ -391,6 +443,7 @@ async def test_probe_accepts_legacy_string_telemetry(mqtt_mock):
     hass = SimpleNamespace()
     probe = asyncio.create_task(HoymilesMqttDriver.probe(hass, "MSA-legacy", timeout=0.2))
     await asyncio.sleep(0)
+    mqtt_mock.callbacks["homeassistant/number/MSA-legacy/power_ctrl/config"](SimpleNamespace(payload="{}"))
     mqtt_mock.callbacks["homeassistant/sensor/MSA-legacy/quick/state"](
         SimpleNamespace(payload='{"soc":"50.0","bat_p":"-100.0"}')
     )
@@ -409,6 +462,7 @@ async def test_probe_preserves_manual_model_hint_without_discovery_config(mqtt_m
         )
     )
     await asyncio.sleep(0)
+    mqtt_mock.callbacks["homeassistant/number/HB-4020/power_ctrl/config"](SimpleNamespace(payload="{}"))
     mqtt_mock.callbacks["homeassistant/sensor/HB-4020/quick/state"](
         SimpleNamespace(payload='{"soc":50,"bat_p":-100}')
     )

@@ -1,5 +1,127 @@
 # Changelog
 
+## [1.6.0] - 2026-11-09
+
+### Added
+
+- **Indevolt SolidFlex / PowerFlex support** (#491): driver over the battery's local HTTP API for SolidFlex 2000, SolidFlex 3000 AC and PowerFlex 2000 (tested), plus PowerFlex 3000, SolidFlex/PowerFlex 1200 and SolidFlex 3600 (same API). Controls the battery in Realtime mode only and never changes the working mode; a per-battery request speed (Conservative 5 s by default, down to 1 s) backs off by itself when the battery answers slowly. See [Indevolt SolidFlex / PowerFlex](site-docs/configuration/batteries/indevolt.md).
+- **Dynamic Pricing plans across tomorrow once its prices are published** (#710): with tomorrow's prices and a dated solar forecast (Energy dashboard), the charge planner looks up to the sunrise after tomorrow, so tonight's slots are weighed against tomorrow's solar and evening peak. Only slots before the next sunrise are scheduled.
+- **New Dynamic Pricing sources**: Frank Energie (NL, PR#696, thanks to @GruttePier013), EnergyZero (NL, PR#705, thanks to @mhspelt) and BE Electricity Prices (Belgium, all contract kinds including time-of-use such as ENGIE Empower Flextime, no template sensor needed, thanks to @pulsarz).
+- **Predictive Charging Notifications switch** (#141): `switch.omnibattery_predictive_charging_notifications` (on by default) mutes the predictive-charging evaluation notifications; evaluations, schedules and diagnostics are unchanged. Battery alarm, cell-balance and manual-mode notifications are not affected. Thanks to @Reinvented0.
+- **Dynamic Pricing: manual/automatic switch per price threshold** (#612): `switch.omnibattery_max_price_threshold_enabled` and `..._discharge_price_threshold_enabled` turn each threshold off (back to automatic) without losing its value. Thanks to @remarkmmj.
+- **Daily operation chart shows the grid price**: with Dynamic Pricing, a stepped line draws the import price over the visible range (high and low labelled) and each interval's tooltip lists it. Thanks to @anorakophobia.
+- **Panel: type an exact value into any slider** (#783): tap the value next to a slider to enter a number (Enter or tap away to apply, Escape to cancel). Thanks to @BHNDNL.
+- **Zendure: Energy Export select** (#631): `gridReverse` (disabled / allowed / forbidden) is now a select on each SolarFlow. It must be "allowed" for PV to bypass to the grid once the target SOC is reached. Thanks to @schlm3.
+- **Repairs warning when Recorder excludes the sensors used to recover forecast history** (Home Consumption, solar production, excluded-device power). Thanks to @thomasvt1.
+
+### Changed
+
+- **Round-Trip Efficiency uses the measured value by default**: while the setting is left at 0.85, the arbitrage margin and High-Price Sale use the capacity-weighted efficiency measured on your batteries (once there is enough history, within 0.75-0.95); a value you set is always respected.
+- **Weekly Full Charge finishes in the night after its day**: the run stays open until the next sunrise instead of ending at midnight, so the cheapest hours of that night count (also after an evening re-evaluation or restart), and with tomorrow's prices known (#710) the reservation picks them. Without a known sunrise it ends at midnight as before. Thanks to @anorakophobia.
+- **Solar timing follows the forecast provider's hourly curve** (#754): the Discharge Reserve, Curtailment, Surplus Price Hold and High-Price Sale used a flat-horizon sine from sunrise; they now split each day's solar as the provider's dated periods expect it (a morning behind a hill, the low winter sun), keeping the sine where the periods do not cover the day. Thanks to @anorakophobia.
+- **Consumption profile follows a recent change in use**: the forecast is scaled by how the last three days ran against the profile (median ratio, 0.8 to 1.5), so it no longer trails a change of season by about two weeks. Thanks to @anorakophobia.
+- **Daily operation chart reaches as far as the plan and opens on "now"**: the part after midnight runs to the latest of the planner's horizon, the Discharge Reserve's horizon and the last published price (at least to noon, at most the whole next day). Thanks to @anorakophobia.
+- **Panel: the Control bar (padlock, Arrange) stays visible while scrolling.**
+- **Faster startup with several batteries** (#560): batteries on different hosts connect and configure in parallel; batteries sharing a gateway still go in turn. Thanks to @sphings79.
+- **Device registry lookups use the per-entry API on HA 2026.10+**, avoiding the `async_get_device` deprecation. Thanks to @tkaspersNL.
+- **Manifest no longer lists `pyserial`**: Home Assistant ships it and hassfest rejects it. Modbus RTU is unaffected.
+- **Docs: the driver guide lists every file a new battery driver touches.**
+
+### Fixed
+
+#### Dynamic Pricing and predictive charging
+
+- **Arbitrage margin rejected the whole deficit when one peak would have paid for part of it** (#662, #649): each stored kWh is now valued only against the later slots it actually lasts to, and energy needed at a given hour is bought only when it beats importing it then, after round-trip losses and the margin; the rest is left to the grid (`cheaper_to_import_kwh`). A deadline after the last published price waits for that price. A `price_threshold` plan names the cheapest rejected slot (`cheapest_rejected_slot`). Thanks to @RobtoCopter, @khh-dot and @anorakophobia.
+- **Evening recharge booked the evening price peak** (#721, #747): the evening re-evaluation now applies the same effective ceiling (static threshold or arbitrage ceiling) as the main evaluation. Thanks to @Nieass.
+- **Guaranteed Minimum SOC lifted the arbitrage margin off the whole plan** (#724): only the floor's own energy skips it (still capped by Max Price Threshold (Charge)); after the evening recharge the plan's price, cost and time now describe the merged plan. Thanks to @locmer and @Varashi.
+- **Estimated cost counted every slot at full charge power** (#715): the notification's cost and average price use the energy planned per slot plus charging losses, also for an evening plan built from scratch. Thanks to @arno-millenaar, @tkaspersNL and @anorakophobia.
+- **Predictive charging bought night energy the midday solar then exported** (#704): the planner charges only what the forecast says the battery can keep; Guaranteed Minimum SOC energy is exempt. Thanks to @Wassman2020.
+- **Predictive charging bought the house load the grid already carries during a slot** (#785): each slot stores only what the house needs after the charge. Not applied to a pending Weekly Full Charge. Thanks to @pocketware.
+- **Predictive charging counted the peak-shaving reserve as energy for normal load** (#627): the plan now stops normal load at the Peak Shaving SOC threshold. Thanks to @Varashi.
+- **No night charge for the evening on a day the sun never covers the house**: with the Discharge Reserve on, a charge after midnight now serves deadlines later the same day until the sun covers the house. Thanks to @anorakophobia.
+- **Slot ended when every battery dropped off Modbus** (#623): the slot is held and charging resumes when a battery is back. Thanks to @khh-dot.
+- **Running slot stuck after a re-plan that selects nothing** (#642): the slot is released in the same cycle and normal control takes over. Thanks to @syphernl.
+- **A slot still running at midnight never stopped**: the new-day reset now stops it (a slot continuing past 00:00 restarts). Thanks to @StalkersGlue.
+- **A charge re-initialised during a slot asked for the slot's whole energy again**: the targets now ask only for what is left of the slot. Thanks to @anorakophobia.
+- **A battery stopped early in a charge slot and the slot fell short**: each battery's share is capped at what it can charge in the rest of the slot; the rest goes to the others. Thanks to @anorakophobia.
+- **The plan kept reserving solar for an EV that was already full** (PR#808): claim moves above the remaining forecast no longer spend the daily re-evaluations, and a falling claim always re-plans. Thanks to @syphernl.
+- **An extra re-evaluation just after midnight** (PR#749): 00:00 to 00:05 is left to the daily evaluation. Thanks to @anorakophobia.
+- **Guaranteed-floor grid charge overnight with price-based discharge control** (#594): hours where the price blocks discharge are no longer projected as drain. Thanks to @iFab11.
+- **Official Nord Pool integration: tomorrow's prices ignored**: they are now requested once published and the plan is rebuilt. Thanks to @pocketware.
+- **PVPC: tomorrow's prices ignored** (#568): the `price_next_day_*` attributes are now read. Thanks to @falberdi.
+- **Chronological planning failed across the autumn DST change** (PR#679, #678): quarter-hour boundaries carry a fixed UTC offset. Thanks to @syphernl.
+- **Chronological plan counted all solar as battery charge in no-discharge slots** (#616): only solar left after household load is credited. Thanks to @iwanvandaele.
+- **Notification labelled a plan across tomorrow as "until midnight"** (#721): consumption and solar are now split into today and tomorrow. Thanks to @Nieass.
+- **Solar Forecast Safety Margin default ignored batteries that report their own capacity**: the 5 % default now counts Modbus-read and auto-detected capacities. Thanks to @anorakophobia.
+
+#### Weekly Full Charge
+
+- **Grid charge never booked on a day without price spread**: weekly slots are limited by the static Max Price Threshold only, not the arbitrage gate. Thanks to @anorakophobia.
+- **Too few hours booked when one battery has a much larger gap**: weekly hours are now at least what the slowest battery needs (taper included) plus a margin. Thanks to @anorakophobia.
+- **Time Slot stopped short overnight**: the charge is timed from the window start, and every re-evaluation refreshes the per-battery target.
+- **Batteries discharged between two charge blocks and bought the energy back later**: discharge waits while a weekly slot is ahead (`weekly_refill_hold`) unless the price beats the refill cost, and a full battery keeps still until the others are full (`weekly_full_hold`). Thanks to @anorakophobia.
+- **A Zendure's Target SOC was restored from a stale value**: the run restores what the device reported before raising it to 100 %. Thanks to @anorakophobia.
+
+#### Discharge Reserve
+
+- **The floor slid down with the SOC, and with several batteries only some were held** (#700): claims run against stored energy plus the solar the battery can still take, and each battery keeps the same share above its own floor (`battery_reserve_soc_pct`). Thanks to @MarkB-HA and @Edidotc.
+- **Horizon jumped to the next day's sunrise at midnight, and the morning lost its reserve at sunrise** (#725): between midnight and sunrise the horizon stays on this morning; the morning's horizon ends where forecast PV meets the load.
+- **The plan stopped at sunrise, before tomorrow's dear morning** (#721): after the solar midpoint it runs to tomorrow morning's sun-covered slot once tomorrow's prices are known, up to noon. Thanks to @Nieass and @anorakophobia.
+- **The sun took over by the forecast, not by the panels** (#750): take-over latches only once measured solar carries the measured load, and the remaining sun is scaled by measured vs expected production (`measured_solar_ratio`). Thanks to @anorakophobia.
+- **Status showed `price_reserve_hold` while a battery was still discharging** (#737), and a fully reserved battery could still discharge one step through float rounding. Thanks to @anorakophobia.
+
+#### Daily Operation timeline and panel
+
+- **Forecast ignored the Discharge Reserve and spread slot charges over the slot**: the projection keeps what the reserve claims per slot and charges at full power from the slot start, as the controller does. Thanks to @anorakophobia.
+- **The past part of the chart showed almost no forecast**: the in-progress quarter is scaled back to the full quarter. Thanks to @anorakophobia.
+- **No solar forecast for tomorrow** (#574, #752): the curve comes from the Energy dashboard forecast, and next-day periods no longer cause a false `provider_gap`. Thanks to @ChuckleDucks and @Hellsing.
+- **Weekly full charge day projected to Max SOC** (PR#680): the projection uses 100 % until the weekly charge completes. Thanks to @syphernl.
+- **"Updating state ... took 0.9 seconds" warnings** (#600, #409): routine updates respect the publish throttle (now 60 s). Thanks to @JITNL.
+- **Timeline failed to render without Charge Delay data** (#549), and the tooltip showed "Source" twice. Thanks to @thijskaspers and @tkaspersNL.
+- **Overview counted Anker batteries' available power twice** (#716). Thanks to @EDplusED.
+- **Net balance showed "+0.00 kWh" while hourly balance was off**: it now shows "Disabled". Thanks to @tkaspersNL.
+- **Solar forecast / Solar remaining rows stayed unlinked when the panel config arrived late** (#567). Thanks to @JonavdBrink.
+
+#### Control loop
+
+- **PD Min Cycle Interval / No-PD Command Delay ignored by the 2 s safety timer** (#654): ticks inside the window keep the last command (safety checks still act at once), a held meter reading is not then read as unchanged, and PD Min Cycle Interval goes up to 5 s. Thanks to @principis and @tkaspersNL.
+- **PD Quality misreported**: "Sluggish" while on target, while every battery was in hysteresis (now "Blocked") or right after a grid-charge slot. Thanks to @tkaspersNL.
+- **Grid sensor dead: automatic control now stops**: after 5 min without a valid reading, automatic batteries go to 0 W with a Repair. Thanks to @tkaspersNL.
+- **Grid charging in pulses with every battery blocked from discharging**: the PD's derivative no longer winds up.
+- **Multi-battery: a battery flipped between Discharge and idle at low load**: the surplus guard needs a surplus to last a few seconds.
+- **Zendure, Hoymiles, Anker: the PD charged from the grid while the house imported** (#634): delivery is read from the AC port instead of `battery_power`. Thanks to @xzaz.
+- **Target Grid Power capped at the battery sum** (#597, #598): the import side reaches the contracted power. Thanks to @stefantaanman-alt.
+- **Peak shaving ignored its SOC threshold when a battery stopped responding** (#803): it counts only the batteries it can control. Thanks to @IG-ABHINAV.
+- **System SOC counted batteries in manual mode** (#693): it covers only batteries under automatic control (all of them if every battery is manual). Thanks to @Wimpie-ccc.
+- **Three-phase protection: PD Quality flickered to Battery Limited** (#559). Thanks to @dirkvanhoutert.
+- **Slow-starting battery stuck at 99 % or excluded**, and a full battery got a "not delivering power" Repair after a direction switch (the Repair no longer points HTTP/MQTT batteries at Modbus). Thanks to @tkaspersNL.
+- **Smart pre-discharge judges the negative-injection risk on the export price** (#553) when an export price sensor is configured.
+- **Zonneplan sun bonus follows Zonneplan's rules** (#553): solar export only, sunrise to sunset, on the tax-excluded price. Thanks to @JonavdBrink.
+- **High Price Sale: `no_refill_price` with several solar arrays** (#558): tomorrow's curve sums every Energy dashboard forecast. Thanks to @JoHuTi.
+
+#### Batteries and setup
+
+- **Zendure flagged Non-responsive during its SOC calibration** (#799): it is held out of automatic control until calibration ends, shown as "Calibrating". Thanks to @mnederlof.
+- **Zendure: a single dropped request marked the battery unavailable**: the request is retried once after half a second. Thanks to @anorakophobia.
+- **Zendure: wrong Internal Temperature and pack temperatures** (#566): deci-Kelvin now converted. Thanks to @EricRx.
+- **Zendure SolarFlow 800 / Plus / Pro and 2400 Pro: PV missing from System Solar Power** (#556, #630), also with an external solar sensor. Thanks to @adonix31 and @schlm3.
+- **Zendure/Hoymiles: 0 kWh capacity failed to save** (#675): 0 now means automatic detection. Thanks to @thomasvt1.
+- **Hoymiles HiBattery 4020: Battery Total Energy ignored expansion packs** (#794). Thanks to @Ausmith27.
+- **Hoymiles: the slave of a paired system could be added as a second battery** (#779): setup asks for the master's ID instead. Thanks to @patmtp35.
+- **Hoymiles: Battery Cycle Count stuck at 0** (#557): lifetime totals are integrated from power. Thanks to @adonix31.
+- **Anker: targets below 100 W were sent as 0 W** (#734). Thanks to @Hellsing.
+- **Anker: PD oscillated after load steps** (#522). Thanks to @wauswaus.
+- **Anker Solarbank 4: System Battery Cell Power counted solar twice** (#738). Thanks to @Hellsing.
+- **Marstek Venus D: no discharge after a Modbus reconnect** (#548): a 0 W max power is rewritten automatically (at most once a minute). Thanks to @mxmrlt.
+- **Venus A/D with several packs: discharge stopped when the first pack reached Min SOC** (#545): the floor follows the total SOC. Thanks to @FrankieV040, @Slashir and @sphings79.
+- **Battery at ≤ 20 % SOC left in Standby after a short AC interruption** (#720): it gets the standby wake before being treated as cut off. Thanks to @ShockWaveFlash.
+- **Marstek: setup rewrote the battery's own settings on every start**: each setting is read first and written only when it differs. Thanks to @anorakophobia.
+- **A failed or cancelled setup kept a Marstek locked out until restart**: setup releases every connection it opened, and saving the options reloads in the background so the reload always finishes. Thanks to @anorakophobia.
+- **Backup Function: Bypass with load on the backup port stuck in cooldown** (#660). Thanks to @pando85.
+- **Battery form capped Min SOC at 30 % and Max SOC at 80 % on v3/vA/vD** (PR#741, PR#756, #707): the form offers the same range as the SOC limit entity. Thanks to @amys94fr.
+- **Configure turned off MAC tracking of an existing battery.** Thanks to @tkaspersNL.
+- **Time Slot: a cleared charging window came back** (#547), and Manual mode with both charge and discharge allowed is now rejected (#614). Thanks to @schauveau and @UsiuO.
+
 ## [1.5.0] - 2026-10-04
 
 ### Added

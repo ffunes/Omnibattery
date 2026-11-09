@@ -101,6 +101,74 @@ def test_threshold_is_inclusive_and_hourly_slots_are_supported():
     assert plan.selected_discharge_slots
 
 
+def test_risk_follows_the_solar_export_price_not_the_import_price():
+    candidates = [_slot(8, 0.30), _slot(9, 0.0), _slot(10, -0.01)]
+    kwargs = dict(
+        solar_forecast_kwh=3.0,
+        daily_consumption_kwh=1.0,
+        batteries=[_battery(soc=95.0)],
+        charge_power_w=2000.0,
+        max_export_power_w=2000.0,
+        solar_by_slot={candidates[0]: 0.0, candidates[1]: 0.0, candidates[2]: 2.0},
+        consumption_by_slot={slot: 0.0 for slot in candidates},
+        now=DAY,
+    )
+    # A positive export price (e.g. with the sun bonus) means no dimming.
+    bonus = plan_curtailment(
+        candidates, **kwargs, export_slots=[_slot(10, 0.009)]
+    )
+    assert bonus.risk_slots == []
+    # A negative export price on a positive import price is a risk.
+    negative = plan_curtailment(
+        candidates,
+        **{**kwargs, "solar_by_slot": {candidates[0]: 1.0, candidates[1]: 0.0, candidates[2]: 0.0}},
+        export_slots=[_slot(8, -0.05)],
+    )
+    assert negative.risk_slots == [candidates[0]]
+
+
+def test_risk_uses_the_lowest_overlapping_export_price():
+    # Hourly import, quarter-hourly export: a negative 10:30 quarter is a risk
+    # for the whole hour even though no export slot starts at 10:00 with it.
+    candidates = [_slot(8, 0.30), _slot(10, 0.20)]
+    plan = plan_curtailment(
+        candidates,
+        solar_forecast_kwh=3.0,
+        daily_consumption_kwh=1.0,
+        batteries=[_battery(soc=95.0)],
+        charge_power_w=2000.0,
+        solar_by_slot={candidates[0]: 0.0, candidates[1]: 2.0},
+        consumption_by_slot={slot: 0.0 for slot in candidates},
+        export_slots=[
+            _slot(10, 0.05, minutes=15, offset=minute) for minute in (0, 15, 45)
+        ] + [_slot(10, -0.02, minutes=15, offset=30)],
+        now=DAY,
+    )
+    assert plan.risk_slots == [candidates[1]]
+
+
+def test_no_deliberate_export_when_the_export_price_is_in_the_risk_zone():
+    # Export pays nothing all day: exporting the battery at 8:00 to make room
+    # for solar that also earns nothing would only cost round-trip losses.
+    candidate, risk = _slot(8, 0.30), _slot(9, 0.30)
+    plan = plan_curtailment(
+        [candidate, risk],
+        solar_forecast_kwh=5.0,
+        daily_consumption_kwh=1.0,
+        batteries=[_battery(soc=100.0, power=3000.0)],
+        charge_power_w=2000.0,
+        solar_by_slot={candidate: 0.0, risk: 3.0},
+        consumption_by_slot={candidate: 1.0, risk: 0.0},
+        export_mode=EXPORT_MODE_AUTOMATIC,
+        export_slots=[_slot(8, 0.0), _slot(9, 0.0)],
+        now=DAY,
+    )
+    assert plan.risk_slots == [risk]
+    # Only the 1 kWh household load is pre-discharged, never exported.
+    assert plan.planned_discharge_kwh == pytest.approx(1.0)
+    assert [slot.export_allowed for slot in plan.selected_discharge_slots] == [False]
+
+
 def test_no_solar_surplus_is_not_a_risk():
     slots = [_slot(9, -0.20), _slot(10, 0.10)]
     plan = plan_curtailment(

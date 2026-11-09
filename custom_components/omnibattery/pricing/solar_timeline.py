@@ -103,6 +103,16 @@ def build_boundaries(
             # the derived energy deadlines remain comparable with those slots.
             segment_start = segment_start.replace(tzinfo=None)
             segment_finish = segment_finish.replace(tzinfo=None)
+        else:
+            # Datetimes sharing one ZoneInfo compare by wall clock and ignore
+            # fold, so the repeated DST hour would sort before its first pass.
+            # A fixed offset keeps the local wall clock and compares in UTC.
+            segment_start = segment_start.astimezone(
+                timezone(segment_start.utcoffset())
+            )
+            segment_finish = segment_finish.astimezone(
+                timezone(segment_finish.utcoffset())
+            )
         result.append((segment_start, segment_finish))
         cursor = segment_end
     return result
@@ -227,6 +237,10 @@ def _validate_periods(
         p_start, p_end = _timestamp(period.start), _timestamp(period.end)
         if p_end <= cursor:
             continue
+        if p_start >= light_end:
+            # Periods beyond the daylight window (e.g. tomorrow) are irrelevant;
+            # the overnight gap before them is not a coverage gap.
+            break
         if p_start > cursor:
             # A gap larger than one hour inside the daylight horizon is unsafe.
             if p_start - cursor > MAX_PROVIDER_GAP_SECONDS:
@@ -272,6 +286,25 @@ def provider_weights(
     if not any(value > _EPSILON for value in weights):
         return None, "provider_zero_energy"
     return weights, None
+
+
+def provider_energy_between(
+    periods: Sequence[SolarForecastPeriod] | None, start: datetime, end: datetime
+) -> float | None:
+    """Energy the provider's periods put between ``start`` and ``end``, or None."""
+    if not periods:
+        return None
+    coerced = [_coerce_period(period) for period in periods]
+    if any(period is None for period in coerced):
+        return None
+    b_start, b_end = _timestamp(start), _timestamp(end)
+    energy = 0.0
+    for period in coerced:
+        p_start, p_end = _timestamp(period.start), _timestamp(period.end)
+        overlap = _overlap(b_start, b_end, p_start, p_end)
+        if overlap:
+            energy += period.energy_kwh * overlap / (p_end - p_start)
+    return energy
 
 
 def legacy_shape_weights(

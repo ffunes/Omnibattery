@@ -32,6 +32,7 @@ MADRID = ZoneInfo("Europe/Madrid")
 def _profile(days=None, *, slots=None, fallback_daily=5.0):
     profile = ConsumptionProfileTracker.__new__(ConsumptionProfileTracker)
     profile._aggregate_cache = {}
+    profile._level_cache = {}
     profile._aggregate_cache_date = None
     profile._days = days or {}
     profile._controller = SimpleNamespace(
@@ -438,6 +439,8 @@ def test_four_weekday_samples_are_weighted_by_age_and_profile_becomes_mature():
 
     profile = _profile(days)
     profile._today = lambda: date(2026, 8, 15)
+    # The weighting alone; the recent-level scale has its own tests.
+    profile._recent_level = lambda *_args: 1.0
     forecast = profile.forecast_for_date(date(2026, 8, 17))
 
     # Weighted weekday mean = (1 + .75*2 + .50*3 + .25*4) / 2.5 = 2.
@@ -998,7 +1001,8 @@ def test_backfill_merge_rebuilds_the_aggregate_for_a_day_it_had_never_seen():
 
 
 def test_pruning_a_future_dated_day_rebuilds_the_aggregate():
-    today = date.today()
+    # The profile's local date (Madrid), not the runner's: they differ 22-24 UTC.
+    today = _profile()._today()
     days = _mature_days(today)
     # A clock that ran a day ahead and was then corrected leaves a *complete*
     # day dated after today. Its age clamps to 0, so it trains at full weight
@@ -1017,3 +1021,105 @@ def test_pruning_a_future_dated_day_rebuilds_the_aggregate():
     assert ahead not in profile._days
     assert after.total_days == before.total_days - 1
     assert after.energy_kwh < before.energy_kwh
+
+
+def _steady_days(first: date, count: int, value: float) -> dict[date, ProfileDay]:
+    return {
+        first + timedelta(days=offset): _day(first + timedelta(days=offset), value)
+        for offset in range(count)
+    }
+
+
+def test_the_forecast_follows_a_recent_rise_in_use():
+    """Three weeks at 1.0, then three days at 1.6: the profile still averages
+    them with the older weeks, the recent level lifts it to what was used."""
+    days = _steady_days(date(2026, 10, 10), 21, 1.0)
+    days.update(_steady_days(date(2026, 10, 31), 3, 1.6))
+    profile = _profile(days)
+    profile._today = lambda: date(2026, 11, 3)
+
+    plain = ConsumptionProfileTracker._build_profile_aggregate(
+        profile, date(2026, 11, 3), date(2026, 11, 3), profile._usable_days()
+    )
+    forecast = profile.forecast_for_date(date(2026, 11, 3))
+
+    assert plain.values[8] < 1.25
+    assert forecast.level_factor == pytest.approx(1.5)
+    assert forecast.intervals_kwh[8] == pytest.approx(plain.values[8] * 1.5)
+
+
+def test_each_recent_day_is_judged_once_whatever_the_window():
+    """Charge Delay asks for many windows per cycle: the profile each recent
+    day is judged against is built once, and the windows only sum their
+    quarter-hours."""
+    days = _steady_days(date(2026, 10, 10), 21, 1.0)
+    days.update(_steady_days(date(2026, 10, 31), 3, 1.6))
+    profile = _profile(days)
+    profile._today = lambda: date(2026, 11, 3)
+    built: list[date] = []
+    original = profile._build_profile_aggregate
+
+    def counting(target_date, today, usable):
+        built.append(target_date)
+        return original(target_date, today, usable)
+
+    profile._build_profile_aggregate = counting
+    for start in range(0, 80, 4):
+        profile.forecast_for_date(
+            date(2026, 11, 3), interval_indices=set(range(start, start + 16))
+        )
+
+    judged = [day for day in built if day < date(2026, 11, 3)]
+    assert sorted(judged) == [date(2026, 10, 31), date(2026, 11, 1), date(2026, 11, 2)]
+
+
+def test_one_odd_day_does_not_move_the_level():
+    days = _steady_days(date(2026, 10, 10), 23, 1.0)
+    days[date(2026, 11, 2)] = _day(date(2026, 11, 2), 3.0)
+    profile = _profile(days)
+    profile._today = lambda: date(2026, 11, 3)
+
+    forecast = profile.forecast_for_date(date(2026, 11, 3))
+
+    assert forecast.level_factor == pytest.approx(1.0)
+
+
+def test_the_level_falls_when_use_drops_but_not_below_its_clamp():
+    days = _steady_days(date(2026, 10, 10), 21, 2.0)
+    days.update(_steady_days(date(2026, 10, 31), 3, 0.5))
+    profile = _profile(days)
+    profile._today = lambda: date(2026, 11, 3)
+
+    forecast = profile.forecast_for_date(date(2026, 11, 3))
+
+    assert forecast.level_factor == pytest.approx(0.8)
+
+
+def test_the_level_is_judged_over_the_requested_hours():
+    """Only the nights rose: a night window gets the night's level, the
+    afternoon keeps its own."""
+    days = {}
+    for offset in range(24):
+        local_date = date(2026, 10, 10) + timedelta(days=offset)
+        day = _day(local_date, 1.0)
+        if offset >= 21:
+            for index in range(0, 28):
+                day.energy_kwh[index] = 1.3
+        days[local_date] = day
+    profile = _profile(days)
+    profile._today = lambda: date(2026, 11, 3)
+
+    night = profile.forecast_for_date(date(2026, 11, 3), interval_indices=set(range(0, 28)))
+    afternoon = profile.forecast_for_date(date(2026, 11, 3), interval_indices=set(range(56, 80)))
+
+    assert night.level_factor > 1.2
+    assert afternoon.level_factor == pytest.approx(1.0)
+
+
+def test_too_little_history_keeps_the_profile_as_it_is():
+    days = _steady_days(date(2026, 11, 1), 2, 1.6)
+    profile = _profile(days)
+
+    assert ConsumptionProfileTracker._recent_level(
+        profile, date(2026, 11, 3), profile._usable_days(), set(range(INTERVAL_COUNT))
+    ) == 1.0

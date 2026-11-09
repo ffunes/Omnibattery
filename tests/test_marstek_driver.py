@@ -1110,6 +1110,72 @@ async def test_options_flow_preserves_unused_venus_mppt_inputs():
     assert flow.battery_configs[0]["dc_pv_connected"] is False
 
 
+async def _save_battery_limits_form(version, *, min_soc=12, max_soc=100):
+    """Open the battery form and save it unchanged, as a user would."""
+    from custom_components.omnibattery.config_flow import OptionsFlowHandler
+
+    battery = {
+        "brand": "marstek",
+        "name": "Venus",
+        "battery_version": version,
+        "max_charge_power": 2500,
+        "max_discharge_power": 2500,
+        "max_soc": max_soc,
+        "min_soc": min_soc,
+        "charge_hysteresis_percent": 2,
+        "backup_offgrid_threshold": 50,
+        "full_charge_voltage_taper_enabled": True,
+        "dc_pv_connected": False,
+    }
+    entry = SimpleNamespace(
+        entry_id="venus-entry",
+        data={"num_batteries": 2, "batteries": [battery]},
+        options={},
+    )
+    flow = OptionsFlowHandler(entry)
+    flow.hass = SimpleNamespace(
+        config_entries=SimpleNamespace(
+            async_get_known_entry=lambda entry_id: (
+                entry if entry_id == entry.entry_id else None
+            )
+        )
+    )
+    flow.handler = entry.entry_id
+    flow.config_data = {"num_batteries": 2}
+    flow._current_battery_data = dict(battery)
+
+    form = await flow.async_step_battery_limits()
+    user_input = {
+        marker.schema: marker.default()
+        for marker in form["data_schema"].schema
+        if callable(marker.default)
+    }
+    await flow.async_step_battery_limits(user_input)
+    return flow.battery_configs[0]
+
+
+@pytest.mark.parametrize(
+    ("version", "saved_min_soc"),
+    [("v2", 30), ("v3", 50), ("vA", 50), ("vD", 50)],
+)
+async def test_options_flow_keeps_a_min_soc_set_on_the_soc_limit_entity(version, saved_min_soc):
+    """The entity offers up to 50 % without a hardware cutoff; v2's register stops at 30 %."""
+    saved = await _save_battery_limits_form(version, min_soc=50)
+
+    assert saved["min_soc"] == saved_min_soc
+
+
+@pytest.mark.parametrize(
+    ("version", "saved_max_soc"),
+    [("v2", 80), ("v3", 50), ("vA", 50), ("vD", 50)],
+)
+async def test_options_flow_keeps_a_max_soc_set_on_the_soc_limit_entity(version, saved_max_soc):
+    """The entity offers down to 50 % without a hardware cutoff; v2 keeps the form's 80 %."""
+    saved = await _save_battery_limits_form(version, max_soc=50)
+
+    assert saved["max_soc"] == saved_max_soc
+
+
 async def test_probe_returns_false_when_connection_fails(monkeypatch):
     client = AsyncMock()
     client.async_connect = AsyncMock(return_value=False)
@@ -1211,3 +1277,59 @@ def test_per_attempt_timeout_reaches_the_client(monkeypatch):
     for version in ("v2", "v3", "vA", "vD"):
         MarstekModbusDriver("1.2.3.4", 502, version)
         assert captured["timeout"] == READ_TIMEOUT_S[version], version
+
+
+# ----------------------------------------------------------------------
+# apply_config writes a setting only when it changed
+# ----------------------------------------------------------------------
+async def test_apply_config_writes_nothing_when_the_battery_already_holds_it():
+    """Setup ran on every Home Assistant start and rewrote the battery's own
+    settings (Venus E v3: the power caps) although they had not changed."""
+    client = _fake_client()
+    regs = REGISTER_MAP["v3"]
+    held = {regs["max_charge_power"]: 2500, regs["max_discharge_power"]: 2500}
+    client.async_read_register = AsyncMock(side_effect=lambda reg, *_a, **_k: held.get(reg))
+    drv = _driver("v3", client=client)
+
+    ok = await drv.apply_config(
+        max_soc_pct=95, min_soc_pct=12,
+        max_charge_power_w=2500, max_discharge_power_w=2500,
+    )
+
+    assert ok is True
+    client.async_write_register.assert_not_awaited()
+
+
+async def test_apply_config_writes_only_the_settings_that_differ():
+    client = _fake_client()
+    regs = REGISTER_MAP["v2"]
+    held = {
+        regs["charging_cutoff_capacity"]: int(100 / 0.1),
+        regs["discharging_cutoff_capacity"]: int(12 / 0.1),
+        regs["max_charge_power"]: 2500,
+        regs["max_discharge_power"]: 2500,
+    }
+    client.async_read_register = AsyncMock(side_effect=lambda reg, *_a, **_k: held.get(reg))
+    drv = _driver("v2", client=client)
+
+    await drv.apply_config(
+        max_soc_pct=95, min_soc_pct=12,
+        max_charge_power_w=2500, max_discharge_power_w=2500,
+    )
+
+    assert client.async_write_register.await_args_list == [
+        ((regs["charging_cutoff_capacity"], int(95 / 0.1)),)
+    ]
+
+
+async def test_apply_config_writes_a_setting_it_cannot_read():
+    client = _fake_client()
+    client.async_read_register = AsyncMock(return_value=None)
+    drv = _driver("v3", client=client)
+
+    await drv.apply_config(
+        max_soc_pct=95, min_soc_pct=12,
+        max_charge_power_w=2500, max_discharge_power_w=2500,
+    )
+
+    assert client.async_write_register.await_count == 2
