@@ -281,6 +281,72 @@ def test_dynamic_no_slots_without_gate_keeps_original_hint():
     assert "arbitrage" not in message
 
 
+def test_dynamic_no_slots_cheaper_to_import_does_not_blame_the_price_sensor():
+    """The planner chose grid import over storage: a threshold change won't help."""
+    title, message = notifications.format_dynamic_pricing_notification(
+        _decision(
+            should_charge=True,
+            energy_deficit_kwh=4.0,
+            chronological_plan_reason="cheaper_to_import",
+            cheaper_to_import_kwh=3.5,
+        ),
+        None,
+        **_DP_CFG,
+    )
+    assert title.endswith("Grid import is cheaper")
+    assert "not worth it" in message
+    assert "3.50 kWh" in message
+    assert "raise max price threshold" not in message
+
+
+def test_dynamic_no_slots_deadline_shortfall_explains_timing():
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(
+            should_charge=True,
+            energy_deficit_kwh=4.0,
+            chronological_plan_reason="deadline_capacity_shortfall",
+        ),
+        None,
+        **_DP_CFG,
+    )
+    assert "cannot deliver it in time" in message
+    assert "raise max price threshold" not in message
+
+
+def test_dynamic_no_slots_no_eligible_slots_points_at_price_feed():
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(
+            should_charge=True,
+            energy_deficit_kwh=4.0,
+            chronological_plan_reason="no_eligible_slots",
+        ),
+        None,
+        **_DP_CFG,
+    )
+    assert "no price slots remain" in message
+    assert "Check the price sensor" in message
+
+
+def test_dynamic_no_slots_price_threshold_names_cheapest_rejected_slot():
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(
+            should_charge=True,
+            energy_deficit_kwh=4.0,
+            chronological_plan_reason="price_threshold",
+            cheapest_rejected_slot={
+                "start": "2026-11-09T03:00:00",
+                "price": 0.3412,
+                "ceiling": 0.30,
+            },
+        ),
+        None,
+        **_DP_CFG,
+    )
+    assert "no valid price slots found" in message
+    assert "Cheapest slot: 03:00 at 0.3412 €/kWh (ceiling 0.3000 €/kWh)" in message
+    assert "raise max price threshold" in message
+
+
 def test_dynamic_informational_lists_slots():
     schedule = _schedule([0.10, 0.12, 0.11, 0.09], charging_needed=False)
     title, message = notifications.format_dynamic_pricing_notification(
