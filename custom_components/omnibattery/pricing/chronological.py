@@ -420,25 +420,52 @@ def _unclipped_room(
     capacity: float,
     allocations: dict[PriceSlot, float],
     slot: PriceSlot,
+    *,
+    now: datetime | None = None,
+    rate_kwh_h: float = 0.0,
+    extra_kwh: float = 0.0,
 ) -> float:
     """Energy ``slot`` can still add without a later full point clipping it.
 
     Energy charged ahead of a projected solar fill is exported, not stored
     (#704).  A projected deficit after the slot uses up part of the extra
     energy first, which widens the room at every later full point.
+
+    The controller charges from the slot start until the amount is stored and
+    the battery then covers the house, so with ``rate_kwh_h`` each slot's
+    energy (``slot`` with ``extra_kwh`` added) lands when it is stored, not at
+    the slot end. Landing it at the end hid the drain between the end of the
+    charge and the end of the window and cut a night charge the sun could
+    never top up.
     """
+    def landing(item: PriceSlot, amount: float) -> datetime:
+        if now is None or rate_kwh_h <= _EPSILON:
+            return item.end
+        start = max(now, item.start)
+        return min(item.end, start + timedelta(hours=amount / rate_kwh_h))
+
     energy = min(_finite_non_negative(usable_initial_kwh), capacity)
-    pending = sorted(allocations.items(), key=lambda item: item[0].end)
+    pending = sorted(
+        (
+            (
+                landing(item, amount + (extra_kwh if item == slot else 0.0)),
+                amount,
+            )
+            for item, amount in allocations.items()
+        ),
+        key=lambda pair: pair[0],
+    )
+    slot_lands = landing(slot, allocations.get(slot, 0.0) + extra_kwh)
     index = 0
     room: float | None = None
     absorbed = 0.0
     for interval in intervals:
-        # Same timing as ``simulate_allocations``: energy lands in the
-        # interval its slot ends in, and is clipped after that interval's flow.
-        while index < len(pending) and pending[index][0].end <= interval.end:
+        # Energy lands in the interval it is stored in, and is clipped after
+        # that interval's flow.
+        while index < len(pending) and pending[index][0] <= interval.end:
             energy += pending[index][1]
             index += 1
-        if room is None and slot.end <= interval.end:
+        if room is None and slot_lands <= interval.end:
             room = math.inf
         energy = min(capacity, energy + interval.solar_kwh - interval.consumption_kwh)
         if energy < 0.0:
@@ -618,12 +645,26 @@ def allocate_price_slots(
     # it saves no import (#704).  Only guaranteed-floor energy, needed at its
     # deadline whatever happens after, is exempt.
     def room(slot: PriceSlot, free: float) -> float:
-        return min(
-            free,
-            _unclipped_room(
-                intervals, usable_initial_kwh, usable_capacity, allocations, slot
-            ),
-        )
+        # The room depends on when the added energy lands, which depends on
+        # how much is added. The room shrinks as the amount grows, so the odd
+        # steps of this iteration are amounts that fit. ponytail: three steps
+        # from the upper bound; bisect if a case needs it exact.
+        amount = min(free, usable_capacity)
+        for _ in range(3):
+            amount = min(
+                free,
+                _unclipped_room(
+                    intervals,
+                    usable_initial_kwh,
+                    usable_capacity,
+                    allocations,
+                    slot,
+                    now=now,
+                    rate_kwh_h=power * efficiency,
+                    extra_kwh=amount,
+                ),
+            )
+        return amount
 
     # The last deadline in each segment that was left to the grid: the battery
     # is empty there, so energy stored before it is gone by then.

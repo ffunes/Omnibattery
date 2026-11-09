@@ -6965,6 +6965,10 @@ class PricingManager:
                     decision_data,
                     now=now,
                 )
+                # The per-battery target is only recomputed while it is None;
+                # a re-evaluation's new quota otherwise never reached it and
+                # the window kept charging to the slot-entry target.
+                self._controller._predictive_charge_target_soc = None
 
                 was_active = self._controller.grid_charging_active
                 self._controller.grid_charging_active = decision_data["should_charge"]
