@@ -1119,6 +1119,25 @@ class IndevoltScheduler:
 
     def _after_success(self, request: tuple[str, Any], data: dict[str, Any]) -> None:
         current = self._current
+        if (
+            current is not None
+            and current[0] == "write"
+            and data.get("result") is not True
+        ):
+            # An HTTP 200 whose body refuses the tuple is not an accepted
+            # write. Marking it accepted let the identical retry be
+            # deduplicated away, so the refusal was never retried. Same
+            # check as the direct ``_write_realtime`` path.
+            _LOGGER.debug(
+                "[%s] Indevolt refused realtime %s: %s", self._name, current[1], data
+            )
+            self._after_failure(
+                IndevoltProtocolError(
+                    "Indevolt did not accept the realtime command",
+                    may_have_applied=True,
+                )
+            )
+            return
         self.requests += 1
         latency = self._client.last_latency_s or 0.0
         latency_ms = round(latency * 1000, 1)
