@@ -150,6 +150,7 @@ async def test_setup_and_options_validate_and_save_frank_energie(options, valid)
         flow.config_data["price_integration_type"] = "frank_energie"
     flow.handler = "test"
     flow.hass = SimpleNamespace(
+        async_create_task=lambda coro, _name=None: coro.close(),
         config_entries=SimpleNamespace(
             async_get_known_entry=lambda _: config_entry,
             async_update_entry=lambda *args, **kwargs: None,

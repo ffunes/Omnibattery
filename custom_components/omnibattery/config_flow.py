@@ -4034,9 +4034,19 @@ class OptionsFlowHandler(OptionsFlow):
             self.hass.config_entries.async_update_entry(
                 self.config_entry, data=new_data
             )
-            await self.hass.config_entries.async_reload(entry_id)
-        finally:
+        except BaseException:
             clear_reload_pending(self.hass, entry_id)
+            raise
+
+        async def _reload() -> None:
+            try:
+                await self.hass.config_entries.async_reload(entry_id)
+            finally:
+                clear_reload_pending(self.hass, entry_id)
+
+        # The reload runs as its own task, not inside the flow, so a client that
+        # closes the options dialog early cannot cancel the setup halfway.
+        self.hass.async_create_task(_reload(), f"{DOMAIN} options reload")
         return self.async_create_entry(title="", data={})
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:

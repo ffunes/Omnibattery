@@ -252,6 +252,7 @@ async def test_zonneplan_export_bonus_shown_before_zonneplan_is_saved(options):
     flow = OptionsFlowHandler(config_entry) if options else MarstekVenusConfigFlow()
     flow.handler = "test"
     flow.hass = SimpleNamespace(
+        async_create_task=lambda coro, _name=None: coro.close(),
         config_entries=SimpleNamespace(async_get_known_entry=lambda _: config_entry),
         states=SimpleNamespace(get=lambda _: None),
     )
@@ -301,6 +302,7 @@ async def test_switching_export_provider_keeps_selection_after_validation_error(
         ),
     }
     flow.hass = SimpleNamespace(
+        async_create_task=lambda coro, _name=None: coro.close(),
         config_entries=SimpleNamespace(
             async_get_known_entry=lambda _: config_entry,
         ),
@@ -359,6 +361,7 @@ async def test_setup_and_options_validate_and_save_zonneplan(options, valid, bon
         flow.config_data["price_integration_type"] = "zonneplan"
     flow.handler = "test"
     flow.hass = SimpleNamespace(
+        async_create_task=lambda coro, _name=None: coro.close(),
         config_entries=SimpleNamespace(
             async_get_known_entry=lambda _: config_entry,
             async_update_entry=lambda *args, **kwargs: None,
