@@ -59,8 +59,11 @@ _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)
 # The device's small web server closes idle keep-alive connections and now and
 # then rejects a request with 431. Both pass on a second try, so one immediate
 # retry keeps a single dropped request from marking the battery unavailable.
+# The retry waits a moment first: one sent right after a drop (33 ms) can find
+# the server still resetting and fail the same way.
 _RETRY_STATUSES = frozenset({431})
 _RETRY_EXCEPTIONS = (aiohttp.ServerDisconnectedError, aiohttp.ClientOSError)
+_RETRY_DELAY_S = 0.5
 _PROBE_TIMEOUT = aiohttp.ClientTimeout(total=5)
 
 # Supported device model identifiers.  The product field of /properties/report
@@ -899,6 +902,8 @@ class ZendureLocalDriver(BatteryDriver):
         url = f"{self._base_url}/properties/report"
         for attempt in range(2):
             retry = attempt == 0
+            if not retry:
+                await asyncio.sleep(_RETRY_DELAY_S)
             try:
                 session = self._ensure_session()
                 async with session.get(url, timeout=_HTTP_TIMEOUT) as resp:
@@ -940,6 +945,8 @@ class ZendureLocalDriver(BatteryDriver):
         # when the dropped connection had already delivered the first one.
         for attempt in range(2):
             retry = attempt == 0
+            if not retry:
+                await asyncio.sleep(_RETRY_DELAY_S)
             try:
                 session = self._ensure_session()
                 async with session.post(url, json=body, timeout=_HTTP_TIMEOUT) as resp:
