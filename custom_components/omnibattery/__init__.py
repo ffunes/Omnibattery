@@ -1066,6 +1066,11 @@ class ChargeDischargeController:
         self._active_time_slot_quota_kwh: Optional[float] = None
         self._time_slot_chronological_plan = None
         self._time_slot_chronological_preview_date = None
+        # Local date of the decision in force: Time Slot and Real-Time Price
+        # plan only until midnight, so a window or cheap run still going after
+        # midnight is re-evaluated for the new day.
+        self._time_slot_eval_date = None
+        self._realtime_eval_date = None
         # Snapshot of the deficit-only target at entry to a typed dynamic-price
         # slot.  If a combined slot later loses its opportunistic purpose, this
         # avoids rebasing the same planned deficit on top of energy already stored.
