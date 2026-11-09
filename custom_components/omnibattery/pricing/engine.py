@@ -725,6 +725,44 @@ class PricingManager:
             self._controller.price_sensor,
         )
 
+    # A failing provider (cloud outage, integration not loaded yet) used to be
+    # called again on every 2.5 s control cycle, inside the control lock, with
+    # a WARNING each time. Failed refreshes now back off; a success resets it.
+    _REFRESH_BACKOFF_S = (60.0, 300.0, 900.0)
+    _REFRESH_TIMEOUT_S = 30.0
+
+    def _refresh_backoff_active(self, key: Any) -> bool:
+        """True while a failed refresh of ``key`` must not be retried yet."""
+        state = self.__dict__.get("_refresh_failures", {}).get(key)
+        return state is not None and monotonic() < state[1]
+
+    def _record_refresh_result(self, key: Any, ok: bool) -> int:
+        """Track a refresh outcome; return the consecutive failure count."""
+        failures = self.__dict__.setdefault("_refresh_failures", {})
+        if ok:
+            failures.pop(key, None)
+            return 0
+        count = failures.get(key, (0, 0.0))[0] + 1
+        delay = self._REFRESH_BACKOFF_S[
+            min(count, len(self._REFRESH_BACKOFF_S)) - 1
+        ]
+        failures[key] = (count, monotonic() + delay)
+        return count
+
+    async def _call_price_service(self, domain: str, service: str, data: dict):
+        """Call a price service with a timeout, so a hung provider cannot
+        stall the control cycle that awaits it."""
+        return await asyncio.wait_for(
+            self._hass.services.async_call(
+                domain,
+                service,
+                data,
+                blocking=True,
+                return_response=True,
+            ),
+            timeout=self._REFRESH_TIMEOUT_S,
+        )
+
     async def _maybe_refresh_tibber_prices(self, *, force: bool = False) -> None:
         """Poll ``tibber.get_prices`` and cache the slots when stale.
 
@@ -748,6 +786,8 @@ class PricingManager:
             and (now - fetched) < timedelta(minutes=TIBBER_REFRESH_MINUTES)
         ):
             return
+        if not force and self._refresh_backoff_active("tibber"):
+            return
 
         if not self._hass.services.has_service("tibber", "get_prices"):
             _LOGGER.warning("Dynamic pricing: tibber.get_prices service not available")
@@ -757,24 +797,29 @@ class PricingManager:
 
         end = dt_util.start_of_local_day() + timedelta(days=2)
         try:
-            response = await self._hass.services.async_call(
-                "tibber",
-                "get_prices",
-                {"end": end.isoformat()},
-                blocking=True,
-                return_response=True,
+            response = await self._call_price_service(
+                "tibber", "get_prices", {"end": end.isoformat()}
             )
         except Exception as exc:
-            _LOGGER.warning("Dynamic pricing: tibber.get_prices call failed: %s", exc)
+            failures = self._record_refresh_result("tibber", False)
+            (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
+                "Dynamic pricing: tibber.get_prices call failed (%d in a row): %r",
+                failures,
+                exc,
+            )
             return
 
         slots = calculations.parse_tibber_prices((response or {}).get("prices") or {})
         if slots:
             self._controller._tibber_price_slots = slots
             self._controller._tibber_prices_fetched_at = now
+            self._record_refresh_result("tibber", True)
             _LOGGER.info("Dynamic pricing: refreshed %d Tibber price slots", len(slots))
         else:
-            _LOGGER.warning("Dynamic pricing: tibber.get_prices returned no usable slots")
+            failures = self._record_refresh_result("tibber", False)
+            (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
+                "Dynamic pricing: tibber.get_prices returned no usable slots"
+            )
 
     async def _maybe_refresh_nordpool_prices(self, *, force: bool = False) -> None:
         """Poll the official Nord Pool service for today's and tomorrow's prices.
@@ -807,6 +852,9 @@ class PricingManager:
             and (now - fetched) < timedelta(minutes=NORDPOOL_REFRESH_MINUTES)
         ):
             return
+        backoff_key = ("nordpool", source_key)
+        if not force and self._refresh_backoff_active(backoff_key):
+            return
 
         async def _fetch(date) -> dict:
             service_data: dict[str, Any] = {
@@ -815,19 +863,18 @@ class PricingManager:
             }
             if source.area:
                 service_data["areas"] = [source.area]
-            return await self._hass.services.async_call(
-                NORDPOOL_DOMAIN,
-                NORDPOOL_GET_PRICES_SERVICE,
-                service_data,
-                blocking=True,
-                return_response=True,
+            return await self._call_price_service(
+                NORDPOOL_DOMAIN, NORDPOOL_GET_PRICES_SERVICE, service_data
             )
 
         try:
             response = await _fetch(service_date)
         except Exception as exc:
-            _LOGGER.warning(
-                "Dynamic pricing: nordpool.get_prices_for_date call failed: %s",
+            failures = self._record_refresh_result(backoff_key, False)
+            (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
+                "Dynamic pricing: nordpool.get_prices_for_date call failed "
+                "(%d in a row): %r",
+                failures,
                 exc,
             )
             return
@@ -860,13 +907,15 @@ class PricingManager:
             self._controller._nordpool_price_slots = slots
             self._controller._nordpool_prices_fetched_at = now
             self._controller._nordpool_price_source_key = source_key
+            self._record_refresh_result(backoff_key, True)
             _LOGGER.info(
                 "Dynamic pricing: refreshed %d official Nord Pool price slots for %s",
                 len(slots),
                 source.area or "the configured area",
             )
         else:
-            _LOGGER.warning(
+            failures = self._record_refresh_result(backoff_key, False)
+            (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
                 "Dynamic pricing: nordpool.get_prices_for_date returned no usable slots"
             )
 
@@ -927,6 +976,9 @@ class PricingManager:
                 and (now - fetched_at) < timedelta(minutes=ENERGYZERO_REFRESH_MINUTES)
             ):
                 continue
+            backoff_key = ("energyzero", key)
+            if not force and self._refresh_backoff_active(backoff_key):
+                continue
 
             slots = []
             for request_date in (today, today + timedelta(days=1)):
@@ -939,12 +991,10 @@ class PricingManager:
                     "end": request_date.isoformat(),
                 }
                 try:
-                    response = await services.async_call(
+                    response = await self._call_price_service(
                         ENERGYZERO_DOMAIN,
                         ENERGYZERO_GET_PRICES_SERVICE,
                         service_data,
-                        blocking=True,
-                        return_response=True,
                     )
                 except Exception as exc:
                     _LOGGER.debug(
@@ -963,12 +1013,14 @@ class PricingManager:
                     unique_slots.values(), key=lambda slot: slot.start
                 )
                 self._controller._energyzero_prices_fetched_at[key] = now
+                self._record_refresh_result(backoff_key, True)
                 _LOGGER.info(
                     "Dynamic pricing: refreshed %d EnergyZero price slots",
                     len(self._controller._energyzero_price_slots[key]),
                 )
             else:
-                _LOGGER.warning(
+                failures = self._record_refresh_result(backoff_key, False)
+                (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
                     "Dynamic pricing: energyzero.get_energy_prices returned no usable "
                     "slots for %s",
                     entity_id,
