@@ -6,6 +6,7 @@ charge efficiency when its usable capacity is calculated.
 """
 from __future__ import annotations
 
+from bisect import bisect_right, insort
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import math
@@ -424,6 +425,7 @@ def _unclipped_room(
     now: datetime | None = None,
     rate_kwh_h: float = 0.0,
     extra_kwh: float = 0.0,
+    pending_base: Sequence[tuple[datetime, float, PriceSlot]] | None = None,
 ) -> float:
     """Energy ``slot`` can still add without a later full point clipping it.
 
@@ -445,17 +447,28 @@ def _unclipped_room(
         return min(item.end, start + timedelta(hours=amount / rate_kwh_h))
 
     energy = min(_finite_non_negative(usable_initial_kwh), capacity)
-    pending = sorted(
-        (
-            (
-                landing(item, amount + (extra_kwh if item == slot else 0.0)),
-                amount,
-            )
-            for item, amount in allocations.items()
-        ),
-        key=lambda pair: pair[0],
-    )
     slot_lands = landing(slot, allocations.get(slot, 0.0) + extra_kwh)
+    if pending_base is not None:
+        # ``pending_base`` holds every allocation's landing at its current
+        # amount, sorted; only ``slot``'s own entry moves with ``extra_kwh``.
+        # Same result as rebuilding it, without re-sorting every allocation
+        # on each of the allocator's many room queries.
+        pending = [
+            (lands, amount) for lands, amount, item in pending_base if item != slot
+        ]
+        if slot in allocations:
+            insort(pending, (slot_lands, allocations[slot]))
+    else:
+        pending = sorted(
+            (
+                (
+                    landing(item, amount + (extra_kwh if item == slot else 0.0)),
+                    amount,
+                )
+                for item, amount in allocations.items()
+            ),
+            key=lambda pair: pair[0],
+        )
     index = 0
     room: float | None = None
     absorbed = 0.0
@@ -651,6 +664,26 @@ def allocate_price_slots(
     # Energy charged ahead of a projected solar fill is clipped, not stored, so
     # it saves no import (#704).  Only guaranteed-floor energy, needed at its
     # deadline whatever happens after, is exempt.
+    pending_key: tuple[int, float] | None = None
+    pending_base: list[tuple[datetime, float, PriceSlot]] = []
+
+    def current_pending() -> list[tuple[datetime, float, PriceSlot]]:
+        nonlocal pending_key, pending_base
+        key = (len(allocations), sum(allocations.values()))
+        if key != pending_key:
+            rate = power * efficiency
+            pending_base = []
+            for item, amount in allocations.items():
+                if rate > _EPSILON:
+                    start = max(now, item.start)
+                    lands = min(item.end, start + timedelta(hours=amount / rate))
+                else:
+                    lands = item.end
+                pending_base.append((lands, amount, item))
+            pending_base.sort(key=lambda entry: entry[0])
+            pending_key = key
+        return pending_base
+
     def room(slot: PriceSlot, free: float) -> float:
         # The room depends on when the added energy lands, which depends on
         # how much is added. The room shrinks as the amount grows, so the odd
@@ -669,41 +702,90 @@ def allocate_price_slots(
                     now=now,
                     rate_kwh_h=power * efficiency,
                     extra_kwh=amount,
+                    pending_base=current_pending(),
                 ),
             )
         return amount
 
+    # Energy stored when each interval starts, given the current allocations.
+    # Rebuilt only when the allocations change: they only ever grow while
+    # slots are being assigned, so their count and total identify a version.
+    trajectory_key: tuple[int, float] | None = None
+    trajectory_starts: list[datetime] = []
+    trajectory_energy: list[float] = []
+    trajectory_final = 0.0
+
+    def build_trajectory() -> None:
+        nonlocal trajectory_key, trajectory_starts, trajectory_energy, trajectory_final
+        rate = power * efficiency
+        charges = sorted(
+            (
+                max(now, item.start),
+                (
+                    min(item.end, max(now, item.start) + timedelta(hours=amount / rate))
+                    if rate > _EPSILON
+                    else item.end
+                ),
+                amount,
+            )
+            for item, amount in allocations.items()
+            if amount > _EPSILON
+        )
+        energy = min(_finite_non_negative(usable_initial_kwh), usable_capacity)
+        starts: list[datetime] = []
+        values: list[float] = []
+        added = 0
+        window = 0
+        for interval in intervals:
+            # Energy charged before this interval is stored; the battery then
+            # covers the house again, so it drains like any other energy.
+            while added < len(charges) and charges[added][0] < interval.start:
+                energy = min(usable_capacity, energy + charges[added][2])
+                added += 1
+            starts.append(interval.start)
+            values.append(energy)
+            while added < len(charges) and charges[added][0] <= interval.start:
+                energy = min(usable_capacity, energy + charges[added][2])
+                added += 1
+            # The grid carries the house only while a slot is still charging
+            # (from its start until its amount is stored), not for the rest of
+            # the slot.
+            while window < len(charges) and charges[window][1] <= interval.start:
+                window += 1
+            charging = window < len(charges) and charges[window][0] < interval.end
+            flow = interval.solar_kwh - interval.consumption_kwh
+            if flow < 0.0 and charging:
+                flow = 0.0
+            energy = max(0.0, min(usable_capacity, energy + flow))
+        while added < len(charges):
+            energy = min(usable_capacity, energy + charges[added][2])
+            added += 1
+        trajectory_starts, trajectory_energy = starts, values
+        trajectory_final = energy
+        trajectory_key = (len(allocations), sum(allocations.values()))
+
     def room_at_start(slot: PriceSlot) -> float:
         # Room the battery has when ``slot`` opens. Only the extended horizon
         # needs it: there the total is no longer capped at the room *now*.
-        # The house drains the battery only outside charging slots (the grid
-        # carries it while one charges), and energy already booked in an
-        # earlier slot is counted as stored.  ``room()`` alone credits the
-        # drain inside back-to-back slots and overbooks a continuous charge.
+        # The battery is simulated in time order: energy booked in an earlier
+        # slot is stored when it is charged and drained by the house after
+        # that, and the house only drains it outside the time a slot is
+        # charging (the grid carries it meanwhile). ``room()`` alone credits
+        # the drain inside back-to-back slots and overbooks a continuous
+        # charge; counting earlier energy as still stored after it drained
+        # under-booked the later slots.
         if not required_from_deadlines:
             return math.inf
+        if trajectory_key != (len(allocations), sum(allocations.values())):
+            build_trajectory()
         opens = max(now, slot.start)
-        windows = [
-            (max(now, item.start), item.end)
-            for item in allocations
-            if item is not slot
-        ] + [(opens, slot.end)]
-        energy = min(_finite_non_negative(usable_initial_kwh), usable_capacity)
-        for interval in intervals:
-            if interval.end > opens:
-                break
-            flow = interval.solar_kwh - interval.consumption_kwh
-            if flow < 0.0 and any(
-                start < interval.end and interval.start < end
-                for start, end in windows
-            ):
-                flow = 0.0
-            energy = max(0.0, min(usable_capacity, energy + flow))
-        energy += sum(
-            amount
-            for item, amount in allocations.items()
-            if item is not slot and item.start < opens
-        )
+        index = bisect_right(trajectory_starts, opens) - 1
+        if index < 0:
+            energy = min(_finite_non_negative(usable_initial_kwh), usable_capacity)
+        elif index == len(trajectory_starts) - 1 and opens >= intervals[-1].end:
+            energy = trajectory_final
+        else:
+            energy = trajectory_energy[index]
         return max(
             0.0, usable_capacity - energy - allocations.get(slot, 0.0)
         )
