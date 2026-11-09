@@ -6805,6 +6805,25 @@ class PricingManager:
     # TIME SLOT: predictive charging handler
     # =========================================================================
 
+    async def _run_time_slot_decision(self) -> None:
+        """Carry out the Time Slot decision in force for this cycle."""
+        if self._controller.grid_charging_active:
+            _LOGGER.info("Predictive Grid Charging ACTIVE - target power: %dW", self._contracted_charge_ceiling())
+            await self._controller._handle_predictive_grid_charging()
+        else:
+            _LOGGER.info("In predictive charging slot but charging not needed - continuing normal operation")
+
+    async def _retry_time_slot_evaluation(self, *, day_rolled: bool) -> None:
+        """Wait for the solar forecast; keep running the decision in force.
+
+        On slot entry there is no decision yet, so the cycle is skipped. On
+        the new-day re-evaluation the previous night's decision may still be
+        charging, and skipping the cycle would leave the batteries on their
+        last command with no import-ceiling or SOC-target control.
+        """
+        if day_rolled:
+            await self._run_time_slot_decision()
+
     async def handle_time_slot_predictive_charging(self) -> None:
         """Handle predictive charging in time slot mode (extracted from main loop)."""
         # Check if we're in the actual time slot
@@ -6905,8 +6924,14 @@ class PricingManager:
                 now,
                 is_initial_eval=is_initial_eval,
             )
-            if day_rolled:
-                # Restart the forecast grace clock for the new day's read.
+            entry_time = getattr(self._controller, "_slot_entry_time", None)
+            if day_rolled and (
+                not isinstance(entry_time, datetime)
+                or entry_time.date() != now.date()
+            ):
+                # Restart the forecast grace clock for the new day's read,
+                # once: resetting it every cycle kept the grace from ever
+                # running out while the forecast stayed unavailable.
                 self._controller._slot_entry_time = now
 
             should_reevaluate = (
@@ -6990,6 +7015,9 @@ class PricingManager:
                                 forecast_unavailable_elapsed_s,
                                 forecast_grace_s,
                             )
+                            await self._retry_time_slot_evaluation(
+                                day_rolled=day_rolled
+                            )
                             return
                         _LOGGER.warning(
                             "Predictive charging: configured solar forecast has been "
@@ -7019,6 +7047,9 @@ class PricingManager:
                             "unavailable during evaluation (%.0f / %.0f s grace); retrying",
                             forecast_unavailable_elapsed_s,
                             forecast_grace_s,
+                        )
+                        await self._retry_time_slot_evaluation(
+                            day_rolled=day_rolled
                         )
                         return
                     _LOGGER.warning(
@@ -7066,13 +7097,8 @@ class PricingManager:
                         decision_data=decision_data
                     )
 
-            if self._controller.grid_charging_active:
-                _LOGGER.info("Predictive Grid Charging ACTIVE - target power: %dW", self._contracted_charge_ceiling())
-                await self._controller._handle_predictive_grid_charging()
-                return
-            else:
-                _LOGGER.info("In predictive charging slot but charging not needed - continuing normal operation")
-                return
+            await self._run_time_slot_decision()
+            return
         else:
             await self._ensure_time_slot_chronological_preview(
                 now=now

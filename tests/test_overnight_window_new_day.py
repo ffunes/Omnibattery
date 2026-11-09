@@ -220,3 +220,87 @@ def test_realtime_run_on_the_same_day_is_not_re_evaluated():
     assert calls == []
     assert controller._predictive_charge_target_soc is not None
     assert handled == [now]
+
+
+# ---------------------------------------------------------------------------
+# New-day re-evaluation while the solar forecast is unavailable
+# ---------------------------------------------------------------------------
+
+import custom_components.omnibattery.pricing.engine as engine_module
+
+
+def _with_unavailable_forecast(monkeypatch, engine, controller):
+    """Configure a forecast sensor that reads as unavailable."""
+    monkeypatch.setattr(
+        engine_module,
+        "get_configured_solar_forecast_sensor",
+        lambda _controller, _kind: "sensor.solar_remaining",
+    )
+    monkeypatch.setattr(
+        engine_module, "read_solar_forecast_kwh", lambda _hass, _controller: None
+    )
+    controller._forecast_grace_s = 300
+    handled = []
+
+    async def _handle():
+        handled.append(engine._now())
+
+    controller._handle_predictive_grid_charging = _handle
+    return handled
+
+
+def test_rollover_grace_runs_out_while_the_forecast_is_unavailable(monkeypatch):
+    """The grace clock restarts once per rollover, not on every cycle.
+
+    Restarting it every cycle meant the grace never ran out: the handler
+    returned forever and the new day was never evaluated.
+    """
+    clock = {"now": datetime(2026, 11, 10, 0, 5)}
+    engine, controller, calls = _time_slot_engine(clock["now"])
+    engine._now = lambda: clock["now"]
+    _with_unavailable_forecast(monkeypatch, engine, controller)
+
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+    assert calls == []  # within the grace: retry
+    assert controller._slot_entry_time == datetime(2026, 11, 10, 0, 5)
+
+    clock["now"] = datetime(2026, 11, 10, 0, 7, 30)
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+    assert calls == []
+    # The clock was not restarted by the second cycle.
+    assert controller._slot_entry_time == datetime(2026, 11, 10, 0, 5)
+
+    clock["now"] = datetime(2026, 11, 10, 0, 10, 30)
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+    # Grace over: evaluated conservatively for the new day.
+    assert len(calls) == 1
+    assert controller._time_slot_eval_date == date(2026, 11, 10)
+    assert controller._last_decision_data["solar_forecast_fallback"] is True
+
+
+def test_charging_keeps_being_controlled_during_the_rollover_grace(monkeypatch):
+    """Last night's charge stays regulated while the new day's read waits."""
+    now = datetime(2026, 11, 10, 0, 5)
+    engine, controller, calls = _time_slot_engine(now)
+    controller.grid_charging_active = True  # charging since 22:00
+    handled = _with_unavailable_forecast(monkeypatch, engine, controller)
+
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+
+    assert calls == []  # still waiting for the forecast
+    assert handled == [now]  # but the active charge is still driven
+
+
+def test_slot_entry_grace_still_skips_the_cycle(monkeypatch):
+    """On slot entry there is no decision in force yet: nothing is driven."""
+    now = datetime(2026, 11, 9, 22, 0)
+    engine, controller, calls = _time_slot_engine(now, eval_date=None)
+    controller.last_evaluation_soc = None
+    controller._slot_entry_time = None
+    controller.grid_charging_active = False
+    handled = _with_unavailable_forecast(monkeypatch, engine, controller)
+
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+
+    assert calls == []
+    assert handled == []
