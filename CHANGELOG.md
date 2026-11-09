@@ -5,6 +5,11 @@
 ### Fixed
 
 - **Dynamic Pricing: tomorrow's planning horizon no longer drops for 30 min after a failed forecast fetch** (#817): an empty answer from the Energy dashboard solar forecast kept the previous periods and is retried after a minute, instead of collapsing the plan to the next sunrise. The new `planning_horizon_reason` attribute on the predictive charging sensor says why the horizon did or did not extend past the sunrise. Thanks to @Sjoedzj.
+- **Time Slot / Real-Time Price: a window running through midnight now covers the night after it** (PR#818): a window such as 22:00-07:00, or a cheap Real-Time run still charging, is re-evaluated for the new day from 00:05, so the 22:00 "nothing needed until midnight" decision no longer leaves the battery empty at sunrise. Thanks to @pocketware.
+- **Dynamic Pricing planner fixes** (PR#818): battery room is simulated slot by slot in time order; slots are sized by what the house leaves of the grid import cap; tomorrow's charge is planned even when the battery is full now; the evening re-evaluation re-plans the slots it keeps and drops stale pre-slot decisions; DST nights no longer break the price slots. Thanks to @pocketware.
+- **Dynamic Pricing: late prices and failing price services** (PR#818): late prices are retried all day; Tibber, Nord Pool and EnergyZero refreshes back off (1/5/15 min, 30 s timeout) instead of hammering a failing service; evaluations from the button, switches, startup and 00:05 no longer run in parallel. Thanks to @pocketware.
+- **Predictive charging notifications say why** (PR#818): "waiting for prices" instead of "cheaper to import", the reason when no slot was selected, and the energy planned in tomorrow's slots. Thanks to @pocketware.
+- **Robustness** (PR#818): a failing predictive step falls back to normal control instead of stopping the cycle; one failing driver no longer aborts unloading the integration; Config Backup restores stored data before the entry loads; a lost Huawei EMMA meter connection is reconnected; a refused Indevolt write counts as failed. Thanks to @pocketware.
 
 ## [1.6.0] - 2026-11-09
 

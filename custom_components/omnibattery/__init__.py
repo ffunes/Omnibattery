@@ -1066,6 +1066,11 @@ class ChargeDischargeController:
         self._active_time_slot_quota_kwh: Optional[float] = None
         self._time_slot_chronological_plan = None
         self._time_slot_chronological_preview_date = None
+        # Local date of the decision in force: Time Slot and Real-Time Price
+        # plan only until midnight, so a window or cheap run still going after
+        # midnight is re-evaluated for the new day.
+        self._time_slot_eval_date = None
+        self._realtime_eval_date = None
         # Snapshot of the deficit-only target at entry to a typed dynamic-price
         # slot.  If a combined slot later loses its opportunistic purpose, this
         # avoids rebasing the same planned deficit on top of energy already stored.
@@ -1180,6 +1185,8 @@ class ChargeDischargeController:
         self._dynamic_pricing_evaluated_date = None
         self._current_price_slot_active = False
         self._dp_eval_retry_count = 0  # Retry counter if tomorrow prices not available at 23:00
+        self._dp_eval_retry_at = None  # When the deferred daily evaluation was last tried
+        self._predictive_dispatch_errors = 0  # Consecutive failed predictive steps
         self._dp_pre_evaluated_slots: dict = {}  # slot.start (datetime) → should_charge (bool)
         self._dp_pre_evaluated_purposes: dict = {}  # slot.start → effective typed purpose
         self._dp_completed_slots: set = set()  # slot.start values completed in this plan
@@ -6543,6 +6550,25 @@ class ChargeDischargeController:
             self._capacity_protection_active = False
             status.update({"active": False, "action": "idle"})
 
+    def _handle_predictive_dispatch_error(self) -> None:
+        """Log a failed predictive step and leave the batteries to PD control."""
+        errors = getattr(self, "_predictive_dispatch_errors", 0) + 1
+        self._predictive_dispatch_errors = errors
+        if errors == 1:
+            _LOGGER.exception(
+                "Predictive charging failed; releasing the slot to normal control"
+            )
+        else:
+            _LOGGER.debug(
+                "Predictive charging failed again (%d in a row)", errors, exc_info=True
+            )
+        try:
+            self._clear_predictive_runtime("predictive_error")
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Clearing predictive runtime failed", exc_info=True)
+            self.grid_charging_active = False
+            self._grid_charging_initialized = False
+
     def _clear_predictive_runtime(self, reason: str) -> None:
         """Release all live predictive ownership without unloading the entry.
 
@@ -9928,23 +9954,30 @@ class ChargeDischargeController:
 
         # === Predictive Grid Charging Logic (mode dispatch) ===
         if self.predictive_charging_enabled:
-            if self.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
-                await self._handle_dynamic_pricing_predictive_charging()
-                # Dynamic pricing falls through to normal PD control when not in a slot;
-                # it only returns early when actively charging.
-                if self.grid_charging_active:
-                    return
-            elif self.predictive_charging_mode == PREDICTIVE_MODE_REALTIME_PRICE:
-                await self._handle_realtime_price_predictive_charging()
-                if self.grid_charging_active:
-                    return
+            try:
+                if self.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
+                    await self._handle_dynamic_pricing_predictive_charging()
+                    # Dynamic pricing falls through to normal PD control when not in a slot;
+                    # it only returns early when actively charging.
+                elif self.predictive_charging_mode == PREDICTIVE_MODE_REALTIME_PRICE:
+                    await self._handle_realtime_price_predictive_charging()
+                else:
+                    # Default: time slot mode. Its handler always returns early
+                    # from its own logic, so we only reach here when outside the
+                    # slot (normal PD control).
+                    await self._handle_time_slot_predictive_charging()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - control must survive a planner bug
+                # An error here used to abort the whole cycle, blockers
+                # included, so an active slot left the batteries on their last
+                # charge command with nothing regulating it. Release the slot
+                # and fall through to the blockers and normal PD control.
+                self._handle_predictive_dispatch_error()
             else:
-                # Default: time slot mode
-                await self._handle_time_slot_predictive_charging()
-                # Time slot handler always returns early from its own logic,
-                # so we only reach here when outside the slot (normal PD control).
-                if self.grid_charging_active:
-                    return
+                self._predictive_dispatch_errors = 0
+            if self.grid_charging_active:
+                return
 
         # === Operation blockers: enforce BEFORE deadband / stale early-returns ===
         # Without this guard the deadband and stale-sensor paths could keep a
@@ -12313,7 +12346,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
                     "Dynamic pricing: daily evaluation skipped while predictive charging is disabled"
                 )
                 return
-            await controller._pricing_mgr._evaluate_dynamic_pricing(
+            await controller._pricing_mgr.evaluate_dynamic_pricing_now(
                 horizon=DynamicPricingEvaluationHorizon.DAILY,
             )
 
@@ -12435,34 +12468,55 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             except Exception as e:
                 _LOGGER.error("Error shutting down battery %s: %s", coordinator.name, e)
 
-        # Disconnect from all coordinators
-        await asyncio.gather(*[c.disconnect() for c in coordinators])
+        # Disconnect from all coordinators. One driver failing to close must
+        # not skip the others, nor the persistence below.
+        results = await asyncio.gather(
+            *[c.disconnect() for c in coordinators], return_exceptions=True
+        )
+        for coordinator, result in zip(coordinators, results):
+            if isinstance(result, BaseException):
+                _LOGGER.error(
+                    "Error disconnecting %s: %r", coordinator.name, result
+                )
+
+        controller = data.get("controller")
+
+        async def _persist(label: str, step) -> None:
+            try:
+                await step()
+            except Exception:  # noqa: BLE001 - keep saving the rest
+                _LOGGER.exception("Error saving %s on unload", label)
 
         # Persist hourly balance state
-        controller = data.get("controller")
         if controller and controller._hourly_balance_mgr is not None:
-            await controller._hourly_balance_mgr.async_unload()
+            await _persist(
+                "hourly balance", controller._hourly_balance_mgr.async_unload
+            )
 
         # Persist all throttled accumulators (consumption history + grid-at-min-soc,
         # daily solar/home/grid energy totals, household/solar accumulators) so a
         # reload doesn't revert these TOTAL_INCREASING sensors to the last throttled
         # (~5 min) save, which would step their values backwards and spam the log.
         if controller and controller._consumption_tracker is not None:
-            await controller._consumption_tracker.async_save_all()
+            await _persist(
+                "consumption tracker",
+                controller._consumption_tracker.async_save_all,
+            )
 
         if controller:
             timeline = getattr(controller, "_daily_operation_timeline", None)
             if timeline is not None:
-                await timeline.async_shutdown()
+                await _persist("daily operation timeline", timeline.async_shutdown)
 
         if unload_ok:
             hass.data[DOMAIN].pop(entry.entry_id, None)
 
-    # Remove the sidebar panel only when no config entries remain.
+    # Remove the sidebar panel only when no config entries remain, and only
+    # once the platforms really unloaded (a failed unload keeps the entry).
     remaining = [
         e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id
     ]
-    if not remaining:
+    if unload_ok and not remaining:
         _async_unregister_frontend_panel(hass)
         hass.services.async_remove(DOMAIN, SERVICE_EXCLUDE_CONSUMPTION_DAYS)
 

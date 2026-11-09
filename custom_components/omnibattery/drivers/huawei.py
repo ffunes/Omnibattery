@@ -75,6 +75,9 @@ from .base import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# How often a lost EMMA meter connection is retried.
+_METER_RETRY_S = 60.0
+
 _DOMAIN_HUAWEI_SOLAR = "huawei_solar"
 
 # Forcible charge/discharge mode (register 47100).
@@ -478,6 +481,8 @@ class HuaweiSolarDriver(BatteryDriver):
         if self._meter_client is None and emma_slave_id is not None:
             self._meter_client = HuaweiModbusClient(host, port, int(emma_slave_id))
         self._shutting_down = False
+        # Loop time before which a lost EMMA meter is not reconnected again.
+        self._meter_retry_at = 0.0
         # The inverter's model, read from 30000. The device this driver stands
         # for is the storage, whose own model comes from 47000.
         self._model: Optional[str] = None
@@ -684,6 +689,25 @@ class HuaweiSolarDriver(BatteryDriver):
         if self._meter_client is not None:
             await self._meter_client.async_close()
 
+    async def _reconnect_meter_if_lost(self) -> None:
+        """Reopen the EMMA meter connection after it failed or dropped.
+
+        It was only opened in ``connect()``: a meter that did not answer then,
+        or whose socket dropped later while the inverter link stayed up, left
+        grid power missing until the inverter itself reconnected. Retried at
+        most every ``_METER_RETRY_S``.
+        """
+        if self._meter_client is None or self._shutting_down:
+            return
+        if self._meter_client.connected:
+            return
+        now = asyncio.get_running_loop().time()
+        if now < self._meter_retry_at:
+            return
+        self._meter_retry_at = now + _METER_RETRY_S
+        if await self._meter_client.async_connect():
+            _LOGGER.info("Huawei driver: the EMMA meter answers again; grid power restored")
+
     def set_shutting_down(self, value: bool) -> None:
         self._shutting_down = bool(value)
         self._client.set_shutting_down(value)
@@ -767,6 +791,7 @@ class HuaweiSolarDriver(BatteryDriver):
         if self._meter_client is not None and (
             requested is None or "grid_power" in requested
         ):
+            await self._reconnect_meter_if_lost()
             regs = await self._meter_client.async_read_holding_block(_REG_METER_POWER, 2)
             if regs is not None:
                 # Sign matches the Omnibattery convention already: positive is

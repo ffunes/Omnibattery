@@ -1746,7 +1746,7 @@ def test_manual_button_uses_remaining_horizon_at_midday():
     calls = []
 
     class PricingStub:
-        async def _evaluate_dynamic_pricing(self, *, horizon, extended_horizon=False):
+        async def evaluate_dynamic_pricing_now(self, *, horizon, extended_horizon=False):
             calls.append((horizon, extended_horizon))
 
     button = ReevaluateDynamicPricingButton(
@@ -1764,7 +1764,7 @@ def test_manual_button_invalidates_the_plan_in_time_slot_mode():
     # Time slot has no calendar to rebuild; the button must clear the SOC
     # reference so the next cycle inside a window is an initial evaluation.
     class PricingStub:
-        async def _evaluate_dynamic_pricing(self, **_kwargs):
+        async def evaluate_dynamic_pricing_now(self, **_kwargs):
             raise AssertionError("time slot mode has no dynamic-pricing calendar")
 
     controller = _balance_ctrl(

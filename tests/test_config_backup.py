@@ -168,3 +168,56 @@ async def test_backup_key_is_domain_stable() -> None:
     """The Store key must stay the legacy literal so both builds share one file."""
     assert BACKUP_KEY == f"{LEGACY_DOMAIN}.config_backup"
     assert DOMAIN not in BACKUP_KEY
+
+
+async def test_restore_keeps_store_data_the_entry_writes_on_setup(
+    hass: HomeAssistant,
+) -> None:
+    """A real entry saves its Stores as soon as it loads.
+
+    Adding the restored entry enabled loaded it before the old files were
+    copied, so it wrote default Stores first and the copy (which skips
+    existing files) lost the user's counters.
+    """
+    storage_dir = hass.config.path(".storage")
+    os.makedirs(storage_dir, exist_ok=True)
+
+    with mock_config_flow(DOMAIN, _MockFlow):
+        entry = await _mount_entry(hass)
+        await async_save_config_backup(hass)
+        old_name = f"{DOMAIN}.{entry.entry_id}.daily_energy"
+        with open(os.path.join(storage_dir, old_name), "w", encoding="utf-8") as fh:
+            json.dump({"version": 1, "key": old_name, "data": {"home_kwh": 9.0}}, fh)
+        await hass.config_entries.async_remove(entry.entry_id)
+        await hass.async_block_till_done()
+
+        async def setup_writing_defaults(hass, entry):
+            path = os.path.join(storage_dir, f"{DOMAIN}.{entry.entry_id}.daily_energy")
+            if not os.path.exists(path):
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump({"version": 1, "key": "x", "data": {"home_kwh": 0.0}}, fh)
+            return True
+
+        async def unload(hass, entry):
+            return True
+
+        mock_integration(
+            hass,
+            MockModule(
+                DOMAIN,
+                async_setup_entry=setup_writing_defaults,
+                async_unload_entry=unload,
+            ),
+        )
+
+        new_id = (await async_restore_config_backup(hass))[0]
+        await hass.async_block_till_done()
+
+        restored = hass.config_entries.async_get_entry(new_id)
+        assert restored.disabled_by is None
+        assert restored.state is ConfigEntryState.LOADED
+        with open(
+            os.path.join(storage_dir, f"{DOMAIN}.{new_id}.daily_energy"),
+            encoding="utf-8",
+        ) as fh:
+            assert json.load(fh)["data"] == {"home_kwh": 9.0}

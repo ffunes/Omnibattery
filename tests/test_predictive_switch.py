@@ -59,7 +59,7 @@ def _make_switch(
         predictive_charging_mode=mode,
         grid_charging_active=False,
         _pricing_mgr=SimpleNamespace(
-            _evaluate_dynamic_pricing=_evaluate_dynamic_pricing,
+            evaluate_dynamic_pricing_now=_evaluate_dynamic_pricing,
         ),
         _clear_predictive_runtime=runtime_clears.append,
         schedule_control_cycle=lambda: control_cycles.append(None),

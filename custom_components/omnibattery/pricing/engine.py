@@ -97,6 +97,7 @@ from . import (
     calculations,
     notifications,
 )
+from .calculations import normalize_price_slots
 from .chronological import (
     ENERGY_TOLERANCE_KWH,
     ChronologicalEvaluationRequest,
@@ -182,6 +183,7 @@ _CHRONOLOGICAL_DIAGNOSTIC_KEYS = (
     "chronological_plan_reason",
     "guaranteed_floor_deadline",
     "cheaper_to_import_kwh",
+    "awaiting_prices_kwh",
     "cheapest_rejected_slot",
 )
 
@@ -491,6 +493,38 @@ class PricingManager:
             grace = TIME_SLOT_FORECAST_GRACE_S
         return max(0.0, grace)
 
+    @staticmethod
+    def _decision_day(now: datetime):
+        """The day a midnight-horizon decision made at ``now`` belongs to.
+
+        A decision made between 00:00 and 00:05 still reads the previous
+        day's settling forecast, so it is stamped with that day: the 00:05
+        new-day re-evaluation then still runs.
+        """
+        if now.time() < dt_time(0, 5):
+            return (now - timedelta(days=1)).date()
+        return now.date()
+
+    @staticmethod
+    def _is_new_day_since(
+        eval_date: Any,
+        now: datetime,
+        *,
+        is_initial_eval: bool = False,
+    ) -> bool:
+        """True once a midnight-horizon decision from an earlier day is stale.
+
+        Time Slot and Real-Time Price size their charge only until local
+        midnight. A decision still in force after midnight must be redone for
+        the new day; 00:00-00:05 is left to settle like the daily evaluation.
+        """
+        if is_initial_eval or eval_date is None:
+            return False
+        try:
+            return now.date() != eval_date and now.time() >= dt_time(0, 5)
+        except (AttributeError, TypeError):
+            return False
+
     def _time_slot_forecast_unavailable_elapsed_s(self, now: datetime) -> float:
         """Return seconds since the current slot began, tolerating old state."""
         entry_time = getattr(self._controller, "_slot_entry_time", None)
@@ -594,7 +628,7 @@ class PricingManager:
             "(restarted at %s, schedule not yet built for %s)",
             now.strftime("%H:%M"), now.date()
         )
-        await self._evaluate_dynamic_pricing(
+        await self.evaluate_dynamic_pricing_now(
             horizon=DynamicPricingEvaluationHorizon.REMAINING,
             extended_horizon=True,
         )
@@ -713,6 +747,44 @@ class PricingManager:
             self._controller.price_sensor,
         )
 
+    # A failing provider (cloud outage, integration not loaded yet) used to be
+    # called again on every 2.5 s control cycle, inside the control lock, with
+    # a WARNING each time. Failed refreshes now back off; a success resets it.
+    _REFRESH_BACKOFF_S = (60.0, 300.0, 900.0)
+    _REFRESH_TIMEOUT_S = 30.0
+
+    def _refresh_backoff_active(self, key: Any) -> bool:
+        """True while a failed refresh of ``key`` must not be retried yet."""
+        state = self.__dict__.get("_refresh_failures", {}).get(key)
+        return state is not None and monotonic() < state[1]
+
+    def _record_refresh_result(self, key: Any, ok: bool) -> int:
+        """Track a refresh outcome; return the consecutive failure count."""
+        failures = self.__dict__.setdefault("_refresh_failures", {})
+        if ok:
+            failures.pop(key, None)
+            return 0
+        count = failures.get(key, (0, 0.0))[0] + 1
+        delay = self._REFRESH_BACKOFF_S[
+            min(count, len(self._REFRESH_BACKOFF_S)) - 1
+        ]
+        failures[key] = (count, monotonic() + delay)
+        return count
+
+    async def _call_price_service(self, domain: str, service: str, data: dict):
+        """Call a price service with a timeout, so a hung provider cannot
+        stall the control cycle that awaits it."""
+        return await asyncio.wait_for(
+            self._hass.services.async_call(
+                domain,
+                service,
+                data,
+                blocking=True,
+                return_response=True,
+            ),
+            timeout=self._REFRESH_TIMEOUT_S,
+        )
+
     async def _maybe_refresh_tibber_prices(self, *, force: bool = False) -> None:
         """Poll ``tibber.get_prices`` and cache the slots when stale.
 
@@ -736,6 +808,8 @@ class PricingManager:
             and (now - fetched) < timedelta(minutes=TIBBER_REFRESH_MINUTES)
         ):
             return
+        if not force and self._refresh_backoff_active("tibber"):
+            return
 
         if not self._hass.services.has_service("tibber", "get_prices"):
             _LOGGER.warning("Dynamic pricing: tibber.get_prices service not available")
@@ -745,24 +819,29 @@ class PricingManager:
 
         end = dt_util.start_of_local_day() + timedelta(days=2)
         try:
-            response = await self._hass.services.async_call(
-                "tibber",
-                "get_prices",
-                {"end": end.isoformat()},
-                blocking=True,
-                return_response=True,
+            response = await self._call_price_service(
+                "tibber", "get_prices", {"end": end.isoformat()}
             )
         except Exception as exc:
-            _LOGGER.warning("Dynamic pricing: tibber.get_prices call failed: %s", exc)
+            failures = self._record_refresh_result("tibber", False)
+            (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
+                "Dynamic pricing: tibber.get_prices call failed (%d in a row): %r",
+                failures,
+                exc,
+            )
             return
 
         slots = calculations.parse_tibber_prices((response or {}).get("prices") or {})
         if slots:
             self._controller._tibber_price_slots = slots
             self._controller._tibber_prices_fetched_at = now
+            self._record_refresh_result("tibber", True)
             _LOGGER.info("Dynamic pricing: refreshed %d Tibber price slots", len(slots))
         else:
-            _LOGGER.warning("Dynamic pricing: tibber.get_prices returned no usable slots")
+            failures = self._record_refresh_result("tibber", False)
+            (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
+                "Dynamic pricing: tibber.get_prices returned no usable slots"
+            )
 
     async def _maybe_refresh_nordpool_prices(self, *, force: bool = False) -> None:
         """Poll the official Nord Pool service for today's and tomorrow's prices.
@@ -795,6 +874,9 @@ class PricingManager:
             and (now - fetched) < timedelta(minutes=NORDPOOL_REFRESH_MINUTES)
         ):
             return
+        backoff_key = ("nordpool", source_key)
+        if not force and self._refresh_backoff_active(backoff_key):
+            return
 
         async def _fetch(date) -> dict:
             service_data: dict[str, Any] = {
@@ -803,19 +885,18 @@ class PricingManager:
             }
             if source.area:
                 service_data["areas"] = [source.area]
-            return await self._hass.services.async_call(
-                NORDPOOL_DOMAIN,
-                NORDPOOL_GET_PRICES_SERVICE,
-                service_data,
-                blocking=True,
-                return_response=True,
+            return await self._call_price_service(
+                NORDPOOL_DOMAIN, NORDPOOL_GET_PRICES_SERVICE, service_data
             )
 
         try:
             response = await _fetch(service_date)
         except Exception as exc:
-            _LOGGER.warning(
-                "Dynamic pricing: nordpool.get_prices_for_date call failed: %s",
+            failures = self._record_refresh_result(backoff_key, False)
+            (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
+                "Dynamic pricing: nordpool.get_prices_for_date call failed "
+                "(%d in a row): %r",
+                failures,
                 exc,
             )
             return
@@ -848,13 +929,15 @@ class PricingManager:
             self._controller._nordpool_price_slots = slots
             self._controller._nordpool_prices_fetched_at = now
             self._controller._nordpool_price_source_key = source_key
+            self._record_refresh_result(backoff_key, True)
             _LOGGER.info(
                 "Dynamic pricing: refreshed %d official Nord Pool price slots for %s",
                 len(slots),
                 source.area or "the configured area",
             )
         else:
-            _LOGGER.warning(
+            failures = self._record_refresh_result(backoff_key, False)
+            (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
                 "Dynamic pricing: nordpool.get_prices_for_date returned no usable slots"
             )
 
@@ -915,6 +998,9 @@ class PricingManager:
                 and (now - fetched_at) < timedelta(minutes=ENERGYZERO_REFRESH_MINUTES)
             ):
                 continue
+            backoff_key = ("energyzero", key)
+            if not force and self._refresh_backoff_active(backoff_key):
+                continue
 
             slots = []
             for request_date in (today, today + timedelta(days=1)):
@@ -927,12 +1013,10 @@ class PricingManager:
                     "end": request_date.isoformat(),
                 }
                 try:
-                    response = await services.async_call(
+                    response = await self._call_price_service(
                         ENERGYZERO_DOMAIN,
                         ENERGYZERO_GET_PRICES_SERVICE,
                         service_data,
-                        blocking=True,
-                        return_response=True,
                     )
                 except Exception as exc:
                     _LOGGER.debug(
@@ -951,12 +1035,14 @@ class PricingManager:
                     unique_slots.values(), key=lambda slot: slot.start
                 )
                 self._controller._energyzero_prices_fetched_at[key] = now
+                self._record_refresh_result(backoff_key, True)
                 _LOGGER.info(
                     "Dynamic pricing: refreshed %d EnergyZero price slots",
                     len(self._controller._energyzero_price_slots[key]),
                 )
             else:
-                _LOGGER.warning(
+                failures = self._record_refresh_result(backoff_key, False)
+                (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
                     "Dynamic pricing: energyzero.get_energy_prices returned no usable "
                     "slots for %s",
                     entity_id,
@@ -1283,8 +1369,14 @@ class PricingManager:
         """Return every parsed slot of the configured price source.
 
         The second item is the price-data status to report when the list is
-        empty. Nothing is filtered by time and no status is stored.
+        empty. Nothing is filtered by time and no status is stored. Slots are
+        normalized for DST nights (see ``normalize_price_slots``).
         """
+        raw_slots, failure = self._raw_price_slots_unnormalized(quiet=quiet)
+        return normalize_price_slots(raw_slots), failure
+
+    def _raw_price_slots_unnormalized(self, *, quiet=False) -> tuple[list, str]:
+        """Every parsed slot of the configured source, as the parsers return it."""
         _warn = _LOGGER.debug if quiet else _LOGGER.warning
         official_nordpool = self._official_nordpool_source()
         if official_nordpool is not None:
@@ -3496,6 +3588,9 @@ class PricingManager:
                     grid_carries_load_while_charging=not (
                         callable(weekly_pending) and weekly_pending()
                     ),
+                    # The runtime regulates import incl. the house load to this
+                    # ceiling, so a slot stores less while the house draws.
+                    grid_ceiling_kw=self._contracted_charge_ceiling() / 1000.0,
                 )
             )
             plan = evaluation.plan
@@ -3566,6 +3661,9 @@ class PricingManager:
                 "total_shortfall_kwh": round(diagnostics.total_shortfall_kwh, 3),
                 "chronological_plan_reason": diagnostics.reason,
                 "cheaper_to_import_kwh": round(diagnostics.cheaper_to_import_kwh, 3),
+                "awaiting_prices_kwh": round(
+                    getattr(diagnostics, "awaiting_prices_kwh", 0.0), 3
+                ),
                 "cheapest_rejected_slot": (
                     None
                     if diagnostics.cheapest_rejected is None
@@ -3686,6 +3784,27 @@ class PricingManager:
         return sorted(set(result), key=lambda slot: (slot.start, slot.end))
 
     @staticmethod
+    def _record_deferred_grid_charge(
+        decision_data: dict[str, Any],
+        full_plan: ChronologicalPlan | None,
+        plan: ChronologicalPlan | None,
+    ) -> None:
+        """Publish the energy the extended plan put in tomorrow's slots.
+
+        The planned total spans the extended horizon while the overview lists
+        only the executable slots; this is the difference, so they add up.
+        """
+        def total(item: ChronologicalPlan | None) -> float:
+            return sum(
+                allocation.planned_battery_kwh
+                for allocation in (getattr(item, "allocations", None) or [])
+            )
+
+        decision_data["deferred_grid_charge_kwh"] = max(
+            0.0, total(full_plan) - total(plan)
+        )
+
+    @staticmethod
     def _plan_within(
         plan: ChronologicalPlan | None, slots: Sequence[PriceSlot]
     ) -> ChronologicalPlan | None:
@@ -3779,7 +3898,54 @@ class PricingManager:
                 decision_data=decision_data
             )
 
+    async def evaluate_dynamic_pricing_now(
+        self,
+        *,
+        horizon: DynamicPricingEvaluationHorizon,
+        extended_horizon: bool = False,
+    ) -> None:
+        """Rebuild the calendar from outside the control cycle.
+
+        The 00:05 timer, the startup task, the re-evaluate button and the
+        feature switches used to call the evaluation without the control lock,
+        so it could interleave with a control cycle reading the schedule it
+        was replacing. Take the control lock first; a cycle that finds it held
+        skips, as it does for any other locked operation.
+        """
+        lock = getattr(self._controller, "_control_lock", None)
+        if lock is None:
+            await self._evaluate_dynamic_pricing(
+                horizon=horizon, extended_horizon=extended_horizon
+            )
+            return
+        async with lock:
+            await self._evaluate_dynamic_pricing(
+                horizon=horizon, extended_horizon=extended_horizon
+            )
+
     async def _evaluate_dynamic_pricing(
+        self,
+        *,
+        horizon: DynamicPricingEvaluationHorizon,
+        extended_horizon: bool = False,
+    ) -> None:
+        """Serialize evaluations: one awaits the previous one's end.
+
+        An evaluation awaits service refreshes, recorder reads and
+        notifications, so a second one (e.g. a SOC-drop retry inside the cycle
+        while a switch-triggered one runs) could interleave with it and the
+        last writer won the schedule. Never hold this lock while waiting for
+        the control lock.
+        """
+        lock = self.__dict__.get("_dp_eval_lock")
+        if lock is None:
+            lock = self.__dict__["_dp_eval_lock"] = asyncio.Lock()
+        async with lock:
+            await self._evaluate_dynamic_pricing_unlocked(
+                horizon=horizon, extended_horizon=extended_horizon
+            )
+
+    async def _evaluate_dynamic_pricing_unlocked(
         self,
         *,
         horizon: DynamicPricingEvaluationHorizon,
@@ -3847,6 +4013,7 @@ class PricingManager:
             # day: that zero is a planning input, not a measurement.
             if reading is not None and reading <= 0.0:
                 self._controller._dp_eval_retry_count += 1
+                self._controller._dp_eval_retry_at = now
                 _LOGGER.warning(
                     "Dynamic pricing: solar forecast still reads zero at %s (attempt %d/%d)",
                     now.strftime("%H:%M"),
@@ -3972,12 +4139,18 @@ class PricingManager:
                 await self._send_dynamic_pricing_notification(decision_data=decision_data, schedule=None)
                 return
             # A deficit or pending opportunistic target needs prices: retry.
+            # The control loop retries every 15 min in the first hour, then
+            # every 30 min for the rest of the day (a provider can publish
+            # well after 01:00).
             self._controller._dp_eval_retry_count += 1
-            _LOGGER.warning(
-                "Dynamic pricing: no price data available at 00:05 (retry %d/4)",
-                self._controller._dp_eval_retry_count
+            self._controller._dp_eval_retry_at = now
+            (_LOGGER.warning if self._controller._dp_eval_retry_count <= 4 else _LOGGER.debug)(
+                "Dynamic pricing: no price data available at %s (attempt %d); "
+                "retrying later today",
+                now.strftime("%H:%M"),
+                self._controller._dp_eval_retry_count,
             )
-            return  # Will retry up to 4 times (~30 min intervals via control loop)
+            return
 
         # Step 3: Build the two independent candidate calendars.  Deficit
         # selection keeps the established price ceiling/arbitrage behaviour.
@@ -4050,6 +4223,9 @@ class PricingManager:
             if planning_end:
                 full_plan = chronological_plan
                 chronological_plan = self._plan_within(full_plan, slots)
+                self._record_deferred_grid_charge(
+                    decision_data, full_plan, chronological_plan
+                )
                 # All the energy sits in tomorrow's slots: nothing to charge
                 # now, and the notification must not call that "no slots".
                 decision_data["deferred_to_next_day"] = bool(
@@ -4291,8 +4467,10 @@ class PricingManager:
                         planning_end=planning_end,
                     )
                     if planning_end:
-                        chronological_plan = self._plan_within(
-                            chronological_plan, slots
+                        full_plan = chronological_plan
+                        chronological_plan = self._plan_within(full_plan, slots)
+                        self._record_deferred_grid_charge(
+                            decision_data, full_plan, chronological_plan
                         )
                     if chronological_plan is not None:
                         deficit_selected = [
@@ -5529,6 +5707,64 @@ class PricingManager:
         solar_input = self._read_remaining_solar_input(now=now_h)
         return solar_input.remaining_kwh if solar_input is not None else 0.0
 
+    @staticmethod
+    def _replan_kept_deficit_slots(
+        schedule: DynamicPricingSchedule,
+        kept_slots: list,
+        plan: ChronologicalPlan,
+        *,
+        now: datetime,
+    ) -> list:
+        """Give every future kept deficit slot the evening plan's quota.
+
+        Returns the kept slots that remain in the schedule. A future slot that
+        only served the deficit and gets no energy in the new plan is dropped;
+        a combined one keeps its negative-price purpose. The slot running now
+        keeps its quota: its energy charged so far is already counted against
+        it. New slots receive their quotas the same way.
+        """
+        by_start = {allocation.slot.start: allocation for allocation in plan.allocations}
+        purposes = dict(getattr(schedule, "slot_purposes", {}) or {})
+        targets = dict(getattr(schedule, "slot_energy_targets_kwh", {}) or {})
+        deadlines = dict(getattr(schedule, "slot_deadlines", {}) or {})
+        kinds = dict(getattr(schedule, "slot_plan_kinds", {}) or {})
+        remaining = []
+        for slot in kept_slots:
+            purpose = purposes.get(slot, SLOT_PURPOSE_DEFICIT)
+            if slot.start <= now or purpose not in (
+                SLOT_PURPOSE_DEFICIT, SLOT_PURPOSE_COMBINED
+            ):
+                remaining.append(slot)
+                continue
+            allocation = by_start.get(slot.start)
+            if allocation is not None and allocation.planned_battery_kwh > 1e-6:
+                targets[slot] = allocation.planned_battery_kwh
+                deadlines[slot] = allocation.deadline
+                kinds[slot] = allocation.kind
+                remaining.append(slot)
+                continue
+            targets.pop(slot, None)
+            deadlines.pop(slot, None)
+            kinds.pop(slot, None)
+            if purpose == SLOT_PURPOSE_COMBINED:
+                purposes[slot] = SLOT_PURPOSE_NEGATIVE_PRICE
+                remaining.append(slot)
+            else:
+                purposes.pop(slot, None)
+        kept_starts = {slot.start for slot in remaining}
+        for allocation in plan.allocations:
+            if allocation.slot.start in kept_starts:
+                continue
+            targets[allocation.slot] = allocation.planned_battery_kwh
+            deadlines[allocation.slot] = allocation.deadline
+            kinds[allocation.slot] = allocation.kind
+        schedule.slot_purposes = purposes
+        schedule.slot_energy_targets_kwh = targets
+        schedule.slot_deadlines = deadlines
+        schedule.slot_plan_kinds = kinds
+        schedule.chronological_planning_active = True
+        return remaining
+
     async def _evaluate_evening_recharge(self) -> None:
         """Late-day re-evaluation: charge batteries cheaply if solar fell short.
 
@@ -5756,6 +5992,65 @@ class PricingManager:
                 slot_ceilings=slot_ceilings,
             )
 
+        if (
+            not selected
+            and schedule
+            and chronological_plan is not None
+            and getattr(schedule, "deficit_charging_needed", schedule.charging_needed)
+        ):
+            # No new slot, but the plan may move or drop the kept slots'
+            # quotas; leaving the 00:05 ones would still overbuy.
+            kept = sorted(
+                self._replan_kept_deficit_slots(
+                    schedule, kept_slots, chronological_plan, now=now
+                ),
+                key=lambda slot: slot.start,
+            )
+            schedule.selected_slots = kept
+            purposes = getattr(schedule, "slot_purposes", {}) or {}
+            schedule.deficit_charging_needed = any(
+                purposes.get(slot, SLOT_PURPOSE_DEFICIT)
+                in (SLOT_PURPOSE_DEFICIT, SLOT_PURPOSE_COMBINED)
+                for slot in kept
+            )
+            schedule.charging_needed = bool(kept)
+            schedule.hours_needed = sum(
+                max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
+                for slot in kept
+            )
+            # Summary figures describe the re-planned calendar, as on the
+            # normal merge path below.
+            cost_energy = getattr(schedule, "slot_cost_energy_kwh", None) or {}
+            if cost_energy:
+                targets = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
+                cost_energy = {
+                    slot: targets.get(slot, cost_energy.get(slot, 0.0))
+                    for slot in kept
+                }
+                schedule.slot_cost_energy_kwh = cost_energy
+            (
+                schedule.average_price,
+                schedule.estimated_cost,
+            ) = calculations.schedule_price_summary(
+                kept,
+                min(
+                    self._contracted_charge_ceiling(),
+                    self._controller.max_charge_capacity,
+                ) / 1000.0,
+                cost_energy or None,
+            )
+            schedule.evaluation_time = now
+            # A pre-slot decision taken on the old quotas must not outlive
+            # them: a cached veto (purpose None) overrides the schedule and
+            # the pre-slot gate never re-runs for a slot it already decided,
+            # so a slot the new plan needs would not charge. Cleared on the
+            # normal merge path too.
+            self._controller._dp_pre_evaluated_slots = {}
+            self._controller._dp_pre_evaluated_purposes = {}
+            _LOGGER.info(
+                "Evening recharge: no new slots; kept slots re-planned from the live SOC"
+            )
+            return
         if not selected:
             _LOGGER.warning(
                 "Evening recharge: no new slots selected (price ceiling %s)",
@@ -5764,6 +6059,16 @@ class PricingManager:
             return
 
         # --- Merge into schedule ---
+        if schedule and chronological_plan is not None:
+            # The new plan is built from the live SOC over every slot left in
+            # the horizon, kept ones included, so it is the deficit plan now.
+            # Keeping the kept slots' 00:05 quotas charged them on top of the
+            # new evening slots (and a kept slot the plan no longer needs fell
+            # back to the whole deficit), while energy the plan assigned to a
+            # kept slot was dropped.
+            kept_slots = self._replan_kept_deficit_slots(
+                schedule, kept_slots, chronological_plan, now=now
+            )
         if schedule:
             merged = sorted(kept_slots + selected, key=lambda s: s.start)
             old_purposes = getattr(schedule, "slot_purposes", {})
@@ -6237,6 +6542,22 @@ class PricingManager:
             _LOGGER.debug("Surplus price hold: rebuild failed (%s): %s", reason, err)
             manager.clear("rebuild_error")
 
+    def _dp_eval_retry_due(self, now: datetime) -> bool:
+        """True when a deferred daily evaluation should be retried now."""
+        controller = self._controller
+        if (
+            controller._dynamic_pricing_evaluated_date == now.date()
+            or controller._dp_eval_retry_count <= 0
+        ):
+            return False
+        last = getattr(controller, "_dp_eval_retry_at", None)
+        if not isinstance(last, datetime) or last.date() != now.date():
+            # A count left from another day, or set by a caller that did not
+            # stamp it: retry now and restart the cadence from here.
+            return True
+        interval = timedelta(minutes=15 if now.hour == 0 else 30)
+        return now - last >= interval
+
     async def handle_dynamic_pricing_predictive_charging(self) -> None:
         """Handle predictive charging in dynamic pricing mode (called every 2.5s)."""
         now = datetime.now()
@@ -6244,22 +6565,16 @@ class PricingManager:
         # Phase 0: Keep service-based provider caches fresh.
         await self._maybe_refresh_service_prices()
 
-        # Phase 2: Retry if prices weren't available at 00:05 (e.g. sensor update delay)
-        if (
-            self._controller._dynamic_pricing_evaluated_date != now.date()
-            and self._controller._dp_eval_retry_count > 0
-            and self._controller._dp_eval_retry_count < 5
-            and now.hour == 0  # Only retry within the first hour of the day
-        ):
-            # Retry every 15 min starting from 00:05
-            retry_minute = now.minute
-            expected_retry_minute = 5 + self._controller._dp_eval_retry_count * 15
-            if abs(retry_minute - expected_retry_minute) <= 2:
-                _LOGGER.info("Dynamic pricing: retrying evaluation (attempt %d)", self._controller._dp_eval_retry_count + 1)
-                await self._evaluate_dynamic_pricing(
-                    horizon=DynamicPricingEvaluationHorizon.REMAINING,
-                )
-                return
+        # Phase 2: Retry if prices (or the solar forecast) weren't available at
+        # 00:05. Every 15 min in the first hour, then every 30 min all day:
+        # a provider publishing after 01:00 used to leave the day unplanned.
+        if self._dp_eval_retry_due(now):
+            _LOGGER.info("Dynamic pricing: retrying evaluation (attempt %d)", self._controller._dp_eval_retry_count + 1)
+            self._controller._dp_eval_retry_at = now
+            await self._evaluate_dynamic_pricing(
+                horizon=DynamicPricingEvaluationHorizon.REMAINING,
+            )
+            return
 
         # Phase 2.5: Pre-slot re-evaluation (1h before each upcoming slot)
         await self._check_dp_pre_slot_reevaluation()
@@ -6723,6 +7038,9 @@ class PricingManager:
                 # Evaluate whether charging is actually needed before starting
                 decision_data = await self._current_horizon_grid_charging_decision()
                 self._controller._last_decision_data = decision_data
+                self._controller._realtime_eval_date = self._decision_day(
+                    self._now()
+                )
                 if decision_data["should_charge"]:
                     self._controller._realtime_price_charging = True
                     self._controller._grid_charging_initialized = False
@@ -6749,6 +7067,35 @@ class PricingManager:
                 current_price, threshold,
             )
 
+        elif self._controller._realtime_price_charging:
+            # A cheap run that started before midnight was sized only until
+            # 00:00; redo the decision for the new day so the night after
+            # midnight is covered too.
+            now = self._now()
+            if self._is_new_day_since(
+                getattr(self._controller, "_realtime_eval_date", None), now
+            ):
+                decision_data = await self._current_horizon_grid_charging_decision()
+                self._controller._last_decision_data = decision_data
+                self._controller._realtime_eval_date = now.date()
+                if decision_data["should_charge"]:
+                    # Recompute the per-battery target from the new deficit.
+                    self._controller._predictive_charge_target_soc = None
+                    _LOGGER.info(
+                        "Real-time price: new day while charging — target re-evaluated",
+                    )
+                else:
+                    self._reset_predictive_demand_runtime()
+                    self._controller._realtime_price_charging = False
+                    self._controller.grid_charging_active = False
+                    self._controller._grid_charging_initialized = False
+                    self._controller._predictive_charge_target_soc = None
+                    self._controller.previous_power = 0
+                    self._controller.previous_error = 0
+                    _LOGGER.info(
+                        "Real-time price: new day — charging no longer needed, STOPPED",
+                    )
+
         if self._controller.grid_charging_active:
             if not self._controller._is_operation_allowed(is_charging=True):
                 # Time slot ended while charging was active — stop immediately
@@ -6768,6 +7115,25 @@ class PricingManager:
     # =========================================================================
     # TIME SLOT: predictive charging handler
     # =========================================================================
+
+    async def _run_time_slot_decision(self) -> None:
+        """Carry out the Time Slot decision in force for this cycle."""
+        if self._controller.grid_charging_active:
+            _LOGGER.info("Predictive Grid Charging ACTIVE - target power: %dW", self._contracted_charge_ceiling())
+            await self._controller._handle_predictive_grid_charging()
+        else:
+            _LOGGER.info("In predictive charging slot but charging not needed - continuing normal operation")
+
+    async def _retry_time_slot_evaluation(self, *, day_rolled: bool) -> None:
+        """Wait for the solar forecast; keep running the decision in force.
+
+        On slot entry there is no decision yet, so the cycle is skipped. On
+        the new-day re-evaluation the previous night's decision may still be
+        charging, and skipping the cycle would leave the batteries on their
+        last command with no import-ceiling or SOC-target control.
+        """
+        if day_rolled:
+            await self._run_time_slot_decision()
 
     async def handle_time_slot_predictive_charging(self) -> None:
         """Handle predictive charging in time slot mode (extracted from main loop)."""
@@ -6857,8 +7223,31 @@ class PricingManager:
                 != getattr(self._controller, "_last_eval_peak_shaving_held", False)
             )
 
+            # day_rolled: this mode's horizon ends at local midnight and the
+            # night is meant to be planned by "the next window". A window that
+            # runs through midnight (22:00-07:00) never starts again, so
+            # without this its after-midnight part kept the 22:00 decision,
+            # which only covered the house until 00:00, and the battery ran
+            # empty before sunrise. 00:00-00:05 is left alone, as in Dynamic
+            # Pricing, so the solar provider has republished the new day.
+            day_rolled = self._is_new_day_since(
+                getattr(self._controller, "_time_slot_eval_date", None),
+                now,
+                is_initial_eval=is_initial_eval,
+            )
+            entry_time = getattr(self._controller, "_slot_entry_time", None)
+            if day_rolled and (
+                not isinstance(entry_time, datetime)
+                or entry_time.date() != now.date()
+            ):
+                # Restart the forecast grace clock for the new day's read,
+                # once: resetting it every cycle kept the grace from ever
+                # running out while the forecast stayed unavailable.
+                self._controller._slot_entry_time = now
+
             should_reevaluate = (
                 is_initial_eval or
+                day_rolled or
                 floor_crossed or
                 floor_recovered or
                 forecast_moved or
@@ -6874,6 +7263,11 @@ class PricingManager:
                     )
                 if is_initial_eval:
                     _LOGGER.info("INITIAL evaluation of predictive grid charging (SOC: %.1f%%)", current_avg_soc)
+                elif day_rolled:
+                    _LOGGER.info(
+                        "RE-EVALUATING predictive grid charging: new day inside the window (SOC: %.1f%%)",
+                        current_avg_soc,
+                    )
                 elif forecast_moved:
                     _LOGGER.info(
                         "RE-EVALUATING predictive grid charging: solar forecast revised (SOC: %.1f%%)",
@@ -6903,7 +7297,8 @@ class PricingManager:
                 forecast_unavailable = False
                 forecast_unavailable_elapsed_s = 0.0
                 forecast_grace_s = self._time_slot_forecast_grace_s()
-                if is_initial_eval and forecast_configured:
+                fresh_day_eval = is_initial_eval or day_rolled
+                if fresh_day_eval and forecast_configured:
                     # ``_evaluate_remaining_grid_charging`` deliberately uses
                     # zero solar as its fail-safe when a forecast read fails.
                     # For the one-shot slot-entry evaluation, distinguish a
@@ -6931,6 +7326,9 @@ class PricingManager:
                                 forecast_unavailable_elapsed_s,
                                 forecast_grace_s,
                             )
+                            await self._retry_time_slot_evaluation(
+                                day_rolled=day_rolled
+                            )
                             return
                         _LOGGER.warning(
                             "Predictive charging: configured solar forecast has been "
@@ -6945,7 +7343,7 @@ class PricingManager:
                 # that race, while accepting the existing solar=0 fallback once
                 # the grace has elapsed.
                 decision_forecast_unavailable = (
-                    is_initial_eval
+                    fresh_day_eval
                     and forecast_configured
                     and not decision_data.get("solar_forecast_kwh")
                 )
@@ -6960,6 +7358,9 @@ class PricingManager:
                             "unavailable during evaluation (%.0f / %.0f s grace); retrying",
                             forecast_unavailable_elapsed_s,
                             forecast_grace_s,
+                        )
+                        await self._retry_time_slot_evaluation(
+                            day_rolled=day_rolled
                         )
                         return
                     _LOGGER.warning(
@@ -6987,6 +7388,7 @@ class PricingManager:
                 was_active = self._controller.grid_charging_active
                 self._controller.grid_charging_active = decision_data["should_charge"]
                 self._controller.last_evaluation_soc = current_avg_soc
+                self._controller._time_slot_eval_date = self._decision_day(now)
                 self._controller._last_eval_peak_shaving_held = peak_shaving_held
                 self._controller._last_decision_data = decision_data
                 # Arms the forecast trigger on the slot's first evaluation and
@@ -6998,18 +7400,16 @@ class PricingManager:
                 # notification: otherwise a "STARTED" notice stays on screen for
                 # the rest of the slot while nothing is charging, and the
                 # "Not required" result is never reported.
-                if is_initial_eval or was_active != self._controller.grid_charging_active:
+                if (
+                    fresh_day_eval
+                    or was_active != self._controller.grid_charging_active
+                ):
                     await self._send_predictive_charging_notification(
                         decision_data=decision_data
                     )
 
-            if self._controller.grid_charging_active:
-                _LOGGER.info("Predictive Grid Charging ACTIVE - target power: %dW", self._contracted_charge_ceiling())
-                await self._controller._handle_predictive_grid_charging()
-                return
-            else:
-                _LOGGER.info("In predictive charging slot but charging not needed - continuing normal operation")
-                return
+            await self._run_time_slot_decision()
+            return
         else:
             await self._ensure_time_slot_chronological_preview(
                 now=now
@@ -7039,6 +7439,7 @@ class PricingManager:
                 self._reset_predictive_demand_runtime()
                 self._controller.grid_charging_active = False
                 self._controller.last_evaluation_soc = None
+                self._controller._time_slot_eval_date = None
                 self._controller._grid_charging_initialized = False
                 self._controller.error_integral = 0.0
                 self._controller.previous_error = 0.0
