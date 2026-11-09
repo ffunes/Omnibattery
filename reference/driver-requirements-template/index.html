@@ -1090,6 +1090,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../configuration/batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../configuration/batteries/hoymiles/" class="md-nav__link">
         
   
@@ -2901,13 +2929,63 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#wire-the-driver-into-setup" class="md-nav__link">
+  <a href="#files-you-touch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Wire the driver into setup
+        Files you touch
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Files you touch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#files-the-driver-owns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Files the driver owns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#registration-points-current" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registration points (current)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-debt-brand-branches-that-should-be-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known debt: brand branches that should be capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#before-you-open-the-pull-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before you open the pull request
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3171,13 +3249,63 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#wire-the-driver-into-setup" class="md-nav__link">
+  <a href="#files-you-touch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Wire the driver into setup
+        Files you touch
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Files you touch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#files-the-driver-owns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Files the driver owns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#registration-points-current" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registration points (current)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-debt-brand-branches-that-should-be-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known debt: brand branches that should be capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#before-you-open-the-pull-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before you open the pull request
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3806,20 +3934,172 @@
 </code></pre></div>
 <p>Each definition uses canonical keys and includes the metadata consumed by its Home Assistant platform, such as unit, device class, state class, scale, precision, polling cadence, category, and default enablement. Seed definitions during <code>__init__</code>; <code>connect()</code> may refine them after model or pack discovery. A battery that starts unreachable still needs enough definitions for entities to subscribe and trigger later recovery.</p>
 <p>Add visible names and descriptions to <code>custom_components/omnibattery/strings.json</code> and every file under <code>custom_components/omnibattery/translations/</code>. Reuse an existing canonical key and translation when the meaning and unit are identical.</p>
-<h2 id="wire-the-driver-into-setup">Wire the driver into setup<a class="headerlink" href="#wire-the-driver-into-setup" title="Permanent link">&para;</a></h2>
-<p>A driver file alone is not selectable support. Complete every integration point:</p>
+<h2 id="files-you-touch">Files you touch<a class="headerlink" href="#files-you-touch" title="Permanent link">&para;</a></h2>
+<p>The target is that a new brand is one driver file plus its tests, translations, and user documentation. The shared control code (<code>__init__.py</code>, <code>control/</code>, <code>pricing/</code>, <code>tracking/</code>, <code>sensors/</code>, and the entity platforms) should never learn a brand name. If your device behaves differently in a way shared code must know about, add a <code>DriverCapabilities</code> field or a semantic hook on <code>BatteryDriver</code>. Do not add a <code>brand ==</code> branch.</p>
+<p>Today the codebase does not fully meet that target. There is no driver registry yet, so a few setup modules still select behavior by brand string. Those modules are listed below as <strong>registration points</strong>. Touch them following the pattern the existing brands already use, and do not add brand branches anywhere else.</p>
+<h3 id="files-the-driver-owns">Files the driver owns<a class="headerlink" href="#files-the-driver-owns" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>drivers/&lt;brand&gt;.py</code></td>
+<td>The <code>BatteryDriver</code> subclass, capabilities, entity definitions, decoding, command translation, and a <code>probe()</code> static method for the config flow.</td>
+</tr>
+<tr>
+<td><code>infra/&lt;transport&gt;_client.py</code></td>
+<td>Only when the transport needs its own client and none of the existing ones fits. Reuse the existing Modbus client when possible.</td>
+</tr>
+<tr>
+<td><code>tests/test_&lt;brand&gt;_driver.py</code></td>
+<td>Driver tests against a fake transport (see <a href="#test-the-driver">Test the driver</a>).</td>
+</tr>
+<tr>
+<td><code>strings.json</code> and every <code>translations/*.json</code></td>
+<td>Entity names, plus config-flow step titles, fields, and errors for the new brand. Reuse existing canonical keys when meaning and unit match.</td>
+</tr>
+<tr>
+<td><code>site-docs/configuration/batteries/&lt;brand&gt;.md</code> and <code>.es.md</code></td>
+<td>User setup page. Also link it from <code>configuration/batteries/index</code>, <code>compatibility</code>, and the <code>nav</code> in <code>mkdocs.yml</code>.</td>
+</tr>
+<tr>
+<td><code>manifest.json</code></td>
+<td>Only when a new library is required. Pin it, and include its license and maintenance status in the pull request.</td>
+</tr>
+<tr>
+<td><code>CHANGELOG.md</code></td>
+<td>One line under the unreleased version.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="registration-points-current">Registration points (current)<a class="headerlink" href="#registration-points-current" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Where</th>
+<th>What to add</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>drivers/__init__.py</code></td>
+<td>imports and <code>__all__</code></td>
+<td>Export the driver class.</td>
+</tr>
+<tr>
+<td><code>infra/coordinator.py</code></td>
+<td><code>MarstekVenusDataUpdateCoordinator.__init__()</code>, the <code>if self.brand == ...</code> chain</td>
+<td>Construct the driver from its config-entry fields.</td>
+</tr>
+<tr>
+<td><code>infra/coordinator.py</code></td>
+<td><code>device_info</code></td>
+<td>Manufacturer and fallback model label.</td>
+</tr>
+<tr>
+<td><code>config_flow.py</code></td>
+<td><code>async_step_battery_brand()</code> in <strong>both</strong> the config flow and the options flow</td>
+<td>Selector option and dispatch to your connection step.</td>
+</tr>
+<tr>
+<td><code>config_flow.py</code></td>
+<td><code>async_step_battery_connection_&lt;brand&gt;()</code> in <strong>both</strong> flows</td>
+<td>Connection form. Call <code>&lt;Driver&gt;.probe()</code> and store only the fields the runtime needs.</td>
+</tr>
+<tr>
+<td><code>config_flow.py</code></td>
+<td><code>async_step_reconfigure_battery_&lt;brand&gt;()</code> and its dispatch</td>
+<td>Edit the host or credentials of an existing battery.</td>
+</tr>
+<tr>
+<td><code>config_flow.py</code></td>
+<td>SOC-range defaults, power-ceiling defaults, the battery-settings schema, and the probe dispatch</td>
+<td>Your brand's minimum-SOC range, power envelope, taper opt-out, and a capacity field when the device reports no capacity.</td>
+</tr>
+<tr>
+<td><code>infra/mac_tracking.py</code></td>
+<td><code>IP_BASED_BRANDS</code></td>
+<td>Only when the battery is addressed by IP and should follow DHCP changes.</td>
+</tr>
+</tbody>
+</table>
+<p>The config flow is duplicated between the initial setup flow and the options flow. A brand added to only one of them can be added but not edited, or the reverse. Check both.</p>
+<h3 id="known-debt-brand-branches-that-should-be-capabilities">Known debt: brand branches that should be capabilities<a class="headerlink" href="#known-debt-brand-branches-that-should-be-capabilities" title="Permanent link">&para;</a></h3>
+<p>These branches in shared setup code encode hardware traits by brand name. Each should become a capability, a driver hook, or a registry entry. Until then, a new driver is added to them by hand. If your driver is the one that has to extend one of these lists, consider converting it into a capability in the same pull request.</p>
+<table>
+<thead>
+<tr>
+<th>Branch</th>
+<th>Location</th>
+<th>What it should become</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Driver construction chain</td>
+<td><code>infra/coordinator.py</code> <code>__init__()</code></td>
+<td>Driver registry: brand → class and config-entry factory.</td>
+</tr>
+<tr>
+<td>Manufacturer and model fallback</td>
+<td><code>infra/coordinator.py</code> <code>device_info</code></td>
+<td>Driver properties (<code>manufacturer</code>, a default for <code>model_label</code>).</td>
+</tr>
+<tr>
+<td>Full-charge voltage taper disabled for <code>zendure</code>, <code>anker</code>, <code>hoymiles</code>, <code>huawei</code> (plus <code>sessy</code> in the config flow)</td>
+<td><code>infra/coordinator.py</code> <code>__init__()</code>, <code>config_flow.py</code></td>
+<td>A capability such as "cell voltage is reliable for top-of-charge taper".</td>
+</tr>
+<tr>
+<td>Fixed-envelope clamp for <code>sessy</code> and the EMS ceiling for Marstek <code>vD</code></td>
+<td><code>infra/coordinator.py</code> <code>__init__()</code></td>
+<td>Driver-owned limits. The driver already reports <code>max_*_power_w</code>; coordinator clamping should not depend on the brand.</td>
+</tr>
+<tr>
+<td>PV keys dropped for <code>anker</code> without independent PV</td>
+<td><code>infra/coordinator.py</code> <code>_sync_driver_definitions()</code></td>
+<td>A driver hook that prunes keys no longer in its contract.</td>
+</tr>
+<tr>
+<td><code>configuration_url</code> for <code>sessy</code></td>
+<td><code>infra/coordinator.py</code> <code>device_info</code></td>
+<td>An optional driver property.</td>
+</tr>
+<tr>
+<td><code>needs_software_power_cap</code> for Marstek <code>v2</code>/<code>v3</code></td>
+<td><code>infra/coordinator.py</code></td>
+<td>A capability: the hardware cap accepts only fixed choices.</td>
+</tr>
+<tr>
+<td>Device owns its initial configuration (<code>zendure</code>)</td>
+<td><code>__init__.py</code> <code>_device_owns_initial_config()</code></td>
+<td>A capability.</td>
+</tr>
+<tr>
+<td>Per-brand SOC range, power defaults, capacity field, and probe dispatch</td>
+<td><code>config_flow.py</code>, both flows</td>
+<td>A driver-declared config schema and <code>probe()</code> resolved through the registry.</td>
+</tr>
+<tr>
+<td><code>IP_BASED_BRANDS</code></td>
+<td><code>infra/mac_tracking.py</code></td>
+<td>A driver property: addressed by IP.</td>
+</tr>
+</tbody>
+</table>
+<p>Not every software-control decision is brand-based. <code>needs_software_manual_control</code>, <code>needs_software_max_charge</code>, and <code>needs_software_max_discharge</code> are derived from your entity definitions. If you do not define a writable <code>force_mode</code> select, <code>set_charge_power</code> number, or <code>max_charge_power</code> / <code>max_discharge_power</code> number, the integration adds software controls automatically. Declare only the controls the hardware really has.</p>
+<h3 id="before-you-open-the-pull-request">Before you open the pull request<a class="headerlink" href="#before-you-open-the-pull-request" title="Permanent link">&para;</a></h3>
 <ol>
-<li>Export the class from <code>drivers/__init__.py</code> and add it to <code>__all__</code>.</li>
-<li>Add the brand to both add-battery and edit-battery selectors in <code>config_flow.py</code>.</li>
-<li>Add a brand-specific config-flow step that validates credentials or transport access on real hardware and stores only the fields needed at runtime.</li>
-<li>Construct the driver in <code>MarstekVenusDataUpdateCoordinator.__init__()</code> and pass probed model limits or identity where needed.</li>
-<li>Set software-control and software-limit flags from capabilities and actual hardware behavior; do not infer them only from the brand name.</li>
-<li>Expose only supported entity definitions, then add all translation keys.</li>
-<li>Add any user-configured C values, such as nominal capacity, with validation and clear labels.</li>
-<li>Check setup while the battery is reachable and unreachable, then check reload, reconnect, and removal.</li>
+<li>Check setup with the battery reachable and unreachable, then reload, reconnect, and remove it.</li>
+<li>Add the battery, then edit it through the options flow, not only the initial setup flow.</li>
 <li>Verify the new device in a mixed-brand fleet so selection, allocation, manual ownership, and shutdown do not depend on homogeneous drivers.</li>
+<li>Run <code>git diff --stat</code>. It should show no change in <code>control/</code>, <code>pricing/</code>, <code>tracking/</code>, <code>sensors/</code>, or the controller in <code>__init__.py</code>. If it does, explain why in the pull request: the change is either a new capability or a bug.</li>
 </ol>
-<p>If setup requires a new library, document why it is needed, pin it according to repository policy, and include license and maintenance information in the pull request.</p>
 <h2 id="test-the-driver">Test the driver<a class="headerlink" href="#test-the-driver" title="Permanent link">&para;</a></h2>
 <p>Create <code>tests/test_&lt;brand&gt;_driver.py</code>. Use a fake transport, fake Home Assistant states, or a fake service layer so tests never contact real hardware. Existing files such as <code>test_huawei_driver.py</code>, <code>test_zendure_driver.py</code>, and <code>test_esphome_driver.py</code> show the expected seams.</p>
 <h3 id="driver-tests">Driver tests<a class="headerlink" href="#driver-tests" title="Permanent link">&para;</a></h3>

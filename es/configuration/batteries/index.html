@@ -1026,6 +1026,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#histeresis-de-carga" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Histéresis de carga
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#si-la-via-de-bateria-no-esta-clara" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1172,6 +1183,34 @@
     
   
     Sessy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
   
 
     
@@ -2878,6 +2917,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#histeresis-de-carga" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Histéresis de carga
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#si-la-via-de-bateria-no-esta-clara" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2957,6 +3007,12 @@
 <td><a href="sessy/">Sessy</a></td>
 </tr>
 <tr>
+<td>Indevolt SolidFlex o PowerFlex</td>
+<td>La API local activada y el modo Tiempo real elegido en la app de Indevolt</td>
+<td><strong>Indevolt SolidFlex / PowerFlex</strong></td>
+<td><a href="indevolt/">Indevolt</a></td>
+</tr>
+<tr>
 <td>Hoymiles MS-A2 o HiBattery compatible</td>
 <td>MQTT configurado en Home Assistant y el ID completo del dispositivo</td>
 <td><strong>Hoymiles MQTT</strong></td>
@@ -3005,7 +3061,7 @@
 </tr>
 <tr>
 <td><strong>Charge hysteresis</strong></td>
-<td>Evita ciclos rápidos tras llegar la batería a su límite superior. El mínimo es del 2%.</td>
+<td>Evita ciclos rápidos tras llegar la batería a su límite superior. El mínimo es del 2%; consulta la <a href="#histeresis-de-carga">histéresis de carga</a>.</td>
 </tr>
 <tr>
 <td><strong>Backup Offgrid Threshold</strong></td>
@@ -3018,6 +3074,13 @@
 </tbody>
 </table>
 <p>La integración crea controles en tiempo de ejecución para los límites de estado de carga y potencia, así que puedes ajustarlos sin volver a ejecutar el asistente de configuración. <strong>Battery Manual Control</strong> reserva una batería para tus propias órdenes de carga, descarga o reposo; consulta el <a href="../../features/multi-battery/#control-manual-por-bateria">control manual en una instalación con varias baterías</a>.</p>
+<h2 id="histeresis-de-carga">Histéresis de carga<a class="headerlink" href="#histeresis-de-carga" title="Permanent link">&para;</a></h2>
+<p>Cuando una batería llega a su límite superior, Omnibattery anota el SOC de ese momento y deja de cargarla. La carga solo se reanuda cuando el SOC baja <strong>por debajo</strong> de ese valor menos la histéresis. Con un SOC máximo del 90% y el 2% predeterminado, la batería vuelve a cargar solo cuando su SOC está por debajo del 88%.</p>
+<p>El mínimo del 2% es deliberado y no se puede reducir. Cerca del tope, el SOC que comunica la batería oscila y suele cambiar a saltos de un punto entero. Con un margen menor, ese ruido bastaría para reanudar la carga una y otra vez en el límite superior. Cada reanudación activa y desactiva el relé de la batería; evitar esos ciclos continuos reduce su desgaste y preserva la vida útil de la batería.</p>
+<div class="admonition note">
+<p class="admonition-title">Autoconsumo en el tope</p>
+<p>Algunas baterías, como algunos modelos de Anker, consumen un poco de su propia energía en reposo. Una vez llenas, su SOC puede bajar poco a poco del 90% al 88% sin descargar hacia la vivienda. Es lo esperado: la batería sigue dentro de la banda de histéresis y Omnibattery no la recarga. Si quieres que termine el día más alta, sube el <strong>SOC máximo</strong> en lugar de intentar quitar la histéresis.</p>
+</div>
 <h2 id="si-la-via-de-bateria-no-esta-clara">Si la vía de batería no está clara<a class="headerlink" href="#si-la-via-de-bateria-no-esta-clara" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

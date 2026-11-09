@@ -1101,6 +1101,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../batteries/hoymiles/" class="md-nav__link">
         
   
@@ -3198,6 +3226,7 @@
 <p>Useful decision attributes include <code>solar_timeline_source</code>, <code>solar_remaining_raw_kwh</code>, <code>solar_remaining_effective_kwh</code>, <code>solar_timeline_fallback_reason</code>, <code>solar_profile_mature</code>, <code>solar_profile_coverage_ratio</code>, <code>chronological_planning_active</code>, <code>slot_energy_targets_kwh</code>, and <code>total_shortfall_kwh</code>.</p>
 <h3 id="notifications">Notifications<a class="headerlink" href="#notifications" title="Permanent link">&para;</a></h3>
 <p>Time Slot can notify one hour before a configured period and when charging starts. Dynamic Pricing also checks before future selected periods, during the late-day assessment, after a material SOC drop, and when tomorrow's prices become available. The active mode pages describe the exact behavior.</p>
+<p>To stop these notifications, turn off <strong>Predictive Charging Notifications</strong> (<code>switch.omnibattery_predictive_charging_notifications</code>) on the predictive-charging card. Evaluations, the schedule and the decision attributes keep working; only the persistent notifications are skipped, and any evaluation notification currently shown is dismissed. Battery alarm, cell-balance and manual-mode notifications, and the confirmation shown when you turn predictive charging off, are not affected. The switch is on by default.</p>
 <p><img alt="Predictive charging notification" src="../../assets/screenshots/configuration/predictive-charging/notification-example.png" style="display: block; margin: 0 auto;" width="500" /></p>
 </details>
 

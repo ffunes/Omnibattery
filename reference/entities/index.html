@@ -1092,6 +1092,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../configuration/batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../configuration/batteries/hoymiles/" class="md-nav__link">
         
   
@@ -2992,7 +3020,7 @@
 <tr>
 <td><strong>System SOC</strong></td>
 <td><code>sensor.omnibattery_system_soc</code></td>
-<td>Combined state of charge (SOC)</td>
+<td>Combined state of charge (SOC) of the batteries under automatic control (all of them if every battery is in manual mode)</td>
 </tr>
 <tr>
 <td><strong>System Charge Power</strong></td>
@@ -3148,7 +3176,7 @@
 <summary>System switches</summary>
 <ul>
 <li>Always available controller choices: <code>manual_mode</code>, <code>no_pd_mode</code>, <code>three_phase_protection</code>, <code>weekly_full_charge_enabled</code>, <code>vacation_mode</code></li>
-<li>Conditional features: <code>offgrid_mode</code>, <code>primary_feedforward</code>, <code>system_power_limits</code>, <code>predictive_charging</code>, <code>min_soc_floor_enabled</code>, <code>charge_delay</code>, <code>delay_soc_setpoint_enabled</code>, <code>weekly_full_charge_delay</code>, <code>temp_charge_limit</code>, <code>temp_charge_limit_discharge</code>, <code>capacity_protection</code>, <code>capacity_protection_excluded_devices</code>, <code>hourly_balance</code></li>
+<li>Conditional features: <code>offgrid_mode</code>, <code>primary_feedforward</code>, <code>system_power_limits</code>, <code>predictive_charging</code>, <code>predictive_charging_notifications</code>, <code>min_soc_floor_enabled</code>, <code>charge_delay</code>, <code>delay_soc_setpoint_enabled</code>, <code>weekly_full_charge_delay</code>, <code>temp_charge_limit</code>, <code>temp_charge_limit_discharge</code>, <code>capacity_protection</code>, <code>capacity_protection_excluded_devices</code>, <code>hourly_balance</code></li>
 <li>Pricing controls: <code>price_discharge_control</code>, <code>smart_predischarge</code>, <code>negative_price_charging</code>, <code>surplus_price_hold</code>, <code>discharge_reserve</code></li>
 <li>Generated controls: <code>time_slot</code> for each configured time slot; <code>excluded_device_enabled</code>, <code>excluded_device_solar_surplus</code>, <code>excluded_device_dynamic_power_control</code>, and <code>excluded_device_cover_home</code> for each applicable excluded device</li>
 <li>External automation compatibility: <code>automation_charging_active</code></li>
@@ -3367,7 +3395,7 @@
 <details>
 <summary>Predictive Charging Active attributes</summary>
 <p>Common attributes include <code>charging_needed</code>, <code>reason</code>, <code>price_data_status</code>, forecast and consumption values, selected price slots, target energy, and current progress.</p>
-<p>Dynamic Pricing can also expose <code>chronological_planning_active</code>, <code>energy_horizon_end</code>, <code>overnight_consumption_kwh</code>, <code>earliest_projected_depletion</code>, <code>deadline_shortfall_kwh</code>, <code>energy_deadlines</code>, <code>slot_deadlines</code>, and <code>chronological_plan_reason</code>. They describe planning intent; live battery, grid, and safety limits remain authoritative.</p>
+<p>Dynamic Pricing can also expose <code>chronological_planning_active</code>, <code>energy_horizon_end</code>, <code>overnight_consumption_kwh</code>, <code>earliest_projected_depletion</code>, <code>deadline_shortfall_kwh</code>, <code>cheaper_to_import_kwh</code>, <code>cheapest_rejected_slot</code>, <code>energy_deadlines</code>, <code>slot_deadlines</code>, and <code>chronological_plan_reason</code>. The diagnostics also expose <code>round_trip_efficiency_used</code> and <code>round_trip_efficiency_source</code> (<code>configured</code>, <code>measured</code> or <code>default</code>). They describe planning intent; live battery, grid, and safety limits remain authoritative.</p>
 </details>
 <details>
 <summary>High-Price Sale Status attributes</summary>

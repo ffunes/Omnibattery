@@ -1092,6 +1092,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../configuration/batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../configuration/batteries/hoymiles/" class="md-nav__link">
         
   
@@ -3291,8 +3319,9 @@
 <p><strong>Resultado esperado:</strong> el coordinador se actualiza y las entidades admitidas vuelven a estados numéricos o con nombre. Para detalles del protocolo Marstek, consulta el <a href="../reference/modbus-registers/">resumen Modbus</a>.</p>
 <h2 id="el-medidor-de-red-no-esta-disponible-o-esta-bloqueado">El medidor de red no está disponible o está bloqueado<a class="headerlink" href="#el-medidor-de-red-no-esta-disponible-o-esta-bloqueado" title="Permanent link">&para;</a></h2>
 <div class="admonition warning">
-<p class="admonition-title">Un medidor no disponible puede dejar activa la última orden de batería</p>
-<p>Cuando el sensor de red pasa a <code>unavailable</code> o <code>unknown</code>, el bucle de control no envía una orden nueva. Por tanto, una batería puede continuar a su última potencia solicitada —por ejemplo, 2000 W de descarga— hasta que regresen los datos del medidor. No hay un tiempo de espera automático que lleve la batería a reposo; solo siguen aplicándose los límites de SOC y otros de seguridad.</p>
+<p class="admonition-title">Un medidor silencioso detiene el control automático tras 5 minutos</p>
+<p>Cuando el sensor de red pasa a <code>unavailable</code> o <code>unknown</code>, o deja de actualizarse, el bucle de control deja de seguir la carga de la casa, y una batería puede continuar a su última potencia solicitada, por ejemplo 2000W de descarga. Tras 5 minutos sin una lectura válida, Omnibattery crea una reparación de Home Assistant y pone a 0W cada batería bajo control automático. El modo manual y las franjas manuales se mantienen como están, y la carga predictiva desde la red se pausa. El control automático se reanuda solo en cuanto el sensor vuelve a publicar una lectura válida.</p>
+<p>Lo mismo ocurre cuando el sensor no publica nada tras reiniciar Home Assistant. Después de un fallo o un corte de luz, una batería puede seguir ejecutando su última orden de antes del reinicio; los 5 minutos cuentan entonces desde que Home Assistant termina de iniciarse.</p>
 </div>
 <table>
 <thead>

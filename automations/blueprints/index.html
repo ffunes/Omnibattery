@@ -1092,6 +1092,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../configuration/batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../configuration/batteries/hoymiles/" class="md-nav__link">
         
   
@@ -3105,6 +3133,7 @@
 <li><strong>Does not do:</strong> overwrite a later manual change or a different automation's target — it only restores the idle target when the recharge target it set is still in place.</li>
 </ul>
 <p>Configure the SOC floor, a higher SOC recovery target, charge power, and idle target. It restores the idle target when SOC reaches the recovery target or capacity protection ends.</p>
+<p>The grid target is the total import, not the charge power: the battery charges with the target minus the house load, and does not charge while the house draws more than the target. Setting it to your Peak Limit charges whatever fits under the peak. System SOC counts only batteries under automatic control, so a battery in manual mode (for example balancing) does not hold it up.</p>
 <h2 id="forward-persistent-notifications-to-telegram">Forward persistent notifications to Telegram<a class="headerlink" href="#forward-persistent-notifications-to-telegram" title="Permanent link">&para;</a></h2>
 <p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/persistent_notification_to_telegram_blueprint.yaml">Import blueprint</a></p>
 <ul>
@@ -3125,6 +3154,7 @@
 <li><strong>Does not do:</strong> touch battery alarms, cell-balance messages, or manual-mode notifications — only predictive-charging notifications are dismissed.</li>
 </ul>
 <p>The notification may be visible briefly before Home Assistant executes the automation. Disable the automation at any time to receive predictive-charging notifications again.</p>
+<p>To stop these notifications at the source instead, turn off the <strong>Predictive Charging Notifications</strong> switch; see <a href="../../configuration/predictive-charging/">Predictive charging</a>.</p>
 <h2 id="solar-forecast-reserve-discharge">Solar forecast reserve discharge<a class="headerlink" href="#solar-forecast-reserve-discharge" title="Permanent link">&para;</a></h2>
 <p><a href="https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/solar_forecast_reserve_discharge_blueprint.yaml">Import blueprint</a></p>
 <ul>

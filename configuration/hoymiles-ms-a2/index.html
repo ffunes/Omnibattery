@@ -1101,6 +1101,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../batteries/hoymiles/" class="md-nav__link">
         
   
@@ -2961,6 +2989,10 @@
 <li><strong>Add the battery.</strong> Open <strong>Settings → Devices &amp; services → Add integration → Omnibattery</strong>, choose <strong>Hoymiles MQTT</strong>, enter the device ID, and leave <strong>Battery model</strong> on <strong>Auto-detect</strong>.</li>
 <li><strong>Review and verify.</strong> Keep the detected capacity and safe power envelope, complete the common limits, and confirm that state of charge, battery power, voltage, temperature, and daily energy update.</li>
 </ol>
+<div class="admonition note">
+<p class="admonition-title">Paired systems</p>
+<p>Add a paired master/slave system <strong>once</strong>, with the <strong>master</strong> device ID only. The master reports and controls the whole pair; the slave accepts no power commands, so setup refuses its ID. Do not add the slave as a second battery.</p>
+</div>
 <h2 id="what-you-will-see">What you will see<a class="headerlink" href="#what-you-will-see" title="Permanent link">&para;</a></h2>
 <p>Charging is positive battery power in Omnibattery, discharging is negative, and idle is zero. Automatic control and the software manual controls use the same convention; turn on <strong>Battery Manual Control</strong> before testing a manual target.</p>
 <p>After setup, verify a low-power charge, discharge, and idle command. State of charge and battery power should follow S-Miles Home, and MQTT telemetry should continue updating through the local broker.</p>

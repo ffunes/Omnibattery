@@ -1090,6 +1090,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../configuration/batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../configuration/batteries/hoymiles/" class="md-nav__link">
         
   
@@ -2901,13 +2929,63 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#conectar-el-controlador-en-la-configuracion" class="md-nav__link">
+  <a href="#archivos-que-se-tocan" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Conectar el controlador en la configuración
+        Archivos que se tocan
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Archivos que se tocan">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#archivos-propios-del-driver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Archivos propios del driver
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#puntos-de-registro-actuales" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Puntos de registro (actuales)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deuda-conocida-ramas-por-marca-que-deberian-ser-capacidades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deuda conocida: ramas por marca que deberían ser capacidades
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#antes-de-abrir-el-pull-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Antes de abrir el pull request
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3171,13 +3249,63 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#conectar-el-controlador-en-la-configuracion" class="md-nav__link">
+  <a href="#archivos-que-se-tocan" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Conectar el controlador en la configuración
+        Archivos que se tocan
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Archivos que se tocan">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#archivos-propios-del-driver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Archivos propios del driver
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#puntos-de-registro-actuales" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Puntos de registro (actuales)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deuda-conocida-ramas-por-marca-que-deberian-ser-capacidades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deuda conocida: ramas por marca que deberían ser capacidades
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#antes-de-abrir-el-pull-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Antes de abrir el pull request
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3806,20 +3934,172 @@
 </code></pre></div>
 <p>Cada definición usa claves canónicas e incluye la metadata consumida por su plataforma de Home Assistant, tales como unidad, clase de dispositivo, clase de estado, escala, precisión, ritmo de consulta, categoría y habilitación por defecto. Semilla definiciones durante <code>__init__</code>; <code>connect()</code> puede refinarlas después del descubrimiento de modelo o paquete. Una batería que comienza inaccesible aún necesita suficientes definiciones para que las entidades se suscriban y disparen una recuperación posterior.</p>
 <p>Añade nombres y descripciones visibles a <code>custom_components/omnibattery/strings.json</code> y cada archivo bajo <code>custom_components/omnibattery/translations/</code>. Reutiliza una clave canónica existente y traducción cuando el significado y unidad sean idénticos.</p>
-<h2 id="conectar-el-controlador-en-la-configuracion">Conectar el controlador en la configuración<a class="headerlink" href="#conectar-el-controlador-en-la-configuracion" title="Permanent link">&para;</a></h2>
-<p>Un archivo de controlador por sí solo no es soporte seleccionable. Completa cada punto de integración:</p>
+<h2 id="archivos-que-se-tocan">Archivos que se tocan<a class="headerlink" href="#archivos-que-se-tocan" title="Permanent link">&para;</a></h2>
+<p>El objetivo es que una marca nueva sea un archivo de driver más sus tests, traducciones y documentación de usuario. El código de control compartido (<code>__init__.py</code>, <code>control/</code>, <code>pricing/</code>, <code>tracking/</code>, <code>sensors/</code> y las plataformas de entidades) nunca debería conocer un nombre de marca. Si tu dispositivo se comporta de forma distinta y el código compartido necesita saberlo, añade un campo a <code>DriverCapabilities</code> o un hook semántico en <code>BatteryDriver</code>. No añadas una rama <code>brand ==</code>.</p>
+<p>Hoy el código no cumple del todo ese objetivo. Todavía no hay un registro de drivers, así que algunos módulos de configuración siguen eligiendo el comportamiento por el nombre de la marca. Esos módulos aparecen abajo como <strong>puntos de registro</strong>. Tócalos siguiendo el patrón de las marcas existentes y no añadas ramas por marca en ningún otro sitio.</p>
+<h3 id="archivos-propios-del-driver">Archivos propios del driver<a class="headerlink" href="#archivos-propios-del-driver" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Archivo</th>
+<th>Contenido</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>drivers/&lt;marca&gt;.py</code></td>
+<td>La subclase de <code>BatteryDriver</code>, capacidades, definiciones de entidades, decodificación, traducción de comandos y un método estático <code>probe()</code> para el config flow.</td>
+</tr>
+<tr>
+<td><code>infra/&lt;transporte&gt;_client.py</code></td>
+<td>Solo si el transporte necesita su propio cliente y ninguno de los existentes sirve. Reutiliza el cliente Modbus existente cuando sea posible.</td>
+</tr>
+<tr>
+<td><code>tests/test_&lt;marca&gt;_driver.py</code></td>
+<td>Tests del driver contra un transporte falso (ver <a href="#probar-el-controlador">Probar el controlador</a>).</td>
+</tr>
+<tr>
+<td><code>strings.json</code> y todos los <code>translations/*.json</code></td>
+<td>Nombres de entidades y títulos, campos y errores de los pasos del config flow de la nueva marca. Reutiliza las claves canónicas existentes cuando coincidan significado y unidad.</td>
+</tr>
+<tr>
+<td><code>site-docs/configuration/batteries/&lt;marca&gt;.md</code> y <code>.es.md</code></td>
+<td>Página de configuración para usuarios. Enlázala también desde <code>configuration/batteries/index</code>, <code>compatibility</code> y el <code>nav</code> de <code>mkdocs.yml</code>.</td>
+</tr>
+<tr>
+<td><code>manifest.json</code></td>
+<td>Solo si hace falta una biblioteca nueva. Fija la versión e indica su licencia y estado de mantenimiento en el pull request.</td>
+</tr>
+<tr>
+<td><code>CHANGELOG.md</code></td>
+<td>Una línea en la versión sin publicar.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="puntos-de-registro-actuales">Puntos de registro (actuales)<a class="headerlink" href="#puntos-de-registro-actuales" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Archivo</th>
+<th>Dónde</th>
+<th>Qué añadir</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>drivers/__init__.py</code></td>
+<td>imports y <code>__all__</code></td>
+<td>Exportar la clase del driver.</td>
+</tr>
+<tr>
+<td><code>infra/coordinator.py</code></td>
+<td><code>MarstekVenusDataUpdateCoordinator.__init__()</code>, la cadena <code>if self.brand == ...</code></td>
+<td>Construir el driver a partir de los campos de la config entry.</td>
+</tr>
+<tr>
+<td><code>infra/coordinator.py</code></td>
+<td><code>device_info</code></td>
+<td>Fabricante y etiqueta de modelo por defecto.</td>
+</tr>
+<tr>
+<td><code>config_flow.py</code></td>
+<td><code>async_step_battery_brand()</code> en <strong>ambos</strong> flujos, el de configuración y el de opciones</td>
+<td>Opción del selector y salto a tu paso de conexión.</td>
+</tr>
+<tr>
+<td><code>config_flow.py</code></td>
+<td><code>async_step_battery_connection_&lt;marca&gt;()</code> en <strong>ambos</strong> flujos</td>
+<td>Formulario de conexión. Llama a <code>&lt;Driver&gt;.probe()</code> y guarda solo los campos que necesita el runtime.</td>
+</tr>
+<tr>
+<td><code>config_flow.py</code></td>
+<td><code>async_step_reconfigure_battery_&lt;marca&gt;()</code> y su despacho</td>
+<td>Editar el host o las credenciales de una batería existente.</td>
+</tr>
+<tr>
+<td><code>config_flow.py</code></td>
+<td>Rangos de SOC por defecto, límites de potencia por defecto, el esquema de ajustes de batería y el despacho de <code>probe</code></td>
+<td>Rango de SOC mínimo de tu marca, envolvente de potencia, exclusión del taper y un campo de capacidad cuando el dispositivo no la reporta.</td>
+</tr>
+<tr>
+<td><code>infra/mac_tracking.py</code></td>
+<td><code>IP_BASED_BRANDS</code></td>
+<td>Solo si la batería se direcciona por IP y debe seguir los cambios de DHCP.</td>
+</tr>
+</tbody>
+</table>
+<p>El config flow está duplicado entre el flujo de alta inicial y el de opciones. Una marca añadida solo a uno de ellos se puede dar de alta pero no editar, o al revés. Revisa los dos.</p>
+<h3 id="deuda-conocida-ramas-por-marca-que-deberian-ser-capacidades">Deuda conocida: ramas por marca que deberían ser capacidades<a class="headerlink" href="#deuda-conocida-ramas-por-marca-que-deberian-ser-capacidades" title="Permanent link">&para;</a></h3>
+<p>Estas ramas del código de configuración compartido codifican rasgos de hardware por nombre de marca. Cada una debería convertirse en una capacidad, un hook del driver o una entrada de registro. Mientras tanto, un driver nuevo se añade a ellas a mano. Si tu driver es el que tiene que ampliar una de estas listas, plantéate convertirla en capacidad en el mismo pull request.</p>
+<table>
+<thead>
+<tr>
+<th>Rama</th>
+<th>Ubicación</th>
+<th>Qué debería ser</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cadena de construcción del driver</td>
+<td><code>infra/coordinator.py</code> <code>__init__()</code></td>
+<td>Registro de drivers: marca → clase y fábrica a partir de la config entry.</td>
+</tr>
+<tr>
+<td>Fabricante y modelo por defecto</td>
+<td><code>infra/coordinator.py</code> <code>device_info</code></td>
+<td>Propiedades del driver (<code>manufacturer</code> y un valor por defecto para <code>model_label</code>).</td>
+</tr>
+<tr>
+<td>Taper de carga completa por voltaje desactivado para <code>zendure</code>, <code>anker</code>, <code>hoymiles</code>, <code>huawei</code> (y <code>sessy</code> en el config flow)</td>
+<td><code>infra/coordinator.py</code> <code>__init__()</code>, <code>config_flow.py</code></td>
+<td>Una capacidad del tipo "el voltaje de celda es fiable para el taper de final de carga".</td>
+</tr>
+<tr>
+<td>Clamp de envolvente fija para <code>sessy</code> y techo EMS para Marstek <code>vD</code></td>
+<td><code>infra/coordinator.py</code> <code>__init__()</code></td>
+<td>Límites propios del driver. El driver ya informa <code>max_*_power_w</code>; el clamp del coordinator no debería depender de la marca.</td>
+</tr>
+<tr>
+<td>Claves de PV descartadas para <code>anker</code> sin PV independiente</td>
+<td><code>infra/coordinator.py</code> <code>_sync_driver_definitions()</code></td>
+<td>Un hook del driver que elimine las claves que ya no forman parte de su contrato.</td>
+</tr>
+<tr>
+<td><code>configuration_url</code> para <code>sessy</code></td>
+<td><code>infra/coordinator.py</code> <code>device_info</code></td>
+<td>Una propiedad opcional del driver.</td>
+</tr>
+<tr>
+<td><code>needs_software_power_cap</code> para Marstek <code>v2</code>/<code>v3</code></td>
+<td><code>infra/coordinator.py</code></td>
+<td>Una capacidad: el límite hardware solo acepta valores fijos.</td>
+</tr>
+<tr>
+<td>El dispositivo conserva su configuración inicial (<code>zendure</code>)</td>
+<td><code>__init__.py</code> <code>_device_owns_initial_config()</code></td>
+<td>Una capacidad.</td>
+</tr>
+<tr>
+<td>Rango de SOC, potencias por defecto, campo de capacidad y despacho de <code>probe</code> por marca</td>
+<td><code>config_flow.py</code>, ambos flujos</td>
+<td>Un esquema de configuración declarado por el driver y <code>probe()</code> resuelto mediante el registro.</td>
+</tr>
+<tr>
+<td><code>IP_BASED_BRANDS</code></td>
+<td><code>infra/mac_tracking.py</code></td>
+<td>Una propiedad del driver: se direcciona por IP.</td>
+</tr>
+</tbody>
+</table>
+<p>No todas las decisiones de control por software dependen de la marca. <code>needs_software_manual_control</code>, <code>needs_software_max_charge</code> y <code>needs_software_max_discharge</code> se derivan de tus definiciones de entidades. Si no defines un select <code>force_mode</code>, un number <code>set_charge_power</code> o un number escribible <code>max_charge_power</code> / <code>max_discharge_power</code>, la integración añade los controles por software automáticamente. Declara solo los controles que el hardware tiene de verdad.</p>
+<h3 id="antes-de-abrir-el-pull-request">Antes de abrir el pull request<a class="headerlink" href="#antes-de-abrir-el-pull-request" title="Permanent link">&para;</a></h3>
 <ol>
-<li>Exporta la clase de <code>drivers/__init__.py</code> y añádela a <code>__all__</code>.</li>
-<li>Añade la marca a los selectores añadir-batería y editar-batería en <code>config_flow.py</code>.</li>
-<li>Añade un paso específico de flujo de configuración que valide credenciales o acceso al transporte en hardware real y almacene solo los campos necesarios en tiempo de ejecución.</li>
-<li>Construye el controlador en <code>MarstekVenusDataUpdateCoordinator.__init__()</code> y pasa límites de modelo probados o identidad cuando sea necesario.</li>
-<li>Establece indicadores de control y límite por software desde capacidades y comportamiento hardware real; no inferirlos solo desde el nombre de marca.</li>
-<li>Expo solo definiciones de entidad soportadas, luego añade todas las claves de traducción.</li>
-<li>Añade cualquier valor C configurado por el usuario, tal como capacidad nominal, con validación y etiquetas claras.</li>
-<li>Comprobar la configuración mientras la batería es accesible e inaccesible, luego comprobar recarga, reconexión y eliminación.</li>
-<li>Verificar el nuevo dispositivo en una flota de múltiples marcas para que selección, asignación, propiedad manual y apagado no dependan de controladores homogéneos.</li>
+<li>Comprueba el alta con la batería accesible e inaccesible; después, la recarga, la reconexión y la eliminación.</li>
+<li>Da de alta la batería y luego edítala desde el flujo de opciones, no solo desde el alta inicial.</li>
+<li>Verifica el dispositivo nuevo en una flota de varias marcas para que la selección, el reparto, la propiedad manual y el apagado no dependan de drivers homogéneos.</li>
+<li>Ejecuta <code>git diff --stat</code>. No debería mostrar cambios en <code>control/</code>, <code>pricing/</code>, <code>tracking/</code>, <code>sensors/</code> ni en el controlador de <code>__init__.py</code>. Si los muestra, explica el motivo en el pull request: el cambio es una capacidad nueva o un bug.</li>
 </ol>
-<p>Si la configuración requiere una biblioteca nueva, documenta por qué es necesaria, áncoral según política de repositorio e incluye licencia y información de mantenimiento en la solicitud de extracción.</p>
 <h2 id="probar-el-controlador">Probar el controlador<a class="headerlink" href="#probar-el-controlador" title="Permanent link">&para;</a></h2>
 <p>Crea <code>tests/test_&lt;brand&gt;_driver.py</code>. Usa un transporte falso, estados falsos de Home Assistant o una capa de servicio falsa para que las pruebas nunca contacten hardware real. Archivos existentes como <code>test_huawei_driver.py</code>, <code>test_zendure_driver.py</code> y <code>test_esphome_driver.py</code> muestran los acoples esperados.</p>
 <h3 id="pruebas-de-controlador">Pruebas de controlador<a class="headerlink" href="#pruebas-de-controlador" title="Permanent link">&para;</a></h3>

@@ -1101,6 +1101,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../batteries/hoymiles/" class="md-nav__link">
         
   
@@ -2961,6 +2989,10 @@
 <li><strong>Agrega la batería.</strong> Abre <strong>Configuración → Dispositivos y servicios → Agregar integración → Omnibattery</strong>, elige <strong>Hoymiles MQTT</strong>, ingresa el ID del dispositivo y deja <strong>Modelo de batería</strong> en <strong>Detección automática</strong>.</li>
 <li><strong>Revisar y verificar.</strong> Mantenga la capacidad detectada y el límite de energía seguro, complete los límites comunes y confirme el estado de carga, la energía de la batería, el voltaje, la temperatura y la actualización diaria de energía.</li>
 </ol>
+<div class="admonition note">
+<p class="admonition-title">Sistemas emparejados</p>
+<p>Añade un sistema maestro/esclavo emparejado <strong>una sola vez</strong>, solo con el ID del <strong>maestro</strong>. El maestro informa y controla el par completo; el esclavo no acepta órdenes de potencia, así que la configuración rechaza su ID. No añadas el esclavo como segunda batería.</p>
+</div>
 <h2 id="lo-que-veras">lo que veras<a class="headerlink" href="#lo-que-veras" title="Permanent link">&para;</a></h2>
 <p>La carga es energía positiva de la batería en Omnibattery, la descarga es negativa y la inactividad es cero. El control automático y los controles manuales del software utilizan la misma convención; active el <strong>Control manual de batería</strong> antes de probar un objetivo manual.</p>
 <p>Después de la configuración, verifique un comando de carga, descarga e inactividad de baja potencia. El estado de carga y la energía de la batería deben seguir S-Miles Home, y la telemetría MQTT debe continuar actualizándose a través del corredor local.</p>

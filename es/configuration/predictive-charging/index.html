@@ -1101,6 +1101,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../batteries/hoymiles/" class="md-nav__link">
         
   
@@ -3198,6 +3226,7 @@
 <p>Entre los atributos de decisión útiles están <code>solar_timeline_source</code>, <code>solar_remaining_raw_kwh</code>, <code>solar_remaining_effective_kwh</code>, <code>solar_timeline_fallback_reason</code>, <code>solar_profile_mature</code>, <code>solar_profile_coverage_ratio</code>, <code>chronological_planning_active</code>, <code>slot_energy_targets_kwh</code> y <code>total_shortfall_kwh</code>.</p>
 <h3 id="notificaciones">Notificaciones<a class="headerlink" href="#notificaciones" title="Permanent link">&para;</a></h3>
 <p>Franja horaria puede notificar una hora antes de un periodo configurado y cuando empieza a cargar. Precio dinámico también comprueba antes de futuros periodos seleccionados, durante la evaluación de final del día, tras una caída importante de SOC y cuando están disponibles los precios de mañana. Las páginas de cada modo describen el comportamiento exacto.</p>
+<p>Para dejar de recibir estas notificaciones, desactiva <strong>Notificaciones de Carga Predictiva</strong> (<code>switch.omnibattery_predictive_charging_notifications</code>) en la tarjeta de carga predictiva. Las evaluaciones, la planificación y los atributos de decisión siguen funcionando; solo se omiten las notificaciones persistentes y se descarta cualquier notificación de evaluación visible. Las notificaciones de alarmas de batería, balanceo de celdas y modo manual, y la confirmación que aparece al desactivar la carga predictiva, no se ven afectadas. El interruptor está activado por defecto.</p>
 <p><img alt="Notificación de carga predictiva" src="../../../assets/screenshots/configuration/predictive-charging/notification-example.png" style="display: block; margin: 0 auto;" width="500" /></p>
 </details>
 

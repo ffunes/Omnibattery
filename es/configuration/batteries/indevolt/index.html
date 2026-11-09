@@ -1,0 +1,3419 @@
+
+<!doctype html>
+<html lang="es" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Home Assistant custom integration for monitoring and controlling multiple home-battery brands">
+      
+      
+        <meta name="author" content="ffunes">
+      
+      
+        <link rel="canonical" href="https://ffunes.github.io/omnibattery/es/configuration/batteries/indevolt/">
+      
+      
+        <link rel="prev" href="../sessy/">
+      
+      
+        <link rel="next" href="../hoymiles/">
+      
+      
+        
+          <link rel="alternate" href="../../../../configuration/batteries/indevolt/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="es">
+        
+      
+      
+      <link rel="icon" href="../../../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Indevolt - Omnibattery</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="green">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#indevolt-solidflex-powerflex" class="md-skip">
+          Saltar a contenido
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Cabecera">
+    <a href="../../../" title="Omnibattery" class="md-header__button md-logo" aria-label="Omnibattery" data-md-component="logo">
+      
+  <img src="../../../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Omnibattery
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Indevolt
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="green"  aria-label="Cambiar a modo oscuro / Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Cambiar a modo oscuro / Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="green"  aria-label="Cambiar a modo claro / Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Cambiar a modo claro / Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Seleccionar idioma">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../../../configuration/batteries/indevolt/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="es" class="md-select__link">
+              Español
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Búsqueda" placeholder="Búsqueda" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Buscar">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Limpiar" aria-label="Limpiar" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Inicializando búsqueda
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ffunes/omnibattery" title="Ir al repositorio" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ffunes/omnibattery
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Pestañas" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Inicio
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../compatibility/" class="md-tabs__link">
+          
+  
+  
+  Empezar
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../" class="md-tabs__link">
+          
+  
+  
+  Configurar
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../features/pd-controller/" class="md-tabs__link">
+          
+  
+  
+  Funcionalidades
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../hardware/shelly-pro-3em-mqtt-script/" class="md-tabs__link">
+          
+  
+  
+  Hardware y medidores
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../automations/blueprints/" class="md-tabs__link">
+          
+  
+  
+  Automatizaciones
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../troubleshooting/" class="md-tabs__link">
+          
+  
+  
+  Soporte
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../reference/entities/" class="md-tabs__link">
+          
+  
+  
+  Referencia
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../reference/architecture/" class="md-tabs__link">
+          
+  
+  
+  Contribuir
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navegación" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../" title="Omnibattery" class="md-nav__button md-logo" aria-label="Omnibattery" data-md-component="logo">
+      
+  <img src="../../../../assets/logo.png" alt="logo">
+
+    </a>
+    Omnibattery
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ffunes/omnibattery" title="Ir al repositorio" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ffunes/omnibattery
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inicio
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Empezar
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Empezar
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../compatibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ¿Es compatible mi batería?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guía de instalación
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../upgrading-from-marstek-vem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Actualizar desde Marstek VEM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configurar
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Configurar
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Empieza aquí
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensores y límites eléctricos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Sensores y límites eléctricos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../main-sensor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensor principal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../three-phase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protección de corriente trifásica
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tu batería
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tu batería
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Elegir marca
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marstek/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Marstek
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../esphome-lilygo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ESPHome / LilyGo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../zendure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Zendure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../anker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Anker SOLIX
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sessy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Tabla de contenidos
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#lo-necesito" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ¿Lo necesito?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#antes-de-empezar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Antes de empezar
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#como-anadirla" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cómo añadirla
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#que-veras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qué verás
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pasar-desde-la-integracion-oficial-de-indevolt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pasar desde la integración oficial de Indevolt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#elegir-la-velocidad-de-solicitudes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Elegir la velocidad de solicitudes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#por-que-omnibattery-solo-escribe-ajustes-cuando-los-cambias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Por qué Omnibattery solo escribe ajustes cuando los cambias
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#si-no-funciona" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Si no funciona
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hoymiles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hoymiles MQTT
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../huawei/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Huawei
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hoymiles-ms-a2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Instalación de Hoymiles MS-A2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../time-slots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Franjas horarias
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cargas grandes y cargadores VE
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Cargas grandes y cargadores VE
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../excluded-devices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dispositivos excluidos
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/load-exclusion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exclusión de cargas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Carga predictiva
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Carga predictiva
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../predictive-charging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ¿Qué modo elijo?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../predictive-charging/time-slot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modo Franja Horaria
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../predictive-charging/dynamic-pricing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modo Precio Dinámico
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../predictive-charging/real-time-price/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modo Precio en Tiempo Real
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Funcionalidades
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Funcionalidades
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Seguir el consumo de casa
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Seguir el consumo de casa
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/pd-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Controlador PD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/hourly-net-balance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Balance neto horario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Aprovechar el sol
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Aprovechar el sol
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/consumption-estimate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Estimación de consumo diario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/solar-charge-delay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retraso de carga solar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Proteger la instalación
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Proteger la instalación
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/peak-shaving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peak shaving
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/temperature-charge-limit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Límite de carga por temperatura
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cuidar la batería
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Cuidar la batería
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/weekly-full-charge/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Carga semanal completa
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/cell-balance-monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Monitor de equilibrio de celdas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/multi-battery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Varias baterías
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../features/daily-operation-timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cronología diaria
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hardware y medidores
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Hardware y medidores
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../hardware/shelly-pro-3em-mqtt-script/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts MQTT para Shelly Pro 3EM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatizaciones
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Automatizaciones
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../automations/blueprints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blueprints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soporte
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Soporte
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solución de problemas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Referencia
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Referencia
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entidades HA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_8_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_8_2" id="__nav_8_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registros Modbus
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_8_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Registros Modbus
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/modbus-registers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resumen
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/registers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tabla completa de registros
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribuir
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contribuir
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Arquitectura
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/driver-requirements-template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Requisitos para drivers de batería
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Tabla de contenidos
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#lo-necesito" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ¿Lo necesito?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#antes-de-empezar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Antes de empezar
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#como-anadirla" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cómo añadirla
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#que-veras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Qué verás
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pasar-desde-la-integracion-oficial-de-indevolt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pasar desde la integración oficial de Indevolt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#elegir-la-velocidad-de-solicitudes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Elegir la velocidad de solicitudes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#por-que-omnibattery-solo-escribe-ajustes-cuando-los-cambias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Por qué Omnibattery solo escribe ajustes cuando los cambias
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#si-no-funciona" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Si no funciona
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/ffunes/omnibattery/edit/main/site-docs/configuration/batteries/indevolt.es.md" title="Editar esta página" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="indevolt-solidflex-powerflex">Indevolt SolidFlex / PowerFlex<a class="headerlink" href="#indevolt-solidflex-powerflex" title="Permanent link">&para;</a></h1>
+<p>Omnibattery controla una batería Indevolt a través de la API HTTP local de la batería. No necesita conexión a la nube.</p>
+<h2 id="lo-necesito">¿Lo necesito?<a class="headerlink" href="#lo-necesito" title="Permanent link">&para;</a></h2>
+<p><strong>Úsalo si</strong> tienes una batería Indevolt SolidFlex o PowerFlex y Home Assistant puede alcanzarla en tu red local. La SolidFlex 2000, la SolidFlex 3000 AC y la PowerFlex 2000 están probadas. La PowerFlex 3000, la SolidFlex y PowerFlex 1200 y la SolidFlex 3600 usan la misma API; si usas una de ellas, indica tu modelo y firmware. Las baterías con paneles solares en sus propias entradas solares aún no se han probado, así que cuéntanos también cómo va. La BK1600 usa una API anterior y no es compatible. La batería indica su familia de modelos, no el producto exacto, así que Home Assistant muestra por ejemplo SolidFlex/PowerFlex 3000 para una SolidFlex 3000 AC. El control funciona igual en todas.</p>
+<p><strong>Usa Omnibattery en lugar de la integración oficial de Indevolt.</strong> Ambas consultan la misma batería, y la batería atiende las peticiones de una en una. Omnibattery muestra las mismas medidas, incluidos los contadores de energía AC para el panel de Energía, así que desactiva o elimina la integración oficial para una batería que controle Omnibattery (consulta <a href="#pasar-desde-la-integracion-oficial-de-indevolt">Pasar desde la integración oficial de Indevolt</a>).</p>
+<h2 id="antes-de-empezar">Antes de empezar<a class="headerlink" href="#antes-de-empezar" title="Permanent link">&para;</a></h2>
+<ul>
+<li>En la app de Indevolt, activa la <strong>API local</strong> con el protocolo <strong>HTTP</strong> (no HTTP Digest) y da a la batería una dirección IP fija. Omnibattery no usa <strong>Modbus TCP</strong>, así que puedes dejarlo desactivado. En las pruebas, la batería respondió a las peticiones Modbus mucho más despacio que a las peticiones HTTP, y la conexión Modbus era menos estable y requería reconexiones frecuentes.</li>
+<li>En la app de Indevolt, pon el modo de trabajo en <strong>Tiempo real</strong> (Realtime (standby) en la app). Omnibattery solo controla la batería en modo Tiempo real y nunca cambia el modo por sí mismo (ver <a href="#por-que-omnibattery-solo-escribe-ajustes-cuando-los-cambias">por qué</a>).</li>
+<li>La <strong>reserva</strong> de la batería (SOC de respaldo), la <strong>entrada AC máxima</strong> y la <strong>salida AC máxima</strong> son los mismos ajustes que el SOC mínimo, la potencia máxima de carga y la potencia máxima de descarga de Omnibattery. Omnibattery los mantiene sincronizados, así que puedes cambiarlos en cualquiera de los dos sitios.</li>
+<li>Desactiva la integración oficial de Indevolt para esta batería.</li>
+<li>Si tus paneles solares no están conectados a las propias entradas solares de la batería y usas un pronóstico solar, configura también el <strong>Sensor de producción solar</strong> (ver <a href="../../main-sensor/">configuración de sensores</a>). Así Omnibattery compara el pronóstico con lo que tus paneles producen de verdad.</li>
+</ul>
+<h2 id="como-anadirla">Cómo añadirla<a class="headerlink" href="#como-anadirla" title="Permanent link">&para;</a></h2>
+<ol>
+<li>En el asistente de Omnibattery, elige <strong>Indevolt SolidFlex / PowerFlex</strong>.</li>
+<li>Introduce un <strong>Nombre</strong> descriptivo y la <strong>dirección IP</strong> de la batería.</li>
+<li>Deja el <strong>Puerto HTTP</strong> en <code>8080</code> y elige una <strong>Velocidad de solicitudes</strong>; <strong>Conservadora (5s)</strong> es la predeterminada (consulta <a href="#elegir-la-velocidad-de-solicitudes">Elegir la velocidad de solicitudes</a>).</li>
+<li>Omnibattery lee la identidad, el modo de trabajo y los límites de potencia de la batería. No cambia nada en la batería.</li>
+<li>Si la batería no está en modo Tiempo real, un aviso lo indica. La configuración continúa; el control empieza cuando eliges Tiempo real en la app.</li>
+<li>Elige los límites comunes de potencia y estado de carga. El formulario se abre con la reserva y los límites de potencia de la propia batería, y los controles de potencia llegan hasta el máximo de hardware de la batería. La primera vez que arranca, Omnibattery adopta los ajustes de la batería sin escribir nada, así que cámbialos después, en la página del dispositivo o en la app de Indevolt. Para el seguimiento por MAC, la dirección MAC se rellena desde la batería.</li>
+</ol>
+<h2 id="que-veras">Qué verás<a class="headerlink" href="#que-veras" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>El control empieza solo.</strong> En cuanto la batería está en modo Tiempo real, Omnibattery envía una orden de parada, comprueba que la batería está en reposo y toma el control. Lo mismo ocurre tras cada reinicio de Home Assistant.</li>
+<li><strong>Control Status</strong> muestra qué hace el driver: <code>active</code>, <code>starting</code>, <code>realtime_mode_required</code>, <code>handover_failed</code>, <code>telemetry_stale</code> o <code>unknown_model</code>.</li>
+<li><strong>Request Interval (Effective)</strong>, <strong>Read Latency (P95)</strong>, <strong>Write Latency (P95)</strong> y <strong>Request Failures</strong> (diagnóstico) muestran cómo responde la batería. <strong>Request Speed</strong> (diagnóstico) muestra la velocidad de solicitudes elegida. El intervalo normalmente coincide con ella y aumenta cuando Omnibattery da más tiempo a una batería lenta; cada latencia es el 5% más lento (P95, es decir, el 95% de las respuestas son más rápidas) de las últimas 200 lecturas o escrituras, y muestra lo rápido que la batería responde a las peticiones de Omnibattery, no lo rápido que cambia su potencia, que tarda unos segundos (las lecturas suelen tardar decenas de milisegundos, las escrituras unos cientos); los fallos cuentan los tiempos de espera agotados y los errores desde que se inició Home Assistant. <strong>Flash Writes</strong> (diagnóstico) cuenta las escrituras de Omnibattery de la reserva y los límites de potencia en la memoria flash de la batería (consulta «Por qué Omnibattery solo escribe ajustes cuando los cambias», más abajo).</li>
+<li><strong>Cambiar de modo en la app es seguro.</strong> Si eliges otro modo de trabajo, Omnibattery se pausa, muestra una notificación y deja la batería en paz. Vuelve a Tiempo real y retoma el control automáticamente.</li>
+<li><strong>Tiempo de respuesta.</strong> Omnibattery lee la batería una vez por intervalo de la velocidad de solicitudes (5s por defecto, 2s en Máxima). Una nueva consigna sale como pronto un intervalo después de la consigna anterior y 2s después de la petición anterior de cualquier tipo (1s en Normal y Rápida; en Máxima 0.2s después de la respuesta anterior, como mucho una consigna por segundo), y la batería la sigue en pocos segundos.</li>
+<li><strong>Casi llena.</strong> En la última parte de una carga la batería baja por sí misma su potencia de carga, hasta unos cientos de vatios, mientras completa sus celdas. Omnibattery la carga entonces con lo que acepta, más 100W como mucho, en lugar de la potencia completa, para que siga cargando hasta el 100% en vez de aparecer como que no entrega potencia. Mientras tanto, PD Control Quality muestra la batería como el límite, y el excedente solar va a tus otras baterías o a la red.</li>
+<li><strong>Ajustes:</strong> <strong>Discharging Cutoff Capacity</strong> (la reserva de la batería, que es el SOC mínimo de Omnibattery), <strong>Max Charge Power</strong> y <strong>Max Discharge Power</strong>. Un cambio aquí se escribe en la batería; un cambio en la app de Indevolt aparece aquí en pocos minutos. Los controles de potencia llegan hasta el máximo de hardware de la batería. <strong>Charging Cutoff Capacity</strong> (SOC máximo) no tiene ajuste en la batería y lo aplica solo Omnibattery.</li>
+<li><strong>Sensores:</strong> estado de carga, potencia de batería, potencia AC, modo de trabajo y versión de firmware, y además:<ul>
+<li><strong>AC Input Power</strong> y <strong>AC Output Power</strong> en la conexión AC de la batería (leídas cada 10s), y <strong>Bypass Power</strong> a través de la toma bypass.</li>
+<li>Contadores de energía en dos lados. <strong>Total AC Input Energy</strong> y <strong>Total AC Output Energy</strong> cuentan en la conexión AC: usa estos para la batería en el panel de Energía. <strong>Total Charging Energy</strong>, <strong>Total Discharging Energy</strong> y los contadores diarios cuentan en el lado de la batería, después de las pérdidas de conversión. <strong>Off-Grid Output Energy</strong> y <strong>Bypass Input Energy</strong> cuentan lo que pasó por las tomas de respaldo y bypass.</li>
+<li>Para una batería con paneles solares conectados: <strong>Solar Output Power</strong>, <strong>Daily Solar Energy</strong> y <strong>Total Solar Energy</strong>. La potencia, la tensión y la corriente por entrada PV están disponibles, pero desactivadas por defecto.</li>
+<li>Temperaturas: <strong>Inverter Battery Temperature</strong> para la batería integrada en la unidad del inversor y <strong>Expansion Battery N Temperature</strong> para cada batería de expansión presente; <strong>Internal Temperature</strong>, que el límite de carga por temperatura opcional de Omnibattery usa para reducir la carga cuando la batería está caliente, es la más alta de ellas. Hay un sensor de temperatura del transformador, desactivado por defecto.</li>
+</ul>
+</li>
+<li><strong>Diagnóstico:</strong> <strong>Realtime Command</strong> muestra qué hace el modo Realtime de la batería (en espera, cargando o descargando). <strong>Operating Status</strong> muestra qué hace la propia batería, por ejemplo reposo profundo en espera, carga por batería baja cuando se recarga sola hasta su reserva, o una carga completa programada. <strong>Forced Full Charge Interval</strong> y <strong>Forced Full Charge Time</strong> muestran la carga completa periódica de la propia batería (0 días es desactivada); cámbiala en la app de Indevolt. <strong>Feed-in Limit</strong> y <strong>Grid Charging</strong> muestran esos ajustes de la batería; cámbialos en la app de Indevolt. <strong>MAC Address</strong> muestra la dirección MAC que indica la batería; el panel también la muestra en Información del dispositivo. Justo después de arrancar desde la espera, <strong>Inverter State</strong> muestra desconocido hasta que la batería ha tenido tiempo de arrancar (hasta 30s). Desactivados por defecto: tensión y frecuencia de red, tiempo restante de carga y de descarga, modo del dispositivo (independiente o clúster), la tensión de celda más alta y más baja de todas las baterías y, para cada batería presente (la de la unidad del inversor y cada batería de expansión), su SOC, ciclos de carga, temperatura MOS, tensión, corriente y número de serie. Omnibattery solo lee esos detalles de las baterías presentes.</li>
+<li><strong>Indevolt Meter Power</strong> (desactivado por defecto) es la potencia de red que indica el medidor emparejado con la batería en la app de Indevolt. Va 10–20s por detrás de tu medidor de red, así que no lo uses como sensor de red de Omnibattery.</li>
+</ul>
+<h2 id="pasar-desde-la-integracion-oficial-de-indevolt">Pasar desde la integración oficial de Indevolt<a class="headerlink" href="#pasar-desde-la-integracion-oficial-de-indevolt" title="Permanent link">&para;</a></h2>
+<p>Omnibattery muestra las medidas de la integración oficial de Indevolt con sus propios nombres, leídas en las peticiones que ya hace. Apunta tus paneles, ayudantes y el panel de Energía a los sensores de Omnibattery y después elimina la integración oficial.</p>
+<table>
+<thead>
+<tr>
+<th>Integración oficial</th>
+<th>Omnibattery</th>
+<th>Nota</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Battery SOC</td>
+<td>Battery SOC</td>
+<td></td>
+</tr>
+<tr>
+<td>Battery power</td>
+<td>Battery Power</td>
+<td>Signo opuesto: positivo mientras carga</td>
+</tr>
+<tr>
+<td>AC input power, AC output power</td>
+<td>AC Input Power, AC Output Power</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>AC Power</td>
+<td>Salida menos entrada: positivo mientras descarga, como espera el panel de Energía para la potencia de la batería</td>
+</tr>
+<tr>
+<td>Bypass power</td>
+<td>Bypass Power</td>
+<td></td>
+</tr>
+<tr>
+<td>Total AC input energy, Total AC output energy</td>
+<td>Total AC Input Energy, Total AC Output Energy</td>
+<td>La energía que entra y sale de la batería en el panel de Energía</td>
+</tr>
+<tr>
+<td>Battery daily and total charging and discharging energy</td>
+<td>Total Daily Charging Energy, Total Daily Discharging Energy, Total Charging Energy, Total Discharging Energy</td>
+<td></td>
+</tr>
+<tr>
+<td>Off-grid output energy, Bypass input energy</td>
+<td>Off-Grid Output Energy, Bypass Input Energy</td>
+<td>Bypass input energy en kWh en lugar de Wh</td>
+</tr>
+<tr>
+<td>DC output power, Daily production, Cumulative production</td>
+<td>Solar Output Power, Daily Solar Energy, Total Solar Energy</td>
+<td>Total solar energy en kWh en lugar de Wh</td>
+</tr>
+<tr>
+<td>Meter power, Meter connected</td>
+<td>Indevolt Meter Power, Indevolt Meter Connected</td>
+<td>Desactivados por defecto</td>
+</tr>
+<tr>
+<td>Battery charge/discharge state</td>
+<td>Inverter State</td>
+<td>Standby, Charge o Discharge</td>
+</tr>
+<tr>
+<td>Energy mode</td>
+<td>Working Mode</td>
+<td>Solo lectura</td>
+</tr>
+<tr>
+<td>Real-time mode, Real-time target SOC, Real-time power limit</td>
+<td>Realtime Command, Realtime Target SOC, Realtime Command Power</td>
+<td></td>
+</tr>
+<tr>
+<td>Rated capacity</td>
+<td>Battery Total Energy</td>
+<td></td>
+</tr>
+<tr>
+<td>Discharge limit, Max AC output power, Inverter input limit</td>
+<td>Discharging Cutoff Capacity, Max Discharge Power, Max Charge Power</td>
+<td>Ajustes, sincronizados con la batería</td>
+</tr>
+<tr>
+<td>Feed-in power limit, Allow grid charging</td>
+<td>Feed-in Limit, Grid Charging</td>
+<td>Solo lectura</td>
+</tr>
+<tr>
+<td>Tensión y frecuencia de red, tiempo restante de carga y de descarga, modo del dispositivo, potencia, tensión y corriente por entrada PV y, por batería, SOC, ciclos, temperaturas, tensión, corriente y número de serie</td>
+<td>Los mismos nombres</td>
+<td>Desactivados por defecto, como en la integración oficial</td>
+</tr>
+</tbody>
+</table>
+<p>Omnibattery no cambia desde Home Assistant el modo de trabajo, el indicador LED, la toma bypass, la carga desde la red ni el límite de inyección: cada uno es un ajuste permanente de la batería, así que cámbialo en la app de Indevolt (consulta <a href="#por-que-omnibattery-solo-escribe-ajustes-cuando-los-cambias">por qué</a>). El botón de parada y las acciones de carga y descarga de la integración oficial competirían con el control de Omnibattery; usa el modo manual de Omnibattery. <strong>Equivalent full cycles</strong> de la integración oficial muestra el intervalo de carga completa de la batería en días, no un número de ciclos: Omnibattery lo muestra como <strong>Forced Full Charge Interval</strong>, y los sensores <strong>Cycles</strong> por batería son los contadores de ciclos de la propia batería.</p>
+<h2 id="elegir-la-velocidad-de-solicitudes">Elegir la velocidad de solicitudes<a class="headerlink" href="#elegir-la-velocidad-de-solicitudes" title="Permanent link">&para;</a></h2>
+<p>La <strong>Velocidad de solicitudes</strong> fija con qué frecuencia Omnibattery habla con la batería. La eliges por batería al añadirla y puedes cambiarla después con <strong>Reconfigurar</strong> en Omnibattery, en <strong>Ajustes → Dispositivos y servicios</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Velocidad</th>
+<th>Intervalo</th>
+<th>Cuándo usarla</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Máxima</td>
+<td>1s</td>
+<td>Por debajo del mínimo documentado por Indevolt, bajo tu responsabilidad. Solo sirve con un contador de red que se actualiza cada segundo: puede salir una consigna cada segundo, y una lectura sigue a una respuesta a los 0.2s en lugar de esperar 1s. Las lecturas siguen cada 2s; como mucho 1.5 peticiones por segundo. Pon también <strong>PD Min Cycle Interval</strong> a 0 (consulta el consejo más abajo).</td>
+</tr>
+<tr>
+<td>Rápida</td>
+<td>2s</td>
+<td>Una conexión fuerte y estable, y quieres la reacción más rápida. Envía un 50% más de peticiones que Normal.</td>
+</tr>
+<tr>
+<td>Normal</td>
+<td>3s</td>
+<td>Un contador de red que se actualiza cada 3s: reacciona antes que Conservadora con poca carga adicional.</td>
+</tr>
+<tr>
+<td>Conservadora (por defecto)</td>
+<td>5s</td>
+<td>Recomendada por Indevolt, y suficiente para un contador de red que se actualiza cada 5s, el ritmo habitual en Home Assistant. También es la opción con Wi-Fi débil, si otras apps también consultan la batería o si Omnibattery avisa de que la batería va lenta.</td>
+</tr>
+</tbody>
+</table>
+<p>Todo lo que sea más rápido que los 5s de Indevolt va bajo tu responsabilidad, y te corresponde comprobar que tu batería, Home Assistant y tu red pueden dar abasto. En la página del dispositivo de la batería, <strong>Request Interval (Effective)</strong> debe seguir coincidiendo con tu elección, y <strong>Read Latency (P95)</strong> y <strong>Write Latency (P95)</strong> deben quedarse muy por debajo de 1s (las lecturas suelen tardar decenas de milisegundos, las escrituras unos cientos). Si el intervalo sigue por encima de tu elección o aparece una notificación de batería lenta, elige una velocidad más lenta. Puedes probar una velocidad mayor: si la batería responde despacio o no responde, el driver de Indevolt de Omnibattery vuelve automáticamente a un ritmo más tranquilo hasta que el tiempo de respuesta se recupera.</p>
+<p>Una velocidad mayor hace llegar antes cada nueva consigna a la batería, así que reacciona antes a los cambios del contador, lo que puede mejorar el balance neto cero. No hace que la propia batería suba o baje su potencia más rápido, y la batería solo actualiza su potencia AC cada 6s aproximadamente. Una velocidad más rápida que tu contador de red no gana nada: con un contador que se actualiza cada 2s, elige Rápida en lugar de Máxima. Salvo en Máxima, Omnibattery nunca envía dos peticiones con menos de 1s de separación, el mínimo que documenta Indevolt (2s en Conservadora). En Máxima espera 0.2s después de cada respuesta, siempre con una sola petición cada vez, y vuelve a Rápida con la separación de 1s cuando la batería responde despacio. Elijas lo que elijas, reduce el ritmo por sí mismo cuando la batería responde despacio o no responde.</p>
+<div class="admonition tip">
+<p class="admonition-title">¿Solo baterías Indevolt? Pon PD Min Cycle Interval a 0</p>
+<p>El <strong>PD Min Cycle Interval</strong> de Omnibattery (1.0s por defecto) descarta una actualización del contador que llega demasiado pronto tras la ejecución de control anterior, para que un contador rápido no sature de órdenes un puente Modbus lento, como un Elfin EW11. El driver de Indevolt ya marca su propio ritmo de peticiones y solo envía la consigna más reciente, así que para una Indevolt este intervalo no protege nada. Solo añade retraso: una actualización descartada espera a la siguiente actualización del contador o al temporizador de seguridad de 2s, así que con un contador de 1s se aplica hasta 1s más tarde.</p>
+<p>Si todas las baterías de Omnibattery son Indevolt, ponlo a <code>0</code>: abre el panel lateral de Omnibattery, selecciona <strong>Control</strong> y, en <strong>Controlador PD (avanzado)</strong>, pon <strong>Intervalo mín. de ciclo</strong> a 0. Se aplica al momento. La batería no recibe más peticiones, porque la velocidad de solicitudes sigue marcando el ritmo. Mantén el valor por defecto si Omnibattery también controla una batería detrás de un puente Modbus lento. Los demás ajustes PD se explican en <a href="../../../features/pd-controller/">seguir el consumo de casa</a>.</p>
+</div>
+<h2 id="por-que-omnibattery-solo-escribe-ajustes-cuando-los-cambias">Por qué Omnibattery solo escribe ajustes cuando los cambias<a class="headerlink" href="#por-que-omnibattery-solo-escribe-ajustes-cuando-los-cambias" title="Permanent link">&para;</a></h2>
+<div class="admonition info">
+<p class="admonition-title">Órdenes en tiempo real en memoria de trabajo, ajustes solo a petición</p>
+<p>Una batería guarda dos tipos de datos. Sus ajustes, como el modo de trabajo, la reserva y los límites de potencia, se guardan en memoria flash para que sobrevivan a un corte de corriente. La memoria flash se desgasta tras un número limitado de escrituras. Las órdenes en tiempo real se guardan en memoria de trabajo (RAM), que se puede escribir tantas veces como haga falta.</p>
+<p>Lo que desgasta la flash es la frecuencia de escritura. Un controlador como Omnibattery puede enviar una orden nueva cada pocos segundos; si esas órdenes fueran a flash, podrían desgastar el controlador de la batería mucho antes del final de su vida normal. Un ajuste que cambias unas pocas veces al año no cuesta nada.</p>
+<p>Lo comprobamos con los desarrolladores de Indevolt. Confirmaron que solo la orden en tiempo real (cargar, descargar o parar, con una potencia y un SOC objetivo) se guarda en memoria de trabajo y que el resto de ajustes se guarda en flash. Por eso:</p>
+<ul>
+<li>El control solo escribe la orden en tiempo real, por muy a menudo que se ejecute.</li>
+<li>La reserva y los dos límites de potencia se escriben solo cuando los cambias, en los ajustes de Omnibattery o en la página del dispositivo. Omnibattery espera 3s a que termines y no escribe si la batería ya tiene ese valor. No se escribe nada al arrancar.</li>
+<li>Una red de seguridad detecta una automatización o un fallo que los escribe una y otra vez sin que nadie lo note; está para proteger tu batería, no para limitarte. Tras 100 escrituras en un año (los tres ajustes juntos), Omnibattery pausa estas escrituras hasta que vuelvas a permitirlas en <strong>Ajustes → Reparaciones</strong>, con un solo clic. Si cambias los ajustes tú mismo te quedas muy por debajo; una automatización que cambia la reserva cada día llega al límite tras unos 100 días. Los cambios hechos en la app de Indevolt se siguen adoptando. <strong>Flash Writes</strong> (diagnóstico), en la página del dispositivo, cuenta todas las escrituras hasta ahora.</li>
+<li>El modo de trabajo y los demás ajustes nunca se escriben. Cámbialos en la app de Indevolt.</li>
+</ul>
+<p>Las protecciones del código y las pruebas automáticas lo garantizan, para que un cambio futuro no pueda añadir una escritura por accidente.</p>
+</div>
+<p>Omnibattery aplica su propio SOC mínimo y máximo por software. Cada orden lleva además un SOC objetivo unos pocos puntos más allá de la carga actual en la dirección pedida, que Omnibattery va moviendo mientras la batería carga o descarga. Si Home Assistant se detiene en mitad de una orden, la batería se para sola en unos 5% de estado de carga.</p>
+<h2 id="si-no-funciona">Si no funciona<a class="headerlink" href="#si-no-funciona" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Síntoma</th>
+<th>Causa probable</th>
+<th>Qué comprobar</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>El asistente no conecta</td>
+<td>La API local está desactivada, o la dirección o el puerto no son correctos</td>
+<td>Activa la API local en la app de Indevolt y revisa la dirección IP y el puerto <code>8080</code></td>
+</tr>
+<tr>
+<td>El asistente dice que la batería pide una contraseña</td>
+<td>La API local está en HTTP Digest</td>
+<td>Elige <strong>HTTP</strong> para la API local en la app de Indevolt</td>
+</tr>
+<tr>
+<td>Control Status es <code>realtime_mode_required</code></td>
+<td>La batería está en otro modo de trabajo</td>
+<td>Elige <strong>Tiempo real</strong> (Realtime (standby)) en la app de Indevolt; el control se reanuda solo</td>
+</tr>
+<tr>
+<td>Una notificación dice que la batería va lenta, o Request Interval (Effective) se mantiene por encima de la velocidad elegida</td>
+<td>Otro cliente también la consulta, o la señal Wi-Fi es débil</td>
+<td>Desactiva la integración oficial de Indevolt para esta batería, revisa la señal o elige la velocidad de solicitudes <strong>Conservadora (5s)</strong></td>
+</tr>
+<tr>
+<td>Una notificación dice que un ajuste no se aplicó</td>
+<td>La batería no aceptó el valor</td>
+<td>La batería conserva su valor; inténtalo más tarde o cámbialo en la app de Indevolt</td>
+</tr>
+<tr>
+<td>Reparaciones dice que la escritura de ajustes de Indevolt está en pausa</td>
+<td>100 escrituras de la reserva y los límites de potencia en un año, casi siempre por una automatización o un script</td>
+<td>Revisa las automatizaciones y scripts que fijan estos valores y vuelve a permitir la escritura en <strong>Ajustes → Reparaciones</strong> (también si los cambios eran intencionados)</td>
+</tr>
+<tr>
+<td>Control Status es <code>unknown_model</code></td>
+<td>La batería indica un código de modelo que Omnibattery aún no admite</td>
+<td>Abre un issue en GitHub con el código de modelo de la notificación</td>
+</tr>
+<tr>
+<td>Control Status es <code>handover_failed</code></td>
+<td>La batería no confirmó el reposo tras la orden de parada</td>
+<td>Revisa la batería en la app de Indevolt; Omnibattery lo reintenta solo</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>Detalles avanzados</summary>
+<p>Todas las peticiones a una batería comparten un único presupuesto: una petición cada vez, con al menos 1s entre el inicio de una y el de la siguiente (2s en Conservadora y mientras va más despacio, a 5s o 10s). Máxima cuenta desde la respuesta anterior: al menos 0.2s después, con órdenes separadas al menos 1s y lecturas cada 2s. Las lecturas llegan una vez por intervalo de la velocidad de solicitudes. Una orden pendiente va antes que una lectura pendiente, al menos esa separación después de la petición anterior y al menos un intervalo después de la orden anterior. El sondeo propio de Omnibattery solo lee una caché, así que nunca añade peticiones.</p>
+<p>Cuando la batería tiene problemas, el intervalo recorre una escala fija: 2s, 3s, 5s, 10s (desde Máxima, el primer escalón es Rápida con la separación de 1s). Dos respuestas malas en 30s (un tiempo de espera agotado, un error, una lectura de más de 1s o una escritura de más de 2s) lo suben un escalón, como mucho un escalón cada 10s; una sola respuesta mala se trata como un fallo puntual. Tras 30s sin respuestas malas baja un escalón, nunca por debajo de la velocidad elegida. 10s es el último escalón: más lento solo haría que el control trabajara con datos más antiguos durante más tiempo. Un solo tiempo de espera agotado no pausa el control.</p>
+<p>La telemetría se lee por lotes: potencia, potencia AC, modo de trabajo y SOC en cada hueco, el estado en tiempo real cada unos 30s, los límites cada pocos minutos y los contadores de energía cada minuto. Si la batería devuelve alguna vez un lote incompleto, Omnibattery lee lotes más pequeños hasta que las respuestas vuelvan a estar completas.</p>
+<p>La potencia AC entregada es la potencia AC total de la batería menos la del puerto bypass, para que una carga o un microinversor en ese puerto no cuente como salida de la batería.</p>
+<p>El firmware mínimo de Indevolt para la API local es CMS V1406.07.002E para la familia 2000, V1409.08.3034 para la familia 3000 y V1407.07.202E para la familia 1200. Omnibattery muestra una notificación si la batería indica una versión anterior. Indevolt no ha publicado un mínimo para la SolidFlex 3600, así que Omnibattery no lo comprueba.</p>
+<p>Para los controles comunes y los límites del sistema, consulta <a href="../">Elegir la conexión de la batería</a>.</p>
+</details>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Volver al principio
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Pie" >
+        
+          
+          <a href="../sessy/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Sessy">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Anterior
+              </span>
+              <div class="md-ellipsis">
+                Sessy
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../hoymiles/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Hoymiles MQTT">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Siguiente
+              </span>
+              <div class="md-ellipsis">
+                Hoymiles MQTT
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/ffunes/omnibattery" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://buymeacoffee.com/ffunes" target="_blank" rel="noopener" title="buymeacoffee.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M152-16c-13.3 0-24 10.7-24 24 0 38.9 23.4 59.4 39.1 73.1l1.1 1C184.5 96.4 192 103.9 192 120c0 13.3 10.7 24 24 24s24-10.7 24-24c0-38.9-23.4-59.4-39.1-73.1l-1.1-1C183.5 31.7 176 24.1 176 8c0-13.3-10.7-24-24-24M96 192c-17.7 0-32 14.3-32 32v192c0 53 43 96 96 96h192c41.8 0 77.4-26.7 90.5-64h5.5c70.7 0 128-57.3 128-128s-57.3-128-128-128zm352 192V256c35.3 0 64 28.7 64 64s-28.7 64-64 64M288 8c0-13.3-10.7-24-24-24S240-5.3 240 8c0 38.9 23.4 59.4 39.1 73.1l1.1 1C296.5 96.4 304 103.9 304 120c0 13.3 10.7 24 24 24s24-10.7 24-24c0-38.9-23.4-59.4-39.1-73.1l-1.1-1C295.5 31.7 288 24.1 288 8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "navigation.footer", "toc.follow", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotate", "content.code.copy", "content.action.edit"], "search": "../../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copiado al portapapeles", "clipboard.copy": "Copiar al portapapeles", "search.result.more.one": "1 m\u00e1s en esta p\u00e1gina", "search.result.more.other": "# m\u00e1s en esta p\u00e1gina", "search.result.none": "No se encontraron documentos", "search.result.one": "1 documento encontrado", "search.result.other": "# documentos encontrados", "search.result.placeholder": "Teclee para comenzar b\u00fasqueda", "search.result.term.missing": "Falta", "select.version": "Seleccionar versi\u00f3n"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

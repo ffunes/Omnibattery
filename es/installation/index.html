@@ -1225,6 +1225,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../configuration/batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../configuration/batteries/hoymiles/" class="md-nav__link">
         
   
@@ -3030,6 +3058,11 @@
 <td>Configura la integración MQTT de Home Assistant y un broker MQTT local; después activa <strong>MQTT Service</strong> en S-Miles Home.</td>
 <td>MQTT a través de Home Assistant</td>
 </tr>
+<tr>
+<td><strong>Indevolt SolidFlex o PowerFlex</strong></td>
+<td>En la app de Indevolt, activa la API local con <strong>HTTP</strong> y elige el modo <strong>Tiempo real</strong>.</td>
+<td>API HTTP local</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition warning">
@@ -3049,7 +3082,7 @@
 <details>
 <summary>Detalles de conexión por tipo de batería</summary>
 <p><strong>Marstek:</strong> Venus E v2 necesita una conexión RS-485, como un adaptador USB o un convertidor RS-485 a TCP. Venus E v3, Venus A y Venus D pueden usar su conexión de red. La vía LilyGo necesita el firmware ESPHome compatible y sus entidades estándar de Home Assistant.</p>
-<p><strong>Zendure y Sessy:</strong> Home Assistant debe poder alcanzar el punto final HTTP local del dispositivo. Omnibattery se comunica localmente, en lugar de mediante una cuenta en la nube del fabricante.</p>
+<p><strong>Zendure, Sessy e Indevolt:</strong> Home Assistant debe poder alcanzar el punto final HTTP local del dispositivo. Omnibattery se comunica localmente, en lugar de mediante una cuenta en la nube del fabricante.</p>
 <p><strong>Anker:</strong> su servidor Modbus acepta un cliente cada vez. Cierra otra integración o herramienta antes de que Omnibattery pruebe la conexión.</p>
 <p><strong>Huawei:</strong> Omnibattery lee a través del inversor SUN2000. De forma predeterminada, las órdenes de control usan servicios Huawei Solar; las escrituras Modbus directas son una opción de configuración opcional.</p>
 <p><strong>Hoymiles:</strong> Omnibattery usa el broker MQTT configurado en Home Assistant. No instala ni gestiona un broker.</p>

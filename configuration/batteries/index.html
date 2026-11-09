@@ -1026,6 +1026,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#charge-hysteresis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Charge hysteresis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#if-the-battery-route-is-unclear" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1172,6 +1183,34 @@
     
   
     Sessy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
   
 
     
@@ -2878,6 +2917,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#charge-hysteresis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Charge hysteresis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#if-the-battery-route-is-unclear" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2957,6 +3007,12 @@
 <td><a href="sessy/">Sessy</a></td>
 </tr>
 <tr>
+<td>Indevolt SolidFlex or PowerFlex</td>
+<td>The local API enabled and Realtime mode selected in the Indevolt app</td>
+<td><strong>Indevolt SolidFlex / PowerFlex</strong></td>
+<td><a href="indevolt/">Indevolt</a></td>
+</tr>
+<tr>
 <td>Hoymiles MS-A2 or supported HiBattery</td>
 <td>MQTT configured in Home Assistant and the complete device ID</td>
 <td><strong>Hoymiles MQTT</strong></td>
@@ -3005,7 +3061,7 @@
 </tr>
 <tr>
 <td><strong>Charge hysteresis</strong></td>
-<td>Prevents rapid cycling after the battery reaches its upper limit. The minimum is 2%.</td>
+<td>Prevents rapid cycling after the battery reaches its upper limit. The minimum is 2%; see <a href="#charge-hysteresis">charge hysteresis</a>.</td>
 </tr>
 <tr>
 <td><strong>Backup Offgrid Threshold</strong></td>
@@ -3018,6 +3074,13 @@
 </tbody>
 </table>
 <p>The integration creates runtime controls for state-of-charge and power limits, so you can adjust them without running the setup flow again. <strong>Battery Manual Control</strong> reserves one battery for your own charge, discharge, or idle commands; see <a href="../../features/multi-battery/#manual-control-per-battery">manual control in a multi-battery installation</a>.</p>
+<h2 id="charge-hysteresis">Charge hysteresis<a class="headerlink" href="#charge-hysteresis" title="Permanent link">&para;</a></h2>
+<p>When a battery reaches its upper limit, Omnibattery records the SOC at that moment and stops charging it. Charging resumes only when the SOC drops <strong>below</strong> that recorded value minus the hysteresis. With Max SOC 90% and the default 2%, the battery charges again only once its SOC is below 88%.</p>
+<p>The minimum of 2% is deliberate and cannot be lowered. Near the top, the SOC a battery reports drifts and often moves in whole-percent steps. With a smaller margin, that noise alone would restart charging over and over at the upper limit. Each restart switches the battery relay on and off; avoiding those repeated cycles reduces relay wear and preserves battery life.</p>
+<div class="admonition note">
+<p class="admonition-title">Self-consumption at the top</p>
+<p>Some batteries, such as some Anker models, use a little of their own energy while idle. Once full, their SOC can slowly drift from 90% to 88% without discharging to the home. This is expected: the battery stays inside the hysteresis band and Omnibattery does not top it up. If you want it to end the day higher, raise <strong>Max SOC</strong> instead of trying to remove the hysteresis.</p>
+</div>
 <h2 id="if-the-battery-route-is-unclear">If the battery route is unclear<a class="headerlink" href="#if-the-battery-route-is-unclear" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

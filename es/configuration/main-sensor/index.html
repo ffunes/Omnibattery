@@ -1203,6 +1203,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../batteries/hoymiles/" class="md-nav__link">
         
   
@@ -3005,7 +3033,7 @@
 <details>
 <summary>Detalles avanzados</summary>
 <p><strong>Cadencia del medidor y datos obsoletos</strong></p>
-<p>El controlador vuelve a calcular cada vez que el sensor de red publica. También se ejecuta un ciclo de seguridad cada 2 segundos. Se recomienda un intervalo de actualización de 1 a 2 segundos; Los intervalos de 10 segundos o más activan una reparación de Home Assistant después de 3 informes lentos consecutivos. La reparación se borra después de 20 intervalos consecutivos más rápidos. La última lectura sigue teniendo autoridad hasta que tenga más de 65 segundos.</p>
+<p>El controlador vuelve a calcular cada vez que el sensor de red publica. También se ejecuta un ciclo de seguridad cada 2 segundos. Se recomienda un intervalo de actualización de 1 a 2 segundos; Los intervalos de 10 segundos o más activan una reparación de Home Assistant después de 3 informes lentos consecutivos. La reparación se borra después de 20 intervalos consecutivos más rápidos. La última lectura sigue teniendo autoridad hasta que tenga más de 65 segundos. Tras 5 minutos sin una lectura válida, incluido un sensor que no publica nada tras un reinicio, Omnibattery crea una reparación y detiene el control automático a 0W hasta que el sensor vuelva a publicar; consulta <a href="../../troubleshooting/#el-medidor-de-red-no-esta-disponible-o-esta-bloqueado">El medidor de red no está disponible o está bloqueado</a>.</p>
 <p>La demanda del hogar puede cambiar en varios kilovatios entre lecturas lentas, por lo que el controlador puede responder a una carga que ya ha cambiado.</p>
 <p>Si utiliza un medidor Shelly, consulte los <a href="../../hardware/shelly-pro-3em-mqtt-script/">scripts MQTT de Shelly Pro 3EM</a> para obtener una cadencia de publicación más rápida.</p>
 <p>Los sensores con <code>unit_of_measurement: kW</code> se convierten a vatios automáticamente.</p>

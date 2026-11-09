@@ -1225,6 +1225,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../configuration/batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../configuration/batteries/hoymiles/" class="md-nav__link">
         
   
@@ -3030,6 +3058,11 @@
 <td>Configure Home Assistant's MQTT integration and a local MQTT broker, then enable <strong>MQTT Service</strong> in S-Miles Home.</td>
 <td>MQTT through Home Assistant</td>
 </tr>
+<tr>
+<td><strong>Indevolt SolidFlex or PowerFlex</strong></td>
+<td>In the Indevolt app, enable the local API with <strong>HTTP</strong> and select the <strong>Realtime</strong> working mode.</td>
+<td>Local HTTP API</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition warning">
@@ -3049,7 +3082,7 @@
 <details>
 <summary>Connection details by battery type</summary>
 <p><strong>Marstek:</strong> Venus E v2 needs an RS-485 connection, such as a USB adapter or an RS-485-to-TCP converter. Venus E v3, Venus A and Venus D can use their network connection. The LilyGo path requires the supported ESPHome firmware and its stock Home Assistant entities.</p>
-<p><strong>Zendure and Sessy:</strong> Home Assistant must be able to reach the device's local HTTP endpoint. Omnibattery communicates locally rather than through a manufacturer cloud account.</p>
+<p><strong>Zendure, Sessy and Indevolt:</strong> Home Assistant must be able to reach the device's local HTTP endpoint. Omnibattery communicates locally rather than through a manufacturer cloud account.</p>
 <p><strong>Anker:</strong> its Modbus server accepts one client at a time. Close another integration or tool before Omnibattery tests the connection.</p>
 <p><strong>Huawei:</strong> Omnibattery reads through the SUN2000 inverter. By default, control commands use Huawei Solar services; direct Modbus writes are an optional setup choice.</p>
 <p><strong>Hoymiles:</strong> Omnibattery uses Home Assistant's configured MQTT broker. It does not install or manage a broker.</p>

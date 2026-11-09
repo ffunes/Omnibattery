@@ -1203,6 +1203,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../hoymiles/" class="md-nav__link">
         
   
@@ -3022,7 +3050,7 @@
 </table>
 <details>
 <summary>Advanced details</summary>
-<p>Omnibattery clamps Anker commands to the live hardware ceilings and to a <code>3,500 W</code> integration envelope. The minimum non-zero operating target is <code>100 W</code>; smaller targets are changed to idle or to that minimum as appropriate.</p>
+<p>Omnibattery clamps Anker commands to the live hardware ceilings and to a <code>3,500 W</code> integration envelope. Targets below <code>100 W</code> are sent as they are, as in the official Anker integration; the device may regulate them less precisely.</p>
 <p>The device's SOC controls allow a maximum of <code>80–100%</code> and a minimum of <code>0–20%</code>. Hardware cutoffs remain active. Anker does not use the Marstek cell-voltage taper.</p>
 <p><strong>Battery State of Health (SoH)</strong> uses input register <code>10015</code>. The shared map makes it available to supported models, but it has been field-verified only on Solarbank Max AC product code <code>DMWH</code>. A raw value of <code>0</code> is treated as unavailable instead of 0% health.</p>
 <p>Solarbank 4 E5000 Pro product codes expose an independent solar source. Max AC and XE AC solar fields are derived from the battery's own AC calculation and are excluded from Omnibattery's solar total.</p>

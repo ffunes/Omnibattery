@@ -1101,6 +1101,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../batteries/indevolt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Indevolt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../batteries/hoymiles/" class="md-nav__link">
         
   
@@ -3252,8 +3280,8 @@
 <p><strong>You do not need it if</strong> your tariff has fixed repeating cheap periods; use <a href="../time-slot/">Time Slot</a>. If your source exposes only the price in effect now, use <a href="../real-time-price/">Real-Time Price</a>.</p>
 <h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Configure one supported source: <strong>Nordpool</strong>, <strong>PVPC</strong>, <strong>CKW</strong>, <strong>EPEX Spot</strong>, <strong>ENTSO-e</strong>, <strong>Zonneplan</strong>, or <strong>Tibber</strong>.</li>
-<li>Select the provider’s current-price entity unless you use Tibber. Tibber uses the official integration’s <code>tibber.get_prices</code> service and needs no price sensor.</li>
+<li>Configure one supported source: <strong>Nordpool</strong>, <strong>PVPC</strong>, <strong>CKW</strong>, <strong>EPEX Spot</strong>, <strong>ENTSO-e</strong>, <strong>EnergyZero</strong>, <strong>Zonneplan</strong>, <strong>Frank Energie</strong>, <strong>Tibber</strong>, or <strong>BE Electricity Prices</strong> (Belgium).</li>
+<li>Select the provider’s current-price entity unless you use Tibber. EnergyZero uses the selected electricity entity to call <code>energyzero.get_energy_prices</code>; Tibber uses <code>tibber.get_prices</code> and needs no price sensor.</li>
 <li>A solar forecast is optional. A remaining-energy forecast improves daytime replanning and avoids counting solar already produced. <strong>High-Price Sale</strong> set to <em>Surplus only</em> or above needs the configured forecast integration to provide forecasts to Home Assistant’s Energy dashboard, such as Solcast or Forecast.Solar.</li>
 <li>Decide whether you need an export-price source. It is optional and is used by <strong>Surplus Price Hold</strong> and <strong>High-Price Sale</strong>; leave it empty when export is credited at the import price.</li>
 </ul>
@@ -3268,7 +3296,8 @@
 <p><img alt="Configure a future-price source" src="../../../assets/screenshots/configuration/predictive-charging/dynamic-pricing-form.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <div class="admonition note">
 <p class="admonition-title">Provider-specific sensor choice</p>
-<p>For Zonneplan, choose <strong>Current quarter hourly electricity tariff</strong> for a quarter-hour contract or <strong>Current hourly electricity tariff</strong> for an hourly contract. The older <strong>Current electricity tariff</strong> sensor is also supported. For Nord Pool, choose either an official-integration entity or the HACS sensor; Omnibattery detects the format.</p>
+<p>For <strong>BE Electricity Prices</strong> (Belgium), choose its <strong>Current price</strong> sensor. It lists every slot of today and tomorrow at the all-in price for any contract, including time-of-use ones such as ENGIE Empower Flextime, so Dynamic Pricing and <strong>Discharge Reserve</strong> work without a template. For the export curve, choose its <strong>Injection price</strong> sensor with the same type.
+For Zonneplan, choose <strong>Current quarter hourly electricity tariff</strong> for a quarter-hour contract or <strong>Current hourly electricity tariff</strong> for an hourly contract. The older <strong>Current electricity tariff</strong> sensor is also supported. For Nord Pool, choose either an official-integration entity or the HACS sensor; Omnibattery detects the format.</p>
 </div>
 <h2 id="what-you-will-see">What you will see<a class="headerlink" href="#what-you-will-see" title="Permanent link">&para;</a></h2>
 <p><strong>Predictive Charging Active</strong> shows whether charging is needed, the selected periods, their energy quotas, and any energy shortfall. Omnibattery chooses the cheapest eligible period that occurs before each projected need, so the absolute cheapest period can be skipped when it is too late.</p>
@@ -3386,7 +3415,9 @@
 <details>
 <summary>Advanced details</summary>
 <h3 id="price-source-normalization">Price-source normalization<a class="headerlink" href="#price-source-normalization" title="Permanent link">&para;</a></h3>
-<p>Omnibattery supports <strong>Nordpool</strong>, <strong>PVPC</strong>, <strong>CKW</strong>, <strong>EPEX Spot</strong>, <strong>ENTSO-e</strong>, <strong>Zonneplan</strong>, and <strong>Tibber</strong>. Provider parsers normalize dated price periods into the same local schedule.</p>
+<p>Omnibattery supports <strong>Nordpool</strong>, <strong>PVPC</strong>, <strong>CKW</strong>, <strong>EPEX Spot</strong>, <strong>ENTSO-e</strong>, <strong>EnergyZero</strong>, <strong>Zonneplan</strong>, <strong>Frank Energie</strong>, <strong>Tibber</strong>, and <strong>BE Electricity Prices</strong>. Provider parsers normalize dated price periods into the same local schedule.</p>
+<p>Frank Energie needs the <a href="https://github.com/HiDiHo01/home-assistant-frank_energie">Frank Energie HACS integration</a>. It reads the chosen sensor’s <code>prices</code> attribute (<code>from</code>, <code>till</code>, <code>price</code>), including tomorrow when available. Prices are already tax-inclusive major currency/kWh and are not rescaled. Use the all-in price sensor for import, for example <code>sensor.frank_energie_electricity_prices_current_electricity_price_all_in</code>, and the including-tax-and-markup sensor for export, for example <code>sensor.frank_energie_electricity_prices_current_electricity_price_including_tax_and_markup</code>. Periods may be hourly or quarter-hourly.
+EnergyZero calls <code>energyzero.get_energy_prices</code> for today and tomorrow using the selected electricity sensor's integration entry, market/all-in price type, and hourly/quarter-hourly interval. Prices include VAT and are already in EUR/kWh; tomorrow is retained when published, while unavailable tomorrow data does not discard today's prices.</p>
 <p>Zonneplan reads the chosen sensor’s <code>forecast</code> attribute, including tomorrow when available. Forecast amounts are divided by 10,000,000 into tax-inclusive major currency/kWh; the current sensor state is already major currency/kWh. Negative and zero prices are preserved. Modern entries keep explicit period boundaries; legacy entries use one-hour periods.</p>
 <p>A Nord Pool HACS entity is read from <code>raw_today</code> and <code>raw_tomorrow</code>. If <code>price_in_cents</code> is true, Omnibattery converts the calendar and live price to major currency/kWh. For an official Nord Pool entity, it resolves the market area, calls <code>nordpool.get_prices_for_date</code>, converts currency/MWh to currency/kWh, and refreshes the cache hourly.</p>
 <p>Tibber calls <code>tibber.get_prices</code>, caches today’s prices and tomorrow’s once published, and refreshes the cache hourly. The official Tibber integration must already be configured.</p>
@@ -3407,7 +3438,7 @@
 <p>The daily plan can be rebuilt by these events:</p>
 <ul>
 <li><strong>Before a selected period:</strong> one hour before a future selected period, Omnibattery checks the remaining balance. It silently removes the period if energy is now sufficient or confirms it by notification when the deficit remains. Back-to-back periods are not reconsidered while the previous one is charging.</li>
-<li><strong>Late-day assessment:</strong> when solar start has been detected, this runs about 1.5 hours before estimated production ends; otherwise it uses 16:00. It adds eligible future periods only for a remaining deficit of at least 0.3 kWh. This safety top-up is not rejected by the optional arbitrage-margin gate.</li>
+<li><strong>Late-day assessment:</strong> when solar start has been detected, this runs about 1.5 hours before estimated production ends; otherwise it uses 16:00. It adds eligible future periods only for a remaining deficit of at least 0.3 kWh. Those periods pass the same price ceiling and optional arbitrage margin as the daily plan.</li>
 <li><strong>SOC drop:</strong> a chronological plan rebuilds after a five-percentage-point drop from the last evaluated fleet average. A fallback non-chronological plan retains the 30-point threshold. An SOC rise does not trigger it.</li>
 <li><strong>Solar forecast revision:</strong> a change of at least 1.5 kWh in either direction rebuilds the plan, with a 30-minute cooldown and a maximum of four such rebuilds per day. Measured solar since the saved reading is removed before comparison, and an unavailable sensor is not treated as a collapsed forecast.</li>
 <li><strong>Excluded-device solar claim:</strong> a material change in an excluded load, such as an electric vehicle session, rebuilds the plan because that device changes how much forecast solar is available to the battery.</li>
@@ -3461,8 +3492,9 @@
 <p>The optional <strong>Minimum Arbitrage Margin</strong> rejects a charge period unless the expected future discharge value covers conversion losses and the selected margin:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>expected_discharge_price × round_trip_efficiency − charge_price ≥ margin
 </code></pre></div>
-<p>The margin is disabled when empty or set to 0. It applies in addition to <strong>Max Price Threshold</strong>, and the stricter ceiling wins. It gates the 00:05 trade selection; later remaining-horizon and late-day safety rebuilds can still schedule energy needed to avoid a deficit.</p>
-<p><strong>Round-Trip Efficiency</strong> defaults to 0.85 and represents marginal AC-to-AC energy efficiency. Lower values require a larger gross spread. It is distinct from lifetime charge/discharge totals, which include standby consumption.</p>
+<p>The margin is disabled when empty or set to 0. It applies in addition to <strong>Max Price Threshold</strong>, and the stricter ceiling wins. It gates the 00:05 plan and every later rebuild, including the late-day assessment. Energy needed for <strong>Guaranteed Minimum SOC</strong> is the exception: only <strong>Max Price Threshold</strong> limits it.</p>
+<p><code>expected_discharge_price</code> is set per stored kWh, not for the whole deficit. The cheapest charge periods take the most expensive later periods, and each later period counts once. So the first kWh is compared with the evening peak, and the last with whatever cheaper hour it would replace. Energy the home needs at a given time is compared with the import price at that time. When importing then costs less than charging earlier with the round-trip losses, that energy is left to the grid and reported as <code>cheaper_to_import_kwh</code> instead of a shortfall. If no period qualifies, <code>chronological_plan_reason</code> is <code>price_threshold</code> and <code>cheapest_rejected_slot</code> shows the cheapest period with the ceiling it missed.</p>
+<p><strong>Round-Trip Efficiency</strong> represents marginal AC-to-AC energy efficiency; lower values require a larger gross spread. While it is left at the default 0.85, the integration uses the efficiency it measures on your batteries instead (capacity-weighted across the fleet), once a battery has enough history: at least 50 equivalent cycles with a lifetime ratio between 0.75 and 0.95, or, on Venus A/D, both charge and discharge legs sampled. Without a valid measurement it stays at 0.85. Any other value you set is always used as is. The value in use and its source are shown as <code>round_trip_efficiency_used</code> and <code>round_trip_efficiency_source</code> on the predictive-charging diagnostics.</p>
 <p>The same minimum margin applies to <strong>High-Price Sale</strong>, so the charge and sell decisions use one economic risk preference.</p>
 <h3 id="high-price-sale">High-Price Sale<a class="headerlink" href="#high-price-sale" title="Permanent link">&para;</a></h3>
 <p>One select, off by default and available only with <strong>Dynamic Pricing</strong>, sets how much stored energy may be sold into expensive export periods. Each level includes the one below it:</p>
