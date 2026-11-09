@@ -22,6 +22,21 @@ SCAN_INTERVAL = {
     "very_low": 600   # rarely changing info, e.g., device info, firmware versions
 }
 
+# The smallest energy a quarter-hour flow may carry before it is allowed to
+# colour a whole cell of the daily operation graph.  1e-9 is a numerical guard,
+# not a display one: 0.0009 kWh of spill at a quarter boundary is a real
+# measurement but only a few seconds of flow, and painting the full quarter as a
+# grid charge reads as a bug.  0.01 kWh over a quarter is a 40 W average, the
+# same kind of "nothing" the power dead-band already means.
+#
+# This lives in const because two layers must agree on the one value and on the
+# fact that it covers every colour: pricing/daily_timeline.py composes the
+# projected mask (green = solar charge, purple = grid charge, blue = discharge)
+# and tracking/daily_timeline.py derives the observed mask from measured flows.
+# A bit whose own energy series stays under this value is not an action, no
+# matter who stated it.
+ACTION_ENERGY_DEADBAND_KWH = 0.01
+
 # Battery version support
 CONF_BATTERY_VERSION = "battery_version"
 CONF_DC_PV_CONNECTED = "dc_pv_connected"

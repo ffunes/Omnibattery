@@ -724,6 +724,11 @@ def _daily_operation_timeline_summary(controller) -> dict[str, Any]:
     operations = payload.get("operations") or {}
     actual_action = operations.get("actual_action_mask") or [0] * 96
     planned_action = operations.get("planned_action_mask") or [0] * 96
+    # Bits the display dead-band withheld from the graph. Kept as their own
+    # series so the diagnostics can still count the energy the measurement
+    # carried, instead of losing it to "unknown".
+    actual_hidden = operations.get("actual_deadband_hidden_mask") or [0] * 96
+    planned_hidden = operations.get("planned_deadband_hidden_mask") or [0] * 96
     actual_overlap = operations.get("actual_coexistence_mask") or actual_action
     planned_overlap = operations.get("planned_coexistence_mask") or planned_action
     actual_context = operations.get("actual_context_mask") or [0] * 96
@@ -746,6 +751,10 @@ def _daily_operation_timeline_summary(controller) -> dict[str, Any]:
     partial_cells = 0
     combined_masks: list[int] = []
     combined_overlap_masks: list[int] = []
+    # The same cells without the display gate, so the counters can tell a
+    # quarter that carried a trickle from a quarter where nothing happened.
+    raw_combined_masks: list[int] = []
+    below_deadband_cells = 0
     for index in range(96):
         actual_values_present = any(
             _at(series.get(key), index) is not None
@@ -774,9 +783,25 @@ def _daily_operation_timeline_summary(controller) -> dict[str, Any]:
             partial_cells += 1
         combined_masks.append(actual_mask | planned_mask)
         combined_overlap_masks.append(actual_overlap_mask | planned_overlap_mask)
+        actual_hidden_mask = _timeline_int(_at(actual_hidden, index)) or 0
+        planned_hidden_mask = _timeline_int(_at(planned_hidden, index)) or 0
+        raw_combined_masks.append(
+            actual_mask | actual_hidden_mask | planned_mask | planned_hidden_mask
+        )
+        if (
+            (actual_hidden_mask or planned_hidden_mask)
+            and not actual_mask
+            and not planned_mask
+        ):
+            # Shown as "no action" while a flow was measured inside it: not the
+            # same thing as a quarter where nothing happened.
+            below_deadband_cells += 1
 
     combined_by_action, _ignored_double, _ignored_triple = _timeline_action_counts(
         combined_masks
+    )
+    raw_by_action, _raw_double, _raw_triple = _timeline_action_counts(
+        raw_combined_masks
     )
     _ignored_actions, double_overlaps, triple_overlaps = _timeline_action_counts(
         combined_overlap_masks
@@ -846,6 +871,11 @@ def _daily_operation_timeline_summary(controller) -> dict[str, Any]:
             "partial": partial_cells,
             "by_action": combined_by_action,
             "actions": combined_by_action,
+            # What the measurement carried, whether or not the graph may show
+            # it, and how many quarters the dead-band emptied while still
+            # holding a measured flow.
+            "raw_by_action": raw_by_action,
+            "below_deadband_cells": below_deadband_cells,
             "actual_by_action": actual_by_action,
             "planned_by_action": planned_by_action,
             "double_overlaps": double_overlaps,

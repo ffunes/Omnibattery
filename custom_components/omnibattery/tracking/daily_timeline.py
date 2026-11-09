@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from ..const import DOMAIN
+from ..const import ACTION_ENERGY_DEADBAND_KWH, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,7 +126,27 @@ MAX_TEXT_LENGTH = 128
 MAX_METADATA_ITEMS = 8
 MAX_DECISION_EVENTS_PER_CELL = 8
 POWER_DEADBAND_W = 10.0
+# The value itself lives in ``const`` so the projected mask composed by
+# ``pricing/daily_timeline.py`` and this observed derivation cannot drift apart;
+# this name stays as the tracking-local alias the code below reads.
+_ACTION_ENERGY_DEADBAND_KWH = ACTION_ENERGY_DEADBAND_KWH
 _EPSILON = 1e-9
+
+# The energy series that owns each action bit, in the order the graph colours
+# them: green is solar charging, purple is grid charging, blue is discharging.
+# One list drives the observed derivation, the incoming-mask filter and the
+# published gate, so a bit can never be granted on one path and refused on
+# another. ``_ACTION_ENERGY_KEYS`` is the sister of the list of the same name in
+# ``pricing/daily_timeline.py``; the aliases here are the names a decision or a
+# projection item may use for the same flow.
+_ACTION_ENERGY_KEYS: tuple[tuple[int, tuple[str, ...]], ...] = (
+    (
+        ACTION_SOLAR_CHARGE,
+        ("solar_to_battery_kwh", "pv_to_battery_kwh", "solar_excess_kwh"),
+    ),
+    (ACTION_GRID_CHARGE, ("grid_to_battery_kwh", "grid_charge_kwh")),
+    (ACTION_DISCHARGE, ("battery_to_home_kwh", "battery_discharge_kwh")),
+)
 
 _ACTION_NAMES = {
     ACTION_SOLAR_CHARGE: "solar_charge",
@@ -347,6 +367,73 @@ def _mask_from_value(value: Any, names: Mapping[str, int], allowed: int) -> int:
             mask |= _mask_from_value(item, names, allowed)
         return mask & allowed
     return 0
+
+
+def _action_energy_kwh(source: Any, bit: int) -> float | None:
+    """The energy series that owns ``bit``, or ``None`` when it is unknown.
+
+    ``None`` means "not measured", which is not the same as "measured as
+    nothing": only the latter may hide an action bit.
+    """
+    mapping = _object_mapping(source)
+    if mapping is None:
+        return None
+    for candidate, keys in _ACTION_ENERGY_KEYS:
+        if candidate != bit:
+            continue
+        for key in keys:
+            parsed = _finite_non_negative(mapping.get(key))
+            if parsed is not None:
+                return parsed
+    return None
+
+
+def _split_mask_by_energy(
+    mask: int,
+    energies: Mapping[int, float | None],
+    threshold: float = _ACTION_ENERGY_DEADBAND_KWH,
+) -> tuple[int, int]:
+    """Split ``mask`` into ``(visible, hidden)`` using the energy per bit.
+
+    A bit whose energy is unknown is kept: nothing contradicts the statement. A
+    bit whose energy is known and does not clear ``threshold`` is hidden, and
+    reported separately so the measurement does not vanish from the
+    diagnostics. This is the one gate all three colours pass through.
+    """
+    visible = 0
+    hidden = 0
+    for bit, _keys in _ACTION_ENERGY_KEYS:
+        if not mask & bit:
+            continue
+        energy = energies.get(bit)
+        if energy is not None and energy <= threshold:
+            hidden |= bit
+        else:
+            visible |= bit
+    return visible, hidden
+
+
+def _filter_supplied_mask(
+    mask: int,
+    source: Any,
+    threshold: float = _ACTION_ENERGY_DEADBAND_KWH,
+) -> tuple[int, int]:
+    """Apply the display dead-band to a mask that arrived from elsewhere.
+
+    A named action mask is a statement, not a measurement, so it is honoured by
+    default. But a mask that travels together with its own energy series must
+    respect the same threshold this diary applies to its own derivation: a
+    caller may not bypass the display dead-band and paint a quarter with a few
+    watt-hours in it. Only the bits whose energy is supplied *and* under the
+    threshold are filtered; the rest are returned untouched.
+    """
+    mapping = _object_mapping(source)
+    if mapping is None:
+        return mask, 0
+    energies = {
+        bit: _action_energy_kwh(mapping, bit) for bit, _keys in _ACTION_ENERGY_KEYS
+    }
+    return _split_mask_by_energy(mask, energies, threshold)
 
 
 def _is_realtime_mode(mode: Any) -> bool:
@@ -708,6 +795,11 @@ class _TimelineCell:
 
     actual_action_mask: int = ACTION_NONE
     planned_action_mask: int = ACTION_NONE
+    # Bits a supplied mask or projection stated but the display dead-band
+    # refuses to show, kept apart so the measurement does not vanish from the
+    # diagnostics and no existing consumer changes meaning.
+    actual_deadband_hidden_mask: int = ACTION_NONE
+    planned_deadband_hidden_mask: int = ACTION_NONE
     actual_context_mask: int = CONTEXT_NONE
     planned_context_mask: int = CONTEXT_NONE
     actual_coexistence_mask: int = ACTION_NONE
@@ -740,6 +832,7 @@ class _TimelineCell:
 
     def clear_planned(self) -> None:
         self.planned_action_mask = ACTION_NONE
+        self.planned_deadband_hidden_mask = ACTION_NONE
         self.planned_context_mask = CONTEXT_NONE
         self.planned_coexistence_mask = ACTION_NONE
         self.planned_grid_charge_decision = GRID_CHARGE_NOT_APPLICABLE
@@ -760,6 +853,8 @@ class _TimelineCell:
         return {
             "actual_action_mask": self.actual_action_mask,
             "planned_action_mask": self.planned_action_mask,
+            "actual_deadband_hidden_mask": self.actual_deadband_hidden_mask,
+            "planned_deadband_hidden_mask": self.planned_deadband_hidden_mask,
             "actual_context_mask": self.actual_context_mask,
             "planned_context_mask": self.planned_context_mask,
             "actual_coexistence_mask": self.actual_coexistence_mask,
@@ -1729,14 +1824,13 @@ class DailyOperationTimelineManager:
                 if mask:
                     return mask
         mask = 0
-        for keys, bit in (
-            (("solar_to_battery_kwh", "pv_to_battery_kwh", "solar_excess_kwh"), ACTION_SOLAR_CHARGE),
-            (("grid_to_battery_kwh", "grid_charge_kwh"), ACTION_GRID_CHARGE),
-            (("battery_to_home_kwh", "battery_discharge_kwh"), ACTION_DISCHARGE),
-        ):
+        # Value-derived bits must carry real energy before they colour a
+        # quarter. The same shared list and the same threshold as the published
+        # gate, so green, purple and blue are judged alike.
+        for bit, keys in _ACTION_ENERGY_KEYS:
             if any(
                 (parsed := _finite_non_negative(mapping.get(key))) is not None
-                and parsed > _EPSILON
+                and parsed > _ACTION_ENERGY_DEADBAND_KWH
                 for key in keys
             ):
                 mask |= bit
@@ -1745,7 +1839,12 @@ class DailyOperationTimelineManager:
         batteries = mapping.get("batteries") or mapping.get("battery_actions")
         if isinstance(batteries, Sequence) and not isinstance(batteries, (str, bytes)):
             for battery in batteries:
-                mask |= DailyOperationTimelineManager._action_mask_from_decision(battery)
+                # A nested decision carries its own flows, so its named mask
+                # passes the same display gate as the top-level one.
+                mask |= _filter_supplied_mask(
+                    DailyOperationTimelineManager._action_mask_from_decision(battery),
+                    battery,
+                )[0]
         return mask
 
     @staticmethod
@@ -1843,6 +1942,24 @@ class DailyOperationTimelineManager:
             if action_mask is not None
             else self._action_mask_from_decision(mapping)
         )
+        supplied_hidden_mask = ACTION_NONE
+        if action_mask is not None:
+            # A named mask that arrives from elsewhere — the control loop, a
+            # stored decision, a projection item — may not bypass the display
+            # dead-band. Whenever the same decision carries the energy series
+            # behind a bit, that energy has to clear ACTION_ENERGY_DEADBAND_KWH
+            # before the bit is allowed to colour a quarter; a few watt-hours of
+            # spill would otherwise paint a full grid charge. Bits whose energy
+            # is not supplied are honoured as stated: a statement is not a
+            # measurement, so there is nothing to contradict it with.
+            energy_source: dict[str, Any] = dict(mapping)
+            for _bit, _keys in _ACTION_ENERGY_KEYS:
+                for _key in _keys:
+                    if kwargs.get(_key) is not None:
+                        energy_source[_key] = kwargs[_key]
+            parsed_action_mask, supplied_hidden_mask = _filter_supplied_mask(
+                parsed_action_mask, energy_source
+            )
         if context_mask is None:
             context_mask = kwargs.get("actual_context_mask", mapping.get("actual_context_mask"))
         if context_mask is None:
@@ -1909,7 +2026,7 @@ class DailyOperationTimelineManager:
                 parsed
                 for key in ("solar_to_battery_kwh", "pv_to_battery_kwh", "solar_excess_kwh")
                 if (parsed := _finite_non_negative(mapping.get(key))) is not None
-                and parsed > _EPSILON
+                and parsed > _ACTION_ENERGY_DEADBAND_KWH
             ),
             0.0,
         )
@@ -1918,7 +2035,7 @@ class DailyOperationTimelineManager:
                 parsed
                 for key in ("grid_to_battery_kwh", "grid_charge_kwh")
                 if (parsed := _finite_non_negative(mapping.get(key))) is not None
-                and parsed > _EPSILON
+                and parsed > _ACTION_ENERGY_DEADBAND_KWH
             ),
             0.0,
         )
@@ -1927,18 +2044,18 @@ class DailyOperationTimelineManager:
                 parsed
                 for key in ("battery_to_home_kwh", "battery_discharge_kwh")
                 if (parsed := _finite_non_negative(mapping.get(key))) is not None
-                and parsed > _EPSILON
+                and parsed > _ACTION_ENERGY_DEADBAND_KWH
             ),
             0.0,
         )
         if parsed_action_mask == ACTION_NONE:
-            if solar_to_battery and solar_to_battery > _EPSILON:
+            if solar_to_battery:
                 parsed_action_mask |= ACTION_SOLAR_CHARGE
-            if grid_to_battery and grid_to_battery > _EPSILON:
+            if grid_to_battery:
                 parsed_action_mask |= ACTION_GRID_CHARGE
             if (
                 (discharge_power is not None and discharge_power > POWER_DEADBAND_W)
-                or (battery_to_home and battery_to_home > _EPSILON)
+                or battery_to_home
             ):
                 parsed_action_mask |= ACTION_DISCHARGE
             if (
@@ -1985,6 +2102,7 @@ class DailyOperationTimelineManager:
         cell = self._cells[index]
         old = cell.as_dict()
         cell.actual_action_mask |= parsed_action_mask
+        cell.actual_deadband_hidden_mask |= supplied_hidden_mask
         cell.actual_context_mask |= parsed_context_mask
         explicit_coexistence = coexistence_mask
         if explicit_coexistence is None:
@@ -2068,6 +2186,7 @@ class DailyOperationTimelineManager:
             # RT mode has no future plan; the current cell's planned overlay is
             # merely the last real activation so the UI can render it.
             cell.planned_action_mask = cell.actual_action_mask
+            cell.planned_deadband_hidden_mask = cell.actual_deadband_hidden_mask
             cell.planned_context_mask = cell.actual_context_mask
             cell.planned_coexistence_mask = cell.actual_coexistence_mask
             cell.planned_grid_charge_decision = cell.actual_grid_charge_decision
@@ -2377,6 +2496,9 @@ class DailyOperationTimelineManager:
                     self._cells[future_index].clear_planned()
             current_cell = self._cells[index]
             current_cell.planned_action_mask = current_cell.actual_action_mask
+            current_cell.planned_deadband_hidden_mask = (
+                current_cell.actual_deadband_hidden_mask
+            )
             current_cell.planned_context_mask = current_cell.actual_context_mask
             current_cell.planned_coexistence_mask = current_cell.actual_coexistence_mask
             current_cell.planned_grid_charge_decision = current_cell.actual_grid_charge_decision
@@ -2465,16 +2587,28 @@ class DailyOperationTimelineManager:
                     if action_value is not None
                     else 0
                 )
-                flow_fields = (
-                    ("solar_to_battery_kwh", ACTION_SOLAR_CHARGE),
-                    ("grid_to_battery_kwh", ACTION_GRID_CHARGE),
-                    ("battery_to_home_kwh", ACTION_DISCHARGE),
+                # The energy this projected interval states, read through the
+                # same alias list the observed derivation uses, so green, purple
+                # and blue are judged by one rule.
+                planned_energy = {
+                    "solar_to_battery_kwh": cell.planned_solar_to_battery_kwh,
+                    "grid_to_battery_kwh": cell.planned_grid_to_battery_kwh,
+                    "battery_to_home_kwh": cell.planned_battery_to_home_kwh,
+                }
+                # A projection item names its own mask, and that mask may come
+                # from a planner that never applied this display dead-band. It
+                # may not bypass it here: filter it against the flows of the very
+                # same interval, so a projected quarter carrying a few
+                # watt-hours cannot colour a whole cell either.
+                action_mask, planned_hidden_mask = _filter_supplied_mask(
+                    action_mask, planned_energy
                 )
-                for field_name, bit in flow_fields:
-                    flow = _finite_non_negative(item_value(field_name, default=None))
-                    if flow is not None and flow > _EPSILON:
-                        action_mask |= bit
+                for _energy_bit, _energy_keys in _ACTION_ENERGY_KEYS:
+                    _energy = _action_energy_kwh(planned_energy, _energy_bit)
+                    if _energy is not None and _energy > _ACTION_ENERGY_DEADBAND_KWH:
+                        action_mask |= _energy_bit
                 cell.planned_action_mask = action_mask
+                cell.planned_deadband_hidden_mask = planned_hidden_mask
                 context_value = item_value("planned_context_mask", "context_mask", default=None)
                 context_mask = (
                     _mask_from_value(context_value, _CONTEXT_NAME_TO_MASK, CONTEXT_MASK_ALL)
@@ -2685,6 +2819,8 @@ class DailyOperationTimelineManager:
         for name in (
             "actual_action_mask",
             "planned_action_mask",
+            "actual_deadband_hidden_mask",
+            "planned_deadband_hidden_mask",
             "actual_context_mask",
             "planned_context_mask",
             "actual_coexistence_mask",
@@ -2695,7 +2831,7 @@ class DailyOperationTimelineManager:
                 name,
                 _safe_mask(
                     raw.get(name, 0),
-                    ACTION_MASK_ALL if "action" in name or "coexistence" in name else CONTEXT_MASK_ALL,
+                    CONTEXT_MASK_ALL if "context" in name else ACTION_MASK_ALL,
                 ),
             )
         for name in (
@@ -3088,6 +3224,53 @@ class DailyOperationTimelineManager:
             )
         return intervals
 
+    @staticmethod
+    def _actual_cell_energies(cell: _TimelineCell) -> dict[int, float | None]:
+        """Energy that owns each bit in the observed series.
+
+        The diary samples the aggregate charge and discharge energy, not the
+        solar/grid split, so both charge bits answer to the one measured charge
+        figure. ``None`` means "not measured" and never hides a bit.
+        """
+        return {
+            ACTION_SOLAR_CHARGE: cell.actual_charge_to_battery_kwh,
+            ACTION_GRID_CHARGE: cell.actual_charge_to_battery_kwh,
+            ACTION_DISCHARGE: cell.actual_discharge_from_battery_kwh,
+        }
+
+    @staticmethod
+    def _planned_cell_energies(cell: _TimelineCell) -> dict[int, float | None]:
+        """Energy that owns each bit in the projected series (per flow)."""
+        return {
+            ACTION_SOLAR_CHARGE: cell.planned_solar_to_battery_kwh,
+            ACTION_GRID_CHARGE: cell.planned_grid_to_battery_kwh,
+            ACTION_DISCHARGE: cell.planned_battery_to_home_kwh,
+        }
+
+    def _display_cell_masks(
+        self, cell: _TimelineCell
+    ) -> tuple[int, int, int, int]:
+        """Return ``(actual, actual_hidden, planned, planned_hidden)`` to show.
+
+        The cell keeps every bit it was given; only the published view is
+        gated. That is what makes this a display rule: the control loop and the
+        planner never read these arrays back. A bit is hidden only when the
+        energy that owns it was measured and did not clear the dead-band, so an
+        unmeasured statement stays visible and a measured trickle does not.
+        """
+        actual, actual_gate_hidden = _split_mask_by_energy(
+            cell.actual_action_mask, self._actual_cell_energies(cell)
+        )
+        planned, planned_gate_hidden = _split_mask_by_energy(
+            cell.planned_action_mask, self._planned_cell_energies(cell)
+        )
+        return (
+            actual,
+            actual_gate_hidden | cell.actual_deadband_hidden_mask,
+            planned,
+            planned_gate_hidden | cell.planned_deadband_hidden_mask,
+        )
+
     def build_public_snapshot(self, *, as_dto: bool = False) -> dict[str, Any] | DailyOperationTimelineSnapshot:
         """Return the versioned, bounded, JSON-safe dashboard contract."""
         current = self._now()
@@ -3210,8 +3393,20 @@ class DailyOperationTimelineManager:
             for name in _ACTION_NAMES.values()
         }
         intervals = self._public_intervals(grid)
-        actual_masks = [cell.actual_action_mask for cell in self._cells]
-        planned_masks = [cell.planned_action_mask for cell in self._cells]
+        # What the graph is allowed to show, per cell, with the bits the display
+        # dead-band hides beside it. Everything below counts and publishes from
+        # these pairs, so a colour and the number behind it cannot disagree.
+        displayed = [self._display_cell_masks(cell) for cell in self._cells]
+        actual_masks = [item[0] for item in displayed]
+        actual_hidden_masks = [item[1] for item in displayed]
+        planned_masks = [item[2] for item in displayed]
+        planned_hidden_masks = [item[3] for item in displayed]
+        raw_actual_masks = [
+            actual | hidden for actual, hidden in zip(actual_masks, actual_hidden_masks)
+        ]
+        raw_planned_masks = [
+            planned | hidden for planned, hidden in zip(planned_masks, planned_hidden_masks)
+        ]
         counts = {
             "past_cells": int(sum(self._closed)),
             "current_cells": 1,
@@ -3235,6 +3430,25 @@ class DailyOperationTimelineManager:
                 name: sum(1 for mask in actual_masks + planned_masks if mask & bit)
                 for bit, name in _ACTION_NAMES.items()
             },
+            # What the measurement actually carried, display dead-band or not,
+            # plus how many quarters the graph now shows as empty although a
+            # flow was measured inside them. Without these the hidden trickle
+            # would silently become "unknown" instead of "below the dead-band".
+            "raw_by_action": {
+                name: sum(
+                    1
+                    for mask in raw_actual_masks + raw_planned_masks
+                    if mask & bit
+                )
+                for bit, name in _ACTION_NAMES.items()
+            },
+            "below_deadband_cells": sum(
+                1
+                for actual, actual_hidden, planned, planned_hidden in displayed
+                if (actual_hidden or planned_hidden)
+                and actual == ACTION_NONE
+                and planned == ACTION_NONE
+            ),
             "double_overlaps": sum(
                 1
                 for cell in self._cells
@@ -3329,12 +3543,28 @@ class DailyOperationTimelineManager:
                 "price_per_kwh": list(self._price_per_kwh),
             },
             "operations": {
+                # Only what earned its colour: a bit is present here only when
+                # the energy that owns it cleared ACTION_ENERGY_DEADBAND_KWH, or
+                # was never measured at all. The bits withheld by that rule sit
+                # in the deadband_hidden arrays right below.
                 "actual_action_mask": actual_masks,
                 "planned_action_mask": planned_masks,
+                "actual_deadband_hidden_mask": actual_hidden_masks,
+                "planned_deadband_hidden_mask": planned_hidden_masks,
                 "actual_context_mask": [cell.actual_context_mask for cell in self._cells],
                 "planned_context_mask": [cell.planned_context_mask for cell in self._cells],
-                "actual_coexistence_mask": [cell.actual_coexistence_mask for cell in self._cells],
-                "planned_coexistence_mask": [cell.planned_coexistence_mask for cell in self._cells],
+                # Coexistence describes which of the shown actions happened
+                # together, so it can never claim a colour the cell no longer
+                # has: a real discharge beside a negligible solar charge shows
+                # blue alone, not blue and green.
+                "actual_coexistence_mask": [
+                    cell.actual_coexistence_mask & mask
+                    for cell, mask in zip(self._cells, actual_masks)
+                ],
+                "planned_coexistence_mask": [
+                    cell.planned_coexistence_mask & mask
+                    for cell, mask in zip(self._cells, planned_masks)
+                ],
                 "grid_charge_decision": visible_grid,
                 "actual_grid_charge_decision": actual_grid,
                 "planned_grid_charge_decision": planned_grid,

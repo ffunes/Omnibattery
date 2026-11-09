@@ -31,7 +31,7 @@ from datetime import timezone as dt_timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from ..const import CHARGE_EFFICIENCY
+from ..const import ACTION_ENERGY_DEADBAND_KWH, CHARGE_EFFICIENCY
 
 SCHEMA_VERSION = 1
 INTERVAL_MINUTES = 15
@@ -93,6 +93,19 @@ ACTION_NAMES = {
     ACTION_GRID_CHARGE: "grid_charge",
     ACTION_DISCHARGE: "discharge",
 }
+
+# The energy series that owns each action bit: ``bit``, the keyword
+# ``compose_action_mask`` exposes for it, and the flow field of the projection
+# input/output. The sister list in ``tracking/daily_timeline.py`` uses the same
+# three bits and the same threshold from ``const``, so a projected quarter and
+# an observed quarter cannot disagree about what counts as an action. A bit is
+# granted only above ``ACTION_ENERGY_DEADBAND_KWH``: a few watt-hours of spill
+# is a measurement, not a charge, and must not colour a whole quarter.
+_ACTION_ENERGY_KEYS: tuple[tuple[int, str, str], ...] = (
+    (ACTION_SOLAR_CHARGE, "solar_charge", "solar_to_battery_kwh"),
+    (ACTION_GRID_CHARGE, "grid_charge", "grid_to_battery_kwh"),
+    (ACTION_DISCHARGE, "discharge", "battery_to_home_kwh"),
+)
 _ACTION_ALIASES = {
     "solar": ACTION_SOLAR_CHARGE,
     "pv": ACTION_SOLAR_CHARGE,
@@ -249,6 +262,22 @@ def compose_action_mask(
     if discharge:
         mask |= ACTION_DISCHARGE
     return mask & ACTION_MASK_ALL
+
+
+def masked_by_energy_deadband(**flows_kwh: Any) -> int:
+    """The action bits whose projected flow clears the display dead-band.
+
+    One gate for all three colours: green (solar charge), purple (grid charge)
+    and blue (discharge) each need their own energy to rise above
+    ``ACTION_ENERGY_DEADBAND_KWH`` before they may colour a quarter.
+    """
+    return compose_action_mask(
+        **{
+            keyword: _non_negative(_finite(flows_kwh.get(keyword), 0.0))
+            > ACTION_ENERGY_DEADBAND_KWH
+            for _bit, keyword, _field in _ACTION_ENERGY_KEYS
+        }
+    )
 
 
 def compose_context_mask(
@@ -1461,10 +1490,10 @@ def simulate_battery_projection(
                         if discharge_eff > _EPSILON
                         else 0.0
                     ),
-                    action_mask=compose_action_mask(
-                        solar_charge=solar_input > _EPSILON,
-                        grid_charge=grid_input > _EPSILON,
-                        discharge=discharge_output > _EPSILON,
+                    action_mask=masked_by_energy_deadband(
+                        solar_charge=solar_input,
+                        grid_charge=grid_input,
+                        discharge=discharge_output,
                     ),
                 )
             )
@@ -1483,10 +1512,10 @@ def simulate_battery_projection(
         context = _metadata_value(context_masks, index, interval_list)
         if context is None:
             context = interval.context_mask
-        action_mask = compose_action_mask(
-            solar_charge=solar_to_battery > _EPSILON,
-            grid_charge=grid_to_battery > _EPSILON,
-            discharge=battery_to_home > _EPSILON,
+        action_mask = masked_by_energy_deadband(
+            solar_charge=solar_to_battery,
+            grid_charge=grid_to_battery,
+            discharge=battery_to_home,
         )
         projected = interval.projected
         if projected is None:
@@ -2429,6 +2458,7 @@ __all__ = [
     "local_grid_to_dict",
     "make_action_mask",
     "make_context_mask",
+    "masked_by_energy_deadband",
     "normalize_grid_charge_decision",
     "project_battery_flows",
     "project_charge_delay",

@@ -1790,6 +1790,15 @@ def _daily_operation_timeline_attributes(controller: object) -> dict[str, object
     planned_action = _timeline_find(
         source, ("planned_action_mask", "planned_action_masks"), operations
     )
+    # Bits the display dead-band withheld. Carried through the DTO so the
+    # diagnostics can still count the energy a hidden colour measured, instead
+    # of losing it to "unknown".
+    actual_deadband_hidden = _timeline_find(
+        source, ("actual_deadband_hidden_mask",), operations
+    )
+    planned_deadband_hidden = _timeline_find(
+        source, ("planned_deadband_hidden_mask",), operations
+    )
     actual_coexistence = _timeline_find(
         source, ("actual_coexistence_mask",), operations
     )
@@ -2063,6 +2072,12 @@ def _daily_operation_timeline_attributes(controller: object) -> dict[str, object
         "operations": {
             "actual_action_mask": _timeline_array(actual_action, _timeline_mask, 0),
             "planned_action_mask": _timeline_array(planned_action, _timeline_mask, 0),
+            "actual_deadband_hidden_mask": _timeline_array(
+                actual_deadband_hidden, _timeline_mask, 0
+            ),
+            "planned_deadband_hidden_mask": _timeline_array(
+                planned_deadband_hidden, _timeline_mask, 0
+            ),
             "actual_coexistence_mask": _timeline_array(
                 actual_coexistence,
                 _timeline_mask,
