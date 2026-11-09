@@ -1097,8 +1097,12 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         (single TCP connection) refuse new connections because they still
         hold a zombie connection from the old client.
 
-        Returns True if reconnection succeeded.
+        Returns True if reconnection succeeded. A coordinator being torn down
+        never reconnects: on a single-slot link the new connection would lock
+        out the setup that replaces it.
         """
+        if getattr(self, "_is_shutting_down", False):
+            return False
         _LOGGER.warning(
             "[%s] Creating fresh connection to %s:%s (consecutive failures: %d)",
             self.name, self.host, self.port, self._consecutive_failures

@@ -16,9 +16,9 @@ def test_monitor_setup_shares_the_recorder_backfill_eligibility_gate():
     gate also preserves monitoring when predictive charging is configured but
     temporarily switched off, or an accumulator rebuild is pending.
     """
-    from custom_components.omnibattery import async_setup_entry
+    from custom_components.omnibattery import _async_setup_entry
 
-    setup = ast.parse(inspect.getsource(async_setup_entry))
+    setup = ast.parse(inspect.getsource(_async_setup_entry))
     gate = next(
         node for node in ast.walk(setup)
         if isinstance(node, ast.If)
