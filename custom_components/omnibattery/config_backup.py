@@ -26,7 +26,9 @@ from types import MappingProxyType
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryDisabler
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.storage import Store
+from homeassistant.util.json import load_json
 
 from .const import DOMAIN
 
@@ -78,6 +80,45 @@ async def async_has_config_backup(hass: HomeAssistant) -> bool:
     return bool(await async_load_config_backup(hass))
 
 
+async def _async_carry_storage_files(
+    hass: HomeAssistant, old_domain: str, old_entry_id: str, new_entry_id: str
+) -> None:
+    """Copy the deleted entry's Store files into the new entry's namespace.
+
+    Each copy is saved once more through Store. Home Assistant lists the storage
+    files at startup and a Store treats a key outside that list as having no
+    data, so a file written next to Store stays invisible until the next restart.
+    A file that can't be read back or isn't a Store is skipped, so it can't stop
+    the restore.
+    """
+    # Imported lazily: the marstek-domain bridge build ships this module for the
+    # *writer* only and has no domain_migration module. Restore is never called
+    # on the source domain, so this import only resolves where it exists.
+    from .domain_migration import _migrate_storage_files
+
+    written = await hass.async_add_executor_job(
+        _migrate_storage_files,
+        hass.config.path(".storage"),
+        old_domain,
+        DOMAIN,
+        old_entry_id,
+        new_entry_id,
+    )
+    for name in written:
+        try:
+            content = await hass.async_add_executor_job(
+                load_json, hass.config.path(".storage", name)
+            )
+            await Store(
+                hass,
+                content["version"],
+                name,
+                minor_version=content.get("minor_version", 1),
+            ).async_save(content["data"])
+        except (HomeAssistantError, OSError, KeyError, TypeError) as err:
+            _LOGGER.warning("Skipping storage file %s during restore: %r", name, err)
+
+
 async def async_restore_config_backup(hass: HomeAssistant) -> list[str]:
     """Recreate config entries from the backup under the current domain.
 
@@ -86,16 +127,11 @@ async def async_restore_config_backup(hass: HomeAssistant) -> list[str]:
     ``unique_id``, so they reclaim their clean ``entity_id`` — and the recorder
     history keyed by it — with no ``_2`` suffixes (nothing conflicts, the old
     registry entries went with the deleted config entry). The integration's
-    ``.storage`` Store files are renamed into the new ``entry_id`` namespace so
-    daily counters survive too.
+    ``.storage`` Store files are copied into the new ``entry_id`` namespace so
+    daily counters and learned profiles survive too.
 
     Returns the new entry_ids created.
     """
-    # Imported lazily: the marstek-domain bridge build ships this module for the
-    # *writer* only and has no domain_migration module. Restore is never called
-    # on the source domain, so this import only resolves where it exists.
-    from .domain_migration import _migrate_storage_files
-
     records = await async_load_config_backup(hass)
     accepted = inspect.signature(ConfigEntry).parameters
     new_ids: list[str] = []
@@ -124,11 +160,9 @@ async def async_restore_config_backup(hass: HomeAssistant) -> list[str]:
         # Carry the persisted Store files (daily energy, accumulators, history)
         # from the deleted entry's namespace into the new one. The .storage files
         # outlive a config-entry deletion just like this backup does.
-        await hass.async_add_executor_job(
-            _migrate_storage_files,
-            hass.config.path(".storage"),
+        await _async_carry_storage_files(
+            hass,
             rec.get("domain", DOMAIN),
-            DOMAIN,
             rec.get("entry_id", ""),
             new_entry.entry_id,
         )
