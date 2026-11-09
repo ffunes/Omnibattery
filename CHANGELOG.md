@@ -56,6 +56,7 @@
 - **Discharge reserve: status showed `price_reserve_hold` while a battery was still discharging** (#737): a battery on its Min SOC is no longer held by the reserve, only by Min SOC. Thanks to @anorakophobia.
 - **Dynamic Pricing: a battery stopped early in a charge slot and the slot fell short**: each battery's share of a slot is now capped at what it can charge in the rest of the slot (taper and derating included); the rest goes to the others. Thanks to @anorakophobia.
 - **Zendure, Hoymiles, Anker: the PD charged from the grid while the house imported** (#634): with no `ac_power`, the controller read the battery's delivery from `battery_power`, which is cell-side and includes the device's own DC PV, so with sun it saw a charge the grid never got and kept commanding grid charge (and never discharged). It now reads the AC port the driver already publishes. Thanks to @xzaz.
+- **Dynamic Pricing: the plan kept reserving solar for an EV that was already full** (PR#808): an overnight session that still asked for more than the day's forecast re-planned on every 2 kWh it drained, although the claim the plan applies is capped at the forecast and did not change. That spent the four daily claim re-evaluations by 01:00, so the drop to zero when the car was full no longer re-planned and the battery was planned off the sun all day. Moves that stay above the remaining forecast no longer count, and a claim that falls (solar handed back to the battery) re-plans even after the cap is spent. Thanks to @syphernl.
 
 ## [1.6.0b1] - 2026-11-05
 

@@ -461,6 +461,9 @@ def _claim_mgr(ctrl, remaining_solar=12.0):
     """Manager whose live remaining-solar read is stubbed out."""
     manager = _mgr(ctrl)
     manager._remaining_solar_today_kwh = lambda _now: remaining_solar
+    manager._read_remaining_solar_input = lambda **_kw: SimpleNamespace(
+        remaining_kwh=remaining_solar
+    )
     return manager
 
 
@@ -529,6 +532,85 @@ def test_excluded_demand_reeval_compares_raw_readings():
     ctrl = _claim_ctrl(20.0, 20.0)
     manager = _claim_mgr(ctrl, remaining_solar=5.0)
     assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_ignores_moves_above_remaining_solar():
+    # An overnight session draining from 39.14 to 29.82 kWh against 7.73 kWh of
+    # sun: the plan claims 7.73 either way, so the move must not spend a run.
+    ctrl = _claim_ctrl(39.14, 29.82)
+    manager = _claim_mgr(ctrl, remaining_solar=7.73)
+    assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_fires_when_move_crosses_remaining_solar():
+    # From above the forecast to 2 kWh below it changes what the plan claims.
+    ctrl = _claim_ctrl(39.14, 5.5)
+    manager = _claim_mgr(ctrl, remaining_solar=7.73)
+    assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is True
+
+
+def test_excluded_demand_reeval_session_end_bypasses_daily_cap():
+    # Car full after the cap was spent overnight: the stale claim would keep
+    # the battery off the sun all day, so the release must still re-plan.
+    ctrl = _claim_ctrl(7.53, 0.0, _dp_excluded_demand_reeval_count=4)
+    assert _claim_mgr(ctrl, remaining_solar=6.61)._is_excluded_demand_reeval(_CLAIM_NOW) is True
+
+
+def test_excluded_demand_reeval_release_with_residual_bypasses_daily_cap():
+    # evcc can keep a small remainder after the car stops at its own limit.
+    ctrl = _claim_ctrl(7.53, 0.3, _dp_excluded_demand_reeval_count=4)
+    assert _claim_mgr(ctrl, remaining_solar=6.61)._is_excluded_demand_reeval(_CLAIM_NOW) is True
+
+
+def test_excluded_demand_reeval_increase_still_respects_daily_cap():
+    ctrl = _claim_ctrl(0.0, 5.0, _dp_excluded_demand_reeval_count=4)
+    assert _claim_mgr(ctrl, remaining_solar=6.61)._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_reeval_release_still_respects_cooldown():
+    ctrl = _claim_ctrl(
+        7.53, 0.0,
+        _dp_excluded_demand_reeval_count=4,
+        _dp_excluded_demand_reeval_at=_CLAIM_NOW - timedelta(minutes=5),
+    )
+    assert _claim_mgr(ctrl, remaining_solar=6.61)._is_excluded_demand_reeval(_CLAIM_NOW) is False
+
+
+def test_excluded_demand_trigger_moves_reference_before_rebuilding(monkeypatch):
+    # A release is exempt from the cap, so a rebuild that fails before it
+    # refreshes the reference must not leave the same move armed.
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return _CLAIM_NOW
+
+    monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    ctrl = _claim_ctrl(
+        7.53, 0.0,
+        _dp_excluded_demand_reeval_count=4,
+        _dynamic_pricing_evaluated_date=_CLAIM_NOW.date(),
+        _dp_eval_retry_count=0,
+        _dp_config_dirty=False,
+    )
+    manager = _claim_mgr(ctrl, remaining_solar=6.61)
+
+    async def noop(*_args, **_kwargs):
+        return None
+
+    async def failing_rebuild(**_kwargs):
+        raise RuntimeError("rebuild failed")
+
+    manager._maybe_refresh_service_prices = noop
+    manager._check_dp_pre_slot_reevaluation = noop
+    manager._is_evening_reevaluation_time = lambda: False
+    manager._is_dp_soc_drop_reeval = lambda: False
+    manager._evaluate_dynamic_pricing = failing_rebuild
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+
+    assert ctrl._dp_last_eval_excluded_claim_kwh == 0.0
+    assert manager._is_excluded_demand_reeval(_CLAIM_NOW + timedelta(minutes=20)) is False
 
 
 # ----------------------------------------------------------------------
