@@ -12,7 +12,7 @@
 - **Robustness** (PR#818): a failing predictive step falls back to normal control instead of stopping the cycle; one failing driver no longer aborts unloading the integration; Config Backup restores stored data before the entry loads; a lost Huawei EMMA meter connection is reconnected; a refused Indevolt write counts as failed. Thanks to @pocketware.
 - **Restore previous configuration keeps learned profiles and daily counters** (PR#819): the restored files are now loaded without a restart instead of being overwritten by the entry's first save; an unreadable file is skipped with a warning instead of aborting the restore. Thanks to @tkaspersNL.
 - **Venus E v2/v3 max power sliders go down to 100 W** (#815): the Max Charge/Discharge Power sliders in the dashboard and device page now start at 100 W, like the battery limits in the options flow, instead of 800 W. Thanks to @effevee.
-- **Integration Status shows the two price-hold states in your language** (#824): "Surplus Exporting (Cheaper Window Ahead)" and "Holding Charge for Dearer Hours" were still English in the Catalan, Dutch, French, German and Spanish translations. A test now fails when an Integration Status state is left in English. Thanks to @syphernl.
+- **Integration Status shows the two price-hold states in your language** (PR#825): "Surplus Exporting (Cheaper Window Ahead)" and "Holding Charge for Dearer Hours" were still English in the Catalan, Dutch, French, German and Spanish translations. A test now fails when an Integration Status state is left in English. Thanks to @syphernl.
 
 ## [1.6.0] - 2026-11-09
 
