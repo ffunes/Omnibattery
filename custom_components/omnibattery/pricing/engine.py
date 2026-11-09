@@ -4188,6 +4188,13 @@ class PricingManager:
             if planning_end:
                 full_plan = chronological_plan
                 chronological_plan = self._plan_within(full_plan, slots)
+                # The planned total spans the extended horizon; report the part
+                # that sits in tomorrow's slots so the listed slots add up.
+                decision_data["deferred_grid_charge_kwh"] = max(
+                    0.0,
+                    sum(a.planned_battery_kwh for a in getattr(full_plan, "allocations", None) or [])
+                    - sum(a.planned_battery_kwh for a in getattr(chronological_plan, "allocations", None) or []),
+                )
                 # All the energy sits in tomorrow's slots: nothing to charge
                 # now, and the notification must not call that "no slots".
                 decision_data["deferred_to_next_day"] = bool(

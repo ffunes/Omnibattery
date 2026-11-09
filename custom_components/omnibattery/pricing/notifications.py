@@ -563,6 +563,12 @@ def format_dynamic_pricing_notification(
                     f"🕒 Required before deadlines: {deadline:.2f} kWh\n"
                     f"💰 Flexible by price: {flexible:.2f} kWh\n"
                 )
+                deferred = float(decision_data.get("deferred_grid_charge_kwh", 0.0) or 0.0)
+                if deferred > 0.005:
+                    chronological_lines += (
+                        f"📅 Planned in tomorrow's slots (scheduled at 00:05): "
+                        f"{deferred:.2f} kWh\n"
+                    )
                 imported = float(getattr(schedule, "cheaper_to_import_kwh", 0.0) or 0.0)
                 if imported > 0:
                     chronological_lines += (

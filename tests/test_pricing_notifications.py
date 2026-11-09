@@ -393,6 +393,29 @@ def test_dynamic_charging_shows_cost():
     assert "Estimated cost: ~0.75 €" in message
 
 
+def test_dynamic_extended_plan_names_energy_in_tomorrows_slots():
+    """The planned total spans tomorrow; the slots listed are tonight's only."""
+    schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
+    schedule.chronological_planning_active = True
+    schedule.deadline_required_kwh = 12.02
+    decision = _decision(
+        should_charge=True,
+        energy_deficit_kwh=16.81,
+        planned_grid_charge_kwh=12.02,
+        deferred_grid_charge_kwh=3.02,
+    )
+    message = notifications.format_dynamic_pricing_notification(
+        decision, schedule, **_DP_CFG
+    )[1]
+    assert "Planned in tomorrow's slots (scheduled at 00:05): 3.02 kWh" in message
+
+    decision["deferred_grid_charge_kwh"] = 0.0
+    message = notifications.format_dynamic_pricing_notification(
+        decision, schedule, **_DP_CFG
+    )[1]
+    assert "tomorrow's slots" not in message
+
+
 def test_dynamic_remaining_horizon_does_not_label_remainder_as_daily_average():
     schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
     _, message = notifications.format_dynamic_pricing_notification(
