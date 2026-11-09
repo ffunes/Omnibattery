@@ -482,6 +482,26 @@ class PricingManager:
             grace = TIME_SLOT_FORECAST_GRACE_S
         return max(0.0, grace)
 
+    @staticmethod
+    def _is_new_day_since(
+        eval_date: Any,
+        now: datetime,
+        *,
+        is_initial_eval: bool = False,
+    ) -> bool:
+        """True once a midnight-horizon decision from an earlier day is stale.
+
+        Time Slot and Real-Time Price size their charge only until local
+        midnight. A decision still in force after midnight must be redone for
+        the new day; 00:00-00:05 is left to settle like the daily evaluation.
+        """
+        if is_initial_eval or eval_date is None:
+            return False
+        try:
+            return now.date() != eval_date and now.time() >= dt_time(0, 5)
+        except (AttributeError, TypeError):
+            return False
+
     def _time_slot_forecast_unavailable_elapsed_s(self, now: datetime) -> float:
         """Return seconds since the current slot began, tolerating old state."""
         entry_time = getattr(self._controller, "_slot_entry_time", None)
@@ -6709,6 +6729,7 @@ class PricingManager:
                 # Evaluate whether charging is actually needed before starting
                 decision_data = await self._current_horizon_grid_charging_decision()
                 self._controller._last_decision_data = decision_data
+                self._controller._realtime_eval_date = self._now().date()
                 if decision_data["should_charge"]:
                     self._controller._realtime_price_charging = True
                     self._controller._grid_charging_initialized = False
@@ -6734,6 +6755,35 @@ class PricingManager:
                 "Real-time price: charging STOPPED (price=%.4f > threshold=%.4f)",
                 current_price, threshold,
             )
+
+        elif self._controller._realtime_price_charging:
+            # A cheap run that started before midnight was sized only until
+            # 00:00; redo the decision for the new day so the night after
+            # midnight is covered too.
+            now = self._now()
+            if self._is_new_day_since(
+                getattr(self._controller, "_realtime_eval_date", None), now
+            ):
+                decision_data = await self._current_horizon_grid_charging_decision()
+                self._controller._last_decision_data = decision_data
+                self._controller._realtime_eval_date = now.date()
+                if decision_data["should_charge"]:
+                    # Recompute the per-battery target from the new deficit.
+                    self._controller._predictive_charge_target_soc = None
+                    _LOGGER.info(
+                        "Real-time price: new day while charging — target re-evaluated",
+                    )
+                else:
+                    self._reset_predictive_demand_runtime()
+                    self._controller._realtime_price_charging = False
+                    self._controller.grid_charging_active = False
+                    self._controller._grid_charging_initialized = False
+                    self._controller._predictive_charge_target_soc = None
+                    self._controller.previous_power = 0
+                    self._controller.previous_error = 0
+                    _LOGGER.info(
+                        "Real-time price: new day — charging no longer needed, STOPPED",
+                    )
 
         if self._controller.grid_charging_active:
             if not self._controller._is_operation_allowed(is_charging=True):
@@ -6843,8 +6893,25 @@ class PricingManager:
                 != getattr(self._controller, "_last_eval_peak_shaving_held", False)
             )
 
+            # day_rolled: this mode's horizon ends at local midnight and the
+            # night is meant to be planned by "the next window". A window that
+            # runs through midnight (22:00-07:00) never starts again, so
+            # without this its after-midnight part kept the 22:00 decision,
+            # which only covered the house until 00:00, and the battery ran
+            # empty before sunrise. 00:00-00:05 is left alone, as in Dynamic
+            # Pricing, so the solar provider has republished the new day.
+            day_rolled = self._is_new_day_since(
+                getattr(self._controller, "_time_slot_eval_date", None),
+                now,
+                is_initial_eval=is_initial_eval,
+            )
+            if day_rolled:
+                # Restart the forecast grace clock for the new day's read.
+                self._controller._slot_entry_time = now
+
             should_reevaluate = (
                 is_initial_eval or
+                day_rolled or
                 floor_crossed or
                 floor_recovered or
                 forecast_moved or
@@ -6860,6 +6927,11 @@ class PricingManager:
                     )
                 if is_initial_eval:
                     _LOGGER.info("INITIAL evaluation of predictive grid charging (SOC: %.1f%%)", current_avg_soc)
+                elif day_rolled:
+                    _LOGGER.info(
+                        "RE-EVALUATING predictive grid charging: new day inside the window (SOC: %.1f%%)",
+                        current_avg_soc,
+                    )
                 elif forecast_moved:
                     _LOGGER.info(
                         "RE-EVALUATING predictive grid charging: solar forecast revised (SOC: %.1f%%)",
@@ -6889,7 +6961,8 @@ class PricingManager:
                 forecast_unavailable = False
                 forecast_unavailable_elapsed_s = 0.0
                 forecast_grace_s = self._time_slot_forecast_grace_s()
-                if is_initial_eval and forecast_configured:
+                fresh_day_eval = is_initial_eval or day_rolled
+                if fresh_day_eval and forecast_configured:
                     # ``_evaluate_remaining_grid_charging`` deliberately uses
                     # zero solar as its fail-safe when a forecast read fails.
                     # For the one-shot slot-entry evaluation, distinguish a
@@ -6931,7 +7004,7 @@ class PricingManager:
                 # that race, while accepting the existing solar=0 fallback once
                 # the grace has elapsed.
                 decision_forecast_unavailable = (
-                    is_initial_eval
+                    fresh_day_eval
                     and forecast_configured
                     and not decision_data.get("solar_forecast_kwh")
                 )
@@ -6973,6 +7046,7 @@ class PricingManager:
                 was_active = self._controller.grid_charging_active
                 self._controller.grid_charging_active = decision_data["should_charge"]
                 self._controller.last_evaluation_soc = current_avg_soc
+                self._controller._time_slot_eval_date = now.date()
                 self._controller._last_eval_peak_shaving_held = peak_shaving_held
                 self._controller._last_decision_data = decision_data
                 # Arms the forecast trigger on the slot's first evaluation and
@@ -6984,7 +7058,10 @@ class PricingManager:
                 # notification: otherwise a "STARTED" notice stays on screen for
                 # the rest of the slot while nothing is charging, and the
                 # "Not required" result is never reported.
-                if is_initial_eval or was_active != self._controller.grid_charging_active:
+                if (
+                    fresh_day_eval
+                    or was_active != self._controller.grid_charging_active
+                ):
                     await self._send_predictive_charging_notification(
                         decision_data=decision_data
                     )
@@ -7025,6 +7102,7 @@ class PricingManager:
                 self._reset_predictive_demand_runtime()
                 self._controller.grid_charging_active = False
                 self._controller.last_evaluation_soc = None
+                self._controller._time_slot_eval_date = None
                 self._controller._grid_charging_initialized = False
                 self._controller.error_integral = 0.0
                 self._controller.previous_error = 0.0

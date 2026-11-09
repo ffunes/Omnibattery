@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Time Slot / Real-Time Price: a window running through midnight now covers the night after it**: both modes plan only until midnight, but a window such as 22:00-07:00 never started again, so the 22:00 decision ("nothing needed until midnight") stayed in force and the battery could reach sunrise empty. From 00:05 the window, or a cheap Real-Time run still charging, is re-evaluated for the new day.
+
 ## [1.6.0] - 2026-11-09
 
 ### Added
