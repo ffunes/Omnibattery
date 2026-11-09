@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Sequence
 
-from ..solar_forecast import SolarForecastPeriod
+from ..solar_forecast import SolarForecastPeriod, period_overlap_energy
 
 INTERVAL_MINUTES = 15
 PROGRESS_BIN_COUNT = 96
@@ -273,16 +273,12 @@ def provider_weights(
     valid, reason = _validate_periods(periods, start, end, solar_start, solar_end)
     if not valid:
         return None, reason
-    weights: list[float] = []
-    spans = [(period.start_ts, period.end_ts, period.energy_kwh) for period in periods]
-    for boundary_start, boundary_end in boundaries:
-        b_start, b_end = _timestamp(boundary_start), _timestamp(boundary_end)
-        energy = 0.0
-        for p_start, p_end, p_energy in spans:
-            overlap = min(b_end, p_end) - max(b_start, p_start)
-            if overlap > 0.0:
-                energy += p_energy * overlap / (p_end - p_start)
-        weights.append(energy)
+    weights = [
+        period_overlap_energy(
+            periods, _timestamp(boundary_start), _timestamp(boundary_end)
+        )
+        for boundary_start, boundary_end in boundaries
+    ]
     if not any(value > _EPSILON for value in weights):
         return None, "provider_zero_energy"
     return weights, None
@@ -297,14 +293,14 @@ def provider_energy_between(
     coerced = [_coerce_period(period) for period in periods]
     if any(period is None for period in coerced):
         return None
-    b_start, b_end = _timestamp(start), _timestamp(end)
-    energy = 0.0
-    for period in coerced:
-        p_start, p_end = period.start_ts, period.end_ts
-        overlap = min(b_end, p_end) - max(b_start, p_start)
-        if overlap > 0.0:
-            energy += period.energy_kwh * overlap / (p_end - p_start)
-    return energy
+    # The forecast's own tuple (its periods pass through coercion unchanged)
+    # keeps its cached index from one call to the next.
+    unchanged = isinstance(periods, tuple) and all(
+        new is old for new, old in zip(coerced, periods)
+    )
+    return period_overlap_energy(
+        periods if unchanged else tuple(coerced), _timestamp(start), _timestamp(end)
+    )
 
 
 def legacy_shape_weights(

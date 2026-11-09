@@ -134,3 +134,32 @@ def test_local_segments_are_cached_but_handed_out_as_fresh_lists():
     assert second == list(
         cp._local_segments_between(start.timestamp(), end.timestamp(), TZ)
     )
+
+
+def test_indexed_overlap_sum_equals_a_full_scan_for_a_long_mixed_forecast():
+    # eight days of two arrays plus hourly periods, deliberately unsorted:
+    # the sorted index must find every overlapping period and keep the order
+    from custom_components.omnibattery.solar_forecast import period_overlap_energy
+
+    day0 = date(2026, 11, 9)
+    quarters = tuple(
+        period
+        for offset in range(8)
+        for period in _periods(day0 + timedelta(days=offset))
+    )
+    start = datetime(2026, 11, 9, tzinfo=TZ)
+    hourly = tuple(
+        SolarForecastPeriod(
+            start + timedelta(hours=h), start + timedelta(hours=h + 1), _curve(4 * (h % 24))
+        )
+        for h in range(8 * 24)
+    )
+    forecast = tuple(reversed(quarters)) + hourly + quarters
+    assert len(forecast) >= 64
+    cursor = start + timedelta(hours=5, minutes=7)
+    for _ in range(300):
+        end = cursor + timedelta(minutes=23)
+        assert period_overlap_energy(forecast, cursor.timestamp(), end.timestamp()) == (
+            _reference_energy_between(forecast, cursor, end)
+        )
+        cursor = end

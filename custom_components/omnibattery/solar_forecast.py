@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import logging
 import math
+from bisect import bisect_left
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from time import monotonic
+from collections.abc import Sequence
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
@@ -518,6 +520,32 @@ def solar_forecast_local_timezone(
     return datetime.now().astimezone().tzinfo
 
 
+# Sorted start index per forecast tuple, for the per-interval sums below. A
+# forecast read is an immutable tuple that every interval of a re-plan sums
+# again; with an eight-day, two-array forecast that is thousands of periods
+# per interval. Keyed by id() and checked by identity, so a new forecast
+# simply gets a new entry; a few entries cover every tuple in use at once.
+_PERIOD_INDEX: dict[int, tuple[tuple, list[float], list[int], float]] = {}
+_PERIOD_INDEX_SIZE = 8
+_PERIOD_INDEX_MIN = 64
+
+
+def _period_index(
+    periods: tuple[SolarForecastPeriod, ...],
+) -> tuple[tuple, list[float], list[int], float]:
+    entry = _PERIOD_INDEX.get(id(periods))
+    if entry is not None and entry[0] is periods:
+        return entry
+    order = sorted(range(len(periods)), key=lambda index: periods[index].start_ts)
+    starts = [periods[index].start_ts for index in order]
+    longest = max(period.end_ts - period.start_ts for period in periods)
+    entry = (periods, starts, order, longest)
+    if len(_PERIOD_INDEX) >= _PERIOD_INDEX_SIZE:
+        _PERIOD_INDEX.clear()
+    _PERIOD_INDEX[id(periods)] = entry
+    return entry
+
+
 def solar_forecast_period_energy_between(
     periods: tuple[SolarForecastPeriod, ...] | list[SolarForecastPeriod] | None,
     start: datetime,
@@ -541,14 +569,33 @@ def solar_forecast_period_energy_between(
     if end_ts <= start_ts:
         return 0.0
 
+    return max(0.0, period_overlap_energy(periods or (), start_ts, end_ts))
+
+
+def period_overlap_energy(
+    periods: Sequence[SolarForecastPeriod], start_ts: float, end_ts: float
+) -> float:
+    """Energy the periods put between two absolute timestamps, prorated.
+
+    A tuple of more than a few periods is looked up through a sorted start
+    index: only periods that start before ``end_ts`` and less than the
+    longest period before ``start_ts`` can overlap. They are visited in their
+    original order, so the sum is the same, bit for bit, as a full scan.
+    """
+    candidates: Sequence[SolarForecastPeriod] = periods
+    if isinstance(periods, tuple) and len(periods) >= _PERIOD_INDEX_MIN:
+        _ref, starts, order, longest = _period_index(periods)
+        first = bisect_left(starts, start_ts - longest)
+        last = bisect_left(starts, end_ts)
+        candidates = [periods[index] for index in sorted(order[first:last])]
     energy = 0.0
-    for period in periods or ():
+    for period in candidates:
         period_start = period.start_ts
         period_end = period.end_ts
-        overlap = max(0.0, min(end_ts, period_end) - max(start_ts, period_start))
+        overlap = min(end_ts, period_end) - max(start_ts, period_start)
         if overlap > 0.0:
             energy += period.energy_kwh * overlap / (period_end - period_start)
-    return max(0.0, energy)
+    return energy
 
 
 def _remaining_period_energy_today(
