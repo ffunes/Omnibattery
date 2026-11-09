@@ -5660,6 +5660,64 @@ class PricingManager:
         solar_input = self._read_remaining_solar_input(now=now_h)
         return solar_input.remaining_kwh if solar_input is not None else 0.0
 
+    @staticmethod
+    def _replan_kept_deficit_slots(
+        schedule: DynamicPricingSchedule,
+        kept_slots: list,
+        plan: ChronologicalPlan,
+        *,
+        now: datetime,
+    ) -> list:
+        """Give every future kept deficit slot the evening plan's quota.
+
+        Returns the kept slots that remain in the schedule. A future slot that
+        only served the deficit and gets no energy in the new plan is dropped;
+        a combined one keeps its negative-price purpose. The slot running now
+        keeps its quota: its energy charged so far is already counted against
+        it. New slots receive their quotas the same way.
+        """
+        by_start = {allocation.slot.start: allocation for allocation in plan.allocations}
+        purposes = dict(getattr(schedule, "slot_purposes", {}) or {})
+        targets = dict(getattr(schedule, "slot_energy_targets_kwh", {}) or {})
+        deadlines = dict(getattr(schedule, "slot_deadlines", {}) or {})
+        kinds = dict(getattr(schedule, "slot_plan_kinds", {}) or {})
+        remaining = []
+        for slot in kept_slots:
+            purpose = purposes.get(slot, SLOT_PURPOSE_DEFICIT)
+            if slot.start <= now or purpose not in (
+                SLOT_PURPOSE_DEFICIT, SLOT_PURPOSE_COMBINED
+            ):
+                remaining.append(slot)
+                continue
+            allocation = by_start.get(slot.start)
+            if allocation is not None and allocation.planned_battery_kwh > 1e-6:
+                targets[slot] = allocation.planned_battery_kwh
+                deadlines[slot] = allocation.deadline
+                kinds[slot] = allocation.kind
+                remaining.append(slot)
+                continue
+            targets.pop(slot, None)
+            deadlines.pop(slot, None)
+            kinds.pop(slot, None)
+            if purpose == SLOT_PURPOSE_COMBINED:
+                purposes[slot] = SLOT_PURPOSE_NEGATIVE_PRICE
+                remaining.append(slot)
+            else:
+                purposes.pop(slot, None)
+        kept_starts = {slot.start for slot in remaining}
+        for allocation in plan.allocations:
+            if allocation.slot.start in kept_starts:
+                continue
+            targets[allocation.slot] = allocation.planned_battery_kwh
+            deadlines[allocation.slot] = allocation.deadline
+            kinds[allocation.slot] = allocation.kind
+        schedule.slot_purposes = purposes
+        schedule.slot_energy_targets_kwh = targets
+        schedule.slot_deadlines = deadlines
+        schedule.slot_plan_kinds = kinds
+        schedule.chronological_planning_active = True
+        return remaining
+
     async def _evaluate_evening_recharge(self) -> None:
         """Late-day re-evaluation: charge batteries cheaply if solar fell short.
 
@@ -5887,6 +5945,24 @@ class PricingManager:
                 slot_ceilings=slot_ceilings,
             )
 
+        if (
+            not selected
+            and schedule
+            and chronological_plan is not None
+            and getattr(schedule, "deficit_charging_needed", schedule.charging_needed)
+        ):
+            # No new slot, but the plan may move or drop the kept slots'
+            # quotas; leaving the 00:05 ones would still overbuy.
+            schedule.selected_slots = sorted(
+                self._replan_kept_deficit_slots(
+                    schedule, kept_slots, chronological_plan, now=now
+                ),
+                key=lambda slot: slot.start,
+            )
+            _LOGGER.info(
+                "Evening recharge: no new slots; kept slots re-planned from the live SOC"
+            )
+            return
         if not selected:
             _LOGGER.warning(
                 "Evening recharge: no new slots selected (price ceiling %s)",
@@ -5895,6 +5971,16 @@ class PricingManager:
             return
 
         # --- Merge into schedule ---
+        if schedule and chronological_plan is not None:
+            # The new plan is built from the live SOC over every slot left in
+            # the horizon, kept ones included, so it is the deficit plan now.
+            # Keeping the kept slots' 00:05 quotas charged them on top of the
+            # new evening slots (and a kept slot the plan no longer needs fell
+            # back to the whole deficit), while energy the plan assigned to a
+            # kept slot was dropped.
+            kept_slots = self._replan_kept_deficit_slots(
+                schedule, kept_slots, chronological_plan, now=now
+            )
         if schedule:
             merged = sorted(kept_slots + selected, key=lambda s: s.start)
             old_purposes = getattr(schedule, "slot_purposes", {})
