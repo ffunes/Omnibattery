@@ -2574,6 +2574,14 @@
           "l3": "L3"
         }
       },
+      "grid_reverse": {
+        "name": "Exportación de energía",
+        "state": {
+          "disabled": "Desactivada",
+          "allowed": "Permitida",
+          "forbidden": "Prohibida"
+        }
+      },
       "grid_off_mode": {
         "name": "Modo Off-Grid",
         "state": {

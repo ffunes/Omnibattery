@@ -11,6 +11,7 @@
 - **Dynamic Pricing: manual/automatic switch per price threshold** (#612): `switch.omnibattery_max_price_threshold_enabled` and `..._discharge_price_threshold_enabled` turn each threshold off (back to automatic) without losing its value. Thanks to @remarkmmj.
 - **Daily operation chart shows the grid price**: with Dynamic Pricing, a stepped line draws the import price over the visible range (high and low labelled) and each interval's tooltip lists it. Thanks to @anorakophobia.
 - **Panel: type an exact value into any slider** (#783): tap the value next to a slider to enter a number (Enter or tap away to apply, Escape to cancel). Thanks to @BHNDNL.
+- **Zendure: Energy Export select** (#631): `gridReverse` (disabled / allowed / forbidden) is now a select on each SolarFlow. It must be "allowed" for PV to bypass to the grid once the target SOC is reached. Thanks to @schlm3.
 - **Repairs warning when Recorder excludes the sensors used to recover forecast history** (Home Consumption, solar production, excluded-device power). Thanks to @thomasvt1.
 
 ### Changed

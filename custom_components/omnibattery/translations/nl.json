@@ -2625,6 +2625,14 @@
           "custom": "Aangepast"
         }
       },
+      "grid_reverse": {
+        "name": "Energie-export",
+        "state": {
+          "disabled": "Uitgeschakeld",
+          "allowed": "Toegestaan",
+          "forbidden": "Verboden"
+        }
+      },
       "grid_off_mode": {
         "name": "Off-Grid-modus",
         "state": {

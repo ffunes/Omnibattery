@@ -410,6 +410,8 @@ def test_select_definitions_include_grid_off_mode():
     assert "grid_off_mode" in by_key
     # Confirmed on a 2400 AC+: 0=normal, 1=economy, 2=off.
     assert by_key["grid_off_mode"]["options"] == {"normal": 0, "economy": 1, "off": 2}
+    # Confirmed on a 2400 Pro (#631): 0=disabled, 1=allowed, 2=forbidden.
+    assert by_key["grid_reverse"]["options"] == {"disabled": 0, "allowed": 1, "forbidden": 2}
 
 
 def test_all_definitions_is_sensor_plus_number_plus_select_plus_switch():
@@ -838,6 +840,16 @@ async def test_write_control_grid_off_mode_posts_raw_enum():
     # port mode persists to flash across reboots.
     props = sess.post.call_args.kwargs["json"]["properties"]
     assert props == {"gridOffMode": 2, "smartMode": 0}
+
+
+async def test_write_control_grid_reverse_posts_raw_enum():
+    # #631: "Energy Export" must be "allowed" (1) for PV bypass at target SOC.
+    sess = _session()
+    ok = await _driver(session=sess).write_control("grid_reverse", 1)
+
+    assert ok is True
+    props = sess.post.call_args.kwargs["json"]["properties"]
+    assert props == {"gridReverse": 1, "smartMode": 0}
 
 
 async def test_write_control_unknown_key_returns_false():

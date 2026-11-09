@@ -2625,6 +2625,14 @@
           "custom": "Personalitzat"
         }
       },
+      "grid_reverse": {
+        "name": "Exportació d'energia",
+        "state": {
+          "disabled": "Desactivada",
+          "allowed": "Permesa",
+          "forbidden": "Prohibida"
+        }
+      },
       "grid_off_mode": {
         "name": "Mode Off-Grid",
         "state": {

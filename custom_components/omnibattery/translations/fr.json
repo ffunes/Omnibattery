@@ -2625,6 +2625,14 @@
           "custom": "Personnalisé"
         }
       },
+      "grid_reverse": {
+        "name": "Export d'énergie",
+        "state": {
+          "disabled": "Désactivé",
+          "allowed": "Autorisé",
+          "forbidden": "Interdit"
+        }
+      },
       "grid_off_mode": {
         "name": "Mode Hors-Réseau",
         "state": {

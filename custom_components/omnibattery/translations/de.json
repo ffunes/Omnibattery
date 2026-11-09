@@ -2625,6 +2625,14 @@
           "custom": "Benutzerdefiniert"
         }
       },
+      "grid_reverse": {
+        "name": "Energieeinspeisung",
+        "state": {
+          "disabled": "Deaktiviert",
+          "allowed": "Erlaubt",
+          "forbidden": "Verboten"
+        }
+      },
       "grid_off_mode": {
         "name": "Off-Grid-Modus",
         "state": {

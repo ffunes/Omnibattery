@@ -140,6 +140,10 @@ _PROP_TO_KEY: dict[str, str] = {
     # 0=normal, 1=economy, 2=off. Exposed as a select; write_control sends
     # smartMode=0 so the flash write survives reboots.
     "gridOffMode":      "grid_off_mode",
+    # Grid feed-in ("Energy Export" in the Zendure app), 3-state enum confirmed
+    # on a 2400 Pro: 0=disabled, 1=allowed, 2=forbidden. Only "allowed" lets PV
+    # bypass to the grid once the target SOC is reached (#631).
+    "gridReverse":      "grid_reverse",
     # Device's real AC charge ceiling (distinct from inverseMaxPower, which caps
     # discharge/inverter output). Mapped to the control-layer max_charge_power so
     # the coordinator syncs it and PD stops allocating charge the device cannot
@@ -326,6 +330,9 @@ SELECT_DEFINITIONS: list[dict] = [
     # coordinator stores the raw enum value, which current_option matches back.
     {"key": "grid_off_mode", "name": "Off-Grid Mode",
      "options": {"normal": 0, "economy": 1, "off": 2},
+     "scan_interval": "low", "enabled_by_default": True},
+    {"key": "grid_reverse", "name": "Energy Export",
+     "options": {"disabled": 0, "allowed": 1, "forbidden": 2},
      "scan_interval": "low", "enabled_by_default": True},
 ]
 
@@ -828,7 +835,7 @@ class ZendureLocalDriver(BatteryDriver):
         """Write a single logical control property by key (entity-write path).
 
         smartMode=0: user-facing configuration writes (soc_set, min_soc,
-        inverse_max_power, grid_off_mode) must persist across reboots. smartMode
+        inverse_max_power, grid_off_mode, grid_reverse) must persist across reboots. smartMode
         is a sticky device property and the per-cycle power loop holds it at 1
         (RAM), so omitting it here would inherit that 1 and land the config in
         RAM, lost on the next reboot. Set it to 0 explicitly to commit to flash.
