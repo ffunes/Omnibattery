@@ -636,7 +636,7 @@ class FullChargeForecastSensorSelect(FullChargeOptionSelect):
     def options(self):
         selected = self.current_option
         entities = {s.entity_id for s in self.hass.states.async_all("sensor")
-                    if "raw_forecast" in s.attributes}
+                    if any(key in s.attributes for key in ("raw_forecast", "raw_today", "raw_tomorrow"))}
         if selected != "none":
             entities.add(selected)
         return ["none", *sorted(entities)]

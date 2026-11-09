@@ -134,6 +134,7 @@ class MonthlyFullChargeSchedule:
         month = now.strftime("%Y-%m")
         for battery in self.controller.coordinators:
             if (self.last_full.get(getattr(battery, "device_key", battery.name), "").startswith(month)
+                    or not getattr(battery, "is_available", False)
                     or not self.manager.is_battery_full(battery)):
                 continue
             self.last_full[getattr(battery, "device_key", battery.name)] = now.date().isoformat()
@@ -240,10 +241,15 @@ class MonthlyFullChargeSchedule:
                 continue
             for entry in entries:
                 try:
-                    start = dt_util.parse_datetime(entry["start"])
-                    end = dt_util.parse_datetime(entry["end"])
+                    start = entry["start"]
+                    end = entry["end"]
+                    if isinstance(start, str):
+                        start = dt_util.parse_datetime(start)
+                    if isinstance(end, str):
+                        end = dt_util.parse_datetime(end)
                     value = float(entry["value"])
-                    if start is None or end is None or start.tzinfo is None or end.tzinfo is None:
+                    if (not isinstance(start, datetime) or not isinstance(end, datetime)
+                            or start.tzinfo is None or end.tzinfo is None):
                         continue
                     seconds = (end - start).total_seconds()
                     if not math.isfinite(value) or not 0 < seconds <= 3600:

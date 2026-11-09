@@ -700,6 +700,15 @@ class WeeklyFullChargeManager:
         if not self.is_active():
             return
 
+        # A monthly run is satisfied by each battery's completion at any time
+        # this month; they need not all be full simultaneously. Finish before
+        # charge-delay checks or new cutoff writes, using the normal restore
+        # path (including retries). Explicit forced charges still fill now.
+        if (self._monthly_enabled() and not ctrl._force_full_charge
+                and self.monthly.complete(dt_util.now())):
+            await self._complete_weekly_charge("monthly_history_complete")
+            return
+
         automatic_batteries = [
             coordinator
             for coordinator in ctrl.coordinators
@@ -815,6 +824,10 @@ class WeeklyFullChargeManager:
             self.is_battery_full(c)
             for c in batteries_with_data
         )
+        if self._monthly_enabled() and not ctrl._force_full_charge:
+            # Cached full SOC on an unreachable battery must not bypass the
+            # availability check used to record monthly completion history.
+            all_batteries_full = self.monthly.complete(dt_util.now())
 
         ctrl._weekly_charge_status["batteries"] = {
             c.name: {
