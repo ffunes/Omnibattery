@@ -1,0 +1,20 @@
+name: Per-phase isolated tests
+
+on:
+  push:
+    branches:
+      - feat/per-battery-phase-pd-control
+  pull_request:
+
+jobs:
+  phase-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: python -m pip install pytest
+      - name: Run isolated phase unit tests
+        run: python scripts/test_phase_isolated.py
