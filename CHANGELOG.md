@@ -11,6 +11,11 @@
 - **Predictive charging notifications say why** (PR#818): "waiting for prices" instead of "cheaper to import", the reason when no slot was selected, and the energy planned in tomorrow's slots. Thanks to @pocketware.
 - **Robustness** (PR#818): a failing predictive step falls back to normal control instead of stopping the cycle; one failing driver no longer aborts unloading the integration; Config Backup restores stored data before the entry loads; a lost Huawei EMMA meter connection is reconnected; a refused Indevolt write counts as failed. Thanks to @pocketware.
 - **Venus E v2/v3 max power sliders go down to 100 W** (#815): the Max Charge/Discharge Power sliders in the dashboard and device page now start at 100 W, like the battery limits in the options flow, instead of 800 W. Thanks to @effevee.
+- **Dynamic Pricing: a booked slot held by Charge Delay passes its energy on**: a deficit slot that a charge block (Solar Charge Delay, a no-charge window) held for its whole length was never entered, so its planned energy was silently lost. Once such a slot ends, its quota moves to later slots before its deadline, or is reported as a shortfall. Thanks to @pocketware.
+- **Time Slot: a window with no days selected is never planned**: the planner read it as every day, while the controller never opens it, so the plan counted on energy that was never charged. Thanks to @pocketware.
+- **Dynamic Pricing: smaller planner fixes**: the daily cap on re-evaluations after an excluded device's solar claim moves now rolls over each day (yesterday's spent cap no longer blocks today), and the price-only fallback counts only the time left in a slot that is already running. Thanks to @pocketware.
+- **Anker: a refused Modbus connection no longer leaks its client**: the client was closed when the connection raised, but not when it was refused. Thanks to @pocketware.
+- **Legacy-domain migration works on Home Assistant before 2024.10**: it read the old entry's `discovery_keys`, which those versions do not have, and aborted. Thanks to @pocketware.
 
 ## [1.6.0] - 2026-11-09
 
