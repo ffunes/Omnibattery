@@ -7569,11 +7569,16 @@ class MarstekVenusPanel extends HTMLElement {
 
       .app {
         display: flex; flex-direction: column; height: 100%;
-        background: radial-gradient(120% 80% at 80% -10%, oklch(0.78 0.15 var(--accent-h) / 0.06), transparent 60%), var(--bg-0);
+        /* cap at the viewport: when HA's panel wrapper gives no height, 100% is
+           ignored and the whole app grew, so the page scrolled outside .main. */
+        max-height: 100vh; max-height: 100dvh;
+        --app-glow: radial-gradient(120% 80% at 80% -10%, oklch(0.78 0.15 var(--accent-h) / 0.06), transparent 60%);
+        --appbar-h: 66px;
+        background: var(--app-glow), var(--bg-0);
         color: var(--ink);
       }
       .appbar {
-        display: flex; align-items: center; gap: 26px; height: 66px; padding: 0 30px; flex-shrink: 0;
+        display: flex; align-items: center; gap: 26px; height: var(--appbar-h); padding: 0 30px; flex-shrink: 0;
         border-bottom: 1px solid var(--line);
         background: color-mix(in oklab, var(--bg-1) 80%, transparent);
         backdrop-filter: blur(10px);
@@ -7601,7 +7606,10 @@ class MarstekVenusPanel extends HTMLElement {
       .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 
-      .main { flex: 1; overflow-y: auto; padding: 26px 30px 44px; }
+      /* min-height:0 lets .main shrink to the viewport and be the real scroller
+         (else it grows to its content and the page scrolls outside it, so the
+         sticky Control bar has nothing to stick to). */
+      .main { --main-pt: 26px; --main-px: 30px; flex: 1; min-height: 0; overflow-y: auto; padding: var(--main-pt) var(--main-px) 44px; }
       .main::-webkit-scrollbar { width: 10px; }
       .main::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
 
@@ -7977,7 +7985,17 @@ class MarstekVenusPanel extends HTMLElement {
          appear/collapse with width; dense backfills empty trailing cells). Cards
          can be drag-reordered in arrange mode; order persists in localStorage. */
       .ctl-root { display: flex; flex-direction: column; gap: var(--gap); }
-      .ctl-bar { display: flex; align-items: center; gap: 10px; }
+      /* sticky so the padlock stays reachable while scrolling: lock → scroll → unlock → adjust. */
+      .ctl-bar { display: flex; align-items: center; gap: 10px;
+        position: sticky; z-index: 5;
+        /* sticky stops at .main's padding edge, leaving a see-through strip under the
+           tabs; pull the bar over .main's top/side padding so it spans edge to edge. */
+        top: calc(-1 * var(--main-pt));
+        margin: calc(-1 * var(--main-pt)) calc(-1 * var(--main-px)) 0;
+        padding: calc(var(--main-pt) + 8px) var(--main-px) 8px;
+        /* same glow as .app, mapped to app coordinates (the bar's top always sits
+           at the appbar's bottom) so the bar blends into the page background. */
+        background: var(--app-glow) 0 calc(-1 * var(--appbar-h)) / 100% 100dvh no-repeat, var(--bg-0); }
       .ctl-hint { margin-right: auto; color: var(--ink-dim); font-size: 12px; }
       .ctl-arrange-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
         border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-1);
@@ -8073,11 +8091,12 @@ class MarstekVenusPanel extends HTMLElement {
         box-shadow: 0 8px 24px oklch(0 0 0 / 0.4); }
 
       @media (max-width: 720px) {
-        .appbar { padding: 0 14px; gap: 14px; height: 60px; }
+        .app { --appbar-h: 60px; }
+        .appbar { padding: 0 14px; gap: 14px; }
         .brand .btext { display: none; }
         .tab { padding: 0 12px; }
         .tab .tab-label { display: none; }
-        .main { padding: 18px 14px 32px; }
+        .main { --main-pt: 18px; --main-px: 14px; padding: var(--main-pt) var(--main-px) 32px; }
       }
     `;
     return style;
