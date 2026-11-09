@@ -4,6 +4,20 @@
       "title": "Sensoren vom Recorder ausgeschlossen",
       "description": "Der Recorder schließt diese Sensoren aus, die Omnibattery zur Wiederherstellung der Solar- und Haushaltsverbrauchsprofile verwendet: {sensors}. Passen Sie die include/exclude-Regeln des Recorders an und starten Sie Home Assistant neu, um die Konfiguration anzuwenden. Die Warnung verschwindet automatisch, sobald die Sensoren eingeschlossen sind. Fehlende frühere Messwerte können nicht wiederhergestellt werden; das Lernen aus aktuellen Werten und vorhandene gespeicherte Profile funktionieren weiterhin."
     },
+    "indevolt_flash_writes_paused": {
+      "title": "Schreiben der Indevolt-Einstellungen zum Schutz der Batterie pausiert: {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Schreiben der Indevolt-Einstellungen wieder erlauben",
+            "description": "Omnibattery hat die minimale SOC und die Leistungsgrenzen von **{name}** im letzten Jahr {allowance} Mal geschrieben und das Schreiben deshalb pausiert. Das ist ein Sicherheitsnetz, keine Einschränkung für dich: Es verhindert, dass eine Automatisierung oder ein Skript, das diese Einstellungen zu oft ändert, unbemerkt den Flash-Speicher der Batterie verschleißt; er nutzt sich mit jedem Schreibvorgang ein wenig ab. Änderungen in der Indevolt-App werden weiterhin übernommen.\n\nPrüfe deine Automatisierungen und Skripte auf etwas, das diese Einstellungen häufig ändert. Bestätige danach hier, um das Schreiben wieder zu erlauben; ein neues Kontingent von {allowance} Schreibvorgängen beginnt. Waren die Änderungen beabsichtigt, bestätige einfach."
+          }
+        },
+        "abort": {
+          "battery_unavailable": "Die Batterie ist gerade nicht geladen. Versuche es erneut, sobald Omnibattery mit ihr verbunden ist."
+        }
+      }
+    },
     "excluded_device_ev_type": {
       "title": "E-Auto-Ladegerät unter den ausgeschlossenen Geräten markieren",
       "description": "Das neue Energieflussdiagramm (über die Schaltfläche im Kopf der Fluss-Karte einschalten) zeichnet E-Auto-Ladegeräte auf einer eigenen Leitung neben dem Auto. Omnibattery kann nicht erkennen, welches ausgeschlossene Gerät das Ladegerät ist; bis du es markierst, erscheint seine Leistung auf der Leitung der übrigen ausgeschlossenen Geräte (Außeneinheit) und die E-Auto-Leitung bleibt leer. Öffne Optionen → Ausgeschlossene Geräte und speichere deine Geräte erneut; aktiviere dabei \"E-Auto-Ladegerät\" beim Ladegerät (bei den anderen deaktiviert lassen). Betrifft nur die Darstellung des Diagramms, nicht die Batteriesteuerung. Der Hinweis verschwindet, sobald die Geräte gespeichert sind."
@@ -600,6 +614,30 @@
         "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
         "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
       },
+      "reconfigure_battery_indevolt": {
+        "title": "Batterie {battery_num} neu konfigurieren — Verbindung (Indevolt)",
+        "description": "Aktualisiere die Verbindungsdaten der Indevolt-Batterie {battery_num}. Alle anderen Einstellungen bleiben erhalten.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "HTTP-Port"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse der Indevolt-Batterie im lokalen Netzwerk",
+          "port": "HTTP-Port der lokalen API (Standard 8080)"
+        }
+      },
+      "reconfigure_battery_indevolt_request_speed": {
+        "title": "Batterie {battery_num} neu konfigurieren — Anfragegeschwindigkeit (Indevolt)",
+        "description": "Mit einer höheren Anfragegeschwindigkeit reagiert deine Batterie schneller auf Änderungen am Zähler, was die Nulleinspeisung verbessern kann. Die Optionen:\n\n- **Konservativ** (5s) ist die Empfehlung von Indevolt und der Standard. Sie passt zu einem Zähler, der alle 5s aktualisiert, dem üblichen Tempo in Home Assistant: Mit so einem Zähler reagiert die Batterie bei einer höheren Geschwindigkeit nicht schneller.\n- **Normal** (3s) passt zu einem Zähler, der alle 3s aktualisiert.\n- **Schnell** (2s) passt zu einem Zähler, der alle 2s aktualisiert. Mit einem Zähler, der jede Sekunde aktualisiert, ist es die sichere Wahl: Die Batterie bekommt dann höchstens alle 2s einen neuen Befehl.\n- **Maximal** (1s) sendet bis zu jede Sekunde einen Befehl und wartet zwischen Anfragen nicht mehr 1s, was unter dem dokumentierten Minimum von Indevolt liegt. Es hilft nur mit einem Zähler, der jede Sekunde aktualisiert; wähle bei einem langsameren Zähler **Schnell**. Setze bei **Maximal** auch PD Min. Zyklusintervall auf 0, wenn jede Batterie in Omnibattery eine Indevolt ist.",
+        "data": {
+          "indevolt_request_speed": "Anfragegeschwindigkeit"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Jede Geschwindigkeit schneller als 5s geschieht auf eigenes Risiko: Du bist selbst dafür verantwortlich zu prüfen, ob Batterie, Home Assistant und Netzwerk mithalten können. Auf der Geräteseite sollte Anfrageintervall (effektiv) weiterhin deiner Wahl entsprechen, und Leselatenz (P95) und Schreiblatenz (P95) sollten deutlich unter 1s bleiben.\n\nDu kannst es ausprobieren: Antwortet die Batterie langsam oder gar nicht, schaltet der Indevolt-Treiber von Omnibattery automatisch auf ein ruhigeres Tempo zurück, bis sich die Reaktionszeit wieder erholt hat."
+        }
+      },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
         "description": "Update connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. All other settings are preserved.",
@@ -674,6 +712,34 @@
         "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
         "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
       },
+      "battery_connection_indevolt": {
+        "title": "Batterie {battery_num} konfigurieren — Verbindung (Indevolt)",
+        "description": "Gib die IP-Adresse der Indevolt-Batterie {battery_num} ein. Aktiviere in der Indevolt-App die lokale API mit dem Protokoll **HTTP** (nicht HTTP Digest). Omnibattery steuert die Batterie nur im Modus **Echtzeit** (Realtime), den du in der Indevolt-App wählst; den Modus selbst ändert Omnibattery nie.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "HTTP-Port"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse der Indevolt-Batterie im lokalen Netzwerk",
+          "port": "HTTP-Port der lokalen API (Standard 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Batterie {battery_num} konfigurieren — Anfragegeschwindigkeit (Indevolt)",
+        "description": "Mit einer höheren Anfragegeschwindigkeit reagiert deine Batterie schneller auf Änderungen am Zähler, was die Nulleinspeisung verbessern kann. Die Optionen:\n\n- **Konservativ** (5s) ist die Empfehlung von Indevolt und der Standard. Sie passt zu einem Zähler, der alle 5s aktualisiert, dem üblichen Tempo in Home Assistant: Mit so einem Zähler reagiert die Batterie bei einer höheren Geschwindigkeit nicht schneller.\n- **Normal** (3s) passt zu einem Zähler, der alle 3s aktualisiert.\n- **Schnell** (2s) passt zu einem Zähler, der alle 2s aktualisiert. Mit einem Zähler, der jede Sekunde aktualisiert, ist es die sichere Wahl: Die Batterie bekommt dann höchstens alle 2s einen neuen Befehl.\n- **Maximal** (1s) sendet bis zu jede Sekunde einen Befehl und wartet zwischen Anfragen nicht mehr 1s, was unter dem dokumentierten Minimum von Indevolt liegt. Es hilft nur mit einem Zähler, der jede Sekunde aktualisiert; wähle bei einem langsameren Zähler **Schnell**. Setze bei **Maximal** auch PD Min. Zyklusintervall auf 0, wenn jede Batterie in Omnibattery eine Indevolt ist.",
+        "data": {
+          "indevolt_request_speed": "Anfragegeschwindigkeit"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Jede Geschwindigkeit schneller als 5s geschieht auf eigenes Risiko: Du bist selbst dafür verantwortlich zu prüfen, ob Batterie, Home Assistant und Netzwerk mithalten können. Auf der Geräteseite sollte Anfrageintervall (effektiv) weiterhin deiner Wahl entsprechen, und Leselatenz (P95) und Schreiblatenz (P95) sollten deutlich unter 1s bleiben.\n\nDu kannst es ausprobieren: Antwortet die Batterie langsam oder gar nicht, schaltet der Indevolt-Treiber von Omnibattery automatisch auf ein ruhigeres Tempo zurück, bis sich die Reaktionszeit wieder erholt hat."
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batterie {battery_num} — Echtzeitmodus erforderlich",
+        "description": "Die Batterie ist nicht im Echtzeitmodus. Die Einrichtung geht weiter und Omnibattery überwacht die Batterie, steuert sie aber erst, wenn du in der Indevolt-App **Echtzeit** (Realtime) wählst. Die Steuerung startet dann automatisch."
+      },
       "battery_connection_huawei": {
         "title": "Batterie {battery_num} einrichten — Verbindung (Huawei)",
         "description": "Omnibattery liest diese Batterie über Modbus und schickt die Sollwerte über die Huawei-Solar-Integration. Deshalb werden beide Angaben gebraucht: ein Modbus-Zugang und das Batteriegerät. Trage als Modbus-Adresse besser einen Modbus-Proxy ein statt des Wechselrichters selbst — die Huawei-Solar-Integration hält dort bereits eine Verbindung.\n\nEin Huawei-Wechselrichter nimmt jeweils nur EINE Modbus-Verbindung an. Wenn außer Omnibattery noch etwas anderes darauf zugreift — etwa die Huawei-Solar-Integration, evcc oder ein anderes System — brauchst du einen Modbus-Proxy davor, der die Verbindung auf mehrere Clients aufteilt, zum Beispiel {proxy_url}. Trage dann Adresse und Port des Proxys ein statt die des Wechselrichters. Die Slave-ID wird automatisch gesucht, wenn die eingetragene nicht antwortet.",
@@ -706,6 +772,7 @@
       "invalid_mac": "Das sieht nicht wie eine MAC-Adresse aus. Erwartet werden sechs Paare hexadezimaler Ziffern, zum Beispiel dc:04:5a:14:6b:33.",
       "cannot_connect": "Verbindung zur Batterie nicht möglich. Überprüfen Sie die IP-Adresse und dass die Batterie im Netzwerk erreichbar ist.",
       "hoymiles_no_power_ctrl": "Diese MQTT-Geräte-ID sendet Telemetrie, aber keine Leistungssteuerung. In einem gekoppelten Hoymiles-System ist nur der Master steuerbar: Füge die Geräte-ID des Masters einmal hinzu, nicht die des Slaves.",
+      "indevolt_http_digest": "Die Batterie verlangt ein Passwort: Die lokale API steht auf HTTP Digest. Wähle in der Indevolt-App HTTP und versuche es erneut.",
       "no_battery": "Wechselrichter erreichbar, meldet aber keine Batterie. Prüfe, ob die LUNA2000 angeschlossen ist und die Modbus-Slave-ID auf den Wechselrichter zeigt.",
       "huawei_device_required": "Ohne direkte Modbus-Schreibzugriffe steuert Omnibattery die Batterie über die Dienste der Huawei-Solar-Integration, und die sprechen das Batteriegerät an. Wähle also entweder das Gerät aus oder aktiviere die direkten Schreibzugriffe.",
       "huawei_solar_missing": "Ohne direkte Modbus-Schreibzugriffe steuert Omnibattery die Batterie über die Dienste der Huawei-Solar-Integration — die ist hier aber nicht eingerichtet. Installiere sie über HACS und richte sie ein, oder aktiviere die direkten Schreibzugriffe.",
@@ -1290,6 +1357,34 @@
         "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
         "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
       },
+      "battery_connection_indevolt": {
+        "title": "Batterie {battery_num} konfigurieren — Verbindung (Indevolt)",
+        "description": "Ändere die Verbindungsdaten der Indevolt-Batterie {battery_num}.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "HTTP-Port"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "host": "IP-Adresse der Indevolt-Batterie im lokalen Netzwerk",
+          "port": "HTTP-Port der lokalen API (Standard 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Batterie {battery_num} konfigurieren — Anfragegeschwindigkeit (Indevolt)",
+        "description": "Mit einer höheren Anfragegeschwindigkeit reagiert deine Batterie schneller auf Änderungen am Zähler, was die Nulleinspeisung verbessern kann. Die Optionen:\n\n- **Konservativ** (5s) ist die Empfehlung von Indevolt und der Standard. Sie passt zu einem Zähler, der alle 5s aktualisiert, dem üblichen Tempo in Home Assistant: Mit so einem Zähler reagiert die Batterie bei einer höheren Geschwindigkeit nicht schneller.\n- **Normal** (3s) passt zu einem Zähler, der alle 3s aktualisiert.\n- **Schnell** (2s) passt zu einem Zähler, der alle 2s aktualisiert. Mit einem Zähler, der jede Sekunde aktualisiert, ist es die sichere Wahl: Die Batterie bekommt dann höchstens alle 2s einen neuen Befehl.\n- **Maximal** (1s) sendet bis zu jede Sekunde einen Befehl und wartet zwischen Anfragen nicht mehr 1s, was unter dem dokumentierten Minimum von Indevolt liegt. Es hilft nur mit einem Zähler, der jede Sekunde aktualisiert; wähle bei einem langsameren Zähler **Schnell**. Setze bei **Maximal** auch PD Min. Zyklusintervall auf 0, wenn jede Batterie in Omnibattery eine Indevolt ist.",
+        "data": {
+          "indevolt_request_speed": "Anfragegeschwindigkeit"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Jede Geschwindigkeit schneller als 5s geschieht auf eigenes Risiko: Du bist selbst dafür verantwortlich zu prüfen, ob Batterie, Home Assistant und Netzwerk mithalten können. Auf der Geräteseite sollte Anfrageintervall (effektiv) weiterhin deiner Wahl entsprechen, und Leselatenz (P95) und Schreiblatenz (P95) sollten deutlich unter 1s bleiben.\n\nDu kannst es ausprobieren: Antwortet die Batterie langsam oder gar nicht, schaltet der Indevolt-Treiber von Omnibattery automatisch auf ein ruhigeres Tempo zurück, bis sich die Reaktionszeit wieder erholt hat."
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batterie {battery_num} — Echtzeitmodus erforderlich",
+        "description": "Die Batterie ist nicht im Echtzeitmodus. Die Einrichtung geht weiter und Omnibattery überwacht die Batterie, steuert sie aber erst, wenn du in der Indevolt-App **Echtzeit** (Realtime) wählst. Die Steuerung startet dann automatisch."
+      },
       "battery_connection_huawei": {
         "title": "Batterie {battery_num} einrichten — Verbindung (Huawei)",
         "description": "Modbus-Zugang und Huawei-Solar-Batteriegerät für Batterie {battery_num} ändern.\n\nEin Huawei-Wechselrichter nimmt jeweils nur EINE Modbus-Verbindung an. Wenn außer Omnibattery noch etwas anderes darauf zugreift — etwa die Huawei-Solar-Integration, evcc oder ein anderes System — brauchst du einen Modbus-Proxy davor, der die Verbindung auf mehrere Clients aufteilt, zum Beispiel {proxy_url}. Trage dann Adresse und Port des Proxys ein statt die des Wechselrichters. Die Slave-ID wird automatisch gesucht, wenn die eingetragene nicht antwortet.",
@@ -1322,6 +1417,7 @@
       "invalid_mac": "Das sieht nicht wie eine MAC-Adresse aus. Erwartet werden sechs Paare hexadezimaler Ziffern, zum Beispiel dc:04:5a:14:6b:33.",
       "cannot_connect": "Verbindung zur Batterie nicht möglich. Überprüfen Sie die IP-Adresse und dass die Batterie im Netzwerk erreichbar ist.",
       "hoymiles_no_power_ctrl": "Diese MQTT-Geräte-ID sendet Telemetrie, aber keine Leistungssteuerung. In einem gekoppelten Hoymiles-System ist nur der Master steuerbar: Füge die Geräte-ID des Masters einmal hinzu, nicht die des Slaves.",
+      "indevolt_http_digest": "Die Batterie verlangt ein Passwort: Die lokale API steht auf HTTP Digest. Wähle in der Indevolt-App HTTP und versuche es erneut.",
       "no_battery": "Wechselrichter erreichbar, meldet aber keine Batterie. Prüfe, ob die LUNA2000 angeschlossen ist und die Modbus-Slave-ID auf den Wechselrichter zeigt.",
       "huawei_device_required": "Ohne direkte Modbus-Schreibzugriffe steuert Omnibattery die Batterie über die Dienste der Huawei-Solar-Integration, und die sprechen das Batteriegerät an. Wähle also entweder das Gerät aus oder aktiviere die direkten Schreibzugriffe.",
       "huawei_solar_missing": "Ohne direkte Modbus-Schreibzugriffe steuert Omnibattery die Batterie über die Dienste der Huawei-Solar-Integration — die ist hier aber nicht eingerichtet. Installiere sie über HACS und richte sie ein, oder aktiviere die direkten Schreibzugriffe.",
@@ -1360,6 +1456,14 @@
     }
   },
   "selector": {
+    "indevolt_request_speed": {
+      "options": {
+        "maximum": "Maximal: 1s",
+        "fast": "Schnell: 2s",
+        "normal": "Normal: 3s",
+        "conservative": "Konservativ: 5s (Standard, von Indevolt empfohlen)"
+      }
+    },
     "hoymiles_model": {
       "options": {
         "auto": "Automatisch erkennen (empfohlen)",
@@ -1875,6 +1979,307 @@
       "software_version": {
         "name": "Softwareversion"
       },
+      "energy_mode": {
+        "name": "Arbeitsmodus"
+      },
+      "control_status": {
+        "name": "Steuerungsstatus",
+        "state": {
+          "active": "Aktiv",
+          "starting": "Übernahme",
+          "realtime_mode_required": "Pausiert: nicht im Realtime-Modus",
+          "not_configured": "Nur Überwachung",
+          "telemetry_stale": "Pausiert: keine aktuellen Daten",
+          "handover_failed": "Pausiert: Übernahme fehlgeschlagen",
+          "unknown_model": "Nur Überwachung: unbekanntes Modell"
+        }
+      },
+      "native_min_soc": {
+        "name": "Batteriereserve"
+      },
+      "realtime_power": {
+        "name": "Echtzeit-Sollleistung"
+      },
+      "realtime_target_soc": {
+        "name": "Echtzeit-Ziel-SOC"
+      },
+      "grid_charging_allowed": {
+        "name": "Netzladen"
+      },
+      "inverter_battery_temperature": {
+        "name": "Temperatur Wechselrichterbatterie"
+      },
+      "transformer_temperature": {
+        "name": "Temperatur Transformator"
+      },
+      "request_interval": {
+        "name": "Anfrageintervall (effektiv)"
+      },
+      "ac_input_power": {
+        "name": "AC-Eingangsleistung"
+      },
+      "ac_output_power": {
+        "name": "AC-Ausgangsleistung"
+      },
+      "bypass_power": {
+        "name": "Bypass-Leistung"
+      },
+      "indevolt_meter_power": {
+        "name": "Indevolt-Zählerleistung"
+      },
+      "solar_output_power": {
+        "name": "Solar-Ausgangsleistung"
+      },
+      "total_ac_input_energy": {
+        "name": "Gesamte AC-Eingangsenergie"
+      },
+      "total_ac_output_energy": {
+        "name": "Gesamte AC-Ausgangsenergie"
+      },
+      "off_grid_output_energy": {
+        "name": "Off-Grid-Ausgangsenergie"
+      },
+      "bypass_input_energy": {
+        "name": "Bypass-Eingangsenergie"
+      },
+      "daily_solar_energy": {
+        "name": "Tägliche Solarenergie"
+      },
+      "total_solar_energy": {
+        "name": "Gesamte Solarenergie"
+      },
+      "feed_in_limit": {
+        "name": "Einspeiselimit"
+      },
+      "grid_voltage": {
+        "name": "Netzspannung"
+      },
+      "grid_frequency": {
+        "name": "Netzfrequenz"
+      },
+      "remaining_charging_time": {
+        "name": "Verbleibende Ladezeit"
+      },
+      "remaining_discharging_time": {
+        "name": "Verbleibende Entladezeit"
+      },
+      "realtime_command": {
+        "name": "Echtzeit-Befehl",
+        "state": {
+          "standby": "Standby",
+          "charging": "Laden",
+          "discharging": "Entladen"
+        }
+      },
+      "device_mode": {
+        "name": "Gerätemodus",
+        "state": {
+          "cluster_main": "Cluster (Haupt)",
+          "cluster_sub": "Cluster (Neben)",
+          "standalone": "Eigenständig"
+        }
+      },
+      "operating_status": {
+        "name": "Betriebsstatus",
+        "state": {
+          "powered_off": "Ausgeschaltet",
+          "sleep": "Ruhezustand",
+          "starting": "Startet",
+          "mppt_operating": "MPPT aktiv",
+          "current_limiting": "Strombegrenzung",
+          "shutting_down": "Fährt herunter",
+          "inverter_fault": "Wechselrichterfehler",
+          "standby": "Standby",
+          "grid_charging": "Laden aus dem Netz",
+          "grid_discharging": "Entladen ins Netz",
+          "off_grid_charging": "Laden im Inselbetrieb",
+          "off_grid_discharging": "Entladen im Inselbetrieb",
+          "low_battery_charging": "Laden bei niedrigem Akkustand",
+          "deep_sleep": "Tiefschlaf",
+          "scheduled_full_charge": "Geplante Vollladung",
+          "off_grid_deep_sleep": "Tiefschlaf im Inselbetrieb"
+        }
+      },
+      "full_charge_interval": {
+        "name": "Intervall erzwungene Vollladung"
+      },
+      "full_charge_time": {
+        "name": "Uhrzeit erzwungene Vollladung"
+      },
+      "highest_cell_voltage": {
+        "name": "Höchste Zellenspannung"
+      },
+      "lowest_cell_voltage": {
+        "name": "Niedrigste Zellenspannung"
+      },
+      "pv1_power": {
+        "name": "PV1 Leistung"
+      },
+      "pv1_current": {
+        "name": "PV1 Strom"
+      },
+      "pv2_power": {
+        "name": "PV2 Leistung"
+      },
+      "pv2_current": {
+        "name": "PV2 Strom"
+      },
+      "pv3_power": {
+        "name": "PV3 Leistung"
+      },
+      "pv3_current": {
+        "name": "PV3 Strom"
+      },
+      "pv4_power": {
+        "name": "PV4 Leistung"
+      },
+      "pv4_current": {
+        "name": "PV4 Strom"
+      },
+      "inverter_battery_soc": {
+        "name": "SOC Wechselrichterbatterie"
+      },
+      "inverter_battery_cycles": {
+        "name": "Zyklen Wechselrichterbatterie"
+      },
+      "inverter_battery_mos_temperature": {
+        "name": "MOS-Temperatur Wechselrichterbatterie"
+      },
+      "inverter_battery_voltage": {
+        "name": "Spannung Wechselrichterbatterie"
+      },
+      "inverter_battery_current": {
+        "name": "Strom Wechselrichterbatterie"
+      },
+      "inverter_battery_serial_number": {
+        "name": "Seriennummer Wechselrichterbatterie"
+      },
+      "expansion_battery_1_soc": {
+        "name": "SOC Erweiterungsbatterie 1"
+      },
+      "expansion_battery_1_cycles": {
+        "name": "Zyklen Erweiterungsbatterie 1"
+      },
+      "expansion_battery_1_mos_temperature": {
+        "name": "MOS-Temperatur Erweiterungsbatterie 1"
+      },
+      "expansion_battery_1_voltage": {
+        "name": "Spannung Erweiterungsbatterie 1"
+      },
+      "expansion_battery_1_current": {
+        "name": "Strom Erweiterungsbatterie 1"
+      },
+      "expansion_battery_1_serial_number": {
+        "name": "Seriennummer Erweiterungsbatterie 1"
+      },
+      "expansion_battery_2_soc": {
+        "name": "SOC Erweiterungsbatterie 2"
+      },
+      "expansion_battery_2_cycles": {
+        "name": "Zyklen Erweiterungsbatterie 2"
+      },
+      "expansion_battery_2_mos_temperature": {
+        "name": "MOS-Temperatur Erweiterungsbatterie 2"
+      },
+      "expansion_battery_2_voltage": {
+        "name": "Spannung Erweiterungsbatterie 2"
+      },
+      "expansion_battery_2_current": {
+        "name": "Strom Erweiterungsbatterie 2"
+      },
+      "expansion_battery_2_serial_number": {
+        "name": "Seriennummer Erweiterungsbatterie 2"
+      },
+      "expansion_battery_3_soc": {
+        "name": "SOC Erweiterungsbatterie 3"
+      },
+      "expansion_battery_3_cycles": {
+        "name": "Zyklen Erweiterungsbatterie 3"
+      },
+      "expansion_battery_3_mos_temperature": {
+        "name": "MOS-Temperatur Erweiterungsbatterie 3"
+      },
+      "expansion_battery_3_voltage": {
+        "name": "Spannung Erweiterungsbatterie 3"
+      },
+      "expansion_battery_3_current": {
+        "name": "Strom Erweiterungsbatterie 3"
+      },
+      "expansion_battery_3_serial_number": {
+        "name": "Seriennummer Erweiterungsbatterie 3"
+      },
+      "expansion_battery_4_soc": {
+        "name": "SOC Erweiterungsbatterie 4"
+      },
+      "expansion_battery_4_cycles": {
+        "name": "Zyklen Erweiterungsbatterie 4"
+      },
+      "expansion_battery_4_mos_temperature": {
+        "name": "MOS-Temperatur Erweiterungsbatterie 4"
+      },
+      "expansion_battery_4_voltage": {
+        "name": "Spannung Erweiterungsbatterie 4"
+      },
+      "expansion_battery_4_current": {
+        "name": "Strom Erweiterungsbatterie 4"
+      },
+      "expansion_battery_4_serial_number": {
+        "name": "Seriennummer Erweiterungsbatterie 4"
+      },
+      "expansion_battery_5_soc": {
+        "name": "SOC Erweiterungsbatterie 5"
+      },
+      "expansion_battery_5_cycles": {
+        "name": "Zyklen Erweiterungsbatterie 5"
+      },
+      "expansion_battery_5_mos_temperature": {
+        "name": "MOS-Temperatur Erweiterungsbatterie 5"
+      },
+      "expansion_battery_5_voltage": {
+        "name": "Spannung Erweiterungsbatterie 5"
+      },
+      "expansion_battery_5_current": {
+        "name": "Strom Erweiterungsbatterie 5"
+      },
+      "expansion_battery_5_serial_number": {
+        "name": "Seriennummer Erweiterungsbatterie 5"
+      },
+      "request_speed": {
+        "name": "Anfragegeschwindigkeit",
+        "state": {
+          "maximum": "Maximal (1s)",
+          "fast": "Schnell (2s)",
+          "normal": "Normal (3s)",
+          "conservative": "Konservativ (5s)"
+        }
+      },
+      "read_latency": {
+        "name": "Leselatenz (P95)"
+      },
+      "write_latency": {
+        "name": "Schreiblatenz (P95)"
+      },
+      "request_failures": {
+        "name": "Fehlgeschlagene Anfragen"
+      },
+      "flash_writes": {
+        "name": "Flash-Schreibvorgänge"
+      },
+      "expansion_battery_1_temperature": {
+        "name": "Temperatur Erweiterungsbatterie 1"
+      },
+      "expansion_battery_2_temperature": {
+        "name": "Temperatur Erweiterungsbatterie 2"
+      },
+      "expansion_battery_3_temperature": {
+        "name": "Temperatur Erweiterungsbatterie 3"
+      },
+      "expansion_battery_4_temperature": {
+        "name": "Temperatur Erweiterungsbatterie 4"
+      },
+      "expansion_battery_5_temperature": {
+        "name": "Temperatur Erweiterungsbatterie 5"
+      },
       "pv1_voltage": {
         "name": "PV1 Spannung"
       },
@@ -2048,6 +2453,9 @@
       }
     },
     "binary_sensor": {
+      "indevolt_meter_connected": {
+        "name": "Indevolt-Zähler verbunden"
+      },
       "capacity_protection_active": {
         "name": "Spitzenlastkappung Aktiv"
       },

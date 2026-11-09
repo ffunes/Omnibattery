@@ -580,8 +580,10 @@ def _async_unregister_frontend_panel(hass: HomeAssistant) -> None:
         hass.data[DOMAIN][_PANEL_REGISTERED_KEY] = False
 
 
-def _apply_driver_dynamic_limit(coordinator, current_limit: int) -> int:
-    """Narrow a discharge limit to the live headroom the driver reports.
+def _apply_driver_dynamic_limit(
+    coordinator, current_limit: int, *, charging: bool = False
+) -> int:
+    """Narrow a charge or discharge limit to the live headroom the driver reports.
 
     Only DC-coupled hybrids report one: battery and PV share an inverter there,
     so the reachable discharge power falls as PV rises. Every other driver
@@ -590,25 +592,36 @@ def _apply_driver_dynamic_limit(coordinator, current_limit: int) -> int:
     Applied in the control path rather than on the coordinator's power
     properties on purpose — those also drive the user-facing power sliders, and
     a bound that moved with the sun would be unusable.
+
+    ``charging`` asks the driver's ``dynamic_charge_limit_w`` instead. Only the
+    Indevolt driver reports one: 0 while it cannot take commands (outside
+    Realtime mode), and near full what its BMS takes while it tapers the
+    charge. Every other driver returns None.
     """
     driver = getattr(coordinator, "driver", None)
-    limiter = getattr(driver, "dynamic_discharge_limit_w", None)
+    limiter = getattr(
+        driver,
+        "dynamic_charge_limit_w" if charging else "dynamic_discharge_limit_w",
+        None,
+    )
     if limiter is None:
         return current_limit
     try:
         dynamic = limiter(getattr(coordinator, "data", None) or {})
     except Exception:  # a driver must never break the control cycle
         _LOGGER.debug(
-            "[%s] dynamic discharge limit raised; keeping static limit",
+            "[%s] dynamic %s limit raised; keeping static limit",
             getattr(coordinator, "name", "?"),
+            "charge" if charging else "discharge",
             exc_info=True,
         )
         return current_limit
     if dynamic is None or dynamic >= current_limit:
         return current_limit
     _LOGGER.debug(
-        "[%s] discharge limit narrowed %dW -> %dW by inverter AC headroom",
-        getattr(coordinator, "name", "?"), current_limit, dynamic,
+        "[%s] %s limit narrowed %dW -> %dW by the driver",
+        getattr(coordinator, "name", "?"),
+        "charge" if charging else "discharge", current_limit, dynamic,
     )
     return max(0, int(dynamic))
 
@@ -3048,6 +3061,7 @@ class ChargeDischargeController:
         )
         if coordinator.data is None:
             return self._apply_slot_power_ceiling(coordinator, True, limit)
+        limit = _apply_driver_dynamic_limit(coordinator, limit, charging=True)
         limit = self._max_soc_mgr.apply_charge_taper(coordinator, limit)
         limit = self._temp_limit_mgr.apply_temperature_limit(coordinator, limit)
         return self._apply_slot_power_ceiling(coordinator, True, limit)
@@ -11556,7 +11570,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Migration: Add default version for existing installations
     from .const import (
         CONF_BATTERY_VERSION, DEFAULT_VERSION, CONF_SLAVE_ID, DEFAULT_SLAVE_ID,
-        CONF_SERIAL_PORT, CONF_RS485_GATEWAY,
+        CONF_SERIAL_PORT, CONF_RS485_GATEWAY, CONF_INDEVOLT_REQUEST_SPEED,
     )
 
     for battery_config in entry.data["batteries"]:
@@ -11646,6 +11660,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hoymiles_model=battery_config.get("hoymiles_model"),
             serial_port=battery_config.get(CONF_SERIAL_PORT) or None,
             rs485_gateway=battery_config.get(CONF_RS485_GATEWAY, False),
+            indevolt_request_speed=battery_config.get(CONF_INDEVOLT_REQUEST_SPEED),
             esphome_device_id=battery_config.get("esphome_device_id"),
             huawei_battery_device_id=battery_config.get("huawei_battery_device_id"),
             huawei_direct_write=battery_config.get("huawei_direct_write", False),

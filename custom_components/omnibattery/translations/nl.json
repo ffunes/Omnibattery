@@ -4,6 +4,20 @@
       "title": "Sensoren uitgesloten van Recorder",
       "description": "Recorder sluit deze sensoren uit die Omnibattery gebruikt om zonne- en huishoudelijke verbruiksprofielen te herstellen: {sensors}. Pas de include/exclude-regels van Recorder aan zodat deze sensoren worden opgenomen en herstart Home Assistant om de configuratie toe te passen. De waarschuwing verdwijnt automatisch zodra ze worden opgenomen. Ontbrekende historische metingen kunnen niet worden hersteld; live leren en bestaande opgeslagen profielen blijven werken."
     },
+    "indevolt_flash_writes_paused": {
+      "title": "Schrijven van Indevolt-instellingen gepauzeerd ter bescherming van de batterij: {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Indevolt-instellingen weer laten schrijven",
+            "description": "Omnibattery heeft de minimale SOC en de vermogenslimieten van **{name}** het afgelopen jaar {allowance} keer geschreven en heeft het schrijven daarom gepauzeerd. Dit is een vangnet, geen beperking voor jou: het voorkomt dat een automatisering of script die deze instellingen te vaak wijzigt ongemerkt het flashgeheugen van de batterij verslijt; dat slijt een beetje bij elke schrijfactie. Wijzigingen in de Indevolt-app worden nog wel overgenomen.\n\nControleer je automatiseringen en scripts op iets dat deze instellingen vaak wijzigt. Bevestig daarna hier om het schrijven weer aan te zetten; er begint dan een nieuw tegoed van {allowance} schrijfacties. Waren de wijzigingen de bedoeling, bevestig dan gewoon."
+          }
+        },
+        "abort": {
+          "battery_unavailable": "De batterij is nu niet geladen. Probeer het opnieuw zodra Omnibattery ermee verbonden is."
+        }
+      }
+    },
     "excluded_device_ev_type": {
       "title": "Markeer je EV-lader bij de uitgesloten apparaten",
       "description": "Het nieuwe energiestroomdiagram (inschakelen met de knop in de kop van de stroomkaart) tekent EV-laders op een eigen kabel, naast de auto. Omnibattery kan niet weten welk uitgesloten apparaat de lader is; totdat je het markeert, wordt het vermogen ervan op de kabel van de overige uitgesloten apparaten (de buitenunit) getoond en blijft de EV-kabel leeg. Open Opties → Uitgesloten apparaten en sla je apparaten opnieuw op, met \"EV-lader\" aangevinkt bij de lader (laat het uit bij de andere). Dit heeft alleen invloed op hoe het diagram wordt getekend, niet op de batterijbesturing. De melding verdwijnt zodra de apparaten zijn opgeslagen."
@@ -600,6 +614,30 @@
         "data": {"name": "Naam", "host": "IP-adres", "port": "HTTP-poort", "username": "Gebruikersnaam", "password": "Wachtwoord"},
         "data_description": {"name": "Beschrijvende naam om deze batterij te identificeren", "host": "IP-adres van het Sessy-apparaat op het lokale netwerk", "port": "HTTP-poort (standaard 80)", "username": "Lokale gebruikersnaam op de Sessy-dongle", "password": "Lokaal wachtwoord op de Sessy-dongle"}
       },
+      "reconfigure_battery_indevolt": {
+        "title": "Batterij {battery_num} opnieuw configureren — Verbinding (Indevolt)",
+        "description": "Werk de verbindingsgegevens van Indevolt-batterij {battery_num} bij. Alle andere instellingen blijven behouden.",
+        "data": {
+          "name": "Naam",
+          "host": "IP-adres",
+          "port": "HTTP-poort"
+        },
+        "data_description": {
+          "name": "Beschrijvende naam om deze batterij te herkennen",
+          "host": "IP-adres van de Indevolt-batterij in je lokale netwerk",
+          "port": "HTTP-poort van de lokale API (standaard 8080)"
+        }
+      },
+      "reconfigure_battery_indevolt_request_speed": {
+        "title": "Batterij {battery_num} opnieuw configureren — Verzoeksnelheid (Indevolt)",
+        "description": "Met een hogere verzoeksnelheid reageert je batterij sneller op meterveranderingen, wat een betere nul-op-de-meter (NoM) kan opleveren. De opties:\n\n- **Conservatief** (5s) is het advies van Indevolt en de standaard. Het past bij een meter die elke 5s bijwerkt, het gebruikelijke tempo in Home Assistant: met zo'n meter reageert de batterij bij een hogere snelheid niet sneller.\n- **Normaal** (3s) past bij een meter die elke 3s bijwerkt.\n- **Snel** (2s) past bij een meter die elke 2s bijwerkt. Met een meter die elke seconde bijwerkt is het de veilige keuze: de batterij krijgt dan hooguit elke 2s een nieuwe opdracht.\n- **Maximaal** (1s) stuurt tot elke seconde een opdracht en wacht niet langer 1s tussen verzoeken, wat onder het gedocumenteerde minimum van Indevolt ligt. Het helpt alleen met een meter die elke seconde bijwerkt; kies bij een tragere meter **Snel**. Zet bij **Maximaal** ook PD Min. Cyclusinterval op 0 als elke batterij in Omnibattery een Indevolt is.",
+        "data": {
+          "indevolt_request_speed": "Verzoeksnelheid"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Elke snelheid sneller dan 5s is op eigen risico: je bent zelf verantwoordelijk om te controleren of je batterij, Home Assistant en netwerk het kunnen bijhouden. Op de apparaatpagina hoort Verzoekinterval (effectief) gelijk te blijven aan je keuze, en horen Leeslatentie (P95) en Schrijflatentie (P95) ruim onder 1s te blijven.\n\nUitproberen kan: antwoordt de batterij traag of niet, dan schakelt de Indevolt-driver van Omnibattery automatisch terug naar een rustiger tempo, totdat de reactiesnelheid weer hersteld is."
+        }
+      },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
         "description": "Update connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. All other settings are preserved.",
@@ -674,6 +712,34 @@
         "data": {"name": "Naam", "host": "IP-adres", "port": "HTTP-poort", "username": "Gebruikersnaam", "password": "Wachtwoord"},
         "data_description": {"name": "Beschrijvende naam om deze batterij te identificeren", "host": "IP-adres van het Sessy-apparaat op het lokale netwerk", "port": "HTTP-poort (standaard 80)", "username": "Lokale gebruikersnaam op de Sessy-dongle", "password": "Lokaal wachtwoord op de Sessy-dongle"}
       },
+      "battery_connection_indevolt": {
+        "title": "Batterij {battery_num} configureren — Verbinding (Indevolt)",
+        "description": "Voer het IP-adres van Indevolt-batterij {battery_num} in. Schakel in de Indevolt-app de lokale API in met het protocol **HTTP** (niet HTTP Digest). Omnibattery stuurt de batterij alleen aan in de modus **Realtime**, die je in de Indevolt-app kiest; de modus zelf wijzigt Omnibattery nooit.",
+        "data": {
+          "name": "Naam",
+          "host": "IP-adres",
+          "port": "HTTP-poort"
+        },
+        "data_description": {
+          "name": "Beschrijvende naam om deze batterij te herkennen",
+          "host": "IP-adres van de Indevolt-batterij in je lokale netwerk",
+          "port": "HTTP-poort van de lokale API (standaard 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Batterij {battery_num} configureren — Verzoeksnelheid (Indevolt)",
+        "description": "Met een hogere verzoeksnelheid reageert je batterij sneller op meterveranderingen, wat een betere nul-op-de-meter (NoM) kan opleveren. De opties:\n\n- **Conservatief** (5s) is het advies van Indevolt en de standaard. Het past bij een meter die elke 5s bijwerkt, het gebruikelijke tempo in Home Assistant: met zo'n meter reageert de batterij bij een hogere snelheid niet sneller.\n- **Normaal** (3s) past bij een meter die elke 3s bijwerkt.\n- **Snel** (2s) past bij een meter die elke 2s bijwerkt. Met een meter die elke seconde bijwerkt is het de veilige keuze: de batterij krijgt dan hooguit elke 2s een nieuwe opdracht.\n- **Maximaal** (1s) stuurt tot elke seconde een opdracht en wacht niet langer 1s tussen verzoeken, wat onder het gedocumenteerde minimum van Indevolt ligt. Het helpt alleen met een meter die elke seconde bijwerkt; kies bij een tragere meter **Snel**. Zet bij **Maximaal** ook PD Min. Cyclusinterval op 0 als elke batterij in Omnibattery een Indevolt is.",
+        "data": {
+          "indevolt_request_speed": "Verzoeksnelheid"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Elke snelheid sneller dan 5s is op eigen risico: je bent zelf verantwoordelijk om te controleren of je batterij, Home Assistant en netwerk het kunnen bijhouden. Op de apparaatpagina hoort Verzoekinterval (effectief) gelijk te blijven aan je keuze, en horen Leeslatentie (P95) en Schrijflatentie (P95) ruim onder 1s te blijven.\n\nUitproberen kan: antwoordt de batterij traag of niet, dan schakelt de Indevolt-driver van Omnibattery automatisch terug naar een rustiger tempo, totdat de reactiesnelheid weer hersteld is."
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batterij {battery_num} — Realtime-modus vereist",
+        "description": "De batterij staat niet in de Realtime-modus. De installatie gaat verder en Omnibattery houdt de batterij in de gaten, maar stuurt haar pas aan zodra je in de Indevolt-app **Realtime** kiest. De aansturing start dan vanzelf."
+      },
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
         "description": "Omnibattery reads this battery over Modbus and sends its set-points through the Huawei Solar integration, so it needs both: a Modbus endpoint and the battery device. Point the Modbus address at a Modbus proxy rather than straight at the inverter — the Huawei Solar integration already holds a connection to it.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
@@ -706,6 +772,7 @@
       "invalid_mac": "Dit lijkt geen MAC-adres te zijn. Er worden zes paren hexadecimale cijfers verwacht, bijvoorbeeld dc:04:5a:14:6b:33.",
       "cannot_connect": "Kan geen verbinding maken met de batterij. Controleer het IP-adres en of de batterij toegankelijk is op het netwerk.",
       "hoymiles_no_power_ctrl": "Deze MQTT-apparaat-ID publiceert telemetrie maar geen vermogensregeling. In een gekoppeld Hoymiles-systeem is alleen de master aanstuurbaar: voeg de apparaat-ID van de master één keer toe, niet die van de slave.",
+      "indevolt_http_digest": "De batterij vraagt om een wachtwoord: de lokale API staat op HTTP Digest. Kies HTTP in de Indevolt-app en probeer het opnieuw.",
       "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
       "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
@@ -1290,6 +1357,34 @@
         "data": {"name": "Naam", "host": "IP-adres", "port": "HTTP-poort", "username": "Gebruikersnaam", "password": "Wachtwoord"},
         "data_description": {"name": "Beschrijvende naam om deze batterij te identificeren", "host": "IP-adres van het Sessy-apparaat op het lokale netwerk", "port": "HTTP-poort (standaard 80)", "username": "Lokale gebruikersnaam op de Sessy-dongle", "password": "Lokaal wachtwoord op de Sessy-dongle"}
       },
+      "battery_connection_indevolt": {
+        "title": "Batterij {battery_num} configureren — Verbinding (Indevolt)",
+        "description": "Wijzig de verbindingsgegevens van Indevolt-batterij {battery_num}.",
+        "data": {
+          "name": "Naam",
+          "host": "IP-adres",
+          "port": "HTTP-poort"
+        },
+        "data_description": {
+          "name": "Beschrijvende naam om deze batterij te herkennen",
+          "host": "IP-adres van de Indevolt-batterij in je lokale netwerk",
+          "port": "HTTP-poort van de lokale API (standaard 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Batterij {battery_num} configureren — Verzoeksnelheid (Indevolt)",
+        "description": "Met een hogere verzoeksnelheid reageert je batterij sneller op meterveranderingen, wat een betere nul-op-de-meter (NoM) kan opleveren. De opties:\n\n- **Conservatief** (5s) is het advies van Indevolt en de standaard. Het past bij een meter die elke 5s bijwerkt, het gebruikelijke tempo in Home Assistant: met zo'n meter reageert de batterij bij een hogere snelheid niet sneller.\n- **Normaal** (3s) past bij een meter die elke 3s bijwerkt.\n- **Snel** (2s) past bij een meter die elke 2s bijwerkt. Met een meter die elke seconde bijwerkt is het de veilige keuze: de batterij krijgt dan hooguit elke 2s een nieuwe opdracht.\n- **Maximaal** (1s) stuurt tot elke seconde een opdracht en wacht niet langer 1s tussen verzoeken, wat onder het gedocumenteerde minimum van Indevolt ligt. Het helpt alleen met een meter die elke seconde bijwerkt; kies bij een tragere meter **Snel**. Zet bij **Maximaal** ook PD Min. Cyclusinterval op 0 als elke batterij in Omnibattery een Indevolt is.",
+        "data": {
+          "indevolt_request_speed": "Verzoeksnelheid"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Elke snelheid sneller dan 5s is op eigen risico: je bent zelf verantwoordelijk om te controleren of je batterij, Home Assistant en netwerk het kunnen bijhouden. Op de apparaatpagina hoort Verzoekinterval (effectief) gelijk te blijven aan je keuze, en horen Leeslatentie (P95) en Schrijflatentie (P95) ruim onder 1s te blijven.\n\nUitproberen kan: antwoordt de batterij traag of niet, dan schakelt de Indevolt-driver van Omnibattery automatisch terug naar een rustiger tempo, totdat de reactiesnelheid weer hersteld is."
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Batterij {battery_num} — Realtime-modus vereist",
+        "description": "De batterij staat niet in de Realtime-modus. De installatie gaat verder en Omnibattery houdt de batterij in de gaten, maar stuurt haar pas aan zodra je in de Indevolt-app **Realtime** kiest. De aansturing start dan vanzelf."
+      },
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
         "description": "Modify the Modbus endpoint and the Huawei Solar battery device used for battery {battery_num}.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
@@ -1322,6 +1417,7 @@
       "invalid_mac": "Dit lijkt geen MAC-adres te zijn. Er worden zes paren hexadecimale cijfers verwacht, bijvoorbeeld dc:04:5a:14:6b:33.",
       "cannot_connect": "Kan geen verbinding maken met de batterij. Controleer het IP-adres en of de batterij toegankelijk is op het netwerk.",
       "hoymiles_no_power_ctrl": "Deze MQTT-apparaat-ID publiceert telemetrie maar geen vermogensregeling. In een gekoppeld Hoymiles-systeem is alleen de master aanstuurbaar: voeg de apparaat-ID van de master één keer toe, niet die van de slave.",
+      "indevolt_http_digest": "De batterij vraagt om een wachtwoord: de lokale API staat op HTTP Digest. Kies HTTP in de Indevolt-app en probeer het opnieuw.",
       "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
       "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
@@ -1360,6 +1456,14 @@
     }
   },
   "selector": {
+    "indevolt_request_speed": {
+      "options": {
+        "maximum": "Maximaal: 1s",
+        "fast": "Snel: 2s",
+        "normal": "Normaal: 3s",
+        "conservative": "Conservatief: 5s (standaard, aanbevolen door Indevolt)"
+      }
+    },
     "hoymiles_model": {
       "options": {
         "auto": "Automatisch detecteren (aanbevolen)",
@@ -1875,6 +1979,307 @@
       "software_version": {
         "name": "Softwareversie"
       },
+      "energy_mode": {
+        "name": "Werkmodus"
+      },
+      "control_status": {
+        "name": "Regelstatus",
+        "state": {
+          "active": "Actief",
+          "starting": "Overnemen",
+          "realtime_mode_required": "Gepauzeerd: niet in Realtime-modus",
+          "not_configured": "Alleen uitlezen",
+          "telemetry_stale": "Gepauzeerd: geen actuele gegevens",
+          "handover_failed": "Gepauzeerd: overname mislukt",
+          "unknown_model": "Alleen uitlezen: onbekend model"
+        }
+      },
+      "native_min_soc": {
+        "name": "Batterijreserve"
+      },
+      "realtime_power": {
+        "name": "Realtime-opdrachtvermogen"
+      },
+      "realtime_target_soc": {
+        "name": "Realtime-doel-SOC"
+      },
+      "grid_charging_allowed": {
+        "name": "Laden van het net"
+      },
+      "inverter_battery_temperature": {
+        "name": "Temperatuur omvormerbatterij"
+      },
+      "transformer_temperature": {
+        "name": "Temperatuur transformator"
+      },
+      "request_interval": {
+        "name": "Verzoekinterval (effectief)"
+      },
+      "ac_input_power": {
+        "name": "AC-ingangsvermogen"
+      },
+      "ac_output_power": {
+        "name": "AC-uitgangsvermogen"
+      },
+      "bypass_power": {
+        "name": "Bypass-vermogen"
+      },
+      "indevolt_meter_power": {
+        "name": "Indevolt-metervermogen"
+      },
+      "solar_output_power": {
+        "name": "Zonne-uitgangsvermogen"
+      },
+      "total_ac_input_energy": {
+        "name": "Totale AC-ingangsenergie"
+      },
+      "total_ac_output_energy": {
+        "name": "Totale AC-uitgangsenergie"
+      },
+      "off_grid_output_energy": {
+        "name": "Off-grid uitgangsenergie"
+      },
+      "bypass_input_energy": {
+        "name": "Bypass-ingangsenergie"
+      },
+      "daily_solar_energy": {
+        "name": "Dagelijkse zonne-energie"
+      },
+      "total_solar_energy": {
+        "name": "Totale zonne-energie"
+      },
+      "feed_in_limit": {
+        "name": "Terugleverlimiet"
+      },
+      "grid_voltage": {
+        "name": "Netspanning"
+      },
+      "grid_frequency": {
+        "name": "Netfrequentie"
+      },
+      "remaining_charging_time": {
+        "name": "Resterende laadtijd"
+      },
+      "remaining_discharging_time": {
+        "name": "Resterende ontlaadtijd"
+      },
+      "realtime_command": {
+        "name": "Realtime-opdracht",
+        "state": {
+          "standby": "Stand-by",
+          "charging": "Laden",
+          "discharging": "Ontladen"
+        }
+      },
+      "device_mode": {
+        "name": "Apparaatmodus",
+        "state": {
+          "cluster_main": "Cluster (hoofd)",
+          "cluster_sub": "Cluster (sub)",
+          "standalone": "Zelfstandig"
+        }
+      },
+      "operating_status": {
+        "name": "Bedrijfsstatus",
+        "state": {
+          "powered_off": "Uitgeschakeld",
+          "sleep": "Slaapstand",
+          "starting": "Opstarten",
+          "mppt_operating": "MPPT actief",
+          "current_limiting": "Stroombegrenzing",
+          "shutting_down": "Afsluiten",
+          "inverter_fault": "Omvormerstoring",
+          "standby": "Stand-by",
+          "grid_charging": "Laden van het net",
+          "grid_discharging": "Ontladen naar het net",
+          "off_grid_charging": "Off-grid laden",
+          "off_grid_discharging": "Off-grid ontladen",
+          "low_battery_charging": "Laden bij lage batterij",
+          "deep_sleep": "Diepe slaap",
+          "scheduled_full_charge": "Geplande volledige lading",
+          "off_grid_deep_sleep": "Off-grid diepe slaap"
+        }
+      },
+      "full_charge_interval": {
+        "name": "Interval geforceerde volledige lading"
+      },
+      "full_charge_time": {
+        "name": "Tijdstip geforceerde volledige lading"
+      },
+      "highest_cell_voltage": {
+        "name": "Hoogste celspanning"
+      },
+      "lowest_cell_voltage": {
+        "name": "Laagste celspanning"
+      },
+      "pv1_power": {
+        "name": "PV1 Vermogen"
+      },
+      "pv1_current": {
+        "name": "PV1 Stroom"
+      },
+      "pv2_power": {
+        "name": "PV2 Vermogen"
+      },
+      "pv2_current": {
+        "name": "PV2 Stroom"
+      },
+      "pv3_power": {
+        "name": "PV3 Vermogen"
+      },
+      "pv3_current": {
+        "name": "PV3 Stroom"
+      },
+      "pv4_power": {
+        "name": "PV4 Vermogen"
+      },
+      "pv4_current": {
+        "name": "PV4 Stroom"
+      },
+      "inverter_battery_soc": {
+        "name": "SOC omvormerbatterij"
+      },
+      "inverter_battery_cycles": {
+        "name": "Cycli omvormerbatterij"
+      },
+      "inverter_battery_mos_temperature": {
+        "name": "MOS-temperatuur omvormerbatterij"
+      },
+      "inverter_battery_voltage": {
+        "name": "Spanning omvormerbatterij"
+      },
+      "inverter_battery_current": {
+        "name": "Stroom omvormerbatterij"
+      },
+      "inverter_battery_serial_number": {
+        "name": "Serienummer omvormerbatterij"
+      },
+      "expansion_battery_1_soc": {
+        "name": "SOC uitbreidingsbatterij 1"
+      },
+      "expansion_battery_1_cycles": {
+        "name": "Cycli uitbreidingsbatterij 1"
+      },
+      "expansion_battery_1_mos_temperature": {
+        "name": "MOS-temperatuur uitbreidingsbatterij 1"
+      },
+      "expansion_battery_1_voltage": {
+        "name": "Spanning uitbreidingsbatterij 1"
+      },
+      "expansion_battery_1_current": {
+        "name": "Stroom uitbreidingsbatterij 1"
+      },
+      "expansion_battery_1_serial_number": {
+        "name": "Serienummer uitbreidingsbatterij 1"
+      },
+      "expansion_battery_2_soc": {
+        "name": "SOC uitbreidingsbatterij 2"
+      },
+      "expansion_battery_2_cycles": {
+        "name": "Cycli uitbreidingsbatterij 2"
+      },
+      "expansion_battery_2_mos_temperature": {
+        "name": "MOS-temperatuur uitbreidingsbatterij 2"
+      },
+      "expansion_battery_2_voltage": {
+        "name": "Spanning uitbreidingsbatterij 2"
+      },
+      "expansion_battery_2_current": {
+        "name": "Stroom uitbreidingsbatterij 2"
+      },
+      "expansion_battery_2_serial_number": {
+        "name": "Serienummer uitbreidingsbatterij 2"
+      },
+      "expansion_battery_3_soc": {
+        "name": "SOC uitbreidingsbatterij 3"
+      },
+      "expansion_battery_3_cycles": {
+        "name": "Cycli uitbreidingsbatterij 3"
+      },
+      "expansion_battery_3_mos_temperature": {
+        "name": "MOS-temperatuur uitbreidingsbatterij 3"
+      },
+      "expansion_battery_3_voltage": {
+        "name": "Spanning uitbreidingsbatterij 3"
+      },
+      "expansion_battery_3_current": {
+        "name": "Stroom uitbreidingsbatterij 3"
+      },
+      "expansion_battery_3_serial_number": {
+        "name": "Serienummer uitbreidingsbatterij 3"
+      },
+      "expansion_battery_4_soc": {
+        "name": "SOC uitbreidingsbatterij 4"
+      },
+      "expansion_battery_4_cycles": {
+        "name": "Cycli uitbreidingsbatterij 4"
+      },
+      "expansion_battery_4_mos_temperature": {
+        "name": "MOS-temperatuur uitbreidingsbatterij 4"
+      },
+      "expansion_battery_4_voltage": {
+        "name": "Spanning uitbreidingsbatterij 4"
+      },
+      "expansion_battery_4_current": {
+        "name": "Stroom uitbreidingsbatterij 4"
+      },
+      "expansion_battery_4_serial_number": {
+        "name": "Serienummer uitbreidingsbatterij 4"
+      },
+      "expansion_battery_5_soc": {
+        "name": "SOC uitbreidingsbatterij 5"
+      },
+      "expansion_battery_5_cycles": {
+        "name": "Cycli uitbreidingsbatterij 5"
+      },
+      "expansion_battery_5_mos_temperature": {
+        "name": "MOS-temperatuur uitbreidingsbatterij 5"
+      },
+      "expansion_battery_5_voltage": {
+        "name": "Spanning uitbreidingsbatterij 5"
+      },
+      "expansion_battery_5_current": {
+        "name": "Stroom uitbreidingsbatterij 5"
+      },
+      "expansion_battery_5_serial_number": {
+        "name": "Serienummer uitbreidingsbatterij 5"
+      },
+      "request_speed": {
+        "name": "Verzoeksnelheid",
+        "state": {
+          "maximum": "Maximaal (1s)",
+          "fast": "Snel (2s)",
+          "normal": "Normaal (3s)",
+          "conservative": "Conservatief (5s)"
+        }
+      },
+      "read_latency": {
+        "name": "Leeslatentie (P95)"
+      },
+      "write_latency": {
+        "name": "Schrijflatentie (P95)"
+      },
+      "request_failures": {
+        "name": "Mislukte verzoeken"
+      },
+      "flash_writes": {
+        "name": "Flashschrijfacties"
+      },
+      "expansion_battery_1_temperature": {
+        "name": "Temperatuur uitbreidingsbatterij 1"
+      },
+      "expansion_battery_2_temperature": {
+        "name": "Temperatuur uitbreidingsbatterij 2"
+      },
+      "expansion_battery_3_temperature": {
+        "name": "Temperatuur uitbreidingsbatterij 3"
+      },
+      "expansion_battery_4_temperature": {
+        "name": "Temperatuur uitbreidingsbatterij 4"
+      },
+      "expansion_battery_5_temperature": {
+        "name": "Temperatuur uitbreidingsbatterij 5"
+      },
       "pv1_voltage": {
         "name": "PV1 Spanning"
       },
@@ -2048,6 +2453,9 @@
       }
     },
     "binary_sensor": {
+      "indevolt_meter_connected": {
+        "name": "Indevolt-meter verbonden"
+      },
       "capacity_protection_active": {
         "name": "Piekbegrenzing Actief"
       },

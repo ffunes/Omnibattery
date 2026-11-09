@@ -24,6 +24,7 @@ La batería o su puente deben ser accesibles mediante la conexión local corresp
 | **Huawei SUN2000 + LUNA2000** | Prepara la conexión Modbus del inversor. El método de control predeterminado también necesita la integración Huawei Solar. | Modbus TCP a través del inversor o un proxy compartido |
 | **Sessy Home Battery** | Ten disponibles las credenciales locales impresas en el dongle Sessy. | API HTTP local |
 | **Hoymiles MS-A2 o HiBattery** | Configura la integración MQTT de Home Assistant y un broker MQTT local; después activa **MQTT Service** en S-Miles Home. | MQTT a través de Home Assistant |
+| **Indevolt SolidFlex o PowerFlex** | En la app de Indevolt, activa la API local con **HTTP** y elige el modo **Tiempo real**. | API HTTP local |
 
 !!! warning "Usa un sensor de red con respuesta rápida"
     Se recomienda una actualización cada **1–2 segundos**. Se aceptan sensores que publican cada **10 segundos o más**, pero Omnibattery muestra una advertencia de Reparaciones porque las lecturas retrasadas reducen la calidad del control. La última lectura sigue siendo válida hasta **65 segundos**.
@@ -44,7 +45,7 @@ Establece **Potencia máxima contratada** en el límite de importación real de 
 ??? "Detalles de conexión por tipo de batería"
     **Marstek:** Venus E v2 necesita una conexión RS-485, como un adaptador USB o un convertidor RS-485 a TCP. Venus E v3, Venus A y Venus D pueden usar su conexión de red. La vía LilyGo necesita el firmware ESPHome compatible y sus entidades estándar de Home Assistant.
 
-    **Zendure y Sessy:** Home Assistant debe poder alcanzar el punto final HTTP local del dispositivo. Omnibattery se comunica localmente, en lugar de mediante una cuenta en la nube del fabricante.
+    **Zendure, Sessy e Indevolt:** Home Assistant debe poder alcanzar el punto final HTTP local del dispositivo. Omnibattery se comunica localmente, en lugar de mediante una cuenta en la nube del fabricante.
 
     **Anker:** su servidor Modbus acepta un cliente cada vez. Cierra otra integración o herramienta antes de que Omnibattery pruebe la conexión.
 

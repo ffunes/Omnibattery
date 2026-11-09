@@ -24,6 +24,7 @@ The battery or its bridge must be reachable over the relevant local connection. 
 | **Huawei SUN2000 + LUNA2000** | Prepare the inverter's Modbus connection. The default control method also needs the Huawei Solar integration. | Modbus TCP through the inverter or a shared proxy |
 | **Sessy Home Battery** | Have the local credentials printed on the Sessy dongle available. | Local HTTP API |
 | **Hoymiles MS-A2 or HiBattery** | Configure Home Assistant's MQTT integration and a local MQTT broker, then enable **MQTT Service** in S-Miles Home. | MQTT through Home Assistant |
+| **Indevolt SolidFlex or PowerFlex** | In the Indevolt app, enable the local API with **HTTP** and select the **Realtime** working mode. | Local HTTP API |
 
 !!! warning "Use a responsive grid sensor"
     An update every **1–2 seconds** is recommended. Sensors that publish every **10 seconds or more** are accepted, but Omnibattery raises a Repairs warning because delayed readings reduce control quality. The latest reading remains valid for up to **65 seconds**.
@@ -44,7 +45,7 @@ Set **Maximum contracted power** to the actual import limit for your home. Omnib
 ??? "Connection details by battery type"
     **Marstek:** Venus E v2 needs an RS-485 connection, such as a USB adapter or an RS-485-to-TCP converter. Venus E v3, Venus A and Venus D can use their network connection. The LilyGo path requires the supported ESPHome firmware and its stock Home Assistant entities.
 
-    **Zendure and Sessy:** Home Assistant must be able to reach the device's local HTTP endpoint. Omnibattery communicates locally rather than through a manufacturer cloud account.
+    **Zendure, Sessy and Indevolt:** Home Assistant must be able to reach the device's local HTTP endpoint. Omnibattery communicates locally rather than through a manufacturer cloud account.
 
     **Anker:** its Modbus server accepts one client at a time. Close another integration or tool before Omnibattery tests the connection.
 

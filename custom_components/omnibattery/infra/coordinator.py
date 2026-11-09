@@ -25,6 +25,10 @@ from ..drivers.marstek import MarstekModbusDriver
 from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
 from ..drivers.anker import AnkerModbusDriver
 from ..drivers.sessy import SessyLocalDriver
+from ..drivers.indevolt import IndevoltDriver
+from ..drivers.indevolt_settings import stored_battery_value
+from .indevolt_client import slot_for_request_speed
+from .indevolt_notify import IndevoltNotifier
 from ..drivers.hoymiles import HoymilesMqttDriver
 from ..drivers.huawei import HuaweiSolarDriver
 from ..drivers.base import SetpointResult
@@ -329,6 +333,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  hoymiles_model: str | None = None,
                  serial_port: str | None = None,
                  rs485_gateway: bool = False,
+                 indevolt_request_speed: str | None = None,
                  esphome_device_id: str | None = None,
                  huawei_battery_device_id: str | None = None,
                  huawei_direct_write: bool = False,
@@ -367,11 +372,14 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # Marstek reached through an RS485 gateway instead of its own Modbus
         # TCP server: drops the inter-message wait (issue #411).
         self.rs485_gateway = bool(rs485_gateway)
+        # Indevolt request speed (infra/indevolt_client.REQUEST_SPEED_SLOT_S); None or an
+        # unknown value gets the driver's default slot.
+        self.indevolt_request_speed = indevolt_request_speed
         self.consumption_sensor = consumption_sensor
         self.brand = brand
         self.ems_version = ems_version
         self.zendure_model = zendure_model
-        if self.brand in ("zendure", "anker", "hoymiles", "huawei"):
+        if self.brand in ("zendure", "anker", "hoymiles", "huawei", "indevolt"):
             full_charge_voltage_taper_enabled = False
 
         # Validate and store battery version
@@ -540,6 +548,20 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 password=password,
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
+            )
+        elif self.brand == "indevolt":
+            # The driver paces all device traffic itself; polls read its cache.
+            self.driver = IndevoltDriver(
+                self.host, port=self.port,
+                max_charge_power_w=self.configured_max_charge_power,
+                max_discharge_power_w=self.configured_max_discharge_power,
+                notifier=IndevoltNotifier(hass, name, f"{self.host}_{self.port}"),
+                # The settings sync stores what it adopted from or wrote to the
+                # device in this battery's config.
+                persist=self.persist_battery_config,
+                stored=lambda key: stored_battery_value(self, key),
+                slot_s=slot_for_request_speed(self.indevolt_request_speed),
+                name=name,
             )
         elif self.brand == "huawei":
             # Telemetry is read natively over Modbus; set-points go out through
@@ -897,6 +919,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Sessy" if self.brand == "sessy"
                 else "Hoymiles" if self.brand == "hoymiles"
                 else "Huawei" if self.brand == "huawei"
+                else "Indevolt" if self.brand == "indevolt"
                 else "Marstek"
             ),
             "model": self.driver.model_label or (
@@ -904,6 +927,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 else "Solarbank Max AC" if self.brand == "anker"
                 else "Sessy" if self.brand == "sessy"
                 else "MS-A2" if self.brand == "hoymiles"
+                else "Indevolt" if self.brand == "indevolt"
                 else "Venus"
             ),
         }
@@ -924,7 +948,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 + (f":{self.port}" if self.port != 80 else "")
                 + "/"
             )
-            software_version = (self.data or {}).get("software_version")
+        # The firmware line on the device page. Home Assistant keeps the last
+        # value written there, so a brand whose software version is the
+        # battery's firmware writes it on every start.
+        if self.brand in ("sessy", "indevolt"):
+            software_version = (getattr(self, "data", None) or {}).get("software_version")
             if software_version:
                 info["sw_version"] = str(software_version)
         return info

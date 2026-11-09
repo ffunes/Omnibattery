@@ -69,6 +69,7 @@ def _hass(*, manual_mode: bool = False, controller: bool = True):
 def _bind(entity, hass):
     """Attach the hass double without going through the entity platform."""
     entity.hass = hass
+    entity.async_write_ha_state = lambda: None
     return entity
 
 

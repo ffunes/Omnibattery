@@ -102,6 +102,7 @@ from .const import (
     DEFAULT_SLAVE_ID,
     CONF_SERIAL_PORT,
     CONF_RS485_GATEWAY,
+    CONF_INDEVOLT_REQUEST_SPEED,
     DEFAULT_VERSION,
     REGISTER_MAP,
     MAX_POWER_BY_VERSION,
@@ -158,6 +159,9 @@ from .drivers.zendure import (
 )
 from .drivers.anker import AnkerModbusDriver
 from .drivers.sessy import SessyLocalDriver
+from .drivers.indevolt import IndevoltDriver
+from .drivers.indevolt_settings import SYNCED_PREFIX as INDEVOLT_SYNCED_PREFIX
+from .infra.indevolt_client import DEFAULT_REQUEST_SPEED, REQUEST_SPEED_SLOT_S, IndevoltAuthenticationError
 from .drivers.huawei import HuaweiSolarDriver
 from .drivers.hoymiles import (
     DEFAULT_HOYMILES_MODEL,
@@ -178,6 +182,9 @@ _ANKER_MAX_POWER_W = 3500
 _SESSY_MAX_CHARGE_POWER_W = 2200
 _SESSY_MAX_DISCHARGE_POWER_W = 1700
 _SESSY_DEFAULT_MIN_SOC = 5
+_INDEVOLT_DEFAULT_PORT = 8080
+_INDEVOLT_DEFAULT_MAX_POWER_W = 2400
+_INDEVOLT_DEFAULT_MIN_SOC = 20  # Indevolt's own default reserve, for a battery that reports none
 _HOYMILES_MODEL_AUTO = "auto"
 
 
@@ -565,6 +572,12 @@ def _soc_selector_limits(
         min_lo, min_hi, min_default = 0, 20, 10
     elif brand == "sessy":
         min_lo, min_hi, min_default = 0, 30, _SESSY_DEFAULT_MIN_SOC
+    elif brand == "indevolt":
+        # The minimum SOC is the battery's own reserve, kept in sync both ways
+        # (drivers/indevolt_settings.py). 5% is the API's hard minimum; the
+        # upper bound matches the driver's discharge_cutoff_range, so saving the
+        # form unchanged never clamps (and so rewrites) the device's value.
+        min_lo, min_hi, min_default = 5, 50, _INDEVOLT_DEFAULT_MIN_SOC
     elif brand == "hoymiles":
         min_lo, min_hi, min_default = 0, 30, 10
     elif brand == "huawei":
@@ -583,6 +596,89 @@ def _soc_selector_limits(
     # Omnibattery enforces the charge ceiling in software. Sessy's reported SOC
     # spans 0–100 %, so the standard 100 % ceiling is valid for this driver.
     return min_lo, min_hi, min_default, max_lo, 100, 100
+
+
+def _indevolt_connection_schema(defaults: dict, battery_num: int) -> vol.Schema:
+    """Connection form shared by setup, options and reconfigure."""
+    return vol.Schema({
+        vol.Required(CONF_NAME, default=defaults.get(CONF_NAME, f"Indevolt {battery_num}")): str,
+        vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): str,
+        vol.Optional(CONF_PORT, default=defaults.get(CONF_PORT, _INDEVOLT_DEFAULT_PORT)): int,
+    })
+
+
+def _indevolt_request_speed_schema(defaults: dict) -> vol.Schema:
+    """Request speed form, the screen after the connection.
+
+    It has a screen of its own so the explanation of the speeds fits above the
+    field instead of disappearing below the fold.
+    """
+    return vol.Schema({
+        vol.Required(CONF_INDEVOLT_REQUEST_SPEED, default=_indevolt_request_speed(defaults)): SelectSelector(
+            SelectSelectorConfig(
+                options=list(REQUEST_SPEED_SLOT_S),
+                translation_key="indevolt_request_speed",
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
+    })
+
+
+def _indevolt_request_speed(values: dict) -> str:
+    """The battery's request speed; an older entry without one gets the default."""
+    speed = values.get(CONF_INDEVOLT_REQUEST_SPEED)
+    return speed if speed in REQUEST_SPEED_SLOT_S else DEFAULT_REQUEST_SPEED
+
+
+async def _indevolt_probe(user_input: dict) -> tuple[dict, dict] | str:
+    """Probe an Indevolt (read-only): its battery config and probe info, or an error key."""
+    host = (user_input.get(CONF_HOST) or "").strip()
+    port = int(user_input.get(CONF_PORT, _INDEVOLT_DEFAULT_PORT))
+    _LOGGER.info("Probing Indevolt device at %s:%s", host, port)
+    try:
+        info = await IndevoltDriver.probe(host, port)
+    except IndevoltAuthenticationError:
+        # The local API is set to HTTP Digest; Omnibattery uses plain HTTP.
+        return "indevolt_http_digest"
+    except ValueError:
+        return "cannot_connect"
+    if info is None:
+        return "cannot_connect"
+    data = {
+        CONF_NAME: user_input[CONF_NAME],
+        CONF_HOST: host,
+        CONF_PORT: port,
+        "brand": "indevolt",
+    }
+    for source, target in (("max_charge_power", "device_max_charge_power"),
+                           ("max_discharge_power", "device_max_discharge_power")):
+        if info.get(source):
+            data[target] = int(info[source])
+    return data, info
+
+
+def _indevolt_prefill(battery_data: dict, info: dict, stored: dict | None = None) -> None:
+    """Pre-fill the limits form with the reserve, power limits and MAC the battery reports.
+
+    On its first start the driver adopts the battery's own settings and writes
+    nothing (drivers/indevolt_settings.py), so a form value that differs would
+    be replaced without notice. A setting that Omnibattery and the battery
+    already agreed on (``stored``) keeps its configured value.
+    """
+    stored = stored or {}
+    for key, value in (info.get("settings") or {}).items():
+        if stored.get(INDEVOLT_SYNCED_PREFIX + key) is None:
+            battery_data[key] = value
+    if info.get("mac") and not battery_data.get(CONF_MAC):
+        battery_data[CONF_MAC] = info["mac"]
+
+
+def _indevolt_power_ceilings(battery_data: dict) -> tuple[int, int]:
+    """Device-reported power ceilings, or the SF2000's 2400 W before a probe."""
+    return (
+        int(battery_data.get("device_max_charge_power") or _INDEVOLT_DEFAULT_MAX_POWER_W),
+        int(battery_data.get("device_max_discharge_power") or _INDEVOLT_DEFAULT_MAX_POWER_W),
+    )
 
 
 def _hoymiles_apply_probe_caps(
@@ -1418,6 +1514,14 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         elif brand == "anker":
             _LOGGER.info("Probing Anker Solarbank at %s:%s slave %s", host, port, slave_id)
             result, _ = await AnkerModbusDriver.probe(host, port, slave_id)
+        elif brand == "indevolt":
+            _LOGGER.info("Probing Indevolt device at %s:%s", host, port)
+            try:
+                result = await IndevoltDriver.probe(host, port) is not None
+            except (IndevoltAuthenticationError, ValueError):
+                # A local API set to HTTP Digest, or a reply that is not an
+                # Indevolt's, does not count as this battery answering.
+                result = False
         elif serial_port:
             _LOGGER.info("Probing Marstek %s over serial %s slave %s", version, serial_port, slave_id)
             if version == "vD":
@@ -1640,6 +1744,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 return await self.async_step_battery_connection_hoymiles()
             if brand == "sessy":
                 return await self.async_step_battery_connection_sessy()
+            if brand == "indevolt":
+                return await self.async_step_battery_connection_indevolt()
             if brand == "huawei":
                 return await self.async_step_battery_connection_huawei()
             return await self.async_step_battery_connection()
@@ -1656,6 +1762,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                                 {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
                                 {"value": "anker", "label": "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"},
                                 {"value": "sessy", "label": "Sessy"},
+                                {"value": "indevolt", "label": "Indevolt SolidFlex / PowerFlex"},
                                 {"value": "hoymiles", "label": "Hoymiles MQTT"},
                                 {"value": "huawei", "label": "Huawei SUN2000 + LUNA2000"},
                             ],
@@ -1846,6 +1953,49 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 TextSelectorConfig(type=TextSelectorType.PASSWORD)
             ),
         }), errors=errors, description_placeholders={"battery_num": str(self.battery_index + 1)})
+
+    async def async_step_battery_connection_indevolt(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Configure an Indevolt battery through its local HTTP API (read-only probe)."""
+        errors = {}
+        battery_num = self.battery_index + 1
+        if user_input is not None:
+            probed = await _indevolt_probe(user_input)
+            if isinstance(probed, str):
+                errors["base"] = probed
+            else:
+                data, info = probed
+                self._current_battery_data.update(data)
+                _indevolt_prefill(self._current_battery_data, info)
+                if not info["realtime_mode"]:
+                    return await self.async_step_indevolt_mode_notice()
+                return await self.async_step_indevolt_request_speed()
+        return self.async_show_form(
+            step_id="battery_connection_indevolt",
+            data_schema=_indevolt_connection_schema(user_input or {}, battery_num),
+            errors=errors,
+            description_placeholders={"battery_num": str(battery_num)},
+        )
+
+    async def async_step_indevolt_mode_notice(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Realtime mode is required; setup continues and control starts once it is set."""
+        if user_input is not None:
+            return await self.async_step_indevolt_request_speed()
+        return self.async_show_form(
+            step_id="indevolt_mode_notice",
+            data_schema=vol.Schema({}),
+            description_placeholders={"battery_num": str(self.battery_index + 1)},
+        )
+
+    async def async_step_indevolt_request_speed(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Choose how fast Omnibattery may send requests to the Indevolt battery."""
+        if user_input is not None:
+            self._current_battery_data[CONF_INDEVOLT_REQUEST_SPEED] = _indevolt_request_speed(user_input)
+            return await self.async_step_battery_limits()
+        return self.async_show_form(
+            step_id="indevolt_request_speed",
+            data_schema=_indevolt_request_speed_schema(self._current_battery_data),
+            description_placeholders={"battery_num": str(self.battery_index + 1)},
+        )
 
     async def async_step_battery_connection_huawei(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Configure a Huawei SUN2000 + LUNA2000.
@@ -2173,6 +2323,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         elif brand == "sessy":
             max_charge_power = _SESSY_MAX_CHARGE_POWER_W
             max_discharge_power = _SESSY_MAX_DISCHARGE_POWER_W
+        elif brand == "indevolt":
+            max_charge_power, max_discharge_power = _indevolt_power_ceilings(self._current_battery_data)
         elif brand == "hoymiles":
             max_charge_power, max_discharge_power = _hoymiles_power_ceilings(self._current_battery_data)
         elif brand == "huawei":
@@ -2225,7 +2377,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     user_input.get(CONF_DC_PV_CONNECTED, True)
                 ) if merged.get(CONF_BATTERY_VERSION) in ("vA", "vD") else False
                 merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei")
+                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt")
                     else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
                 )
                 if brand in ("zendure", "sessy", "hoymiles"):
@@ -2262,8 +2414,10 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         _schema.update({
             vol.Required("max_soc", default=soc_max_default):
                 NumberSelector(NumberSelectorConfig(min=soc_max_lo, max=soc_max_hi, step=1, mode=NumberSelectorMode.SLIDER)),
-            vol.Required("min_soc", default=soc_min_default):
-                NumberSelector(NumberSelectorConfig(min=soc_min_lo, max=soc_min_hi, step=1, mode=NumberSelectorMode.SLIDER)),
+            vol.Required(
+                "min_soc",
+                default=max(soc_min_lo, min(soc_min_hi, int(self._current_battery_data.get("min_soc", soc_min_default)))),
+            ): NumberSelector(NumberSelectorConfig(min=soc_min_lo, max=soc_min_hi, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("charge_hysteresis_percent", default=DEFAULT_CHARGE_HYSTERESIS_PERCENT):
                 NumberSelector(NumberSelectorConfig(min=MIN_CHARGE_HYSTERESIS_PERCENT, max=MAX_CHARGE_HYSTERESIS_PERCENT, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("backup_offgrid_threshold", default=50):
@@ -2274,7 +2428,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             and self._current_battery_data.get(CONF_BATTERY_VERSION) in ("vA", "vD")
         ):
             _schema[vol.Required(CONF_DC_PV_CONNECTED, default=True)] = BooleanSelector()
-        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei"):
+        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt"):
             _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)] = bool
         if brand == "sessy":
             # Sessy does not report a nominal capacity or identifiable packs.
@@ -2963,6 +3117,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             return await self.async_step_reconfigure_battery_anker(user_input)
         if current.get("brand", "marstek") == "sessy":
             return await self.async_step_reconfigure_battery_sessy(user_input)
+        if current.get("brand", "marstek") == "indevolt":
+            return await self.async_step_reconfigure_battery_indevolt(user_input)
         if current.get("brand", "marstek") == "hoymiles":
             return await self.async_step_reconfigure_battery_hoymiles(user_input)
         if current.get("brand", "marstek") == "huawei":
@@ -3198,6 +3354,68 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             }),
             errors=errors,
             description_placeholders={"battery_num": str(battery_num)},
+        )
+
+    async def async_step_reconfigure_battery_indevolt(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Update connection settings for an Indevolt battery during reconfiguration."""
+        entry = self._get_reconfigure_entry()
+        current_batteries = entry.data.get("batteries", [])
+        battery_num = self.battery_index + 1
+        current = (
+            current_batteries[self.battery_index]
+            if self.battery_index < len(current_batteries)
+            else {}
+        )
+        errors = {}
+
+        if user_input is not None:
+            probed = await _indevolt_probe(user_input)
+            if isinstance(probed, str):
+                errors["base"] = probed
+            else:
+                data, _info = probed
+                self._reconfigure_indevolt = {**current, **data}
+                return await self.async_step_reconfigure_battery_indevolt_request_speed()
+
+        return self.async_show_form(
+            step_id="reconfigure_battery_indevolt",
+            data_schema=_indevolt_connection_schema(user_input or current, battery_num),
+            errors=errors,
+            description_placeholders={"battery_num": str(battery_num)},
+        )
+
+    async def async_step_reconfigure_battery_indevolt_request_speed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Update the request speed of an Indevolt battery during reconfiguration."""
+        entry = self._get_reconfigure_entry()
+        current_batteries = entry.data.get("batteries", [])
+        current = current_batteries[self.battery_index]
+        updated = self._reconfigure_indevolt
+
+        if user_input is not None:
+            updated[CONF_INDEVOLT_REQUEST_SPEED] = _indevolt_request_speed(user_input)
+            # Migrated only now, so leaving the flow on this screen changes nothing.
+            old_host = current.get(CONF_HOST)
+            old_port = current.get(CONF_PORT)
+            if old_host and old_port and (old_host != updated[CONF_HOST] or old_port != updated[CONF_PORT]):
+                self._migrate_battery_registry_ids(
+                    entry, old_host, old_port, updated[CONF_HOST], updated[CONF_PORT]
+                )
+            self._reconfigure_batteries.append(updated)
+            self.battery_index += 1
+            if self.battery_index >= len(current_batteries):
+                return self.async_update_reload_and_abort(
+                    entry, data_updates={"batteries": self._reconfigure_batteries}
+                )
+            return await self.async_step_reconfigure_battery()
+
+        return self.async_show_form(
+            step_id="reconfigure_battery_indevolt_request_speed",
+            data_schema=_indevolt_request_speed_schema(updated),
+            description_placeholders={"battery_num": str(self.battery_index + 1)},
         )
 
     async def async_step_reconfigure_battery_esphome(
@@ -4118,6 +4336,8 @@ class OptionsFlowHandler(OptionsFlow):
                 return await self.async_step_battery_connection_anker()
             if brand == "sessy":
                 return await self.async_step_battery_connection_sessy()
+            if brand == "indevolt":
+                return await self.async_step_battery_connection_indevolt()
             if brand == "huawei":
                 return await self.async_step_battery_connection_huawei()
             if brand == "hoymiles":
@@ -4136,6 +4356,7 @@ class OptionsFlowHandler(OptionsFlow):
                                 {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
                                 {"value": "anker", "label": "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"},
                                 {"value": "sessy", "label": "Sessy"},
+                                {"value": "indevolt", "label": "Indevolt SolidFlex / PowerFlex"},
                                 {"value": "hoymiles", "label": "Hoymiles MQTT"},
                                 {"value": "huawei", "label": "Huawei SUN2000 + LUNA2000"},
                             ],
@@ -4407,6 +4628,61 @@ class OptionsFlowHandler(OptionsFlow):
             description_placeholders=placeholders,
         )
 
+
+    async def async_step_battery_connection_indevolt(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Configure an Indevolt battery through its local HTTP API (read-only probe)."""
+        errors = {}
+        battery_num = self.battery_index + 1
+        current_batteries = self.config_entry.data.get("batteries", [])
+        current_battery = (
+            current_batteries[self.battery_index]
+            if self.battery_index < len(current_batteries)
+            else {}
+        )
+        if user_input is not None:
+            probed = await _indevolt_probe(user_input)
+            if isinstance(probed, str):
+                errors["base"] = probed
+            else:
+                data, info = probed
+                self._current_battery_data.update(data)
+                _indevolt_prefill(self._current_battery_data, info, current_battery)
+                if not info["realtime_mode"]:
+                    return await self.async_step_indevolt_mode_notice()
+                return await self.async_step_indevolt_request_speed()
+        return self.async_show_form(
+            step_id="battery_connection_indevolt",
+            data_schema=_indevolt_connection_schema(user_input or current_battery, battery_num),
+            errors=errors,
+            description_placeholders={"battery_num": str(battery_num)},
+        )
+
+    async def async_step_indevolt_mode_notice(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Realtime mode is required; setup continues and control starts once it is set."""
+        if user_input is not None:
+            return await self.async_step_indevolt_request_speed()
+        return self.async_show_form(
+            step_id="indevolt_mode_notice",
+            data_schema=vol.Schema({}),
+            description_placeholders={"battery_num": str(self.battery_index + 1)},
+        )
+
+    async def async_step_indevolt_request_speed(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Choose how fast Omnibattery may send requests to the Indevolt battery."""
+        if user_input is not None:
+            self._current_battery_data[CONF_INDEVOLT_REQUEST_SPEED] = _indevolt_request_speed(user_input)
+            return await self.async_step_battery_limits()
+        current_batteries = self.config_entry.data.get("batteries", [])
+        current_battery = (
+            current_batteries[self.battery_index]
+            if self.battery_index < len(current_batteries)
+            else {}
+        )
+        return self.async_show_form(
+            step_id="indevolt_request_speed",
+            data_schema=_indevolt_request_speed_schema(current_battery),
+            description_placeholders={"battery_num": str(self.battery_index + 1)},
+        )
 
     async def async_step_battery_connection_huawei(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Configure a Huawei SUN2000 + LUNA2000.
@@ -4766,6 +5042,8 @@ class OptionsFlowHandler(OptionsFlow):
             elif brand == "sessy":
                 max_charge_power = _SESSY_MAX_CHARGE_POWER_W
                 max_discharge_power = _SESSY_MAX_DISCHARGE_POWER_W
+            elif brand == "indevolt":
+                max_charge_power, max_discharge_power = _indevolt_power_ceilings(self._current_battery_data)
             elif brand == "hoymiles":
                 max_charge_power, max_discharge_power = _hoymiles_power_ceilings(self._current_battery_data)
             elif brand == "huawei":
@@ -4832,7 +5110,7 @@ class OptionsFlowHandler(OptionsFlow):
                     user_input.get(CONF_DC_PV_CONNECTED, True)
                 ) if merged.get(CONF_BATTERY_VERSION) in ("vA", "vD") else False
                 merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei")
+                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt")
                     else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
                 )
                 if brand in ("zendure", "sessy", "hoymiles"):
@@ -4898,7 +5176,7 @@ class OptionsFlowHandler(OptionsFlow):
                         ),
                     ),
                     "max_soc": soc_max_default,
-                    "min_soc": soc_min_default,
+                    "min_soc": self._current_battery_data.get("min_soc", soc_min_default),
                     "charge_hysteresis_percent": DEFAULT_CHARGE_HYSTERESIS_PERCENT,
                     "backup_offgrid_threshold": 50,
                     CONF_DC_PV_CONNECTED: self._current_battery_data.get(
@@ -4943,7 +5221,7 @@ class OptionsFlowHandler(OptionsFlow):
                     default=defaults[CONF_DC_PV_CONNECTED],
                 )
             ] = BooleanSelector()
-        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei"):
+        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt"):
             _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=defaults[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED])] = bool
         if brand == "sessy":
             saved_capacity = float(defaults["battery_capacity_kwh"])

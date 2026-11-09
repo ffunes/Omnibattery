@@ -46,6 +46,11 @@ SERIAL_BAUDRATE = 115200
 # spacing to MESSAGE_WAIT_MS_RS485_GATEWAY for any Marstek firmware version.
 CONF_RS485_GATEWAY = "rs485_gateway"
 
+# Per-battery Indevolt request speed (maximum / fast / normal / conservative): how
+# often the driver may talk to the battery. The slot per speed, the default and
+# the floors live in infra/indevolt_client.py; backoff applies on top of every speed.
+CONF_INDEVOLT_REQUEST_SPEED = "indevolt_request_speed"
+
 # Maximum power (W) per battery version — used by config_flow to set slider limits
 MAX_POWER_BY_VERSION = {
     "v2": 2500,

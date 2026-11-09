@@ -465,6 +465,35 @@ class BatteryDriver(ABC):
         """
         return None
 
+    def dynamic_charge_limit_w(self, data: dict) -> Optional[int]:
+        """Live charge ceiling below the static envelope, or None if there is none.
+
+        The charge-side counterpart of :meth:`dynamic_discharge_limit_w`. A
+        driver returns 0 while it cannot take a charge command at all (an
+        Indevolt outside Realtime mode), so battery selection skips it and the
+        other batteries take the load, instead of the controller allocating
+        power the battery refuses until the non-responsive tracker excludes it.
+        Near full it may return what the battery takes while its BMS tapers the
+        charge (an Indevolt in its constant-voltage phase), so the controller
+        commands that instead of a power the battery reports as not delivered.
+
+        Defaults to None: the static limit stands, so other drivers are
+        unaffected. See docs/indevolt-core-changes.md.
+        """
+        return None
+
+    async def async_fix_issue(self, issue_id: str) -> bool:
+        """Fix a Repairs issue this driver raised; True when it did.
+
+        Called by the fix flow in ``repairs.py`` when the user submits a fixable
+        issue whose data names this battery. The Indevolt driver uses it to turn
+        setting writes back on after its yearly flash allowance stopped them.
+
+        Defaults to False: other drivers raise no fixable issues, and the flow
+        then keeps the issue. See docs/indevolt-core-changes.md.
+        """
+        return False
+
     @abstractmethod
     def net_power_from_data(self, data: dict) -> Optional[int]:
         """Derive the current commanded net power from coordinator telemetry cache.

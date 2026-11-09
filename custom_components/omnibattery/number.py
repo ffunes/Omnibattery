@@ -100,9 +100,17 @@ async def async_setup_entry(
         # software-enforced max/min SOC as live-editable entities. The PD controller
         # already enforces these in software; previously they were only changeable
         # through the options flow.
+        #
+        # A driver may still back one of the two with a device setting (Indevolt:
+        # its reserve is the min SOC, there is no max-SOC setting). Its register
+        # number then owns that limit, with the same unique ID, so the software
+        # twin is skipped.
         if not coordinator.capabilities.hardware_soc_cutoff:
-            entities.append(SoftSocLimitNumber(coordinator, "max"))
-            entities.append(SoftSocLimitNumber(coordinator, "min"))
+            register_keys = {d["key"] for d in coordinator.number_definitions}
+            if "charging_cutoff_capacity" not in register_keys:
+                entities.append(SoftSocLimitNumber(coordinator, "max"))
+            if "discharging_cutoff_capacity" not in register_keys:
+                entities.append(SoftSocLimitNumber(coordinator, "min"))
 
         if coordinator.enable_charge_hysteresis:
             entities.append(MarstekChargeHysteresisNumber(coordinator))
@@ -298,7 +306,7 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
             )
 
         # Write the converted value via the logical control key
-        await self.coordinator.write_control(key, register_value, do_refresh=True)
+        written = await self.coordinator.write_control(key, register_value, do_refresh=True)
         if key in ("set_charge_power", "set_discharge_power"):
             # Manual intent for the #477 re-assert (see select force_mode).
             setattr(self.coordinator, f"manual_{key}", int(value))
@@ -359,6 +367,15 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
                 old_value,
                 int(value),
             )
+
+        # Show the written value at once. The entity reads coordinator.data,
+        # which only catches up when this key's read group is next polled (up
+        # to 5s for "medium"), so Home Assistant's own device page snapped the
+        # slider back to the old value until then. A refused write keeps the
+        # old value, and the next poll corrects either way.
+        if written and isinstance(self.coordinator.data, dict):
+            self.coordinator.data[key] = value
+            self.async_write_ha_state()
 
     @property
     def device_info(self):

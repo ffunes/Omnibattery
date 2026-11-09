@@ -27,6 +27,7 @@ def _number_entity(key: str, *, venus_e: bool):
         max_charge_power=1500,
         max_discharge_power=1500,
     )
+    entity.async_write_ha_state = Mock()  # no entity platform in these tests
     return entity
 
 
@@ -113,6 +114,7 @@ async def test_zendure_inverse_max_power_updates_effective_discharge_limit():
     entity.coordinator = coordinator
     entity.hass = SimpleNamespace(data={})
     entity._scale = 1.0
+    entity.async_write_ha_state = Mock()
 
     await entity.async_set_native_value(4000)
 
@@ -124,6 +126,38 @@ async def test_zendure_inverse_max_power_updates_effective_discharge_limit():
     coordinator.persist_battery_config.assert_called_once_with(
         "max_discharge_power", 4000
     )
+    # Shown at once, not only after the next poll of its read group.
+    assert coordinator.data["inverse_max_power"] == 4000
+    entity.async_write_ha_state.assert_called_once()
+
+
+async def test_a_refused_register_write_keeps_showing_the_old_value():
+    """Only a write the driver accepted is shown before the next poll."""
+    coordinator = object.__new__(MarstekVenusDataUpdateCoordinator)
+    coordinator.brand = "indevolt"
+    coordinator.battery_version = "v3"
+    coordinator.name = "Indevolt"
+    coordinator._config_entry = None
+    coordinator.min_soc = 16
+    coordinator.data = {"discharging_cutoff_capacity": 16}
+    coordinator.write_control = AsyncMock(return_value=False)
+    coordinator.persist_battery_config = Mock()
+
+    entity = object.__new__(MarstekVenusNumber)
+    entity.definition = {"key": "discharging_cutoff_capacity", "max": 50}
+    entity.coordinator = coordinator
+    entity.hass = SimpleNamespace(data={})
+    entity._scale = 1.0
+    entity.async_write_ha_state = Mock()
+
+    await entity.async_set_native_value(15)
+
+    assert coordinator.data["discharging_cutoff_capacity"] == 16
+    entity.async_write_ha_state.assert_not_called()
+    coordinator.write_control = AsyncMock(return_value=True)
+    await entity.async_set_native_value(15)
+    assert coordinator.data["discharging_cutoff_capacity"] == 15
+    entity.async_write_ha_state.assert_called_once()
 
 
 @pytest.mark.parametrize(
