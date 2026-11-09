@@ -543,6 +543,24 @@ class WeeklyFullChargeManager:
                 saved[str(name)] = value_int
 
     @staticmethod
+    def _original_max_soc(coordinator: Any) -> int:
+        """The ceiling to restore after the run.
+
+        A battery that reports its own Target SOC (Zendure: ``socSet``) is
+        restored to what it reported before the raise. The integration's stored
+        config may be older, because the device's own Target SOC entity writes
+        only the device.
+        """
+        if "soc_set" in (getattr(coordinator, "data", None) or {}):
+            try:
+                live = int(getattr(coordinator, "max_soc", 100))
+            except (TypeError, ValueError):
+                live = 100
+            if 0 < live < 100:
+                return live
+        return WeeklyFullChargeManager._get_configured_max_soc(coordinator)
+
+    @staticmethod
     def _get_configured_max_soc(coordinator: Any) -> int:
         """Return the persisted user ceiling before falling back to live telemetry."""
         fallback = getattr(coordinator, "max_soc", 100)
@@ -716,7 +734,7 @@ class WeeklyFullChargeManager:
                     # setdefault preserves the value restored from storage after HA
                     # restarts, when the live poll already reports 100%.
                     ctrl._weekly_charge_saved_max_soc.setdefault(
-                        coordinator.name, self._get_configured_max_soc(coordinator)
+                        coordinator.name, self._original_max_soc(coordinator)
                     )
                     # Raise the hardware charging cutoff to 100%
                     ok = await coordinator.set_charge_cutoff(100)
