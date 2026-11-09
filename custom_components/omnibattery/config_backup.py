@@ -24,7 +24,7 @@ import inspect
 import logging
 from types import MappingProxyType
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryDisabler
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
@@ -109,6 +109,10 @@ async def async_restore_config_backup(hass: HomeAssistant) -> list[str]:
             "options": dict(rec["options"]),
             "source": rec.get("source", "user"),
             "unique_id": rec.get("unique_id"),
+            # Added disabled so it does not load (and save default Stores)
+            # before the old Store files are copied into its namespace:
+            # the copy skips files that already exist.
+            "disabled_by": ConfigEntryDisabler.USER,
             "discovery_keys": MappingProxyType({}),
             "subentries_data": [],
         }
@@ -128,5 +132,7 @@ async def async_restore_config_backup(hass: HomeAssistant) -> list[str]:
             rec.get("entry_id", ""),
             new_entry.entry_id,
         )
+        # Enable it -> it loads with the restored Store data.
+        await hass.config_entries.async_set_disabled_by(new_entry.entry_id, None)
         new_ids.append(new_entry.entry_id)
     return new_ids
