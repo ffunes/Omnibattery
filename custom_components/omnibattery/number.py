@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONFIG_NUMBER_DEFINITIONS,
+    DYNAMIC_BOUNDS_BATTERY_CAPACITY,
     DYNAMIC_BOUNDS_SYSTEM_POWER,
     DYNAMIC_BOUNDS_SYSTEM_POWER_CAP,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
@@ -44,6 +45,7 @@ from .const import (
     MAX_CHARGE_HYSTERESIS_PERCENT,
     DOMAIN,
     effective_system_power,
+    total_battery_capacity_kwh,
     total_battery_power,
 )
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
@@ -383,10 +385,11 @@ def config_number_bounds(definition: dict, data) -> tuple[float, float]:
     """Return (min, max) for a CONFIG_NUMBER_DEFINITIONS entry.
 
     Entries without a ``dynamic_bounds`` marker keep their authored min/max.
-    The system-power marker derives target-grid bounds from the configured
-    per-battery limits, narrowed by the optional system cap. The system-cap
-    marker derives each cap's own maximum from the configured sum for that
-    direction:
+    The battery-capacity marker derives the solar safety margin's max from the
+    total configured battery capacity. The system-power marker derives
+    target-grid bounds from the configured per-battery limits, narrowed by the
+    optional system cap. The system-cap marker derives each cap's own maximum
+    from the configured sum for that direction:
 
         max = +sum(max_charge_power)     (positive = import -> battery charges)
         min = -sum(max_discharge_power)  (negative = export -> battery discharges)
@@ -401,6 +404,10 @@ def config_number_bounds(definition: dict, data) -> tuple[float, float]:
     """
     static_min, static_max = definition["min"], definition["max"]
     dynamic_bounds = definition.get("dynamic_bounds")
+    if dynamic_bounds == DYNAMIC_BOUNDS_BATTERY_CAPACITY:
+        capacity_kwh = total_battery_capacity_kwh(data)
+        return static_min, capacity_kwh if capacity_kwh > static_min else static_max
+
     if dynamic_bounds == DYNAMIC_BOUNDS_SYSTEM_POWER_CAP:
         charge_w, discharge_w = total_battery_power(data)
         configured_w = (

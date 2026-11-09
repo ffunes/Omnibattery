@@ -28,6 +28,7 @@ from custom_components.omnibattery.const import (
     CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
     CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
     DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
+    DYNAMIC_BOUNDS_BATTERY_CAPACITY,
     default_predictive_safety_margin_kwh,
 )
 from custom_components.omnibattery.number import MarstekConfigNumberEntity
@@ -79,8 +80,28 @@ def _slider_value(data):
     return MarstekConfigNumberEntity(None, entry, MARGIN_DEF).native_value
 
 
+def _slider_max(data):
+    """native_max_value of the margin slider for a config entry holding ``data``."""
+    entry = SimpleNamespace(data=data)
+    return MarstekConfigNumberEntity(None, entry, MARGIN_DEF).native_max_value
+
+
 def test_slider_shows_the_same_default_the_controller_uses():
     assert _slider_value(FLEET) == default_predictive_safety_margin_kwh(FLEET) > 0
+
+
+def test_safety_margin_slider_max_tracks_total_battery_capacity():
+    assert MARGIN_DEF["dynamic_bounds"] == DYNAMIC_BOUNDS_BATTERY_CAPACITY
+    assert _slider_max(FLEET) == 10.24
+
+
+@pytest.mark.parametrize(
+    "data",
+    [{}, {"batteries": []}, {"batteries": [{"battery_capacity_kwh": 0}]}],
+    ids=["no_key", "no_batteries", "zero_capacity"],
+)
+def test_safety_margin_slider_uses_fallback_max_without_known_capacity(data):
+    assert _slider_max(data) == MARGIN_DEF["max"]
 
 
 @pytest.mark.parametrize("stored", [0.0, 3.0], ids=["explicit_zero", "explicit_value"])

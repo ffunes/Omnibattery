@@ -19,6 +19,7 @@
 ### Changed
 
 - **Faster startup with several batteries** (#560): batteries on different hosts now connect and configure in parallel instead of one after another; batteries sharing a gateway still go in turn. Thanks to @sphings79.
+- **Solar safety margin slider now scales to total battery capacity** instead of stopping at a fixed 20 kWh, so it can be set up to the full configured capacity.
 - **Docs: driver guide lists every file a new battery driver touches**, plus the brand branches in shared code that should become capabilities.
 
 ## [1.5.0] - 2026-10-04

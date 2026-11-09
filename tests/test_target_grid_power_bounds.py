@@ -23,9 +23,11 @@ import pytest
 from custom_components.omnibattery.const import (
     CONFIG_NUMBER_DEFINITIONS,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
+    CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
     CONF_SYSTEM_MAX_CHARGE_POWER,
     CONF_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_TARGET_GRID_POWER,
+    DYNAMIC_BOUNDS_BATTERY_CAPACITY,
     DYNAMIC_BOUNDS_SYSTEM_POWER,
     DYNAMIC_BOUNDS_SYSTEM_POWER_CAP,
     effective_battery_power_limits,
@@ -228,10 +230,14 @@ def test_other_config_numbers_keep_their_authored_bounds(definition):
 def test_dynamic_power_bounds_are_marked_for_target_and_system_caps():
     marked = [d for d in CONFIG_NUMBER_DEFINITIONS if d.get("dynamic_bounds")]
     assert {d["key"] for d in marked} == {
+        CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
         CONF_TARGET_GRID_POWER,
         CONF_SYSTEM_MAX_CHARGE_POWER,
         CONF_SYSTEM_MAX_DISCHARGE_POWER,
     }
+    assert next(
+        d for d in marked if d["key"] == CONF_PREDICTIVE_SAFETY_MARGIN_KWH
+    )["dynamic_bounds"] == DYNAMIC_BOUNDS_BATTERY_CAPACITY
     assert TARGET_DEF["dynamic_bounds"] == DYNAMIC_BOUNDS_SYSTEM_POWER
     assert (
         SYSTEM_CHARGE_CAP_DEF["dynamic_bounds"] == DYNAMIC_BOUNDS_SYSTEM_POWER_CAP

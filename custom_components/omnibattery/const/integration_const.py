@@ -1046,6 +1046,7 @@ NORDPOOL_REFRESH_MINUTES = 60
 # at runtime; the authored min/max become the fallback.
 DYNAMIC_BOUNDS_SYSTEM_POWER = "system_power"
 DYNAMIC_BOUNDS_SYSTEM_POWER_CAP = "system_power_cap"
+DYNAMIC_BOUNDS_BATTERY_CAPACITY = "battery_capacity"
 
 # Configuration Number Definitions (for config entities exposed in the UI)
 CONFIG_NUMBER_DEFINITIONS = [
@@ -1263,7 +1264,7 @@ CONFIG_NUMBER_DEFINITIONS = [
         "name": "Solar Forecast Safety Margin",
         "min": 0.0,
         "max": 20.0,
-        "step": 0.1,
+        "step": 0.01,
         "unit": "kWh",
         # Callable default: the slider must show the same 5%-of-capacity value
         # the controller falls back to, or a new entry reads 0.0 on the panel
@@ -1271,6 +1272,7 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": default_predictive_safety_margin_kwh,
         "icon": "mdi:solar-power-variant",
         "condition": CONF_ENABLE_PREDICTIVE_CHARGING,
+        "dynamic_bounds": DYNAMIC_BOUNDS_BATTERY_CAPACITY,
     },
     {
         "key": CONF_PREDICTIVE_MIN_SOC_FLOOR,
