@@ -91,6 +91,9 @@ class ChronologicalPlan:
     # Deadline energy left to the grid: importing it when it is used costs
     # less than storing it earlier with the round-trip losses (#662).
     cheaper_to_import_kwh: float = 0.0
+    # The part of ``cheaper_to_import_kwh`` left to the grid only because its
+    # import price is not published yet (not because importing is cheaper).
+    awaiting_prices_kwh: float = 0.0
     # Cheapest slot the price limits rejected, as (start, price, ceiling), so a
     # ``price_threshold`` plan shows by how much it missed.
     cheapest_rejected: tuple[datetime, float, float | None] | None = None
@@ -173,6 +176,7 @@ class ChronologicalDiagnostics:
     reason: str
     cheaper_to_import_kwh: float = 0.0
     cheapest_rejected: tuple[datetime, float, float | None] | None = None
+    awaiting_prices_kwh: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -616,6 +620,7 @@ def allocate_price_slots(
     allocation_deadlines: dict[PriceSlot, datetime | None] = {}
     deadline_shortfall = 0.0
     cheaper_to_import = 0.0
+    awaiting_prices = 0.0
     any_valued_pool = False
 
     capacity_cache: dict[tuple[datetime, datetime], float] = {}
@@ -902,6 +907,7 @@ def allocate_price_slots(
             # slot now repays it. Leave it to the grid for now; the
             # re-evaluation on publication values it against the real price.
             cheaper_to_import += missing
+            awaiting_prices += missing
             segment_unusable[start] = segment_unusable.get(start, 0.0) + missing
             continue
         pool = (
@@ -1105,7 +1111,13 @@ def allocate_price_slots(
     elif total_shortfall > _EPSILON:
         reason = "insufficient_slot_capacity"
     elif cheaper_to_import > _EPSILON and allocated <= _EPSILON:
-        reason = "cheaper_to_import"
+        # Energy left to the grid only because tomorrow's prices are not out
+        # yet is not "cheaper to import": no margin setting changes it.
+        reason = (
+            "awaiting_prices"
+            if awaiting_prices >= cheaper_to_import - _EPSILON
+            else "cheaper_to_import"
+        )
     else:
         reason = "ok"
     cheapest_rejected = None
@@ -1135,6 +1147,7 @@ def allocate_price_slots(
         minimum_projected_energy_kwh=simulation.minimum_projected_energy_kwh,
         reason=reason,
         cheaper_to_import_kwh=cheaper_to_import,
+        awaiting_prices_kwh=awaiting_prices,
         cheapest_rejected=cheapest_rejected,
     )
 
@@ -1193,5 +1206,6 @@ def evaluate_chronological_request(
             reason=plan.reason,
             cheaper_to_import_kwh=plan.cheaper_to_import_kwh,
             cheapest_rejected=plan.cheapest_rejected,
+            awaiting_prices_kwh=plan.awaiting_prices_kwh,
         ),
     )

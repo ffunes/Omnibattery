@@ -1061,3 +1061,30 @@ def test_a_slot_stores_only_what_the_house_leaves_of_the_grid_ceiling():
     assert stored(3.0) == pytest.approx(2.0 * CHARGE_EFFICIENCY)
     # A ceiling the house never reaches leaves the battery's own limit.
     assert stored(10.0) == pytest.approx(3.0 * CHARGE_EFFICIENCY)
+
+
+def test_a_deficit_after_the_last_price_is_awaiting_prices_not_cheaper():
+    """A5: deadlines past the published prices are left to the grid until the
+    prices are out; the plan says so instead of ``cheaper_to_import``."""
+    # Battery empty, load only after the last published slot (hours 8-12).
+    intervals = [_interval(i, 0.0 if i < 32 else 0.25) for i in range(48)]
+    deadlines = build_energy_deadlines(intervals, 0.0, usable_capacity_kwh=10.0)
+    slot = _slot(0, 60, 0.05)  # prices published only for 00:00-01:00
+
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        [slot],
+        total_required_kwh=4.0,
+        effective_power_kw=3.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=12),
+        headroom_kwh=10.0,
+        usable_initial_kwh=0.0,
+        import_value_efficiency=0.85,
+        import_value_margin=0.02,
+    )
+
+    assert plan.reason == "awaiting_prices"
+    assert plan.awaiting_prices_kwh == pytest.approx(plan.cheaper_to_import_kwh)
+    assert plan.awaiting_prices_kwh > 0

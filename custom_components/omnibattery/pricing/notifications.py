@@ -329,6 +329,14 @@ def _no_slots_explanation(
     generic hint is kept for that case (and when no plan reason exists).
     """
     reason = decision_data.get("chronological_plan_reason")
+    if reason == "awaiting_prices":
+        waiting = float(decision_data.get("awaiting_prices_kwh", 0.0) or 0.0)
+        return (
+            "Charging needed later, but its prices are not published yet",
+            f"The {waiting:.2f} kWh is needed after the last published price, "
+            "so no slot can be valued against it yet. It is planned again as "
+            "soon as the next day's prices are published.",
+        )
     if reason == "cheaper_to_import":
         imported = float(decision_data.get("cheaper_to_import_kwh", 0.0) or 0.0)
         return (
@@ -454,9 +462,12 @@ def format_dynamic_pricing_notification(
             headline, hint = _no_slots_explanation(
                 decision_data, unit, arbitrage_binding
             )
+            plan_reason = decision_data.get("chronological_plan_reason")
             title = (
                 "Predictive Charging: Price Optimization - Grid import is cheaper"
-                if decision_data.get("chronological_plan_reason") == "cheaper_to_import"
+                if plan_reason == "cheaper_to_import"
+                else "Predictive Charging: Price Optimization - Waiting for prices"
+                if plan_reason == "awaiting_prices"
                 else "Predictive Charging: Price Optimization - No slots available"
             )
             message = (

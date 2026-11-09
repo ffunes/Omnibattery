@@ -520,3 +520,26 @@ def test_evening_recharge():
     assert title == "Predictive Charging: Evening re-evaluation"
     assert "55% avg" in message
     assert "Deficit: 2.50 kWh" in message
+
+
+def test_dynamic_no_slots_awaiting_prices_does_not_advise_the_margin():
+    """A5: a deficit after the last published price is not 'cheaper to import'.
+
+    Lowering the arbitrage margin cannot help: the slots are valued as soon
+    as the next day's prices are out.
+    """
+    title, message = notifications.format_dynamic_pricing_notification(
+        _decision(
+            should_charge=True,
+            energy_deficit_kwh=4.0,
+            chronological_plan_reason="awaiting_prices",
+            cheaper_to_import_kwh=3.5,
+            awaiting_prices_kwh=3.5,
+        ),
+        None,
+        **_DP_CFG,
+    )
+    assert title.endswith("Waiting for prices")
+    assert "not published yet" in message
+    assert "3.50 kWh" in message
+    assert "arbitrage margin" not in message

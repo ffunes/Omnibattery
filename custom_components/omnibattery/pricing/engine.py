@@ -183,6 +183,7 @@ _CHRONOLOGICAL_DIAGNOSTIC_KEYS = (
     "chronological_plan_reason",
     "guaranteed_floor_deadline",
     "cheaper_to_import_kwh",
+    "awaiting_prices_kwh",
     "cheapest_rejected_slot",
 )
 
@@ -3651,6 +3652,9 @@ class PricingManager:
                 "total_shortfall_kwh": round(diagnostics.total_shortfall_kwh, 3),
                 "chronological_plan_reason": diagnostics.reason,
                 "cheaper_to_import_kwh": round(diagnostics.cheaper_to_import_kwh, 3),
+                "awaiting_prices_kwh": round(
+                    getattr(diagnostics, "awaiting_prices_kwh", 0.0), 3
+                ),
                 "cheapest_rejected_slot": (
                     None
                     if diagnostics.cheapest_rejected is None
