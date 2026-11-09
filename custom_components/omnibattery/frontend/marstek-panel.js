@@ -104,7 +104,7 @@ const I18N = {
     acOutput: "AC output", acInput: "AC input", toHomeGrid: "To home / grid", fromAcBus: "From AC bus",
     inverterMode: "Inverter · {state}",
     offgrid: "Off-grid", infoComm: "Comm module",
-    invBackup: "Backup", invUpdating: "Updating", invStandby: "Standby", invBypass: "Bypass",
+    invBackup: "Backup", invUpdating: "Updating", invCalibrating: "Calibrating", invStandby: "Standby", invBypass: "Bypass",
     active: "Active", inactive: "Inactive",
     ctlEmpty: "No controls enabled. Enable them on the device (Settings → disabled entities).",
     ctlAdvanced: "Advanced settings",
@@ -195,7 +195,7 @@ const I18N = {
     acOutput: "Salida AC", acInput: "Entrada AC", toHomeGrid: "A casa / red", fromAcBus: "Desde bus AC",
     inverterMode: "Inversor · {state}",
     offgrid: "Offgrid", infoComm: "Módulo com.",
-    invBackup: "Respaldo", invUpdating: "Actualizando", invStandby: "En espera", invBypass: "Bypass",
+    invBackup: "Respaldo", invUpdating: "Actualizando", invCalibrating: "Calibrando", invStandby: "En espera", invBypass: "Bypass",
     active: "Activa", inactive: "Inactiva",
     ctlEmpty: "No hay controles habilitados. Actívalos en el dispositivo (Ajustes → entidades deshabilitadas).",
     ctlAdvanced: "Ajustes avanzados",
@@ -287,7 +287,7 @@ const I18N = {
     acOutput: "Sortida CA", acInput: "Entrada CA", toHomeGrid: "A casa / xarxa", fromAcBus: "Des del bus CA",
     inverterMode: "Inversor · {state}",
     offgrid: "Offgrid", infoComm: "Mòdul com.",
-    invBackup: "Reserva", invUpdating: "Actualitzant", invStandby: "En espera", invBypass: "Bypass",
+    invBackup: "Reserva", invUpdating: "Actualitzant", invCalibrating: "Calibrant", invStandby: "En espera", invBypass: "Bypass",
     active: "Activa", inactive: "Inactiva",
     ctlEmpty: "No hi ha controls habilitats. Activa'ls al dispositiu (Configuració → entitats deshabilitades).",
     ctlAdvanced: "Ajustos avançats",
@@ -374,7 +374,7 @@ const I18N = {
     acOutput: "AC-Ausgang", acInput: "AC-Eingang", toHomeGrid: "Zu Haus / Netz", fromAcBus: "Vom AC-Bus",
     inverterMode: "Wechselrichter · {state}",
     offgrid: "Inselbetrieb", infoComm: "Komm.-Modul",
-    invBackup: "Backup", invUpdating: "Aktualisierung", invStandby: "Standby", invBypass: "Bypass",
+    invBackup: "Backup", invUpdating: "Aktualisierung", invCalibrating: "Kalibrierung", invStandby: "Standby", invBypass: "Bypass",
     active: "Aktiv", inactive: "Inaktiv",
     ctlEmpty: "Keine Steuerungen aktiviert. Aktiviere sie am Gerät (Einstellungen → deaktivierte Entitäten).",
     ctlAdvanced: "Erweiterte Einstellungen",
@@ -461,7 +461,7 @@ const I18N = {
     acOutput: "Sortie CA", acInput: "Entrée CA", toHomeGrid: "Vers maison / réseau", fromAcBus: "Depuis bus CA",
     inverterMode: "Onduleur · {state}",
     offgrid: "Hors réseau", infoComm: "Module comm.",
-    invBackup: "Secours", invUpdating: "Mise à jour", invStandby: "En attente", invBypass: "Bypass",
+    invBackup: "Secours", invUpdating: "Mise à jour", invCalibrating: "Calibrage", invStandby: "En attente", invBypass: "Bypass",
     active: "Active", inactive: "Inactive",
     ctlEmpty: "Aucun contrôle activé. Activez-les sur l'appareil (Paramètres → entités désactivées).",
     ctlAdvanced: "Paramètres avancés",
@@ -548,7 +548,7 @@ const I18N = {
     acOutput: "AC-uitgang", acInput: "AC-ingang", toHomeGrid: "Naar huis / net", fromAcBus: "Vanaf AC-bus",
     inverterMode: "Omvormer · {state}",
     offgrid: "Eilandbedrijf", infoComm: "Comm.-module",
-    invBackup: "Back-up", invUpdating: "Bijwerken", invStandby: "Stand-by", invBypass: "Bypass",
+    invBackup: "Back-up", invUpdating: "Bijwerken", invCalibrating: "Kalibreren", invStandby: "Stand-by", invBypass: "Bypass",
     active: "Actief", inactive: "Inactief",
     ctlEmpty: "Geen bedieningen ingeschakeld. Schakel ze in op het apparaat (Instellingen → uitgeschakelde entiteiten).",
     ctlAdvanced: "Geavanceerde instellingen",
@@ -6170,7 +6170,12 @@ class MarstekVenusPanel extends HTMLElement {
     // inverter-state chip (localized; tone by state)
     const inv = b.inverter;
     const invState = this._sval(inv);
-    if (invState) {
+    const ctlState = this._sval(b.controlStatus);
+    if (ctlState === "soc_calibration") {
+      // Zendure SOC calibration (#799): ignores setpoints, charges on its own.
+      this._setChip(r.state, this._t("invCalibrating"), "warn");
+      r.state.style.display = "";
+    } else if (invState) {
       const raw = invState.toLowerCase();
       let tone = "neutral", disp;
       // inverter_state exposes the English label (sensor.py states map); localize
@@ -6202,8 +6207,7 @@ class MarstekVenusPanel extends HTMLElement {
     // control-status chip: only while Omnibattery is not steering the battery.
     // The inverter chip above still shows what the battery itself is doing
     // (in its own self-consumption mode it may well be discharging).
-    const ctlState = this._sval(b.controlStatus);
-    if (ctlState && ctlState !== "active" && ctlState !== "starting") {
+    if (ctlState && ctlState !== "active" && ctlState !== "starting" && ctlState !== "soc_calibration") {
       const disp =
         typeof this._hass.formatEntityState === "function"
           ? this._hass.formatEntityState(b.controlStatus)

@@ -1991,6 +1991,7 @@
           "realtime_mode_required": "Gepauzeerd: niet in Realtime-modus",
           "not_configured": "Alleen uitlezen",
           "telemetry_stale": "Gepauzeerd: geen actuele gegevens",
+          "soc_calibration": "Gepauzeerd: SOC-kalibratie",
           "handover_failed": "Gepauzeerd: overname mislukt",
           "unknown_model": "Alleen uitlezen: onbekend model"
         }

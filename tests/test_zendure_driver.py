@@ -1085,3 +1085,14 @@ async def test_other_errors_are_not_retried():
     sess = _flaky_session(503)
     assert await _driver(session=sess).read_telemetry() == {}
     assert sess.get.call_count == 1
+
+
+async def test_read_telemetry_keeps_soc_status_for_control():
+    # #799: socStatus is a control-only key (no entity), kept past the filter.
+    data = {**_REPORT, "properties": {**_REPORT["properties"], "socStatus": 1}}
+    snap = await _driver(session=_session(get_data=data)).read_telemetry(["battery_soc"])
+    assert snap["soc_status"] == 1
+    assert (await _driver(session=_session(get_data=data)).read_telemetry(
+        ["control_status"]))["control_status"] == "soc_calibration"
+    assert (await _driver(session=_session(get_data=_REPORT)).read_telemetry(
+        ["control_status"]))["control_status"] == "active"

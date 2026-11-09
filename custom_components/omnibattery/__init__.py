@@ -2711,8 +2711,46 @@ class ChargeDischargeController:
 
     @staticmethod
     def _is_battery_manual_owned(coordinator) -> bool:
-        """Return whether an individual battery is outside automatic control."""
-        return bool(getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False))
+        """Return whether an individual battery is outside automatic control.
+
+        A Zendure running its SOC calibration (#799) ignores setpoints and
+        charges on its own, so it is treated like a manual battery: out of the
+        pool, out of non-delivery tracking, and its charge handled by the
+        manual grid-feedback policy (never fed by the other batteries).
+        """
+        return bool(
+            getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+        ) or ChargeDischargeController._is_battery_calibrating(coordinator)
+
+    @staticmethod
+    def _is_battery_calibrating(coordinator) -> bool:
+        """Return whether the battery reports an active SOC calibration."""
+        return (getattr(coordinator, "data", None) or {}).get("soc_status") == 1
+
+    def _sync_calibration_ownership(self) -> None:
+        """Hand a battery over/back when its SOC calibration starts or ends."""
+        calibrating = getattr(self, "_calibrating_batteries", None)
+        if calibrating is None:
+            calibrating = self._calibrating_batteries = set()
+        for coordinator in self.coordinators:
+            now = ChargeDischargeController._is_battery_calibrating(coordinator)
+            if now == (coordinator in calibrating):
+                continue
+            if now:
+                calibrating.add(coordinator)
+                # The zero delivery during calibration is not a fault.
+                self._non_responsive.clear(coordinator)
+                _LOGGER.info(
+                    "[%s] SOC calibration started - out of automatic control",
+                    coordinator.name,
+                )
+            else:
+                calibrating.discard(coordinator)
+                _LOGGER.info(
+                    "[%s] SOC calibration finished - back to automatic control",
+                    coordinator.name,
+                )
+            self._reset_battery_ownership_state(coordinator)
 
     def _get_automatic_batteries(self) -> list:
         """Return the batteries available to automatic planning and control."""
@@ -7149,7 +7187,11 @@ class ChargeDischargeController:
         — fighting Solix app modes the user may select while paused.
         """
         for coordinator in self.coordinators:
-            individual_mode = ChargeDischargeController._is_battery_manual_owned(coordinator)
+            # Raw flag: a calibrating battery is manual-owned but has no manual
+            # setpoint to assert.
+            individual_mode = bool(
+                getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+            )
             if not global_mode and not individual_mode:
                 continue
             if not coordinator.needs_software_manual_control:
@@ -7233,8 +7275,8 @@ class ChargeDischargeController:
 
         Returns True if command was acknowledged, False otherwise.
         """
-        if owner == "automatic" and getattr(
-            coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False
+        if owner == "automatic" and ChargeDischargeController._is_battery_manual_owned(
+            coordinator
         ):
             _LOGGER.debug(
                 "[%s] Skipping automatic power write - individual manual mode owns this battery",
@@ -9743,6 +9785,7 @@ class ChargeDischargeController:
         # Skip all operations if any coordinator is shutting down (integration unloading)
         if any(c._is_shutting_down for c in self.coordinators):
             return
+        ChargeDischargeController._sync_calibration_ownership(self)
         self._phase_power_limiter.begin_cycle()
         self._phase_power_limiter.update_degraded_warning()
         # A battery at 100% SOC or a confirmed BMS cutoff (is_battery_full())

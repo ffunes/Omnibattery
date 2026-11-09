@@ -1988,6 +1988,7 @@
           "realtime_mode_required": "Paused: not in Realtime mode",
           "not_configured": "Monitoring only",
           "telemetry_stale": "Paused: no recent data",
+          "soc_calibration": "Paused: SOC calibration",
           "handover_failed": "Paused: takeover failed",
           "unknown_model": "Monitoring only: unknown model"
         }

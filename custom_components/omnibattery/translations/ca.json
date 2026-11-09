@@ -1991,6 +1991,7 @@
           "realtime_mode_required": "En pausa: no és en mode Realtime",
           "not_configured": "Només supervisió",
           "telemetry_stale": "En pausa: sense dades recents",
+          "soc_calibration": "En pausa: calibrant el SOC",
           "handover_failed": "En pausa: no s'ha pogut prendre el control",
           "unknown_model": "Només supervisió: model desconegut"
         }

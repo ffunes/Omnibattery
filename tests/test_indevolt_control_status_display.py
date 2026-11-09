@@ -20,7 +20,8 @@ def test_every_control_status_has_a_label_in_every_language():
     files = [COMPONENT / "strings.json"] + [COMPONENT / "translations" / f"{l}.json" for l in LANGUAGES]
     for path in files:
         states = json.loads(path.read_text(encoding="utf-8"))["entity"]["sensor"]["control_status"]["state"]
-        assert set(states) == set(CONTROL_STATUS_OPTIONS), path
+        # Zendure shares the sensor and adds soc_calibration (#799).
+        assert set(states) == {*CONTROL_STATUS_OPTIONS, "soc_calibration"}, path
 
 
 def test_the_battery_card_shows_the_control_status_unless_active():

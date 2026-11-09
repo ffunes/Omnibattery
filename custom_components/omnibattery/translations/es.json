@@ -1991,6 +1991,7 @@
           "realtime_mode_required": "En pausa: no está en modo Realtime",
           "not_configured": "Solo supervisión",
           "telemetry_stale": "En pausa: sin datos recientes",
+          "soc_calibration": "En pausa: calibrando el SOC",
           "handover_failed": "En pausa: no se pudo tomar el control",
           "unknown_model": "Solo supervisión: modelo desconocido"
         }

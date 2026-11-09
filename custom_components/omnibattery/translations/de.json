@@ -1991,6 +1991,7 @@
           "realtime_mode_required": "Pausiert: nicht im Realtime-Modus",
           "not_configured": "Nur Überwachung",
           "telemetry_stale": "Pausiert: keine aktuellen Daten",
+          "soc_calibration": "Pausiert: SOC-Kalibrierung",
           "handover_failed": "Pausiert: Übernahme fehlgeschlagen",
           "unknown_model": "Nur Überwachung: unbekanntes Modell"
         }

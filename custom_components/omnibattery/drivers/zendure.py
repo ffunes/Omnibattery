@@ -159,6 +159,9 @@ _PROP_TO_KEY: dict[str, str] = {
     # Status LED ring on/off (0/1). The API spec marks it read-only, but the
     # device accepts a write and persists it — exposed as a switch.
     "lampSwitch":       "lamp_switch",
+    # 1 = SOC calibration running (zenSDK): the device ignores setpoints and
+    # charges itself. Control-only key, no entity (#799).
+    "socStatus":        "soc_status",
 }
 
 # Reverse map for write_control: logical key → API property name.
@@ -299,6 +302,10 @@ SENSOR_DEFINITIONS: list[dict] = [
     {"key": "wifi_signal_strength", "name": "WiFi Signal Strength",     "unit": "dBm",
      "device_class": "signal_strength", "state_class": "measurement",   "scale": 1, "precision": 0,
      "category": "diagnostic",      "scan_interval": "low",             "enabled_by_default": True},
+    # Shared with Indevolt: the panel card shows a chip while not "active" (#799).
+    {"key": "control_status",       "name": "Control Status",           "data_type": "char",
+     "icon": "mdi:remote",          "category": "diagnostic",           "scan_interval": "high",
+     "enabled_by_default": True},
 ]
 
 NUMBER_DEFINITIONS: list[dict] = [
@@ -556,7 +563,7 @@ class ZendureLocalDriver(BatteryDriver):
             snapshot = {
                 k: v for k, v in snapshot.items()
                 if k in keys
-                or k in ("max_charge_power", "battery_total_energy", DELIVERED_AC_POWER_KEY)
+                or k in ("max_charge_power", "battery_total_energy", DELIVERED_AC_POWER_KEY, "soc_status")
                 or _PACK_KEY_RE.match(k)
             }
 
@@ -574,6 +581,10 @@ class ZendureLocalDriver(BatteryDriver):
         for prop, key in _PROP_TO_KEY.items():
             if prop in props:
                 snapshot[key] = props[prop]
+
+        snapshot["control_status"] = (
+            "soc_calibration" if props.get("socStatus") == 1 else "active"
+        )
 
         # socSet/minSoc arrive in deci-percent; expose as whole percent.
         for key in _DECIPERCENT_KEYS:

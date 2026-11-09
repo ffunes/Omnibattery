@@ -1991,6 +1991,7 @@
           "realtime_mode_required": "En pause : pas en mode Realtime",
           "not_configured": "Surveillance seule",
           "telemetry_stale": "En pause : pas de données récentes",
+          "soc_calibration": "En pause : calibrage du SOC",
           "handover_failed": "En pause : prise de contrôle échouée",
           "unknown_model": "Surveillance seule : modèle inconnu"
         }
