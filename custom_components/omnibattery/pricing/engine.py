@@ -4822,6 +4822,14 @@ class PricingManager:
         every evaluation, so it re-arms only after another material move.
         ``None`` reference (before the first evaluation of the day) never
         triggers, and an unavailable sensor never triggers either.
+
+        Both readings are capped at the live remaining forecast before they are
+        compared, because the plan never claims more than that. An overnight
+        session draining from 39 to 29 kWh against 8 kWh of sun changes
+        nothing and must not spend the daily cap. A move that lowers the capped
+        claim hands solar back to the battery and is exempt from the cap: the
+        caller moves the reference when it fires, so each exempt run needs a
+        further real drop and the count stays bounded by the forecast.
         """
         controller = self._controller
         ref = getattr(controller, "_dp_last_eval_excluded_claim_kwh", None)
@@ -4830,24 +4838,38 @@ class PricingManager:
         if now.hour >= 23:
             # The 00:05 evaluation is close enough; don't clash with it.
             return False
-        # Both sides are the raw device reading. Comparing a raw reading against
-        # the capped claim the plan applied would re-fire on every cycle
-        # whenever the device asks for more than the forecast can deliver.
-        current = self._read_excluded_demand_claim_kwh()
-        if current is None:
-            return False
-        if abs(current - ref) < EXCLUDED_DEMAND_REEVAL_KWH:
-            return False
-        if getattr(controller, "_dp_excluded_demand_reeval_count", 0) >= EXCLUDED_DEMAND_REEVAL_MAX_PER_DAY:
-            return False
         last_at = getattr(controller, "_dp_excluded_demand_reeval_at", None)
         if last_at is not None and (now - last_at) < timedelta(
             minutes=EXCLUDED_DEMAND_REEVAL_COOLDOWN_MIN
         ):
             return False
+        current = self._read_excluded_demand_claim_kwh()
+        if current is None:
+            return False
+        # Capping never widens the gap, so a raw move below the threshold is
+        # settled here without reading the forecast.
+        if abs(current - ref) < EXCLUDED_DEMAND_REEVAL_KWH:
+            return False
+        cap_spent = (
+            getattr(controller, "_dp_excluded_demand_reeval_count", 0)
+            >= EXCLUDED_DEMAND_REEVAL_MAX_PER_DAY
+        )
+        if cap_spent and current > ref:
+            return False
         # Live remaining forecast, not the stored daily figure: once the sun is
-        # down there is nothing left to reserve or release.
-        if self._remaining_solar_today_kwh(now) <= 0.0:
+        # down there is nothing left to reserve or release. Read without
+        # touching the controller's forecast diagnostics: this is a predicate.
+        solar_input = self._read_remaining_solar_input(
+            now=now, update_controller=False
+        )
+        remaining_solar_kwh = solar_input.remaining_kwh if solar_input else 0.0
+        if remaining_solar_kwh <= 0.0:
+            return False
+        capped_current = min(current, remaining_solar_kwh)
+        capped_ref = min(ref, remaining_solar_kwh)
+        if abs(capped_current - capped_ref) < EXCLUDED_DEMAND_REEVAL_KWH:
+            return False
+        if cap_spent and capped_current >= capped_ref:
             return False
         return True
 
@@ -5041,8 +5063,9 @@ class PricingManager:
         Called from the paths that rebuild the plan on top of a claim, so a
         re-evaluation that already accounts for the current claim does not
         immediately trigger another one. The other ``_last_decision_data``
-        assignments leave the reference alone; the cooldown and the daily cap
-        bound what a stale reference can cost.
+        assignments leave the reference alone. The trigger also moves it when
+        it fires, so a rebuild that fails before reaching this call cannot make
+        the same move fire again.
 
         An unavailable sensor keeps the previous reference instead of dropping
         it to zero: ``_is_excluded_demand_reeval`` already refuses to fire while
@@ -6265,6 +6288,12 @@ class PricingManager:
             self._controller._dp_excluded_demand_reeval_count = (
                 getattr(self._controller, "_dp_excluded_demand_reeval_count", 0) + 1
             )
+            # Moved here as well as after the rebuild: an evaluation that fails
+            # before it refreshes the reference must not re-fire on the same
+            # move, since a release is exempt from the daily cap.
+            claim_kwh = self._read_excluded_demand_claim_kwh()
+            if claim_kwh is not None:
+                self._controller._dp_last_eval_excluded_claim_kwh = claim_kwh
             _LOGGER.info(
                 "Dynamic pricing: excluded-device solar claim changed — re-evaluating"
             )
