@@ -3751,8 +3751,12 @@ class PricingManager:
                     continue
                 if configured.get("enabled", True) is False:
                     continue
+                # A window with no days selected never opens: the controller
+                # (``_active_charging_slot``) and the consumption profile read
+                # it that way. Treating it as every day booked charge in a
+                # window that would never run.
                 days = configured.get("days", []) or []
-                if days and day_name not in days:
+                if day_name not in days:
                     continue
                 try:
                     # HA's TimeSelector stores "HH:MM:SS"; fromisoformat takes

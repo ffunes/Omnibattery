@@ -1088,3 +1088,19 @@ def test_a_deficit_after_the_last_price_is_awaiting_prices_not_cheaper():
     assert plan.reason == "awaiting_prices"
     assert plan.awaiting_prices_kwh == pytest.approx(plan.cheaper_to_import_kwh)
     assert plan.awaiting_prices_kwh > 0
+
+
+def test_a_window_with_no_days_selected_is_never_planned():
+    """P12: the controller never opens a window with no days selected, so the
+    planner must not book charge in it either (it read it as every day)."""
+    now = BASE + timedelta(minutes=30)
+    controller = SimpleNamespace(
+        charging_time_slots=[
+            {"start_time": "02:00", "end_time": "04:00", "days": []},
+            {"start_time": "10:00", "end_time": "11:00", "days": ["tue"]},
+        ]
+    )
+
+    slots = PricingManager(SimpleNamespace(), controller)._time_slot_price_slots(now)
+
+    assert [(slot.start.hour, slot.end.hour) for slot in slots] == [(10, 11)]
