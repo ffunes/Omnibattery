@@ -147,12 +147,14 @@ def _tonight_kwh(plan):
 def test_horizon_unchanged_without_tomorrow_prices():
     manager = _manager(_solar(5.0))
     assert manager.planning_horizon_end(NOW, _tonight(0.10)) == MIDNIGHT
+    assert manager.planning_horizon_reason == "no_tomorrow_prices"
 
 
 def test_horizon_unchanged_without_tomorrow_solar_periods():
     manager = _manager(None)
     slots = _tonight(0.10) + _tomorrow({})
     assert manager.planning_horizon_end(NOW, slots) == MIDNIGHT
+    assert manager.planning_horizon_reason == "no_tomorrow_solar_periods"
 
 
 def test_horizon_unchanged_when_periods_do_not_reach_tomorrow():
@@ -167,6 +169,7 @@ def test_horizon_unchanged_without_a_learned_consumption_profile():
     manager._profile_remaining_consumption = lambda *_a: None
     slots = _tonight(0.10) + _tomorrow({})
     assert manager.planning_horizon_end(NOW, slots) == MIDNIGHT
+    assert manager.planning_horizon_reason == "no_consumption_profile"
 
 
 def test_horizon_unchanged_when_the_solar_profile_mode_is_off():
@@ -174,12 +177,14 @@ def test_horizon_unchanged_when_the_solar_profile_mode_is_off():
     manager._controller.solar_profile_mode = "off"
     slots = _tonight(0.10) + _tomorrow({})
     assert manager.planning_horizon_end(NOW, slots) == MIDNIGHT
+    assert manager.planning_horizon_reason == "solar_profile_off"
 
 
 def test_horizon_extends_to_the_end_of_the_price_data():
     manager = _manager(_solar(5.0))
     slots = _tonight(0.10) + _tomorrow({})[:18]
     assert manager.planning_horizon_end(NOW, slots) == datetime(2026, 11, 6, 18, 0)
+    assert manager.planning_horizon_reason == "extended"
 
 
 def test_horizon_is_bounded_to_the_sunrise_after_tomorrow():

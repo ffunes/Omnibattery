@@ -29,6 +29,7 @@ _LOGGER = logging.getLogger(__name__)
 ForecastSource = Literal["remaining", "today"]
 _FORECAST_EPSILON_KWH = 1e-9
 ENERGY_FORECAST_REFRESH_S = 1800.0
+ENERGY_FORECAST_RETRY_S = 60.0
 
 
 @dataclass(frozen=True)
@@ -395,10 +396,16 @@ def _energy_dashboard_periods(
         and (task is None or task.done())
     ):
         async def _refresh() -> None:
-            wh_hours = await async_fetch_energy_solar_forecast(hass, sensor)
-            controller._energy_solar_forecast = (
-                sensor, monotonic(), periods_from_wh_hours(wh_hours)
+            periods = periods_from_wh_hours(
+                await async_fetch_energy_solar_forecast(hass, sensor)
             )
+            if not periods and cached and cache[2]:
+                # A transient empty fetch must not wipe good periods for the
+                # whole refresh interval (#817): keep them, retry sooner.
+                retry_at = monotonic() - ENERGY_FORECAST_REFRESH_S + ENERGY_FORECAST_RETRY_S
+                controller._energy_solar_forecast = (sensor, retry_at, cache[2])
+                return
+            controller._energy_solar_forecast = (sensor, monotonic(), periods)
 
         controller._energy_solar_fetch_task = create_task(_refresh())
     return cache[2] if cached else ()

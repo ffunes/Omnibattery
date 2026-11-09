@@ -700,6 +700,7 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
                     else None
                 ),
                 "overnight_consumption_kwh": decision.get("overnight_consumption_kwh"),
+                "planning_horizon_reason": decision.get("planning_horizon_reason"),
                 "chronological_planning_active": chronological_active,
                 "chronological_source": _chronological_value("chronological_source"),
                 "solar_timeline_source": _chronological_value(

@@ -1,9 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [1.6.1] - Unreleased
 
 ### Fixed
 
+- **Dynamic Pricing: tomorrow's planning horizon no longer drops for 30 min after a failed forecast fetch** (#817): an empty answer from the Energy dashboard solar forecast kept the previous periods and is retried after a minute, instead of collapsing the plan to the next sunrise. The new `planning_horizon_reason` attribute on the predictive charging sensor says why the horizon did or did not extend past the sunrise. Thanks to @Sjoedzj.
 - **Time Slot / Real-Time Price: a window running through midnight now covers the night after it**: both modes plan only until midnight, but a window such as 22:00-07:00 never started again, so the 22:00 decision ("nothing needed until midnight") stayed in force and the battery could reach sunrise empty. From 00:05 the window, or a cheap Real-Time run still charging, is re-evaluated for the new day.
 
 ## [1.6.0] - 2026-11-09
