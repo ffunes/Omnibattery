@@ -163,3 +163,33 @@ def test_indexed_overlap_sum_equals_a_full_scan_for_a_long_mixed_forecast():
             _reference_energy_between(forecast, cursor, end)
         )
         cursor = end
+
+
+def test_progress_remap_is_cached_per_day_content():
+    day = date(2026, 11, 9)
+    energy = [_curve(i) for i in range(96)]
+    coverage = [900.0 if value > 0 else 0.0 for value in energy]
+    record = sp.SolarProfileDay(
+        day,
+        energy,
+        coverage,
+        [0] * 96,
+        datetime(2026, 11, 9, 7, 41, tzinfo=TZ),
+        datetime(2026, 11, 9, 16, 37, tzinfo=TZ),
+        None,
+        True,
+    )
+    first = sp.remap_day_to_progress(record)
+    first[0][40] = 99.0  # a caller's change must not reach the cache
+    assert sp.remap_day_to_progress(record) == _reference_progress_day(record)
+    # new evidence for the day is a new key, not a stale hit
+    record.energy_kwh[40] += 0.5
+    assert sp.remap_day_to_progress(record) == _reference_progress_day(record)
+    # the same instants in another zone split into other local quarters
+    utc = sp.SolarProfileDay(
+        day, energy, coverage, [0] * 96,
+        record.solar_start.astimezone(ZoneInfo("UTC")),
+        record.solar_end.astimezone(ZoneInfo("UTC")),
+        None, True,
+    )
+    assert sp.remap_day_to_progress(utc) == _reference_progress_day(utc)
