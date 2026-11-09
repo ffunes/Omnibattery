@@ -3775,6 +3775,27 @@ class PricingManager:
         return sorted(set(result), key=lambda slot: (slot.start, slot.end))
 
     @staticmethod
+    def _record_deferred_grid_charge(
+        decision_data: dict[str, Any],
+        full_plan: ChronologicalPlan | None,
+        plan: ChronologicalPlan | None,
+    ) -> None:
+        """Publish the energy the extended plan put in tomorrow's slots.
+
+        The planned total spans the extended horizon while the overview lists
+        only the executable slots; this is the difference, so they add up.
+        """
+        def total(item: ChronologicalPlan | None) -> float:
+            return sum(
+                allocation.planned_battery_kwh
+                for allocation in (getattr(item, "allocations", None) or [])
+            )
+
+        decision_data["deferred_grid_charge_kwh"] = max(
+            0.0, total(full_plan) - total(plan)
+        )
+
+    @staticmethod
     def _plan_within(
         plan: ChronologicalPlan | None, slots: Sequence[PriceSlot]
     ) -> ChronologicalPlan | None:
@@ -4188,12 +4209,8 @@ class PricingManager:
             if planning_end:
                 full_plan = chronological_plan
                 chronological_plan = self._plan_within(full_plan, slots)
-                # The planned total spans the extended horizon; report the part
-                # that sits in tomorrow's slots so the listed slots add up.
-                decision_data["deferred_grid_charge_kwh"] = max(
-                    0.0,
-                    sum(a.planned_battery_kwh for a in getattr(full_plan, "allocations", None) or [])
-                    - sum(a.planned_battery_kwh for a in getattr(chronological_plan, "allocations", None) or []),
+                self._record_deferred_grid_charge(
+                    decision_data, full_plan, chronological_plan
                 )
                 # All the energy sits in tomorrow's slots: nothing to charge
                 # now, and the notification must not call that "no slots".
@@ -4436,8 +4453,10 @@ class PricingManager:
                         planning_end=planning_end,
                     )
                     if planning_end:
-                        chronological_plan = self._plan_within(
-                            chronological_plan, slots
+                        full_plan = chronological_plan
+                        chronological_plan = self._plan_within(full_plan, slots)
+                        self._record_deferred_grid_charge(
+                            decision_data, full_plan, chronological_plan
                         )
                     if chronological_plan is not None:
                         deficit_selected = [

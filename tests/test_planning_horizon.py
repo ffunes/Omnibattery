@@ -287,6 +287,16 @@ def test_plan_within_drops_allocations_outside_the_control_slots():
     assert len(plan.allocations) > len(trimmed.allocations)
     assert manager._plan_within(plan, slots) is plan
 
+    decision: dict = {}
+    manager._record_deferred_grid_charge(decision, plan, trimmed)
+    in_tomorrow = sum(
+        a.planned_battery_kwh for a in plan.allocations if a.slot.start >= MIDNIGHT
+    )
+    assert in_tomorrow > 0
+    assert decision["deferred_grid_charge_kwh"] == pytest.approx(in_tomorrow)
+    manager._record_deferred_grid_charge(decision, plan, plan)
+    assert decision["deferred_grid_charge_kwh"] == 0.0
+
 
 def test_notification_names_energy_deferred_to_tomorrow():
     from custom_components.omnibattery.pricing import notifications
