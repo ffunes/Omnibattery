@@ -1186,6 +1186,7 @@ class ChargeDischargeController:
         self._current_price_slot_active = False
         self._dp_eval_retry_count = 0  # Retry counter if tomorrow prices not available at 23:00
         self._dp_eval_retry_at = None  # When the deferred daily evaluation was last tried
+        self._predictive_dispatch_errors = 0  # Consecutive failed predictive steps
         self._dp_pre_evaluated_slots: dict = {}  # slot.start (datetime) → should_charge (bool)
         self._dp_pre_evaluated_purposes: dict = {}  # slot.start → effective typed purpose
         self._dp_completed_slots: set = set()  # slot.start values completed in this plan
@@ -6549,6 +6550,25 @@ class ChargeDischargeController:
             self._capacity_protection_active = False
             status.update({"active": False, "action": "idle"})
 
+    def _handle_predictive_dispatch_error(self) -> None:
+        """Log a failed predictive step and leave the batteries to PD control."""
+        errors = getattr(self, "_predictive_dispatch_errors", 0) + 1
+        self._predictive_dispatch_errors = errors
+        if errors == 1:
+            _LOGGER.exception(
+                "Predictive charging failed; releasing the slot to normal control"
+            )
+        else:
+            _LOGGER.debug(
+                "Predictive charging failed again (%d in a row)", errors, exc_info=True
+            )
+        try:
+            self._clear_predictive_runtime("predictive_error")
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Clearing predictive runtime failed", exc_info=True)
+            self.grid_charging_active = False
+            self._grid_charging_initialized = False
+
     def _clear_predictive_runtime(self, reason: str) -> None:
         """Release all live predictive ownership without unloading the entry.
 
@@ -9934,23 +9954,30 @@ class ChargeDischargeController:
 
         # === Predictive Grid Charging Logic (mode dispatch) ===
         if self.predictive_charging_enabled:
-            if self.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
-                await self._handle_dynamic_pricing_predictive_charging()
-                # Dynamic pricing falls through to normal PD control when not in a slot;
-                # it only returns early when actively charging.
-                if self.grid_charging_active:
-                    return
-            elif self.predictive_charging_mode == PREDICTIVE_MODE_REALTIME_PRICE:
-                await self._handle_realtime_price_predictive_charging()
-                if self.grid_charging_active:
-                    return
+            try:
+                if self.predictive_charging_mode == PREDICTIVE_MODE_DYNAMIC_PRICING:
+                    await self._handle_dynamic_pricing_predictive_charging()
+                    # Dynamic pricing falls through to normal PD control when not in a slot;
+                    # it only returns early when actively charging.
+                elif self.predictive_charging_mode == PREDICTIVE_MODE_REALTIME_PRICE:
+                    await self._handle_realtime_price_predictive_charging()
+                else:
+                    # Default: time slot mode. Its handler always returns early
+                    # from its own logic, so we only reach here when outside the
+                    # slot (normal PD control).
+                    await self._handle_time_slot_predictive_charging()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - control must survive a planner bug
+                # An error here used to abort the whole cycle, blockers
+                # included, so an active slot left the batteries on their last
+                # charge command with nothing regulating it. Release the slot
+                # and fall through to the blockers and normal PD control.
+                self._handle_predictive_dispatch_error()
             else:
-                # Default: time slot mode
-                await self._handle_time_slot_predictive_charging()
-                # Time slot handler always returns early from its own logic,
-                # so we only reach here when outside the slot (normal PD control).
-                if self.grid_charging_active:
-                    return
+                self._predictive_dispatch_errors = 0
+            if self.grid_charging_active:
+                return
 
         # === Operation blockers: enforce BEFORE deadband / stale early-returns ===
         # Without this guard the deadband and stale-sensor paths could keep a
