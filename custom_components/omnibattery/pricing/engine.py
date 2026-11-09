@@ -97,6 +97,7 @@ from . import (
     calculations,
     notifications,
 )
+from .calculations import normalize_price_slots
 from .chronological import (
     ENERGY_TOLERANCE_KWH,
     ChronologicalEvaluationRequest,
@@ -1294,8 +1295,14 @@ class PricingManager:
         """Return every parsed slot of the configured price source.
 
         The second item is the price-data status to report when the list is
-        empty. Nothing is filtered by time and no status is stored.
+        empty. Nothing is filtered by time and no status is stored. Slots are
+        normalized for DST nights (see ``normalize_price_slots``).
         """
+        raw_slots, failure = self._raw_price_slots_unnormalized(quiet=quiet)
+        return normalize_price_slots(raw_slots), failure
+
+    def _raw_price_slots_unnormalized(self, *, quiet=False) -> tuple[list, str]:
+        """Every parsed slot of the configured source, as the parsers return it."""
         _warn = _LOGGER.debug if quiet else _LOGGER.warning
         official_nordpool = self._official_nordpool_source()
         if official_nordpool is not None:
