@@ -12346,7 +12346,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
                     "Dynamic pricing: daily evaluation skipped while predictive charging is disabled"
                 )
                 return
-            await controller._pricing_mgr._evaluate_dynamic_pricing(
+            await controller._pricing_mgr.evaluate_dynamic_pricing_now(
                 horizon=DynamicPricingEvaluationHorizon.DAILY,
             )
 

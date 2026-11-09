@@ -680,7 +680,7 @@ class PredictiveChargingSwitch(SwitchEntity):
     async def _async_rebuild_dynamic_schedule(self) -> None:
         """Rebuild the remaining calendar after a live master-switch enable."""
         try:
-            await self.controller._pricing_mgr._evaluate_dynamic_pricing(
+            await self.controller._pricing_mgr.evaluate_dynamic_pricing_now(
                 horizon=DynamicPricingEvaluationHorizon.REMAINING,
                 extended_horizon=True,
             )
@@ -2378,7 +2378,7 @@ class SmartPredischargeSwitch(SwitchEntity):
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         _LOGGER.info("Smart pre-discharge ENABLED")
         try:
-            await self.controller._pricing_mgr._evaluate_dynamic_pricing(
+            await self.controller._pricing_mgr.evaluate_dynamic_pricing_now(
                 horizon=DynamicPricingEvaluationHorizon.REMAINING,
                 extended_horizon=True,
             )
@@ -2432,7 +2432,7 @@ class NegativePriceChargingSwitch(SwitchEntity):
         new_data[CONF_NEGATIVE_PRICE_CHARGING_ENABLED] = True
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         try:
-            await self.controller._pricing_mgr._evaluate_dynamic_pricing(
+            await self.controller._pricing_mgr.evaluate_dynamic_pricing_now(
                 horizon=DynamicPricingEvaluationHorizon.REMAINING,
                 extended_horizon=True
             )

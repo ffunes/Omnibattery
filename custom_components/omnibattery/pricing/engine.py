@@ -618,7 +618,7 @@ class PricingManager:
             "(restarted at %s, schedule not yet built for %s)",
             now.strftime("%H:%M"), now.date()
         )
-        await self._evaluate_dynamic_pricing(
+        await self.evaluate_dynamic_pricing_now(
             horizon=DynamicPricingEvaluationHorizon.REMAINING,
             extended_horizon=True,
         )
@@ -3861,7 +3861,54 @@ class PricingManager:
                 decision_data=decision_data
             )
 
+    async def evaluate_dynamic_pricing_now(
+        self,
+        *,
+        horizon: DynamicPricingEvaluationHorizon,
+        extended_horizon: bool = False,
+    ) -> None:
+        """Rebuild the calendar from outside the control cycle.
+
+        The 00:05 timer, the startup task, the re-evaluate button and the
+        feature switches used to call the evaluation without the control lock,
+        so it could interleave with a control cycle reading the schedule it
+        was replacing. Take the control lock first; a cycle that finds it held
+        skips, as it does for any other locked operation.
+        """
+        lock = getattr(self._controller, "_control_lock", None)
+        if lock is None:
+            await self._evaluate_dynamic_pricing(
+                horizon=horizon, extended_horizon=extended_horizon
+            )
+            return
+        async with lock:
+            await self._evaluate_dynamic_pricing(
+                horizon=horizon, extended_horizon=extended_horizon
+            )
+
     async def _evaluate_dynamic_pricing(
+        self,
+        *,
+        horizon: DynamicPricingEvaluationHorizon,
+        extended_horizon: bool = False,
+    ) -> None:
+        """Serialize evaluations: one awaits the previous one's end.
+
+        An evaluation awaits service refreshes, recorder reads and
+        notifications, so a second one (e.g. a SOC-drop retry inside the cycle
+        while a switch-triggered one runs) could interleave with it and the
+        last writer won the schedule. Never hold this lock while waiting for
+        the control lock.
+        """
+        lock = self.__dict__.get("_dp_eval_lock")
+        if lock is None:
+            lock = self.__dict__["_dp_eval_lock"] = asyncio.Lock()
+        async with lock:
+            await self._evaluate_dynamic_pricing_unlocked(
+                horizon=horizon, extended_horizon=extended_horizon
+            )
+
+    async def _evaluate_dynamic_pricing_unlocked(
         self,
         *,
         horizon: DynamicPricingEvaluationHorizon,

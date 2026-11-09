@@ -927,7 +927,7 @@ def test_runtime_switch_persists_enable_and_disable_with_safe_cleanup():
     calls: list = []
 
     class _Pricing:
-        async def _evaluate_dynamic_pricing(self, *, horizon, extended_horizon=False):
+        async def evaluate_dynamic_pricing_now(self, *, horizon, extended_horizon=False):
             calls.append(("evaluate", horizon, extended_horizon))
 
         async def _stop_dynamic_price_slot(self, reason):
@@ -973,7 +973,7 @@ def test_smart_predischarge_switch_rebuilds_remaining_horizon():
     calls: list = []
 
     class PricingStub:
-        async def _evaluate_dynamic_pricing(self, *, horizon, extended_horizon=False):
+        async def evaluate_dynamic_pricing_now(self, *, horizon, extended_horizon=False):
             calls.append(("evaluate", horizon, extended_horizon))
 
         def clear_curtailment_runtime(self, reason):
