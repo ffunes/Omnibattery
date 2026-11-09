@@ -57,7 +57,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)
 # The device's small web server closes idle keep-alive connections and now and
-# then rejects a request with 431. Both pass on a second try, so one immediate
+# then rejects a request with 431. Both pass on a second try, so one
 # retry keeps a single dropped request from marking the battery unavailable.
 # The retry waits a moment first: one sent right after a drop (33 ms) can find
 # the server still resetting and fail the same way.
