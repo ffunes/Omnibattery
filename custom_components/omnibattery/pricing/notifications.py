@@ -349,6 +349,13 @@ def _no_slots_explanation(
             "Charging needed but the available charge power is zero",
             "Check the max charge power, contracted power and peak shaving limit.",
         )
+    if reason == "ok":
+        return (
+            "Charging needed later, but nothing can be stored now",
+            "The battery has no room for the energy before it is used, so no "
+            "slot is booked. The plan is rebuilt as the battery drains and at "
+            "the next daily evaluation.",
+        )
     if reason == "no_eligible_slots":
         return (
             "Charging needed but no price slots remain in the planning horizon",

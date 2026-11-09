@@ -638,7 +638,14 @@ def allocate_price_slots(
             deadline.required_cumulative_kwh,
         )
     if required_from_deadlines:
-        required = min(headroom, max(required, sum(segment_required.values())))
+        # The extended horizon spans a night: the battery drains before the
+        # later slots, so the room *now* does not bound what they may store.
+        # A full battery would otherwise plan nothing for tomorrow's deficit.
+        # ``room_at_start()`` bounds each slot by what fits when it opens.
+        required = max(
+            _finite_non_negative(total_required_kwh),
+            sum(segment_required.values()),
+        )
     deadline_required = min(required, sum(segment_required.values()))
 
     # Energy charged ahead of a projected solar fill is clipped, not stored, so
@@ -665,6 +672,41 @@ def allocate_price_slots(
                 ),
             )
         return amount
+
+    def room_at_start(slot: PriceSlot) -> float:
+        # Room the battery has when ``slot`` opens. Only the extended horizon
+        # needs it: there the total is no longer capped at the room *now*.
+        # The house drains the battery only outside charging slots (the grid
+        # carries it while one charges), and energy already booked in an
+        # earlier slot is counted as stored.  ``room()`` alone credits the
+        # drain inside back-to-back slots and overbooks a continuous charge.
+        if not required_from_deadlines:
+            return math.inf
+        opens = max(now, slot.start)
+        windows = [
+            (max(now, item.start), item.end)
+            for item in allocations
+            if item is not slot
+        ] + [(opens, slot.end)]
+        energy = min(_finite_non_negative(usable_initial_kwh), usable_capacity)
+        for interval in intervals:
+            if interval.end > opens:
+                break
+            flow = interval.solar_kwh - interval.consumption_kwh
+            if flow < 0.0 and any(
+                start < interval.end and interval.start < end
+                for start, end in windows
+            ):
+                flow = 0.0
+            energy = max(0.0, min(usable_capacity, energy + flow))
+        energy += sum(
+            amount
+            for item, amount in allocations.items()
+            if item is not slot and item.start < opens
+        )
+        return max(
+            0.0, usable_capacity - energy - allocations.get(slot, 0.0)
+        )
 
     # The last deadline in each segment that was left to the grid: the battery
     # is empty there, so energy stored before it is gone by then.
@@ -779,7 +821,7 @@ def allocate_price_slots(
                 0.0,
                 capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
             )
-            usable = room(slot, free) if clip else free
+            usable = min(room(slot, free) if clip else free, room_at_start(slot))
             blocked += free - usable
             take = min(missing, usable)
             if take <= _EPSILON:
@@ -804,7 +846,7 @@ def allocate_price_slots(
                 0.0,
                 capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
             )
-            usable = room(slot, free) if clip else free
+            usable = min(room(slot, free) if clip else free, room_at_start(slot))
             blocked += free - usable
             take = min(missing, usable, premium_budget)
             if take <= _EPSILON:
@@ -839,7 +881,7 @@ def allocate_price_slots(
     blocked = 0.0
     for slot in sorted(candidates, key=lambda item: (item.price, item.start)):
         free = max(0.0, capacity(slot) - allocations.get(slot, 0.0))
-        usable = room(slot, free)
+        usable = min(room(slot, free), room_at_start(slot))
         blocked += free - usable
         take = min(missing_total, usable)
         if take <= _EPSILON:
@@ -851,7 +893,7 @@ def allocate_price_slots(
             break
     for slot in sorted(premium_candidates, key=lambda item: (item.price, item.start)):
         free = max(0.0, capacity(slot) - allocations.get(slot, 0.0))
-        usable = room(slot, free)
+        usable = min(room(slot, free), room_at_start(slot))
         blocked += free - usable
         take = min(missing_total, usable, premium_budget)
         if take <= _EPSILON:

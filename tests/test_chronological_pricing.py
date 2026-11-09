@@ -917,3 +917,65 @@ def test_a_brief_dawn_blip_ends_the_reserve_hold():
     plan = _left_hour_plan(28, sun_at=20, reserve_holds=True)
 
     assert all(a.slot.start.hour != 0 for a in plan.allocations)
+
+
+def test_extended_horizon_plans_tomorrows_charge_while_the_battery_is_full_now():
+    """A full battery has no room now, but drains before tomorrow's deficit.
+
+    Regression: the extended (tomorrow-included) plan capped what it may
+    charge at the room *now*, so a 100% battery planned nothing and the
+    notification reported "no valid price slots" for a real deficit.
+    """
+    capacity = 7.0
+    # 12 h of 0.25 kWh per quarter (12 kWh) from a full battery: it empties
+    # after 7 kWh and needs 5 kWh more before the horizon ends.
+    intervals = [_interval(i, 0.25) for i in range(48)]
+    deadlines = build_energy_deadlines(
+        intervals, capacity, usable_capacity_kwh=capacity
+    )
+    # Cheap slot after the battery has drained (hours 8-10), dear one now.
+    cheap = _slot(8 * 60, 10 * 60, 0.05)
+    dear = _slot(0, 60, 0.40)
+
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        [dear, cheap],
+        total_required_kwh=0.0,
+        effective_power_kw=4.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=12),
+        headroom_kwh=0.0,
+        usable_initial_kwh=capacity,
+        required_from_deadlines=True,
+    )
+
+    by_slot = {a.slot: a.planned_battery_kwh for a in plan.allocations}
+    # The cheap slot fills the gap from 08:00 (2 h at 4 kW, capped by need).
+    assert by_slot[cheap] == pytest.approx(4.0, abs=0.05)
+    # The battery is full when the dear slot opens and the grid feeds the
+    # house while it charges, so nothing drains to make room: no allocation.
+    assert dear not in by_slot
+    assert plan.deadline_shortfall_kwh == pytest.approx(0.0)
+
+
+def test_control_horizon_still_caps_at_the_room_now():
+    """Without the extended horizon a full battery stays a no-charge plan."""
+    capacity = 7.0
+    intervals = [_interval(i, 0.25) for i in range(48)]
+    deadlines = build_energy_deadlines(
+        intervals, capacity, usable_capacity_kwh=capacity
+    )
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        [_slot(8 * 60, 10 * 60, 0.05)],
+        total_required_kwh=5.0,
+        effective_power_kw=4.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=12),
+        headroom_kwh=0.0,
+        usable_initial_kwh=capacity,
+    )
+    assert plan.total_required_kwh == pytest.approx(0.0)
+    assert not plan.allocations

@@ -313,6 +313,21 @@ def test_dynamic_no_slots_deadline_shortfall_explains_timing():
     assert "raise max price threshold" not in message
 
 
+def test_dynamic_no_slots_with_plan_ok_does_not_blame_the_price_sensor():
+    """A full battery: the planner found nothing it can store yet."""
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(
+            should_charge=True,
+            energy_deficit_kwh=14.97,
+            chronological_plan_reason="ok",
+        ),
+        None,
+        **{**_DP_CFG, "max_price_threshold": None, "discharge_price_threshold": None},
+    )
+    assert "nothing can be stored now" in message
+    assert "raise max price threshold" not in message
+
+
 def test_dynamic_no_slots_no_eligible_slots_points_at_price_feed():
     _, message = notifications.format_dynamic_pricing_notification(
         _decision(
