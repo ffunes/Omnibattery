@@ -6405,16 +6405,65 @@ class PricingManager:
             slot.start.strftime("%H:%M"),
         )
 
+    def _carry_over_held_slots(self, now: datetime) -> None:
+        """Carry the quota of booked slots a charge block held to their end.
+
+        A deficit slot that a charge blocker (Solar Charge Delay, a user
+        no-charge window, ...) holds for its whole length is never entered, so
+        the end-of-slot carry-over never ran and its energy was silently lost.
+        The planner cannot leave such slots out in advance: the delay is
+        re-decided from the live solar balance every cycle. Once a held slot
+        is over, its whole planned quota moves to later slots before its
+        deadline, or is reported as a shortfall.
+        """
+        controller = self._controller
+        held = getattr(controller, "_dp_held_slots", None)
+        if not held:
+            return
+        schedule = getattr(controller, "_dynamic_pricing_schedule", None)
+        by_start = {
+            slot.start: slot
+            for slot in (getattr(schedule, "selected_slots", None) or [])
+        }
+        completed = getattr(controller, "_dp_completed_slots", set())
+        for start in sorted(held):
+            slot = by_start.get(start)
+            if slot is None:
+                held.discard(start)  # re-planned away
+                continue
+            if now < slot.end:
+                continue
+            held.discard(start)
+            if start in completed:
+                continue
+            quota = float(
+                (getattr(schedule, "slot_energy_targets_kwh", {}) or {}).get(slot, 0.0)
+                or 0.0
+            )
+            if quota <= 0.01:
+                continue
+            _LOGGER.info(
+                "Dynamic pricing: slot %s was held by a charge block for its "
+                "whole length; carrying %.2f kWh to later slots",
+                slot.start.strftime("%H:%M"),
+                quota,
+            )
+            self._carry_over_slot_shortfall(slot, shortfall_kwh=quota)
+            completed.add(start)
+
     def _carry_over_slot_shortfall(
         self,
         active_slot: PriceSlot | None,
         *,
         incoming: PriceSlot | None = None,
+        shortfall_kwh: float | None = None,
     ) -> None:
         """Move a finished slot's undelivered quota to later slots before its deadline.
 
         ``incoming`` is the slot a running charge is handed to: it has already
-        started, but can still take the energy.
+        started, but can still take the energy. ``shortfall_kwh`` overrides
+        the shortfall read from the live per-battery targets (a slot that never
+        started has none).
         """
         controller = self._controller
         schedule = getattr(controller, "_dynamic_pricing_schedule", None)
@@ -6431,6 +6480,8 @@ class PricingManager:
                 capacity = max(0.0, float(data.get("battery_total_energy", 0.0) or 0.0))
                 current_soc = float(data.get("battery_soc", 0.0) or 0.0)
                 shortfall += max(0.0, float(target_soc) - current_soc) / 100.0 * capacity
+            if shortfall_kwh is not None:
+                shortfall = max(0.0, float(shortfall_kwh))
             deadline = schedule.slot_deadlines.get(active_slot)
             remaining = shortfall
             if remaining > 0.01:
@@ -6583,6 +6634,7 @@ class PricingManager:
 
         # Phase 0: Keep service-based provider caches fresh.
         await self._maybe_refresh_service_prices()
+        self._carry_over_held_slots(now)
 
         # Phase 2: Retry if prices (or the solar forecast) weren't available at
         # 00:05. Every 15 min in the first hour, then every 30 min all day:
@@ -6842,6 +6894,14 @@ class PricingManager:
                     _LOGGER.info(
                         "Dynamic pricing: inside cheap slot window but charge delay is active — holding"
                     )
+                    if effective_purpose in (
+                        SLOT_PURPOSE_DEFICIT,
+                        SLOT_PURPOSE_COMBINED,
+                    ):
+                        held = getattr(self._controller, "_dp_held_slots", None)
+                        if held is None:
+                            held = self._controller._dp_held_slots = set()
+                        held.add(current_slot.start)
                     # Fall through to discharge control below (do not return early)
 
                 else:
@@ -6861,6 +6921,9 @@ class PricingManager:
                         )
                     else:
                         # Entering an authorised typed slot.
+                        getattr(self._controller, "_dp_held_slots", set()).discard(
+                            current_slot.start
+                        )
                         self._controller._current_price_slot_active = True
                         self._controller._grid_charging_initialized = False
                         self._controller._active_dynamic_price_slot = current_slot
