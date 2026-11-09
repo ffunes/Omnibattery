@@ -61,6 +61,9 @@ from .infra.entity_naming import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Lowest max-power limit the options flow accepts (config_flow battery_limits).
+_SOFTWARE_POWER_CAP_MIN_W = 100
+
 
 def _effective_setpoint_max(
     coordinator: MarstekVenusDataUpdateCoordinator,
@@ -223,6 +226,22 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
                 self.coordinator, "discharge", self.definition["max"]
             )
         return self.definition["max"]
+
+    @property
+    def native_min_value(self):
+        """Return the slider floor.
+
+        On Venus E v2/v3 the max-power registers only hold the 800/2500 W
+        hardware selector (their definition min is 800). The user limit is
+        enforced in software, so the slider allows the same 100 W floor as
+        the options flow (#815). The driver still writes 800 W on the wire.
+        """
+        if self.definition["key"] in (
+            "max_charge_power",
+            "max_discharge_power",
+        ) and getattr(self.coordinator, "needs_software_power_cap", False):
+            return _SOFTWARE_POWER_CAP_MIN_W
+        return self.definition["min"]
 
     @property
     def native_value(self):

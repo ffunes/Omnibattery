@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Venus E v2/v3 max power sliders go down to 100 W** (#815): the Max Charge Power and Max Discharge Power sliders in the dashboard and on the device page now start at 100 W, the same as the battery limits in the options flow, instead of 800 W. Thanks to @effevee.
+
 ## [1.6.0] - 2026-11-09
 
 ### Added

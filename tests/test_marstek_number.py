@@ -49,6 +49,23 @@ def test_non_venus_e_number_keeps_polled_register_value():
     assert entity.native_value == 2500
 
 
+@pytest.mark.parametrize("key", ["max_charge_power", "max_discharge_power"])
+def test_venus_e_max_power_slider_floor_matches_options_flow(key):
+    """#815: the 800 W register min is the hardware selector, not the user floor."""
+    entity = _number_entity(key, venus_e=True)
+    entity.definition["min"] = 800
+
+    assert entity.native_min_value == 100
+
+
+@pytest.mark.parametrize("key", ["max_charge_power", "max_discharge_power"])
+def test_other_batteries_keep_the_register_min(key):
+    entity = _number_entity(key, venus_e=False)
+    entity.definition["min"] = 800
+
+    assert entity.native_min_value == 800
+
+
 @pytest.mark.parametrize(
     ("key", "limit"),
     [
