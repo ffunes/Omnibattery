@@ -17,6 +17,7 @@ from ..const import (
     PRICE_INTEGRATION_CKW,
     PRICE_INTEGRATION_ENTSOE,
     PRICE_INTEGRATION_ENERGYZERO,
+    PRICE_INTEGRATION_BE_ELECTRICITY,
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_FRANK_ENERGIE,
     PRICE_INTEGRATION_NORDPOOL,
@@ -36,6 +37,7 @@ PRICE_LIST_ATTRS = {
     PRICE_INTEGRATION_EPEX: ("data",),
     PRICE_INTEGRATION_ENTSOE: ("prices_today", "prices_tomorrow"),
     PRICE_INTEGRATION_FRANK_ENERGIE: ("prices",),
+    PRICE_INTEGRATION_BE_ELECTRICITY: ("today", "tomorrow"),
 }
 
 
@@ -68,6 +70,8 @@ def parse_prices_for_integration(integration_type: str, attrs: dict) -> list:
         return parse_frank_energie_prices(attrs)
     if integration_type == PRICE_INTEGRATION_ENERGYZERO:
         return parse_energyzero_prices(attrs)
+    if integration_type == PRICE_INTEGRATION_BE_ELECTRICITY:
+        return parse_be_electricity_prices(attrs)
     return parse_nordpool_prices(attrs)
 
 
@@ -483,6 +487,61 @@ def parse_entsoe_prices(attrs: dict) -> list:
     if not raw:
         return []
 
+    raw.sort(key=lambda x: x[0])
+    slots = []
+    for i, (start, price) in enumerate(raw):
+        if i + 1 < len(raw):
+            end = raw[i + 1][0]
+        elif i > 0:
+            end = start + (raw[i][0] - raw[i - 1][0])
+        else:
+            end = start + _td(hours=1)
+        slots.append(PriceSlot(start=start, end=end, price=price))
+    return slots
+
+
+def parse_be_electricity_prices(attrs: dict) -> list:
+    """Parse BE Electricity Prices (renaudallard/homeassistant_be_electricity_prices).
+
+    Its ``current_price`` sensor carries every slot of today and tomorrow, at
+    the grid the contract settles on (hourly or quarter-hourly), for every kind
+    of contract including time-of-use ones such as ENGIE Empower Flextime:
+        today / tomorrow:
+            [{"start": "2026-10-30T00:00:00+01:00", "energy": ..., "network": ...,
+              "taxes": ..., "all_in": 0.2913}, ...]
+    The all-in figure is what a household pays, so it is the one used. The
+    ``injection_price`` sensor exposes the same arrays with an ``injection``
+    key, so pointing the export curve at it works too. Each slot ends where the
+    next one starts; the last inherits the previous length (60 min if alone).
+    ``tomorrow`` is empty until the supplier's card covers it.
+    Returns list[PriceSlot] in local naive time, in chronological order.
+    """
+    from homeassistant.util import dt as dt_util
+    from datetime import datetime as _dt, timedelta as _td
+
+    raw = []
+    for key in ("today", "tomorrow"):
+        entries = attrs.get(key) or []
+        if isinstance(entries, str):
+            continue
+        for entry in entries:
+            try:
+                start = entry.get("start")
+                price_val = entry.get("all_in")
+                if price_val is None:
+                    price_val = entry.get("price", entry.get("injection"))
+                if start is None or price_val is None:
+                    continue
+                if isinstance(start, str):
+                    start = _dt.fromisoformat(start)
+                if getattr(start, "tzinfo", None) is not None:
+                    start = dt_util.as_local(start).replace(tzinfo=None)
+                raw.append((start, float(price_val)))
+            except Exception as exc:
+                _LOGGER.debug("Dynamic pricing: failed to parse BE electricity entry %s: %s", entry, exc)
+
+    if not raw:
+        return []
     raw.sort(key=lambda x: x[0])
     slots = []
     for i, (start, price) in enumerate(raw):

@@ -37,6 +37,7 @@ from ..const import (
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_ENTSOE,
     PRICE_INTEGRATION_ENERGYZERO,
+    PRICE_INTEGRATION_BE_ELECTRICITY,
     PRICE_INTEGRATION_TIBBER,
     PRICE_INTEGRATION_ZONNEPLAN,
     ZONNEPLAN_EXPORT_BONUS_RATE,
@@ -662,6 +663,12 @@ class PricingManager:
         if self._controller.price_integration_type == PRICE_INTEGRATION_ENTSOE:
             now = datetime.now()
             for slot in calculations.parse_entsoe_prices(price_state.attributes):
+                if slot.start <= now < slot.end:
+                    return slot.price
+
+        if self._controller.price_integration_type == PRICE_INTEGRATION_BE_ELECTRICITY:
+            now = datetime.now()
+            for slot in calculations.parse_be_electricity_prices(price_state.attributes):
                 if slot.start <= now < slot.end:
                     return slot.price
 
