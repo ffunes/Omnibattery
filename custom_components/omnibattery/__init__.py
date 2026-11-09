@@ -1185,6 +1185,7 @@ class ChargeDischargeController:
         self._dynamic_pricing_evaluated_date = None
         self._current_price_slot_active = False
         self._dp_eval_retry_count = 0  # Retry counter if tomorrow prices not available at 23:00
+        self._dp_eval_retry_at = None  # When the deferred daily evaluation was last tried
         self._dp_pre_evaluated_slots: dict = {}  # slot.start (datetime) → should_charge (bool)
         self._dp_pre_evaluated_purposes: dict = {}  # slot.start → effective typed purpose
         self._dp_completed_slots: set = set()  # slot.start values completed in this plan

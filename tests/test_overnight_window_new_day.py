@@ -304,3 +304,31 @@ def test_slot_entry_grace_still_skips_the_cycle(monkeypatch):
 
     assert calls == []
     assert handled == []
+
+
+# ---------------------------------------------------------------------------
+# A decision made between 00:00 and 00:05 belongs to the previous day
+# ---------------------------------------------------------------------------
+
+def test_decision_day_before_0005_is_the_previous_day():
+    assert PricingManager._decision_day(datetime(2026, 11, 10, 0, 3)) == DAY
+    assert PricingManager._decision_day(datetime(2026, 11, 10, 0, 5)) == date(
+        2026, 11, 10
+    )
+
+
+def test_re_evaluation_at_0003_does_not_suppress_the_0005_one():
+    """A SOC-drop re-evaluation at 00:03 stamped today, so 00:05 never ran."""
+    clock = {"now": datetime(2026, 11, 10, 0, 3)}
+    engine, controller, calls = _time_slot_engine(clock["now"])
+    engine._now = lambda: clock["now"]
+    controller.last_evaluation_soc = 80.0  # 40% now: SOC-drop trigger
+
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+    assert len(calls) == 1
+    assert controller._time_slot_eval_date == DAY
+
+    clock["now"] = datetime(2026, 11, 10, 0, 5)
+    asyncio.run(engine.handle_time_slot_predictive_charging())
+    assert len(calls) == 2
+    assert controller._time_slot_eval_date == date(2026, 11, 10)

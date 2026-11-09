@@ -484,6 +484,18 @@ class PricingManager:
         return max(0.0, grace)
 
     @staticmethod
+    def _decision_day(now: datetime):
+        """The day a midnight-horizon decision made at ``now`` belongs to.
+
+        A decision made between 00:00 and 00:05 still reads the previous
+        day's settling forecast, so it is stamped with that day: the 00:05
+        new-day re-evaluation then still runs.
+        """
+        if now.time() < dt_time(0, 5):
+            return (now - timedelta(days=1)).date()
+        return now.date()
+
+    @staticmethod
     def _is_new_day_since(
         eval_date: Any,
         now: datetime,
@@ -3917,6 +3929,7 @@ class PricingManager:
             # day: that zero is a planning input, not a measurement.
             if reading is not None and reading <= 0.0:
                 self._controller._dp_eval_retry_count += 1
+                self._controller._dp_eval_retry_at = now
                 _LOGGER.warning(
                     "Dynamic pricing: solar forecast still reads zero at %s (attempt %d/%d)",
                     now.strftime("%H:%M"),
@@ -4037,12 +4050,18 @@ class PricingManager:
                 await self._send_dynamic_pricing_notification(decision_data=decision_data, schedule=None)
                 return
             # A deficit or pending opportunistic target needs prices: retry.
+            # The control loop retries every 15 min in the first hour, then
+            # every 30 min for the rest of the day (a provider can publish
+            # well after 01:00).
             self._controller._dp_eval_retry_count += 1
-            _LOGGER.warning(
-                "Dynamic pricing: no price data available at 00:05 (retry %d/4)",
-                self._controller._dp_eval_retry_count
+            self._controller._dp_eval_retry_at = now
+            (_LOGGER.warning if self._controller._dp_eval_retry_count <= 4 else _LOGGER.debug)(
+                "Dynamic pricing: no price data available at %s (attempt %d); "
+                "retrying later today",
+                now.strftime("%H:%M"),
+                self._controller._dp_eval_retry_count,
             )
-            return  # Will retry up to 4 times (~30 min intervals via control loop)
+            return
 
         # Step 3: Build the two independent candidate calendars.  Deficit
         # selection keeps the established price ceiling/arbitrage behaviour.
@@ -6302,6 +6321,22 @@ class PricingManager:
             _LOGGER.debug("Surplus price hold: rebuild failed (%s): %s", reason, err)
             manager.clear("rebuild_error")
 
+    def _dp_eval_retry_due(self, now: datetime) -> bool:
+        """True when a deferred daily evaluation should be retried now."""
+        controller = self._controller
+        if (
+            controller._dynamic_pricing_evaluated_date == now.date()
+            or controller._dp_eval_retry_count <= 0
+        ):
+            return False
+        last = getattr(controller, "_dp_eval_retry_at", None)
+        if not isinstance(last, datetime) or last.date() != now.date():
+            # A count left from another day, or set by a caller that did not
+            # stamp it: retry now and restart the cadence from here.
+            return True
+        interval = timedelta(minutes=15 if now.hour == 0 else 30)
+        return now - last >= interval
+
     async def handle_dynamic_pricing_predictive_charging(self) -> None:
         """Handle predictive charging in dynamic pricing mode (called every 2.5s)."""
         now = datetime.now()
@@ -6309,22 +6344,16 @@ class PricingManager:
         # Phase 0: Keep service-based provider caches fresh.
         await self._maybe_refresh_service_prices()
 
-        # Phase 2: Retry if prices weren't available at 00:05 (e.g. sensor update delay)
-        if (
-            self._controller._dynamic_pricing_evaluated_date != now.date()
-            and self._controller._dp_eval_retry_count > 0
-            and self._controller._dp_eval_retry_count < 5
-            and now.hour == 0  # Only retry within the first hour of the day
-        ):
-            # Retry every 15 min starting from 00:05
-            retry_minute = now.minute
-            expected_retry_minute = 5 + self._controller._dp_eval_retry_count * 15
-            if abs(retry_minute - expected_retry_minute) <= 2:
-                _LOGGER.info("Dynamic pricing: retrying evaluation (attempt %d)", self._controller._dp_eval_retry_count + 1)
-                await self._evaluate_dynamic_pricing(
-                    horizon=DynamicPricingEvaluationHorizon.REMAINING,
-                )
-                return
+        # Phase 2: Retry if prices (or the solar forecast) weren't available at
+        # 00:05. Every 15 min in the first hour, then every 30 min all day:
+        # a provider publishing after 01:00 used to leave the day unplanned.
+        if self._dp_eval_retry_due(now):
+            _LOGGER.info("Dynamic pricing: retrying evaluation (attempt %d)", self._controller._dp_eval_retry_count + 1)
+            self._controller._dp_eval_retry_at = now
+            await self._evaluate_dynamic_pricing(
+                horizon=DynamicPricingEvaluationHorizon.REMAINING,
+            )
+            return
 
         # Phase 2.5: Pre-slot re-evaluation (1h before each upcoming slot)
         await self._check_dp_pre_slot_reevaluation()
@@ -6788,7 +6817,9 @@ class PricingManager:
                 # Evaluate whether charging is actually needed before starting
                 decision_data = await self._current_horizon_grid_charging_decision()
                 self._controller._last_decision_data = decision_data
-                self._controller._realtime_eval_date = self._now().date()
+                self._controller._realtime_eval_date = self._decision_day(
+                    self._now()
+                )
                 if decision_data["should_charge"]:
                     self._controller._realtime_price_charging = True
                     self._controller._grid_charging_initialized = False
@@ -7136,7 +7167,7 @@ class PricingManager:
                 was_active = self._controller.grid_charging_active
                 self._controller.grid_charging_active = decision_data["should_charge"]
                 self._controller.last_evaluation_soc = current_avg_soc
-                self._controller._time_slot_eval_date = now.date()
+                self._controller._time_slot_eval_date = self._decision_day(now)
                 self._controller._last_eval_peak_shaving_held = peak_shaving_held
                 self._controller._last_decision_data = decision_data
                 # Arms the forecast trigger on the slot's first evaluation and
