@@ -214,12 +214,12 @@ def _validate_periods(
     """Validate dated periods and their future daylight coverage."""
     if not periods:
         return False, "provider_periods_missing"
-    ordered = sorted(periods, key=lambda period: _timestamp(period.start))
+    ordered = sorted(periods, key=lambda period: period.start_ts)
     previous_end = None
     for period in ordered:
         if period.start.tzinfo is None or period.end.tzinfo is None:
             return False, "provider_timestamp_naive"
-        p_start, p_end = _timestamp(period.start), _timestamp(period.end)
+        p_start, p_end = period.start_ts, period.end_ts
         energy = _safe_non_negative(period.energy_kwh)
         if energy is None or p_end <= p_start:
             return False, "provider_period_invalid"
@@ -234,7 +234,7 @@ def _validate_periods(
     covered = 0.0
     cursor = light_start
     for period in ordered:
-        p_start, p_end = _timestamp(period.start), _timestamp(period.end)
+        p_start, p_end = period.start_ts, period.end_ts
         if p_end <= cursor:
             continue
         if p_start >= light_end:
@@ -274,14 +274,14 @@ def provider_weights(
     if not valid:
         return None, reason
     weights: list[float] = []
+    spans = [(period.start_ts, period.end_ts, period.energy_kwh) for period in periods]
     for boundary_start, boundary_end in boundaries:
         b_start, b_end = _timestamp(boundary_start), _timestamp(boundary_end)
         energy = 0.0
-        for period in periods:
-            p_start, p_end = _timestamp(period.start), _timestamp(period.end)
-            overlap = _overlap(b_start, b_end, p_start, p_end)
-            if overlap:
-                energy += period.energy_kwh * overlap / (p_end - p_start)
+        for p_start, p_end, p_energy in spans:
+            overlap = min(b_end, p_end) - max(b_start, p_start)
+            if overlap > 0.0:
+                energy += p_energy * overlap / (p_end - p_start)
         weights.append(energy)
     if not any(value > _EPSILON for value in weights):
         return None, "provider_zero_energy"
@@ -300,9 +300,9 @@ def provider_energy_between(
     b_start, b_end = _timestamp(start), _timestamp(end)
     energy = 0.0
     for period in coerced:
-        p_start, p_end = _timestamp(period.start), _timestamp(period.end)
-        overlap = _overlap(b_start, b_end, p_start, p_end)
-        if overlap:
+        p_start, p_end = period.start_ts, period.end_ts
+        overlap = min(b_end, p_end) - max(b_start, p_start)
+        if overlap > 0.0:
             energy += period.energy_kwh * overlap / (p_end - p_start)
     return energy
 

@@ -3167,6 +3167,7 @@ class ChargeDischargeController:
         """
         self.last_evaluation_soc = None
         self._dp_config_dirty = True
+        self._dp_config_dirty_at = time.monotonic()
         _LOGGER.info("Predictive plan invalidated: %s", reason)
 
     def update_pd_parameters(self):

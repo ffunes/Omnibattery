@@ -325,7 +325,11 @@ def _progress_day(day: SolarProfileDay) -> tuple[list[float], list[float], list[
             continue
         progress_start = (segment_start - start_ts) / duration
         progress_end = (segment_end - start_ts) / duration
-        for progress_index in range(PROGRESS_BIN_COUNT):
+        # Only the bins this segment touches; the others have no overlap and
+        # were skipped anyway (one bin of slack on each side for rounding).
+        first_bin = max(0, int(progress_start * PROGRESS_BIN_COUNT) - 1)
+        last_bin = min(PROGRESS_BIN_COUNT, int(progress_end * PROGRESS_BIN_COUNT) + 2)
+        for progress_index in range(first_bin, last_bin):
             p_start = progress_index / PROGRESS_BIN_COUNT
             p_end = (progress_index + 1) / PROGRESS_BIN_COUNT
             overlap = max(0.0, min(progress_end, p_end) - max(progress_start, p_start))

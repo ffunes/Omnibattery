@@ -133,6 +133,9 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# Seconds a settings change must stand before it re-plans (see the dirty flag).
+CONFIG_REPLAN_SETTLE_S = 3.0
+
 # A configured forecast may briefly be unavailable while its provider refreshes
 # around midnight.  This is a retry grace period, not a delay applied to every
 # predictive time slot.  The controller's existing charge-delay grace can
@@ -6649,10 +6652,16 @@ class PricingManager:
         # Phase 2.65: Re-plan when a knob the balance is built on moved — a max
         # or min SOC limit, a predictive margin, the guaranteed floor. The flag
         # is set once by the config-entry listener and consumed here, so no
-        # cooldown or daily cap is needed: a user cannot press faster than they
-        # can turn a dial. A cycle that already ran one of the triggers above
-        # leaves the flag for the next one rather than evaluating twice.
-        elif getattr(self._controller, "_dp_config_dirty", False):
+        # daily cap is needed. It waits until the settings have been still for
+        # CONFIG_REPLAN_SETTLE_S: one click can write twice (a manual threshold
+        # switch stores its starting value too) and a slider writes as it moves,
+        # and each re-plan used to be its own full evaluation. A cycle that
+        # already ran one of the triggers above leaves the flag for the next one
+        # rather than evaluating twice.
+        elif getattr(self._controller, "_dp_config_dirty", False) and (
+            monotonic() - getattr(self._controller, "_dp_config_dirty_at", 0.0)
+            >= CONFIG_REPLAN_SETTLE_S
+        ):
             self._controller._dp_config_dirty = False
             _LOGGER.info("Dynamic pricing: configuration changed — re-evaluating")
             await self._evaluate_dynamic_pricing(

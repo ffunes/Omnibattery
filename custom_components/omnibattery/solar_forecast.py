@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from time import monotonic
 from typing import Any, Literal
@@ -44,6 +44,11 @@ class SolarForecastPeriod:
     start: datetime
     end: datetime
     energy_kwh: float
+    # Absolute start/end, converted once: the planner sums every period over
+    # every interval, and ``datetime.timestamp()`` on an aware value was most
+    # of a re-plan's time (about 1.5 million calls on a two-array forecast).
+    start_ts: float = field(init=False, repr=False, compare=False)
+    end_ts: float = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if (
@@ -53,8 +58,12 @@ class SolarForecastPeriod:
             or self.end.tzinfo is None
         ):
             raise ValueError("solar forecast periods require aware timestamps")
-        if self.end.timestamp() <= self.start.timestamp():
+        start_ts = self.start.timestamp()
+        end_ts = self.end.timestamp()
+        if end_ts <= start_ts:
             raise ValueError("solar forecast period must have positive duration")
+        object.__setattr__(self, "start_ts", start_ts)
+        object.__setattr__(self, "end_ts", end_ts)
         try:
             energy = float(self.energy_kwh)
         except (TypeError, ValueError) as exc:
@@ -534,8 +543,8 @@ def solar_forecast_period_energy_between(
 
     energy = 0.0
     for period in periods or ():
-        period_start = period.start.timestamp()
-        period_end = period.end.timestamp()
+        period_start = period.start_ts
+        period_end = period.end_ts
         overlap = max(0.0, min(end_ts, period_end) - max(start_ts, period_start))
         if overlap > 0.0:
             energy += period.energy_kwh * overlap / (period_end - period_start)
