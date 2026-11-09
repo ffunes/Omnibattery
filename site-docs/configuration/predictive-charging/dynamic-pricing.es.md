@@ -250,6 +250,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
     | `energy_deadlines` | Requisitos acumulados y plazos ISO locales |
     | `slot_energy_targets_kwh` / `slot_deadlines` | Cuotas y plazos por periodo |
     | `energy_horizon_end` | Límite del próximo amanecer o medianoche si no puede calcularse |
+    | `planning_horizon_reason` | Por qué el plan se extendió o no más allá del próximo amanecer: `extended`, `no_price_slots`, `no_tomorrow_prices`, `solar_profile_off`, `no_tomorrow_solar_periods` (sin previsión fechada para mañana, ni del sensor ni del panel de Energía), `no_consumption_profile` o `daily_evaluation` |
     | `overnight_consumption_kwh` | Demanda doméstica prevista posterior a medianoche hasta el límite |
 
     Las notificaciones usan el mismo límite de planificación y muestran la demanda nocturna por separado. La cronología solar fechada prefiere periodos del proveedor, después un perfil solar local maduro y después una curva de luz diurna sinusoidal; una fuente no válida pasa atómicamente a la siguiente.

@@ -250,6 +250,7 @@ Optional controls in the **Control** tab solve different problems:
     | `energy_deadlines` | Cumulative requirements and local ISO deadlines |
     | `slot_energy_targets_kwh` / `slot_deadlines` | Per-period quotas and deadlines |
     | `energy_horizon_end` | Next-sunrise boundary, or midnight when sunrise cannot be calculated |
+    | `planning_horizon_reason` | Why the plan did or did not extend past the next sunrise: `extended`, `no_price_slots`, `no_tomorrow_prices`, `solar_profile_off`, `no_tomorrow_solar_periods` (no dated forecast for tomorrow, from the sensor or the Energy dashboard), `no_consumption_profile`, or `daily_evaluation` |
     | `overnight_consumption_kwh` | Forecast household demand after midnight through the boundary |
 
     Notifications use the same planning boundary and show overnight demand separately. The dated solar timeline prefers provider periods, then a mature local solar profile, then a sinusoidal daylight curve; an invalid source falls back atomically to the next one.

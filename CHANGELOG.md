@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.1] - Unreleased
+
+### Fixed
+
+- **Dynamic Pricing: tomorrow's planning horizon no longer drops for 30 min after a failed forecast fetch** (#817): an empty answer from the Energy dashboard solar forecast kept the previous periods and is retried after a minute, instead of collapsing the plan to the next sunrise. The new `planning_horizon_reason` attribute on the predictive charging sensor says why the horizon did or did not extend past the sunrise. Thanks to @Sjoedzj.
+
 ## [1.6.0] - 2026-11-09
 
 ### Added

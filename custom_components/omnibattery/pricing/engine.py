@@ -299,17 +299,23 @@ class PricingManager:
         profile mode not off) and a learned consumption profile. Without either, behaviour is unchanged.
         """
         control_end = self.energy_horizon_end(now)
-        if not slots or normalize_solar_profile_mode(
+        # Why the horizon did (not) extend, published as a diagnostic (#817).
+        if not slots:
+            self.planning_horizon_reason = "no_price_slots"
+            return control_end
+        if normalize_solar_profile_mode(
             getattr(self._controller, "solar_profile_mode", None)
         ) == "off":
             # "off" ignores the provider's periods, so tomorrow's sun would
             # reach the balance but not the timeline.
+            self.planning_horizon_reason = "solar_profile_off"
             return control_end
         end = min(
             max(slot.end for slot in slots),
             self.energy_horizon_end(now + timedelta(days=1)),
         )
         if end <= control_end:
+            self.planning_horizon_reason = "no_tomorrow_prices"
             return control_end
         solar_input = self._read_remaining_solar_input(now=now, update_controller=False)
         periods = solar_input.periods if solar_input is not None else None
@@ -320,10 +326,13 @@ class PricingManager:
             end,
             timezone=solar_forecast_local_timezone(self._hass, self._controller, now),
         ) <= 1e-9:
+            self.planning_horizon_reason = "no_tomorrow_solar_periods"
             return control_end
         forecast = self._profile_remaining_consumption(now, end)
         if forecast is None or forecast.source != "profile":
+            self.planning_horizon_reason = "no_consumption_profile"
             return control_end
+        self.planning_horizon_reason = "extended"
         return end
 
     def _extended_planning_end(self, now: datetime) -> datetime | None:
@@ -3885,6 +3894,11 @@ class PricingManager:
                 now=now, **({"horizon_end": planning_end} if planning_end else {})
             )
         self._controller._dp_planning_end = planning_end
+        decision_data["planning_horizon_reason"] = (
+            getattr(self, "planning_horizon_reason", None)
+            if horizon is DynamicPricingEvaluationHorizon.REMAINING
+            else "daily_evaluation"
+        )
 
         # Keep the first full-day forecast separate from the live remaining
         # horizon used by later reevaluations. With a configured remaining-today
