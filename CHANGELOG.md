@@ -10,6 +10,7 @@
 - **Dynamic Pricing: late prices and failing price services** (PR#818): late prices are retried all day; Tibber, Nord Pool and EnergyZero refreshes back off (1/5/15 min, 30 s timeout) instead of hammering a failing service; evaluations from the button, switches, startup and 00:05 no longer run in parallel. Thanks to @pocketware.
 - **Predictive charging notifications say why** (PR#818): "waiting for prices" instead of "cheaper to import", the reason when no slot was selected, and the energy planned in tomorrow's slots. Thanks to @pocketware.
 - **Robustness** (PR#818): a failing predictive step falls back to normal control instead of stopping the cycle; one failing driver no longer aborts unloading the integration; Config Backup restores stored data before the entry loads; a lost Huawei EMMA meter connection is reconnected; a refused Indevolt write counts as failed. Thanks to @pocketware.
+- **Venus E v2/v3 max power sliders go down to 100 W** (#815): the Max Charge/Discharge Power sliders in the dashboard and device page now start at 100 W, like the battery limits in the options flow, instead of 800 W. Thanks to @effevee.
 
 ## [1.6.0] - 2026-11-09
 
