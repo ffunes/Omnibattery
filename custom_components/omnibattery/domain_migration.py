@@ -35,6 +35,7 @@ import inspect
 import json
 import logging
 from pathlib import Path
+from types import MappingProxyType
 
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -138,7 +139,10 @@ async def async_migrate_legacy_domain_entries(
             "source": old.source,
             "unique_id": old.unique_id,
             "disabled_by": ConfigEntryDisabler.USER,
-            "discovery_keys": old.discovery_keys,
+            # ``discovery_keys`` arrived in HA 2024.10; hacs.json allows
+            # 2024.4.1, where reading it raised AttributeError and aborted
+            # the migration. Unsupported kwargs are filtered out below.
+            "discovery_keys": getattr(old, "discovery_keys", MappingProxyType({})),
             "subentries_data": [
                 {
                     "subentry_id": se.subentry_id,
