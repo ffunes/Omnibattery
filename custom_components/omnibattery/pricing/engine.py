@@ -5986,12 +5986,53 @@ class PricingManager:
         ):
             # No new slot, but the plan may move or drop the kept slots'
             # quotas; leaving the 00:05 ones would still overbuy.
-            schedule.selected_slots = sorted(
+            kept = sorted(
                 self._replan_kept_deficit_slots(
                     schedule, kept_slots, chronological_plan, now=now
                 ),
                 key=lambda slot: slot.start,
             )
+            schedule.selected_slots = kept
+            purposes = getattr(schedule, "slot_purposes", {}) or {}
+            schedule.deficit_charging_needed = any(
+                purposes.get(slot, SLOT_PURPOSE_DEFICIT)
+                in (SLOT_PURPOSE_DEFICIT, SLOT_PURPOSE_COMBINED)
+                for slot in kept
+            )
+            schedule.charging_needed = bool(kept)
+            schedule.hours_needed = sum(
+                max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
+                for slot in kept
+            )
+            # Summary figures describe the re-planned calendar, as on the
+            # normal merge path below.
+            cost_energy = getattr(schedule, "slot_cost_energy_kwh", None) or {}
+            if cost_energy:
+                targets = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
+                cost_energy = {
+                    slot: targets.get(slot, cost_energy.get(slot, 0.0))
+                    for slot in kept
+                }
+                schedule.slot_cost_energy_kwh = cost_energy
+            (
+                schedule.average_price,
+                schedule.estimated_cost,
+            ) = calculations.schedule_price_summary(
+                kept,
+                min(
+                    self._contracted_charge_ceiling(),
+                    self._controller.max_charge_capacity,
+                ) / 1000.0,
+                cost_energy or None,
+            )
+            schedule.evaluation_time = now
+            # A pre-slot decision taken on the old quotas must not outlive
+            # them: a cached veto (purpose None) overrides the schedule and
+            # the pre-slot gate never re-runs for a slot it already decided,
+            # so a slot the new plan needs would not charge. Cleared on the
+            # normal merge path too.
+            self._controller._dp_pre_evaluated_slots = {}
+            self._controller._dp_pre_evaluated_purposes = {}
             _LOGGER.info(
                 "Evening recharge: no new slots; kept slots re-planned from the live SOC"
             )

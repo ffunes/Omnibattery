@@ -310,3 +310,80 @@ def test_a_new_evening_schedule_without_a_profile_assumes_full_power():
     assert schedule.selected_slots
     assert schedule.slot_cost_energy_kwh == {}
     assert schedule.estimated_cost == pytest.approx(_full_power_cost(schedule))
+
+
+# ----------------------------------------------------------------------
+# A re-plan without new slots drops the old pre-slot decisions
+# (REVIEW_FINDINGS.md, 9 Nov)
+# ----------------------------------------------------------------------
+
+from custom_components.omnibattery.pricing import (  # noqa: E402
+    SLOT_PURPOSE_COMBINED,
+    SLOT_PURPOSE_DEFICIT,
+    SLOT_PURPOSE_NEGATIVE_PRICE,
+)
+
+
+def _kept_only(prices, slot, purpose, cached_purpose):
+    """Evening pass over an armed schedule holding ``slot`` only, with an old
+    pre-slot decision cached for it and nothing charged in it yet."""
+    manager = _manager(prices=prices)
+    controller = manager._controller
+    controller._dynamic_pricing_schedule = DynamicPricingSchedule(
+        hours_needed=1.0,
+        selected_slots=[slot],
+        average_price=slot.price,
+        estimated_cost=slot.price * 0.5 / CHARGE_EFFICIENCY,
+        total_available_slots=15,
+        evaluation_time=_NOW - timedelta(hours=16),
+        energy_deficit_kwh=0.5,
+        charging_needed=True,
+        deficit_charging_needed=True,
+        slot_purposes={slot: purpose},
+        slot_energy_targets_kwh={slot: 0.5},
+        slot_cost_energy_kwh={slot: 0.5},
+        chronological_planning_active=True,
+    )
+    controller._dp_pre_evaluated_slots = {slot.start: False}
+    controller._dp_pre_evaluated_purposes = {slot.start: cached_purpose}
+    asyncio.run(manager._evaluate_evening_recharge())
+    return manager, controller._dynamic_pricing_schedule
+
+
+def test_a_kept_slot_the_replan_needs_is_not_held_by_an_old_veto():
+    """The early return kept the cached veto, which overrides the schedule; the
+    pre-slot gate never re-runs for a decided slot, so the quota
+    the new plan gave the slot was never charged."""
+    prices = _prices({22: 0.10})  # the only slot that clears the margin
+    slot = next(s for s in prices if s.start.hour == 22)
+
+    manager, schedule = _kept_only(prices, slot, SLOT_PURPOSE_DEFICIT, None)
+
+    assert schedule.selected_slots == [slot]  # no new slot: the early return
+    assert schedule.slot_energy_targets_kwh[slot] > 0.5  # re-planned quota
+    assert manager._controller._dp_pre_evaluated_slots == {}
+    assert manager._controller._dp_pre_evaluated_purposes == {}
+    assert manager._effective_slot_purpose(slot) == SLOT_PURPOSE_DEFICIT
+    # The summary describes the re-planned quota, not the 00:05 one.
+    assert schedule.slot_cost_energy_kwh[slot] == schedule.slot_energy_targets_kwh[slot]
+    assert schedule.estimated_cost == pytest.approx(
+        slot.price * schedule.slot_energy_targets_kwh[slot] / CHARGE_EFFICIENCY
+    )
+    assert schedule.evaluation_time == _NOW
+
+
+def test_a_cached_combined_purpose_cannot_outlive_the_replan():
+    """The re-plan books no deficit in the slot, so it keeps only its
+    negative-price purpose; the old cached ``combined`` must not restore the
+    deficit charge."""
+    prices = _prices()  # nothing clears the margin: the plan books nothing
+    slot = next(s for s in prices if s.start.hour == 22)
+
+    manager, schedule = _kept_only(
+        prices, slot, SLOT_PURPOSE_COMBINED, SLOT_PURPOSE_COMBINED
+    )
+
+    assert schedule.slot_purposes[slot] == SLOT_PURPOSE_NEGATIVE_PRICE
+    assert slot not in schedule.slot_energy_targets_kwh
+    assert schedule.deficit_charging_needed is False
+    assert manager._controller._dp_pre_evaluated_purposes == {}
