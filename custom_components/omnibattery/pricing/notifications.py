@@ -8,6 +8,7 @@ controller keeps the thin ``_send_*`` wrappers that read its config and push the
 from __future__ import annotations
 
 from datetime import datetime
+import math
 
 
 def _forecast_notification_context(decision: dict) -> dict:
@@ -182,6 +183,28 @@ def _max_charge_power_str(
         limits.append(peak_limit)
         parts.append(f"peak limit: {peak_limit:g}W")
     return f"{min(limits):g}W (" + ", ".join(parts) + ")"
+
+
+def _max_discharge_power_line(decision_data: dict) -> str:
+    """Discharge limit the planner capped the battery drain at, if known.
+
+    House load above it comes from the grid, so the plan does not charge
+    the battery for it.
+    """
+    try:
+        limit = float(decision_data.get("battery_discharge_limit_w"))
+    except (TypeError, ValueError):
+        return ""
+    if not math.isfinite(limit):
+        return ""
+    line = f"\nMax discharge power: {limit:g}W"
+    try:
+        carried = float(decision_data.get("grid_carried_load_kwh") or 0.0)
+    except (TypeError, ValueError):
+        carried = 0.0
+    if carried >= 0.005:
+        line += f" (load above it from the grid: {carried:.2f} kWh, not charged for)"
+    return line
 
 
 def format_predictive_notification_message(
@@ -604,6 +627,7 @@ def format_dynamic_pricing_notification(
                     peak_limit,
                     contracted_label="ICP",
                 )
+                + _max_discharge_power_line(decision_data)
             )
 
     return (title, message)

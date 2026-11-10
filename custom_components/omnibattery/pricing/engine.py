@@ -156,6 +156,8 @@ CURTAILMENT_AUTO_REPLAN_COOLDOWN_S = 60.0
 # the chronological planner.
 _CHRONOLOGICAL_DIAGNOSTIC_KEYS = (
     "chronological_source",
+    "battery_discharge_limit_w",
+    "grid_carried_load_kwh",
     "solar_timeline_source",
     "solar_forecast_original_source",
     "solar_forecast_conversion",
@@ -3355,8 +3357,16 @@ class PricingManager:
                 except (TypeError, ValueError):
                     discharge_w = math.nan
                     break
+            discharge_limit_w: float | None = None
+            grid_carried_kwh = 0.0
             if eligible and math.isfinite(discharge_w):
+                discharge_limit_w = discharge_w
+                uncapped_kwh = sum(item.consumption_kwh for item in intervals)
                 intervals = cap_battery_drain(intervals, discharge_w / 1000.0)
+                grid_carried_kwh = max(
+                    0.0,
+                    uncapped_kwh - sum(item.consumption_kwh for item in intervals),
+                )
             total_capacity = sum(
                 float(c.data.get("battery_total_energy", 0) or 0)
                 for c in eligible
@@ -3627,6 +3637,12 @@ class PricingManager:
             diagnostics = evaluation.diagnostics
             decision_data.update({
                 "chronological_planning_active": not diagnostic_only,
+                # The discharge power the drain projection is capped at, and
+                # the house load above it the grid carries instead.
+                "battery_discharge_limit_w": (
+                    None if discharge_limit_w is None else round(discharge_limit_w)
+                ),
+                "grid_carried_load_kwh": round(grid_carried_kwh, 3),
                 "chronological_source": forecast.source,
                 "solar_timeline_source": solar_source,
                 "solar_forecast_original_source": solar_input.original_source,
