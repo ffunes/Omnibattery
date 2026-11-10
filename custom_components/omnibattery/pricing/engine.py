@@ -47,6 +47,7 @@ from ..const import (
     ENERGYZERO_REFRESH_MINUTES,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PREDICTIVE_MODE_REALTIME_PRICE,
+    PREDICTIVE_MODE_TIME_SLOT,
     NOTIFICATION_ID_PREFIX,
     SOC_REEVALUATION_THRESHOLD,
     EVENING_REEVAL_HOURS_BEFORE_TEND,
@@ -131,6 +132,9 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
+
+# Seconds a settings change must stand before it re-plans (see the dirty flag).
+CONFIG_REPLAN_SETTLE_S = 3.0
 
 # A configured forecast may briefly be unavailable while its provider refreshes
 # around midnight.  This is a retry grace period, not a delay applied to every
@@ -3335,6 +3339,32 @@ class PricingManager:
                     for item in intervals
                 ]
 
+            # Time Slot: inside a configured window the battery holds at the
+            # energy needed after it (apply_time_slot_floor_hold), so the grid
+            # carries that load and the plan buys only what comes after the
+            # window. Not during a weekly full charge, whose gap to 100% the
+            # load does not shrink.
+            weekly_fn = getattr(self._controller, "_weekly_full_charge_pending", None)
+            window_load_on_grid = None
+            windows = (
+                self._time_slot_price_slots_for_horizon(now, horizon_end)
+                if getattr(self._controller, "predictive_charging_mode", None)
+                == PREDICTIVE_MODE_TIME_SLOT
+                and not (callable(weekly_fn) and weekly_fn())
+                else []
+            )
+            if windows:
+                window_load_on_grid = 0.0
+                held = []
+                for item in intervals:
+                    if any(w.start <= item.start < w.end for w in windows):
+                        window_load_on_grid += max(
+                            0.0, item.consumption_kwh - item.solar_kwh
+                        )
+                        item = item.with_battery_idle()
+                    held.append(item)
+                intervals = held
+
             eligible = [
                 c for c in self._controller.coordinators
                 if c.data and not self._controller._is_battery_manual_owned(c)
@@ -3430,7 +3460,12 @@ class PricingManager:
             deadlines = build_energy_deadlines(
                 intervals, usable, usable_capacity_kwh=usable + headroom
             )
-            required = max(0.0, float(decision_data.get("planned_grid_charge_kwh", 0.0) or 0.0))
+            # The scalar balance counts the window load as battery drain too.
+            required = max(
+                0.0,
+                float(decision_data.get("planned_grid_charge_kwh", 0.0) or 0.0)
+                - (window_load_on_grid or 0.0),
+            )
             # Only guaranteed-floor energy may skip the arbitrage margin (#724):
             # the reactive under-floor gap beyond the ordinary deficit, or the
             # planner's floor requirement beyond ordinary pre-sunrise depletion.
@@ -3585,9 +3620,10 @@ class PricingManager:
                     reserve_holds=value_deadlines and self._discharge_reserve_holds(),
                     # A weekly full charge fills the gap to 100%; the load
                     # the grid carries meanwhile does not shrink that gap.
+                    # A held Time Slot window already left its load out.
                     grid_carries_load_while_charging=not (
                         callable(weekly_pending) and weekly_pending()
-                    ),
+                    ) and window_load_on_grid is None,
                     # The runtime regulates import incl. the house load to this
                     # ceiling, so a slot stores less while the house draws.
                     grid_ceiling_kw=self._contracted_charge_ceiling() / 1000.0,
@@ -3831,6 +3867,7 @@ class PricingManager:
         """Apply the active configured-window quota to a Time Slot decision."""
         controller = self._controller
         controller._active_time_slot_quota_kwh = None
+        controller._time_slot_floor_kwh = None
         candidates = self._time_slot_price_slots(now)
         if not candidates:
             return decision_data
@@ -3849,6 +3886,23 @@ class PricingManager:
             for allocation in plan.allocations
             if allocation.slot.start <= now < allocation.slot.end
         )
+        weekly_fn = getattr(controller, "_weekly_full_charge_pending", None)
+        if any(slot.start <= now < slot.end for slot in candidates) and not (
+            callable(weekly_fn) and weekly_fn()
+        ):
+            # Stored energy the window must end with. A window that charges
+            # holds at its target: discharging it again inside the same cheap
+            # window only loses the round trip. One that does not charge may
+            # spend what the plan's lowest point (no grid) leaves spare.
+            stored = self._fleet_stored_kwh()
+            controller._time_slot_floor_kwh = (
+                stored + quota
+                if quota > 1e-6
+                else stored - max(0.0, plan.minimum_projected_energy_kwh)
+            )
+            decision_data["time_slot_floor_kwh"] = round(
+                controller._time_slot_floor_kwh, 3
+            )
         aggregate_should_charge = bool(decision_data.get("should_charge", False))
         decision_data["aggregate_should_charge"] = aggregate_should_charge
         decision_data["time_slot_chronological_active"] = True
@@ -6669,10 +6723,16 @@ class PricingManager:
         # Phase 2.65: Re-plan when a knob the balance is built on moved — a max
         # or min SOC limit, a predictive margin, the guaranteed floor. The flag
         # is set once by the config-entry listener and consumed here, so no
-        # cooldown or daily cap is needed: a user cannot press faster than they
-        # can turn a dial. A cycle that already ran one of the triggers above
-        # leaves the flag for the next one rather than evaluating twice.
-        elif getattr(self._controller, "_dp_config_dirty", False):
+        # daily cap is needed. It waits until the settings have been still for
+        # CONFIG_REPLAN_SETTLE_S: one click can write twice (a manual threshold
+        # switch stores its starting value too) and a slider writes as it moves,
+        # and each re-plan used to be its own full evaluation. A cycle that
+        # already ran one of the triggers above leaves the flag for the next one
+        # rather than evaluating twice.
+        elif getattr(self._controller, "_dp_config_dirty", False) and (
+            monotonic() - getattr(self._controller, "_dp_config_dirty_at", 0.0)
+            >= CONFIG_REPLAN_SETTLE_S
+        ):
             self._controller._dp_config_dirty = False
             _LOGGER.info("Dynamic pricing: configuration changed — re-evaluating")
             await self._evaluate_dynamic_pricing(
@@ -7534,6 +7594,7 @@ class PricingManager:
 
             self._controller._slot_entry_time = None
             self._controller._active_time_slot_quota_kwh = None
+            self._controller._time_slot_floor_kwh = None
 
     async def _send_predictive_charging_notification(
         self,
@@ -7763,6 +7824,47 @@ class PricingManager:
                 )
             else:
                 ctrl.remove_discharge_block("weekly_full_hold", coordinator=coordinator)
+
+    def _fleet_stored_kwh(self) -> float:
+        """Stored energy of the automatic batteries."""
+        ctrl = self._controller
+        owned = getattr(ctrl, "_is_battery_manual_owned", None)
+        return sum(
+            float(c.data.get("battery_soc", 0) or 0)
+            / 100.0
+            * float(c.data.get("battery_total_energy", 0) or 0)
+            for c in getattr(ctrl, "coordinators", ()) or ()
+            if c.data and not (callable(owned) and owned(c))
+        )
+
+    def apply_time_slot_floor_hold(self) -> None:
+        """Time Slot: inside a window, discharge only above the window's floor.
+
+        The floor (set by ``_apply_time_slot_chronological_plan``) is the
+        energy needed after the window; below it the grid carries the house
+        until the window ends, at the same cheap rate the battery was charged
+        at. Called every control cycle, after the price block.
+        """
+        ctrl = self._controller
+        floor = getattr(ctrl, "_time_slot_floor_kwh", None)
+        weekly_fn = getattr(ctrl, "_weekly_full_charge_pending", None)
+        in_slot = getattr(ctrl, "_is_in_predictive_charging_slot", None)
+        stored = self._fleet_stored_kwh() if floor is not None else 0.0
+        if (
+            floor is None
+            or getattr(ctrl, "predictive_charging_mode", None)
+            != PREDICTIVE_MODE_TIME_SLOT
+            or not (callable(in_slot) and in_slot())
+            or (callable(weekly_fn) and weekly_fn())
+            or stored > floor + ENERGY_TOLERANCE_KWH
+        ):
+            ctrl.remove_discharge_block("time_slot_floor_hold")
+            return
+        ctrl.set_discharge_block(
+            "time_slot_floor_hold",
+            "time_slot_floor",
+            {"floor_kwh": round(floor, 2), "stored_kwh": round(stored, 2)},
+        )
 
     def weekly_refill_hold_fn(self):
         """The same hold for the projection, as a reserve floor, or None.

@@ -1064,6 +1064,7 @@ class ChargeDischargeController:
         self._slot_entry_time = None  # When we first entered the time slot (for 5-min delay)
         self._predictive_charge_target_soc: Optional[dict] = None  # Per-battery grid-only SOC targets {coordinator: target_%}
         self._active_time_slot_quota_kwh: Optional[float] = None
+        self._time_slot_floor_kwh: Optional[float] = None
         self._time_slot_chronological_plan = None
         self._time_slot_chronological_preview_date = None
         # Local date of the decision in force: Time Slot and Real-Time Price
@@ -3138,11 +3139,30 @@ class ChargeDischargeController:
         that also land in entry data — shadow selects, manual force mode,
         capability detection at startup — do not. Battery capacity is telemetry,
         not a setting, so it is deliberately absent.
+
+        Both what the plan buys (the balance knobs) and which slots it picks
+        (charge ceiling, arbitrage margin, round-trip efficiency, the
+        pre-discharge plan) count, as does the weekly full charge: a moved day
+        or a switched-off run must not leave the old weekly slots booked. The
+        efficiency is the configured value; the measured one drifts on its own.
+        Settings read live every cycle (discharge floor, minimum savings,
+        High-Price Sale) need no re-plan and stay out.
         """
+
+        def _rounded(value):
+            return None if value is None else round(float(value), 4)
+
         return (
             round(float(self._predictive_safety_margin_kwh or 0.0), 3),
             round(float(self._predictive_min_soc_floor or 0.0), 3),
             bool(self._predictive_min_soc_floor_enabled),
+            _rounded(getattr(self, "max_price_threshold", None)),
+            _rounded(getattr(self, "min_arbitrage_margin", None)),
+            _rounded(getattr(self, "round_trip_efficiency", None)),
+            _rounded(getattr(self, "negative_injection_threshold", None)),
+            _rounded(getattr(self, "predischarge_reserve_soc", None)),
+            bool(getattr(self, "weekly_full_charge_enabled", False)),
+            getattr(self, "weekly_full_charge_day", None),
             tuple(
                 (
                     getattr(c, "device_key", None),
@@ -3167,6 +3187,7 @@ class ChargeDischargeController:
         """
         self.last_evaluation_soc = None
         self._dp_config_dirty = True
+        self._dp_config_dirty_at = time.monotonic()
         _LOGGER.info("Predictive plan invalidated: %s", reason)
 
     def update_pd_parameters(self):
@@ -3734,6 +3755,7 @@ class ChargeDischargeController:
             "curtailment_negative_window",
             "weekly_refill_hold",
             "weekly_full_hold",
+            "time_slot_floor_hold",
         }
         global_blockers = self._global_discharge_blockers
         if ignore_economic:
@@ -8141,6 +8163,7 @@ class ChargeDischargeController:
         """Delegates to PricingManager.apply_price_discharge_block (called every control cycle)."""
         self._pricing_mgr.apply_price_discharge_block()
         self._pricing_mgr.apply_weekly_refill_hold()
+        self._pricing_mgr.apply_time_slot_floor_hold()
 
     async def _stop_all_batteries_for_block(self, direction: str) -> None:
         """Stop all battery commands after a global operation block becomes active."""
