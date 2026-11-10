@@ -6420,6 +6420,31 @@ class PricingManager:
                 return True
         return False
 
+    def _room_below_ceiling_kwh(self) -> float:
+        """Energy the eligible batteries can still take before their charge ceiling.
+
+        Read straight from the live SOC, unlike ``_deficit_slot_has_work``,
+        which judges the slot running now and rebuilds its deficit target.
+        """
+        controller = self._controller
+        # Called unbound on the lightweight stand-ins, like the probe above.
+        ceiling = getattr(controller, "_charge_ceiling_soc", None)
+        room = 0.0
+        for coordinator in getattr(controller, "coordinators", []):
+            if not self._opportunistic_battery_eligible(coordinator):
+                continue
+            data = coordinator.data
+            try:
+                soc = float(data.get("battery_soc", 0.0) or 0.0)
+                capacity = max(0.0, float(data.get("battery_total_energy", 0.0) or 0.0))
+                target = float(
+                    ceiling(coordinator) if callable(ceiling) else coordinator.max_soc
+                )
+            except (TypeError, ValueError, AttributeError):
+                continue
+            room += max(0.0, target - soc_vs_ceiling(coordinator, soc)) / 100.0 * capacity
+        return room
+
     async def _hand_over_dynamic_price_slot(
         self, slot: PriceSlot, now: datetime
     ) -> None:
@@ -6434,6 +6459,7 @@ class PricingManager:
         self._carry_over_slot_shortfall(
             getattr(controller, "_active_dynamic_price_slot", None),
             incoming=slot,
+            now=now,
         )
         self._mark_decision_spent()
         completed = slot.start in getattr(controller, "_dp_completed_slots", set())
@@ -6469,17 +6495,25 @@ class PricingManager:
         re-decided from the live solar balance every cycle. Once a held slot
         is over, its whole planned quota moves to later slots before its
         deadline, or is reported as a shortfall.
+
+        The first cycle past a held slot's end usually falls inside the next
+        slot already (contiguous cheap hours are the common case), so the
+        running slot is passed on as ``incoming``: it can still take the
+        energy for the time it has left.
         """
         controller = self._controller
         held = getattr(controller, "_dp_held_slots", None)
         if not held:
             return
         schedule = getattr(controller, "_dynamic_pricing_schedule", None)
-        by_start = {
-            slot.start: slot
-            for slot in (getattr(schedule, "selected_slots", None) or [])
-        }
+        selected = getattr(schedule, "selected_slots", None) or []
+        by_start = {slot.start: slot for slot in selected}
+        running = next(
+            (slot for slot in selected if slot.start <= now < slot.end), None
+        )
         completed = getattr(controller, "_dp_completed_slots", set())
+        targets_kwh = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
+        room_kwh: float | None = None
         for start in sorted(held):
             slot = by_start.get(start)
             if slot is None:
@@ -6490,11 +6524,31 @@ class PricingManager:
             held.discard(start)
             if start in completed:
                 continue
-            quota = float(
-                (getattr(schedule, "slot_energy_targets_kwh", {}) or {}).get(slot, 0.0)
-                or 0.0
-            )
+            quota = float(targets_kwh.get(slot, 0.0) or 0.0)
             if quota <= 0.01:
+                continue
+            completed.add(start)
+            if room_kwh is None:
+                # The battery may have filled during the hold (solar), or sat
+                # at its ceiling all along: carry no more than it can still
+                # take beyond what the remaining slots already plan, so no
+                # shortfall is reported for energy it has no room for.
+                planned_later = sum(
+                    float(targets_kwh.get(other, 0.0) or 0.0)
+                    for other in selected
+                    if other.end > now
+                    and other.start not in completed
+                    and other.start not in held
+                )
+                room_kwh = max(0.0, self._room_below_ceiling_kwh() - planned_later)
+            quota = min(quota, room_kwh)
+            room_kwh -= quota
+            if quota <= 0.01:
+                _LOGGER.debug(
+                    "Dynamic pricing: held slot %s ended with no room left to "
+                    "charge; nothing to carry",
+                    slot.start.strftime("%H:%M"),
+                )
                 continue
             _LOGGER.info(
                 "Dynamic pricing: slot %s was held by a charge block for its "
@@ -6502,8 +6556,9 @@ class PricingManager:
                 slot.start.strftime("%H:%M"),
                 quota,
             )
-            self._carry_over_slot_shortfall(slot, shortfall_kwh=quota)
-            completed.add(start)
+            self._carry_over_slot_shortfall(
+                slot, incoming=running, shortfall_kwh=quota, now=now
+            )
 
     def _carry_over_slot_shortfall(
         self,
@@ -6511,14 +6566,18 @@ class PricingManager:
         *,
         incoming: PriceSlot | None = None,
         shortfall_kwh: float | None = None,
+        now: datetime | None = None,
     ) -> None:
         """Move a finished slot's undelivered quota to later slots before its deadline.
 
-        ``incoming`` is the slot a running charge is handed to: it has already
-        started, but can still take the energy. ``shortfall_kwh`` overrides
+        ``incoming`` is the slot a running charge is handed to, or the slot
+        already running when a held slot is settled: it has started, but can
+        still take energy for the time it has left. ``shortfall_kwh`` overrides
         the shortfall read from the live per-battery targets (a slot that never
         started has none).
         """
+        if now is None:
+            now = datetime.now()
         controller = self._controller
         schedule = getattr(controller, "_dynamic_pricing_schedule", None)
         if (
@@ -6546,14 +6605,15 @@ class PricingManager:
                 for slot in sorted(schedule.selected_slots, key=lambda item: item.start):
                     if (
                         (
-                            slot.start < datetime.now()
+                            slot.start < now
                             and (incoming is None or slot.start != incoming.start)
                         )
                         or slot == active_slot
                         or (deadline is not None and slot.end > deadline)
                     ):
                         continue
-                    capacity = power_kw * max(0.0, (slot.end - slot.start).total_seconds() / 3600.0) * CHARGE_EFFICIENCY
+                    hours_left = (slot.end - max(slot.start, now)).total_seconds() / 3600.0
+                    capacity = power_kw * max(0.0, hours_left) * CHARGE_EFFICIENCY
                     current = float(schedule.slot_energy_targets_kwh.get(slot, 0.0) or 0.0)
                     take = min(remaining, max(0.0, capacity - current))
                     if take <= 0:
@@ -6961,7 +7021,14 @@ class PricingManager:
                         held = getattr(self._controller, "_dp_held_slots", None)
                         if held is None:
                             held = self._controller._dp_held_slots = set()
-                        held.add(current_slot.start)
+                        if (
+                            current_slot.start not in held
+                            and self._room_below_ceiling_kwh() > 0.01
+                        ):
+                            # Only a slot with room left to charge is held: a
+                            # battery already at its ceiling has nothing to
+                            # carry over once the slot ends.
+                            held.add(current_slot.start)
                     # Fall through to discharge control below (do not return early)
 
                 else:

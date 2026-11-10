@@ -27,7 +27,14 @@ def _slot(hour, price=0.2):
     return PriceSlot(DAY + timedelta(hours=hour), DAY + timedelta(hours=hour + 1), price)
 
 
-def _setup(held, later, *, deadline_hours=20, power_w=3000):
+def _battery(soc=50.0, capacity_kwh=10.0, max_soc=100.0):
+    return SimpleNamespace(
+        data={"battery_soc": soc, "battery_total_energy": capacity_kwh},
+        max_soc=max_soc,
+    )
+
+
+def _setup(held, later, *, deadline_hours=20, power_w=3000, battery=None):
     schedule = DynamicPricingSchedule(
         hours_needed=2.0,
         selected_slots=[held, later],
@@ -53,24 +60,16 @@ def _setup(held, later, *, deadline_hours=20, power_w=3000):
         max_contracted_power=power_w,
         max_charge_capacity=power_w,
         capacity_protection_enabled=False,
+        coordinators=[battery if battery is not None else _battery()],
     )
     manager = PricingManager(SimpleNamespace(), controller)
     manager._contracted_charge_ceiling = lambda: float(power_w)
     return manager, controller, schedule
 
 
-def test_a_slot_held_for_its_whole_length_carries_its_quota(monkeypatch):
+def test_a_slot_held_for_its_whole_length_carries_its_quota():
     held, later = _slot(9), _slot(14)
     manager, controller, schedule = _setup(held, later)
-    import custom_components.omnibattery.pricing.engine as engine_module
-
-    class _Clock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return DAY + timedelta(hours=10, minutes=1)
-
-    monkeypatch.setattr(engine_module, "datetime", _Clock)
-
     manager._carry_over_held_slots(DAY + timedelta(hours=10, minutes=1))
 
     assert schedule.slot_energy_targets_kwh[later] == pytest.approx(2.5)
@@ -89,19 +88,10 @@ def test_a_held_slot_still_running_keeps_waiting():
     assert controller._dp_held_slots == {held.start}
 
 
-def test_energy_no_later_slot_can_take_is_reported_as_shortfall(monkeypatch):
+def test_energy_no_later_slot_can_take_is_reported_as_shortfall():
     held, later = _slot(9), _slot(14)
     # 1 kW: the later slot takes at most 0.85 kWh, 0.5 of it already planned.
     manager, controller, schedule = _setup(held, later, power_w=1000)
-    import custom_components.omnibattery.pricing.engine as engine_module
-
-    class _Clock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return DAY + timedelta(hours=10, minutes=1)
-
-    monkeypatch.setattr(engine_module, "datetime", _Clock)
-
     manager._carry_over_held_slots(DAY + timedelta(hours=10, minutes=1))
 
     room = 1.0 * CHARGE_EFFICIENCY - 0.5
@@ -118,3 +108,48 @@ def test_a_slot_that_was_entered_later_is_left_to_the_normal_path():
 
     assert schedule.slot_energy_targets_kwh[later] == 0.5
     assert controller._dp_held_slots == set()
+
+
+def test_a_contiguous_next_slot_takes_the_quota_once_it_has_started():
+    # The first cycle past 10:00 already falls inside 10-11.
+    held, nxt = _slot(9), _slot(10)
+    manager, controller, schedule = _setup(held, nxt)
+
+    manager._carry_over_held_slots(DAY + timedelta(hours=10, seconds=3))
+
+    assert schedule.slot_energy_targets_kwh[nxt] == pytest.approx(2.5)
+    assert schedule.deadline_shortfall_kwh == 0.0
+
+
+def test_a_started_slot_only_offers_the_time_it_has_left():
+    held, nxt = _slot(9), _slot(10)
+    # 3 kW, 15 minutes left in 10-11: room for 0.75 kWh * efficiency.
+    manager, controller, schedule = _setup(held, nxt)
+
+    manager._carry_over_held_slots(DAY + timedelta(hours=10, minutes=45))
+
+    room = 3.0 * 0.25 * CHARGE_EFFICIENCY - 0.5
+    assert schedule.slot_energy_targets_kwh[nxt] == pytest.approx(0.5 + room)
+    assert schedule.deadline_shortfall_kwh == pytest.approx(2.0 - room)
+
+
+def test_nothing_is_carried_for_a_battery_already_at_its_ceiling():
+    held, later = _slot(9), _slot(14)
+    manager, controller, schedule = _setup(held, later, battery=_battery(soc=100.0))
+
+    manager._carry_over_held_slots(DAY + timedelta(hours=10, minutes=1))
+
+    assert schedule.slot_energy_targets_kwh[later] == 0.5
+    assert schedule.deadline_shortfall_kwh == 0.0
+    assert held.start in controller._dp_completed_slots
+
+
+def test_the_carry_is_capped_at_the_room_left_after_later_plans():
+    held, later = _slot(9), _slot(14)
+    # 10 kWh at 90%: 1.0 kWh of room, 0.5 of it already planned for 14-15.
+    manager, controller, schedule = _setup(held, later, battery=_battery(soc=90.0))
+
+    manager._carry_over_held_slots(DAY + timedelta(hours=10, minutes=1))
+
+    assert schedule.slot_energy_targets_kwh[later] == pytest.approx(1.0)
+    assert schedule.deadline_shortfall_kwh == 0.0
