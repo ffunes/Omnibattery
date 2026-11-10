@@ -396,9 +396,9 @@ class DischargeReserveManager:
         """Reserve for tonight, through to the next sunrise.
 
         Holding energy for tomorrow's evening peak would still be wrong on every
-        day the sun refills the battery in between, and the planner has no model
-        of tomorrow's PV. But the small hours carry no sun either, so that
-        argument never covered them: a price peak at 06:00 is tonight's problem,
+        day the sun refills the battery in between; a day it does not is
+        :meth:`_tomorrow_morning`'s to extend. But the small hours carry no sun
+        either, so that argument never covered them: a price peak at 06:00 is tonight's problem,
         and cutting at midnight left it to the grid. The shared horizon helper
         stops at sunrise for exactly this reason, which is the first moment
         tomorrow's PV can start refilling.
@@ -462,13 +462,17 @@ class DischargeReserveManager:
             return hour >= 12.0
 
     def _tomorrow_morning(self, pricing, now: datetime, sunrise: datetime):
-        """Tomorrow's morning up to where the sun covers the house, or None.
+        """Tomorrow up to where the sun covers the house, or None.
 
-        Returns ``(horizon_end, slots, consumption, solar)`` over the slots to
-        tomorrow noon. Tomorrow's sun comes from the provider's dated periods,
-        since the forecast figure only covers what is left of today. Without
-        those periods, tomorrow's prices, or a slot the sun covers before noon,
-        the plan keeps ending at sunrise.
+        Returns ``(horizon_end, slots, consumption, solar)``. Tomorrow's sun
+        comes from the provider's dated periods, since the forecast figure only
+        covers what is left of today. Without those periods, tomorrow's prices,
+        or a slot the sun covers before noon, the plan keeps ending at sunrise.
+
+        A day the sun never covers the house has nothing to refill the battery
+        before tomorrow's evening, so, as :meth:`_sun_covered_horizon_end` does
+        for today, that evening joins the plan (#840): the plan then runs to the
+        charge planner's extended horizon, when it has one.
         """
         periods = getattr(self._controller, "solar_forecast_periods", None)
         if not periods:
@@ -476,25 +480,53 @@ class DischargeReserveManager:
         noon = sunrise.replace(hour=12, minute=0, second=0, microsecond=0)
         if noon <= sunrise:
             return None
+        extended = None
+        extended_end = getattr(pricing, "_extended_planning_end", None)
+        if callable(extended_end):
+            try:
+                extended = extended_end(now)
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Discharge reserve: planning horizon unavailable: %s", err)
+        end = extended if extended is not None and extended > noon else noon
         slots = [
             slot
-            for slot in pricing.get_future_price_slots(horizon_end=noon)
-            if slot.start < noon
+            for slot in pricing.get_future_price_slots(horizon_end=end)
+            if slot.start < end
         ]
-        morning = [slot for slot in slots if slot.start >= sunrise]
-        if not morning:
-            return None
-        consumption, solar, _fraction_fn = self._consumption_and_solar(
-            pricing, slots, now, noon
-        )
-        if not consumption:
-            return None
+        tomorrow_end = sunrise.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) + timedelta(days=1)
+        morning = [
+            slot for slot in slots if sunrise <= slot.start and slot.end <= tomorrow_end
+        ]
         timezone = solar_forecast_local_timezone(self._hass, self._controller, now)
 
         def local(value: datetime) -> datetime:
             if value.tzinfo is None:
                 return value.replace(tzinfo=timezone)
             return value.astimezone(timezone)
+
+        # Past noon, only tomorrow's daylight: a provider that leaves out the
+        # dark hours would read the evening as a gap and void the whole curve.
+        while (
+            morning
+            and morning[-1].start >= noon
+            and not (
+                provider_energy_between(
+                    periods, local(morning[-1].start), local(morning[-1].end)
+                )
+                or 0.0
+            )
+            > 0.0
+        ):
+            morning.pop()
+        if not morning:
+            return None
+        consumption, solar, _fraction_fn = self._consumption_and_solar(
+            pricing, slots, now, end
+        )
+        if not consumption:
+            return None
 
         energies, reason = provider_weights(
             [(local(slot.start), local(slot.end)) for slot in morning], periods
@@ -509,7 +541,11 @@ class DischargeReserveManager:
         for slot, kwh in zip(morning, energies):
             solar[slot] = kwh
         covered = first_sun_covered_start(morning, consumption, solar)
-        if covered is None or covered <= sunrise:
+        if covered is None and end > noon:
+            return end, slots, consumption, solar
+        # ponytail: a sun that only takes over after noon keeps the old sunrise
+        # bound; extend it too if a report shows that afternoon.
+        if covered is None or covered <= sunrise or covered >= noon:
             return None
         return covered, slots, consumption, solar
 
