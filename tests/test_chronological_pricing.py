@@ -1141,3 +1141,54 @@ def test_a_night_slot_crossing_hours_left_to_the_grid_still_serves_the_peak():
     assert plan.allocated_kwh == pytest.approx(4.6)
     assert plan.cheaper_to_import_kwh == pytest.approx(2.4)
     assert plan.deadline_shortfall_kwh == pytest.approx(0.0)
+
+
+def test_extended_horizon_total_covers_the_slots_it_books():
+    """#838: a 30 kWh deficit to tomorrow midnight, mostly cheaper to import,
+    with the battery half full. Capping the total at the room *now* and then
+    subtracting the energy left to the grid published 0 kWh planned while the
+    plan still booked night slots."""
+    def price(minutes):
+        hour = minutes // 60
+        if hour < 10:  # today 14:00-24:00
+            return 0.40 if hour < 3 else 0.52 if hour < 7 else 0.45
+        hour -= 10
+        return (0.40, 0.37, 0.40, 0.62, 0.42, 0.65, 0.46)[
+            (hour >= 2) + (hour >= 5) + (hour >= 7) + (hour >= 10)
+            + (hour >= 16) + (hour >= 21)
+        ]
+
+    count = 34 * 4  # 14:00 today to midnight tomorrow
+    intervals = [
+        _interval(i, 0.29, 0.15 if 76 <= i < 100 else 0.0) for i in range(count)
+    ]
+    slots = [_slot(15 * i, 15 * i + 15, price(15 * i)) for i in range(count)]
+    usable, headroom = 5.94, 7.58
+    deadlines = build_energy_deadlines(
+        intervals, usable, usable_capacity_kwh=usable + headroom
+    )
+
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        slots,
+        total_required_kwh=deadlines[-1].required_cumulative_kwh,
+        effective_power_kw=6.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(minutes=15 * count),
+        headroom_kwh=headroom,
+        usable_initial_kwh=usable,
+        required_from_deadlines=True,
+        import_value_efficiency=0.84,
+        import_value_margin=0.05,
+        grid_carries_load_while_charging=True,
+    )
+
+    assert plan.reason == "ok"
+    assert plan.cheaper_to_import_kwh > 10.0
+    assert plan.allocated_kwh > 0.0
+    # The published total (planned_grid_charge_kwh) must match the slots.
+    assert plan.total_required_kwh == pytest.approx(plan.allocated_kwh)
+    assert plan.deadline_required_kwh + plan.flexible_required_kwh == pytest.approx(
+        plan.total_required_kwh
+    )
