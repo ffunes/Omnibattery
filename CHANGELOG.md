@@ -27,6 +27,7 @@
 - **Dynamic Pricing: smaller planner fixes**: the daily cap on re-evaluations after an excluded device's solar claim moves now rolls over each day (yesterday's spent cap no longer blocks today), and the price-only fallback counts only the time left in a slot that is already running. Thanks to @pocketware.
 - **Anker: a refused Modbus connection no longer leaks its client**: the client was closed when the connection raised, but not when it was refused. Thanks to @pocketware.
 - **Legacy-domain migration works on Home Assistant before 2024.10**: it read the old entry's `discovery_keys`, which those versions do not have, and aborted. Thanks to @pocketware.
+- **Dynamic Pricing: a slot's "before HH:MM" names when its energy is needed**: each slot now carries the earliest deadline its energy serves, not the deadline that booked it, so labels no longer jump back and forth along the night. Thanks to @pocketware.
 - **Integration Status shows the two price-hold states in your language** (PR#825): "Surplus Exporting (Cheaper Window Ahead)" and "Holding Charge for Dearer Hours" were still English in the Catalan, Dutch, French, German and Spanish translations. A test now fails when an Integration Status state is left in English. Thanks to @syphernl.
 
 ## [1.6.0] - 2026-11-09

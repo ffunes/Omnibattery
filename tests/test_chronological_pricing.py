@@ -1118,6 +1118,106 @@ def test_a_window_with_no_days_selected_is_never_planned():
     assert [(slot.start.hour, slot.end.hour) for slot in slots] == [(10, 11)]
 
 
+def test_slot_deadlines_name_when_the_energy_is_needed_not_which_deadline_booked_it():
+    """A slot's deadline is the earliest one its energy serves.
+
+    Regression: the allocator labelled a slot with the deadline that booked
+    it. Deadlines are served in order and each takes the cheapest capacity,
+    so a dear slot before midnight was booked last, by the latest deadline,
+    and read "[before 03:15]" while the battery spent its energy at
+    midnight. The labels along the night then jumped back and forth.
+    """
+    now = BASE - timedelta(hours=1)
+    # 1 kWh lasts the four quarters to midnight; from then on the house
+    # drains 0.25 kWh a quarter, a requirement every 15 minutes.
+    intervals = [
+        EnergyInterval(
+            now + timedelta(minutes=15 * i),
+            now + timedelta(minutes=15 * (i + 1)),
+            0.25,
+            0.0,
+        )
+        for i in range(4 + 13)
+    ]
+    deadlines = build_energy_deadlines(intervals, 1.0)
+    dear = _slot(-60, -45, 0.30)  # 23:00, before the battery runs out
+    cheap = [_slot(15 * i, 15 * (i + 1), 0.10) for i in range(12)]  # 00:00-03:00
+
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        [dear, *cheap],
+        total_required_kwh=3.25,
+        effective_power_kw=1.0,
+        charge_efficiency=1.0,
+        now=now,
+        horizon_end=BASE + timedelta(hours=3, minutes=15),
+        headroom_kwh=10.0,
+        usable_initial_kwh=1.0,
+    )
+
+    by_slot = {a.slot: a for a in plan.allocations}
+    # Every slot is needed: 13 quarters of 0.25 kWh and 13 slots of 0.25 kWh.
+    assert plan.deadline_shortfall_kwh == pytest.approx(0.0)
+    assert len(by_slot) == 13
+    # The dear slot was booked by the 03:15 requirement, the only one the
+    # cheap slots could not cover, but its energy is the first the battery
+    # spends: it is needed before 00:15.
+    assert by_slot[dear].deadline == BASE + timedelta(minutes=15)
+    assert by_slot[dear].kind == "deadline"
+    # Along the night each slot's deadline is later than the previous one's.
+    labels = [a.deadline for a in sorted(plan.allocations, key=lambda a: a.slot.start)]
+    assert labels == sorted(labels)
+    assert labels[-1] == BASE + timedelta(hours=3, minutes=15)
+
+
+def test_valued_deadline_slots_keep_a_deadline_when_an_earlier_slot_takes_their_share():
+    """Valued mode with the grid carrying the load: every booked slot stays a
+    deadline slot.
+
+    Regression: the 00:00 slot covers the first deadlines in the relabel walk,
+    which pushed the 02:00 slot, booked for a deadline, onto later ones past
+    the hours left to the grid that it cannot serve. It came out flexible
+    while nothing flexible was required, losing its forced charge, and the
+    deadline energy came out above the total requirement.
+    """
+    consumption = [
+        0.1, 0.15, 0.15, 0.5, 0.1, 0.5, 0.05, 0.05, 0.5, 0.5,
+        0.1, 0.15, 0.4, 0.5, 0.4, 0.1, 0.4, 0.5, 0.5, 0.15,
+    ]
+    intervals = [_interval(i, kwh) for i, kwh in enumerate(consumption)]
+    slots = [
+        _slot(60 * h, 60 * h + 60, price)
+        for h, price in enumerate([0.29, 0.30, 0.18, 0.43, 0.59])
+    ]
+    deadlines = build_energy_deadlines(intervals, 0.3)
+
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        slots,
+        total_required_kwh=deadlines[-1].required_cumulative_kwh,
+        effective_power_kw=1.2,
+        charge_efficiency=1.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=5),
+        headroom_kwh=10.0,
+        usable_initial_kwh=0.3,
+        import_value_efficiency=0.80,
+        import_value_margin=0.05,
+        grid_carries_load_while_charging=True,
+    )
+
+    assert {a.slot.start for a in plan.allocations} == {
+        BASE, BASE + timedelta(hours=1), BASE + timedelta(hours=2)
+    }
+    assert plan.flexible_required_kwh == pytest.approx(0.0)
+    assert all(a.kind == "deadline" for a in plan.allocations)
+    assert plan.deadline_required_kwh <= plan.total_required_kwh + 1e-9
+    labels = [a.deadline for a in sorted(plan.allocations, key=lambda a: a.slot.start)]
+    assert labels == sorted(labels)
+
+
 def _flat_night_plan(**kwargs):
     # #834: a flat night at 0.41 (left to the grid: 0.41 x 0.80 - 0.05 is
     # under it), 06:00 at 0.50 (also left), a 07:00-09:00 peak at 0.68 that a
@@ -1157,6 +1257,18 @@ def test_a_night_slot_crossing_hours_left_to_the_grid_still_serves_the_peak():
     assert plan.allocated_kwh == pytest.approx(4.6)
     assert plan.cheaper_to_import_kwh == pytest.approx(2.4)
     assert plan.deadline_shortfall_kwh == pytest.approx(0.0)
+
+
+def test_a_night_slot_crossing_hours_left_to_the_grid_is_labelled_with_its_deadline():
+    """#834 with the slot labels: a night slot booked across the hours left to
+    the grid serves the 06:00 drain and the peak, so it carries a deadline
+    instead of reading as flexible, and the labels run in time order."""
+    plan = _flat_night_plan()
+
+    assert all(a.kind == "deadline" for a in plan.allocations)
+    labels = [a.deadline for a in sorted(plan.allocations, key=lambda a: a.slot.start)]
+    assert labels == sorted(labels)
+    assert all(label <= BASE + timedelta(hours=9) for label in labels)
 
 
 def test_extended_horizon_total_covers_the_slots_it_books():
