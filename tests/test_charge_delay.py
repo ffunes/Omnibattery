@@ -668,7 +668,7 @@ def test_daily_reset_clears_latch_on_new_day():
     assert ctrl._charge_delay_unlocked is False
     assert ctrl._delay_setpoint_reached is False
     assert ctrl._solar_t_start is None
-    assert ctrl._charge_delay_last_date == date.today()
+    assert ctrl._charge_delay_last_date == dt_util.now().date()
     assert mgr.saves == 1
 
 
@@ -679,13 +679,13 @@ def test_daily_reset_first_cycle_preserves_restored_unlock():
     mgr._should_delay_charge = lambda target: True
     mgr.handle_daily_reset_and_eval()
     assert ctrl._charge_delay_unlocked is True
-    assert ctrl._charge_delay_last_date == date.today()
+    assert ctrl._charge_delay_last_date == dt_util.now().date()
 
 
 def test_daily_reset_leaves_the_evaluation_to_the_blocker_refresh():
     # _refresh_operation_blockers evaluates the delay right after this in the
     # same cycle; a second full projection here doubled the cycle's cost (#511).
-    ctrl = _controller(_charge_delay_last_date=date.today())
+    ctrl = _controller(_charge_delay_last_date=dt_util.now().date())
     mgr = _make_mgr(ctrl)
     calls = []
     mgr._should_delay_charge = lambda target: calls.append(target) or True
