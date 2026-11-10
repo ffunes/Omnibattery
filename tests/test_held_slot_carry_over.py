@@ -144,12 +144,38 @@ def test_nothing_is_carried_for_a_battery_already_at_its_ceiling():
     assert held.start in controller._dp_completed_slots
 
 
-def test_the_carry_is_capped_at_the_room_left_after_later_plans():
+def test_the_carry_is_capped_at_the_room_below_the_ceiling():
     held, later = _slot(9), _slot(14)
-    # 10 kWh at 90%: 1.0 kWh of room, 0.5 of it already planned for 14-15.
+    # 10 kWh at 90%: 1.0 kWh of room, so 1.0 of the 2.0 kWh is carried.
     manager, controller, schedule = _setup(held, later, battery=_battery(soc=90.0))
 
     manager._carry_over_held_slots(DAY + timedelta(hours=10, minutes=1))
 
-    assert schedule.slot_energy_targets_kwh[later] == pytest.approx(1.0)
+    assert schedule.slot_energy_targets_kwh[later] == pytest.approx(1.5)
     assert schedule.deadline_shortfall_kwh == 0.0
+
+
+def test_later_plans_do_not_eat_the_room_for_the_held_energy():
+    # 5 kWh at 90%: 0.5 kWh of room, exactly what 14-15 already plans. The
+    # house drains the battery before 14:00, so the held energy is still
+    # needed and must not be dropped silently.
+    held, later = _slot(9), _slot(14)
+    manager, controller, schedule = _setup(
+        held, later, battery=_battery(soc=90.0, capacity_kwh=5.0)
+    )
+
+    manager._carry_over_held_slots(DAY + timedelta(hours=10, minutes=1))
+
+    assert schedule.slot_energy_targets_kwh[later] == pytest.approx(1.0)
+
+
+def test_a_completed_running_slot_is_not_given_the_held_energy():
+    # 10-11 already ran and is completed: it won't be entered again.
+    held, nxt = _slot(9), _slot(10)
+    manager, controller, schedule = _setup(held, nxt)
+    controller._dp_completed_slots = {nxt.start}
+
+    manager._carry_over_held_slots(DAY + timedelta(hours=10, minutes=30))
+
+    assert schedule.slot_energy_targets_kwh[nxt] == 0.5
+    assert schedule.deadline_shortfall_kwh == pytest.approx(2.0)

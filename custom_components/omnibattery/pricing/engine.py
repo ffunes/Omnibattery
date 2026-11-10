@@ -6508,10 +6508,17 @@ class PricingManager:
         schedule = getattr(controller, "_dynamic_pricing_schedule", None)
         selected = getattr(schedule, "selected_slots", None) or []
         by_start = {slot.start: slot for slot in selected}
-        running = next(
-            (slot for slot in selected if slot.start <= now < slot.end), None
-        )
         completed = getattr(controller, "_dp_completed_slots", set())
+        # A running slot that is already completed is not entered again, so
+        # energy carried into it would never be charged.
+        running = next(
+            (
+                slot
+                for slot in selected
+                if slot.start <= now < slot.end and slot.start not in completed
+            ),
+            None,
+        )
         targets_kwh = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
         room_kwh: float | None = None
         for start in sorted(held):
@@ -6530,17 +6537,12 @@ class PricingManager:
             completed.add(start)
             if room_kwh is None:
                 # The battery may have filled during the hold (solar), or sat
-                # at its ceiling all along: carry no more than it can still
-                # take beyond what the remaining slots already plan, so no
-                # shortfall is reported for energy it has no room for.
-                planned_later = sum(
-                    float(targets_kwh.get(other, 0.0) or 0.0)
-                    for other in selected
-                    if other.end > now
-                    and other.start not in completed
-                    and other.start not in held
-                )
-                room_kwh = max(0.0, self._room_below_ceiling_kwh() - planned_later)
+                # at its ceiling all along: carry no more than it can take
+                # right now, so no shortfall is reported for energy it has no
+                # room for. What later slots already plan is not subtracted:
+                # the house drains the battery before they run, so that room
+                # comes back and the held energy is still needed.
+                room_kwh = self._room_below_ceiling_kwh()
             quota = min(quota, room_kwh)
             room_kwh -= quota
             if quota <= 0.01:
