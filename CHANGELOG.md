@@ -5,6 +5,7 @@
 ### Changed
 
 - **Time Slot: no charging and discharging inside the same window**: inside a configured window the battery now discharges only down to the energy needed after the window, and the grid covers the house for the rest of it. The window charges only what is needed after it, so energy is no longer bought in the window and spent in the same window, which lost the round trip on it. A window that needs no charge still lets the battery discharge its spare energy. Weekly full charge and Dynamic Pricing are unchanged.
+- **Panel: shorter Daily operation card**: the subtitle line is gone; the 15-min interval now sits in the Real / Forecast chip, and the legend's areas and lines share one row.
 
 ### Fixed
 
