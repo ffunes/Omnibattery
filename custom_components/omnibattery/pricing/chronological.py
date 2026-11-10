@@ -538,13 +538,14 @@ def allocate_price_slots(
     price is left to the grid the same way until its price is known.
 
     The battery covers the house first, so energy stored before an hour left
-    to the grid is used in that hour, not in a later one. A valued deadline is
-    therefore only served by a slot that ends at or after the last hour left
-    to the grid before it, unless ``reserve_holds`` (the discharge reserve
-    keeps the energy for dearer hours until the sun covers the house) and the
-    deadline comes before that. On a day with forecast solar that never covers
-    the house the reserve holds a charge made after midnight to that day's
-    evening.
+    to the grid is used in that hour, not in a later one. A slot that ends
+    before the last hour left to the grid ahead of a valued deadline also
+    stores what those hours drain, and serves the deadline only when the
+    deadlines it then reaches repay that drain (#834). No drain is counted
+    with ``reserve_holds`` (the discharge reserve keeps the energy for dearer
+    hours until the sun covers the house) when the deadline comes before that.
+    On a day with forecast solar that never covers the house the reserve holds
+    a charge made after midnight to that day's evening.
     """
     def ceiling_of(slot: PriceSlot) -> float | None:
         if slot_ceilings is not None:
@@ -883,15 +884,78 @@ def allocate_price_slots(
             or held_through_the_day(slot, deadline)
         )
 
+    # Hours left to the grid in each segment: [deadline, kWh, import value,
+    # served-deadline record].
+    # A slot charged before them crosses them: the house drains that much of
+    # its energy first, so serving a later deadline costs that drain on top
+    # (#834). The amount drops to 0 once a booked slot covers it.
+    left_hours: dict[datetime, list[list]] = {}
+
+    def crossing_entries(slot: PriceSlot, start: datetime, deadline: datetime) -> list[list]:
+        """The hours left to the grid that drain ``slot`` before ``deadline``."""
+        if lasts(slot, deadline, left_until.get(start)):
+            return []
+        # The grid covers the house while another booked slot charges, from
+        # its start until its amount is stored.
+        rate = power * efficiency
+        charging = [
+            (
+                max(now, other.start),
+                min(other.end, max(now, other.start) + timedelta(hours=amount / rate))
+                if rate > _EPSILON
+                else other.end,
+            )
+            for other, amount in allocations.items()
+            if amount > _EPSILON and other is not slot
+        ]
+        return [
+            e for e in left_hours.get(start, ())
+            if e[0] > slot.end
+            and not any(begin < e[0] <= end for begin, end in charging)
+        ]
+
+    def crossing(slot: PriceSlot, start: datetime, deadline: datetime) -> tuple[float, float]:
+        """kWh the house drains from ``slot`` before ``deadline``, and what
+        storing it loses against importing it then."""
+        drained = crossing_entries(slot, start, deadline)
+        return (
+            sum(e[1] for e in drained),
+            sum(e[1] * (slot.price - e[2]) for e in drained),
+        )
+
+    deadline_caps = [value_cap(item) for item in deadlines]
+    deadline_starts = [allocation_start(item.deadline) for item in deadlines]
+
+    def crossing_gain(price: float, index: int, missing: float, budget: float) -> float:
+        # The drain is paid once, then the slot serves this and the later
+        # deadlines of the segment that repay it. ponytail: assumes no
+        # cheaper slot takes those later deadlines first; optimistic there.
+        gain = 0.0
+        for j in range(index, len(deadlines)):
+            if deadline_starts[j] != deadline_starts[index] or budget <= _EPSILON:
+                break
+            cap_j = deadline_caps[j]
+            if cap_j is None or cap_j == _UNPRICED or cap_j <= price:
+                continue
+            need = missing if j == index else max(
+                0.0,
+                deadlines[j].required_cumulative_kwh
+                - deadlines[j - 1].required_cumulative_kwh,
+            )
+            take = min(need, budget)
+            gain += take * (cap_j - price)
+            budget -= take
+        return gain
+
     segment_unusable: dict[datetime, float] = {}
-    # Each deadline the loop served, with the segment it ran in, the
-    # cumulative target it aimed for, whether it was valued against the
-    # import price and the hour left to the grid it saw: replayed below to
+    # Each deadline the loop served: [deadline, the segment it ran in, the
+    # cumulative energy the battery covers up to it, whether it was valued
+    # against the import price, the hour left to the grid it saw, the slots
+    # its segment booked across hours left to the grid (#834)]. Replayed below to
     # label the slots.
-    served_deadlines: list[
-        tuple[EnergyDeadline, datetime, float, bool, datetime | None]
-    ] = []
-    for deadline in deadlines:
+    served_deadlines: list[list] = []
+    crossed_in_segment: dict[datetime, set[PriceSlot]] = {}
+    for index, deadline in enumerate(deadlines):
         clip = deadline.kind != "guaranteed_floor"
         blocked = 0.0
         start = allocation_start(deadline.deadline)
@@ -920,15 +984,14 @@ def allocate_price_slots(
             awaiting_prices += missing
             segment_unusable[start] = segment_unusable.get(start, 0.0) + missing
             continue
-        served_deadlines.append(
-            (deadline, start, cumulative_target, cap is not None, until)
-        )
+        served_target = cumulative_target
+        # Slots booked across this segment's hours left to the grid: those
+        # hours are then covered by the battery, so such a slot serves every
+        # later deadline of the segment.
+        crossed = crossed_in_segment.setdefault(start, set())
         pool = (
             candidates if cap is None
-            else [
-                slot for slot in under_static
-                if slot.price <= cap and lasts(slot, deadline.deadline, until)
-            ]
+            else [slot for slot in under_static if slot.price <= cap]
         )
         any_valued_pool = any_valued_pool or (cap is not None and bool(pool))
         # Capacity the import price ruled out, or whose energy is used before
@@ -942,6 +1005,21 @@ def allocate_price_slots(
             if (slot.price > cap or not lasts(slot, deadline.deadline, until))
             and in_segment(slot, start, deadline.deadline)
         )
+        def free_of(slot: PriceSlot) -> float:
+            return max(
+                0.0,
+                capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
+            )
+
+        def effective_price(slot: PriceSlot) -> float:
+            # A crossing slot's drain loss, spread over what it can deliver.
+            if cap is None:
+                return slot.price
+            drain, loss = crossing(slot, start, deadline.deadline)
+            if drain <= _EPSILON:
+                return slot.price
+            return slot.price + max(0.0, loss) / max(free_of(slot) - drain, _EPSILON)
+
         eligible = sorted(
             (
                 slot
@@ -949,23 +1027,43 @@ def allocate_price_slots(
                 if in_segment(slot, start, deadline.deadline)
             ),
             key=lambda slot: (
-                slot.price,
+                effective_price(slot),
                 0 if slot in allocations else 1,
                 -capacity(slot, deadline.deadline, start),
                 slot.start,
             ),
         )
         for slot in eligible:
-            free = max(
-                0.0,
-                capacity(slot, deadline.deadline, start) - allocations.get(slot, 0.0),
-            )
+            free = free_of(slot)
             usable = min(room(slot, free) if clip else free, room_at_start(slot))
             blocked += free - usable
-            take = min(missing, usable)
+            drain, loss = (
+                (0.0, 0.0) if cap is None
+                else crossing(slot, start, deadline.deadline)
+            )
+            if drain > _EPSILON and (
+                usable <= drain
+                or crossing_gain(slot.price, index, missing, usable - drain) <= loss
+            ):
+                continue
+            take = min(missing, usable - drain)
             if take <= _EPSILON:
                 continue
-            allocations[slot] = allocations.get(slot, 0.0) + take
+            if drain > _EPSILON:
+                # The battery now covers those hours, so they are no longer
+                # left to the grid; the slot stores their drain as well.
+                for entry in crossing_entries(slot, start, deadline.deadline):
+                    entry[3][2] += entry[1]
+                    entry[1] = 0.0
+                cheaper_to_import -= drain
+                segment_unusable[start] -= drain
+                # The drained hours count toward this segment's target again.
+                served_target += drain
+            if cap is not None and not lasts(slot, deadline.deadline, until):
+                # Booked across hours left to the grid (their drain counted
+                # here or by an earlier crossing slot).
+                crossed.add(slot)
+            allocations[slot] = allocations.get(slot, 0.0) + take + drain
             missing -= take
             if missing <= _EPSILON:
                 break
@@ -996,8 +1094,17 @@ def allocate_price_slots(
         cut = min(missing, blocked)
         import_cut = min(missing - cut, import_free)
         cheaper_to_import += import_cut
+        # The grid covers what was cut or left to it, not the battery.
+        record = [
+            deadline, start, served_target - cut - import_cut,
+            cap is not None, until, crossed,
+        ]
+        served_deadlines.append(record)
         if import_cut > _EPSILON:
             left_until[start] = deadline.deadline
+            left_hours.setdefault(start, []).append(
+                [deadline.deadline, import_cut, cap, record]
+            )
         segment_unusable[start] = segment_unusable.get(start, 0.0) + cut + import_cut
         deadline_shortfall = max(deadline_shortfall, missing - cut - import_cut)
     unusable = sum(segment_unusable.values())
@@ -1050,7 +1157,7 @@ def allocate_price_slots(
     unassigned = dict(allocations)
     served_in_segment: dict[datetime, float] = {}
     by_start = sorted(allocations, key=lambda item: item.start)
-    for deadline, start, target, valued, until in served_deadlines:
+    for deadline, start, target, valued, until, crossed in served_deadlines:
         need = max(0.0, target - served_in_segment.get(start, 0.0))
         for slot in by_start:
             if need <= _EPSILON:
@@ -1059,7 +1166,11 @@ def allocate_price_slots(
             if (
                 left <= _EPSILON
                 or not in_segment(slot, start, deadline.deadline)
-                or (valued and not lasts(slot, deadline.deadline, until))
+                or (
+                    valued
+                    and slot not in crossed
+                    and not lasts(slot, deadline.deadline, until)
+                )
             ):
                 continue
             take = min(need, left)
