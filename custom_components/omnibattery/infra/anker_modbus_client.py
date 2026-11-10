@@ -32,7 +32,6 @@ def encode_int32(value: int) -> list[int]:
     return [(value >> 16) & 0xFFFF, value & 0xFFFF]
 
 
-
 async def _close_quietly(client) -> None:
     """Close a pymodbus client that never became ``self._client``."""
     try:
@@ -41,6 +40,7 @@ async def _close_quietly(client) -> None:
             await result
     except Exception:  # noqa: BLE001 - best effort on a failed connect
         pass
+
 
 class AnkerModbusClient:
     """Thin async Modbus TCP transport for Anker Solarbank devices."""
