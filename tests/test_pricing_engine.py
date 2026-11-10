@@ -808,6 +808,40 @@ def test_balance_fingerprint_moves_with_the_predictive_knobs():
         assert _fingerprint(ctrl) != before, field
 
 
+@pytest.mark.parametrize(
+    ("field", "before", "after"),
+    [
+        # Which slots the plan buys, not only how much: each used to leave the
+        # old slots booked until the next scheduled evaluation.
+        ("max_price_threshold", None, 0.30),
+        ("max_price_threshold", 0.30, 0.25),
+        ("min_arbitrage_margin", None, 0.05),
+        ("min_arbitrage_margin", 0.05, 0.08),
+        ("round_trip_efficiency", 0.85, 0.80),
+        ("negative_injection_threshold", 0.0, -0.05),
+        ("predischarge_reserve_soc", 20.0, 30.0),
+        # A moved or switched-off weekly run must not keep its slots.
+        ("weekly_full_charge_enabled", True, False),
+        ("weekly_full_charge_day", "sat", "sun"),
+    ],
+)
+def test_balance_fingerprint_moves_with_the_slot_and_weekly_knobs(field, before, after):
+    ctrl = _balance_ctrl(**{field: before})
+    fingerprint = _fingerprint(ctrl)
+    setattr(ctrl, field, after)
+    assert _fingerprint(ctrl) != fingerprint
+
+
+def test_balance_fingerprint_ignores_settings_read_live():
+    # Read every cycle, so a change needs no re-plan.
+    ctrl = _balance_ctrl(discharge_price_threshold=0.40, discharge_reserve_min_saving=0.02)
+    before = _fingerprint(ctrl)
+    ctrl.discharge_price_threshold = 0.45
+    ctrl.discharge_reserve_min_saving = 0.05
+    ctrl.surplus_hold_min_saving = 0.03
+    assert _fingerprint(ctrl) == before
+
+
 def test_balance_fingerprint_ignores_unrelated_battery_state():
     # Shadow selects, manual force mode and capability detection all persist
     # through the same config entry; none of them may re-plan the day.
