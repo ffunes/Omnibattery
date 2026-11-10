@@ -188,8 +188,8 @@ def _max_charge_power_str(
 def _max_discharge_power_line(decision_data: dict) -> str:
     """Discharge limit the planner capped the battery drain at, if known.
 
-    House load above it comes from the grid, so the plan does not charge
-    the battery for it.
+    House load above it comes from the grid, so the planned grid charge
+    leaves it out.
     """
     try:
         limit = float(decision_data.get("battery_discharge_limit_w"))
@@ -203,7 +203,10 @@ def _max_discharge_power_line(decision_data: dict) -> str:
     except (TypeError, ValueError):
         carried = 0.0
     if carried >= 0.005:
-        line += f" (load above it from the grid: {carried:.2f} kWh, not charged for)"
+        line += (
+            f" (load above it from the grid: {carried:.2f} kWh, "
+            "left out of the charge)"
+        )
     return line
 
 

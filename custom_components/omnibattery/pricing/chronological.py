@@ -27,6 +27,10 @@ class EnergyInterval:
     end: datetime
     consumption_kwh: float
     solar_kwh: float
+    # The real house load when ``consumption_kwh`` was capped to what the
+    # battery can deliver (``cap_battery_drain``). ``consumption_kwh`` is the
+    # battery drain; the grid import ceiling must still see the whole load.
+    house_load_kwh: float | None = None
 
     def __post_init__(self) -> None:
         if self.end <= self.start:
@@ -35,6 +39,17 @@ class EnergyInterval:
             value = float(getattr(self, name))
             if not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and non-negative")
+        if self.house_load_kwh is not None:
+            value = float(self.house_load_kwh)
+            if not math.isfinite(value) or value < 0:
+                raise ValueError("house_load_kwh must be finite and non-negative")
+
+    @property
+    def grid_load_kwh(self) -> float:
+        """House load the grid import ceiling sees (uncapped)."""
+        if self.house_load_kwh is None:
+            return self.consumption_kwh
+        return max(self.consumption_kwh, self.house_load_kwh)
 
     def with_battery_idle(self) -> "EnergyInterval":
         """Interval in which the battery may not discharge.
@@ -58,7 +73,8 @@ def cap_battery_drain(
     The house load above the fleet's discharge power comes from the grid,
     not from the battery. Projecting the whole load as drain sized the night
     charge for energy the battery could never hand out, so it reached sunrise
-    half full. Solar still feeds the house first.
+    half full. Solar still feeds the house first. The uncapped load is kept
+    in ``house_load_kwh`` for the grid import ceiling.
     """
     items = list(intervals)
     if discharge_kw is None or not math.isfinite(float(discharge_kw)):
@@ -68,7 +84,9 @@ def cap_battery_drain(
     for item in items:
         limit = item.solar_kwh + rate * _duration_hours(item.start, item.end)
         if item.consumption_kwh > limit:
-            item = EnergyInterval(item.start, item.end, limit, item.solar_kwh)
+            item = EnergyInterval(
+                item.start, item.end, limit, item.solar_kwh, item.grid_load_kwh
+            )
         capped.append(item)
     return capped
 
@@ -662,7 +680,9 @@ def allocate_price_slots(
         if cached is not None:
             return cached
         # The controller holds grid import (house load + charge) at the
-        # ceiling, so the battery only gets what the house leaves of it.
+        # ceiling, so the battery only gets what the house leaves of it. The
+        # whole house load counts, also the part above the discharge power
+        # that the battery drain projection leaves out.
         stored = 0.0
         covered = 0.0
         for interval in intervals:
@@ -675,7 +695,7 @@ def allocate_price_slots(
             if hours <= 0.0 or interval_hours <= 0.0:
                 continue
             net_load_kw = max(
-                0.0, interval.consumption_kwh - interval.solar_kwh
+                0.0, interval.grid_load_kwh - interval.solar_kwh
             ) / interval_hours
             stored += min(power, max(0.0, ceiling_kw - net_load_kw)) * hours
             covered += hours

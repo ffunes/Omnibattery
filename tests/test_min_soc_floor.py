@@ -908,6 +908,41 @@ def _captured_intervals(monkeypatch, manager, now):
     return captured[0]
 
 
+def test_the_plan_publishes_the_total_less_the_grid_carried_load():
+    """PR #835 review: the load above the discharge power comes off the
+    total the plan buys and the published figures, once per decision."""
+    manager = _floor_manager(45.0)
+    manager._controller._predictive_min_soc_floor_enabled = False
+    # 100 W under a 0.36 kW load: 0.26 kW goes to the grid.
+    manager._controller.coordinators[0].effective_max_discharge_power = 100.0
+    now = datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ)
+    decision = {
+        "should_charge": True,
+        "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+        "energy_deficit_kwh": 10.0,
+        "planned_grid_charge_kwh": 10.0,
+        "excluded_demand_claim_kwh": 0.0,
+    }
+
+    def build():
+        return manager._build_chronological_plan(
+            now=now, slots=[], decision_data=decision, price_ceiling=None
+        )
+
+    plan = build()
+    carried = decision["grid_carried_load_kwh"]
+    # 0.26 kW above the limit wherever the sun does not cover the house,
+    # from 01:00 until the horizon's sunrise.
+    assert 0.0 < carried < (_FLOOR_BASE_KW - 0.1) * 29.3 + 0.01
+    assert decision["battery_discharge_limit_w"] == 100
+    assert decision["planned_grid_charge_kwh"] == pytest.approx(10.0 - carried, abs=1e-3)
+    assert decision["energy_deficit_kwh"] == pytest.approx(10.0 - carried, abs=1e-3)
+    assert plan.total_required_kwh <= 10.0 - carried + 1e-6
+
+    build()  # a rebuild nets the same load, not twice
+    assert decision["planned_grid_charge_kwh"] == pytest.approx(10.0 - carried, abs=1e-3)
+
+
 def test_daytime_no_discharge_window_credits_only_the_solar_surplus(monkeypatch):
     # Battery may not discharge 11:00-17:00, but the house still eats solar
     # first: only the surplus may be projected as battery charge.

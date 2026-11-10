@@ -586,7 +586,7 @@ def test_dynamic_shows_the_discharge_limit_the_plan_used():
 
     assert message.endswith(
         "Max discharge power: 800W "
-        "(load above it from the grid: 3.46 kWh, not charged for)"
+        "(load above it from the grid: 3.46 kWh, left out of the charge)"
     )
     assert "Max charge power: 3000W" in message
 

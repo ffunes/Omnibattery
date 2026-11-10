@@ -3032,6 +3032,131 @@ class PricingManager:
         except Exception:  # noqa: BLE001
             return False
 
+    @staticmethod
+    def _fleet_discharge_limit_w(coordinators: Sequence[Any]) -> float | None:
+        """Summed discharge power of ``coordinators``; ``None`` if unknown."""
+        if not coordinators:
+            return None
+        total = 0.0
+        for c in coordinators:
+            try:
+                total += max(0.0, float(getattr(
+                    c,
+                    "effective_max_discharge_power",
+                    getattr(c, "max_discharge_power", None),
+                )))
+            except (TypeError, ValueError):
+                return None
+        return total if math.isfinite(total) else None
+
+    def _scalar_horizon_end(
+        self, decision_data: Mapping[str, Any], *, now: datetime, default: datetime
+    ) -> datetime:
+        """End of the horizon the scalar balance in ``decision_data`` covers."""
+        end = decision_data.get("energy_horizon_end")
+        if not isinstance(end, datetime):
+            return default
+        if end.tzinfo is None and now.tzinfo is not None:
+            return end.replace(tzinfo=now.tzinfo)
+        if end.tzinfo is not None and now.tzinfo is None:
+            # Naive control times are the HA local wall clock, not the host's.
+            from zoneinfo import ZoneInfo
+
+            zone = getattr(getattr(self._hass, "config", None), "time_zone", None)
+            try:
+                tz = ZoneInfo(zone) if zone else None
+            except (KeyError, ValueError):
+                tz = None
+            return end.astimezone(tz).replace(tzinfo=None)
+        if end.tzinfo is not None:
+            return end.astimezone(now.tzinfo)
+        return end
+
+    def _net_grid_carried_load(
+        self,
+        decision_data: dict[str, Any],
+        carried_kwh: float,
+        *,
+        publish: bool,
+    ) -> float:
+        """Scalar grid charge less the house load the grid carries anyway.
+
+        The scalar balance counts the whole house load as battery drain, but
+        the load above the fleet's discharge power comes from the grid. The
+        first published call keeps the uncapped figures under ``scalar_*``
+        keys, so the plan builder, which runs more than once per decision,
+        nets them once instead of again on every rebuild. A floor deficit is
+        a SOC gap, not load, and a weekly full charge fills the gap to 100%,
+        so neither shrinks.
+        """
+        def number(key: str, fallback: str) -> float:
+            value = decision_data.get(key, decision_data.get(fallback, 0.0))
+            try:
+                value = float(value or 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+            return value if math.isfinite(value) else 0.0
+
+        planned = max(0.0, number(
+            "scalar_planned_grid_charge_kwh", "planned_grid_charge_kwh"
+        ))
+        deficit = number("scalar_energy_deficit_kwh", "energy_deficit_kwh")
+        carried = max(0.0, float(carried_kwh or 0.0))
+        weekly_fn = getattr(self._controller, "_weekly_full_charge_pending", None)
+        if carried <= 1e-9 or (callable(weekly_fn) and weekly_fn()):
+            netted_planned, netted_deficit = planned, deficit
+        else:
+            try:
+                floor = max(
+                    0.0, float(decision_data.get("floor_deficit_kwh") or 0.0)
+                )
+            except (TypeError, ValueError):
+                floor = 0.0
+            netted_planned = max(planned - carried, min(planned, floor))
+            netted_deficit = max(deficit - carried, min(deficit, floor))
+        if publish:
+            decision_data.setdefault("scalar_planned_grid_charge_kwh", planned)
+            decision_data.setdefault("scalar_energy_deficit_kwh", deficit)
+            scalar_should = decision_data.setdefault(
+                "scalar_should_charge", bool(decision_data.get("should_charge"))
+            )
+            decision_data["planned_grid_charge_kwh"] = netted_planned
+            decision_data["energy_deficit_kwh"] = netted_deficit
+            decision_data["should_charge"] = bool(
+                scalar_should and netted_deficit > 1e-9
+            )
+        return netted_planned
+
+    def _planning_coordinators(self) -> list[Any]:
+        """Batteries the planner sizes for: with data, not manually owned."""
+        owned = getattr(self._controller, "_is_battery_manual_owned", None)
+        return [
+            c for c in getattr(self._controller, "coordinators", None) or []
+            if c.data and not (callable(owned) and owned(c))
+        ]
+
+    def _grid_carried_load_without_profile(
+        self, consumption_kwh: float, hours: float, solar_kwh: float = 0.0
+    ) -> float:
+        """Load above the discharge power when no interval shape is known.
+
+        ``load - solar - limit x hours`` never overstates it: per interval the
+        carried load is at least that interval's share, and a peaky load or
+        solar that misses the night only adds to it.
+        """
+        hours = max(0.0, float(hours or 0.0))
+        if hours <= 0.0:
+            return 0.0
+        limit_w = self._fleet_discharge_limit_w(self._planning_coordinators())
+        if limit_w is None:
+            return 0.0
+        return max(
+            0.0,
+            max(0.0, float(consumption_kwh or 0.0))
+            - max(0.0, float(solar_kwh or 0.0))
+            - limit_w / 1000.0 * hours,
+        )
+
     def _build_chronological_plan(
         self,
         *,
@@ -3376,27 +3501,21 @@ class PricingManager:
             # carries the rest of the house load. Without this cap an 800 W
             # battery under a 1.2 kW night load was charged for the full load
             # and reached sunrise half full.
-            discharge_w = 0.0
-            for c in eligible:
-                try:
-                    discharge_w += max(0.0, float(getattr(
-                        c,
-                        "effective_max_discharge_power",
-                        getattr(c, "max_discharge_power", None),
-                    )))
-                except (TypeError, ValueError):
-                    discharge_w = math.nan
-                    break
-            discharge_limit_w: float | None = None
+            discharge_limit_w = self._fleet_discharge_limit_w(eligible)
             grid_carried_kwh = 0.0
-            if eligible and math.isfinite(discharge_w):
-                discharge_limit_w = discharge_w
-                uncapped_kwh = sum(item.consumption_kwh for item in intervals)
-                intervals = cap_battery_drain(intervals, discharge_w / 1000.0)
-                grid_carried_kwh = max(
-                    0.0,
-                    uncapped_kwh - sum(item.consumption_kwh for item in intervals),
+            if discharge_limit_w is not None:
+                uncapped = intervals
+                intervals = cap_battery_drain(intervals, discharge_limit_w / 1000.0)
+                # Only the part inside the scalar balance's horizon comes off
+                # its total: that balance counted it as battery drain.
+                scalar_end = self._scalar_horizon_end(
+                    decision_data, now=now, default=horizon_end
                 )
+                grid_carried_kwh = max(0.0, sum(
+                    before.consumption_kwh - after.consumption_kwh
+                    for before, after in zip(uncapped, intervals)
+                    if before.end <= scalar_end
+                ))
             total_capacity = sum(
                 float(c.data.get("battery_total_energy", 0) or 0)
                 for c in eligible
@@ -3488,12 +3607,22 @@ class PricingManager:
             deadlines = build_energy_deadlines(
                 intervals, usable, usable_capacity_kwh=usable + headroom
             )
-            # The scalar balance counts the window load as battery drain too.
-            required = max(
-                0.0,
-                float(decision_data.get("planned_grid_charge_kwh", 0.0) or 0.0)
-                - (window_load_on_grid or 0.0),
+            # The scalar balance counts the load above the discharge power as
+            # battery drain; take it off the total, not just the deadlines, or
+            # the gap is bought back as flexible charge. Published too, so the
+            # notification and the SOC stop target (#409) agree with the plan.
+            scalar_required = max(0.0, float(decision_data.get(
+                "scalar_planned_grid_charge_kwh",
+                decision_data.get("planned_grid_charge_kwh", 0.0),
+            ) or 0.0))
+            required = self._net_grid_carried_load(
+                decision_data, grid_carried_kwh, publish=not diagnostic_only
             )
+            # What actually came off the total: a floor gap or a pending
+            # weekly full charge keeps it whole.
+            grid_carried_kwh = max(0.0, scalar_required - required)
+            # The scalar balance counts the window load as battery drain too.
+            required = max(0.0, required - (window_load_on_grid or 0.0))
             # Only guaranteed-floor energy may skip the arbitrage margin (#724):
             # the reactive under-floor gap beyond the ordinary deficit, or the
             # planner's floor requirement beyond ordinary pre-sunrise depletion.
@@ -4366,13 +4495,49 @@ class PricingManager:
             # No consumption profile, so no plan trims the load the grid
             # carries while the slots charge (#785). ponytail: the night load
             # is taken as the daily average / 24; the profile replaces this.
+            night_load_kw = (
+                float(decision_data.get("avg_consumption_kwh", 0.0) or 0.0) / 24.0
+            )
+            # Nor the load above the discharge power, which the battery never
+            # covers: net it from the scalar total at the average rate.
+            scalar_end = self._scalar_horizon_end(
+                decision_data, now=eval_now, default=self.energy_horizon_end(eval_now)
+            )
+            scalar_hours = max(0.0, (scalar_end - eval_now).total_seconds() / 3600.0)
+            remaining_kwh = decision_data.get("remaining_consumption_kwh")
+            solar_kwh = decision_data.get("solar_available_to_battery_kwh", 0.0)
+            grid_carried_kwh = (
+                self._grid_carried_load_without_profile(
+                    remaining_kwh, scalar_hours, solar_kwh
+                )
+                if isinstance(remaining_kwh, (int, float))
+                else self._grid_carried_load_without_profile(
+                    night_load_kw * 24.0, 24.0, solar_kwh
+                )
+            )
+            scalar_kwh = float(decision_data.get(
+                "scalar_planned_grid_charge_kwh",
+                decision_data.get("planned_grid_charge_kwh", deficit_kwh),
+            ) or 0.0)
+            netted_kwh = self._net_grid_carried_load(
+                decision_data, grid_carried_kwh, publish=True
+            )
+            # What actually came off the total (a floor gap stays whole).
+            decision_data["grid_carried_load_kwh"] = round(
+                max(0.0, scalar_kwh - netted_kwh), 3
+            )
+            deficit_charging_needed = bool(decision_data.get("should_charge", False))
+            limit_w = self._fleet_discharge_limit_w(self._planning_coordinators())
             planned = calculations.net_of_load_carried_by_grid(
-                float(decision_data.get("planned_grid_charge_kwh", deficit_kwh) or 0.0),
+                netted_kwh,
                 min(
                     self._contracted_charge_ceiling(),
                     max(0.0, float(self._controller.max_charge_capacity)),
                 ) / 1000.0,
-                float(decision_data.get("avg_consumption_kwh", 0.0) or 0.0) / 24.0,
+                # Only the drain the battery would have covered is avoided.
+                night_load_kw
+                if limit_w is None
+                else min(night_load_kw, limit_w / 1000.0),
             )
             decision_data["planned_grid_charge_kwh"] = planned
             deficit_hours_needed = calculations.calculate_charging_hours_needed(
@@ -5978,15 +6143,27 @@ class PricingManager:
         weekly_gap_kwh = (
             weekly_gap(coordinators_with_data) if callable(weekly_gap) else 0.0
         )
+        load_deficit_kwh = max(
+            0.0,
+            remaining_consumption_kwh - usable_now_kwh - remaining_solar_kwh,
+        )
+        scalar_evening_deficit_kwh = min(
+            energy_to_full_kwh, max(weekly_gap_kwh, load_deficit_kwh)
+        )
+        scalar_evening_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
+            scalar_evening_deficit_kwh,
+            energy_to_full_kwh,
+        )
+        # The load above the batteries' discharge power comes from the grid,
+        # not from the battery. Here, before the plan exists, it is taken at
+        # the average rate (never overstated); the plan below nets its exact,
+        # per-interval figure from the scalar values instead.
+        grid_carried_kwh = self._grid_carried_load_without_profile(
+            remaining_consumption_kwh, remaining_window_hours, remaining_solar_kwh
+        )
         evening_deficit_kwh = min(
             energy_to_full_kwh,
-            max(
-                weekly_gap_kwh,
-                max(
-                    0.0,
-                    remaining_consumption_kwh - usable_now_kwh - remaining_solar_kwh,
-                ),
-            ),
+            max(weekly_gap_kwh, max(0.0, load_deficit_kwh - grid_carried_kwh)),
         )
         planned_evening_charge_kwh = calculations.calculate_planned_grid_charge_kwh(
             evening_deficit_kwh,
@@ -5996,8 +6173,10 @@ class PricingManager:
         if evening_deficit_kwh < EVENING_DEFICIT_THRESHOLD_KWH:
             _LOGGER.info(
                 "Evening recharge: battery + solar cover tonight "
-                "(need=%.2f, usable=%.2f, solar=%.2f kWh) — no action",
+                "(need=%.2f, usable=%.2f, solar=%.2f, grid-carried load=%.2f kWh) "
+                "— no action",
                 remaining_consumption_kwh, usable_now_kwh, remaining_solar_kwh,
+                grid_carried_kwh,
             )
             return
 
@@ -6042,6 +6221,12 @@ class PricingManager:
         decision_data["should_charge"] = True
         decision_data["energy_deficit_kwh"] = evening_deficit_kwh
         decision_data["planned_grid_charge_kwh"] = planned_evening_charge_kwh
+        # The uncapped figures the plan nets its own grid-carried load from;
+        # without them it would subtract that load a second time.
+        decision_data["scalar_should_charge"] = True
+        decision_data["scalar_energy_deficit_kwh"] = scalar_evening_deficit_kwh
+        decision_data["scalar_planned_grid_charge_kwh"] = scalar_evening_charge_kwh
+        decision_data["grid_carried_load_kwh"] = round(grid_carried_kwh, 3)
         # Same arbitrage-aware ceiling as the main evaluation: a deficit top-up
         # must not buy energy that costs more than it can displace later.
         price_ceiling = self._controller.max_price_threshold
@@ -6061,6 +6246,18 @@ class PricingManager:
         )
         selected_energy_kwh: dict = {}
         if chronological_plan is not None:
+            # The plan netted the per-interval grid-carried load from the
+            # scalar figures; keep those, not the estimate above, so the
+            # schedule, notification and SOC stop target (#409) agree.
+            evening_deficit_kwh = float(
+                decision_data.get("energy_deficit_kwh", evening_deficit_kwh) or 0.0
+            )
+            planned_evening_charge_kwh = float(
+                decision_data.get(
+                    "planned_grid_charge_kwh", planned_evening_charge_kwh
+                )
+                or 0.0
+            )
             selected = [
                 allocation.slot
                 for allocation in chronological_plan.allocations

@@ -1124,6 +1124,196 @@ def test_battery_drain_cap_lets_solar_feed_the_house_first():
     assert capped.solar_kwh == pytest.approx(0.2)
     assert cap_battery_drain([_interval(0, 0.1)], 0.8)[0].consumption_kwh == 0.1
     assert cap_battery_drain([item], None) == [item]
+    assert capped.house_load_kwh == pytest.approx(0.5)
+    assert capped.grid_load_kwh == pytest.approx(0.5)
+
+
+_DRAIN_NIGHT = datetime(2026, 8, 18, 22)
+
+
+def _drain_night_allocation(*, capped, net_total, valued, from_deadlines):
+    """22:00-08:00 at 1.2 kW, an 800 W / 1 kWh-usable battery, 2 kW charge,
+    cheap 01:00-05:00. The total and the deadlines come from one scenario,
+    the way the engine builds them: the scalar total is the whole load less
+    the usable energy, and the fix nets the grid-carried load from it."""
+    night = [
+        EnergyInterval(
+            _DRAIN_NIGHT + timedelta(minutes=15 * i),
+            _DRAIN_NIGHT + timedelta(minutes=15 * (i + 1)),
+            0.3,
+            0.0,
+        )
+        for i in range(40)
+    ]
+    slots = [
+        PriceSlot(
+            _DRAIN_NIGHT + timedelta(hours=h),
+            _DRAIN_NIGHT + timedelta(hours=h + 1),
+            0.10 if 3 <= h < 7 else 0.30,
+        )
+        for h in range(10)
+    ]
+    usable = 1.0
+    capped_night = cap_battery_drain(night, 0.8)
+    carried = sum(i.consumption_kwh for i in night) - sum(
+        i.consumption_kwh for i in capped_night
+    )
+    total = sum(i.consumption_kwh for i in night) - usable
+    if net_total:
+        total -= carried
+    items = capped_night if capped else night
+    plan = allocate_price_slots(
+        items,
+        build_energy_deadlines(items, usable, usable_capacity_kwh=usable + 20.0),
+        slots,
+        total_required_kwh=total,
+        effective_power_kw=2.0,
+        now=_DRAIN_NIGHT,
+        horizon_end=_DRAIN_NIGHT + timedelta(hours=10),
+        headroom_kwh=20.0,
+        usable_initial_kwh=usable,
+        required_from_deadlines=from_deadlines,
+        import_value_efficiency=0.85 if valued else None,
+        import_value_margin=0.05 if valued else 0.0,
+        grid_carries_load_while_charging=True,
+    )
+    return plan.allocated_kwh
+
+
+@pytest.mark.parametrize("from_deadlines", [False, True])
+@pytest.mark.parametrize(
+    ("valued", "expected"), [(False, 4.76), (True, 1.63)]
+)
+def test_capping_the_drain_buys_less_only_with_the_total_netted(
+    valued, expected, from_deadlines
+):
+    """PR #835 review: capping only the deadlines left the scalar total
+    whole, so the gap came back as flexible charge and the plan bought more
+    than before. Netting the grid-carried load from the total buys less."""
+    kwargs = {"valued": valued, "from_deadlines": from_deadlines}
+    base = _drain_night_allocation(capped=False, net_total=False, **kwargs)
+    deadlines_only = _drain_night_allocation(capped=True, net_total=False, **kwargs)
+    fixed = _drain_night_allocation(capped=True, net_total=True, **kwargs)
+
+    assert deadlines_only > base  # the regression the review found
+    assert fixed < base
+    assert fixed == pytest.approx(expected, abs=0.01)
+
+
+def test_the_import_ceiling_still_sees_the_whole_house_load():
+    """The drain cap must not make room under the import ceiling: a 1.2 kW
+    house under a 3 kW ceiling leaves 1.8 kW for charging, also when the
+    battery drain is capped at 0.8 kW."""
+    night = [_interval(i, 0.3) for i in range(8)]
+    slot = PriceSlot(BASE, BASE + timedelta(hours=1), 0.1)
+
+    def stored(items):
+        plan = allocate_price_slots(
+            items,
+            build_energy_deadlines(items, 0.0, usable_capacity_kwh=20.0),
+            [slot],
+            total_required_kwh=20.0,
+            effective_power_kw=3.0,
+            now=BASE,
+            horizon_end=BASE + timedelta(hours=2),
+            headroom_kwh=20.0,
+            usable_initial_kwh=0.0,
+            grid_carries_load_while_charging=True,
+            grid_ceiling_kw=3.0,
+        )
+        return plan.allocations[0].planned_battery_kwh
+
+    assert stored(cap_battery_drain(night, 0.8)) == pytest.approx(
+        1.8 * CHARGE_EFFICIENCY
+    )
+    assert stored(night) == pytest.approx(1.8 * CHARGE_EFFICIENCY)
+
+
+def _netting_manager(*, weekly=False, discharge_w=800.0):
+    battery = SimpleNamespace(
+        data={"battery_soc": 50},
+        effective_max_discharge_power=discharge_w,
+    )
+    controller = SimpleNamespace(
+        coordinators=[battery],
+        _is_battery_manual_owned=lambda c: False,
+        _weekly_full_charge_pending=lambda: weekly,
+    )
+    return PricingManager(SimpleNamespace(), controller)
+
+
+def test_the_grid_carried_load_comes_off_the_published_total_once():
+    """The plan builder runs several times per decision; each run nets the
+    load from the uncapped scalar, so a rebuild does not subtract it again."""
+    manager = _netting_manager()
+    decision = {
+        "should_charge": True,
+        "planned_grid_charge_kwh": 11.0,
+        "energy_deficit_kwh": 11.0,
+    }
+
+    first = manager._net_grid_carried_load(decision, 4.0, publish=True)
+    again = manager._net_grid_carried_load(decision, 4.0, publish=True)
+
+    assert first == again == pytest.approx(7.0)
+    assert decision["planned_grid_charge_kwh"] == pytest.approx(7.0)
+    assert decision["energy_deficit_kwh"] == pytest.approx(7.0)
+    assert decision["scalar_planned_grid_charge_kwh"] == pytest.approx(11.0)
+    assert decision["should_charge"] is True
+
+
+def test_a_carried_load_larger_than_the_deficit_needs_no_charge():
+    manager = _netting_manager()
+    decision = {
+        "should_charge": True,
+        "planned_grid_charge_kwh": 2.0,
+        "energy_deficit_kwh": 2.0,
+    }
+
+    assert manager._net_grid_carried_load(decision, 3.0, publish=True) == 0.0
+    assert decision["should_charge"] is False
+
+
+def test_the_carried_load_does_not_shrink_a_floor_or_weekly_gap():
+    # A floor deficit is a SOC gap, not load.
+    manager = _netting_manager()
+    decision = {
+        "should_charge": True,
+        "planned_grid_charge_kwh": 3.0,
+        "energy_deficit_kwh": 3.0,
+        "floor_deficit_kwh": 2.5,
+    }
+    assert manager._net_grid_carried_load(decision, 4.0, publish=True) == 2.5
+    assert decision["energy_deficit_kwh"] == pytest.approx(2.5)
+
+    # A pending weekly full charge fills the gap to 100% whatever the load.
+    weekly = _netting_manager(weekly=True)
+    decision = {"planned_grid_charge_kwh": 5.0, "energy_deficit_kwh": 5.0}
+    assert weekly._net_grid_carried_load(decision, 4.0, publish=False) == 5.0
+
+
+def test_a_diagnostic_build_leaves_the_published_total_alone():
+    manager = _netting_manager()
+    decision = {"planned_grid_charge_kwh": 5.0, "energy_deficit_kwh": 5.0}
+
+    assert manager._net_grid_carried_load(decision, 2.0, publish=False) == 3.0
+    assert decision == {"planned_grid_charge_kwh": 5.0, "energy_deficit_kwh": 5.0}
+
+
+def test_without_a_profile_the_carried_load_is_taken_at_the_average_rate():
+    manager = _netting_manager(discharge_w=800.0)
+
+    # 12 kWh over 10 h is 1.2 kW: 0.4 kW above the limit for 10 h.
+    assert manager._grid_carried_load_without_profile(12.0, 10.0) == pytest.approx(4.0)
+    assert manager._grid_carried_load_without_profile(6.0, 10.0) == 0.0
+    assert manager._grid_carried_load_without_profile(12.0, 0.0) == 0.0
+    # Solar inside the window feeds the house first: 16:00-07:00 at 1.2 kW
+    # with 4 kWh of evening sun carries at least 18 - 4 - 12 = 2 kWh.
+    assert manager._grid_carried_load_without_profile(
+        18.0, 15.0, 4.0
+    ) == pytest.approx(2.0)
+    unknown = _netting_manager(discharge_w=None)
+    assert unknown._grid_carried_load_without_profile(12.0, 10.0) == 0.0
 
 
 def _flat_night_plan(**kwargs):
