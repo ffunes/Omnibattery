@@ -3135,6 +3135,48 @@ class PricingManager:
             if c.data and not (callable(owned) and owned(c))
         ]
 
+    def _net_scalar_grid_carried_load(
+        self,
+        decision_data: dict[str, Any],
+        *,
+        now: datetime,
+        fallback_kwh: float = 0.0,
+    ) -> float:
+        """Net the load above the discharge power from a scalar decision.
+
+        For paths with no interval plan (no consumption profile, Real-Time
+        Price): the carried load is estimated at the average rate over the
+        scalar horizon. Publishes the netted figures into ``decision_data``.
+        """
+        scalar_end = self._scalar_horizon_end(
+            decision_data, now=now, default=self.energy_horizon_end(now)
+        )
+        scalar_hours = max(0.0, (scalar_end - now).total_seconds() / 3600.0)
+        remaining_kwh = decision_data.get("remaining_consumption_kwh")
+        solar_kwh = decision_data.get("solar_available_to_battery_kwh", 0.0)
+        if isinstance(remaining_kwh, (int, float)):
+            grid_carried_kwh = self._grid_carried_load_without_profile(
+                remaining_kwh, scalar_hours, solar_kwh
+            )
+        else:
+            grid_carried_kwh = self._grid_carried_load_without_profile(
+                float(decision_data.get("avg_consumption_kwh", 0.0) or 0.0),
+                24.0,
+                solar_kwh,
+            )
+        scalar_kwh = float(decision_data.get(
+            "scalar_planned_grid_charge_kwh",
+            decision_data.get("planned_grid_charge_kwh", fallback_kwh),
+        ) or 0.0)
+        netted_kwh = self._net_grid_carried_load(
+            decision_data, grid_carried_kwh, publish=True
+        )
+        # What actually came off the total (a floor gap stays whole).
+        decision_data["grid_carried_load_kwh"] = round(
+            max(0.0, scalar_kwh - netted_kwh), 3
+        )
+        return netted_kwh
+
     def _grid_carried_load_without_profile(
         self, consumption_kwh: float, hours: float, solar_kwh: float = 0.0
     ) -> float:
@@ -4504,31 +4546,8 @@ class PricingManager:
             )
             # Nor the load above the discharge power, which the battery never
             # covers: net it from the scalar total at the average rate.
-            scalar_end = self._scalar_horizon_end(
-                decision_data, now=eval_now, default=self.energy_horizon_end(eval_now)
-            )
-            scalar_hours = max(0.0, (scalar_end - eval_now).total_seconds() / 3600.0)
-            remaining_kwh = decision_data.get("remaining_consumption_kwh")
-            solar_kwh = decision_data.get("solar_available_to_battery_kwh", 0.0)
-            grid_carried_kwh = (
-                self._grid_carried_load_without_profile(
-                    remaining_kwh, scalar_hours, solar_kwh
-                )
-                if isinstance(remaining_kwh, (int, float))
-                else self._grid_carried_load_without_profile(
-                    night_load_kw * 24.0, 24.0, solar_kwh
-                )
-            )
-            scalar_kwh = float(decision_data.get(
-                "scalar_planned_grid_charge_kwh",
-                decision_data.get("planned_grid_charge_kwh", deficit_kwh),
-            ) or 0.0)
-            netted_kwh = self._net_grid_carried_load(
-                decision_data, grid_carried_kwh, publish=True
-            )
-            # What actually came off the total (a floor gap stays whole).
-            decision_data["grid_carried_load_kwh"] = round(
-                max(0.0, scalar_kwh - netted_kwh), 3
+            netted_kwh = self._net_scalar_grid_carried_load(
+                decision_data, now=eval_now, fallback_kwh=deficit_kwh
             )
             deficit_charging_needed = bool(decision_data.get("should_charge", False))
             limit_w = self._fleet_discharge_limit_w(self._planning_coordinators())
@@ -7407,6 +7426,17 @@ class PricingManager:
     # REAL-TIME PRICE: reactive charging based on current price every cycle
     # =========================================================================
 
+    async def _realtime_decision(self) -> dict:
+        """Current-horizon decision, less the load the grid carries anyway.
+
+        Real-Time Price has no interval plan, so without this it sized the
+        charge for the whole house load even above the discharge power.
+        """
+        decision_data = await self._current_horizon_grid_charging_decision()
+        if decision_data.get("should_charge"):
+            self._net_scalar_grid_carried_load(decision_data, now=self._now())
+        return decision_data
+
     async def handle_realtime_price_predictive_charging(self) -> None:
         """Handle predictive charging in real-time price mode (called every 2.5s).
 
@@ -7478,7 +7508,7 @@ class PricingManager:
                 )
             else:
                 # Evaluate whether charging is actually needed before starting
-                decision_data = await self._current_horizon_grid_charging_decision()
+                decision_data = await self._realtime_decision()
                 self._controller._last_decision_data = decision_data
                 self._controller._realtime_eval_date = self._decision_day(
                     self._now()
@@ -7517,7 +7547,7 @@ class PricingManager:
             if self._is_new_day_since(
                 getattr(self._controller, "_realtime_eval_date", None), now
             ):
-                decision_data = await self._current_horizon_grid_charging_decision()
+                decision_data = await self._realtime_decision()
                 self._controller._last_decision_data = decision_data
                 self._controller._realtime_eval_date = now.date()
                 if decision_data["should_charge"]:

@@ -29,6 +29,7 @@
 - **Legacy-domain migration works on Home Assistant before 2024.10**: it read the old entry's `discovery_keys`, which those versions do not have, and aborted. Thanks to @pocketware.
 - **Dynamic Pricing: a slot's "before HH:MM" names when its energy is needed**: each slot now carries the earliest deadline its energy serves, not the deadline that booked it, so labels no longer jump back and forth along the night. Thanks to @pocketware.
 - **Dynamic Pricing: the night charge no longer overfills a battery with a low discharge limit**: the projected drain per interval is capped at the fleet's discharge power and the load above it comes off the night charge, so an 800 W battery under a ~1.2 kW night load no longer reaches sunrise half full. Thanks to @pocketware.
+- **Real-Time Price and Discharge Reserve also respect the discharge power limit**: Real-Time Price nets the load above the fleet's discharge power from its charge, and the reserve no longer holds energy for load the battery could not deliver.
 - **Integration Status shows the two price-hold states in your language** (PR#825): "Surplus Exporting (Cheaper Window Ahead)" and "Holding Charge for Dearer Hours" were still English in the Catalan, Dutch, French, German and Spanish translations. A test now fails when an Integration Status state is left in English. Thanks to @syphernl.
 
 ## [1.6.0] - 2026-11-09

@@ -1432,6 +1432,32 @@ def test_without_a_profile_the_carried_load_is_taken_at_the_average_rate():
     assert unknown._grid_carried_load_without_profile(12.0, 10.0) == 0.0
 
 
+
+def test_real_time_price_nets_the_load_above_the_discharge_power():
+    """Real-Time Price has no interval plan; it charged for the whole night
+    load although an 800 W battery hands out at most 0.8 kW."""
+    manager = _netting_manager(discharge_w=800.0)
+    now = datetime(2026, 11, 10, 21, 0)
+    manager._now = lambda: now
+
+    async def _decision():
+        return {
+            "should_charge": True,
+            "planned_grid_charge_kwh": 11.0,
+            "energy_deficit_kwh": 11.0,
+            # 12 kWh until 07:00 is 1.2 kW: 0.4 kW above the limit for 10 h.
+            "remaining_consumption_kwh": 12.0,
+            "energy_horizon_end": now + timedelta(hours=10),
+        }
+
+    manager._current_horizon_grid_charging_decision = _decision
+    decision = asyncio.run(manager._realtime_decision())
+
+    assert decision["planned_grid_charge_kwh"] == pytest.approx(7.0)
+    assert decision["energy_deficit_kwh"] == pytest.approx(7.0)
+    assert decision["grid_carried_load_kwh"] == pytest.approx(4.0)
+    assert decision["should_charge"] is True
+
 def _flat_night_plan(**kwargs):
     # #834: a flat night at 0.41 (left to the grid: 0.41 x 0.80 - 0.05 is
     # under it), 06:00 at 0.50 (also left), a 07:00-09:00 peak at 0.68 that a

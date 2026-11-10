@@ -156,7 +156,10 @@ def _realtime_engine(now, *, should_charge):
 
     async def _decision():
         calls.append(now)
-        return {"should_charge": should_charge}
+        return {
+            "should_charge": should_charge,
+            "energy_deficit_kwh": 1.0 if should_charge else 0.0,
+        }
 
     async def _handle():
         handled.append(now)

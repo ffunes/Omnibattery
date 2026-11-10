@@ -308,6 +308,16 @@ def test_net_demand_subtracts_expected_pv_and_floors_at_zero():
     assert net[evening] == 2.0
 
 
+
+def test_net_demand_is_capped_at_the_discharge_power():
+    """The grid carries the load above what the batteries can hand out, so it
+    must not claim reserve the battery could never deliver."""
+    night = _slot(22, 0.40)
+    quarter = _slot(23, 0.40, minutes=15)
+    net = net_demand_by_slot({night: 1.2, quarter: 0.3}, {}, discharge_kw=0.8)
+    assert net[night] == pytest.approx(0.8)
+    assert net[quarter] == pytest.approx(0.2)
+
 def test_a_slot_the_sun_covers_claims_no_reserve():
     sunny = _slot(15, 0.50)
     plan = _plan([sunny], net_demand_by_slot({sunny: 2.0}, {sunny: 2.5}))

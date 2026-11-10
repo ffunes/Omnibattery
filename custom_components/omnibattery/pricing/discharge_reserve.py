@@ -352,17 +352,24 @@ def consumption_by_slot(
     return demand
 
 
-def net_demand_by_slot(consumption: dict, solar: dict | None = None) -> dict:
+def net_demand_by_slot(
+    consumption: dict, solar: dict | None = None, discharge_kw: float | None = None
+) -> dict:
     """Subtract expected PV from expected consumption, floored at zero.
 
     A slot the sun already covers needs nothing from the battery, so it must not
-    claim any reserve.
+    claim any reserve. With ``discharge_kw`` the demand is also capped at what
+    the batteries can hand out in the slot; the grid carries the rest.
     """
     solar = solar or {}
-    return {
-        slot: max(0.0, _positive(value) - _positive(solar.get(slot, 0.0)))
-        for slot, value in consumption.items()
-    }
+    demand = {}
+    for slot, value in consumption.items():
+        need = max(0.0, _positive(value) - _positive(solar.get(slot, 0.0)))
+        if discharge_kw is not None:
+            hours = max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
+            need = min(need, max(0.0, discharge_kw) * hours)
+        demand[slot] = need
+    return demand
 
 
 def first_sun_covered_start(

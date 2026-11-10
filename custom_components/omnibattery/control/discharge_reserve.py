@@ -737,7 +737,17 @@ class DischargeReserveManager:
                     # reserve against kWh that are never going to arrive.
                     absorbed_kwh = 0.0
             surplus[slot] = SURPLUS_CREDIT_FACTOR * absorbed_kwh * CHARGE_EFFICIENCY
-        return net_demand_by_slot(consumption, solar), surplus
+        return net_demand_by_slot(consumption, solar, self._discharge_kw()), surplus
+
+    def _discharge_kw(self) -> float | None:
+        """The reserve fleet's summed discharge power, as the planner caps it."""
+        pricing = getattr(self._controller, "_pricing_mgr", None)
+        limit_fn = getattr(pricing, "_fleet_discharge_limit_w", None)
+        fleet = self._fleet()
+        if not callable(limit_fn) or fleet is None:
+            return None
+        limit_w = limit_fn([coordinator for coordinator, _ in fleet])
+        return None if limit_w is None else limit_w / 1000.0
 
     def _follow_provider_curve(self, solar: dict, now: datetime) -> dict:
         """Give each day's solar the shape the forecast provider expects.
