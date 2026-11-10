@@ -566,3 +566,37 @@ def test_dynamic_no_slots_awaiting_prices_does_not_advise_the_margin():
     assert "not published yet" in message
     assert "3.50 kWh" in message
     assert "arbitrage margin" not in message
+
+
+def test_dynamic_shows_the_discharge_limit_the_plan_used():
+    """The drain projection is capped at the discharge power; say so, and how
+    much of the load the grid carries instead."""
+    schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(
+            should_charge=True,
+            energy_deficit_kwh=4.0,
+            planned_grid_charge_kwh=2.7,
+            battery_discharge_limit_w=800,
+            grid_carried_load_kwh=3.456,
+        ),
+        schedule,
+        **_DP_CFG,
+    )
+
+    assert message.endswith(
+        "Max discharge power: 800W "
+        "(load above it from the grid: 3.46 kWh, left out of the charge)"
+    )
+    assert "Max charge power: 3000W" in message
+
+
+def test_dynamic_omits_the_discharge_line_without_a_limit():
+    schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
+    _, message = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, energy_deficit_kwh=4.0, planned_grid_charge_kwh=2.7),
+        schedule,
+        **_DP_CFG,
+    )
+
+    assert "Max discharge power" not in message

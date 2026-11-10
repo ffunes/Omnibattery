@@ -703,6 +703,10 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
                 "planning_horizon_reason": decision.get("planning_horizon_reason"),
                 "chronological_planning_active": chronological_active,
                 "chronological_source": _chronological_value("chronological_source"),
+                "battery_discharge_limit_w": _chronological_value(
+                    "battery_discharge_limit_w"
+                ),
+                "grid_carried_load_kwh": _chronological_value("grid_carried_load_kwh"),
                 "solar_timeline_source": _chronological_value(
                     "solar_timeline_source"
                 ),
