@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Sequence
 
-from ..solar_forecast import SolarForecastPeriod
+from ..solar_forecast import SolarForecastPeriod, period_overlap_energy
 
 INTERVAL_MINUTES = 15
 PROGRESS_BIN_COUNT = 96
@@ -214,12 +214,12 @@ def _validate_periods(
     """Validate dated periods and their future daylight coverage."""
     if not periods:
         return False, "provider_periods_missing"
-    ordered = sorted(periods, key=lambda period: _timestamp(period.start))
+    ordered = sorted(periods, key=lambda period: period.start_ts)
     previous_end = None
     for period in ordered:
         if period.start.tzinfo is None or period.end.tzinfo is None:
             return False, "provider_timestamp_naive"
-        p_start, p_end = _timestamp(period.start), _timestamp(period.end)
+        p_start, p_end = period.start_ts, period.end_ts
         energy = _safe_non_negative(period.energy_kwh)
         if energy is None or p_end <= p_start:
             return False, "provider_period_invalid"
@@ -234,7 +234,7 @@ def _validate_periods(
     covered = 0.0
     cursor = light_start
     for period in ordered:
-        p_start, p_end = _timestamp(period.start), _timestamp(period.end)
+        p_start, p_end = period.start_ts, period.end_ts
         if p_end <= cursor:
             continue
         if p_start >= light_end:
@@ -273,16 +273,12 @@ def provider_weights(
     valid, reason = _validate_periods(periods, start, end, solar_start, solar_end)
     if not valid:
         return None, reason
-    weights: list[float] = []
-    for boundary_start, boundary_end in boundaries:
-        b_start, b_end = _timestamp(boundary_start), _timestamp(boundary_end)
-        energy = 0.0
-        for period in periods:
-            p_start, p_end = _timestamp(period.start), _timestamp(period.end)
-            overlap = _overlap(b_start, b_end, p_start, p_end)
-            if overlap:
-                energy += period.energy_kwh * overlap / (p_end - p_start)
-        weights.append(energy)
+    weights = [
+        period_overlap_energy(
+            periods, _timestamp(boundary_start), _timestamp(boundary_end)
+        )
+        for boundary_start, boundary_end in boundaries
+    ]
     if not any(value > _EPSILON for value in weights):
         return None, "provider_zero_energy"
     return weights, None
@@ -297,14 +293,14 @@ def provider_energy_between(
     coerced = [_coerce_period(period) for period in periods]
     if any(period is None for period in coerced):
         return None
-    b_start, b_end = _timestamp(start), _timestamp(end)
-    energy = 0.0
-    for period in coerced:
-        p_start, p_end = _timestamp(period.start), _timestamp(period.end)
-        overlap = _overlap(b_start, b_end, p_start, p_end)
-        if overlap:
-            energy += period.energy_kwh * overlap / (p_end - p_start)
-    return energy
+    # The forecast's own tuple (its periods pass through coercion unchanged)
+    # keeps its cached index from one call to the next.
+    unchanged = isinstance(periods, tuple) and all(
+        new is old for new, old in zip(coerced, periods)
+    )
+    return period_overlap_energy(
+        periods if unchanged else tuple(coerced), _timestamp(start), _timestamp(end)
+    )
 
 
 def legacy_shape_weights(

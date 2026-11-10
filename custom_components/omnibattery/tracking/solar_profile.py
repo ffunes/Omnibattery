@@ -7,6 +7,7 @@ forecast remains the sole source of the future kWh budget.
 from __future__ import annotations
 
 import asyncio
+import functools
 import hashlib
 import json
 import logging
@@ -302,30 +303,66 @@ def _progress_day(day: SolarProfileDay) -> tuple[list[float], list[float], list[
     """Remap local quarter-hour evidence to 96 solar-progress bins."""
     if day.solar_start is None or day.solar_end is None or day.daylight_seconds <= 0:
         return [0.0] * PROGRESS_BIN_COUNT, [0.0] * PROGRESS_BIN_COUNT, [0] * PROGRESS_BIN_COUNT
-    start_ts = _as_timestamp(day.solar_start)
-    end_ts = _as_timestamp(day.solar_end)
+    # Every re-plan remaps every stored day again, though a stored day rarely
+    # changes; the result depends only on these fields, so it is cached on
+    # them (the zone and fold too: equal instants in another zone split into
+    # other local quarters). Callers get fresh lists.
+    key = (
+        day.solar_start,
+        day.solar_start.tzinfo,
+        day.solar_start.fold,
+        day.solar_end,
+        tuple(day.energy_kwh),
+        tuple(day.coverage_s),
+        tuple(day.quality_flags),
+    )
+    try:
+        energy, coverage, flags = _progress_remap(*key)
+    except TypeError:
+        # an unhashable custom tzinfo cannot key the cache
+        energy, coverage, flags = _progress_remap.__wrapped__(*key)
+    return list(energy), list(coverage), list(flags)
+
+
+@functools.lru_cache(maxsize=256)
+def _progress_remap(
+    solar_start: datetime,
+    _tz: Any,
+    _fold: int,
+    solar_end: datetime,
+    day_energy: tuple[float, ...],
+    day_coverage: tuple[float, ...],
+    day_flags: tuple[int, ...],
+) -> tuple[tuple[float, ...], tuple[float, ...], tuple[int, ...]]:
+    """The remap behind ``_progress_day``; ``_tz`` and ``_fold`` only key it."""
+    start_ts = _as_timestamp(solar_start)
+    end_ts = _as_timestamp(solar_end)
     duration = end_ts - start_ts
     energy = [0.0] * PROGRESS_BIN_COUNT
     coverage = [0.0] * PROGRESS_BIN_COUNT
     flags = [0] * PROGRESS_BIN_COUNT
 
-    local_start = day.solar_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    local_start = solar_start.replace(hour=0, minute=0, second=0, microsecond=0)
     local_end = local_start + timedelta(days=1)
     for segment_start, segment_end, midpoint in _local_segments(local_start, local_end):
         index = _interval_index(midpoint.timetz().replace(tzinfo=None))
-        bin_coverage = day.coverage_s[index]
+        bin_coverage = day_coverage[index]
         if bin_coverage <= 0.0:
             continue
         segment_seconds = segment_end - segment_start
         fraction = segment_seconds / bin_coverage
-        segment_energy = day.energy_kwh[index] * fraction
+        segment_energy = day_energy[index] * fraction
         segment_start = max(segment_start, start_ts)
         segment_end = min(segment_end, end_ts)
         if segment_end <= segment_start:
             continue
         progress_start = (segment_start - start_ts) / duration
         progress_end = (segment_end - start_ts) / duration
-        for progress_index in range(PROGRESS_BIN_COUNT):
+        # Only the bins this segment touches; the others have no overlap and
+        # were skipped anyway (one bin of slack on each side for rounding).
+        first_bin = max(0, int(progress_start * PROGRESS_BIN_COUNT) - 1)
+        last_bin = min(PROGRESS_BIN_COUNT, int(progress_end * PROGRESS_BIN_COUNT) + 2)
+        for progress_index in range(first_bin, last_bin):
             p_start = progress_index / PROGRESS_BIN_COUNT
             p_end = (progress_index + 1) / PROGRESS_BIN_COUNT
             overlap = max(0.0, min(progress_end, p_end) - max(progress_start, p_start))
@@ -334,8 +371,8 @@ def _progress_day(day: SolarProfileDay) -> tuple[list[float], list[float], list[
             progress_duration = max(1e-12, progress_end - progress_start)
             energy[progress_index] += segment_energy * overlap / progress_duration
             coverage[progress_index] += (segment_end - segment_start) * overlap / progress_duration
-            flags[progress_index] |= day.quality_flags[index]
-    return energy, coverage, flags
+            flags[progress_index] |= day_flags[index]
+    return tuple(energy), tuple(coverage), tuple(flags)
 
 
 def remap_day_to_progress(day: SolarProfileDay) -> tuple[list[float], list[float], list[int]]:
