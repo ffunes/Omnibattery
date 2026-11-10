@@ -1187,6 +1187,7 @@ class ChargeDischargeController:
         self._current_price_slot_active = False
         self._dp_eval_retry_count = 0  # Retry counter if tomorrow prices not available at 23:00
         self._dp_eval_retry_at = None  # When the deferred daily evaluation was last tried
+        self._dp_held_slots: set = set()  # Booked slots a charge block is holding (starts)
         self._predictive_dispatch_errors = 0  # Consecutive failed predictive steps
         self._dp_pre_evaluated_slots: dict = {}  # slot.start (datetime) → should_charge (bool)
         self._dp_pre_evaluated_purposes: dict = {}  # slot.start → effective typed purpose

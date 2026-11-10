@@ -24,7 +24,8 @@ from custom_components.omnibattery.tracking.consumption_profile import (
 
 NOW = datetime(2026, 11, 10, 0, 30)
 LOAD_KW = 0.3  # flat, no solar
-WINDOW = {"start_time": "00:00:00", "end_time": "08:00:00", "days": []}
+ALL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+WINDOW = {"start_time": "00:00:00", "end_time": "08:00:00", "days": ALL_DAYS}
 # 00:30-24:00 at 0.3 kW; 2.25 kWh of it falls inside the window.
 DAY_LOAD = 23.5 * LOAD_KW
 WINDOW_LOAD = 7.5 * LOAD_KW

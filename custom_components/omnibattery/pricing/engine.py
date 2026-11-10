@@ -3787,8 +3787,12 @@ class PricingManager:
                     continue
                 if configured.get("enabled", True) is False:
                     continue
+                # A window with no days selected never opens: the controller
+                # (``_active_charging_slot``) and the consumption profile read
+                # it that way. Treating it as every day booked charge in a
+                # window that would never run.
                 days = configured.get("days", []) or []
-                if days and day_name not in days:
+                if day_name not in days:
                     continue
                 try:
                     # HA's TimeSelector stores "HH:MM:SS"; fromisoformat takes
@@ -5104,7 +5108,7 @@ class PricingManager:
         if abs(current - ref) < EXCLUDED_DEMAND_REEVAL_KWH:
             return False
         cap_spent = (
-            getattr(controller, "_dp_excluded_demand_reeval_count", 0)
+            self._excluded_demand_reeval_count_today(now)
             >= EXCLUDED_DEMAND_REEVAL_MAX_PER_DAY
         )
         if cap_spent and current > ref:
@@ -5265,6 +5269,21 @@ class PricingManager:
         if getattr(controller, "_current_price_slot_active", False):
             return False
         return self._prices_reach_beyond_today(now)
+
+    def _excluded_demand_reeval_count_today(self, now: datetime) -> int:
+        """Claim-driven re-evaluations already run today (#341 daily cap).
+
+        The counter was only cleared in Dynamic Pricing's new-day block, which
+        is skipped while the evaluated date is unset or already tomorrow (a
+        plan reaching past midnight), so yesterday's spent cap blocked today.
+        The last re-evaluation's time dates the count instead.
+        """
+        count = int(getattr(self._controller, "_dp_excluded_demand_reeval_count", 0) or 0)
+        last_at = getattr(self._controller, "_dp_excluded_demand_reeval_at", None)
+        # An undated count belongs to today, as for the solar-forecast counter.
+        if isinstance(last_at, datetime) and last_at.date() != now.date():
+            return 0
+        return count
 
     def _roll_solar_forecast_reeval_day(self, now: datetime) -> int:
         """Return today's forecast-driven re-evaluation count, rolled at midnight.
@@ -6401,6 +6420,31 @@ class PricingManager:
                 return True
         return False
 
+    def _room_below_ceiling_kwh(self) -> float:
+        """Energy the eligible batteries can still take before their charge ceiling.
+
+        Read straight from the live SOC, unlike ``_deficit_slot_has_work``,
+        which judges the slot running now and rebuilds its deficit target.
+        """
+        controller = self._controller
+        # Called unbound on the lightweight stand-ins, like the probe above.
+        ceiling = getattr(controller, "_charge_ceiling_soc", None)
+        room = 0.0
+        for coordinator in getattr(controller, "coordinators", []):
+            if not self._opportunistic_battery_eligible(coordinator):
+                continue
+            data = coordinator.data
+            try:
+                soc = float(data.get("battery_soc", 0.0) or 0.0)
+                capacity = max(0.0, float(data.get("battery_total_energy", 0.0) or 0.0))
+                target = float(
+                    ceiling(coordinator) if callable(ceiling) else coordinator.max_soc
+                )
+            except (TypeError, ValueError, AttributeError):
+                continue
+            room += max(0.0, target - soc_vs_ceiling(coordinator, soc)) / 100.0 * capacity
+        return room
+
     async def _hand_over_dynamic_price_slot(
         self, slot: PriceSlot, now: datetime
     ) -> None:
@@ -6415,6 +6459,7 @@ class PricingManager:
         self._carry_over_slot_shortfall(
             getattr(controller, "_active_dynamic_price_slot", None),
             incoming=slot,
+            now=now,
         )
         self._mark_decision_spent()
         completed = slot.start in getattr(controller, "_dp_completed_slots", set())
@@ -6440,17 +6485,101 @@ class PricingManager:
             slot.start.strftime("%H:%M"),
         )
 
+    def _carry_over_held_slots(self, now: datetime) -> None:
+        """Carry the quota of booked slots a charge block held to their end.
+
+        A deficit slot that a charge blocker (Solar Charge Delay, a user
+        no-charge window, ...) holds for its whole length is never entered, so
+        the end-of-slot carry-over never ran and its energy was silently lost.
+        The planner cannot leave such slots out in advance: the delay is
+        re-decided from the live solar balance every cycle. Once a held slot
+        is over, its whole planned quota moves to later slots before its
+        deadline, or is reported as a shortfall.
+
+        The first cycle past a held slot's end usually falls inside the next
+        slot already (contiguous cheap hours are the common case), so the
+        running slot is passed on as ``incoming``: it can still take the
+        energy for the time it has left.
+        """
+        controller = self._controller
+        held = getattr(controller, "_dp_held_slots", None)
+        if not held:
+            return
+        schedule = getattr(controller, "_dynamic_pricing_schedule", None)
+        selected = getattr(schedule, "selected_slots", None) or []
+        by_start = {slot.start: slot for slot in selected}
+        completed = getattr(controller, "_dp_completed_slots", set())
+        # A running slot that is already completed is not entered again, so
+        # energy carried into it would never be charged.
+        running = next(
+            (
+                slot
+                for slot in selected
+                if slot.start <= now < slot.end and slot.start not in completed
+            ),
+            None,
+        )
+        targets_kwh = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
+        room_kwh: float | None = None
+        for start in sorted(held):
+            slot = by_start.get(start)
+            if slot is None:
+                held.discard(start)  # re-planned away
+                continue
+            if now < slot.end:
+                continue
+            held.discard(start)
+            if start in completed:
+                continue
+            quota = float(targets_kwh.get(slot, 0.0) or 0.0)
+            if quota <= 0.01:
+                continue
+            completed.add(start)
+            if room_kwh is None:
+                # The battery may have filled during the hold (solar), or sat
+                # at its ceiling all along: carry no more than it can take
+                # right now, so no shortfall is reported for energy it has no
+                # room for. What later slots already plan is not subtracted:
+                # the house drains the battery before they run, so that room
+                # comes back and the held energy is still needed.
+                room_kwh = self._room_below_ceiling_kwh()
+            quota = min(quota, room_kwh)
+            room_kwh -= quota
+            if quota <= 0.01:
+                _LOGGER.debug(
+                    "Dynamic pricing: held slot %s ended with no room left to "
+                    "charge; nothing to carry",
+                    slot.start.strftime("%H:%M"),
+                )
+                continue
+            _LOGGER.info(
+                "Dynamic pricing: slot %s was held by a charge block for its "
+                "whole length; carrying %.2f kWh to later slots",
+                slot.start.strftime("%H:%M"),
+                quota,
+            )
+            self._carry_over_slot_shortfall(
+                slot, incoming=running, shortfall_kwh=quota, now=now
+            )
+
     def _carry_over_slot_shortfall(
         self,
         active_slot: PriceSlot | None,
         *,
         incoming: PriceSlot | None = None,
+        shortfall_kwh: float | None = None,
+        now: datetime | None = None,
     ) -> None:
         """Move a finished slot's undelivered quota to later slots before its deadline.
 
-        ``incoming`` is the slot a running charge is handed to: it has already
-        started, but can still take the energy.
+        ``incoming`` is the slot a running charge is handed to, or the slot
+        already running when a held slot is settled: it has started, but can
+        still take energy for the time it has left. ``shortfall_kwh`` overrides
+        the shortfall read from the live per-battery targets (a slot that never
+        started has none).
         """
+        if now is None:
+            now = datetime.now()
         controller = self._controller
         schedule = getattr(controller, "_dynamic_pricing_schedule", None)
         if (
@@ -6466,6 +6595,8 @@ class PricingManager:
                 capacity = max(0.0, float(data.get("battery_total_energy", 0.0) or 0.0))
                 current_soc = float(data.get("battery_soc", 0.0) or 0.0)
                 shortfall += max(0.0, float(target_soc) - current_soc) / 100.0 * capacity
+            if shortfall_kwh is not None:
+                shortfall = max(0.0, float(shortfall_kwh))
             deadline = schedule.slot_deadlines.get(active_slot)
             remaining = shortfall
             if remaining > 0.01:
@@ -6476,14 +6607,15 @@ class PricingManager:
                 for slot in sorted(schedule.selected_slots, key=lambda item: item.start):
                     if (
                         (
-                            slot.start < datetime.now()
+                            slot.start < now
                             and (incoming is None or slot.start != incoming.start)
                         )
                         or slot == active_slot
                         or (deadline is not None and slot.end > deadline)
                     ):
                         continue
-                    capacity = power_kw * max(0.0, (slot.end - slot.start).total_seconds() / 3600.0) * CHARGE_EFFICIENCY
+                    hours_left = (slot.end - max(slot.start, now)).total_seconds() / 3600.0
+                    capacity = power_kw * max(0.0, hours_left) * CHARGE_EFFICIENCY
                     current = float(schedule.slot_energy_targets_kwh.get(slot, 0.0) or 0.0)
                     take = min(remaining, max(0.0, capacity - current))
                     if take <= 0:
@@ -6618,6 +6750,7 @@ class PricingManager:
 
         # Phase 0: Keep service-based provider caches fresh.
         await self._maybe_refresh_service_prices()
+        self._carry_over_held_slots(now)
 
         # Phase 2: Retry if prices (or the solar forecast) weren't available at
         # 00:05. Every 15 min in the first hour, then every 30 min all day:
@@ -6680,10 +6813,10 @@ class PricingManager:
         # and that is the intended outcome. The cooldown and the daily cap in
         # _is_excluded_demand_reeval bound how often a live charge is disturbed.
         elif self._is_excluded_demand_reeval(now):
-            self._controller._dp_excluded_demand_reeval_at = now
             self._controller._dp_excluded_demand_reeval_count = (
-                getattr(self._controller, "_dp_excluded_demand_reeval_count", 0) + 1
+                self._excluded_demand_reeval_count_today(now) + 1
             )
+            self._controller._dp_excluded_demand_reeval_at = now
             # Moved here as well as after the rebuild: an evaluation that fails
             # before it refreshes the reference must not re-fire on the same
             # move, since a release is exempt from the daily cap.
@@ -6883,6 +7016,21 @@ class PricingManager:
                     _LOGGER.info(
                         "Dynamic pricing: inside cheap slot window but charge delay is active — holding"
                     )
+                    if effective_purpose in (
+                        SLOT_PURPOSE_DEFICIT,
+                        SLOT_PURPOSE_COMBINED,
+                    ):
+                        held = getattr(self._controller, "_dp_held_slots", None)
+                        if held is None:
+                            held = self._controller._dp_held_slots = set()
+                        if (
+                            current_slot.start not in held
+                            and self._room_below_ceiling_kwh() > 0.01
+                        ):
+                            # Only a slot with room left to charge is held: a
+                            # battery already at its ceiling has nothing to
+                            # carry over once the slot ends.
+                            held.add(current_slot.start)
                     # Fall through to discharge control below (do not return early)
 
                 else:
@@ -6902,6 +7050,9 @@ class PricingManager:
                         )
                     else:
                         # Entering an authorised typed slot.
+                        getattr(self._controller, "_dp_held_slots", set()).discard(
+                            current_slot.start
+                        )
                         self._controller._current_price_slot_active = True
                         self._controller._grid_charging_initialized = False
                         self._controller._active_dynamic_price_slot = current_slot
