@@ -3145,8 +3145,21 @@ class ChargeDischargeController:
         pre-discharge plan) count, as does the weekly full charge: a moved day
         or a switched-off run must not leave the old weekly slots booked. The
         efficiency is the configured value; the measured one drifts on its own.
+
+        So do the switches and limits the evaluation itself reads: the
+        Discharge Reserve (it decides whether stored energy is kept for dearer
+        hours when slots are picked), peak shaving and the contracted power
+        (they cap the charge rate the slots are sized with), the system power
+        limits, Vacation Mode (the consumption forecast), Charge Delay, and the
+        Smart Pre-Discharge and Negative-Price Charging switches, whose slots
+        would otherwise stay in the calendar after switching off. Per-battery
+        power limits are left out: some drivers write them straight to the
+        device, without an entry update.
+
         Settings read live every cycle (discharge floor, minimum savings,
         High-Price Sale) need no re-plan and stay out.
+        ``test_replan_inputs.py`` sorts every config-backed controller setting
+        into one of these groups.
         """
 
         def _rounded(value):
@@ -3163,6 +3176,17 @@ class ChargeDischargeController:
             _rounded(getattr(self, "predischarge_reserve_soc", None)),
             bool(getattr(self, "weekly_full_charge_enabled", False)),
             getattr(self, "weekly_full_charge_day", None),
+            bool(getattr(self, "discharge_reserve_enabled", False)),
+            bool(getattr(self, "capacity_protection_enabled", False)),
+            _rounded(getattr(self, "capacity_protection_limit", None)),
+            _rounded(getattr(self, "max_contracted_power", None)),
+            bool(getattr(self, "enable_system_power_limits", False)),
+            _rounded(getattr(self, "system_max_charge_power", None)),
+            _rounded(getattr(self, "system_max_discharge_power", None)),
+            bool(getattr(self, "vacation_mode_enabled", False)),
+            bool(getattr(self, "charge_delay_enabled", False)),
+            bool(getattr(self, "smart_predischarge_enabled", False)),
+            bool(getattr(self, "negative_price_charging_enabled", False)),
             tuple(
                 (
                     getattr(c, "device_key", None),

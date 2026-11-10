@@ -955,11 +955,9 @@ def test_runtime_switch_persists_enable_and_disable_with_safe_cleanup():
     asyncio.run(entity.async_turn_on())
     assert entry.data[CONF_NEGATIVE_PRICE_CHARGING_ENABLED] is True
     assert controller.negative_price_charging_enabled is True
-    assert (
-        "evaluate",
-        DynamicPricingEvaluationHorizon.REMAINING,
-        True,
-    ) in calls
+    # The entry update re-plans through the balance fingerprint, after the
+    # settle window like every other planning setting; no second evaluation.
+    assert calls == []
 
     controller._active_dynamic_slot_purpose = SLOT_PURPOSE_NEGATIVE_PRICE
     asyncio.run(entity.async_turn_off())
@@ -969,7 +967,7 @@ def test_runtime_switch_persists_enable_and_disable_with_safe_cleanup():
     assert ("clear", "disabled") in calls
 
 
-def test_smart_predischarge_switch_rebuilds_remaining_horizon():
+def test_smart_predischarge_switch_leaves_the_re_plan_to_the_entry_update():
     calls: list = []
 
     class PricingStub:
@@ -998,13 +996,8 @@ def test_smart_predischarge_switch_rebuilds_remaining_horizon():
 
     assert entry.data[CONF_SMART_PREDISCHARGE_ENABLED] is True
     assert controller.smart_predischarge_enabled is True
-    assert calls == [
-        (
-            "evaluate",
-            DynamicPricingEvaluationHorizon.REMAINING,
-            True,
-        )
-    ]
+    # Re-planned through the balance fingerprint, not by the switch itself.
+    assert calls == []
 
 
 def test_download_diagnostics_exposes_typed_calendar():
