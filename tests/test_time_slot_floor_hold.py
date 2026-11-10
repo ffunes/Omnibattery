@@ -157,3 +157,17 @@ def test_the_hold_releases_outside_its_case(change):
         setattr(manager._controller, key, value)
     manager.apply_time_slot_floor_hold()
     assert "time_slot_floor_hold" not in blocks
+
+
+def test_a_headroom_capped_balance_still_buys_the_after_window_need():
+    # Field case 2026-11-11: the scalar balance, capped at the room to max_soc,
+    # minus the window load left 0.06 kWh while the plan needed 3.2 kWh after
+    # the window; the battery then ran out at 18:00.
+    # 30%, max_soc 55%: 2.5 kWh room, 2.8 kWh needed after the window.
+    manager, coordinator, _ = _manager(30.0)
+    coordinator.max_soc = 55
+    decision = _decision(2.0)
+    decision["planned_grid_charge_kwh"] = 2.5  # min(deficit, room)
+    decision = manager._apply_time_slot_chronological_plan(decision, now=NOW)
+
+    assert decision["active_slot_energy_target_kwh"] == pytest.approx(2.5, abs=0.05)

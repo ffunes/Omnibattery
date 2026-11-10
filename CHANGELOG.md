@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.1b2] - 2026-11-11
+
+### Fixed
+
+- **Time Slot: the window charges again what the evening needs**: since 1.6.1b1 the window load came off the daily balance even when that balance was already capped at the room to max_soc, so a night window booked 0.06 kWh of a 3.2 kWh need and the battery ran out at 18:00. The window now charges at least what the plan needs after it, up to max_soc.
+
 ## [1.6.1b1] - 2026-11-10
 
 ### Changed

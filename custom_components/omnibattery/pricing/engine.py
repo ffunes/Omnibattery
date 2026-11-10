@@ -3664,7 +3664,21 @@ class PricingManager:
             # weekly full charge keeps it whole.
             grid_carried_kwh = max(0.0, scalar_required - required)
             # The scalar balance counts the window load as battery drain too.
-            required = max(0.0, required - (window_load_on_grid or 0.0))
+            # Netting it can leave less than the deadlines, which already idle
+            # the window, need after it: a balance capped at the room to
+            # max_soc booked 0.06 of 3.2 kWh and the battery ran out at 18:00.
+            if window_load_on_grid is not None:
+                required = max(
+                    required - window_load_on_grid,
+                    min(
+                        headroom,
+                        max(
+                            (d.required_cumulative_kwh for d in deadlines),
+                            default=0.0,
+                        ),
+                    ),
+                    0.0,
+                )
             # Only guaranteed-floor energy may skip the arbitrage margin (#724):
             # the reactive under-floor gap beyond the ordinary deficit, or the
             # planner's floor requirement beyond ordinary pre-sunrise depletion.
