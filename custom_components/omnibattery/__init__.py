@@ -1064,6 +1064,7 @@ class ChargeDischargeController:
         self._slot_entry_time = None  # When we first entered the time slot (for 5-min delay)
         self._predictive_charge_target_soc: Optional[dict] = None  # Per-battery grid-only SOC targets {coordinator: target_%}
         self._active_time_slot_quota_kwh: Optional[float] = None
+        self._time_slot_floor_kwh: Optional[float] = None
         self._time_slot_chronological_plan = None
         self._time_slot_chronological_preview_date = None
         # Local date of the decision in force: Time Slot and Real-Time Price
@@ -3733,6 +3734,7 @@ class ChargeDischargeController:
             "curtailment_negative_window",
             "weekly_refill_hold",
             "weekly_full_hold",
+            "time_slot_floor_hold",
         }
         global_blockers = self._global_discharge_blockers
         if ignore_economic:
@@ -8140,6 +8142,7 @@ class ChargeDischargeController:
         """Delegates to PricingManager.apply_price_discharge_block (called every control cycle)."""
         self._pricing_mgr.apply_price_discharge_block()
         self._pricing_mgr.apply_weekly_refill_hold()
+        self._pricing_mgr.apply_time_slot_floor_hold()
 
     async def _stop_all_batteries_for_block(self, direction: str) -> None:
         """Stop all battery commands after a global operation block becomes active."""
