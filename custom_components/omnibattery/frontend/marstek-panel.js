@@ -2609,17 +2609,22 @@ class MarstekVenusPanel extends HTMLElement {
     toolbar.className = "daily-op-toolbar";
     const legend = document.createElement("div");
     legend.className = "daily-op-legend";
+    // Areas and lines are two groups: one row when both fit, else the
+    // break falls between them, never inside a group.
     legend.innerHTML =
+      `<span class="daily-op-legend-group">` +
       `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-solar-window"></i>${this._t("dailyOperationSolarWindow")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-solar"></i>${this._t("dailyOperationSolarCharge")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-grid"></i>${this._t("dailyOperationGridCharge")}</span>` +
       `<span class="daily-op-legend-item daily-op-legend-hourly-balance"><i class="daily-op-swatch daily-op-swatch-hourly-balance"></i>${this._t("dailyOperationHourlyBalance")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-discharge"></i>${this._t("dailyOperationDischarge")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-swatch daily-op-swatch-not-needed"></i>${this._t("dailyOperationNotNeeded")}</span>` +
+      `</span><span class="daily-op-legend-group">` +
       `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-solar"></i>${this._t("dailyOperationSolar")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-consumption"></i>${this._t("dailyOperationConsumption")}</span>` +
       `<span class="daily-op-legend-item"><i class="daily-op-line daily-op-line-soc"></i>${this._t("dailyOperationSoc")}</span>` +
-      `<span class="daily-op-legend-item daily-op-legend-price" hidden><i class="daily-op-line daily-op-line-price"></i><span class="daily-op-legend-price-text"></span></span>`;
+      `<span class="daily-op-legend-item daily-op-legend-price" hidden><i class="daily-op-line daily-op-line-price"></i><span class="daily-op-legend-price-text"></span></span>` +
+      `</span>`;
     toolbar.appendChild(legend);
 
     const nav = document.createElement("div");
@@ -7686,7 +7691,7 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-operation-card { position: relative; min-width: 0; overflow: visible; --daily-op-confirmed-shade-opacity: 50%; --daily-op-future-shade-opacity: 25%; --daily-op-shade-opacity: var(--daily-op-confirmed-shade-opacity); }
       .daily-operation-card[hidden], .daily-operation-card [hidden] { display: none !important; }
       .daily-op-toolbar { display: flex; align-items: center; gap: 12px; min-width: 0; margin-bottom: 9px; }
-      .daily-op-legend { display: flex; align-items: center; gap: 12px; row-gap: 6px; flex-wrap: wrap; min-width: 0; }
+      .daily-op-legend, .daily-op-legend-group { display: flex; align-items: center; gap: 12px; row-gap: 6px; flex-wrap: wrap; min-width: 0; }
       .daily-op-legend-item { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-mid); font-size: 11px; white-space: nowrap; }
       .daily-op-swatch { display: inline-block; width: 12px; height: 12px; border: 1px solid var(--line-strong); border-radius: 3px; }
       .daily-op-swatch-solar-window { background: color-mix(in oklab, var(--daily-op-solar-window) var(--daily-op-shade-opacity), transparent); }
@@ -7768,7 +7773,7 @@ class MarstekVenusPanel extends HTMLElement {
       .daily-op-tip-row strong { color: var(--ink); text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
       @media (max-width: 720px) {
         .daily-op-toolbar { align-items: flex-start; }
-        .daily-op-legend { gap: 8px; }
+        .daily-op-legend, .daily-op-legend-group { gap: 8px; }
         .daily-op-layout { grid-template-columns: 54px minmax(0, 1fr) 38px; }
         .daily-op-price-scale { right: 38px; }
         .daily-op-yaxis { padding-right: 6px; }
