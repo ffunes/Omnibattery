@@ -180,11 +180,13 @@ Optional controls in the **Control** tab solve different problems:
 
     Expected solar surplus can release part of the reserve, but only when it can physically fit in the battery. Surplus that **Surplus Price Hold** plans to export receives no credit. The planner credits 75% of qualifying expected surplus so forecast uncertainty cannot release the full reserve before actual production arrives.
 
+    A cheaper grid charge before a dear period releases it too. A period counts when buying the energy back there, its price divided by the round-trip efficiency plus **Minimum Arbitrage Margin**, costs no more than the current price plus **Discharge Reserve Minimum Saving**. Only periods after the next daily evaluation at 00:05 count, because that evaluation plans the night charge from the battery's actual SOC. Each counts only for what the battery can take at its charge power without pushing out expected solar, and not above **Max Price Threshold (Charge)**. For example, at 18:15 at 0.676 €/kWh, a night at 0.436 €/kWh buys the energy back for 0.436 / 0.82 + 0.05 ≈ 0.585 €/kWh, so it is used now instead of held for tomorrow evening.
+
     The resulting energy becomes an added fleet SOC floor. Energy above it remains available now, and the floor falls when the current period becomes expensive. The configured battery `min_soc` is not rewritten. Peak shaving, emergency protection, and anti-curtailment can bypass this economic blocker.
 
     The reserve ends at the next sunrise. Missing prices, consumption profile, usable energy, or future demand leaves it at the configured minimum SOC. Manual control, anti-curtailment, peak shaving, operating-time ownership, and an explicit per-period SOC override also release it.
 
-    **Discharge Reserve Status** reports active state, reason, reserved energy/percentage, reference price, claims, expected solar credit, horizon demand, and horizon surplus. **Integration Status** reports `price_reserve_hold` while a battery is held.
+    **Discharge Reserve Status** reports active state, reason, reserved energy/percentage, reference price, claims, expected solar credit, grid refill credit (`refill_credit_kwh`, `refills`, `refill_from`), horizon demand, and horizon surplus. **Integration Status** reports `price_reserve_hold` while a battery is held.
 
     ### Minimum Arbitrage Margin and round-trip efficiency
 

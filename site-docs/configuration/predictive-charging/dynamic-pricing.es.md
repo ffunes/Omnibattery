@@ -180,11 +180,13 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     El excedente solar esperado puede liberar parte de la reserva, pero solo cuando cabe físicamente en la batería. El excedente que **Retención de excedente por precio** planea exportar no recibe crédito. El planificador acredita el 75% del excedente esperado que cumple la condición para que la incertidumbre de previsión no libere toda la reserva antes de que llegue producción real.
 
+    Una carga de red más barata antes de un periodo caro también la libera. Un periodo cuenta cuando recomprar la energía allí, su precio dividido entre la eficiencia de ciclo completo más el **Margen mínimo de arbitraje**, no cuesta más que el precio actual más el **Ahorro mínimo de reserva de descarga**. Solo cuentan los periodos posteriores a la próxima evaluación diaria de las 00:05, porque esa evaluación planifica la carga nocturna desde el SOC real de la batería. Cada uno cuenta solo por lo que la batería puede tomar a su potencia de carga sin desplazar la solar esperada, y no por encima de **Precio máximo (carga)**. Por ejemplo, a las 18:15 con 0,676 €/kWh, una noche a 0,436 €/kWh recompra la energía por 0,436 / 0,82 + 0,05 ≈ 0,585 €/kWh, así que se usa ahora en lugar de retenerla para la tarde de mañana.
+
     La energía resultante se convierte en un suelo adicional de SOC de flota. La energía por encima sigue disponible ahora y el suelo cae cuando el periodo actual se vuelve caro. El `min_soc` configurado de batería no se reescribe. La protección de picos, emergencia y antilimitación de producción pueden ignorar este bloqueo económico.
 
     La reserva termina en el próximo amanecer. La falta de precios, perfil de consumo, energía utilizable o demanda futura la deja en el SOC mínimo configurado. Control manual, antilimitación de producción, protección de picos, control de franjas horarias y una anulación explícita de SOC por periodo también la liberan.
 
-    **Estado de reserva de descarga** informa de estado activo, motivo, energía/porcentaje reservado, precio de referencia, reclamaciones, crédito solar esperado, demanda de horizonte y excedente de horizonte. **Estado de integración** informa de `price_reserve_hold` mientras una batería está retenida.
+    **Estado de reserva de descarga** informa de estado activo, motivo, energía/porcentaje reservado, precio de referencia, reclamaciones, crédito solar esperado, crédito de recarga de red (`refill_credit_kwh`, `refills`, `refill_from`), demanda de horizonte y excedente de horizonte. **Estado de integración** informa de `price_reserve_hold` mientras una batería está retenida.
 
     ### Margen mínimo de arbitraje y eficiencia de ciclo completo
 

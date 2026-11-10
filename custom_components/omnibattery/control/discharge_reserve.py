@@ -35,8 +35,10 @@ from typing import TYPE_CHECKING, Any
 
 from ..const import CHARGE_EFFICIENCY, PREDICTIVE_MODE_DYNAMIC_PRICING
 from ..drivers.base import has_solar_production_source
+from ..energy import effective_round_trip_efficiency
 from ..pricing.curtailment import BatterySnapshot, distribute_solar_forecast
 from ..pricing.discharge_reserve import (
+    RefillTerms,
     ReservePlan,
     STATUS_DISABLED,
     battery_reserve_soc_pct,
@@ -85,6 +87,10 @@ RESERVE_SOC_TOLERANCE_PCT = 1e-6
 # raw AC surplus first would discount sun that was never going to fit in the
 # battery anyway, and read as if the uncertainty had been accounted for.
 SURPLUS_CREDIT_FACTOR = 0.75
+
+# Dynamic pricing's daily evaluation, the first re-plan from the live SOC that
+# is certain to run after the reserve releases energy (hour, minute).
+DAILY_EVALUATION_TIME = (0, 5)
 
 # Today's remaining sun follows what the panels have produced so far against
 # what the provider expected by now, once it expected enough to judge, clamped
@@ -207,6 +213,7 @@ class DischargeReserveManager:
             0.0,
             float(getattr(self._controller, "discharge_reserve_min_saving", 0.0) or 0.0),
         )
+        plan.refill = self._refill_terms(now)
         batteries = self._fleet()
         if batteries is None:
             # Not knowing what the battery holds is not a reason to hold it.
@@ -271,6 +278,7 @@ class DischargeReserveManager:
             0.0,
             float(getattr(self._controller, "discharge_reserve_min_saving", 0.0) or 0.0),
         )
+        snapshot.refill = self._refill_terms(self._now())
         slots = list(snapshot.slots)
         if not slots:
             return None
@@ -363,6 +371,7 @@ class DischargeReserveManager:
                 ),
                 now=now,
                 horizon_end=horizon_end,
+                refill=self._refill_terms(now),
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.error("Discharge reserve planner failed; releasing: %s", err)
@@ -739,6 +748,43 @@ class DischargeReserveManager:
             surplus[slot] = SURPLUS_CREDIT_FACTOR * absorbed_kwh * CHARGE_EFFICIENCY
         return net_demand_by_slot(consumption, solar, self._discharge_kw()), surplus
 
+    def _refill_terms(self, now: datetime) -> RefillTerms | None:
+        """What buying a kWh back costs, and from when the charge planner books it.
+
+        The planner rebuilds from the live SOC at its daily evaluation, at
+        00:05: energy the reserve releases before then is in that balance, so a
+        cheap slot from then on is one the planner can charge in for the dear
+        hour after it. Earlier slots are not counted: a re-plan before them is
+        not certain, and without it the released energy is bought back at the
+        dear hour's price.
+        """
+        controller = self._controller
+        try:
+            efficiency = float(effective_round_trip_efficiency(controller)[0] or 0.0)
+        except (TypeError, ValueError):
+            return None
+        charge_power_w = max(
+            0.0, float(getattr(controller, "max_charge_capacity", 0.0) or 0.0)
+        )
+        if efficiency <= 0.0 or charge_power_w <= 0.0:
+            return None
+        next_evaluation = now.replace(
+            hour=DAILY_EVALUATION_TIME[0],
+            minute=DAILY_EVALUATION_TIME[1],
+            second=0,
+            microsecond=0,
+        )
+        if next_evaluation <= now:
+            next_evaluation += timedelta(days=1)
+        ceiling = getattr(controller, "max_price_threshold", None)
+        return RefillTerms(
+            start=next_evaluation,
+            efficiency=efficiency,
+            margin=max(0.0, float(getattr(controller, "min_arbitrage_margin", 0.0) or 0.0)),
+            charge_kwh_per_h=charge_power_w / 1000.0 * CHARGE_EFFICIENCY,
+            price_ceiling=None if ceiling is None else float(ceiling),
+        )
+
     def _discharge_kw(self) -> float | None:
         """The reserve fleet's summed discharge power, as the planner caps it."""
         pricing = getattr(self._controller, "_pricing_mgr", None)
@@ -979,6 +1025,20 @@ class DischargeReserveManager:
                     ),
                     "claimed_kwh": round(plan.claimed_kwh, 3),
                     "pv_credit_kwh": round(plan.pv_credit_kwh, 3),
+                    # Dear hours a cheaper grid charge from refill_from serves
+                    # instead, and how much of their demand.
+                    "refill_credit_kwh": round(plan.refill_credit_kwh, 3),
+                    "refill_from": (
+                        plan.refill.start.isoformat() if plan.refill else None
+                    ),
+                    "refills": [
+                        {
+                            "start": slot.start.isoformat(),
+                            "price": round(slot.price, 5),
+                            "refilled_kwh": round(kwh, 3),
+                        }
+                        for slot, kwh in plan.refill_breakdown
+                    ],
                     "horizon_demand_kwh": round(plan.horizon_demand_kwh, 3),
                     "horizon_surplus_kwh": round(plan.horizon_surplus_kwh, 3),
                     "measured_solar_ratio": (
