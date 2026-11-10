@@ -15,6 +15,7 @@ from custom_components.omnibattery.pricing.chronological import (
     SlotAllocation,
     allocate_price_slots,
     build_energy_deadlines,
+    cap_battery_drain,
     evaluate_chronological_request,
     normalize_energy_shape,
     simulate_allocations,
@@ -1088,3 +1089,26 @@ def test_a_deficit_after_the_last_price_is_awaiting_prices_not_cheaper():
     assert plan.reason == "awaiting_prices"
     assert plan.awaiting_prices_kwh == pytest.approx(plan.cheaper_to_import_kwh)
     assert plan.awaiting_prices_kwh > 0
+
+
+def test_battery_drain_is_capped_at_the_discharge_power():
+    # An 800 W battery under a 1.2 kW night load covers 0.2 kWh per quarter
+    # hour; the grid carries the rest, so the night charge must not buy it.
+    night = [_interval(index, 0.3) for index in range(8)]
+
+    capped = cap_battery_drain(night, 0.8)
+
+    assert [item.consumption_kwh for item in capped] == pytest.approx([0.2] * 8)
+    deadlines = build_energy_deadlines(capped, 0.0)
+    assert deadlines[-1].required_cumulative_kwh == pytest.approx(1.6)
+
+
+def test_battery_drain_cap_lets_solar_feed_the_house_first():
+    item = _interval(0, 0.5, solar=0.2)
+
+    (capped,) = cap_battery_drain([item], 0.8)
+
+    assert capped.consumption_kwh == pytest.approx(0.4)
+    assert capped.solar_kwh == pytest.approx(0.2)
+    assert cap_battery_drain([_interval(0, 0.1)], 0.8)[0].consumption_kwh == 0.1
+    assert cap_battery_drain([item], None) == [item]

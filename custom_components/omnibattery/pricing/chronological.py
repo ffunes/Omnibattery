@@ -50,6 +50,29 @@ class EnergyInterval:
         )
 
 
+def cap_battery_drain(
+    intervals: Iterable[EnergyInterval], discharge_kw: float | None
+) -> list[EnergyInterval]:
+    """Limit each interval's battery drain to what the batteries can deliver.
+
+    The house load above the fleet's discharge power comes from the grid,
+    not from the battery. Projecting the whole load as drain sized the night
+    charge for energy the battery could never hand out, so it reached sunrise
+    half full. Solar still feeds the house first.
+    """
+    items = list(intervals)
+    if discharge_kw is None or not math.isfinite(float(discharge_kw)):
+        return items
+    rate = max(0.0, float(discharge_kw))
+    capped: list[EnergyInterval] = []
+    for item in items:
+        limit = item.solar_kwh + rate * _duration_hours(item.start, item.end)
+        if item.consumption_kwh > limit:
+            item = EnergyInterval(item.start, item.end, limit, item.solar_kwh)
+        capped.append(item)
+    return capped
+
+
 @dataclass(frozen=True)
 class EnergyDeadline:
     deadline: datetime

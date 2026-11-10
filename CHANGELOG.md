@@ -12,6 +12,7 @@
 - **Robustness** (PR#818): a failing predictive step falls back to normal control instead of stopping the cycle; one failing driver no longer aborts unloading the integration; Config Backup restores stored data before the entry loads; a lost Huawei EMMA meter connection is reconnected; a refused Indevolt write counts as failed. Thanks to @pocketware.
 - **Restore previous configuration keeps learned profiles and daily counters** (PR#819): the restored files are now loaded without a restart instead of being overwritten by the entry's first save; an unreadable file is skipped with a warning instead of aborting the restore. Thanks to @tkaspersNL.
 - **Venus E v2/v3 max power sliders go down to 100 W** (#815): the Max Charge/Discharge Power sliders in the dashboard and device page now start at 100 W, like the battery limits in the options flow, instead of 800 W. Thanks to @effevee.
+- **Dynamic Pricing: the night charge no longer overfills a battery with a low discharge limit**: the planner projected the whole house load as battery drain, although the batteries hand out at most their discharge power and the grid carries the rest. An 800 W battery under a ~1.2 kW night load was charged for energy it could never deliver and reached sunrise around 50% instead of near empty. The projected drain per interval is now capped at the fleet's discharge power.
 
 ## [1.6.0] - 2026-11-09
 

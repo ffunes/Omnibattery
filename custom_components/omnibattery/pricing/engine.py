@@ -106,6 +106,7 @@ from .chronological import (
     EnergyDeadline,
     EnergyInterval,
     build_energy_deadlines,
+    cap_battery_drain,
     evaluate_chronological_request,
     normalize_energy_shape,
 )
@@ -3339,6 +3340,23 @@ class PricingManager:
                 c for c in self._controller.coordinators
                 if c.data and not self._controller._is_battery_manual_owned(c)
             ]
+            # The batteries hand out at most their discharge power; the grid
+            # carries the rest of the house load. Without this cap an 800 W
+            # battery under a 1.2 kW night load was charged for the full load
+            # and reached sunrise half full.
+            discharge_w = 0.0
+            for c in eligible:
+                try:
+                    discharge_w += max(0.0, float(getattr(
+                        c,
+                        "effective_max_discharge_power",
+                        getattr(c, "max_discharge_power", None),
+                    )))
+                except (TypeError, ValueError):
+                    discharge_w = math.nan
+                    break
+            if eligible and math.isfinite(discharge_w):
+                intervals = cap_battery_drain(intervals, discharge_w / 1000.0)
             total_capacity = sum(
                 float(c.data.get("battery_total_energy", 0) or 0)
                 for c in eligible
