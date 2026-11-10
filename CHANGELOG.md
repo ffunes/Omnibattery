@@ -17,6 +17,7 @@
 - **Robustness** (PR#818): a failing predictive step falls back to normal control instead of stopping the cycle; one failing driver no longer aborts unloading the integration; Config Backup restores stored data before the entry loads; a lost Huawei EMMA meter connection is reconnected; a refused Indevolt write counts as failed. Thanks to @pocketware.
 - **Restore previous configuration keeps learned profiles and daily counters** (PR#819): the restored files are now loaded without a restart instead of being overwritten by the entry's first save; an unreadable file is skipped with a warning instead of aborting the restore. Thanks to @tkaspersNL.
 - **Venus E v2/v3 max power sliders go down to 100 W** (#815): the Max Charge/Discharge Power sliders in the dashboard and device page now start at 100 W, like the battery limits in the options flow, instead of 800 W. Thanks to @effevee.
+- **Panel: the manual charge price ceiling and discharge price floor never appeared**: without a stored value their entities are "unknown", which the panel skipped as leftovers, so turning a manual switch on showed nothing, and the switch alone changed nothing either. The rows now render (as "—" until set), and turning manual on stores today's average price as a starting value, kept on the right side of the other threshold. Thanks to @anorakophobia.
 
 ## [1.6.0] - 2026-11-09
 
