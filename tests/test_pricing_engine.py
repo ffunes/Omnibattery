@@ -863,6 +863,55 @@ def test_dynamic_pricing_rebuilds_once_on_a_dirty_configuration():
     assert len(calls) == 1
 
 
+def test_a_configuration_change_re_plans_once_the_settings_stand_still():
+    # A manual threshold switch writes twice (the switch, then its starting
+    # value) and a slider writes as it moves; each write used to run its own
+    # full evaluation. The flag now waits CONFIG_REPLAN_SETTLE_S.
+    from time import monotonic
+
+    from custom_components.omnibattery.pricing.engine import CONFIG_REPLAN_SETTLE_S
+
+    calls = []
+
+    async def _evaluate(**kwargs):
+        calls.append(kwargs)
+
+    ctrl = _controller(
+        _dynamic_pricing_evaluated_date=datetime.now().date(),
+        _dp_config_dirty=True,
+        _dp_config_dirty_at=monotonic(),
+        predictive_charging_overridden=False,
+        _current_price_slot_active=False,
+        grid_charging_active=False,
+    )
+    manager = _mgr(ctrl)
+    manager._maybe_refresh_service_prices = _async_noop
+    manager._check_dp_pre_slot_reevaluation = _async_noop
+    manager._refresh_surplus_hold_plan = _async_noop
+    manager._refresh_discharge_reserve_plan = _async_noop
+    manager._is_evening_reevaluation_time = lambda: False
+    manager._is_dp_soc_drop_reeval = lambda: False
+    manager._evaluate_dynamic_pricing = _evaluate
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert calls == []
+    assert ctrl._dp_config_dirty is True
+
+    ctrl._dp_config_dirty_at = monotonic() - CONFIG_REPLAN_SETTLE_S - 0.1
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert len(calls) == 1
+    assert ctrl._dp_config_dirty is False
+
+
+def test_invalidate_predictive_plan_stamps_the_change():
+    from time import monotonic
+
+    ctrl = _balance_ctrl()
+    before = monotonic()
+    ChargeDischargeController.invalidate_predictive_plan(ctrl, "test")
+    assert before <= ctrl._dp_config_dirty_at <= monotonic()
+
+
 async def _async_noop(*_args, **_kwargs):
     return None
 
