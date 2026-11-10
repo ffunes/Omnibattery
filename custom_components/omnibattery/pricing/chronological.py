@@ -618,7 +618,9 @@ def allocate_price_slots(
     ]
 
     allocations: dict[PriceSlot, float] = {}
-    allocation_deadlines: dict[PriceSlot, datetime | None] = {}
+    # The earliest deadline that booked each slot, the fallback label for a
+    # slot the relabel below leaves without one.
+    booked: dict[PriceSlot, datetime] = {}
     deadline_shortfall = 0.0
     cheaper_to_import = 0.0
     awaiting_prices = 0.0
@@ -1064,6 +1066,7 @@ def allocate_price_slots(
                 # here or by an earlier crossing slot).
                 crossed.add(slot)
             allocations[slot] = allocations.get(slot, 0.0) + take + drain
+            booked[slot] = min(booked.get(slot, deadline.deadline), deadline.deadline)
             missing -= take
             if missing <= _EPSILON:
                 break
@@ -1085,6 +1088,7 @@ def allocate_price_slots(
             if take <= _EPSILON:
                 continue
             allocations[slot] = allocations.get(slot, 0.0) + take
+            booked[slot] = min(booked.get(slot, deadline.deadline), deadline.deadline)
             missing -= take
             premium_budget -= take
             if missing <= _EPSILON or premium_budget <= _EPSILON:
@@ -1179,6 +1183,25 @@ def allocate_price_slots(
             served_in_segment[start] = served_in_segment.get(start, 0.0) + take
             if allocation_deadlines[slot] is None:
                 allocation_deadlines[slot] = deadline.deadline
+    # In valued mode an early slot booked by the flexible pass can take a
+    # deadline's share in the walk above and push a deadline-booked slot onto
+    # later deadlines it cannot serve. Such a slot keeps the deadline that
+    # booked it, so it stays forced and bounded, not flexible.
+    for slot, label in allocation_deadlines.items():
+        if label is None and slot in booked:
+            allocation_deadlines[slot] = booked[slot]
+    # Keep the labels in time order: energy charged earlier is spent first,
+    # so a slot is needed no later than any later slot. Pulling a label
+    # earlier only tightens its bound.
+    earliest_later: datetime | None = None
+    for slot in reversed(by_start):
+        label = allocation_deadlines[slot]
+        if label is None:
+            continue
+        if earliest_later is not None and earliest_later < label:
+            allocation_deadlines[slot] = earliest_later
+        else:
+            earliest_later = label
 
     if grid_carries_load_while_charging:
         # The deadlines and the scalar balance both count the house load

@@ -1155,6 +1155,53 @@ def test_slot_deadlines_name_when_the_energy_is_needed_not_which_deadline_booked
     assert labels[-1] == BASE + timedelta(hours=3, minutes=15)
 
 
+def test_valued_deadline_slots_keep_a_deadline_when_an_earlier_slot_takes_their_share():
+    """Valued mode with the grid carrying the load: every booked slot stays a
+    deadline slot.
+
+    Regression: the 00:00 slot covers the first deadlines in the relabel walk,
+    which pushed the 02:00 slot, booked for a deadline, onto later ones past
+    the hours left to the grid that it cannot serve. It came out flexible
+    while nothing flexible was required, losing its forced charge, and the
+    deadline energy came out above the total requirement.
+    """
+    consumption = [
+        0.1, 0.15, 0.15, 0.5, 0.1, 0.5, 0.05, 0.05, 0.5, 0.5,
+        0.1, 0.15, 0.4, 0.5, 0.4, 0.1, 0.4, 0.5, 0.5, 0.15,
+    ]
+    intervals = [_interval(i, kwh) for i, kwh in enumerate(consumption)]
+    slots = [
+        _slot(60 * h, 60 * h + 60, price)
+        for h, price in enumerate([0.29, 0.30, 0.18, 0.43, 0.59])
+    ]
+    deadlines = build_energy_deadlines(intervals, 0.3)
+
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        slots,
+        total_required_kwh=deadlines[-1].required_cumulative_kwh,
+        effective_power_kw=1.2,
+        charge_efficiency=1.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=5),
+        headroom_kwh=10.0,
+        usable_initial_kwh=0.3,
+        import_value_efficiency=0.80,
+        import_value_margin=0.05,
+        grid_carries_load_while_charging=True,
+    )
+
+    assert {a.slot.start for a in plan.allocations} == {
+        BASE, BASE + timedelta(hours=1), BASE + timedelta(hours=2)
+    }
+    assert plan.flexible_required_kwh == pytest.approx(0.0)
+    assert all(a.kind == "deadline" for a in plan.allocations)
+    assert plan.deadline_required_kwh <= plan.total_required_kwh + 1e-9
+    labels = [a.deadline for a in sorted(plan.allocations, key=lambda a: a.slot.start)]
+    assert labels == sorted(labels)
+
+
 def _flat_night_plan(**kwargs):
     # #834: a flat night at 0.41 (left to the grid: 0.41 x 0.80 - 0.05 is
     # under it), 06:00 at 0.50 (also left), a 07:00-09:00 peak at 0.68 that a
