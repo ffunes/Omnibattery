@@ -180,6 +180,13 @@ class DriverCapabilities:
     charge_cutoff_range: tuple[float, float] = (50.0, 100.0)
     discharge_cutoff_range: tuple[float, float] = (12.0, 50.0)
 
+    # True when "backup active" is judged from the load on the backup port
+    # (Marstek: the Backup Function switch plus an off-grid power threshold). A
+    # driver that reports the grid state itself (Huawei: off-grid is a status
+    # bit) has no use for a wattage threshold, so it sets this False and the
+    # threshold control is not offered.
+    uses_backup_offgrid_threshold: bool = True
+
 
 def has_connected_mppt_pv(coordinator) -> bool:
     """Return whether an MPPT-capable battery has panels connected.

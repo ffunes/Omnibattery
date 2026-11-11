@@ -4955,6 +4955,14 @@ class ChargeDischargeController:
             self._backup_cooldown_until.pop(coordinator, None)
             return False
 
+        # A driver that reports the grid state itself (Huawei) says "Off-grid"
+        # outright. That is the outage, whatever the load on the port: judging it
+        # by a wattage threshold would hand a battery that is carrying a small
+        # load through a power cut back to the PD controller.
+        if backup_value == "Off-grid":
+            self._backup_cooldown_until[coordinator] = now + timedelta(minutes=5)
+            return True
+
         # Switch is ON. Check whether the battery is actively providing offgrid power.
         ac_offgrid = coordinator.data.get("ac_offgrid_power")
 

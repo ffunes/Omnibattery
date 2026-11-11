@@ -305,6 +305,14 @@ _BLOCK_STORAGE_MODEL = (47000, 1, "very_low", {"storage_product_model": (0, "u16
 # The EMMA's built-in meter, read from the EMMA's own unit id. Live on every
 # read; measured at 25 ms per request on the reference installation.
 _REG_METER_POWER = 31657
+# The EMMA names itself on the same unit id the meter is read from. Same
+# registers the huawei_solar library reads for its EMMA device: serial 30015,
+# model 30222, firmware 30035.
+_EMMA_IDENTITY = (
+    ("emma_serial_number", 30015, 10),
+    ("emma_model", 30222, 20),
+    ("emma_firmware_version", 30035, 15),
+)
 _BLOCK_MODEL = (30000, 25, "very_low", {
     "device_name": (0, "str", 15),
     # The inverter's own serial, which huawei_solar also uses as its device
@@ -428,6 +436,9 @@ SENSOR_DEFINITIONS = [
     {"key": "ac_offgrid_power", "name": "Off-grid Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "medium", "enabled_by_default": True},
     {"key": "backup_function", "name": "Backup Function", "data_type": "char", "icon": "mdi:home-lightning-bolt-outline", "category": "diagnostic", "scan_interval": "medium", "enabled_by_default": True},
     {"key": "power_module_firmware_version", "name": "Power Module Firmware", "data_type": "char", "icon": "mdi:ticket-confirmation-outline", "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
+    {"key": "emma_model", "name": "EMMA Model", "data_type": "char", "icon": "mdi:chip", "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
+    {"key": "emma_serial_number", "name": "EMMA Serial", "data_type": "char", "icon": "mdi:identifier", "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
+    {"key": "emma_firmware_version", "name": "EMMA Firmware", "data_type": "char", "icon": "mdi:ticket-confirmation-outline", "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
     {"key": "inverter_software_version", "name": "Inverter Firmware", "data_type": "char", "icon": "mdi:ticket-confirmation-outline", "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
     *[
         row
@@ -541,6 +552,8 @@ class HuaweiSolarDriver(BatteryDriver):
             # leave an out-of-range limit unenforced, so the control layer owns
             # the SOC window and the registers are kept as a backstop.
             hardware_soc_cutoff=False,
+            # Off-grid is a status bit on this inverter, not a load to measure.
+            uses_backup_offgrid_threshold=False,
             has_force_mode=True,
             push_telemetry=False,
             max_charge_power_w=max_charge_power_w,
@@ -584,6 +597,7 @@ class HuaweiSolarDriver(BatteryDriver):
         # read over its own connection, so it joins the fast group by hand.
         if self._meter_client is not None:
             grouped.setdefault("high", []).append("grid_power")
+            grouped.setdefault("very_low", []).extend(key for key, _a, _n in _EMMA_IDENTITY)
         self._read_groups = [
             ReadGroup(interval, tuple(keys)) for interval, keys in grouped.items()
         ]
@@ -637,6 +651,7 @@ class HuaweiSolarDriver(BatteryDriver):
         # ever be unknown.
         if self._meter_client is None:
             unused.add("grid_power")
+            unused.update(key for key, _a, _n in _EMMA_IDENTITY)
         # The reserve is published as a slider (number_definitions); a second,
         # read-only entity for the same register would only duplicate it.
         unused.add("hardware_reserve_soc")
@@ -838,6 +853,15 @@ class HuaweiSolarDriver(BatteryDriver):
                 else:
                     self._rejected_keys.discard("grid_power")
                     snapshot["grid_power"] = grid_power
+
+        if self._meter_client is not None:
+            for key, address, words in _EMMA_IDENTITY:
+                if requested is not None and key not in requested:
+                    continue
+                regs = await self._meter_client.async_read_holding_block(address, words)
+                value = decode_string(regs, 0, words) if regs is not None else None
+                if value:
+                    snapshot[key] = value
 
         # Telemetry-only: the enum says which storage is attached, and the
         # label it resolves to is what the device entry calls itself.

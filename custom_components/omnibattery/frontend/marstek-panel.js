@@ -880,6 +880,9 @@ const K = {
   powerModuleFirmware: "power_module_firmware_version",
   inverterSerial: "inverter_serial_number",
   inverterFirmware: "inverter_software_version",
+  emmaModel: "emma_model",
+  emmaSerial: "emma_serial_number",
+  emmaFirmware: "emma_firmware_version",
   pack1Firmware: "pack1_firmware_version",
   pack2Firmware: "pack2_firmware_version",
   pack3Firmware: "pack3_firmware_version",
@@ -988,6 +991,10 @@ const BAT_CONTROLS = [
   { key: "soc_set", domain: "number", lk: "bcSocMax", icon: "mdi:battery-high" },
   { key: "discharging_cutoff_capacity", domain: "number", lk: "bcSocMin", icon: "mdi:battery-low" },
   { key: "min_soc", domain: "number", lk: "bcSocMin", icon: "mdi:battery-low" },
+  // Backup power SOC the inverter holds back for its backup output (Huawei,
+  // register 47102); only exists where the register answers. Sits under the
+  // minimum SOC because it acts as a second floor.
+  { key: "hardware_reserve_soc", domain: "number", lk: "bcBackupReserve", icon: "mdi:battery-heart-outline" },
   { key: "force_mode", domain: "select", lk: "bcForceMode", icon: "mdi:gesture-tap-button" },
   { key: "set_charge_power", domain: "number", lk: "bcChargePower", icon: "mdi:battery-arrow-up-outline" },
   { key: "set_discharge_power", domain: "number", lk: "bcDischargePower", icon: "mdi:battery-arrow-down-outline" },
@@ -1002,7 +1009,6 @@ const BAT_CONTROLS = [
   { key: "backup_offgrid_threshold", domain: "number", lk: "bcBackupThreshold", icon: "mdi:transmission-tower-off" },
   // Backup power SOC the inverter holds back for its backup output (Huawei, register 47102);
   // only exists where the register answers.
-  { key: "hardware_reserve_soc", domain: "number", lk: "bcBackupReserve", icon: "mdi:battery-heart-outline" },
   { key: "battery_phase", domain: "select", lk: "bcBatteryPhase", icon: "mdi:transmission-tower" },
   // Zendure off-grid output port mode (select: normal/economy/off). Distinct from
   // the Marstek backup_function switch; only one exists per device.
@@ -5915,6 +5921,9 @@ class MarstekVenusPanel extends HTMLElement {
           inverterModel: this._sval(byTk[K.deviceName]),
           inverterSn: this._sval(byTk[K.inverterSerial]),
           inverterFw: this._sval(byTk[K.inverterFirmware]),
+          emmaModel: this._sval(byTk[K.emmaModel]),
+          emmaSn: this._sval(byTk[K.emmaSerial]),
+          emmaFw: this._sval(byTk[K.emmaFirmware]),
           // A battery built from packs names each one. Empty slots answer with
           // nothing and are left out rather than listed blank.
           packs: [1, 2, 3]
@@ -6382,6 +6391,8 @@ class MarstekVenusPanel extends HTMLElement {
         [b.info.inverterModel, b.info.inverterSn, b.info.inverterFw].filter(Boolean).join(" · ")
       );
       addRow(this._t("infoPowerModule"), [b.info.serial, b.info.powerModuleFw].filter(Boolean).join(" · "));
+      // The EMMA, when one is configured, is the fourth piece of hardware.
+      addRow("EMMA", [b.info.emmaModel, b.info.emmaSn, b.info.emmaFw].filter(Boolean).join(" · "));
     } else {
       addRow(this._t("infoSerial"), b.info.serial);
     }
