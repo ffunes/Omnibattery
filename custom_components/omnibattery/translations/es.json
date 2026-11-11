@@ -2742,6 +2742,9 @@
       "backup_offgrid_threshold": {
         "name": "Umbral Offgrid Backup"
       },
+      "hardware_reserve_soc": {
+        "name": "SOC de respaldo (Backup Power)"
+      },
       "charge_hysteresis_percent": {
         "name": "Porcentaje Histéresis Carga"
       },

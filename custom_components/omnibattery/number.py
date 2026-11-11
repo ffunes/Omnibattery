@@ -97,7 +97,8 @@ async def async_setup_entry(
     for coordinator in coordinators:
         for definition in coordinator.number_definitions:
             entities.append(MarstekVenusNumber(coordinator, definition))
-        entities.append(MarstekBackupThresholdNumber(coordinator))
+        if coordinator.capabilities.uses_backup_offgrid_threshold:
+            entities.append(MarstekBackupThresholdNumber(coordinator))
 
         # For batteries without hardware SOC cutoff registers (v3/vA/vD), expose
         # software-enforced max/min SOC as live-editable entities. The PD controller

@@ -96,6 +96,7 @@ _REG_FORCIBLE_DISCHARGE_POWER = 47249  # u32, W
 _REG_FORCIBLE_MODE = 47100             # u16, see the constants above
 _REG_CHARGE_CUTOFF = 47081             # u16, tenths of a percent
 _REG_DISCHARGE_CUTOFF = 47082          # u16, tenths of a percent
+_REG_BACKUP_RESERVE = 47102            # u16, tenths of a percent
 _TARGET_MODE_TIME = 0
 
 # A string carries voltage when there is light on it and collapses in the dark,
@@ -273,6 +274,14 @@ _BLOCK_CONFIG = (47081, 7, "low", {
     "user_work_mode": (5, "u16", 1),
     "charge_from_grid": (6, "u16", 1),
 })
+# Backup power SOC (47102, tenths of a percent): the share of the battery the
+# inverter holds back for the backup output. It never discharges into the house
+# below it, whatever the discharge cutoff says, so the control layer has to treat
+# it as a floor. Only models with a backup box answer this register; on the others
+# the read fails and the key is simply absent, and no slider is offered.
+_BLOCK_BACKUP_RESERVE = (47102, 1, "medium", {
+    "hardware_reserve_soc": (0, "u16", 0.1),
+})
 _BLOCK_FORCIBLE_MODE = (47100, 1, "medium", {
     "force_mode": (0, "u16", 1),
 })
@@ -296,6 +305,14 @@ _BLOCK_STORAGE_MODEL = (47000, 1, "very_low", {"storage_product_model": (0, "u16
 # The EMMA's built-in meter, read from the EMMA's own unit id. Live on every
 # read; measured at 25 ms per request on the reference installation.
 _REG_METER_POWER = 31657
+# The EMMA names itself on the same unit id the meter is read from. Same
+# registers the huawei_solar library reads for its EMMA device: serial 30015,
+# model 30222, firmware 30035.
+_EMMA_IDENTITY = (
+    ("emma_serial_number", 30015, 10),
+    ("emma_model", 30222, 20),
+    ("emma_firmware_version", 30035, 15),
+)
 _BLOCK_MODEL = (30000, 25, "very_low", {
     "device_name": (0, "str", 15),
     # The inverter's own serial, which huawei_solar also uses as its device
@@ -325,7 +342,7 @@ _BLOCK_PACK3 = (38284, 25, "very_low", {
 _BLOCKS = (
     _BLOCK_LIVE, _BLOCK_PV, _BLOCK_STATE3, _BLOCK_STRINGS,
     _BLOCK_FORCIBLE_MODE, _BLOCK_FORCIBLE_POWER,
-    _BLOCK_DAILY, _BLOCK_LIMITS, _BLOCK_TOTALS, _BLOCK_CONFIG,
+    _BLOCK_DAILY, _BLOCK_LIMITS, _BLOCK_TOTALS, _BLOCK_CONFIG, _BLOCK_BACKUP_RESERVE,
     _BLOCK_CAPACITY, _BLOCK_STRING_COUNT, _BLOCK_RATING, _BLOCK_MODEL, _BLOCK_SERIAL,
     _BLOCK_STORAGE_SW, _BLOCK_INVERTER_SW, _BLOCK_STORAGE_MODEL,
     _BLOCK_PACK1, _BLOCK_PACK2, _BLOCK_PACK3,
@@ -354,6 +371,7 @@ _INVALID_RAW = {
 # bounds that hold for any SUN2000, checked after scaling.
 _PERCENT_KEYS = frozenset({
     "battery_soc", "charging_cutoff_capacity", "discharging_cutoff_capacity",
+    "hardware_reserve_soc",
 })
 # Deliberately far above any SUN2000: this catches a decode fault, it does not
 # second-guess the inverter. The largest three-phase model is two orders below.
@@ -418,6 +436,9 @@ SENSOR_DEFINITIONS = [
     {"key": "ac_offgrid_power", "name": "Off-grid Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "medium", "enabled_by_default": True},
     {"key": "backup_function", "name": "Backup Function", "data_type": "char", "icon": "mdi:home-lightning-bolt-outline", "category": "diagnostic", "scan_interval": "medium", "enabled_by_default": True},
     {"key": "power_module_firmware_version", "name": "Power Module Firmware", "data_type": "char", "icon": "mdi:ticket-confirmation-outline", "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
+    {"key": "emma_model", "name": "EMMA Model", "data_type": "char", "icon": "mdi:chip", "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
+    {"key": "emma_serial_number", "name": "EMMA Serial", "data_type": "char", "icon": "mdi:identifier", "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
+    {"key": "emma_firmware_version", "name": "EMMA Firmware", "data_type": "char", "icon": "mdi:ticket-confirmation-outline", "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
     {"key": "inverter_software_version", "name": "Inverter Firmware", "data_type": "char", "icon": "mdi:ticket-confirmation-outline", "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
     *[
         row
@@ -438,6 +459,7 @@ SENSOR_DEFINITIONS = [
     {"key": "max_discharge_power", "name": "Max Discharge Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "category": "diagnostic", "scan_interval": "low", "enabled_by_default": False},
     {"key": "charging_cutoff_capacity", "name": "Charging Cutoff SOC", "unit": "%", "state_class": "measurement", "scale": 1, "precision": 1, "category": "diagnostic", "scan_interval": "low", "enabled_by_default": False},
     {"key": "discharging_cutoff_capacity", "name": "Discharging Cutoff SOC", "unit": "%", "state_class": "measurement", "scale": 1, "precision": 1, "category": "diagnostic", "scan_interval": "low", "enabled_by_default": False},
+    {"key": "hardware_reserve_soc", "name": "Backup Power SOC", "unit": "%", "state_class": "measurement", "scale": 1, "precision": 1, "category": "diagnostic", "scan_interval": "low", "enabled_by_default": False},
     {"key": "inverter_state", "name": "Storage Status", "data_type": "char", "icon": "mdi:state-machine", "category": "diagnostic", "scan_interval": "high", "enabled_by_default": True},
     {"key": "user_work_mode", "name": "Working Mode", "data_type": "char", "icon": "mdi:cog-outline", "category": "diagnostic", "scan_interval": "low", "enabled_by_default": True},
     {"key": "inverter_max_power", "name": "Inverter Max AC Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
@@ -472,6 +494,10 @@ class HuaweiSolarDriver(BatteryDriver):
         # calls. Same four-register sequence either way; this path skips the HA
         # service layer and that integration's communication lock.
         self._direct_write = bool(direct_write)
+        # Whether register 47102 answered with a usable value at connect time.
+        # Not every inverter has it, and on some it exists but means nothing, so
+        # the slider is only offered where it demonstrably reads back.
+        self._reserve_supported = False
         self._client = client if client is not None else HuaweiModbusClient(host, port, slave_id)
         # An EMMA answers on its own unit id and carries the grid meter this
         # installation is metered by. Reading it here rather than through the
@@ -526,6 +552,8 @@ class HuaweiSolarDriver(BatteryDriver):
             # leave an out-of-range limit unenforced, so the control layer owns
             # the SOC window and the registers are kept as a backstop.
             hardware_soc_cutoff=False,
+            # Off-grid is a status bit on this inverter, not a load to measure.
+            uses_backup_offgrid_threshold=False,
             has_force_mode=True,
             push_telemetry=False,
             max_charge_power_w=max_charge_power_w,
@@ -569,6 +597,7 @@ class HuaweiSolarDriver(BatteryDriver):
         # read over its own connection, so it joins the fast group by hand.
         if self._meter_client is not None:
             grouped.setdefault("high", []).append("grid_power")
+            grouped.setdefault("very_low", []).extend(key for key, _a, _n in _EMMA_IDENTITY)
         self._read_groups = [
             ReadGroup(interval, tuple(keys)) for interval, keys in grouped.items()
         ]
@@ -622,6 +651,10 @@ class HuaweiSolarDriver(BatteryDriver):
         # ever be unknown.
         if self._meter_client is None:
             unused.add("grid_power")
+            unused.update(key for key, _a, _n in _EMMA_IDENTITY)
+        # The reserve is published as a slider (number_definitions); a second,
+        # read-only entity for the same register would only duplicate it.
+        unused.add("hardware_reserve_soc")
         if self._packs:
             unused.update(
                 key
@@ -633,7 +666,20 @@ class HuaweiSolarDriver(BatteryDriver):
 
     @property
     def number_definitions(self) -> list[dict]:
-        return []
+        if not self._reserve_supported:
+            return []
+        return [{
+            "key": "hardware_reserve_soc",
+            "name": "Backup Power SOC",
+            "unit": "%",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            # The register counts tenths of a percent.
+            "scale": 0.1,
+            "icon": "mdi:battery-heart-outline",
+            "enabled_by_default": True,
+        }]
 
     @property
     def select_definitions(self) -> list[dict]:
@@ -675,9 +721,12 @@ class HuaweiSolarDriver(BatteryDriver):
                 # So the first set-point is already bounded by the hardware
                 # rather than by the configured limit alone.
                 "max_charge_power", "max_discharge_power",
+                # Decides whether the backup-reserve slider is offered.
+                "hardware_reserve_soc",
             ]
             + [f"pack{index}_serial_number" for index in (1, 2, 3)]
         )
+        self._reserve_supported = identity.get("hardware_reserve_soc") is not None
         self._model = identity.get("device_name") or self._model
         # The power module is the storage device's own identity; the inverter
         # has a separate serial, and the packs have theirs.
@@ -804,6 +853,15 @@ class HuaweiSolarDriver(BatteryDriver):
                 else:
                     self._rejected_keys.discard("grid_power")
                     snapshot["grid_power"] = grid_power
+
+        if self._meter_client is not None:
+            for key, address, words in _EMMA_IDENTITY:
+                if requested is not None and key not in requested:
+                    continue
+                regs = await self._meter_client.async_read_holding_block(address, words)
+                value = decode_string(regs, 0, words) if regs is not None else None
+                if value:
+                    snapshot[key] = value
 
         # Telemetry-only: the enum says which storage is attached, and the
         # label it resolves to is what the device entry calls itself.
@@ -1308,8 +1366,37 @@ class HuaweiSolarDriver(BatteryDriver):
             return False
 
     async def write_control(self, key: str, value: int) -> bool:
-        """No user-facing control entities are exposed by this driver."""
-        return False
+        """Write the backup power SOC; it is the only control entity of this driver."""
+        if key != "hardware_reserve_soc" or not self._reserve_supported:
+            return False
+        return await self._write_backup_reserve(value / 10.0)
+
+    async def _write_backup_reserve(self, soc_pct: float) -> bool:
+        """Set the backup power SOC (register 47102, tenths of a percent)."""
+        if not 0.0 <= soc_pct <= 100.0:
+            return False
+        if self._direct_write:
+            return await self._client.async_write_registers(
+                _REG_BACKUP_RESERVE, [int(round(soc_pct * 10))]
+            )
+        entity_id = self._resolve_entity("storage_backup_power_state_of_charge")
+        if entity_id is None:
+            return False
+        try:
+            await self.hass.services.async_call(
+                "number",
+                "set_value",
+                {"entity_id": entity_id, "value": round(soc_pct, 1)},
+                blocking=True,
+            )
+            return True
+        except Exception as exc:
+            if not self._shutting_down:
+                _LOGGER.warning(
+                    "Huawei driver: writing the backup power SOC via %s failed: %s",
+                    entity_id, exc,
+                )
+            return False
 
     def dynamic_discharge_limit_w(self, data: dict) -> Optional[int]:
         """Discharge headroom left on the inverter's AC side after PV.
@@ -1375,6 +1462,9 @@ class HuaweiSolarDriver(BatteryDriver):
             # cycle, so they must keep being polled even with their entities off.
             "inverter_max_power", "inverter_ac_power", "battery_power",
             "charging_cutoff_capacity", "discharging_cutoff_capacity",
+            # The backup power SOC is a discharge floor for the control layer; it
+            # has to keep being polled whatever the user does with the slider.
+            "hardware_reserve_soc",
             # Inputs of the PV gate (see _update_pv_gate). Without these the
             # gate cannot form a verdict at all: the harvest reads as absent, so
             # the verdict stays at its initial "not lit" and the driver commands

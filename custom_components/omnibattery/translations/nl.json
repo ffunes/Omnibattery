@@ -2742,6 +2742,9 @@
       "backup_offgrid_threshold": {
         "name": "Backup Offgrid Drempel"
       },
+      "hardware_reserve_soc": {
+        "name": "Backup Power SOC"
+      },
       "charge_hysteresis_percent": {
         "name": "Laadhysterese Percentage"
       },

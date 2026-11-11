@@ -2739,6 +2739,9 @@
       "backup_offgrid_threshold": {
         "name": "Backup Offgrid Threshold"
       },
+      "hardware_reserve_soc": {
+        "name": "Backup Power SOC"
+      },
       "charge_hysteresis_percent": {
         "name": "Charge Hysteresis Percent"
       },
