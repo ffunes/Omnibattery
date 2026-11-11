@@ -188,6 +188,12 @@ class ChronologicalEvaluationRequest:
     # full charge, whose target is the gap to 100%, not a drain. The runtime
     # planner turns this on; the pure evaluator keeps the plain model.
     grid_carries_load_while_charging: bool = False
+    # The energy the battery would still need without the room limit (the
+    # deficit after the load above the discharge power). When it exceeds
+    # ``total_required_kwh`` the plan is bound by the room, and the load the
+    # grid carries while a slot charges only cancels the need beyond it.
+    # None keeps the plain trim (the need is the total).
+    uncapped_required_kwh: float | None = None
     # Grid import ceiling (kW) the controller regulates to while a slot
     # charges. The house load comes out of it, so a slot stores at most
     # ``min(power, ceiling - net load)``. None keeps the flat ``power``.
@@ -561,6 +567,7 @@ def allocate_price_slots(
     reserve_holds: bool = False,
     grid_carries_load_while_charging: bool = False,
     grid_ceiling_kw: float | None = None,
+    uncapped_required_kwh: float | None = None,
 ) -> ChronologicalPlan:
     """Allocate the cheapest feasible slot capacity to energy deadlines.
 
@@ -1255,6 +1262,17 @@ def allocate_price_slots(
         covered = 0.0
         carried_deadline = 0.0
         carried_flexible = 0.0
+        # A plan bound by the room: the battery fills its room whatever the
+        # grid carries meanwhile, because the need goes on after it. The
+        # carried load first cancels that need beyond the room and only the
+        # rest trims the slots, so ``stored = min(room, need - carried)``.
+        # Trimming the room itself bought 3.1 of 5.5 kWh for a 21.6 kWh
+        # night deficit (11 Nov 2026).
+        beyond_room = (
+            max(0.0, _finite_non_negative(uncapped_required_kwh) - required)
+            if uncapped_required_kwh is not None
+            else 0.0
+        )
         for slot in sorted(allocations, key=lambda item: item.start):
             amount = allocations[slot]
             start, end = max(now, slot.start), min(slot.end, horizon_end)
@@ -1280,6 +1298,10 @@ def allocate_price_slots(
                     intervals, amount + cover, start, end, power * efficiency
                 ),
             )
+            if beyond_room > _EPSILON and amount - net > _EPSILON:
+                kept = min(amount - net, beyond_room)
+                beyond_room -= kept
+                net += kept
             if allocation_deadlines.get(slot) is None:
                 carried_flexible += amount - net
             else:
@@ -1404,6 +1426,7 @@ def evaluate_chronological_request(
         reserve_holds=request.reserve_holds,
         grid_carries_load_while_charging=request.grid_carries_load_while_charging,
         grid_ceiling_kw=request.grid_ceiling_kw,
+        uncapped_required_kwh=request.uncapped_required_kwh,
     )
     return ChronologicalEvaluationResult(
         plan=plan,

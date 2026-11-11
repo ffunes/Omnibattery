@@ -3681,6 +3681,11 @@ class PricingManager:
             required = self._net_grid_carried_load(
                 decision_data, grid_carried_kwh, publish=not diagnostic_only
             )
+            # The need without the room limit, for the allocator's
+            # carried-while-charging trim (see ``uncapped_required_kwh``).
+            uncapped_required = self._grid_carried_netting(
+                decision_data, grid_carried_kwh
+            )[3]
             # What actually came off the total: a floor gap or a pending
             # weekly full charge keeps it whole.
             grid_carried_kwh = max(0.0, scalar_required - required)
@@ -3847,6 +3852,9 @@ class PricingManager:
                     # The runtime regulates import incl. the house load to this
                     # ceiling, so a slot stores less while the house draws.
                     grid_ceiling_kw=self._contracted_charge_ceiling() / 1000.0,
+                    uncapped_required_kwh=max(
+                        0.0, uncapped_required - (window_load_on_grid or 0.0)
+                    ),
                 )
             )
             plan = evaluation.plan
@@ -4582,6 +4590,8 @@ class PricingManager:
                 night_load_kw
                 if limit_w is None
                 else min(night_load_kw, limit_w / 1000.0),
+                # The netted deficit, before the room capped ``netted_kwh``.
+                need_kwh=decision_data.get("energy_deficit_kwh"),
             )
             decision_data["planned_grid_charge_kwh"] = planned
             deficit_hours_needed = calculations.calculate_charging_hours_needed(

@@ -711,6 +711,7 @@ def net_of_load_carried_by_grid(
     charge_power_kw: float,
     load_kw: float,
     charge_efficiency: float = CHARGE_EFFICIENCY,
+    need_kwh: float | None = None,
 ) -> float:
     """Battery energy to store when the grid feeds the house during the charge.
 
@@ -718,13 +719,26 @@ def net_of_load_carried_by_grid(
     drain, but the grid carries it while the battery charges (#785). The
     charge stops once stored energy plus carried load reach the deficit:
     ``stored + load * t = planned`` with ``stored = rate * t``.
+
+    ``need_kwh`` is the deficit before ``planned`` was capped by the room in
+    the battery. A larger need fills the room whatever the grid carries, so
+    the carried load first cancels the need beyond the room:
+    ``stored = min(planned, need - carried)``.
     """
     planned = max(0.0, planned_kwh)
     rate = max(0.0, charge_power_kw) * max(0.0, charge_efficiency)
     load = max(0.0, load_kw)
     if rate <= 0.0 or load <= 0.0:
         return planned
-    return planned * rate / (rate + load)
+    trimmed = planned * rate / (rate + load)
+    try:
+        need = float(need_kwh) if need_kwh is not None else None
+    except (TypeError, ValueError):
+        need = None
+    if need is None or not math.isfinite(need):
+        return trimmed
+    carried = planned - trimmed
+    return max(trimmed, min(planned, max(0.0, need - carried)))
 
 
 def schedule_price_summary(
