@@ -5400,12 +5400,15 @@ class ChargeDischargeController:
 
         Below the peak-shaving threshold the battery only covers load above
         the limit, so the band between ``min_soc`` and the threshold is a
-        peak reserve, not energy for normal consumption.
+        peak reserve, not energy for normal consumption. A threshold at or
+        above ``max_soc`` reserves the whole battery: that is a "peaks only"
+        switch set for some hours (#843), not a reserve, so the plan keeps
+        ``min_soc``.
         """
         floor = float(coordinator.min_soc)
         if getattr(self, "capacity_protection_enabled", False):
             threshold = getattr(self, "capacity_protection_soc_threshold", None)
-            if threshold is not None:
+            if threshold is not None and float(threshold) < float(coordinator.max_soc):
                 floor = max(floor, float(threshold))
         return floor
 

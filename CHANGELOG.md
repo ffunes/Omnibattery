@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **Predictive charging no longer charges to 100% with the Peak Shaving SOC threshold at 100%** (#843): since 1.6.0 a threshold at or above max SOC reserved the whole battery, so the plan saw 0 kWh usable at any SOC and charged to full. A threshold at max SOC means "cover peaks only" and the plan now counts the energy down to min SOC; lower thresholds still reserve their band (#627). Thanks to @ssorgatem.
 - **Time Slot: the window charges again what the evening needs**: since 1.6.1b1 the window load came off the daily balance even when that balance was already capped at the room to max_soc, so a night window booked 0.06 kWh of a 3.2 kWh need and the battery ran out at 18:00. The window now charges at least what the plan needs after it, up to max_soc.
 
 ## [1.6.1b1] - 2026-11-10

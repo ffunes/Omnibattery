@@ -989,6 +989,19 @@ def test_peak_shaving_band_is_not_counted_as_usable_energy():
     assert shaved["energy_deficit_kwh"] > plain["energy_deficit_kwh"] + 0.7
 
 
+def test_peaks_only_threshold_at_max_soc_does_not_zero_usable_energy():
+    # #843: threshold 100% at night means "cover peaks only", not "reserve
+    # the whole battery"; at 90% the plan must still see the energy above min_soc.
+    plain = _run(_ctrl([_Coord(90.0, 10.0)], floor=0.0, solar="0.0", consumption=2.5))
+    ctrl = _ctrl([_Coord(90.0, 10.0)], floor=0.0, solar="0.0", consumption=2.5)
+    ctrl.capacity_protection_enabled = True
+    ctrl.capacity_protection_soc_threshold = 100
+    peaks_only = _run(ctrl)
+
+    assert peaks_only["usable_energy_kwh"] == pytest.approx(plain["usable_energy_kwh"])
+    assert peaks_only["usable_energy_kwh"] > 7.0
+
+
 def _shaving_floor_decision(threshold, *, held=False, floor=20.0):
     manager = _floor_manager(45.0, floor=floor)
     controller = manager._controller
