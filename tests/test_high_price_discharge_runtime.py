@@ -625,3 +625,19 @@ async def test_energy_platform_exception_keeps_fill_empty(monkeypatch):
     monkeypatch.setattr(runtime, "async_get_integration", integration)
     await manager._fetch_solar_forecast()
     assert manager._solar_wh_hours == {}
+
+
+def test_solar_sunrise_key_does_not_dump_hour_into_first_quarter(monkeypatch):
+    """#855: Forecast.Solar's sunrise key must not shrink hourly periods."""
+    import custom_components.omnibattery.control.high_price_discharge as runtime
+
+    monkeypatch.setattr(runtime.dt_util, "as_local", lambda dt: dt.astimezone(ZoneInfo("UTC")))
+    start = datetime(2026, 11, 11, 7)
+    keys = {"2026-11-11T06:55:49+00:00": 1,
+            "2026-11-11T07:00:00+00:00": 400,
+            "2026-11-11T08:00:00+00:00": 800,
+            "2026-11-11T09:00:00+00:00": 0}
+    quarter = [PriceSlot(start + timedelta(minutes=15*i), start + timedelta(minutes=15*(i+1)), .1)
+               for i in range(8)]
+    result = solar_wh_by_slot(quarter, keys, start)
+    assert list(result.values()) == pytest.approx([.1] * 4 + [.2] * 4)
