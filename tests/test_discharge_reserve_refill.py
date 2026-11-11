@@ -353,3 +353,41 @@ def test_the_night_charge_takes_over_what_the_reserve_released():
     assert released.allocated_kwh == pytest.approx(1.8, abs=0.05)
     assert all(item.slot.start.hour < 6 for item in released.allocations)
     assert released.deadline_shortfall_kwh == pytest.approx(0.0, abs=1e-6)
+
+
+# ----------------------------------------------------------------------
+# The Daily Operation projection
+# ----------------------------------------------------------------------
+
+
+def _projection(**overrides):
+    """10 Nov 18:15: tonight at 0.676, the night at 0.4363, the peak tomorrow."""
+    tonight = _slot(0, 19, 0.676)
+    night, peak = _evening_to_evening()
+    now = DAY + timedelta(hours=18, minutes=15)
+    manager = DischargeReserveManager(
+        SimpleNamespace(),
+        _controller(
+            manual_mode_enabled=False,
+            _manual_slot_owned=None,
+            _curtailment_runtime_status=None,
+            _capacity_protection_active=False,
+            **overrides,
+        ),
+    )
+    manager._now = lambda: now
+    manager._plan = _plan(
+        [tonight, night, peak], {tonight: 0.5, night: 0.4, peak: 1.5}, now, 0.676, None
+    )
+    manager._plan_date = DAY.date()
+    return manager.projected_reserve_fn(), tonight.start
+
+
+def test_the_projection_spends_what_the_night_buys_back():
+    fn, tonight = _projection()
+    assert fn(tonight, 1.5, 10.0) == 0.0
+
+
+def test_without_a_refill_the_projection_keeps_the_peak_s_share():
+    fn, tonight = _projection(max_charge_capacity=0.0)
+    assert fn(tonight, 1.5, 10.0) == pytest.approx(1.5)
