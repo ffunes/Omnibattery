@@ -2742,6 +2742,9 @@
       "backup_offgrid_threshold": {
         "name": "Backup Offgrid Schwellenwert"
       },
+      "hardware_reserve_soc": {
+        "name": "Backup-Power Ladestand"
+      },
       "charge_hysteresis_percent": {
         "name": "Ladehysterese Prozent"
       },

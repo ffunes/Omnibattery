@@ -9,7 +9,7 @@ non-delivering.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -23,7 +23,11 @@ from custom_components.omnibattery.drivers.huawei import (
     HuaweiSolarDriver,
 )
 
-from .test_huawei_driver import _LIVE_BLOCKS, _fake_client
+from .test_huawei_driver import (
+    _LIVE_BLOCKS,
+    _fake_client,
+    _hass_with_services,
+)
 
 
 def _coordinator(min_soc=20, **data):
@@ -120,3 +124,86 @@ def test_a_lower_slot_override_cannot_go_below_the_reserve():
 def test_planning_floor_includes_the_reserve():
     c = _coordinator(20, hardware_reserve_soc=35.0)
     assert ChargeDischargeController._planning_floor_soc(_ctrl(), c) == 35.0
+
+
+# ---------------------------------------------------------------- slider
+def _driver(blocks=None, **kw):
+    return HuaweiSolarDriver(
+        kw.pop("hass", MagicMock()), "1.2.3.4", port=502, slave_id=4,
+        battery_device_id=kw.pop("device_id", "dev"),
+        client=kw.pop("client", None) or _fake_client(blocks), **kw,
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_slider_is_offered_when_the_register_answers():
+    driver = _driver({**_LIVE_BLOCKS, 47102: [350]})
+    await driver.connect()
+    (definition,) = driver.number_definitions
+    assert definition["key"] == "hardware_reserve_soc"
+    assert (definition["min"], definition["max"], definition["unit"]) == (0, 100, "%")
+
+
+@pytest.mark.asyncio
+async def test_no_slider_where_the_register_does_not_answer():
+    driver = _driver(dict(_LIVE_BLOCKS))
+    await driver.connect()
+    assert driver.number_definitions == []
+    assert await driver.write_control("hardware_reserve_soc", 350) is False
+
+
+@pytest.mark.asyncio
+async def test_no_slider_for_the_invalid_marker():
+    driver = _driver({**_LIVE_BLOCKS, 47102: [0xFFFF]})
+    await driver.connect()
+    assert driver.number_definitions == []
+
+
+def test_no_slider_before_connect():
+    assert _driver({**_LIVE_BLOCKS, 47102: [350]}).number_definitions == []
+
+
+@pytest.mark.asyncio
+async def test_the_reserve_is_polled_even_with_no_entity_enabled():
+    # The control layer reads it every cycle; a disabled entity must not stop it.
+    assert "hardware_reserve_soc" in _driver().control_dependency_keys
+    driver = _driver()
+    assert any(
+        "hardware_reserve_soc" in group.keys for group in driver.read_groups
+    )
+
+
+def test_there_is_no_second_read_only_entity_for_the_reserve():
+    assert all(d["key"] != "hardware_reserve_soc" for d in _driver().sensor_definitions)
+
+
+@pytest.mark.asyncio
+async def test_direct_mode_writes_the_reserve_to_its_register():
+    client = _fake_client({**_LIVE_BLOCKS, 47102: [350]})
+    client.async_write_registers = AsyncMock(return_value=True)
+    driver = _driver(client=client, direct_write=True, device_id="")
+    await driver.connect()
+    assert await driver.write_control("hardware_reserve_soc", 400) is True
+    client.async_write_registers.assert_awaited_once_with(47102, [400])
+
+
+@pytest.mark.asyncio
+async def test_service_mode_writes_the_reserve_through_huawei_solar():
+    hass = _hass_with_services()
+    driver = _driver({**_LIVE_BLOCKS, 47102: [350]}, hass=hass)
+    driver._resolve_entity = lambda name: f"number.{name}"
+    await driver.connect()
+    assert await driver.write_control("hardware_reserve_soc", 400) is True
+    hass.services.async_call.assert_awaited_once_with(
+        "number", "set_value",
+        {"entity_id": "number.storage_backup_power_state_of_charge", "value": 40.0},
+        blocking=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_service_mode_without_the_huawei_entity_fails_cleanly():
+    driver = _driver({**_LIVE_BLOCKS, 47102: [350]}, hass=_hass_with_services())
+    driver._resolve_entity = lambda name: None
+    await driver.connect()
+    assert await driver.write_control("hardware_reserve_soc", 400) is False

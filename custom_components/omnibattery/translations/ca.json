@@ -2742,6 +2742,9 @@
       "backup_offgrid_threshold": {
         "name": "Llindar Offgrid Backup"
       },
+      "hardware_reserve_soc": {
+        "name": "SOC de reserva (Backup Power)"
+      },
       "charge_hysteresis_percent": {
         "name": "Percentatge Histèresi Càrrega"
       },
