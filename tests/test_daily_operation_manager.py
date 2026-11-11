@@ -1350,3 +1350,24 @@ async def test_charge_delay_metadata_is_throttled_and_keeps_its_tail_keys():
     manager.update_runtime_metadata(stale=True)
     assert manager.last_notification_immediate is True
     await manager.async_save_all()
+
+
+def test_batched_routine_change_keeps_an_earlier_immediate_notification():
+    """#850: plan metadata at the end of a refresh must not demote an interval close."""
+    manager = _manager(MutableClock(datetime(2026, 8, 23, 10, 7, tzinfo=MADRID)))
+    seen = []
+    manager.async_add_listener(lambda m: seen.append(m.last_notification_immediate))
+
+    manager.begin_update_batch()
+    manager._mark_public_change("interval", immediate=True)
+    manager._notify_listeners()
+    manager._mark_public_change("plan")
+    manager._notify_listeners()
+    manager.end_update_batch()
+
+    manager.begin_update_batch()
+    manager._mark_public_change("plan")
+    manager._notify_listeners()
+    manager.end_update_batch()
+
+    assert seen == [True, False]
