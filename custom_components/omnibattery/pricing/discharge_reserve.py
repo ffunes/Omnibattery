@@ -11,6 +11,8 @@ This module answers the second question. It projects the household's net demand
 (learned consumption minus expected PV) onto the remaining price slots, assigns
 the energy currently in the battery to the most expensive of those slots first,
 and reports how much of that energy must therefore survive the current hour.
+A dear hour the sun or a cheaper grid charge refills the battery for before it
+comes keeps nothing back: the energy is worth more now.
 
 The result is a level, not a verdict: everything above the reserve stays
 available for self-consumption right now. That is what makes it composable with
@@ -41,6 +43,7 @@ REASON_NO_USABLE_ENERGY = "no_usable_energy"
 REASON_NO_CAPACITY = "no_capacity"
 REASON_NOTHING_DEARER = "nothing_dearer_ahead"
 REASON_PV_COVERS_IT = "pv_refills_in_time"
+REASON_GRID_REFILLS_CHEAPER = "grid_refills_cheaper"
 REASON_RESERVED = "reserved_for_dearer_hours"
 
 
@@ -72,6 +75,33 @@ class ReserveSlot:
         return max(0.0, (self.end - self.start).total_seconds() / 3600.0)
 
 
+@dataclass(frozen=True)
+class RefillTerms:
+    """What a grid charge ahead costs, and from when the charge planner sees it.
+
+    Energy held for a dear hour can instead be used now and bought back in a
+    cheaper slot before that hour. That pays when the slot's price over the
+    round-trip efficiency, plus the arbitrage margin the planner charges with,
+    is no dearer than holding: the same test the planner applies to a charge.
+    Only slots from ``start`` count, the planner's next evaluation from the
+    live SOC, so the energy released now is in the balance it books from.
+    """
+
+    start: datetime
+    efficiency: float
+    margin: float = 0.0
+    charge_kwh_per_h: float = 0.0
+    price_ceiling: float | None = None
+
+    def cost(self, slot: "ReserveSlot") -> float | None:
+        """A discharged kWh bought back in ``slot``, or None where it cannot be."""
+        if slot.start < self.start or self.efficiency <= EPSILON:
+            return None
+        if self.price_ceiling is not None and slot.price > self.price_ceiling:
+            return None
+        return slot.price / self.efficiency + max(0.0, self.margin)
+
+
 @dataclass
 class ReservePlan:
     """What the battery must keep, and the slots that claim it."""
@@ -87,6 +117,8 @@ class ReservePlan:
     reference_price: float | None = None
     reserve_kwh: float = 0.0
     selected_slots: list[ReserveSlot] = field(default_factory=list)
+    # None leaves the grid out: only the sun refills the battery.
+    refill: RefillTerms | None = None
 
     # Audit trail for the sensor attributes. Every one of these is an input or
     # an intermediate of the decision below, recorded so the entity can explain
@@ -102,6 +134,9 @@ class ReservePlan:
     claim_breakdown: list[tuple[ReserveSlot, float, float]] = field(
         default_factory=list
     )
+    # (dear slot, kWh of its demand a cheaper grid charge before it serves).
+    refill_credit_kwh: float = 0.0
+    refill_breakdown: list[tuple[ReserveSlot, float]] = field(default_factory=list)
 
     def _reset_audit(self) -> None:
         self.threshold_price = None
@@ -110,6 +145,8 @@ class ReservePlan:
         self.horizon_demand_kwh = 0.0
         self.horizon_surplus_kwh = 0.0
         self.claim_breakdown = []
+        self.refill_credit_kwh = 0.0
+        self.refill_breakdown = []
 
     def reserve_kwh_at(
         self,
@@ -168,6 +205,15 @@ class ReservePlan:
         # credit: always just under the SOC, following it down without ever
         # holding anything (#700).
         space = self.free_space_kwh if free_space_kwh is None else _positive(free_space_kwh)
+        # A dear hour that a cheaper grid charge before it can serve claims
+        # nothing: holding for it would import now and leave that charge
+        # unbought. Settled before the budget, so the budget goes to the hours
+        # nothing cheaper refills.
+        refilled = self._grid_refills(now, threshold, candidates, space, available)
+        self.refill_breakdown = [
+            (slot, refilled[slot.start]) for slot in candidates if slot.start in refilled
+        ]
+        self.refill_credit_kwh = sum(refilled.values())
         budget = available + self._expected_pv_into_battery(now, space, available)
         candidates.sort(key=lambda slot: (-slot.price, slot.start))
         claimed = 0.0
@@ -175,12 +221,15 @@ class ReservePlan:
         for slot in candidates:
             if claimed >= budget - EPSILON:
                 break
-            take = min(slot.net_demand_kwh, budget - claimed)
+            demand = slot.net_demand_kwh - refilled.get(slot.start, 0.0)
+            take = min(demand, budget - claimed)
             if take <= EPSILON:
                 continue
             claimed += take
             claims.append((slot, take))
         claims.sort(key=lambda entry: entry[0].start)
+        if not claims:
+            return 0.0, [], REASON_GRID_REFILLS_CHEAPER
 
         # Sun that lands in the battery before a claim pays for part of it, so
         # holding the same energy back now would import at today's price and
@@ -214,6 +263,65 @@ class ReservePlan:
             absorbed = min(_positive(slot.expected_surplus_kwh), room)
             room -= absorbed
             yield slot, absorbed
+
+    def _grid_refills(
+        self,
+        now: datetime,
+        threshold: float,
+        candidates: list[ReserveSlot],
+        free_space_kwh: float,
+        available_kwh: float,
+    ) -> dict:
+        """kWh of each dear slot's demand that a cheaper grid charge before it serves.
+
+        A slot refills when buying a kWh back there costs no more than
+        ``threshold``: holding for any later hour then saves less than the
+        minimum saving. Walking the slots in time order, each such slot adds
+        what the battery can take at its charge power to a pool, and each dear
+        slot draws its demand from what the pool holds by then, so one kWh
+        bought serves one hour.
+
+        The room follows the sun's sweep, and the grid only takes what the
+        sun still to come leaves free: a charge that pushes later PV out to
+        the grid would trade free energy for bought. While it charges, the
+        grid covers the house, so a refilling slot makes no room by its own
+        demand.
+        """
+        terms = self.refill
+        if terms is None or terms.charge_kwh_per_h <= EPSILON:
+            return {}
+        swept = list(self._pv_absorbed(now, free_space_kwh, available_kwh))
+        sun_after = [0.0] * (len(swept) + 1)
+        for index in range(len(swept) - 1, -1, -1):
+            sun_after[index] = sun_after[index + 1] + swept[index][1]
+        dear = {slot.start for slot in candidates}
+        room = _positive(free_space_kwh)
+        ceiling = room + _positive(available_kwh)
+        pool = 0.0
+        refilled: dict = {}
+        for index, (slot, absorbed) in enumerate(swept):
+            if slot.start in dear:
+                room = min(ceiling, room + _positive(slot.net_demand_kwh))
+                take = min(_positive(slot.net_demand_kwh), pool)
+                if take > EPSILON:
+                    pool -= take
+                    refilled[slot.start] = take
+                room = max(0.0, room - absorbed)
+                continue
+            cost = terms.cost(slot)
+            if cost is None or cost > threshold:
+                room = min(ceiling, room + _positive(slot.net_demand_kwh))
+                room = max(0.0, room - absorbed)
+                continue
+            room = max(0.0, room - absorbed)
+            add = min(
+                terms.charge_kwh_per_h * slot.duration_hours,
+                max(0.0, room - sun_after[index + 1]),
+            )
+            if add > EPSILON:
+                room -= add
+                pool += add
+        return refilled
 
     def _expected_pv_into_battery(
         self, now: datetime, free_space_kwh: float, available_kwh: float
@@ -408,6 +516,7 @@ def plan_discharge_reserve(
     horizon_end: datetime | None = None,
     surplus_by_slot: dict | None = None,
     free_space_kwh: float = 0.0,
+    refill: RefillTerms | None = None,
 ) -> ReservePlan:
     """Build the reserve plan for the remaining horizon."""
     plan = ReservePlan(
@@ -417,6 +526,7 @@ def plan_discharge_reserve(
         free_space_kwh=_positive(free_space_kwh),
         horizon_end=horizon_end,
         reference_price=float(current_price) if _finite(current_price) else None,
+        refill=refill,
     )
     if plan.total_capacity_kwh <= EPSILON:
         plan.reason = REASON_NO_CAPACITY
