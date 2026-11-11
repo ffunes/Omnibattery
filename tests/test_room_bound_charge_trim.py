@@ -367,3 +367,61 @@ def test_the_0005_plan_of_11_november_buys_the_whole_room():
     assert booked == pytest.approx(5.53, abs=0.05)
     assert all(a.slot.start.hour < 6 for a in plan.allocations)  # the cheap night
     assert plan.total_shortfall_kwh == pytest.approx(0.0, abs=1e-6)
+
+
+def test_a_plan_held_below_the_room_by_price_keeps_the_plain_trim():
+    """Room-bound means the slots fill the room. Here only one cheap slot is
+    under the ceiling and the deadline before it is small, so the plan books
+    well under the 4 kWh room: the load the grid carries while that slot
+    charges is still trimmed, however large the need behind it."""
+    intervals = _night()
+    deadlines = [
+        build_energy_deadlines(intervals, _USABLE, usable_capacity_kwh=_USABLE + 4.0)[0]
+    ]
+    slots = [
+        PriceSlot(_START, _START + timedelta(hours=1), 0.10),
+        *[
+            PriceSlot(_START + timedelta(hours=h), _START + timedelta(hours=h + 1), 0.50)
+            for h in range(1, 8)
+        ],
+    ]
+
+    def plan(need):
+        return allocate_price_slots(
+            intervals,
+            deadlines,
+            slots,
+            total_required_kwh=deadlines[0].required_cumulative_kwh,
+            effective_power_kw=_POWER_KW,
+            now=_START,
+            horizon_end=_START + timedelta(hours=8),
+            headroom_kwh=4.0,
+            usable_initial_kwh=_USABLE,
+            max_price_threshold=0.20,
+            grid_carries_load_while_charging=True,
+            uncapped_required_kwh=need,
+        )
+
+    plain = plan(None)
+    assert 0.0 < plain.allocated_kwh < 4.0 - 0.5  # well below the room
+    assert plan(20.0).allocated_kwh == pytest.approx(plain.allocated_kwh)
+
+
+def test_an_unbounded_room_is_never_room_bound():
+    # Without a known room (the default) the plain trim always applies.
+    intervals = _night()
+    kwargs = dict(
+        total_required_kwh=_ROOM,
+        effective_power_kw=_POWER_KW,
+        now=_START,
+        horizon_end=_START + timedelta(hours=8),
+        usable_initial_kwh=_USABLE,
+        grid_carries_load_while_charging=True,
+    )
+    deadlines = build_energy_deadlines(intervals, _USABLE)
+    plain = allocate_price_slots(intervals, deadlines, _slots(), **kwargs)
+    with_need = allocate_price_slots(
+        intervals, deadlines, _slots(), uncapped_required_kwh=_NEED, **kwargs
+    )
+
+    assert with_need.allocated_kwh == pytest.approx(plain.allocated_kwh)

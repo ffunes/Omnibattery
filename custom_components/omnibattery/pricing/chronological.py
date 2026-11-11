@@ -17,6 +17,8 @@ from . import PriceSlot
 
 ENERGY_TOLERANCE_KWH = 0.05
 _EPSILON = 1e-9
+# A plan within this of the room counts as filling it (allocation rounding).
+_ROOM_BOUND_TOLERANCE_KWH = 0.01
 # value_cap of a deadline past the last published price.
 _UNPRICED = -math.inf
 
@@ -1268,9 +1270,18 @@ def allocate_price_slots(
         # rest trims the slots, so ``stored = min(room, need - carried)``.
         # Trimming the room itself bought 3.1 of 5.5 kWh for a 21.6 kWh
         # night deficit (11 Nov 2026).
+        # Room-bound means the slots fill the room. A plan held below it by
+        # price (only some slots are worth it) keeps the plain trim, however
+        # large the need behind it.
+        booked = sum(allocations.values())
+        room_bound = (
+            uncapped_required_kwh is not None
+            and math.isfinite(headroom)
+            and booked >= headroom - _ROOM_BOUND_TOLERANCE_KWH
+        )
         beyond_room = (
-            max(0.0, _finite_non_negative(uncapped_required_kwh) - required)
-            if uncapped_required_kwh is not None
+            max(0.0, _finite_non_negative(uncapped_required_kwh) - booked)
+            if room_bound
             else 0.0
         )
         for slot in sorted(allocations, key=lambda item: item.start):
