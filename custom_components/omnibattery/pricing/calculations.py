@@ -692,6 +692,45 @@ def calculate_exact_charging_hours_needed(
     return energy_kwh / (effective_power_kw * CHARGE_EFFICIENCY)
 
 
+def fleet_charge_power_kw(
+    batteries: list[tuple[float, float]],
+    energy_kwh: float,
+) -> float | None:
+    """Average power at which the fleet charges ``energy_kwh``, or None if unknown.
+
+    ``batteries`` holds ``(room_kwh, charge_power_kw)`` per battery. A slot is
+    sized with one fleet power, but a battery that is full stops charging: two
+    2.4 kW batteries with 4.25 and 7.18 kWh of room charge at 4.8 kW until the
+    first is full and at 2.4 kW after that. Filling both takes as long as the
+    slower one alone, 7.18 / 2.4 h, so the fleet averages 11.43 / (7.18 / 2.4)
+    = 3.82 kW, not 4.8. Sized at 4.8 kW the slots end with the slower battery
+    short. A charge that ends before any battery is full keeps the summed
+    power. The charge efficiency scales energy and time alike and cancels.
+    """
+    charging = sorted(
+        (room / power, power)
+        for room, power in batteries
+        if math.isfinite(room) and math.isfinite(power) and room > 1e-9 and power > 1e-9
+    )
+    if not charging:
+        return None
+    rate = sum(power for _full_after, power in charging)
+    energy = min(max(0.0, energy_kwh), sum(full_after * power for full_after, power in charging))
+    if energy <= 1e-9:
+        return rate
+    stored = 0.0
+    elapsed = 0.0
+    for full_after, power in charging:
+        step = (full_after - elapsed) * rate
+        if stored + step >= energy - 1e-9:
+            elapsed += (energy - stored) / rate
+            break
+        stored += step
+        elapsed = full_after
+        rate -= power
+    return energy / elapsed if elapsed > 0.0 else None
+
+
 def calculate_planned_grid_charge_kwh(
     deficit_kwh: float,
     battery_headroom_kwh: float,

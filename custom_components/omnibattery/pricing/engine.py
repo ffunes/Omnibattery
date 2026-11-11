@@ -162,6 +162,7 @@ _CHRONOLOGICAL_DIAGNOSTIC_KEYS = (
     "chronological_source",
     "battery_discharge_limit_w",
     "grid_carried_load_kwh",
+    "battery_charge_power_w",
     "solar_timeline_source",
     "solar_forecast_original_source",
     "solar_forecast_conversion",
@@ -3032,6 +3033,25 @@ class PricingManager:
         except Exception:  # noqa: BLE001
             return False
 
+    def _fleet_charge_power_kw(
+        self,
+        coordinators: Sequence[Any],
+        room_kwh: Sequence[float],
+        energy_kwh: float,
+    ) -> float | None:
+        """Average power at which ``coordinators`` charge ``energy_kwh``; ``None`` if unknown."""
+        limit = getattr(self._controller, "_battery_power_limit", None)
+        if not callable(limit):
+            return None
+        batteries = []
+        for coordinator, room in zip(coordinators, room_kwh):
+            try:
+                power_w = float(limit(coordinator, True))
+            except (TypeError, ValueError, AttributeError):
+                return None
+            batteries.append((room, max(0.0, power_w) / 1000.0))
+        return calculations.fleet_charge_power_kw(batteries, energy_kwh)
+
     @staticmethod
     def _fleet_discharge_limit_w(coordinators: Sequence[Any]) -> float | None:
         """Summed discharge power of ``coordinators``; ``None`` if unknown."""
@@ -3590,13 +3610,14 @@ class PricingManager:
             # 100% while a weekly full charge is pending, so the plan may size
             # the cheap slots for the whole cycle instead of stopping at max_soc.
             ceiling = getattr(self._controller, "_charge_ceiling_soc", None)
-            headroom = sum(
+            room_kwh = [
                 max(0.0, (
                     (float(ceiling(c)) if callable(ceiling) else float(c.max_soc))
                     - float(c.data.get("battery_soc", 0) or 0)
                 ) / 100.0 * float(c.data.get("battery_total_energy", 0) or 0))
                 for c in eligible
-            )
+            ]
+            headroom = sum(room_kwh)
             weekly_pending = getattr(
                 self._controller, "_weekly_full_charge_pending", None
             )
@@ -3796,6 +3817,27 @@ class PricingManager:
                 self._contracted_charge_ceiling(),
                 max(0.0, float(self._controller.max_charge_capacity)),
             ) / 1000.0
+            # A battery that is full stops charging, so the fleet stores the
+            # end of a charge at less than its summed power: a slot sized at
+            # the sum left the battery with more room short (11 Nov 2026: 12
+            # slots booked for 11.4 kWh, the larger battery needed 14).
+            fleet_kw = self._fleet_charge_power_kw(
+                eligible,
+                room_kwh,
+                min(
+                    headroom,
+                    max(
+                        [required]
+                        + [
+                            item.required_cumulative_kwh
+                            for item in deadlines
+                            if control_extension
+                        ]
+                    ),
+                ),
+            )
+            if fleet_kw is not None:
+                power_kw = min(power_kw, fleet_kw)
             # Value deadline energy against the import it displaces (#662)
             # where the arbitrage margin is on (zero means off), and only in
             # Dynamic Pricing: Time Slot prices are synthetic.
@@ -3864,6 +3906,9 @@ class PricingManager:
                     None if discharge_limit_w is None else round(discharge_limit_w)
                 ),
                 "grid_carried_load_kwh": round(grid_carried_kwh, 3),
+                # The charge power the slots are sized with: the fleet's
+                # average over the charge, below its sum once a battery fills.
+                "battery_charge_power_w": round(power_kw * 1000.0),
                 "chronological_source": forecast.source,
                 "solar_timeline_source": solar_source,
                 "solar_forecast_original_source": solar_input.original_source,
