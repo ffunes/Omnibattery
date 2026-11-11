@@ -707,6 +707,9 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
                     "battery_discharge_limit_w"
                 ),
                 "grid_carried_load_kwh": _chronological_value("grid_carried_load_kwh"),
+                "battery_charge_power_w": _chronological_value(
+                    "battery_charge_power_w"
+                ),
                 "solar_timeline_source": _chronological_value(
                     "solar_timeline_source"
                 ),

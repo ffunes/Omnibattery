@@ -1298,7 +1298,11 @@ def _drain_night_allocation(*, capped, net_total, valued, from_deadlines):
 
 @pytest.mark.parametrize("from_deadlines", [False, True])
 @pytest.mark.parametrize(
-    ("valued", "expected"), [(False, 4.76), (True, 1.63)]
+    # Valued, the cheap 01:00-05:00 hours are left to the grid and the slots
+    # store the 2.4 kWh the 800 W battery delivers 05:00-08:00. It was 1.63
+    # while the load inside those slots was taken off them although no slot
+    # had stored it.
+    ("valued", "expected"), [(False, 4.76), (True, 2.40)]
 )
 def test_capping_the_drain_buys_less_only_with_the_total_netted(
     valued, expected, from_deadlines

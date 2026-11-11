@@ -438,6 +438,49 @@ def _net_of_load_carried_by_grid(
     return max(0.0, amount - min(avoided, amount))
 
 
+def _without_load_left_to_grid(
+    intervals: Sequence[EnergyInterval],
+    left: Sequence[tuple[datetime, float]],
+) -> list[EnergyInterval]:
+    """The intervals as the battery drains them: without the load left to the grid.
+
+    ``left`` holds ``(deadline, kWh)`` for each deadline whose energy the plan
+    left to the grid. A deadline closes the interval ending at it, and one
+    grouped from several small steps also the intervals before it, so the
+    energy comes off the interval ending at the deadline first and then off
+    the earlier ones.
+    """
+    remaining = [
+        max(0.0, interval.consumption_kwh - interval.solar_kwh)
+        for interval in intervals
+    ]
+    ends = [interval.end for interval in intervals]
+    touched = False
+    for deadline, kwh in sorted(left, key=lambda item: item[0], reverse=True):
+        index = bisect_right(ends, deadline) - 1
+        while kwh > _EPSILON and index >= 0:
+            take = min(kwh, remaining[index])
+            if take > 0.0:
+                remaining[index] -= take
+                kwh -= take
+                touched = True
+            index -= 1
+    if not touched:
+        return list(intervals)
+    return [
+        interval
+        if left_net >= max(0.0, interval.consumption_kwh - interval.solar_kwh)
+        else EnergyInterval(
+            interval.start,
+            interval.end,
+            min(interval.consumption_kwh, interval.solar_kwh) + left_net,
+            interval.solar_kwh,
+            interval.house_load_kwh,
+        )
+        for interval, left_net in zip(intervals, remaining)
+    ]
+
+
 def _load_carried_while_storing(
     intervals: Sequence[EnergyInterval],
     stored_kwh: float,
@@ -1260,6 +1303,19 @@ def allocate_price_slots(
         # inside a charging slot as battery drain, but the grid feeds the
         # house while the slot charges. Charging that load into the battery
         # as well left it well above its floor at sunrise.
+        #
+        # That only holds for the hours the battery covers. An hour left to
+        # the grid (cheaper to import than to store, #662) drains nothing in
+        # the plan, so no slot stored its load: taking it off a slot charging
+        # in such an hour took it off the energy booked for a later deadline.
+        drained = _without_load_left_to_grid(
+            intervals,
+            [
+                (entry[0], entry[1])
+                for entries in left_hours.values()
+                for entry in entries
+            ],
+        )
         shortfall = max(0.0, required - sum(allocations.values()))
         covered = 0.0
         carried_deadline = 0.0
@@ -1297,7 +1353,7 @@ def allocate_price_slots(
                 cover = min(
                     shortfall - covered,
                     _load_carried_while_storing(
-                        intervals, amount, start, end, power * efficiency
+                        drained, amount, start, end, power * efficiency
                     ),
                 )
                 covered += cover
@@ -1306,7 +1362,7 @@ def allocate_price_slots(
             net = min(
                 amount,
                 _net_of_load_carried_by_grid(
-                    intervals, amount + cover, start, end, power * efficiency
+                    drained, amount + cover, start, end, power * efficiency
                 ),
             )
             if beyond_room > _EPSILON and amount - net > _EPSILON:
