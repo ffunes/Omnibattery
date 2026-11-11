@@ -2403,24 +2403,16 @@ class SmartPredischargeSwitch(SwitchEntity):
         return bool(self.controller.smart_predischarge_enabled)
 
     async def async_turn_on(self, **kwargs) -> None:
-        """Enable and recalculate the current dynamic-pricing plan."""
+        """Enable; the entry update re-plans like any other planning setting."""
         self.controller.smart_predischarge_enabled = True
         new_data = dict(self.entry.data)
         new_data[CONF_SMART_PREDISCHARGE_ENABLED] = True
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         _LOGGER.info("Smart pre-discharge ENABLED")
-        try:
-            await self.controller._pricing_mgr.evaluate_dynamic_pricing_now(
-                horizon=DynamicPricingEvaluationHorizon.REMAINING,
-                extended_horizon=True,
-            )
-        except Exception as err:  # keep a runtime toggle fail-safe
-            _LOGGER.warning("Smart pre-discharge evaluation failed after enable: %s", err)
-            self.controller._pricing_mgr.clear_curtailment_runtime("evaluation_error")
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
-        """Disable and immediately clean every smart runtime action."""
+        """Disable: clear every smart runtime action now; the re-plan drops the plan."""
         self.controller.smart_predischarge_enabled = False
         new_data = dict(self.entry.data)
         new_data[CONF_SMART_PREDISCHARGE_ENABLED] = False
@@ -2458,27 +2450,15 @@ class NegativePriceChargingSwitch(SwitchEntity):
         return bool(self.controller.negative_price_charging_enabled)
 
     async def async_turn_on(self, **kwargs) -> None:
-        """Enable the feature and immediately rebuild the typed calendar."""
+        """Enable; the entry update re-plans like any other planning setting."""
         self.controller.negative_price_charging_enabled = True
         new_data = dict(self.entry.data)
         new_data[CONF_NEGATIVE_PRICE_CHARGING_ENABLED] = True
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
-        try:
-            await self.controller._pricing_mgr.evaluate_dynamic_pricing_now(
-                horizon=DynamicPricingEvaluationHorizon.REMAINING,
-                extended_horizon=True
-            )
-        except Exception as err:
-            _LOGGER.warning(
-                "Negative-price charging evaluation failed after enable: %s", err
-            )
-            self.controller._pricing_mgr.clear_negative_price_runtime(
-                "evaluation_error"
-            )
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
-        """Disable and remove only opportunistic work from the live schedule."""
+        """Disable: stop an active opportunity slot now; the re-plan drops the rest."""
         active_purpose = getattr(
             self.controller, "_active_dynamic_slot_purpose", None
         )
