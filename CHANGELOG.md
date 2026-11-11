@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **A battery tapering on cell voltage is no longer marked non-responsive below 99% SOC**: the top-of-charge taper grace only started at 99% SOC, but a BMS that tapers on cell voltage is below 10% of the command earlier. A Zendure SolarFlow 2400 AC+ fell to 110–190 W of a 2300–2400 W command from 97% and was excluded twice for 5 minutes on its way to 100%. The grace now also opens once the top cell is in the taper zone (3.48 V), the band that already arms the BMS-cutoff detector, with the same 45-minute bound.
+
 ## [1.6.1b2] - 2026-11-11
 
 ### Fixed

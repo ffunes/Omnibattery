@@ -27,6 +27,7 @@ from custom_components.omnibattery.const import (
     HIGH_SOC_CHARGE_TAPER_GRACE_S,
     IDLE_RUNAWAY_GRACE_S,
     LOW_SOC_REFUSAL_CONFIRM_S,
+    NORMAL_BALANCE_TAPER_CELL_VOLTAGE,
     PD_READBACK_EVERY_N_WRITES,
 )
 from custom_components.omnibattery.drivers import SetpointResult
@@ -495,6 +496,98 @@ async def test_below_high_soc_taper_floor_is_judged_normally():
 
     await ctrl._check_non_delivery(
         coord, 7000, 48, attempt=0, direction="charge",
+    )
+
+    record.assert_called_once()
+
+
+def _zendure_tapering(**overrides):
+    """A Zendure SolarFlow 2400 AC+ in its own top-of-charge taper (8 Nov 2026).
+
+    It tapers on cell voltage: 3.61 V at 93% SOC, then 1700 W down to 190 W at
+    97% and 110 W at 98% of a 2300-2400 W command, the top cell relaxing from
+    3.63 V to 3.53 V as the current falls. Its local API reports no inverter
+    state.
+    """
+    data = {
+        "battery_power": 110,
+        "battery_soc": 98,
+        "max_cell_voltage": 3.53,
+    }
+    data.update(overrides)
+    return _Coord(data)
+
+
+async def test_charge_taper_below_the_soc_floor_is_not_non_responsive():
+    """A BMS that tapers on cell voltage is below 10% of the command before
+    the SOC floor: with the top cell in the taper zone that is the taper, the
+    same band that arms the BMS-cutoff detector, not a fault."""
+    coord = _zendure_tapering()
+    assert coord.data["battery_soc"] < HIGH_SOC_CHARGE_TAPER_FLOOR
+    ctrl = _controller()
+    record = MagicMock(return_value=None)
+    clear = MagicMock()
+    ctrl._non_responsive.record_non_delivery = record
+    ctrl._non_responsive.clear = clear
+
+    await ctrl._check_non_delivery(
+        coord, 2400, 110, attempt=0, direction="charge",
+    )
+
+    record.assert_not_called()
+    clear.assert_called_once_with(coord)
+    assert coord in ctrl._high_soc_taper_started
+
+
+async def test_charge_taper_below_the_soc_floor_grace_expires_into_a_fault():
+    """The voltage gate opens the same bounded grace: a battery stuck at a high
+    cell voltage without finishing still surfaces once the grace runs out."""
+    coord = _zendure_tapering()
+    ctrl = _controller()
+    ctrl._high_soc_taper_started[coord] = dt_util.utcnow() - timedelta(
+        seconds=HIGH_SOC_CHARGE_TAPER_GRACE_S + 1
+    )
+    record = MagicMock(return_value=None)
+    ctrl._non_responsive.record_non_delivery = record
+
+    await ctrl._check_non_delivery(
+        coord, 2400, 110, attempt=0, direction="charge",
+    )
+
+    record.assert_called_once()
+
+
+async def test_low_charge_below_the_soc_floor_and_the_taper_voltage_is_a_fault():
+    """Below the SOC floor with the cells below the taper zone nothing explains
+    the low power: judged at once, as before."""
+    coord = _zendure_tapering(
+        max_cell_voltage=NORMAL_BALANCE_TAPER_CELL_VOLTAGE - 0.01
+    )
+    ctrl = _controller()
+    record = MagicMock(return_value=None)
+    ctrl._non_responsive.record_non_delivery = record
+
+    await ctrl._check_non_delivery(
+        coord, 2400, 110, attempt=0, direction="charge",
+    )
+
+    record.assert_called_once()
+    assert coord not in ctrl._high_soc_taper_started
+
+
+async def test_top_cell_of_a_finished_pack_opens_no_taper_grace():
+    """On a battery that fills its packs in sequence the top cell of a finished
+    pack says nothing about the battery (#415): while a later pack is still
+    filling, low charge power is judged at once."""
+    coord = _zendure_tapering(
+        battery_soc=89, battery_soc_pack_1=100, battery_soc_pack_2=78,
+    )
+    ctrl = _controller()
+    record = MagicMock(return_value=None)
+    ctrl._non_responsive.record_non_delivery = record
+
+    await ctrl._check_non_delivery(
+        coord, 2400, 110, attempt=0, direction="charge",
     )
 
     record.assert_called_once()
