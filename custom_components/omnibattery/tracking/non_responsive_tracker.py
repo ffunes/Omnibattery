@@ -39,6 +39,11 @@ class NonResponsiveTracker:
         self._cooldown_min = cooldown_min
         # coordinator -> {"fail_count": int, "excluded_at": datetime|None}
         self.batteries: dict[Any, dict] = {}
+        # Batteries whose Repair this run has confirmed cleared or deliberately
+        # kept. The issue is persistent, so one raised before a restart comes back
+        # as active while this object starts empty: nothing here would ever say
+        # that battery recovered, and the stale warning stayed for good.
+        self._repairs_synced: set = set()
 
     @property
     def cooldown_min(self) -> int:
@@ -228,6 +233,11 @@ class NonResponsiveTracker:
                     coordinator.name,
                 )
 
+    @staticmethod
+    def _issue_id(entry_id: str, coordinator) -> str:
+        device_key = getattr(coordinator, "device_key", None) or coordinator.name
+        return f"battery_not_delivering_{entry_id}_{device_key}"
+
     def excluded_names(self) -> list[str]:
         """Return names of batteries currently excluded due to non-responsive behavior."""
         now = dt_util.utcnow()
@@ -238,23 +248,35 @@ class NonResponsiveTracker:
             and (now - info["excluded_at"]).total_seconds() / 60 < self._cooldown_min
         ]
 
-    def update_repairs(self, hass, entry_id: str) -> None:
+    def update_repairs(self, hass, entry_id: str, coordinators=()) -> None:
         """Raise or resolve a Repair per battery stuck non-delivering.
 
         Called once per control cycle, like the phase limiter's degraded-sensor
         warning, so create and delete both happen in one idempotent place.
+
+        The first cycle of a run also clears whatever an earlier run left behind:
+        the Repair is persistent, so after a restart it is restored as active
+        while this tracker knows nothing about it. A battery that is still stuck
+        raises it again after the usual 30 minutes.
         """
         now = dt_util.utcnow()
+        for coordinator in coordinators:
+            if coordinator in self.batteries or coordinator in self._repairs_synced:
+                continue
+            self._repairs_synced.add(coordinator)
+            ir.async_delete_issue(hass, "omnibattery", self._issue_id(entry_id, coordinator))
         for coordinator, info in self.batteries.items():
             since = info.get("degraded_since")
             stuck = (
                 since is not None
                 and (now - since).total_seconds() >= NON_DELIVERY_REPAIR_AFTER_S
             )
-            if stuck == bool(info.get("repair_raised")):
+            raised = info.get("repair_raised")
+            # None means "not known this run", which is not the same as "not
+            # raised": a persisted issue may exist, so the first look deletes.
+            if raised is not None and stuck == raised:
                 continue
-            device_key = getattr(coordinator, "device_key", None) or coordinator.name
-            issue_id = f"battery_not_delivering_{entry_id}_{device_key}"
+            issue_id = self._issue_id(entry_id, coordinator)
             if stuck:
                 ir.async_create_issue(
                     hass,

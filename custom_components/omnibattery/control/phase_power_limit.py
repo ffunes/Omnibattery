@@ -211,6 +211,10 @@ class PhasePowerLimiter:
         self._hold_discharge_w: dict[str, int] = {}
         self._degraded_since: dict[str, datetime] = {}
         self._degraded_warning_phases: set[str] = set()
+        # Phases whose persisted Repair this run has cleared. The issue survives
+        # a restart while the set above starts empty, so without this a phase that
+        # recovered during the restart kept a warning nothing would ever delete.
+        self._degraded_warning_cleared: set[str] = set()
         self._planned: dict[Any, tuple[bool, int]] = {}
         self._limited_batteries: dict[Any, dict[str, Any]] = {}
         self._last_log_signature: dict[str, tuple[Any, ...]] = {}
@@ -924,7 +928,9 @@ class PhasePowerLimiter:
                 and since is not None
                 and (now - since).total_seconds() >= PHASE_SENSOR_DEGRADED_REPAIR_S
             )
-            if stuck == (phase in self._degraded_warning_phases):
+            if stuck == (phase in self._degraded_warning_phases) and (
+                stuck or phase in self._degraded_warning_cleared
+            ):
                 continue
             issue_id = f"three_phase_sensor_degraded_{entry_id}_{phase}"
             if stuck:
@@ -945,9 +951,11 @@ class PhasePowerLimiter:
                     },
                 )
                 self._degraded_warning_phases.add(phase)
+                self._degraded_warning_cleared.discard(phase)
             else:
                 ir.async_delete_issue(self.hass, "omnibattery", issue_id)
                 self._degraded_warning_phases.discard(phase)
+                self._degraded_warning_cleared.add(phase)
 
     def _has_manual_time_slot(self) -> bool:
         """Return whether an enabled manual operation slot is configured."""
