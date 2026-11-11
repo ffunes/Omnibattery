@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import math
 from bisect import bisect_left
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from time import monotonic
@@ -364,11 +365,34 @@ async def async_fetch_energy_solar_forecast(hass: Any, sensor: str | None) -> di
     return {start.isoformat(): wh for start, wh in total.items()}
 
 
+def wh_period_ends(starts: list[datetime]) -> list[datetime]:
+    """Return the end of each sorted ``wh_hours`` period start.
+
+    A period runs until the next key, so Forecast.Solar's off-grid sunrise and
+    sunset keys give short edge periods instead of shrinking every period
+    (#855). Providers omit zero periods (Solcast), so a gap longer than the
+    most common one (ties: the shortest) ends after that typical length.
+    """
+    gaps = Counter(b - a for a, b in zip(starts, starts[1:]) if b > a)
+    typical = (
+        max(gaps, key=lambda gap: (gaps[gap], -gap.total_seconds()))
+        if gaps
+        else timedelta(hours=1)
+    )
+    ends = []
+    for index, start in enumerate(starts):
+        following = starts[index + 1] if index + 1 < len(starts) else None
+        if following is not None and start < following <= start + typical:
+            ends.append(following)
+        else:
+            ends.append(start + typical)
+    return ends
+
+
 def periods_from_wh_hours(wh_hours: dict) -> tuple[SolarForecastPeriod, ...]:
     """Turn Energy dashboard ``wh_hours`` into dated periods.
 
-    Keys are period starts; providers omit zero periods (Solcast), so the
-    period length is the smallest gap between keys.
+    Keys are period starts; see :func:`wh_period_ends` for period lengths.
     """
     entries = []
     for timestamp, wh in wh_hours.items():
@@ -380,11 +404,11 @@ def periods_from_wh_hours(wh_hours: dict) -> tuple[SolarForecastPeriod, ...]:
         if start is not None and math.isfinite(energy) and energy >= 0.0:
             entries.append((start, energy))
     entries.sort(key=lambda entry: entry[0].timestamp())
-    step = min(
-        (b[0] - a[0] for a, b in zip(entries, entries[1:]) if b[0] > a[0]),
-        default=timedelta(hours=1),
+    ends = wh_period_ends([start for start, _ in entries])
+    return tuple(
+        SolarForecastPeriod(start, end, energy)
+        for (start, energy), end in zip(entries, ends)
     )
-    return tuple(SolarForecastPeriod(start, start + step, energy) for start, energy in entries)
 
 
 def _energy_dashboard_periods(

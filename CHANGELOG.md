@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Forecast.Solar periods from the Energy dashboard keep their full length** (#855): the sunrise and sunset keys Forecast.Solar adds no longer shrink every forecast period to a few minutes, so the provider solar curve is used again instead of being rejected for `provider_coverage`, the Daily operation chart no longer draws it as a sawtooth, and High-price discharge spreads each hour's solar over all its slots. Thanks to @dNssssss.
+
 ## [1.6.1b2] - 2026-11-11
 
 ### Fixed

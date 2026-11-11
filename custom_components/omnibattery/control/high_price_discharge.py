@@ -52,6 +52,7 @@ from ..pricing.high_price_discharge import (
 from ..solar_forecast import (
     async_fetch_energy_solar_forecast,
     get_configured_solar_forecast_sensor,
+    wh_period_ends,
 )
 
 if TYPE_CHECKING:
@@ -100,9 +101,9 @@ SOLAR_REFRESH_INTERVAL_S = 1800.0
 def solar_wh_by_slot(slots: list, wh_hours: dict, horizon_end: datetime) -> dict:
     """Spread provider periods over the part of each slot after ``horizon_end``.
 
-    Keys are period starts; providers omit zero periods (Solcast), so the
-    period length is the smallest gap between keys and a missing key inside
-    the covered span is zero. Past the last period is unknown, never zero.
+    Keys are period starts (lengths per :func:`wh_period_ends`); providers
+    omit zero periods (Solcast), so a missing key inside the covered span is
+    zero. Past the last period is unknown, never zero.
     """
     entries = []
     for timestamp, wh in wh_hours.items():
@@ -116,20 +117,20 @@ def solar_wh_by_slot(slots: list, wh_hours: dict, horizon_end: datetime) -> dict
     if not entries:
         return {}
     entries.sort()
-    period = min(
-        (b - a for (a, _), (b, _) in zip(entries, entries[1:]) if b > a),
-        default=timedelta(hours=1),
-    )
-    covered_end = entries[-1][0] + period
+    periods = [
+        (moment, end, wh)
+        for (moment, wh), end in zip(entries, wh_period_ends([m for m, _ in entries]))
+    ]
+    covered_end = periods[-1][1]
     result = {}
     for slot in slots:
         start = max(slot.start, horizon_end)
         if slot.end <= start or start >= covered_end:
             continue
         result[slot] = sum(
-            wh * max(0.0, (min(slot.end, moment + period) - max(start, moment))
-                     .total_seconds()) / period.total_seconds()
-            for moment, wh in entries
+            wh * max(0.0, (min(slot.end, end) - max(start, moment))
+                     .total_seconds()) / (end - moment).total_seconds()
+            for moment, end, wh in periods
         ) / 1000.0
     return result
 
