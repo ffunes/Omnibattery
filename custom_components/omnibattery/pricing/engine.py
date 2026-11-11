@@ -3089,6 +3089,31 @@ class PricingManager:
         a SOC gap, not load, and a weekly full charge fills the gap to 100%,
         so neither shrinks.
         """
+        planned, deficit, netted_planned, netted_deficit = (
+            self._grid_carried_netting(decision_data, carried_kwh)
+        )
+        if publish:
+            decision_data.setdefault("scalar_planned_grid_charge_kwh", planned)
+            decision_data.setdefault("scalar_energy_deficit_kwh", deficit)
+            scalar_should = decision_data.setdefault(
+                "scalar_should_charge", bool(decision_data.get("should_charge"))
+            )
+            decision_data["planned_grid_charge_kwh"] = netted_planned
+            decision_data["energy_deficit_kwh"] = netted_deficit
+            decision_data["should_charge"] = bool(
+                scalar_should and netted_deficit > 1e-9
+            )
+        return netted_planned
+
+    def _grid_carried_netting(
+        self, decision_data: Mapping[str, Any], carried_kwh: float
+    ) -> tuple[float, float, float, float]:
+        """``(planned, deficit, netted_planned, netted_deficit)`` for a carried load.
+
+        ``planned`` is capped by the room in the battery, ``deficit`` is not;
+        the netted deficit is the need the plan still has to meet once the
+        grid carries the load above the discharge power.
+        """
         def number(key: str, fallback: str) -> float:
             value = decision_data.get(key, decision_data.get(fallback, 0.0))
             try:
@@ -3112,20 +3137,16 @@ class PricingManager:
                 )
             except (TypeError, ValueError):
                 floor = 0.0
-            netted_planned = max(planned - carried, min(planned, floor))
             netted_deficit = max(deficit - carried, min(deficit, floor))
-        if publish:
-            decision_data.setdefault("scalar_planned_grid_charge_kwh", planned)
-            decision_data.setdefault("scalar_energy_deficit_kwh", deficit)
-            scalar_should = decision_data.setdefault(
-                "scalar_should_charge", bool(decision_data.get("should_charge"))
+            # The carried load comes off the deficit, not off the planned
+            # charge: that one is already capped by the room in the battery.
+            # Subtracting a long horizon's carried load from the capped figure
+            # booked nothing for a battery that ran empty at 02:00 (deficit
+            # 33.3 kWh, room 5.5 kWh, carried 11.8 kWh -> 0 kWh planned).
+            netted_planned = max(
+                min(planned, max(0.0, deficit - carried)), min(planned, floor)
             )
-            decision_data["planned_grid_charge_kwh"] = netted_planned
-            decision_data["energy_deficit_kwh"] = netted_deficit
-            decision_data["should_charge"] = bool(
-                scalar_should and netted_deficit > 1e-9
-            )
-        return netted_planned
+        return planned, deficit, netted_planned, netted_deficit
 
     def _planning_coordinators(self) -> list[Any]:
         """Batteries the planner sizes for: with data, not manually owned."""
@@ -6262,7 +6283,12 @@ class PricingManager:
         # The uncapped figures the plan nets its own grid-carried load from;
         # without them it would subtract that load a second time.
         decision_data["scalar_should_charge"] = True
-        decision_data["scalar_energy_deficit_kwh"] = scalar_evening_deficit_kwh
+        # Uncapped: the plan nets its carried load from this deficit and caps
+        # by the room afterwards. Publishing the room-capped figure made a
+        # carried load above the room net the whole evening plan to 0 kWh.
+        decision_data["scalar_energy_deficit_kwh"] = max(
+            weekly_gap_kwh, load_deficit_kwh
+        )
         decision_data["scalar_planned_grid_charge_kwh"] = scalar_evening_charge_kwh
         decision_data["grid_carried_load_kwh"] = round(grid_carried_kwh, 3)
         # Same arbitrage-aware ceiling as the main evaluation: a deficit top-up

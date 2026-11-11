@@ -1390,6 +1390,29 @@ def test_a_carried_load_larger_than_the_deficit_needs_no_charge():
     assert decision["should_charge"] is False
 
 
+def test_the_carried_load_comes_off_the_deficit_not_the_capped_charge():
+    """00:05 run of 11 Nov 2026: the battery had room for 5.53 kWh of a 33.34
+    kWh deficit, and the grid would carry 11.75 kWh above the 800 W discharge
+    power over the 31 h horizon. Netting the carried load from the capped 5.53
+    booked nothing and the battery ran empty at 02:00; 21.59 kWh is still
+    short, so the whole room is still needed."""
+    manager = _netting_manager()
+    decision = {
+        "should_charge": True,
+        "planned_grid_charge_kwh": 5.53,
+        "energy_deficit_kwh": 33.34,
+    }
+
+    assert manager._net_grid_carried_load(decision, 11.75, publish=True) == pytest.approx(5.53)
+    assert decision["energy_deficit_kwh"] == pytest.approx(21.59)
+    assert decision["planned_grid_charge_kwh"] == pytest.approx(5.53)
+    assert decision["should_charge"] is True
+
+    # Only when the carried load leaves less than the room does the charge shrink.
+    decision = {"planned_grid_charge_kwh": 5.0, "energy_deficit_kwh": 8.0}
+    assert manager._net_grid_carried_load(decision, 4.0, publish=False) == pytest.approx(4.0)
+
+
 def test_the_carried_load_does_not_shrink_a_floor_or_weekly_gap():
     # A floor deficit is a SOC gap, not load.
     manager = _netting_manager()
