@@ -285,3 +285,158 @@ def test_scalar_fallback_solves_stored_plus_carried():
     )
     assert net_of_load_carried_by_grid(2.0, 2.0, 0.0) == pytest.approx(2.0)
     assert net_of_load_carried_by_grid(2.0, 0.0, 0.4) == pytest.approx(2.0)
+
+
+# ----------------------------------------------------------------------
+# Hours the plan left to the grid
+# ----------------------------------------------------------------------
+
+
+def _cheap_night_dear_day(*, carried, night_price=0.44, usable=0.0):
+    """A 1 kW house, night 00:00-06:00 at ``night_price``, day at 0.68.
+
+    With the import valued (#662) at efficiency 0.8 and a margin of 0.05, a
+    night hour is worth 0.44 x 0.8 - 0.05 = 0.30, less than a night slot
+    costs, so the night is left to the grid and the slots charge for the day.
+    """
+    intervals = [
+        EnergyInterval(BASE + i * QUARTER, BASE + (i + 1) * QUARTER, 0.25, 0.0)
+        for i in range(48)
+    ]
+    slots = tuple(
+        PriceSlot(
+            BASE + i * QUARTER,
+            BASE + (i + 1) * QUARTER,
+            night_price if i < 24 else 0.68,
+        )
+        for i in range(48)
+    )
+    return evaluate_chronological_request(
+        ChronologicalEvaluationRequest(
+            now=BASE,
+            horizon_end=BASE + timedelta(hours=12),
+            intervals=tuple(intervals),
+            price_slots=slots,
+            total_required_kwh=12.0,
+            effective_power_kw=4.0,
+            headroom_kwh=5.0,
+            usable_initial_kwh=usable,
+            import_value_efficiency=0.8,
+            import_value_margin=0.05,
+            grid_carries_load_while_charging=carried,
+        )
+    ).plan
+
+
+def test_a_slot_in_an_hour_left_to_the_grid_keeps_its_charge():
+    """11 Nov 2026: 11.43 kWh booked for the day, 9.14 kWh stored.
+
+    The night was cheaper to import than to store, so no slot stored its
+    load. Taking the load inside the charging slots off them anyway took it
+    off the energy booked for the day: the battery was empty by 18:45.
+    """
+    plain = _cheap_night_dear_day(carried=False)
+    netted = _cheap_night_dear_day(carried=True)
+
+    assert plain.cheaper_to_import_kwh == pytest.approx(6.0)
+    assert plain.allocated_kwh == pytest.approx(5.0)
+    assert netted.allocated_kwh == pytest.approx(5.0)
+    assert [item.planned_battery_kwh for item in netted.allocations] == pytest.approx(
+        [item.planned_battery_kwh for item in plain.allocations]
+    )
+    assert netted.total_shortfall_kwh == pytest.approx(0.0, abs=1e-6)
+    assert netted.reason == "ok"
+
+
+def test_a_slot_in_an_hour_the_battery_covers_is_still_trimmed():
+    """A dear night (0.60) is worth storing for, from the cheapest slot.
+
+    The battery then covers the night, the load inside the later slots was
+    stored for, and the grid carrying it while they charge saves that charge.
+    """
+    intervals = [
+        EnergyInterval(BASE + i * QUARTER, BASE + (i + 1) * QUARTER, 0.25, 0.0)
+        for i in range(48)
+    ]
+    prices = [0.10] * 4 + [0.60] * 4 + [0.30] * 4 + [0.60] * 36
+    slots = tuple(
+        PriceSlot(BASE + i * QUARTER, BASE + (i + 1) * QUARTER, prices[i])
+        for i in range(48)
+    )
+
+    def plan(carried):
+        return evaluate_chronological_request(
+            ChronologicalEvaluationRequest(
+                now=BASE,
+                horizon_end=BASE + timedelta(hours=12),
+                intervals=tuple(intervals),
+                price_slots=slots,
+                total_required_kwh=12.0,
+                effective_power_kw=4.0,
+                headroom_kwh=6.0,
+                usable_initial_kwh=0.0,
+                import_value_efficiency=0.8,
+                import_value_margin=0.05,
+                grid_carries_load_while_charging=carried,
+            )
+        ).plan
+
+    # 02:00-03:00 at 0.30 is worth 0.19: the 0.10 slots store for it.
+    third_hour = [
+        item.planned_battery_kwh
+        for item in plan(True).allocations
+        if item.slot.start >= BASE + timedelta(hours=2)
+    ]
+    untrimmed = [
+        item.planned_battery_kwh
+        for item in plan(False).allocations
+        if item.slot.start >= BASE + timedelta(hours=2)
+    ]
+    assert untrimmed
+    assert sum(third_hour) < sum(untrimmed)
+
+
+def test_load_left_to_the_grid_comes_off_the_interval_ending_at_its_deadline():
+    from custom_components.omnibattery.pricing.chronological import (
+        _without_load_left_to_grid,
+    )
+
+    intervals = _night(1.0, hours=1)  # four quarters of 0.25 kWh
+    drained = _without_load_left_to_grid(
+        intervals, [(BASE + 2 * QUARTER, 0.25)]
+    )
+
+    assert [item.consumption_kwh for item in drained] == pytest.approx(
+        [0.25, 0.0, 0.25, 0.25]
+    )
+    assert _without_load_left_to_grid(intervals, []) == intervals
+    assert _without_load_left_to_grid(intervals, [(BASE + QUARTER, 0.0)]) == intervals
+
+
+def test_a_grouped_deadline_takes_its_load_off_the_intervals_before_it_too():
+    """A deadline grouped from small steps closes more than one interval."""
+    from custom_components.omnibattery.pricing.chronological import (
+        _without_load_left_to_grid,
+    )
+
+    intervals = _night(1.0, hours=1)
+    drained = _without_load_left_to_grid(
+        intervals, [(BASE + 3 * QUARTER, 0.6)]
+    )
+
+    assert [item.consumption_kwh for item in drained] == pytest.approx(
+        [0.15, 0.0, 0.0, 0.25]
+    )
+
+
+def test_solar_covering_part_of_the_house_is_not_left_load():
+    from custom_components.omnibattery.pricing.chronological import (
+        _without_load_left_to_grid,
+    )
+
+    interval = EnergyInterval(BASE, BASE + QUARTER, 0.25, 0.10)
+    (drained,) = _without_load_left_to_grid([interval], [(BASE + QUARTER, 0.10)])
+
+    # 0.15 kWh came from the battery or the grid; 0.10 of it was left.
+    assert drained.consumption_kwh == pytest.approx(0.15)
+    assert drained.solar_kwh == pytest.approx(0.10)
