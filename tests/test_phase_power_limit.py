@@ -728,5 +728,7 @@ def test_a_lasting_degradation_is_reported_in_repairs(monkeypatch):
     limiter.hass.states._states["sensor.l1"] = _state(2.0, now=clock["now"])
     limiter.phase_snapshot(PHASE_L1)
     limiter.update_degraded_warning()
-    assert len(deleted) == 1
+    # The first healthy check of a run sweeps every phase (a persisted Repair
+    # from before a restart); the recovery then deletes the L1 issue itself.
+    assert deleted[-1][0][2].endswith(f"_{PHASE_L1}")
 

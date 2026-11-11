@@ -1083,7 +1083,7 @@ def test_price_publication_reeval_never_runs_outside_dynamic_pricing_mode():
             update_degraded_warning=lambda: None,
             enabled=False,
         ),
-        _non_responsive=SimpleNamespace(update_repairs=lambda hass, entry_id: None),
+        _non_responsive=SimpleNamespace(update_repairs=lambda hass, entry_id, coordinators=(): None),
         hass=object(),
         config_entry=SimpleNamespace(entry_id="x"),
         _check_main_sensor_liveness=lambda now: None,

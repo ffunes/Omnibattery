@@ -1206,6 +1206,10 @@ class ChargeDischargeController:
         self._solar_forecast_migration_issue_created = False
         self._missing_sensors_since = None     # monotonic ts a configured sensor entity went missing
         self._missing_sensors_reported = None  # entity ids named by the current Repairs issue
+        # The issue is persistent, so one raised before a restart is restored as
+        # active while _missing_sensors_reported starts empty. Without this flag
+        # the first healthy check had nothing to clear it against.
+        self._missing_sensors_issue_cleared = False
         self._dp_evening_reevaluated_date = None  # Prevent multiple evening re-evaluations per day
         self._dp_last_eval_soc = None  # avg SOC at last DP (re)eval; SOC-drop reeval reference (#411)
         self._dp_last_eval_excluded_claim_kwh = None  # excluded-device solar claim at last DP (re)eval (#341)
@@ -9416,8 +9420,12 @@ class ChargeDischargeController:
 
         if not missing:
             self._missing_sensors_since = None
-            if self._missing_sensors_reported is not None:
+            if (
+                self._missing_sensors_reported is not None
+                or not self._missing_sensors_issue_cleared
+            ):
                 self._missing_sensors_reported = None
+                self._missing_sensors_issue_cleared = True
                 ir.async_delete_issue(self.hass, DOMAIN, issue_id)
             return
 
@@ -9432,6 +9440,7 @@ class ChargeDischargeController:
             return
 
         self._missing_sensors_reported = missing
+        self._missing_sensors_issue_cleared = False
         _LOGGER.warning(
             "Configured sensor(s) %s do not exist in Home Assistant - Omnibattery "
             "keeps the stored reference; pick a replacement in the options flow",
@@ -9890,7 +9899,9 @@ class ChargeDischargeController:
                 ):
                     self._non_responsive.clear(coordinator)
         self._non_responsive.update_repairs(
-            self.hass, getattr(self.config_entry, "entry_id", "") or ""
+            self.hass,
+            getattr(self.config_entry, "entry_id", "") or "",
+            self.coordinators,
         )
         # A meter that stopped publishing freezes the command, and neither the
         # slow-sensor repair nor the invalid-state log can see that. Must sit
