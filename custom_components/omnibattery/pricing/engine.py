@@ -3458,17 +3458,19 @@ class PricingManager:
                 float(getattr(self._controller, "capacity_protection_limit", 0.0) or 0.0),
             ) / 1000.0
             intervals = [
-                EnergyInterval(
+                EnergyInterval(start, end, consumption[index], solar[index])
+                if held_until is None or start >= held_until
+                else EnergyInterval(
                     start,
                     end,
                     max(
                         0.0,
                         consumption[index]
                         - limit_kw * (end - start).total_seconds() / 3600.0,
-                    )
-                    if held_until is not None and start < held_until
-                    else consumption[index],
+                    ),
                     solar[index],
+                    # The timeline still shows the whole load.
+                    forecast_consumption_kwh=consumption[index],
                 )
                 for index, (start, end) in enumerate(boundaries)
             ]
