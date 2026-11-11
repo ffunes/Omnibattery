@@ -279,7 +279,12 @@ from .tracking.daily_timeline import (
     GRID_CHARGE_NOT_NEEDED,
     GRID_CHARGE_SCHEDULED,
 )
-from .control.pack_soc import control_vmax, soc_vs_ceiling
+from .control.pack_soc import (
+    control_vmax,
+    effective_min_soc,
+    hardware_reserve_soc,
+    soc_vs_ceiling,
+)
 from .control.weekly_full_charge import WeeklyFullChargeManager
 from .control.max_soc_charge import MaxSocChargeManager
 from .control.temperature_limit import TemperatureChargeLimitManager
@@ -4128,16 +4133,22 @@ class ChargeDischargeController:
 
     def _effective_discharge_min_soc(self, coordinator) -> tuple[float, str]:
         """Return the current per-battery discharge floor and the source of that floor."""
+        floor, source = coordinator.min_soc, "min_soc"
         slot = self._get_active_slot(coordinator, "discharge")
         if slot and slot.get("soc_override_enabled"):
             limits = self._slot_battery_limits(slot, coordinator)
             slot_min = limits.get("soc_min")
             if slot_min is not None:
                 try:
-                    return max(12, min(100, int(slot_min))), "slot_soc_override"
+                    floor, source = max(12, min(100, int(slot_min))), "slot_soc_override"
                 except (TypeError, ValueError):
                     pass
-        return coordinator.min_soc, "min_soc"
+        # The hardware's own reserve (Huawei backup power SOC) is a floor no
+        # setting of ours can lower, so it wins over a lower minimum or slot.
+        reserve = hardware_reserve_soc(coordinator)
+        if reserve > floor:
+            return reserve, "hardware_reserve"
+        return floor, source
 
     def _refresh_battery_charge_limit_blocks(self) -> None:
         """Expose max-SOC and hysteresis charge availability as per-battery blockers."""
@@ -4889,17 +4900,18 @@ class ChargeDischargeController:
                     and current_soc >= refused_soc + DISCHARGE_MIN_SOC_REENTRY_MARGIN
                 ):
                     coordinator._discharge_refused_soc = refused_soc = None
-                if current_soc <= coordinator.min_soc:
+                min_soc_floor = effective_min_soc(coordinator)
+                if current_soc <= min_soc_floor:
                     coordinator._discharge_min_soc_latched = True
-                elif current_soc >= coordinator.min_soc + DISCHARGE_MIN_SOC_REENTRY_MARGIN:
+                elif current_soc >= min_soc_floor + DISCHARGE_MIN_SOC_REENTRY_MARGIN:
                     coordinator._discharge_min_soc_latched = False
-                if current_soc > coordinator.min_soc:
+                if current_soc > min_soc_floor:
                     if getattr(coordinator, "_discharge_min_soc_latched", False):
                         _LOGGER.debug(
                             "%s: Skipping discharge - min-SOC re-entry hysteresis "
                             "(SOC %.1f%%, releases at %.1f%%)",
                             coordinator.name, current_soc,
-                            coordinator.min_soc + DISCHARGE_MIN_SOC_REENTRY_MARGIN,
+                            min_soc_floor + DISCHARGE_MIN_SOC_REENTRY_MARGIN,
                         )
                     elif refused_soc is not None:
                         _LOGGER.debug(
@@ -5429,7 +5441,7 @@ class ChargeDischargeController:
         switch set for some hours (#843), not a reserve, so the plan keeps
         ``min_soc``.
         """
-        floor = float(coordinator.min_soc)
+        floor = effective_min_soc(coordinator)
         if getattr(self, "capacity_protection_enabled", False):
             threshold = getattr(self, "capacity_protection_soc_threshold", None)
             if threshold is not None and float(threshold) < float(coordinator.max_soc):
@@ -8023,7 +8035,7 @@ class ChargeDischargeController:
         # is then expected behaviour, not a fault. Low-SOC counterpart to
         # the high-SOC BMS-cutoff handling.
         current_soc = coordinator.data.get("battery_soc", 100) if coordinator.data else 100
-        bms_cutoff_floor = max(coordinator.min_soc + 1, BMS_DISCHARGE_CUTOFF_SOC)
+        bms_cutoff_floor = max(effective_min_soc(coordinator) + 1, BMS_DISCHARGE_CUTOFF_SOC)
         if not is_charge and current_soc <= bms_cutoff_floor:
             _LOGGER.debug(
                 "[%s] No discharge delivered but SOC=%.1f%% is in the BMS "

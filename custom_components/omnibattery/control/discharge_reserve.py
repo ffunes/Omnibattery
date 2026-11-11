@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..const import CHARGE_EFFICIENCY, PREDICTIVE_MODE_DYNAMIC_PRICING
 from ..drivers.base import has_solar_production_source
+from .pack_soc import effective_min_soc
 from ..energy import effective_round_trip_efficiency
 from ..pricing.curtailment import BatterySnapshot, distribute_solar_forecast
 from ..pricing.discharge_reserve import (
@@ -604,7 +605,7 @@ class DischargeReserveManager:
             try:
                 soc = float(data.get("battery_soc"))
                 capacity = float(data.get("battery_total_energy"))
-                floor = float(coordinator.min_soc)
+                floor = effective_min_soc(coordinator)
                 max_soc = float(coordinator.max_soc)
             except (AttributeError, TypeError, ValueError):
                 continue

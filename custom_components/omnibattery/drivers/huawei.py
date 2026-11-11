@@ -273,6 +273,14 @@ _BLOCK_CONFIG = (47081, 7, "low", {
     "user_work_mode": (5, "u16", 1),
     "charge_from_grid": (6, "u16", 1),
 })
+# Backup power SOC (47102, tenths of a percent): the share of the battery the
+# inverter holds back for the backup output. It never discharges into the house
+# below it, whatever the discharge cutoff says, so the control layer has to treat
+# it as a floor. Only models with a backup box answer this register; on the others
+# the read fails and the key is simply absent.
+_BLOCK_BACKUP_RESERVE = (47102, 1, "low", {
+    "hardware_reserve_soc": (0, "u16", 0.1),
+})
 _BLOCK_FORCIBLE_MODE = (47100, 1, "medium", {
     "force_mode": (0, "u16", 1),
 })
@@ -325,7 +333,7 @@ _BLOCK_PACK3 = (38284, 25, "very_low", {
 _BLOCKS = (
     _BLOCK_LIVE, _BLOCK_PV, _BLOCK_STATE3, _BLOCK_STRINGS,
     _BLOCK_FORCIBLE_MODE, _BLOCK_FORCIBLE_POWER,
-    _BLOCK_DAILY, _BLOCK_LIMITS, _BLOCK_TOTALS, _BLOCK_CONFIG,
+    _BLOCK_DAILY, _BLOCK_LIMITS, _BLOCK_TOTALS, _BLOCK_CONFIG, _BLOCK_BACKUP_RESERVE,
     _BLOCK_CAPACITY, _BLOCK_STRING_COUNT, _BLOCK_RATING, _BLOCK_MODEL, _BLOCK_SERIAL,
     _BLOCK_STORAGE_SW, _BLOCK_INVERTER_SW, _BLOCK_STORAGE_MODEL,
     _BLOCK_PACK1, _BLOCK_PACK2, _BLOCK_PACK3,
@@ -354,6 +362,7 @@ _INVALID_RAW = {
 # bounds that hold for any SUN2000, checked after scaling.
 _PERCENT_KEYS = frozenset({
     "battery_soc", "charging_cutoff_capacity", "discharging_cutoff_capacity",
+    "hardware_reserve_soc",
 })
 # Deliberately far above any SUN2000: this catches a decode fault, it does not
 # second-guess the inverter. The largest three-phase model is two orders below.
@@ -438,6 +447,7 @@ SENSOR_DEFINITIONS = [
     {"key": "max_discharge_power", "name": "Max Discharge Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "category": "diagnostic", "scan_interval": "low", "enabled_by_default": False},
     {"key": "charging_cutoff_capacity", "name": "Charging Cutoff SOC", "unit": "%", "state_class": "measurement", "scale": 1, "precision": 1, "category": "diagnostic", "scan_interval": "low", "enabled_by_default": False},
     {"key": "discharging_cutoff_capacity", "name": "Discharging Cutoff SOC", "unit": "%", "state_class": "measurement", "scale": 1, "precision": 1, "category": "diagnostic", "scan_interval": "low", "enabled_by_default": False},
+    {"key": "hardware_reserve_soc", "name": "Backup Power SOC", "unit": "%", "state_class": "measurement", "scale": 1, "precision": 1, "category": "diagnostic", "scan_interval": "low", "enabled_by_default": False},
     {"key": "inverter_state", "name": "Storage Status", "data_type": "char", "icon": "mdi:state-machine", "category": "diagnostic", "scan_interval": "high", "enabled_by_default": True},
     {"key": "user_work_mode", "name": "Working Mode", "data_type": "char", "icon": "mdi:cog-outline", "category": "diagnostic", "scan_interval": "low", "enabled_by_default": True},
     {"key": "inverter_max_power", "name": "Inverter Max AC Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "category": "diagnostic", "scan_interval": "very_low", "enabled_by_default": True},
