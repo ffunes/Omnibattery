@@ -6,6 +6,7 @@
 
 - **Predictive charging no longer charges to 100% with the Peak Shaving SOC threshold at 100%** (#843): since 1.6.0 a threshold at or above max SOC reserved the whole battery, so the plan saw 0 kWh usable at any SOC and charged to full. A threshold at max SOC means "cover peaks only" and the plan now counts the energy down to min SOC; lower thresholds still reserve their band (#627). Thanks to @ssorgatem.
 - **Time Slot: the window charges again what the evening needs**: since 1.6.1b1 the window load came off the daily balance even when that balance was already capped at the room to max_soc, so a night window booked 0.06 kWh of a 3.2 kWh need and the battery ran out at 18:00. The window now charges at least what the plan needs after it, up to max_soc.
+- **Predictive charging booked too few slots for batteries with unequal room**: slots were sized with the fleet's summed charge power, but a battery that is full stops charging. With a 5.12 kWh and an 8.16 kWh battery at 2.4 kW each, 12 slots were booked for 11.4 kWh; the smaller one was full after 8 and the larger one needed 14, so about 1 kWh of the booked energy was never stored. Slots are now sized with the power the fleet averages over the charge (3.8 kW there, 15 slots); a charge that ends before any battery is full, and batteries with equal room, keep the summed power. The predictive charging sensor shows it as `battery_charge_power_w`. Thanks to @anorakophobia.
 
 ## [1.6.1b1] - 2026-11-10
 
