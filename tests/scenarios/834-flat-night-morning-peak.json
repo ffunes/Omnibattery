@@ -10,10 +10,10 @@
     "The night the issue was opened for: flat cheap night, morning peak, Discharge Reserve off. 1.6.0 planned 0 kWh (cheaper_to_import, the whole deficit left to the grid).",
     "REPORTED: ~10 kWh battery at min SOC, Zonneplan 15-minute prices, efficiency 0.80, margin 0.05, reserve off, max charge 2500 W, deficit 16.37 kWh. Price bands: 00:00-06:00 0.40-0.42, 06:00 0.46-0.53, 07:00-09:00 0.63-0.72, 16:00-18:00 0.65-0.74. The reporter's own allocator replay with the reserve on booked ~6.1 kWh at 0.397-0.407, and puts the 05:00-07:00 base load at ~0.6 kWh. The 800 W discharge limit is from a later comment by the same reporter.",
     "ASSUMED: the price of each slot inside the reported bands; every price outside them (09:00-16:00 and 18:00-24:00); the consumption shape (scaled so one day is the reported 16.37 kWh, taking that deficit as a day of consumption with no solar); no solar; min SOC 10 %, max SOC 100 %; one battery of 10 kWh; contracted power 17.25 kW; sunrise 07:49 (the horizon end the reporter quotes the next day) and solar noon 12:22; evaluation at 00:05.",
-    "TODAY (release/v1.6.1, also v1.6.1b1): cheaper_to_import, 0 kWh, cheaper_to_import_kwh 18.81. 21cdaaaa lets a night slot store the drain of the hours left to the grid, but each slot has to hold that drain alone: the 06:00-07:00 hour drains 0.65 kWh here and a quarter-hour slot stores 0.53 kWh at 2.5 kW, so no slot qualifies. The same night with hourly slots passes: see 834-flat-night-morning-peak-hourly."
+    "TODAY (release/v1.6.1, also v1.6.1b1): cheaper_to_import, 0 kWh, cheaper_to_import_kwh 18.81. 21cdaaaa lets a night slot store the drain of the hours left to the grid, but each slot has to hold that drain alone: the 06:00-07:00 hour drains 0.65 kWh here and a quarter-hour slot stores 0.53 kWh at 2.5 kW, so no slot qualifies. The same night with hourly slots passes: see 834-flat-night-morning-peak-hourly.",
+    "FIXED: slots charged back to back before the hours left to the grid now pay that drain once, as a group; the planner books 2.96 kWh, 04:00-06:00 (1.96 kWh) for the morning peak plus 1.0 kWh for 12:00-16:00."
   ],
   "level": "engine",
-  "xfail": "#834: the drain of the hours left to the grid is checked per slot, and a quarter-hour slot (0.53 kWh at 2.5 kW) cannot hold the 0.65 kWh the 06:00-07:00 hour drains, so no night slot is booked (cheaper_to_import, 0 kWh)",
   "now": "2026-11-10T00:05:00",
   "time_zone": "Europe/Amsterdam",
   "sun": {"sunrise": "07:49", "solar_noon": "12:22"},

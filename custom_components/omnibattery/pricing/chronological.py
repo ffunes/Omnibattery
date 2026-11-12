@@ -625,7 +625,8 @@ def allocate_price_slots(
     to the grid is used in that hour, not in a later one. A slot that ends
     before the last hour left to the grid ahead of a valued deadline also
     stores what those hours drain, and serves the deadline only when the
-    deadlines it then reaches repay that drain (#834). No drain is counted
+    deadlines it then reaches repay that drain; slots charged back to back
+    before them pay that drain once, as a group (#834). No drain is counted
     with ``reserve_holds`` (the discharge reserve keeps the energy for dearer
     hours until the sun covers the house) when the deadline comes before that.
     On a day with forecast solar that never covers the house the reserve holds
@@ -1133,6 +1134,86 @@ def allocate_price_slots(
                 usable <= drain
                 or crossing_gain(slot.price, index, missing, usable - drain) <= loss
             ):
+                # No single slot holds the drain, but slots charged back to
+                # back before it pay it once, as a group (#834). ponytail:
+                # assumes no cheaper slot takes the later deadlines first
+                # (optimistic), and clips each member's room alone, not jointly.
+                members = [slot]
+                if cap is not None and free_of(slot) > _EPSILON:
+                    ordered = sorted(eligible, key=lambda item: item.start)
+
+                    def joins(item: PriceSlot) -> bool:
+                        return (
+                            not lasts(item, deadline.deadline, until)
+                            and free_of(item) > _EPSILON
+                        )
+
+                    low = high = ordered.index(slot)
+                    while (
+                        low > 0
+                        and ordered[low - 1].end == ordered[low].start
+                        and joins(ordered[low - 1])
+                    ):
+                        low -= 1
+                    while (
+                        high + 1 < len(ordered)
+                        and ordered[high].end == ordered[high + 1].start
+                        and joins(ordered[high + 1])
+                    ):
+                        high += 1
+                    members = ordered[low:high + 1]
+                if len(members) > 1:
+                    usables = {
+                        item: min(
+                            room(item, free_of(item)) if clip else free_of(item),
+                            room_at_start(item),
+                        )
+                        for item in members
+                    }
+                    usable_g = sum(usables.values())
+                    entries = crossing_entries(members[-1], start, deadline.deadline)
+                    drain_g = sum(e[1] for e in entries)
+                    price_g = (
+                        sum(usables[item] * item.price for item in members) / usable_g
+                        if usable_g > _EPSILON
+                        else slot.price
+                    )
+                    loss_g = sum(e[1] * (price_g - e[2]) for e in entries)
+                    if (
+                        drain_g > _EPSILON
+                        and usable_g > drain_g
+                        and crossing_gain(
+                            price_g, index, missing, usable_g - drain_g
+                        ) > loss_g
+                    ):
+                        need = min(missing, usable_g - drain_g) + drain_g
+                        booked_total = 0.0
+                        for item in sorted(
+                            members, key=lambda item: (item.price, item.start)
+                        ):
+                            free_now = free_of(item)
+                            usable_now = min(
+                                room(item, free_now) if clip else free_now,
+                                room_at_start(item),
+                            )
+                            amount = min(need - booked_total, usable_now)
+                            if amount <= _EPSILON:
+                                continue
+                            allocations[item] = allocations.get(item, 0.0) + amount
+                            booked[item] = min(
+                                booked.get(item, deadline.deadline), deadline.deadline
+                            )
+                            crossed.add(item)
+                            booked_total += amount
+                        for entry in entries:
+                            entry[3][2] += entry[1]
+                            entry[1] = 0.0
+                        cheaper_to_import -= drain_g
+                        segment_unusable[start] -= drain_g
+                        served_target += drain_g
+                        missing = max(0.0, missing - max(0.0, booked_total - drain_g))
+                        if missing <= _EPSILON:
+                            break
                 continue
             take = min(missing, usable - drain)
             if take <= _EPSILON:
