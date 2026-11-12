@@ -5,6 +5,7 @@
 ### Changed
 
 - **Predictive charging no longer floods the log at INFO**: the lines written on every control cycle during a charge or a window are now DEBUG; INFO is logged on state changes only.
+- **Dynamic Pricing: slots at the same price are booked back to back** (#571, #858): among slots of equal price the plan now prefers one next to a slot already booked, so the charge runs in one block instead of scattered quarter-hours. The price paid does not change.
 - **Real-Time Price: no full energy balance on every control cycle**: while the price is cheap and no charge is needed, the last decision is reused until 5 minutes pass, the SOC moves 1 point, the price changes or a setting the plan reads is changed.
 
 ### Fixed
