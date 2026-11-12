@@ -30,7 +30,7 @@ from astral.sun import noon as astral_noon, sunrise as astral_sunrise, sunset as
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from ..const import DEFAULT_BASE_CONSUMPTION_KWH, DOMAIN
+from ..const import DEFAULT_BASE_CONSUMPTION_KWH, DOMAIN, MISSING_DAY_FLEET_SHARE
 from ..infra.entity_naming import is_omnibattery_solar_entity
 from ..drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
 from .backfill import BackfillToken, RecorderBackfillCoordinator, local_day_bounds
@@ -468,7 +468,7 @@ class ConsumptionTracker:
                        datetime.combine(day + timedelta(days=1), time.min, tzinfo=dt_util.now().tzinfo))]
         if history:
             return sum(history) / len(history) / 24.0, "daily_history"
-        return DEFAULT_BASE_CONSUMPTION_KWH / 24.0, "default"
+        return self._missing_day_kwh() / 24.0, "default"
 
     def vacation_diagnostics(self) -> dict[str, Any]:
         baseline_kw, source = self._vacation_baseline_kw()
@@ -1273,15 +1273,32 @@ class ConsumptionTracker:
     # Consumption history queries
     # ------------------------------------------------------------------
 
+    def _missing_day_kwh(self) -> float:
+        """Value assumed for a day without real data: a share of the fleet's
+        capacity, or the default while capacity is unknown. Never stored; the
+        history keeps its DEFAULT sentinels."""
+        capacity = sum(
+            (c.data.get("battery_total_energy") or 0)
+            for c in getattr(self._controller, "coordinators", []) if c.data
+        )
+        return capacity * MISSING_DAY_FLEET_SHARE if capacity > 0 else DEFAULT_BASE_CONSUMPTION_KWH
+
+    def _history_values(self) -> list[float]:
+        """History values with each sentinel day replaced by the missing-day value."""
+        missing = self._missing_day_kwh()
+        return [
+            missing if c == DEFAULT_BASE_CONSUMPTION_KWH else c
+            for _, c in self._controller._daily_consumption_history
+        ]
+
     def get_avg_daily_consumption(self) -> float:
         """Get average daily consumption from history, with fallback."""
         if self.is_vacation_active():
             return self._vacation_baseline_kw()[0] * 24.0
         history = self._controller._daily_consumption_history
         if history:
-            total = sum(c for _, c in history)
-            return total / len(history)
-        return DEFAULT_BASE_CONSUMPTION_KWH
+            return sum(self._history_values()) / len(history)
+        return self._missing_day_kwh()
 
     async def get_dynamic_base_consumption(self) -> float:
         """Get dynamic base consumption from the 7-day average of daily home consumption.
@@ -1301,21 +1318,21 @@ class ConsumptionTracker:
         # must remain a pure in-memory fallback and never wait on Recorder.
         # Calculate average from history
         if len(ctrl._daily_consumption_history) == 0:
+            fallback = self._missing_day_kwh()
             _LOGGER.warning(
-                "No consumption history, using fallback: %.1f kWh",
-                DEFAULT_BASE_CONSUMPTION_KWH,
+                "No consumption history, using fallback: %.1f kWh", fallback,
             )
-            return DEFAULT_BASE_CONSUMPTION_KWH
+            return fallback
 
-        total = sum(consumption for _, consumption in ctrl._daily_consumption_history)
+        total = sum(self._history_values())
         average = total / len(ctrl._daily_consumption_history)
 
         if average <= 0:
+            fallback = self._missing_day_kwh()
             _LOGGER.warning(
-                "Average consumption is 0, using fallback: %.1f kWh",
-                DEFAULT_BASE_CONSUMPTION_KWH,
+                "Average consumption is 0, using fallback: %.1f kWh", fallback,
             )
-            return DEFAULT_BASE_CONSUMPTION_KWH
+            return fallback
 
         real_count = sum(
             1 for _, c in ctrl._daily_consumption_history if c != DEFAULT_BASE_CONSUMPTION_KWH
