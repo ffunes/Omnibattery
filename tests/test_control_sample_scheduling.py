@@ -702,6 +702,7 @@ def test_predictive_zero_cross_is_clamped_to_positive_effective_charge():
     controller = _predictive_controller(state_holder, writes)
     controller.previous_power = -50.0
     controller.previous_error = 0.0
+    controller.deadband = 250.0  # grid stays inside ceiling+trigger (#683 release)
 
     asyncio.run(controller._handle_predictive_grid_charging())
 
@@ -721,6 +722,7 @@ def test_predictive_zero_cross_respects_rate_limit_before_charge_floor():
     controller = _predictive_controller(state_holder, writes)
     controller.previous_power = -500.0
     controller.previous_error = 0.0
+    controller.deadband = 5000.0  # keep the floor engaged (#683 release not in play)
 
     asyncio.run(controller._handle_predictive_grid_charging())
 
@@ -746,7 +748,8 @@ def test_predictive_demand_spike_keeps_predictive_slot_while_settling():
     assert controller.first_execution is False
     assert controller.previous_power == 0
     assert len(writes) == 3
-    assert all(charge > 0 and discharge == 0 for _, charge, discharge in writes[:2])
+    # Above the ceiling the command walks down to idle (#683) but never discharges.
+    assert all(discharge == 0 for _, _, discharge in writes[:2])
     assert [(charge, discharge) for _, charge, discharge in writes][-1] == (0, 0)
 
     # The predictive owner itself remains idle while telemetry settles; normal
@@ -794,14 +797,14 @@ def test_predictive_peak_shaving_waits_for_two_fresh_samples_before_discharge():
     controller._capacity_protection_active = False
 
     _confirm_predictive_hard_limit(controller, state_holder, first_report)
-    assert len(writes) == 3
+    assert len(writes) == 2  # peak case confirms on 2 fresh samples (#683)
     assert [(charge, discharge) for _, charge, discharge in writes][-1] == (0, 0)
     _complete_predictive_latency_wait(controller)
 
     # First post-idle publication still may include inverter ramp/old charge.
     state_holder["state"] = _state(3000, first_report + timedelta(seconds=12))
     asyncio.run(controller._handle_predictive_grid_charging())
-    assert len(writes) == 3
+    assert len(writes) == 2
 
     # A second independent sample confirms a real 1 kW excess, which is the
     # only amount Peak Shaving is allowed to discharge.
@@ -907,7 +910,7 @@ def test_predictive_settling_counts_samples_only_after_measured_idle():
     state_holder["state"] = _state(3000, first_report + timedelta(seconds=16))
     asyncio.run(controller._handle_predictive_grid_charging())
     assert controller._predictive_demand_fresh_samples == 1
-    assert len(writes) == 3
+    assert len(writes) == 2  # peak case confirms on 2 fresh samples (#683)
 
     state_holder["state"] = _state(3000, first_report + timedelta(seconds=20))
     asyncio.run(controller._handle_predictive_grid_charging())

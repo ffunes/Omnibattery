@@ -6570,23 +6570,29 @@ class ChargeDischargeController:
         trigger = max(float(self.deadband), 50.0)
         hard_margin = max(3.0 * trigger, _PREDICTIVE_HARD_LIMIT_MIN_MARGIN_W)
         emergency = physical_base_load > float(self.max_contracted_power) + hard_margin
-        peak = self.capacity_protection_enabled and base_load > target_power + hard_margin
+        # The house alone above the peak limit is not an emergency: it only
+        # needs the charge handed over, so it is judged against the ordinary
+        # trigger and confirmed faster (#683).
+        peak = self.capacity_protection_enabled and base_load > target_power + trigger
 
         if not (emergency or peak):
             self._predictive_hard_limit_samples = 0
             return False
 
+        required_samples = (
+            _PREDICTIVE_HARD_LIMIT_CONFIRMATIONS if emergency else 2
+        )
         self._predictive_hard_limit_samples = (
             getattr(self, "_predictive_hard_limit_samples", 0) + 1
         )
-        if self._predictive_hard_limit_samples < _PREDICTIVE_HARD_LIMIT_CONFIRMATIONS:
+        if self._predictive_hard_limit_samples < required_samples:
             _LOGGER.debug(
                 "Predictive: hard-limit candidate %.1fW (target %.1fW, "
                 "sample %d/%d); continuing positive charge modulation",
                 physical_base_load,
                 target_power,
                 self._predictive_hard_limit_samples,
-                _PREDICTIVE_HARD_LIMIT_CONFIRMATIONS,
+                required_samples,
             )
             return False
 
@@ -6995,6 +7001,8 @@ class ChargeDischargeController:
             # the available maximum.
             self.previous_error = error
             self.derivative_filtered = 0.0  # drop any derivative carried from the main loop
+            self._predictive_slot_start_monotonic = 0.0
+            self._predictive_floor_released = False
             resume_charge = getattr(self, "_predictive_resume_charge_power", None)
             if resume_charge is not None:
                 try:
@@ -7008,8 +7016,22 @@ class ChargeDischargeController:
                 self._predictive_resume_charge_power = None
                 initialization_reason = "calculated resume"
             else:
-                initial_charge = min(max_battery_charge, target_power)
+                # Start with the headroom the house leaves under the ceiling,
+                # not the whole ceiling on top of the house (#683). Battery
+                # power is + charge / - discharge, so grid - battery is the
+                # house; without telemetry the grid reading is the estimate.
+                measured = self._measured_battery_power()
+                house = (
+                    sensor_filtered - measured
+                    if measured is not None
+                    else sensor_filtered
+                )
+                headroom = max(0.0, target_power - house)
+                initial_charge = min(
+                    max_battery_charge, max(minimum_charge_power, headroom)
+                )
                 initialization_reason = "new slot"
+                self._predictive_slot_start_monotonic = time.monotonic()
             self.previous_power = -initial_charge
             self._predictive_surplus_power = 0.0
             self._grid_charging_initialized = True
@@ -7021,7 +7043,16 @@ class ChargeDischargeController:
                 initialization_reason,
             )
         
-        if not has_new_control_sample:
+        slot_start = getattr(self, "_predictive_slot_start_monotonic", 0.0)
+        if slot_start and (
+            time.monotonic() - slot_start < self._predictive_demand_settle_window_s()
+        ):
+            # Meter samples right after the first command still show the load
+            # without it; do not integrate PD against them (#683).
+            has_new_control_sample_for_pd = False
+        else:
+            has_new_control_sample_for_pd = has_new_control_sample
+        if not has_new_control_sample_for_pd:
             # A stale-safety pass may still clamp the existing order to the
             # currently available capacity, but it must not integrate P or D.
             P = 0.0
@@ -7101,8 +7132,27 @@ class ChargeDischargeController:
         # receives the positive magnitude. Re-apply the rate limit to the floor
         # so a zero-crossing cannot create a larger reverse step than the PD
         # limiter permits.
+        floor_trigger = max(float(self.deadband), 50.0)
+        if (
+            getattr(self, "_predictive_floor_released", False)
+            and has_fresh_publication
+            and sensor_within_stale_tolerance
+            and sensor_filtered <= target_power - minimum_charge_power + floor_trigger
+        ):
+            # Back under the ceiling by enough for the floor to fit again.
+            self._predictive_floor_released = False
+        elif sensor_filtered > target_power + floor_trigger:
+            self._predictive_floor_released = True
+
         if minimum_charge_power <= 0:
             new_power = 0.0
+        elif (
+            getattr(self, "_predictive_floor_released", False)
+            and new_power > -minimum_charge_power
+        ):
+            # Already above the ceiling: the floor only adds import (#683).
+            # Walk down to idle within the rate limit, never into discharge.
+            new_power = min(0.0, self.previous_power + max_change)
         elif new_power > -minimum_charge_power:
             # A reduction of internal predictive charge moves the negative
             # value towards zero.  Use the positive-direction ramp boundary
@@ -7166,7 +7216,7 @@ class ChargeDischargeController:
         surplus_power = 0.0
         if surplus_batteries:
             surplus_power = getattr(self, "_predictive_surplus_power", 0.0)
-            if has_new_control_sample:
+            if has_new_control_sample_for_pd:
                 surplus_power += min(-self.kp * sensor_filtered * p_scale, max_change)
             surplus_power = max(0.0, min(
                 surplus_power,
