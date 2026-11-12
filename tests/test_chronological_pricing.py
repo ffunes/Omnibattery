@@ -1515,6 +1515,82 @@ def test_a_night_slot_crossing_hours_left_to_the_grid_is_labelled_with_its_deadl
     assert all(label <= BASE + timedelta(hours=9) for label in labels)
 
 
+def _group_night_plan(*, first_hour=0, peak_price=0.68, early_kwh=0.1, first_price=0.41):
+    # #834: hourly night slots at 0.41 from ``first_hour`` to 06:00 (left to
+    # the grid: 0.41 x 0.80 - 0.05 is under it), each holding 1.5 kW x 0.85 =
+    # 1.275 kWh, less than the 2.0 kWh 06:00-07:00 drains.  A 07:00-09:00
+    # peak (4 kWh) at ``peak_price`` is what repays that drain.
+    consumption = (
+        [early_kwh] * 24 + [0.5] * 4 + [0.5] * 8
+    )
+    intervals = [_interval(i, kwh) for i, kwh in enumerate(consumption)]
+    slots = [
+        _slot(60 * h, 60 * h + 60, first_price if h == first_hour else 0.41)
+        for h in range(first_hour, 6)
+    ] + [
+        _slot(360, 420, 0.50),
+        _slot(420, 540, peak_price),
+    ]
+    deadlines = build_energy_deadlines(intervals, usable_initial_kwh=0.0)
+    return allocate_price_slots(
+        intervals,
+        deadlines,
+        slots,
+        total_required_kwh=deadlines[-1].required_cumulative_kwh,
+        effective_power_kw=1.5,
+        now=BASE,
+        horizon_end=BASE + timedelta(hours=9),
+        import_value_efficiency=0.80,
+        import_value_margin=0.05,
+    )
+
+
+def test_back_to_back_night_slots_bridge_a_drain_no_single_slot_can_hold():
+    """#834: three night slots of 1.275 kWh each cannot hold the 2.0 kWh the
+    06:00 hour drains, but together they repay it before the peak."""
+    plan = _group_night_plan(first_hour=3, early_kwh=0.0)
+
+    assert plan.reason != "cheaper_to_import"
+    assert plan.allocated_kwh > 0.0
+    assert {a.slot.start.hour for a in plan.allocations} <= {3, 4, 5}
+
+
+def test_hours_inside_a_group_slot_are_not_drain():
+    """#834: with the night consumption also left to the grid, only what drains
+    after the last night slot (06:00-07:00, 2.0 kWh) is paid, plus the 4 kWh
+    peak; the night hours inside the group are covered by the grid."""
+    plan = _group_night_plan()
+
+    peak_kwh = 8 * 0.5
+    drain_after_group_kwh = 4 * 0.5
+    assert plan.allocated_kwh == pytest.approx(
+        peak_kwh + drain_after_group_kwh, abs=1e-6
+    )
+    assert all(a.slot.start.hour < 6 for a in plan.allocations)
+
+
+def test_a_group_charge_reaches_the_end_of_the_group():
+    """#834: the drain is counted only after the group's last slot, so what
+    is booked must reach it. Filled cheapest first, the 00:00 slot (0.30) and
+    the next ones would cover the need and leave 05:00-06:00 empty, where the
+    house drains the stored energy uncounted."""
+    plan = _group_night_plan(first_price=0.30)
+
+    by_hour = {a.slot.start.hour: a.planned_battery_kwh for a in plan.allocations}
+    assert by_hour.get(5, 0.0) > 0.0
+    booked = sorted(hour for hour, kwh in by_hour.items() if kwh > 1e-9)
+    assert booked == list(range(booked[0], 6))
+
+
+def test_a_group_is_not_booked_when_the_peak_barely_repays_the_drain():
+    """#834: a 0.412 value against the 0.41 night price cannot repay a drain
+    of 2.0 kWh stored at a loss, grouped or not."""
+    plan = _group_night_plan(first_hour=3, early_kwh=0.0, peak_price=0.5775)
+
+    assert plan.allocated_kwh == 0.0
+    assert plan.reason == "cheaper_to_import"
+
+
 def test_extended_horizon_total_covers_the_slots_it_books():
     """#838: a 30 kWh deficit to tomorrow midnight, mostly cheaper to import,
     with the battery half full. Capping the total at the room *now* and then

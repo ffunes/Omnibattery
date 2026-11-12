@@ -12,10 +12,10 @@
     "ASSUMED: the date; three equal 5.12 kWh batteries at 2500 W, max SOC 100 %; hourly slots; the prices before 03:00 and after 20:00; the consumption shape, chosen so the usable 1.54 kWh runs out at 05:15 and 05:15-08:00 drains 2.4 kWh as reported; solar as an undated 2.8 kWh remaining (sinusoidal timeline); sunrise 07:50, solar noon 12:22.",
     "ASSUMED, and it decides the outcome: the hourly shape inside the reported 0.51-0.60 band. Here the evening is the 0.60 peak and no hour before 17:00 reaches 0.572 = (0.452 + 0.04) / 0.86. That reproduces the reported result (so do a flat 0.55 day and a steady rise from 0.51 to 0.60). With 0.58 or more at 08:00 or 09:00 the 07:00 slot (0.452) is booked first, the hours it charges through stop counting as drain, and the planner already books 6.4-6.8 kWh in 03:00-07:00 today.",
     "TODAY (release/v1.6.1, also v1.6.1b1): cheaper_to_import, 0 kWh, cheaper_to_import_kwh 17.31. The request the allocator receives drains 2.40 kWh from 05:15 to 08:00 and gives each night slot 2.18-2.38 kWh (the 3.5 kW import ceiling less the house load, x 0.85), not the 2.975 kWh the reporter quotes.",
-    "EXPECTED is a range, not the reporter's 7.9 kWh: that figure comes from their real consumption. On these inputs a plan that pays the drain once for the group of night slots needs about 6-7 kWh."
+    "EXPECTED is a range, not the reporter's 7.9 kWh: that figure comes from their real consumption. On these inputs a plan that pays the drain once for the group of night slots needs about 6-7 kWh.",
+    "FIXED: the night slots now pay the drain once, as a group; the planner books 6.48 kWh in 03:00-07:00 (1.77, 1.93, 2.10 and 0.69 kWh by hour)."
   ],
   "level": "engine",
-  "xfail": "#834 (Varashi): the drain of the hours left to the grid is checked per slot and no single night slot repays it, so a mid-night re-evaluation plans 0 kWh (cheaper_to_import) although the night slots pay off together",
   "now": "2026-11-11T03:05:00",
   "time_zone": "Europe/Amsterdam",
   "sun": {"sunrise": "07:50", "solar_noon": "12:22"},
