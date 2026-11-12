@@ -10,6 +10,7 @@
 - **Dynamic Pricing: slots at the same price are booked back to back** (#571, #858): among slots of equal price the plan now prefers one next to a slot already booked, so the charge runs in one block instead of scattered quarter-hours. The price paid does not change.
 - **Dynamic Pricing: far fewer re-evaluations on an ordinary evening**: the SOC-drop re-evaluation fired every 5 points below the SOC at the last evaluation, even when the battery was discharging exactly as the plan projected (up to 18 full re-plans from 100 % to 10 %). It now fires only when the SOC falls 5 points below what the plan projected for that moment, which also catches a planned charge that did not happen.
 - **Dynamic Pricing: the plan notification is not repeated when the plan did not change** (#690): every re-evaluation re-created it, so it kept popping up with the same slots. It is now sent again only when the slots, their energy, the reason or the title change.
+- **Dynamic Pricing: the price sensor is no longer re-read on every control cycle**: the parsed slots were cached for one horizon at a time, and every cycle asked for at least two, so each call parsed the sensor again. They are now kept per horizon until the prices or the quarter-hour change.
 - **Real-Time Price: no full energy balance on every control cycle**: while the price is cheap and no charge is needed, the last decision is reused until 5 minutes pass, the SOC moves 1 point, the price changes or a setting the plan reads is changed.
 
 ### Fixed
