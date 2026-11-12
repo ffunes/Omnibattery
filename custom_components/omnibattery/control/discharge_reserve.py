@@ -689,6 +689,7 @@ class DischargeReserveManager:
         )
         if not consumption:
             return {}, {}, None
+        consumption = self._peak_shaving_hold(pricing, consumption, now)
 
         solar: dict = {}
         fraction_fn = None
@@ -743,6 +744,53 @@ class DischargeReserveManager:
                 self._follow_provider_curve(solar, now), now
             )
         return consumption, solar, fraction_fn
+
+    def _peak_shaving_hold(self, pricing, consumption: dict, now: datetime) -> dict:
+        """Leave the load below the peak-shaving limit to the grid until sunrise.
+
+        While peak shaving conserves, the battery covers only what is above
+        ``capacity_protection_limit``; the charge planner models the same hold
+        (``battery_idle_intervals``), so the reserve must not hold energy for
+        load the battery will not carry.
+        """
+        controller = self._controller
+        held_check = getattr(controller, "_is_capacity_protection_soc_limited", None)
+        try:
+            limit_kw = max(
+                0.0, float(getattr(controller, "capacity_protection_limit", 0.0) or 0.0)
+            ) / 1000.0
+            if not callable(held_check) or held_check() is not True or limit_kw <= 0.0:
+                return consumption
+            held_until = pricing._solar_timeline_window(
+                now, getattr(controller, "_consumption_tracker", None)
+            )[0]
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Discharge reserve: peak-shaving hold unavailable: %s", err)
+            return consumption
+        if held_until is None:
+            return consumption
+        timezone = solar_forecast_local_timezone(self._hass, controller, now)
+
+        def local(value: datetime) -> datetime:
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone)
+            return value.astimezone(timezone)
+
+        cutoff = local(held_until)
+        held: dict = {}
+        for slot, kwh in consumption.items():
+            start, end = local(slot.start), local(slot.end)
+            total_s = (end - start).total_seconds()
+            before_s = min(max((cutoff - start).total_seconds(), 0.0), total_s)
+            if before_s <= 0.0 or total_s <= 0.0:
+                held[slot] = kwh
+                continue
+            share = before_s / total_s
+            held[slot] = (
+                max(0.0, kwh * share - limit_kw * before_s / 3600.0)
+                + kwh * (1.0 - share)
+            )
+        return held
 
     def _net_demand_and_surplus(
         self, consumption: dict, solar: dict, now: datetime

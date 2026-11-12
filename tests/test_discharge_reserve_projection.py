@@ -83,3 +83,53 @@ def test_remaining_sun_stays_on_today_s_slots():
 
     today = sum(v for slot, v in solar.items() if slot.start.date() == DAY.date())
     assert today == pytest.approx(0.6, abs=0.01)
+
+
+SUNRISE = DAY + timedelta(hours=7)
+
+
+def _night(held, limit_w=3000.0):
+    now = DAY + timedelta(hours=1)
+    end = DAY + timedelta(hours=12)
+    extra = {
+        "_is_capacity_protection_soc_limited": lambda: held,
+        "capacity_protection_limit": limit_w,
+    }
+    manager, pricing = _manager(
+        now, remaining_kwh=0.0, controller_extra=extra, window_start=SUNRISE
+    )
+    consumption, _solar, _fn = manager._consumption_and_solar(
+        pricing, _slots(now, end), now, end
+    )
+    return consumption
+
+
+def test_a_hold_leaves_the_load_below_the_limit_to_the_grid():
+    consumption = _night(held=True)
+    before = [v for s, v in consumption.items() if s.end <= SUNRISE]
+    after = [v for s, v in consumption.items() if s.start >= SUNRISE]
+    assert before and after
+    assert sum(before) == pytest.approx(0.0)
+    assert all(v == pytest.approx(0.5) for v in after)
+
+
+def test_a_hold_only_trims_the_load_above_the_limit():
+    consumption = _night(held=True, limit_w=300.0)
+    before = [v for s, v in consumption.items() if s.end <= SUNRISE]
+    assert all(v == pytest.approx(0.2) for v in before)  # 0.5 - 0.3 kW over 1 h
+
+
+def test_without_a_hold_the_night_load_is_untouched():
+    consumption = _night(held=False)
+    assert all(v == pytest.approx(0.5) for v in consumption.values())
+
+
+def test_a_slot_straddling_sunrise_is_prorated():
+    global SUNRISE
+    SUNRISE = DAY + timedelta(hours=7, minutes=30)
+    try:
+        consumption = _night(held=True)
+    finally:
+        SUNRISE = DAY + timedelta(hours=7)
+    straddling = next(v for s, v in consumption.items() if s.start.hour == 7)
+    assert straddling == pytest.approx(0.25)  # only the half after sunrise
