@@ -150,10 +150,15 @@ def test_slot_ceiling_static_wins_when_stricter():
     assert reported > 0.12
 
 
-def test_slot_ceilings_none_when_gate_off():
+def test_slot_ceilings_none_only_without_price_data():
     slots = _hourly([0.10, 0.20, 0.30, 0.40])
-    assert calculations.effective_charge_ceilings(slots, 0.25, None, _EFF) == (None, None)
-    assert calculations.effective_charge_ceilings(slots, None, 0, _EFF) == (None, None)
+    assert calculations.effective_charge_ceilings([], 0.25, None, _EFF) == (None, None)
+    for margin in (None, 0):
+        ceilings, reported = calculations.effective_charge_ceilings(
+            slots, 0.25, margin, _EFF
+        )
+        assert ceilings[slots[0].start] == 0.25  # static wins: 0.40 x 0.85 = 0.34
+        assert reported == 0.40 * _EFF
 
 
 def test_evening_peak_before_the_night_does_not_justify_night_charging():
@@ -186,18 +191,29 @@ def test_slot_without_later_slots_fails_the_gate():
 # select_cheapest_hours: gate disabled (regression guard)
 # ---------------------------------------------------------------------------
 
-def test_disabled_gate_leaves_selection_untouched():
-    """The pre-feature 3-arg call must still behave identically."""
+def test_the_ungated_call_ignores_what_the_energy_is_worth_later():
+    """Without slot ceilings (the 3-arg call) selection is by price alone."""
     slots = _hourly([0.30, 0.10, 0.20, 0.40])
     baseline = calculations.select_cheapest_hours(slots, 2, None)
     assert sorted(s.price for s in baseline) == [0.10, 0.20]
-    assert [s.price for s in baseline] == [s.price for s in _gated(slots, 2)]
 
 
-def test_disabled_gate_leaves_sub_hourly_selection_untouched():
+def test_unset_margin_still_applies_the_round_trip_losses():
+    """Margin None / 0 = losses only: the 0.40 peak repays one slot, not two."""
+    slots = _hourly([0.30, 0.10, 0.20, 0.40])
+    assert [s.price for s in _gated(slots, 2)] == [0.10]
+
+
+def test_unset_margin_gates_the_sub_hourly_selection_too():
     slots = _quarter([0.30, 0.10, 0.20, 0.40, 0.15, 0.35, 0.25, 0.05])
-    baseline = calculations.select_cheapest_hours(slots, 1, None)
-    assert [s.start for s in baseline] == [s.start for s in _gated(slots, 1)]
+    ungated = calculations.select_cheapest_hours(slots, 1, None)
+    assert [s.start for s in ungated][-1] == _DAY + timedelta(minutes=105)
+    # The last quarters have no later slot to be used in, so they drop out.
+    assert [s.start for s in _gated(slots, 1)] == [
+        _DAY + timedelta(minutes=15),
+        _DAY + timedelta(minutes=30),
+        _DAY + timedelta(minutes=60),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -273,3 +289,13 @@ def test_peak_hours_survive_the_static_ceiling_for_the_estimate():
     """
     slots = _hourly([0.10, 0.12, 0.50, 0.55])
     assert sorted(s.price for s in _gated(slots, 2, static=0.20, margin=0.02)) == [0.10, 0.12]
+
+
+def test_slot_ceilings_exist_at_zero_or_unset_margin():
+    """Dynamic Pricing: margin 0 / unset means round-trip losses only."""
+    slots = _hourly([0.10, 0.40])
+    for margin in (0, None):
+        ceilings = calculations.slot_arbitrage_ceilings(slots, margin, 0.85)
+        assert ceilings is not None
+        assert ceilings[slots[0].start] == 0.40 * 0.85
+        assert ceilings[slots[1].start] == float("-inf")

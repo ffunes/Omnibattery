@@ -101,7 +101,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
     El plan diario puede reconstruirse mediante estos eventos:
 
     - **Antes de un periodo seleccionado:** una hora antes de un futuro periodo seleccionado, Omnibattery comprueba el balance restante. Elimina silenciosamente el periodo si ahora basta la energía o lo confirma mediante notificación si persiste el déficit. Los periodos consecutivos no se reconsideran mientras el anterior está cargando.
-    - **Evaluación de final del día:** cuando se ha detectado el inicio solar, se ejecuta aproximadamente 1,5 horas antes del final de producción estimado; en caso contrario usa las 16:00. Añade futuros periodos elegibles solo para un déficit restante de al menos 0,3 kWh. Esos periodos deben respetar el mismo techo de precio y cumplir el mismo margen de arbitraje opcional que el plan diario.
+    - **Evaluación de final del día:** cuando se ha detectado el inicio solar, se ejecuta aproximadamente 1,5 horas antes del final de producción estimado; en caso contrario usa las 16:00. Añade futuros periodos elegibles solo para un déficit restante de al menos 0,3 kWh. Esos periodos deben respetar el mismo techo de precio y cumplir el mismo margen de arbitraje que el plan diario.
     - **Caída de SOC:** un plan cronológico se reconstruye tras una caída de cinco puntos porcentuales desde la última media de flota evaluada. Un plan alternativo no cronológico conserva el umbral de 30 puntos. Una subida de SOC no lo activa.
     - **Revisión de previsión solar:** un cambio de al menos 1,5 kWh en cualquier dirección reconstruye el plan, con un periodo de espera de 30 minutos y un máximo de cuatro reconstrucciones al día. La solar medida desde la lectura guardada se elimina antes de comparar, y un sensor no disponible no se trata como una previsión desplomada.
     - **Reclamación solar de dispositivo excluido:** un cambio importante en una carga excluida, como una sesión de vehículo eléctrico, reconstruye el plan porque ese dispositivo cambia cuánta solar prevista queda para la batería.
@@ -190,13 +190,13 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     ### Margen mínimo de arbitraje y eficiencia de ciclo completo
 
-    El **Margen mínimo de arbitraje** opcional rechaza un periodo de carga salvo que el valor esperado de descarga futura cubra las pérdidas de conversión y el margen seleccionado:
+    El **Margen mínimo de arbitraje** rechaza un periodo de carga salvo que el valor esperado de descarga futura cubra las pérdidas de conversión y el margen seleccionado:
 
     ```text
     expected_discharge_price × round_trip_efficiency − charge_price ≥ margin
     ```
 
-    El margen se desactiva cuando está vacío o se establece en 0. Se aplica además de **Umbral máximo de precio**, y prevalece el techo más estricto. Filtra el plan de las 00:05 y cada reconstrucción posterior, incluida la evaluación de final del día. La energía necesaria para **SOC mínimo garantizado** es la excepción: solo la limita **Umbral máximo de precio**.
+    Vacío o 0 significa ningún beneficio sobre las pérdidas: decide solo la eficiencia de ida y vuelta. Se aplica además de **Umbral máximo de precio**, y prevalece el techo más estricto. Filtra el plan de las 00:05 y cada reconstrucción posterior, incluida la evaluación de final del día. La energía necesaria para **SOC mínimo garantizado** es la excepción: solo la limita **Umbral máximo de precio**.
 
     `expected_discharge_price` se calcula por kWh almacenado, no para todo el déficit. Los periodos de carga más baratos se emparejan con los periodos posteriores más caros, y cada periodo posterior cuenta una sola vez. Así, el primer kWh se compara con el pico de la tarde y el último con la hora más barata que sustituiría. La energía que la vivienda necesita en un momento dado se compara con el precio de importación en ese momento. Si importar entonces cuesta menos que cargar antes con las pérdidas del ciclo, esa energía se deja a la red y aparece como `cheaper_to_import_kwh` en lugar de como déficit. Si ningún periodo cumple, `chronological_plan_reason` vale `price_threshold` y `cheapest_rejected_slot` muestra el periodo más barato con el techo que no alcanzó.
 

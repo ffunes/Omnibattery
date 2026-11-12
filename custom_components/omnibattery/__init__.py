@@ -1166,7 +1166,7 @@ class ChargeDischargeController:
         # whichever one matches the active mode, needed no changes.
         self.price_discharge_control: bool = config_entry.data.get(CONF_PRICE_DISCHARGE_CONTROL, False)
         self._dp_daily_avg_price: Optional[float] = None  # Computed from price slots in _evaluate_dynamic_pricing
-        self._dp_arbitrage_ceiling: Optional[float] = None  # Set per evaluation when the margin gate is on
+        self._dp_arbitrage_ceiling: Optional[float] = None  # Set per Dynamic Pricing evaluation (#649)
         self._dp_planning_end: Optional[datetime] = None  # Extended planning horizon of the last evaluation (#710)
         # Tibber is service-based (no price sensor): the engine polls tibber.get_prices
         # and caches the parsed slots here.

@@ -63,6 +63,11 @@ def _prices(overrides=None):
     return slots
 
 
+# Midnight-to-sunrise hours dear enough (0.90 x 0.85) that the 0.45 evening
+# repays its round-trip losses.
+_MORNING_PEAK = {h: 0.90 for h in range(0, 7)}
+
+
 def _manager(*, prices, floor=None, load_kw=_LOAD_KW, **controller_overrides):
     async def _avg():
         return load_kw * 24
@@ -176,8 +181,12 @@ def test_evening_plan_books_only_the_slots_that_clear_the_margin():
     assert booked == [(17, 0.20)]
 
 
-def test_evening_plan_without_a_margin_charges_for_the_deficit():
-    booked = _booked(_manager(prices=_prices(), min_arbitrage_margin=None))
+def test_evening_plan_without_a_margin_still_counts_the_round_trip_losses():
+    # No margin means losses only: a flat night books nothing, but a deficit
+    # whose energy is used at a price that repays the losses is charged for.
+    assert _booked(_manager(prices=_prices(), min_arbitrage_margin=None)) == []
+
+    booked = _booked(_manager(prices=_prices(_MORNING_PEAK), min_arbitrage_margin=None))
 
     assert booked
     assert all(price >= 0.45 for _hour, price in booked)
@@ -242,7 +251,7 @@ def _earlier_schedule(slot, **fields):
 
 def _merged(**fields):
     early = PriceSlot(_NOW + timedelta(hours=11), _NOW + timedelta(hours=11, minutes=15), 0.30)
-    manager = _manager(prices=_prices(), min_arbitrage_margin=None)
+    manager = _manager(prices=_prices(_MORNING_PEAK), min_arbitrage_margin=None)
     manager._controller._dynamic_pricing_schedule = _earlier_schedule(early, **fields)
     asyncio.run(manager._evaluate_evening_recharge())
     return early, manager._controller._dynamic_pricing_schedule
@@ -288,7 +297,7 @@ def _full_power_cost(schedule):
 
 
 def test_a_new_evening_schedule_weighs_its_slots_by_their_planned_energy():
-    manager = _manager(prices=_prices(), min_arbitrage_margin=None)
+    manager = _manager(prices=_prices(_MORNING_PEAK), min_arbitrage_margin=None)
     asyncio.run(manager._evaluate_evening_recharge())
     schedule = manager._controller._dynamic_pricing_schedule
     energy = schedule.slot_cost_energy_kwh
@@ -303,7 +312,7 @@ def test_a_new_evening_schedule_weighs_its_slots_by_their_planned_energy():
 
 
 def test_a_new_evening_schedule_without_a_profile_assumes_full_power():
-    manager = _manager(prices=_prices(), min_arbitrage_margin=None)
+    manager = _manager(prices=_prices(_MORNING_PEAK), min_arbitrage_margin=None)
     manager._controller._consumption_tracker.consumption_profile = None
     asyncio.run(manager._evaluate_evening_recharge())
     schedule = manager._controller._dynamic_pricing_schedule

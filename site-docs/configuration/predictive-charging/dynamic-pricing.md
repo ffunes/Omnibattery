@@ -101,7 +101,7 @@ Optional controls in the **Control** tab solve different problems:
     The daily plan can be rebuilt by these events:
 
     - **Before a selected period:** one hour before a future selected period, Omnibattery checks the remaining balance. It silently removes the period if energy is now sufficient or confirms it by notification when the deficit remains. Back-to-back periods are not reconsidered while the previous one is charging.
-    - **Late-day assessment:** when solar start has been detected, this runs about 1.5 hours before estimated production ends; otherwise it uses 16:00. It adds eligible future periods only for a remaining deficit of at least 0.3 kWh. Those periods pass the same price ceiling and optional arbitrage margin as the daily plan.
+    - **Late-day assessment:** when solar start has been detected, this runs about 1.5 hours before estimated production ends; otherwise it uses 16:00. It adds eligible future periods only for a remaining deficit of at least 0.3 kWh. Those periods pass the same price ceiling and arbitrage margin as the daily plan.
     - **SOC drop:** a chronological plan rebuilds after a five-percentage-point drop from the last evaluated fleet average. A fallback non-chronological plan retains the 30-point threshold. An SOC rise does not trigger it.
     - **Solar forecast revision:** a change of at least 1.5 kWh in either direction rebuilds the plan, with a 30-minute cooldown and a maximum of four such rebuilds per day. Measured solar since the saved reading is removed before comparison, and an unavailable sensor is not treated as a collapsed forecast.
     - **Excluded-device solar claim:** a material change in an excluded load, such as an electric vehicle session, rebuilds the plan because that device changes how much forecast solar is available to the battery.
@@ -190,13 +190,13 @@ Optional controls in the **Control** tab solve different problems:
 
     ### Minimum Arbitrage Margin and round-trip efficiency
 
-    The optional **Minimum Arbitrage Margin** rejects a charge period unless the expected future discharge value covers conversion losses and the selected margin:
+    The **Minimum Arbitrage Margin** rejects a charge period unless the expected future discharge value covers conversion losses and the selected margin:
 
     ```text
     expected_discharge_price × round_trip_efficiency − charge_price ≥ margin
     ```
 
-    The margin is disabled when empty or set to 0. It applies in addition to **Max Price Threshold**, and the stricter ceiling wins. It gates the 00:05 plan and every later rebuild, including the late-day assessment. Energy needed for **Guaranteed Minimum SOC** is the exception: only **Max Price Threshold** limits it.
+    Empty or 0 means no profit on top of the losses: the round-trip efficiency alone decides. It applies in addition to **Max Price Threshold**, and the stricter ceiling wins. It gates the 00:05 plan and every later rebuild, including the late-day assessment. Energy needed for **Guaranteed Minimum SOC** is the exception: only **Max Price Threshold** limits it.
 
     `expected_discharge_price` is set per stored kWh, not for the whole deficit. The cheapest charge periods take the most expensive later periods, and each later period counts once. So the first kWh is compared with the evening peak, and the last with whatever cheaper hour it would replace. Energy the home needs at a given time is compared with the import price at that time. When importing then costs less than charging earlier with the round-trip losses, that energy is left to the grid and reported as `cheaper_to_import_kwh` instead of a shortfall. If no period qualifies, `chronological_plan_reason` is `price_threshold` and `cheapest_rejected_slot` shows the cheapest period with the ceiling it missed.
 

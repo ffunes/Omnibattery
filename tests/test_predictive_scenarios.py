@@ -116,8 +116,11 @@ class Scenario:
 
     @property
     def valued(self) -> bool:
+        # The engine level runs Dynamic Pricing, where deadlines are always
+        # valued (margin 0 = round-trip losses only); the allocator level
+        # values them only when the file asks for a margin.
         margin = self.settings["min_arbitrage_margin"]
-        return bool(margin and margin > 0)
+        return self.level == "engine" or bool(margin and margin > 0)
 
 
 def _keys(where: str, given, allowed: set, optional: set = frozenset()) -> None:
@@ -305,7 +308,8 @@ def _run_allocator(scenario: Scenario) -> Outcome:
         - usable
         - sum(item.solar_kwh for item in intervals)
     )
-    margin, efficiency = settings["min_arbitrage_margin"], settings["round_trip_efficiency"]
+    margin = max(0.0, float(settings["min_arbitrage_margin"] or 0.0))
+    efficiency = settings["round_trip_efficiency"]
     slots = [s for s in scenario.slots if s.end > now and s.start <= horizon_end]
     slot_ceilings, _reported = calculations.effective_charge_ceilings(
         slots, settings["max_price_threshold"], margin, efficiency, now=now
@@ -576,7 +580,9 @@ def _check_wiring(scenario: Scenario, request, decision: dict) -> None:
             settings["round_trip_efficiency"] if scenario.valued else None
         ),
         "import_value_margin": (
-            settings["min_arbitrage_margin"] if scenario.valued else 0.0
+            max(0.0, float(settings["min_arbitrage_margin"] or 0.0))
+            if scenario.valued
+            else 0.0
         ),
         "reserve_holds": bool(scenario.valued and settings["discharge_reserve"]),
     }
