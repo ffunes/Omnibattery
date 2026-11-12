@@ -10,8 +10,14 @@ from custom_components.omnibattery.pricing.plan_inputs import (
     battery_idle_intervals,
     consumption_shape,
     fleet_plan_state,
+    guaranteed_floor,
     solar_timeline,
     time_slot_window_hold,
+    weekly_reserve,
+)
+from custom_components.omnibattery.pricing.chronological import (
+    EnergyDeadline,
+    EnergyInterval,
 )
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.solar_forecast import SolarForecastPeriod
@@ -254,3 +260,100 @@ def test_fleet_state_with_no_capacity_has_zero_weighted_floor():
     state = fleet_plan_state([(0.0, 50.0, 10.0, 100.0)])
     assert state.weighted_min_soc == 0.0
     assert fleet_plan_state([]).headroom_kwh == 0.0
+
+
+def _night(consumption_kwh):
+    start = datetime(2026, 1, 10, 22, 0, tzinfo=UTC)
+    return [
+        EnergyInterval(
+            start + timedelta(hours=i),
+            start + timedelta(hours=i + 1),
+            consumption_kwh,
+            0.0,
+        )
+        for i in range(8)
+    ]
+
+
+def test_weekly_reserve_overnight_runs_from_now_to_window_end():
+    now = datetime(2026, 1, 10, 22, 0, tzinfo=UTC)
+    window_end = datetime(2026, 1, 11, 2, 0, tzinfo=UTC)
+    values = weekly_reserve(
+        _night(1.0),
+        usable=6.0,
+        headroom=4.0,
+        now=now,
+        weekly_from_now=True,
+        weekly_window_end=window_end,
+        solar_end=None,
+    )
+    assert values["weekly_reserve_not_before"] == now.isoformat()
+    assert values["weekly_reserve_not_after"] == window_end.isoformat()
+    # 4 kWh drain before the window end: usable falls to 2 of 10 -> 8 reserved.
+    assert values["weekly_reserve_kwh"] == pytest.approx(8.0)
+
+
+def test_weekly_reserve_after_sun_starts_at_solar_end_without_window():
+    now = datetime(2026, 1, 10, 12, 0, tzinfo=UTC)
+    solar_end = datetime(2026, 1, 10, 24 - 1, 0, tzinfo=UTC)
+    values = weekly_reserve(
+        _night(1.0),
+        usable=6.0,
+        headroom=4.0,
+        now=now,
+        weekly_from_now=False,
+        weekly_window_end=None,
+        solar_end=solar_end,
+    )
+    assert values["weekly_reserve_not_before"] == solar_end.isoformat()
+    assert "weekly_reserve_not_after" not in values
+    # Only the first interval (22:00-23:00) ends by solar_end.
+    assert values["weekly_reserve_kwh"] == pytest.approx(5.0)
+
+
+def _floor_call(intervals, deadlines, *, soc, floor, solar_start, **kw):
+    return guaranteed_floor(
+        intervals,
+        deadlines,
+        usable=max(0.0, (soc - 10.0) / 100.0 * 10.0),
+        headroom=5.0,
+        required=0.0,
+        premium_kwh=0.0,
+        floor=floor,
+        batteries=[(10.0, soc, 10.0)],
+        solar_start=solar_start,
+        energy_deficit_kwh=0.0,
+        **kw,
+    )
+
+
+def test_guaranteed_floor_gap_adds_deadline_at_solar_start():
+    solar_start = datetime(2026, 1, 11, 6, 0, tzinfo=UTC)
+    result = _floor_call(_night(0.0), [], soc=15.0, floor=30.0, solar_start=solar_start)
+    assert result is not None
+    assert result.deadlines[-1].deadline == solar_start
+    assert result.deadlines[-1].required_cumulative_kwh == pytest.approx(1.5)
+    assert result.required == pytest.approx(1.5)
+    assert result.energy_deficit_kwh == pytest.approx(1.5)
+    assert result.planned_grid_charge_kwh == pytest.approx(1.5)
+    assert result.guaranteed_floor_deadline == solar_start.isoformat()
+    assert result.premium_kwh == pytest.approx(1.5)
+
+
+def test_guaranteed_floor_returns_none_below_hysteresis():
+    solar_start = datetime(2026, 1, 11, 6, 0, tzinfo=UTC)
+    assert (
+        _floor_call(_night(0.0), [], soc=50.0, floor=10.0, solar_start=solar_start)
+        is None
+    )
+
+
+def test_guaranteed_floor_keeps_later_larger_ordinary_deadlines():
+    solar_start = datetime(2026, 1, 11, 6, 0, tzinfo=UTC)
+    later = EnergyDeadline(solar_start + timedelta(hours=2), 5.0)
+    result = _floor_call(
+        _night(0.0), [later], soc=15.0, floor=30.0, solar_start=solar_start
+    )
+    assert result is not None
+    assert result.deadlines[-1] == later
+    assert result.deadlines[-2].deadline == solar_start
