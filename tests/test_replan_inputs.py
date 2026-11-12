@@ -34,6 +34,7 @@ FINGERPRINT = {
     "_predictive_min_soc_floor",
     "_predictive_min_soc_floor_enabled",
     "max_price_threshold",
+    "discharge_price_threshold",
     "min_arbitrage_margin",
     "round_trip_efficiency",
     "negative_injection_threshold",
@@ -70,7 +71,6 @@ LIVE = {
     "charge_priority",
     "deadband",
     "direction_hysteresis",
-    "discharge_price_threshold",
     "discharge_reserve_min_saving",
     "high_price_discharge_enabled",
     "high_price_discharge_max_power_w",
@@ -168,6 +168,16 @@ def test_a_planning_setting_moves_the_fingerprint(name):
     ctrl = _ctrl(**{field: 0})
     before = _fingerprint(ctrl)
     setattr(ctrl, field, 1)
+    assert _fingerprint(ctrl) != before
+
+
+def test_price_based_discharge_control_moves_the_fingerprint():
+    # The planner idles the battery in every interval priced at or below the
+    # discharge threshold while this switch is on. Its flag is an annotated
+    # assignment read through a property, so the scan above does not see it.
+    ctrl = _ctrl(dp_price_discharge_control=False)
+    before = _fingerprint(ctrl)
+    ctrl.dp_price_discharge_control = True
     assert _fingerprint(ctrl) != before
 
 
