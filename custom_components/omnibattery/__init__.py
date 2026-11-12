@@ -7033,7 +7033,7 @@ class ChargeDischargeController:
             sign = 1 if power_change > 0 else -1
             clamped_change = sign * max_change
             new_power = self.previous_power + clamped_change
-            _LOGGER.info("Predictive: Rate limiter active (change: %.1fW → %.1fW)",
+            _LOGGER.debug("Predictive: Rate limiter active (change: %.1fW → %.1fW)",
                         power_change, new_power - self.previous_power)
         else:
             new_power = new_power_raw
@@ -7088,7 +7088,7 @@ class ChargeDischargeController:
             ramp_floor = self.previous_power + max_change
             limited_floor = min(-minimum_charge_power, ramp_floor)
             if limited_floor != new_power:
-                _LOGGER.info(
+                _LOGGER.debug(
                     "Predictive: keeping positive charge floor %.1fW "
                     "after PD zero crossing (internal %.1fW -> %.1fW)",
                     abs(limited_floor),
@@ -7099,10 +7099,10 @@ class ChargeDischargeController:
 
         # Clamp to battery limits (negative = charging)
         if new_power < -max_battery_charge:
-            _LOGGER.info("Predictive: Clamping charge to max available: %dW", max_battery_charge)
+            _LOGGER.debug("Predictive: Clamping charge to max available: %dW", max_battery_charge)
             new_power = -max_battery_charge
         
-        _LOGGER.info(
+        _LOGGER.debug(
             "Predictive Grid Charging: Grid=%.1fW, Target=%dW, Error=%.1fW, P=%.1fW, D=%.1fW, "
             "Adjustment=%.1fW, PrevPower=%.1fW, NewCharge=%dW",
             sensor_filtered, target_power, error, P, D, pd_adjustment, self.previous_power, abs(new_power)
@@ -7113,7 +7113,7 @@ class ChargeDischargeController:
         power_allocation = self._power_distribution._distribute_power_by_limits(abs(new_power), selected_batteries, is_charging=True)
 
         total_allocated = sum(power_allocation.values())
-        _LOGGER.info("Predictive: Setting charge to %dW total across %d batteries: %s",
+        _LOGGER.debug("Predictive: Setting charge to %dW total across %d batteries: %s",
                     total_allocated, len([c for c, p in power_allocation.items() if p > 0]),
                     {c.name: p for c, p in power_allocation.items()})
 

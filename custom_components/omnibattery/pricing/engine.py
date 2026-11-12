@@ -262,6 +262,10 @@ class DynamicPricingEvaluationHorizon(Enum):
 class PricingManager:
     """Dynamic-pricing / real-time-price engine for one config entry."""
 
+    # Per-cycle state messages: INFO on a change, DEBUG while it repeats.
+    _state_log_prev: str | None = None
+    _state_log_cur: str | None = None
+
     def __init__(self, hass: "HomeAssistant", controller: Any) -> None:
         self._hass = hass
         self._controller = controller
@@ -271,6 +275,16 @@ class PricingManager:
         # to ``controller._price_data_status``; the export curve must never
         # raise the import-price repair issue.
         self._last_sensor_parse_status: str | None = None
+
+    def _roll_state_log(self) -> None:
+        """Start a control cycle: a state not logged in it is forgotten."""
+        self._state_log_prev, self._state_log_cur = self._state_log_cur, None
+
+    def _log_state_once(self, key: str, message: str, *args: Any) -> None:
+        """Log at INFO when ``key`` differs from the previous cycle, else DEBUG."""
+        level = logging.DEBUG if key == self._state_log_prev else logging.INFO
+        self._state_log_cur = key
+        _LOGGER.log(level, message, *args)
 
     def _now(self) -> datetime:
         """Return local wall-clock time, isolated for deterministic slot tests."""
@@ -7052,6 +7066,7 @@ class PricingManager:
 
     async def handle_dynamic_pricing_predictive_charging(self) -> None:
         """Handle predictive charging in dynamic pricing mode (called every 2.5s)."""
+        self._roll_state_log()
         now = self._now()
 
         # Phase 0: Keep service-based provider caches fresh.
@@ -7319,7 +7334,8 @@ class PricingManager:
 
                 # Respect charge delay: if configured and still active, hold until it unlocks
                 elif self._controller.is_charge_blocked():
-                    _LOGGER.info(
+                    self._log_state_once(
+                        "dp_delay_hold",
                         "Dynamic pricing: inside cheap slot window but charge delay is active — holding"
                     )
                     if effective_purpose in (
@@ -7501,6 +7517,7 @@ class PricingManager:
         If an average_price_sensor is configured its value is used as the threshold
         instead of the fixed max_price_threshold.
         """
+        self._roll_state_log()
         current_price = self._get_current_price()
         if current_price is None:
             _LOGGER.debug("Real-time price: price sensor %s unavailable", self._controller.price_sensor)
@@ -7578,7 +7595,8 @@ class PricingManager:
                         current_price, threshold,
                     )
                 else:
-                    _LOGGER.info(
+                    self._log_state_once(
+                        "rt_not_needed",
                         "Real-time price: cheap price but charging NOT needed (sufficient energy)",
                     )
 
@@ -7647,10 +7665,10 @@ class PricingManager:
     async def _run_time_slot_decision(self) -> None:
         """Carry out the Time Slot decision in force for this cycle."""
         if self._controller.grid_charging_active:
-            _LOGGER.info("Predictive Grid Charging ACTIVE - target power: %dW", self._contracted_charge_ceiling())
+            self._log_state_once("ts_active", "Predictive Grid Charging ACTIVE - target power: %dW", self._contracted_charge_ceiling())
             await self._controller._handle_predictive_grid_charging()
         else:
-            _LOGGER.info("In predictive charging slot but charging not needed - continuing normal operation")
+            self._log_state_once("ts_not_needed", "In predictive charging slot but charging not needed - continuing normal operation")
 
     async def _retry_time_slot_evaluation(self, *, day_rolled: bool) -> None:
         """Wait for the solar forecast; keep running the decision in force.
@@ -7665,6 +7683,7 @@ class PricingManager:
 
     async def handle_time_slot_predictive_charging(self) -> None:
         """Handle predictive charging in time slot mode (extracted from main loop)."""
+        self._roll_state_log()
         # Check if we're in the actual time slot
         in_time_window = (
             bool(self._controller.charging_time_slots) and
