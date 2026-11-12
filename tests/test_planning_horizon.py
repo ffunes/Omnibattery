@@ -27,8 +27,9 @@ from custom_components.omnibattery.tracking.consumption_profile import (
     ConsumptionForecast,
     INTERVAL_COUNT,
 )
+from custom_components.omnibattery.tracking.solar_profile import SolarProfileSnapshot
 
-NOW = datetime(2026, 11, 5, 20, 0)
+NOW =datetime(2026, 11, 5, 20, 0)
 MIDNIGHT = datetime(2026, 11, 6, 0, 0)
 CAP = datetime(2026, 11, 7, 0, 0)
 UTC = timezone.utc
@@ -447,3 +448,134 @@ def test_extended_planning_end_is_none_until_tomorrow_is_planable():
 
     manager.get_future_price_slots = lambda horizon_end=None: _tonight(0.10) + _tomorrow({})
     assert manager._extended_planning_end(NOW) == CAP
+
+
+# ---------------------------------------------------------------------------
+# Learned solar profile for a day without dated periods (#834)
+# ---------------------------------------------------------------------------
+
+BUDGET = 6.0
+
+
+def _learned(manager, mature=True, budget=BUDGET):
+    """Give the stub tracker a symmetric 96-bin learned shape and a budget."""
+    tri = [min(i + 1, 96 - i) for i in range(96)]
+    shape = tuple(v / sum(tri) for v in tri)
+    tracker = manager._controller._consumption_tracker
+    tracker.calculate_sunrise = lambda *_a: 8.0
+    tracker.calculate_solar_noon = lambda *_a: 12.0
+    tracker.solar_profile = SimpleNamespace(
+        get_snapshot=lambda target_date=None, **_kw: SolarProfileSnapshot(
+            shape=shape, mature=mature
+        ),
+        recent_daily_energy_kwh=lambda _date: budget,
+    )
+    return manager
+
+
+def _slots_to_18():
+    return _tonight(0.10) + _tomorrow({})[:18]
+
+
+def test_horizon_uses_the_learned_profile_when_the_forecast_has_no_tomorrow():
+    manager = _learned(_manager(None))
+    assert manager.planning_horizon_end(NOW, _slots_to_18()) == datetime(2026, 11, 6, 18, 0)
+    assert manager.planning_horizon_reason == "extended_learned_solar"
+
+
+def test_horizon_keeps_the_noon_bound_with_an_immature_profile():
+    manager = _learned(_manager(None), mature=False)
+    assert manager.planning_horizon_end(NOW, _slots_to_18()) == NOON
+    assert manager.planning_horizon_reason == "extended_no_tomorrow_solar"
+
+
+def test_dated_periods_for_tomorrow_win_over_the_learned_profile():
+    manager = _learned(_manager(_solar(5.0)))
+    assert manager.planning_horizon_end(NOW, _slots_to_18()) == datetime(2026, 11, 6, 18, 0)
+    assert manager.planning_horizon_reason == "extended"
+    provided = manager._read_remaining_solar_input()
+    assert manager._with_learned_periods(provided, NOW) is provided
+
+
+def test_provider_periods_for_today_are_kept_when_tomorrow_is_learned():
+    today_only = (
+        SolarForecastPeriod(datetime(2026, 11, 5, 9, tzinfo=UTC), datetime(2026, 11, 5, 10, tzinfo=UTC), 1.0),
+    )
+    manager = _learned(_manager(today_only))
+    learned = manager._with_learned_periods(manager._read_remaining_solar_input(), NOW)
+    assert learned.periods[: len(today_only)] == today_only
+    assert sum(p.energy_kwh for p in learned.periods[len(today_only):]) == pytest.approx(BUDGET)
+
+
+def _plan_solar_split(manager, now, slots, end, remaining):
+    """Solar the plan places before / after midnight, via a spy on the timeline."""
+    from custom_components.omnibattery.pricing import engine
+    from custom_components.omnibattery.pricing.solar_timeline import build_boundaries
+
+    captured = []
+    real = engine.build_solar_timeline
+
+    def _spy(*args, **kwargs):
+        captured.append(real(*args, **kwargs))
+        return captured[-1]
+
+    engine.build_solar_timeline = _spy
+    try:
+        base = SolarForecastInput(remaining, "remaining_sensor", periods=None)
+        decision = {
+            "avg_consumption_kwh": 0.0,
+            "planned_grid_charge_kwh": 0.0,
+            "should_charge": False,
+            "solar_forecast_input": manager._with_learned_periods(base, now),
+        }
+        manager._build_chronological_plan(
+            now=now, slots=slots, decision_data=decision, price_ceiling=None, planning_end=end
+        )
+    finally:
+        engine.build_solar_timeline = real
+    boundaries = build_boundaries(now, end)
+    solar = captured[-1].intervals_kwh
+    assert len(solar) == len(boundaries)
+    before = sum(k for (s, _e), k in zip(boundaries, solar) if s < MIDNIGHT)
+    after = sum(k for (s, _e), k in zip(boundaries, solar) if s >= MIDNIGHT)
+    return before, after
+
+
+def test_plan_after_midnight_matches_the_balance_credit():
+    import asyncio
+
+    manager = _learned(_manager(None))
+    end = datetime(2026, 11, 6, 18, 0)
+    _before, after = _plan_solar_split(manager, NOW, _slots_to_18(), end, 0.0)
+
+    async def _decision(**_kw):
+        return {"should_charge": False}
+
+    async def _average():
+        return 12.0
+
+    controller = manager._controller
+    controller._should_activate_grid_charging = _decision
+    controller._consumption_tracker.get_dynamic_base_consumption = _average
+    controller._daily_home_energy_date = None
+    controller._daily_home_energy_kwh = 0.0
+    controller._household_accumulator_date = None
+    manager._remaining_solar_today_kwh = lambda _now: 0.0
+    decision = asyncio.run(
+        manager._evaluate_remaining_grid_charging(now=NOW, horizon_end=end)
+    )
+
+    assert decision["tomorrow_solar_kwh"] > 0.0
+    assert decision["tomorrow_solar_kwh"] == pytest.approx(after, abs=1e-6)
+
+
+def test_todays_remaining_scalar_stays_today_with_learned_tomorrow():
+    manager = _learned(_manager(None))
+    now = datetime(2026, 11, 5, 14, 0)
+    end = datetime(2026, 11, 6, 18, 0)
+    slots = [_slot(0, hour, 0.10) for hour in range(14, 24)] + _tomorrow({})[:18]
+    before, after = _plan_solar_split(manager, now, slots, end, 2.0)
+
+    assert before == pytest.approx(2.0, abs=1e-6)
+    # Window 08:00-16:00 holds the whole budget; 08:00-18:00 covers all of it.
+    assert after == pytest.approx(BUDGET, abs=1e-6)

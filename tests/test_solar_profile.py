@@ -415,3 +415,23 @@ def test_regime_change_carries_the_whole_matching_run_and_stays_mature():
     assert snapshot.mature is True
     assert snapshot.eligible_days == 7
     assert all(count == 6 for count in snapshot.bin_contributions)
+
+
+def test_recent_daily_energy_is_the_median_of_complete_days_before_the_reference():
+    profile = _profile()
+    today = date(2026, 11, 6)
+    assert profile.recent_daily_energy_kwh(today) is None
+    for offset, factor in ((1, 1.0), (2, 2.0), (3, 4.0)):
+        day = _full_day(today - timedelta(days=offset))
+        day.energy_kwh = [value * factor for value in day.energy_kwh]
+        profile._days[day.local_date] = day
+    future = _full_day(today)
+    future.energy_kwh = [100.0] * len(future.energy_kwh)
+    profile._days[today] = future
+    incomplete = _full_day(today - timedelta(days=4))
+    incomplete.complete = False
+    profile._days[incomplete.local_date] = incomplete
+
+    # 24, 48, 96 kWh: the median ignores today (not before) and the open day.
+    assert profile.recent_daily_energy_kwh(today) == pytest.approx(48.0)
+    assert profile.recent_daily_energy_kwh(today - timedelta(days=3)) is None

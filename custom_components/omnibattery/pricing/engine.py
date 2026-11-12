@@ -73,6 +73,7 @@ from ..const import (
 )
 from ..solar_forecast import (
     SolarForecastInput,
+    SolarForecastPeriod,
     get_configured_solar_forecast_sensor,
     read_remaining_solar_kwh,
     read_solar_forecast_kwh,
@@ -111,7 +112,12 @@ from .chronological import (
     evaluate_chronological_request,
     normalize_energy_shape,
 )
-from .solar_timeline import build_boundaries, build_solar_timeline, provider_weights
+from .solar_timeline import (
+    build_boundaries,
+    build_solar_timeline,
+    progress_shape_weights,
+    provider_weights,
+)
 from .curtailment import (
     BatterySnapshot,
     CurtailmentPlan,
@@ -194,6 +200,23 @@ _CHRONOLOGICAL_DIAGNOSTIC_KEYS = (
     "awaiting_prices_kwh",
     "cheapest_rejected_slot",
 )
+
+
+def _periods_cover(
+    periods: Sequence[SolarForecastPeriod] | None,
+    start: datetime,
+    end: datetime,
+    tz: Any,
+) -> bool:
+    """Whether any dated period overlaps [start, end); 0 kWh counts as data."""
+
+    def _local(value: datetime) -> datetime:
+        return value.replace(tzinfo=tz) if value.tzinfo is None else value.astimezone(tz)
+
+    return bool(periods) and any(
+        period.end > _local(start) and period.start < _local(end)
+        for period in periods
+    )
 
 
 def _apply_excluded_demand_claim(
@@ -322,10 +345,10 @@ class PricingManager:
         extends to the end of the price data, bounded to the sunrise after
         tomorrow (#710), so tonight's slots are valued against tomorrow's solar
         and evening peak. It only extends with the solar profile mode not off
-        and a learned consumption profile. Without dated periods for tomorrow
-        it extends without tomorrow's sun, only to tomorrow's solar noon (the
-        morning peak), so it never buys tonight for tomorrow afternoon/evening
-        on a sun it cannot see.
+        and a learned consumption profile. Without dated periods for tomorrow a
+        mature learned solar profile stands in for them; without that it
+        extends only to tomorrow's solar noon (the morning peak), so it never
+        buys tonight for tomorrow afternoon/evening on a sun it cannot see.
         """
         control_end = self.energy_horizon_end(now)
         # Why the horizon did (not) extend, published as a diagnostic (#817).
@@ -350,20 +373,14 @@ class PricingManager:
         periods = solar_input.periods if solar_input is not None else None
         tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
         timezone = solar_forecast_local_timezone(self._hass, self._controller, now)
-
-        def _local(value: datetime) -> datetime:
-            return (
-                value.replace(tzinfo=timezone)
-                if value.tzinfo is None
-                else value.astimezone(timezone)
-            )
-
         # Coverage, not energy: a dated forecast of 0 kWh (snowy day) is data.
-        covered = bool(periods) and any(
-            period.end > _local(tomorrow) and period.start < _local(end)
-            for period in periods
-        )
+        covered = _periods_cover(periods, tomorrow, end, timezone)
+        learned = False
         if not covered:
+            learned = _periods_cover(
+                self._learned_solar_periods(now, solar_input), tomorrow, end, timezone
+            )
+        if not covered and not learned:
             tracker = getattr(self._controller, "_consumption_tracker", None)
             try:
                 noon_h = tracker.calculate_solar_noon(tomorrow.date())
@@ -371,9 +388,8 @@ class PricingManager:
                 noon_h = None
             if noon_h is None:
                 noon_h = 12.0
-            # ponytail: no learned-profile sun for tomorrow yet; the noon cut is
-            # what keeps the purchase bounded; a learned-profile source for
-            # tomorrow is the planned follow-up.
+            # ponytail: neither a dated forecast nor a mature learned profile
+            # sees tomorrow's sun; the noon cut keeps the purchase bounded.
             end = min(end, tomorrow + timedelta(hours=float(noon_h)))
             if end <= control_end:
                 self.planning_horizon_reason = "no_tomorrow_solar_periods"
@@ -383,7 +399,9 @@ class PricingManager:
             self.planning_horizon_reason = "no_consumption_profile"
             return control_end
         self.planning_horizon_reason = (
-            "extended" if covered else "extended_no_tomorrow_solar"
+            "extended"
+            if covered
+            else "extended_learned_solar" if learned else "extended_no_tomorrow_solar"
         )
         return end
 
@@ -2923,6 +2941,113 @@ class PricingManager:
         if end is None or end <= start:
             return None, None
         return start, end
+
+    def _learned_solar_periods(
+        self, now: datetime, solar_input: SolarForecastInput | None
+    ) -> tuple[SolarForecastPeriod, ...] | None:
+        """Today's remaining sun plus tomorrow's learned sun as dated periods.
+
+        Today must be included: the extended timeline maps every boundary from
+        the periods, so omitting it would smear today's scalar onto tomorrow.
+        """
+        controller = self._controller
+        mode = normalize_solar_profile_mode(getattr(controller, "solar_profile_mode", None))
+        tracker = getattr(controller, "_consumption_tracker", None)
+        profile = getattr(tracker, "solar_profile", None)
+        if mode == "off" or tracker is None or profile is None:
+            return None
+        tz = solar_forecast_local_timezone(self._hass, controller, now)
+        local_now = now.replace(tzinfo=tz) if now.tzinfo is None else now.astimezone(tz)
+        today = local_now.date()
+        tomorrow = today + timedelta(days=1)
+        today_midnight = datetime.combine(today, dt_time.min, tzinfo=tz)
+        tomorrow_midnight = today_midnight + timedelta(days=1)
+        try:
+            snapshot = profile.get_snapshot(target_date=tomorrow)
+            budget = profile.recent_daily_energy_kwh(tomorrow)
+            sunrise = tracker.calculate_sunrise(tomorrow)
+            noon = tracker.calculate_solar_noon(tomorrow)
+            remaining = solar_input.remaining_kwh if solar_input else 0.0
+            if remaining > 0 and not (solar_input and solar_input.periods):
+                today_snapshot = profile.get_snapshot(target_date=today)
+                solar_start, solar_end = self._solar_timeline_window(local_now, tracker)
+        except (AttributeError, TypeError, ValueError):
+            return None
+        if (
+            not snapshot.mature
+            or budget is None
+            or sunrise is None
+            or noon is None
+            or float(noon) <= float(sunrise)
+        ):
+            return None
+        start = tomorrow_midnight + timedelta(hours=float(sunrise))
+        end = tomorrow_midnight + timedelta(hours=2 * float(noon) - float(sunrise))
+        boundaries = build_boundaries(start, end)
+        weights, _reason = progress_shape_weights(boundaries, snapshot.shape, start, end)
+        total = sum(weights) if weights else 0.0
+        if not weights or total <= 0.0:
+            return None
+        # A provider's own curve for today is kept; only tomorrow is learned.
+        periods: list[SolarForecastPeriod] = list(solar_input.periods or ()) if solar_input else []
+        if remaining > 0 and not periods:
+            today_boundaries = build_boundaries(local_now, tomorrow_midnight)
+            timeline = build_solar_timeline(
+                today_boundaries,
+                remaining,
+                safety_margin_kwh=0.0,
+                temporal_shape=solar_input.temporal_shape,
+                learned_shape=today_snapshot.shape,
+                learned_mature=today_snapshot.mature,
+                solar_start=solar_start,
+                solar_end=solar_end,
+                mode=mode,
+            )
+            if sum(timeline.intervals_kwh) < remaining - 1e-6:
+                return None
+            periods.extend(
+                SolarForecastPeriod(b_start, b_end, kwh)
+                for (b_start, b_end), kwh in zip(today_boundaries, timeline.intervals_kwh)
+            )
+        # ponytail: the timeline will label these periods "provider"; the
+        # "learned_profile_periods" conversion tag is the only trace. The budget
+        # is a plain median of recent days, not weather-aware.
+        periods.extend(
+            SolarForecastPeriod(b_start, b_end, budget * weight / total)
+            for (b_start, b_end), weight in zip(boundaries, weights)
+        )
+        return tuple(periods)
+
+    def _with_learned_periods(
+        self, solar_input: SolarForecastInput | None, now: datetime
+    ) -> SolarForecastInput | None:
+        """``solar_input`` with learned periods when it has none for tomorrow."""
+        tz = solar_forecast_local_timezone(self._hass, self._controller, now)
+        tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        periods = solar_input.periods if solar_input is not None else None
+        if _periods_cover(periods, tomorrow, tomorrow + timedelta(days=1), tz):
+            return solar_input
+        periods = self._learned_solar_periods(now, solar_input)
+        if periods is None:
+            return solar_input
+        existing = solar_input.conversion if solar_input is not None else "none"
+        # A "fallback" input is the unsafe-zero marker the decision must not keep.
+        source = (
+            solar_input.source
+            if solar_input is not None and solar_input.source != "fallback"
+            else "learned_profile"
+        )
+        return SolarForecastInput(
+            remaining_kwh=solar_input.remaining_kwh if solar_input is not None else 0.0,
+            source=source,
+            temporal_shape=None,
+            periods=periods,
+            original_source=solar_input.original_source if solar_input is not None else None,
+            conversion="+".join(
+                part for part in (existing, "learned_profile_periods") if part != "none"
+            ),
+            horizon=solar_input.horizon if solar_input is not None else "remaining",
+        )
 
     def _solar_timeline_input(
         self,
@@ -5916,6 +6041,8 @@ class PricingManager:
         # input kept in the decision, so the two stay equal.
         balance_solar_kwh = remaining_solar_kwh
         planning_extended = horizon_end > self.energy_horizon_end(now)
+        if planning_extended:
+            solar_forecast_input = self._with_learned_periods(solar_forecast_input, now)
         if (
             solar_forecast_input is not None
             and solar_forecast_input.periods
