@@ -357,3 +357,26 @@ def test_guaranteed_floor_keeps_later_larger_ordinary_deadlines():
     assert result is not None
     assert result.deadlines[-1] == later
     assert result.deadlines[-2].deadline == solar_start
+
+
+def test_energy_over_weights_by_time_overlap():
+    from custom_components.omnibattery.pricing.plan_inputs import energy_over
+
+    boundaries = _boundaries(T0, 4)
+    values = [1.0, 2.0, 3.0, 4.0]
+    # Whole intervals 1 and 2.
+    assert energy_over(boundaries, values, T0 + timedelta(minutes=15), T0 + timedelta(minutes=45)) == pytest.approx(5.0)
+    # Half of interval 0 plus a third of interval 1.
+    assert energy_over(
+        boundaries, values, T0 + timedelta(minutes=7.5), T0 + timedelta(minutes=20)
+    ) == pytest.approx(0.5 + 2.0 / 3.0)
+    # Window wider than the projection covers all of it.
+    assert energy_over(boundaries, values, T0 - timedelta(hours=1), T0 + timedelta(hours=5)) == pytest.approx(10.0)
+
+
+def test_energy_over_is_zero_without_overlap():
+    from custom_components.omnibattery.pricing.plan_inputs import energy_over
+
+    boundaries = _boundaries(T0, 2)
+    assert energy_over(boundaries, [1.0, 1.0], T0 + timedelta(hours=1), T0 + timedelta(hours=2)) == 0.0
+    assert energy_over(boundaries, [1.0, 1.0], T0 - timedelta(hours=2), T0) == 0.0
