@@ -50,6 +50,10 @@
       "title": "El sensor de potencia de red actualiza demasiado despacio",
       "description": "El sensor de red configurado {sensor} actualiza aproximadamente cada {observed_interval} segundos. Los intervalos de {warning_interval} segundos o más son más lentos de lo recomendado y pueden reducir la calidad de la regulación. Omnibattery sigue la última lectura hasta que supera los {stale_limit} segundos de antigüedad. Usa un sensor más rápido si necesitas un control más preciso en tiempo real."
     },
+    "planner_fallback": {
+      "title": "El planificador de carga ha pasado a elegir las horas más baratas",
+      "description": "El planificador cronológico de carga ha fallado ({error}). La carga predictiva sigue funcionando, pero ahora reserva las horas más baratas sin saber cuándo se necesita la energía, así que puede cargar a horas raras. Avísalo en GitHub con los diagnósticos de la integración. Este aviso desaparece solo cuando el planificador vuelve a funcionar."
+    },
     "price_data_unusable": {
       "title": "Datos de precios inutilizables",
       "description": "Omnibattery no pudo obtener franjas de precio utilizables de {sensor} durante más de {minutes} minutos (estado: {status}). La carga basada en precios está inactiva: la planificación de precios dinámicos y la liberación por precio del retardo de carga vuelven a su comportamiento sin precios. Compruebe que el sensor está disponible y que su atributo de precios es una lista de entradas; un sensor de plantilla debe emitir marcas de tiempo ISO-8601, porque un datetime de Python renderizado no se puede convertir de nuevo en una lista."

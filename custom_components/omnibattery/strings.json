@@ -42,6 +42,10 @@
       "title": "Grid power sensor updates too slowly",
       "description": "The configured grid sensor {sensor} updates about every {observed_interval} seconds. Updates every {warning_interval} seconds or more are slower than recommended and may reduce regulation quality. Omnibattery still follows the latest reading until it is more than {stale_limit} seconds old. Use a faster sensor if you need tighter real-time control."
     },
+    "planner_fallback": {
+      "title": "Charge planner fell back to cheapest-hour selection",
+      "description": "The chronological charge planner failed ({error}). Predictive charging keeps working, but it now books the cheapest hours without knowing when the energy is needed, so it may charge at odd times. Please report it on GitHub with the integration's diagnostics. This message clears itself once the planner works again."
+    },
     "price_data_unusable": {
       "title": "Price data unusable",
       "description": "Omnibattery could not parse usable price slots from {sensor} for over {minutes} minutes (status: {status}). Price-aware charging is inactive: dynamic-pricing scheduling and the price-aware charge-delay release fall back to their no-price behaviour. Check that the sensor is available and that its price attribute is a list of entries; a template sensor must emit ISO-8601 timestamps, because a rendered Python datetime cannot be converted back into a list."

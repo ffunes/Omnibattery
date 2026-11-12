@@ -302,6 +302,10 @@ class PricingManager:
         # to ``controller._price_data_status``; the export curve must never
         # raise the import-price repair issue.
         self._last_sensor_parse_status: str | None = None
+        # Planner fallback visibility: ERROR log once per instance, and a
+        # Repairs issue that is deleted once when the planner recovers.
+        self._planner_fallback_logged = False
+        self._planner_fallback_issue_created = False
 
     def _roll_state_log(self) -> None:
         """Start a control cycle: a state not logged in it is forgotten."""
@@ -4182,18 +4186,67 @@ class PricingManager:
             # and would leak a multi-day total into predictive diagnostics.
             if persist_diagnostics and not is_extended_horizon:
                 self._store_chronological_diagnostics(decision_data)
+            self._clear_planner_fallback_issue()
             return plan
         except (AttributeError, IndexError, TypeError, ValueError) as exc:
-            _LOGGER.warning(
-                "Dynamic pricing: chronological planning fallback: %s",
-                exc,
-                exc_info=True,
-            )
+            if self._planner_fallback_logged:
+                _LOGGER.debug(
+                    "Dynamic pricing: chronological planning fallback: %s", exc
+                )
+            else:
+                self._planner_fallback_logged = True
+                _LOGGER.error(
+                    "Dynamic pricing: chronological planning fallback: %s",
+                    exc,
+                    exc_info=True,
+                )
+            self._raise_planner_fallback_issue(exc)
             decision_data.update({
                 "chronological_planning_active": False,
                 "chronological_plan_reason": f"fallback: {exc}",
             })
             return None
+
+    def _planner_fallback_issue_target(self) -> tuple[Any, str] | None:
+        """Return ``(hass, issue_id)``, or None for stub controllers."""
+        ctrl = self._controller
+        hass = getattr(ctrl, "hass", None)
+        entry = getattr(ctrl, "config_entry", None)
+        entry_id = getattr(entry, "entry_id", None)
+        if hass is None or entry_id is None:
+            return None
+        return hass, f"planner_fallback_{entry_id}"
+
+    def _raise_planner_fallback_issue(self, exc: Exception) -> None:
+        """Surface the silent cheapest-hour fallback in Repairs (idempotent)."""
+        target = self._planner_fallback_issue_target()
+        if target is None or self._planner_fallback_issue_created:
+            return
+        hass, issue_id = target
+        self._planner_fallback_issue_created = True
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            is_persistent=False,
+            issue_domain=DOMAIN,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="planner_fallback",
+            translation_placeholders={
+                "error": f"{type(exc).__name__}: {exc}"[:200],
+            },
+        )
+
+    def _clear_planner_fallback_issue(self) -> None:
+        """Delete the fallback issue once the planner works again."""
+        if not self._planner_fallback_issue_created:
+            return
+        target = self._planner_fallback_issue_target()
+        if target is None:
+            return
+        self._planner_fallback_issue_created = False
+        ir.async_delete_issue(target[0], DOMAIN, target[1])
 
     def _time_slot_price_slots(self, now: datetime) -> list[PriceSlot]:
         """Materialize today's configured predictive windows as price slots.
