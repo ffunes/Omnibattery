@@ -3165,7 +3165,9 @@ class ChargeDischargeController:
         would otherwise stay in the calendar after switching off. Price-based
         discharge control and its discharge price threshold count too: the
         plan projects the battery idle in every interval priced at or below
-        the threshold. Per-battery power limits are left out: some drivers
+        the threshold. So do the fleet-wide No-Discharge Time Slots, which the
+        plan projects as an idle battery whenever one is switched or edited
+        outside the options flow. Per-battery power limits are left out: some drivers
         write them straight to the device, without an entry update.
 
         Settings read live every cycle (minimum savings, High-Price Sale)
@@ -3176,6 +3178,12 @@ class ChargeDischargeController:
 
         def _rounded(value):
             return None if value is None else round(float(value), 4)
+
+        no_discharge_slots = getattr(
+            getattr(self, "config_entry", None), "data", {}
+        ).get("no_discharge_time_slots", []) or []
+        if isinstance(no_discharge_slots, dict):
+            no_discharge_slots = [no_discharge_slots]
 
         return (
             round(float(self._predictive_safety_margin_kwh or 0.0), 3),
@@ -3201,6 +3209,17 @@ class ChargeDischargeController:
             bool(getattr(self, "negative_price_charging_enabled", False)),
             _rounded(getattr(self, "discharge_price_threshold", None)),
             bool(getattr(self, "dp_price_discharge_control", False)),
+            tuple(
+                (
+                    slot.get("start_time"),
+                    slot.get("end_time"),
+                    tuple(sorted(slot.get("days") or [])),
+                    bool(slot.get("enabled", True)),
+                    bool(slot.get("allow_discharge", False)),
+                )
+                for slot in no_discharge_slots
+                if slot.get("battery_scope", "all") == "all"
+            ),
             tuple(
                 (
                     getattr(c, "device_key", None),
