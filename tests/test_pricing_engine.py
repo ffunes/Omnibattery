@@ -1346,6 +1346,7 @@ def test_evening_recharge_picks_informational_slots_on_price_and_arms_only_those
             return now
 
     monkeypatch.setattr(datetime_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
     monkeypatch.setattr(pricing_engine.calculations, "datetime", FixedDateTime)
 
     def _slot(hour, price):
@@ -1392,6 +1393,7 @@ def test_evening_recharge_respects_the_arbitrage_ceiling(monkeypatch):
             return now
 
     monkeypatch.setattr(datetime_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
     monkeypatch.setattr(pricing_engine.calculations, "datetime", FixedDateTime)
 
     def _slot(hour, price):
@@ -3620,6 +3622,7 @@ def test_evening_topup_uses_chronological_overnight_allocation(monkeypatch):
             return now
 
     monkeypatch.setattr(datetime_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
     evening = PriceSlot(now + timedelta(hours=2), now + timedelta(hours=3), 0.20)
     one_am = PriceSlot(now + timedelta(hours=7), now + timedelta(hours=8), 0.10)
     four_am = PriceSlot(now + timedelta(hours=10), now + timedelta(hours=11), 0.01)

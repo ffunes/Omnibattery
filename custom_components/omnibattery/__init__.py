@@ -695,6 +695,16 @@ def _charge_hysteresis_latch_is_stale(coordinator) -> bool:
     return coordinator.max_soc > (base if latched_under is None else latched_under)
 
 
+def _pricing_clock_now(controller) -> datetime:
+    """Local wall-clock time from the pricing manager's injectable clock.
+
+    Falls back to the system clock for the lightweight controller stand-ins
+    used in tests, which carry no pricing manager.
+    """
+    clock = getattr(getattr(controller, "_pricing_mgr", None), "_now", None)
+    return clock() if callable(clock) else datetime.now()
+
+
 class ChargeDischargeController:
     """Controller to manage charge/discharge logic for all batteries."""
 
@@ -6065,8 +6075,8 @@ class ChargeDischargeController:
 
     def _active_charging_slot(self):
         """Return the charging window dict we are currently inside, or None."""
-        from datetime import datetime, time as dt_time
-        now = datetime.now()
+        from datetime import time as dt_time
+        now = _pricing_clock_now(self)
         current_time = now.time()
         current_day = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][now.weekday()]
         for slot in self.charging_time_slots:
@@ -6349,7 +6359,7 @@ class ChargeDischargeController:
             and schedule is not None
             and getattr(schedule, "chronological_planning_active", False)
         ):
-            now = datetime.now()
+            now = _pricing_clock_now(self)
             active_slot = next(
                 (slot for slot in schedule.selected_slots if slot.start <= now < slot.end),
                 None,
