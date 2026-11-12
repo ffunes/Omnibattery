@@ -1445,6 +1445,25 @@ class PricingManager:
             key=lambda slot: slot.start,
         )
 
+    def _whole_day_average_price(self, now: datetime) -> float | None:
+        """Time-weighted mean price of ``now``'s local day, 00:00 to 24:00.
+
+        None unless the feed still reaches back to the start of the day.
+        """
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+        day_slots = self.price_slots_between(day_start, day_end)
+        if not day_slots or day_slots[0].start > day_start:
+            return None
+        weighted = seconds = 0.0
+        for slot in day_slots:
+            duration = (
+                min(slot.end, day_end) - max(slot.start, day_start)
+            ).total_seconds()
+            weighted += slot.price * duration
+            seconds += duration
+        return weighted / seconds
+
     def _parse_price_data(self, *, horizon_end=None, quiet=False) -> list:
         """Read price sensor and return list[PriceSlot] for remaining slots up to horizon_end.
 
@@ -4447,8 +4466,20 @@ class PricingManager:
             else slots
         )
         if slots:
-            self._controller._dp_daily_avg_price = sum(s.price for s in slots) / len(slots)
-            _LOGGER.debug("Dynamic pricing: daily average price %.4f from %d slots", self._controller._dp_daily_avg_price, len(slots))
+            # The whole local day, elapsed hours included: the reference must
+            # not move with the hour of the evaluation (#569). A feed that no
+            # longer holds the start of today keeps the remaining slots.
+            day_average = self._whole_day_average_price(now)
+            self._controller._dp_daily_avg_price = (
+                day_average
+                if day_average is not None
+                else sum(s.price for s in slots) / len(slots)
+            )
+            _LOGGER.debug(
+                "Dynamic pricing: daily average price %.4f (%s)",
+                self._controller._dp_daily_avg_price,
+                "whole day" if day_average is not None else f"{len(slots)} remaining slots",
+            )
         if not slots:
             # Price data is not required to calculate the projected solar and
             # depletion diagnostics.  Preserve those diagnostics even when the
