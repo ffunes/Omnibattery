@@ -213,7 +213,7 @@ from .const import (
     DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W,
     NORMAL_BALANCE_PAUSE_CELL_VOLTAGE,
     NORMAL_BALANCE_RECAL_INVERTER_STANDBY,
-    INVERTER_STATE_AC_BYPASS,
+    INVERTER_STATES_GRID_CONNECTED,
     NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE,
     BMS_DISCHARGE_CUTOFF_SOC,
     LOW_SOC_REFUSAL_CONFIRM_S,
@@ -645,15 +645,17 @@ def _backup_switch_enabled(value) -> bool:
     return value == 0
 
 
-def _inverter_in_ac_bypass(value) -> bool:
-    """Whether the reported inverter state is the grid-bypass state.
+def _inverter_grid_connected(value) -> bool:
+    """Whether the reported inverter state means the grid is connected.
 
-    Register drivers and the ESPHome driver publish the raw code (6 = Bypass).
-    Other drivers publish labels or their own codes, which never match.
+    Charge, Discharge and Bypass all run on the grid; only Backup Mode (4) is an
+    outage. Register drivers and the ESPHome driver publish the raw code
+    (2 = Charge, 3 = Discharge, 6 = Bypass). Other drivers publish labels or
+    their own codes, which never match.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    return value == INVERTER_STATE_AC_BYPASS
+    return value in INVERTER_STATES_GRID_CONNECTED
 
 
 def _delivered_toward(data: dict, cell_power: float, *, is_charge: bool) -> float:
@@ -4946,15 +4948,18 @@ class ChargeDischargeController:
         # Switch is ON. Check whether the battery is actively providing offgrid power.
         ac_offgrid = coordinator.data.get("ac_offgrid_power")
 
-        # In Bypass the grid is passed through to the backup port, so a load
-        # connected there reads as off-grid power although the battery supplies
-        # nothing. Only a real outage (backup state) means the battery is
-        # feeding the port, so treat the port as idle here and let the normal
-        # post-backup cooldown run out. The two values are read in separate
-        # register groups, and a failed read leaves the old value in place, so a
-        # stale Bypass must not hide a fresh port load: only trust it when both
-        # came from the same poll.
-        if _inverter_in_ac_bypass(
+        # While the grid is connected (Charge, Discharge or Bypass) it is passed
+        # through to the backup port, so a load connected there reads as
+        # off-grid power although the battery supplies nothing. Only a real
+        # outage (backup state) means the battery is feeding the port, so treat
+        # the port as idle here and let the normal post-backup cooldown run out.
+        # Without the Charge/Discharge states a permanent port load refreshed the
+        # cooldown on every cycle of a commanded charge, and power writes are
+        # skipped while it is active, so the last command kept running. The two
+        # values are read in separate register groups, and a failed read leaves
+        # the old value in place, so a stale grid-connected state must not hide
+        # a fresh port load: only trust it when both came from the same poll.
+        if _inverter_grid_connected(
             coordinator.data.get("inverter_state")
         ) and coordinator.readings_from_same_poll(
             "inverter_state", "ac_offgrid_power"

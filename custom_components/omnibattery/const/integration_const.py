@@ -345,7 +345,9 @@ NORMAL_BALANCE_RECAL_SOC_THRESHOLD = 99        # %: below this, make one best-ef
 NORMAL_BALANCE_RECAL_CUTOFF_POWER_W = 10       # W: charge collapsed (BMS terminated)
 NORMAL_BALANCE_RECAL_CUTOFF_CYCLES = 5         # consecutive cycles to confirm the BMS cutoff
 NORMAL_BALANCE_RECAL_INVERTER_STANDBY = 1      # inverter_state raw value for Standby
-INVERTER_STATE_AC_BYPASS = 6                  # inverter_state raw value for Bypass (grid passed through to the backup port)
+# inverter_state raw values with the grid connected: Charge (2), Discharge (3) and
+# Bypass (6, grid passed through to the backup port). Backup Mode (4) is an outage.
+INVERTER_STATES_GRID_CONNECTED = (2, 3, 6)
 # After a cutoff above the pause voltage, allow one extra 200 W charge when the
 # cell has relaxed to this voltage.  The retry is deliberately one-shot.
 NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE = 3.57

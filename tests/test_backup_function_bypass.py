@@ -1,8 +1,10 @@
-"""Tests for ``_is_backup_function_active`` while the inverter reports Bypass.
+"""Tests for ``_is_backup_function_active`` while the grid is connected.
 
 With the grid present a Venus passes it through to the backup port, so a
 constant load connected there reads as off-grid power. That must not count as
-an outage: only the backup state means the battery feeds the port.
+an outage, whether the inverter reports Bypass or, while a charge or discharge
+is commanded, Charge or Discharge: only the backup state means the battery
+feeds the port.
 
 The method is exercised unbound with light stubs for ``self`` and the
 coordinator (same pattern as test_charge_hysteresis.py).
@@ -17,6 +19,8 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.omnibattery import ChargeDischargeController
 
+INVERTER_CHARGE = 2
+INVERTER_DISCHARGE = 3
 INVERTER_BACKUP = 4
 INVERTER_BYPASS = 6
 
@@ -53,6 +57,29 @@ def test_bypass_with_constant_load_is_not_backup():
     coord = _Coord(_data(offgrid=116, inverter_state=INVERTER_BYPASS))
     assert _active(coord, controller) is False
     assert coord not in controller._backup_cooldown_until
+
+
+@pytest.mark.parametrize("inverter_state", [INVERTER_CHARGE, INVERTER_DISCHARGE])
+def test_commanded_charge_or_discharge_with_constant_load_is_not_backup(inverter_state):
+    """Issue #660: a charge/discharge command must not latch the backup exclusion."""
+    controller = SimpleNamespace(_backup_cooldown_until={})
+    coord = _Coord(_data(offgrid=240, inverter_state=inverter_state))
+    assert _active(coord, controller) is False
+    assert coord not in controller._backup_cooldown_until
+
+
+@pytest.mark.parametrize("inverter_state", [INVERTER_CHARGE, INVERTER_DISCHARGE])
+def test_stale_charge_or_discharge_does_not_hide_fresh_port_load(inverter_state):
+    controller = SimpleNamespace(_backup_cooldown_until={})
+    coord = _Coord(_data(offgrid=240, inverter_state=inverter_state), same_poll=False)
+    assert _active(coord, controller) is True
+    assert coord in controller._backup_cooldown_until
+
+
+@pytest.mark.parametrize("inverter_state", ["Charge", "Discharge"])
+def test_label_charge_or_discharge_state_is_not_exempt(inverter_state):
+    coord = _Coord(_data(offgrid=240, inverter_state=inverter_state))
+    assert _active(coord) is True
 
 
 def test_stale_bypass_does_not_hide_fresh_port_load():
@@ -99,7 +126,9 @@ def test_expired_cooldown_releases_in_bypass():
     assert coord not in controller._backup_cooldown_until
 
 
-@pytest.mark.parametrize("inverter_state", [INVERTER_BYPASS, INVERTER_BACKUP])
+@pytest.mark.parametrize(
+    "inverter_state", [INVERTER_CHARGE, INVERTER_BYPASS, INVERTER_BACKUP]
+)
 def test_switch_off_is_never_backup(inverter_state):
     coord = _Coord(_data(offgrid=500, inverter_state=inverter_state, backup_function=1))
     assert _active(coord) is False
