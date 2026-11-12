@@ -1640,3 +1640,52 @@ def test_extended_horizon_total_covers_the_slots_it_books():
     assert plan.deadline_required_kwh + plan.flexible_required_kwh == pytest.approx(
         plan.total_required_kwh
     )
+
+
+def _equal_price_quarters(consumption, price_at=lambda index: 0.1):
+    intervals = [_interval(i, kwh) for i, kwh in enumerate(consumption)]
+    slots = [_slot(15 * i, 15 * i + 15, price_at(i)) for i in range(len(consumption))]
+    deadlines = build_energy_deadlines(intervals, 0.0, usable_capacity_kwh=20.0)
+    plan = allocate_price_slots(
+        intervals,
+        deadlines,
+        slots,
+        total_required_kwh=2.0,
+        effective_power_kw=4.0,
+        now=BASE,
+        horizon_end=BASE + timedelta(minutes=15 * len(consumption)),
+        headroom_kwh=20.0,
+        usable_initial_kwh=0.0,
+        grid_carries_load_while_charging=True,
+        grid_ceiling_kw=3.0,
+    )
+    return sorted(allocation.slot.start for allocation in plan.allocations)
+
+
+# House load that clips every other quarter under the 3 kW grid ceiling.
+_CLIPPED_QUARTERS = [0.5, 0.0, 0.5, 0.0] * 2 + [1.0, 0, 0, 0, 1.0]
+
+
+def test_equal_price_quarters_are_booked_back_to_back():
+    """#571/#858: quarters tied on price must not be booked "15 min here, 15
+    there". A later deadline skipped the clipped quarter next to the earlier
+    bookings for a roomier one further on, leaving a gap (an extra relay start).
+    """
+    starts = _equal_price_quarters(_CLIPPED_QUARTERS)
+
+    assert len(starts) > 1
+    assert all(
+        later - earlier == timedelta(minutes=15)
+        for earlier, later in zip(starts, starts[1:])
+    )
+
+
+def test_adjacency_never_overrides_price():
+    """The adjacent quarter only wins a tie: a cheaper one further away is
+    still booked first."""
+    roomy = 5  # 01:15, not adjacent to the earlier bookings
+    starts = _equal_price_quarters(
+        _CLIPPED_QUARTERS, lambda index: 0.099 if index == roomy else 0.1
+    )
+    assert BASE + timedelta(minutes=75) in starts
+    assert BASE + timedelta(minutes=60) not in starts

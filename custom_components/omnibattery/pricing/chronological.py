@@ -1118,6 +1118,14 @@ def allocate_price_slots(
             key=lambda slot: (
                 effective_price(slot),
                 0 if slot in allocations else 1,
+                # Adjacency only breaks ties: fewer relay starts (#571, #858).
+                0
+                if any(
+                    other.end == slot.start or slot.end == other.start
+                    for other, amount in allocations.items()
+                    if amount > _EPSILON
+                )
+                else 1,
                 -capacity(slot, deadline.deadline, start),
                 slot.start,
             ),
