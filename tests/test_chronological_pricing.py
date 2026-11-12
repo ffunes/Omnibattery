@@ -1591,6 +1591,15 @@ def test_a_group_is_not_booked_when_the_peak_barely_repays_the_drain():
     assert plan.reason == "cheaper_to_import"
 
 
+def test_a_rejected_group_stays_rejected_for_every_member():
+    """#834: every member of a rejected group is re-offered in the same
+    deadline; the verdict must not change when the group is evaluated once."""
+    plan = _group_night_plan(peak_price=0.5775)
+
+    assert plan.allocated_kwh == 0.0
+    assert plan.reason == "cheaper_to_import"
+
+
 def test_extended_horizon_total_covers_the_slots_it_books():
     """#838: a 30 kWh deficit to tomorrow midnight, mostly cheaper to import,
     with the battery half full. Capping the total at the room *now* and then

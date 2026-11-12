@@ -1130,6 +1130,10 @@ def allocate_price_slots(
                 slot.start,
             ),
         )
+        ordered = sorted(eligible, key=lambda item: item.start)
+        position = {item: i for i, item in enumerate(ordered)}
+        # Groups already rejected, per allocation state (#834).
+        rejected_groups: set[tuple[object, object, int, float]] = set()
         for slot in eligible:
             free = free_of(slot)
             usable = min(room(slot, free) if clip else free, room_at_start(slot))
@@ -1148,7 +1152,6 @@ def allocate_price_slots(
                 # (optimistic), and clips each member's room alone, not jointly.
                 members = [slot]
                 if cap is not None and free_of(slot) > _EPSILON:
-                    ordered = sorted(eligible, key=lambda item: item.start)
 
                     def joins(item: PriceSlot) -> bool:
                         return (
@@ -1156,7 +1159,7 @@ def allocate_price_slots(
                             and free_of(item) > _EPSILON
                         )
 
-                    low = high = ordered.index(slot)
+                    low = high = position[slot]
                     while (
                         low > 0
                         and ordered[low - 1].end == ordered[low].start
@@ -1170,7 +1173,13 @@ def allocate_price_slots(
                     ):
                         high += 1
                     members = ordered[low:high + 1]
-                if len(members) > 1:
+                group_key = (
+                    members[0].start,
+                    members[-1].end,
+                    len(allocations),
+                    sum(allocations.values()),
+                )
+                if len(members) > 1 and group_key not in rejected_groups:
                     usables = {
                         item: min(
                             room(item, free_of(item)) if clip else free_of(item),
@@ -1233,6 +1242,8 @@ def allocate_price_slots(
                         missing = max(0.0, missing - max(0.0, booked_total - drain_g))
                         if missing <= _EPSILON:
                             break
+                    else:
+                        rejected_groups.add(group_key)
                 continue
             take = min(missing, usable - drain)
             if take <= _EPSILON:
