@@ -358,6 +358,7 @@ def test_evening_weekly_fallback_sizes_the_deficit_to_full_soc(monkeypatch):
             return now
 
     monkeypatch.setattr(datetime_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
     monkeypatch.setattr(pricing_engine.calculations, "datetime", FixedDateTime)
     coord = _Coord(62.0, 10.0, max_soc=90)
     ctrl = _ctrl([coord], weekly=True, solar=None)

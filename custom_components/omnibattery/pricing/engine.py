@@ -599,7 +599,7 @@ class PricingManager:
         coordinators to complete their first poll, then evaluates if today's schedule
         has not been built yet (e.g. HA restarted after 00:05).
         """
-        now = datetime.now()
+        now = self._now()
 
         # Nothing to do if we're still before the normal 00:05 window
         eval_cutoff = now.replace(hour=0, minute=5, second=0, microsecond=0)
@@ -671,14 +671,14 @@ class PricingManager:
         """Return the current period price from the configured price sensor."""
         # Tibber is service-based: read the cached slots, not a sensor.
         if self._controller.price_integration_type == PRICE_INTEGRATION_TIBBER:
-            now = datetime.now()
+            now = self._now()
             for slot in self._controller._tibber_price_slots:
                 if slot.start <= now < slot.end:
                     return slot.price
             return None
 
         if self._controller.price_integration_type == PRICE_INTEGRATION_ENERGYZERO:
-            now = datetime.now()
+            now = self._now()
             for slot in self._energyzero_price_slots(self._controller.price_sensor):
                 if slot.start <= now < slot.end:
                     return slot.price
@@ -687,7 +687,7 @@ class PricingManager:
         # currency/kWh scale. Prefer the interval data so any official Nord Pool
         # price entity can be used to identify the desired market area.
         if self._official_nordpool_source() is not None:
-            now = datetime.now()
+            now = self._now()
             for slot in self._controller._nordpool_price_slots:
                 if slot.start <= now < slot.end:
                     return slot.price
@@ -700,25 +700,25 @@ class PricingManager:
             return None
 
         if self._controller.price_integration_type == PRICE_INTEGRATION_CKW:
-            now = datetime.now()
+            now = self._now()
             for slot in calculations.parse_ckw_prices(price_state.attributes):
                 if slot.start <= now < slot.end:
                     return slot.price
 
         if self._controller.price_integration_type == PRICE_INTEGRATION_EPEX:
-            now = datetime.now()
+            now = self._now()
             for slot in calculations.parse_epex_prices(price_state.attributes):
                 if slot.start <= now < slot.end:
                     return slot.price
 
         if self._controller.price_integration_type == PRICE_INTEGRATION_ENTSOE:
-            now = datetime.now()
+            now = self._now()
             for slot in calculations.parse_entsoe_prices(price_state.attributes):
                 if slot.start <= now < slot.end:
                     return slot.price
 
         if self._controller.price_integration_type == PRICE_INTEGRATION_BE_ELECTRICITY:
-            now = datetime.now()
+            now = self._now()
             for slot in calculations.parse_be_electricity_prices(price_state.attributes):
                 if slot.start <= now < slot.end:
                     return slot.price
@@ -807,7 +807,7 @@ class PricingManager:
         if self._controller.price_integration_type != PRICE_INTEGRATION_TIBBER:
             return
 
-        now = datetime.now()
+        now = self._now()
         fetched = self._controller._tibber_prices_fetched_at
         if (
             not force
@@ -865,7 +865,7 @@ class PricingManager:
 
         from homeassistant.util import dt as dt_util
 
-        now = datetime.now()
+        now = self._now()
         service_date = dt_util.now().date()
         source_key = (source.config_entry_id, source.area, service_date)
         fetched = self._controller._nordpool_prices_fetched_at
@@ -991,7 +991,7 @@ class PricingManager:
 
         from homeassistant.util import dt as dt_util
 
-        now = datetime.now()
+        now = self._now()
         today = dt_util.now().date()
         for entity_id in dict.fromkeys(entity_ids):
             source = self._energyzero_source(entity_id)
@@ -1243,7 +1243,7 @@ class PricingManager:
         raw_slots = self._parse_sensor_price_slots(
             entity_id, integration_type, quiet=True
         )
-        slots = self._filter_future_slots(raw_slots, horizon_end)
+        slots = self._filter_future_slots(raw_slots, horizon_end, now=self._now())
         if not solar_bonus:
             return slots
         return self._apply_zonneplan_export_bonus(slots, integration_type, entity_id)
@@ -1361,14 +1361,13 @@ class PricingManager:
         return raw_slots
 
     @staticmethod
-    def _filter_future_slots(raw_slots: list, horizon_end=None) -> list:
+    def _filter_future_slots(raw_slots: list, horizon_end=None, *, now: datetime) -> list:
         """Keep slots that end in the future and start within the horizon.
 
         Default (``horizon_end=None``) keeps today-only semantics so mid-day
         restarts do not pull in tomorrow — callers that need cross-midnight
         slots pass an explicit horizon.
         """
-        now = datetime.now()
         end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=0)
         effective_horizon = horizon_end if horizon_end is not None else end_of_day
         return [s for s in raw_slots if s.end > now and s.start <= effective_horizon]
@@ -1446,7 +1445,7 @@ class PricingManager:
             return []
 
         # Filter to remaining slots within the requested horizon.
-        filtered = self._filter_future_slots(raw_slots, horizon_end)
+        filtered = self._filter_future_slots(raw_slots, horizon_end, now=self._now())
         # Slots that parse but all lie in the past leave price-aware charging just as
         # dead as a parse failure (e.g. a template sensor frozen on yesterday's
         # entries), so this is a distinct status rather than "ok (0 slots)" — the
@@ -1470,7 +1469,7 @@ class PricingManager:
         """Return True if current time falls within a selected cheap slot."""
         if not self._controller._dynamic_pricing_schedule:
             return False
-        now = datetime.now()
+        now = self._now()
         return any(s.start <= now < s.end for s in self._controller._dynamic_pricing_schedule.selected_slots)
 
     def _negative_price_feature_enabled(self) -> bool:
@@ -2503,7 +2502,7 @@ class PricingManager:
         now: datetime | None = None,
     ) -> CurtailmentPlan:
         """Calculate and publish a new non-persistent smart plan."""
-        evaluated_at = now or datetime.now()
+        evaluated_at = now or self._now()
         if not self._smart_predischarge_enabled():
             plan = CurtailmentPlan(
                 status="disabled", reason="feature_disabled", evaluation_time=evaluated_at
@@ -2644,7 +2643,7 @@ class PricingManager:
         controller._curtailment_opportunity_limited = False
         if not preserve_plan:
             controller._curtailment_plan = CurtailmentPlan(
-                status="disabled", reason=reason, evaluation_time=datetime.now()
+                status="disabled", reason=reason, evaluation_time=self._now()
             )
             controller._curtailment_last_planned_headroom_kwh = None
             controller._curtailment_last_auto_replan = None
@@ -2714,7 +2713,7 @@ class PricingManager:
             self._set_curtailment_runtime("no_risk", plan.reason)
             return
 
-        now = datetime.now()
+        now = self._now()
         snapshots = self._curtailment_battery_snapshots()
         if self._maybe_rebuild_curtailment_plan(plan, snapshots, now):
             plan = getattr(self._controller, "_curtailment_plan", plan)
@@ -4287,7 +4286,7 @@ class PricingManager:
         self._mark_surplus_hold_stale(f"dp_evaluation_{horizon.value}")
         self._mark_discharge_reserve_stale(f"dp_evaluation_{horizon.value}")
 
-        now = datetime.now()
+        now = self._now()
         today = now.date()
 
         # Any evaluation that already sees tomorrow's prices (a rolling-window
@@ -4496,7 +4495,7 @@ class PricingManager:
         # (per-slot arbitrage, #649) are what actually filter; `arb_ceiling`
         # (highest per-slot value) is kept only so the notification can name
         # the cause.
-        eval_now = datetime.now()
+        eval_now = self._now()
         ceiling = self._controller.max_price_threshold
         slot_ceilings, arb_ceiling = calculations.effective_charge_ceilings(
             plan_slots,
@@ -5130,7 +5129,7 @@ class PricingManager:
         if not self._controller._dynamic_pricing_schedule or not self._controller._dynamic_pricing_schedule.charging_needed:
             return
 
-        now = datetime.now()
+        now = self._now()
         upcoming = [s for s in self._controller._dynamic_pricing_schedule.selected_slots if s.start > now]
         if not upcoming:
             return  # No future slots left
@@ -5299,8 +5298,7 @@ class PricingManager:
 
         Does not trigger after 23:00 to avoid clashing with the 00:05 evaluation.
         """
-        from datetime import datetime
-        now = datetime.now()
+        now = self._now()
 
         if self._controller._dp_evening_reevaluated_date == now.date():
             return False
@@ -5708,7 +5706,7 @@ class PricingManager:
                 solar_forecast_override_kwh=0.0,
             )
 
-        now = now or datetime.now()
+        now = now or self._now()
         horizon_end = horizon_end or self.energy_horizon_end(now)
         now_h =now.hour + now.minute / 60.0 + now.second / 3600.0
         end_of_day = now.replace(
@@ -5915,7 +5913,7 @@ class PricingManager:
                 None,
             ) is not None
         ):
-            current = now or datetime.now()
+            current = now or self._now()
             midnight = current.replace(
                 hour=0, minute=0, second=0, microsecond=0
             ) + timedelta(days=1)
@@ -6131,9 +6129,7 @@ class PricingManager:
         6. Merge into existing schedule (or create a new one).
         7. Send notification.
         """
-        from datetime import datetime
-
-        now = datetime.now()
+        now = self._now()
         _LOGGER.info("Dynamic pricing: running evening re-evaluation at %s", now.strftime("%H:%M"))
         self._mark_surplus_hold_stale("evening_reevaluation")
         self._mark_discharge_reserve_stale("evening_reevaluation")
@@ -6371,6 +6367,7 @@ class PricingManager:
                 additional_slots,
                 hours_needed,
                 price_ceiling,
+                now=now,
                 slot_ceilings=slot_ceilings,
             )
 
@@ -6888,7 +6885,7 @@ class PricingManager:
         started has none).
         """
         if now is None:
-            now = datetime.now()
+            now = self._now()
         controller = self._controller
         schedule = getattr(controller, "_dynamic_pricing_schedule", None)
         if (
@@ -7055,7 +7052,7 @@ class PricingManager:
 
     async def handle_dynamic_pricing_predictive_charging(self) -> None:
         """Handle predictive charging in dynamic pricing mode (called every 2.5s)."""
-        now = datetime.now()
+        now = self._now()
 
         # Phase 0: Keep service-based provider caches fresh.
         await self._maybe_refresh_service_prices()
@@ -8175,7 +8172,7 @@ class PricingManager:
         Called every control cycle, after the price block.
         """
         ctrl = self._controller
-        now = datetime.now()
+        now = self._now()
         run_slots = self._weekly_refill_slots(now)
         threshold = self._weekly_refill_threshold(
             [slot for slot in run_slots if slot.start > now]
@@ -8266,7 +8263,7 @@ class PricingManager:
         """
         from homeassistant.util import dt as dt_util
 
-        now = datetime.now()
+        now = self._now()
         run_slots = self._weekly_refill_slots(now)
         if not run_slots:
             return None

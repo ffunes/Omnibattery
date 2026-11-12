@@ -43,6 +43,7 @@ class _FixedDateTime(datetime):
 @pytest.fixture(autouse=True)
 def _fixed_clock(monkeypatch):
     monkeypatch.setattr(datetime_module, "datetime", _FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "datetime", _FixedDateTime)
     monkeypatch.setattr(pricing_engine.calculations, "datetime", _FixedDateTime)
 
 
