@@ -241,6 +241,9 @@ MAX_TIME_SLOTS = 8
 
 # Default base consumption fallback (kWh/day)
 DEFAULT_BASE_CONSUMPTION_KWH = 5.0  # Fallback when no consumption history available
+# A home typically uses about one battery's worth a day; the value assumed for a
+# day without real data, used only until real days are learned.
+MISSING_DAY_FLEET_SHARE = 0.8
 
 # Predictive charging / anti-curtailment safety margin.
 # How much the solar forecast is distrusted: this many kWh are subtracted from

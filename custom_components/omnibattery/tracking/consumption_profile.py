@@ -1303,7 +1303,11 @@ class ConsumptionProfileTracker:
                 )
             except Exception:  # noqa: BLE001
                 parsed = None
-        return parsed if parsed is not None and parsed > 0.0 else DEFAULT_BASE_CONSUMPTION_KWH
+        if parsed is not None and parsed > 0.0:
+            return parsed
+        tracker = getattr(self._controller, "_consumption_tracker", None)
+        missing = getattr(tracker, "_missing_day_kwh", None)
+        return missing() if callable(missing) else DEFAULT_BASE_CONSUMPTION_KWH
 
     def _current_rate_value(self) -> float:
         try:
