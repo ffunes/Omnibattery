@@ -1093,3 +1093,30 @@ def test_charge_time_still_respects_the_system_power_limit(monkeypatch):
 
     expected = 8.5 / (2.0 * 0.85)
     assert ctrl._charge_delay_status["charge_time_h"] == expected
+
+
+# ----------------------------------------------------------------------
+# Excluded-device solar claim (e.g. an EV) leaves less sun for the battery
+# ----------------------------------------------------------------------
+def _claim_mgr(monkeypatch, claim):
+    _at_hour(monkeypatch, 9)
+    mgr = _cushion_mgr(6.0)  # net 4.54 vs factored need 3.9 -> keeps delaying
+    mgr._price_optimal_release_h = lambda now_h, edge_h, charge_h=None: None
+    if claim != "missing":
+        mgr._controller._pricing_mgr = SimpleNamespace(
+            _read_excluded_demand_claim_kwh=lambda: claim
+        )
+    return mgr
+
+
+def test_excluded_claim_ends_the_delay_when_the_sun_is_taken(monkeypatch):
+    mgr = _claim_mgr(monkeypatch, 4.0)  # net 0.54 < 3.0 needed
+    assert mgr._should_delay_charge(80) is False
+    assert mgr._controller._charge_delay_status["unlock_reason"] == "energy_balance"
+
+
+@pytest.mark.parametrize("claim", [0.0, None, "missing"])
+def test_no_excluded_claim_leaves_the_delay_unchanged(monkeypatch, claim):
+    mgr = _claim_mgr(monkeypatch, claim)
+    assert mgr._should_delay_charge(80) is True
+    assert mgr._controller._charge_delay_status["net_solar_kwh"] == pytest.approx(4.54, abs=0.01)
