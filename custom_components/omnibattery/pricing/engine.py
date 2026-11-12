@@ -1547,8 +1547,9 @@ class PricingManager:
         )
 
     def _opportunistic_target_for(self, coordinator) -> float:
-        """Return this battery's configured maximum SOC opportunity ceiling."""
-        return float(coordinator.max_soc)
+        """Return the SOC ceiling the controller charges to (100% on a weekly day)."""
+        ceiling = getattr(self._controller, "_charge_ceiling_soc", None)
+        return float(ceiling(coordinator)) if callable(ceiling) else float(coordinator.max_soc)
 
     def _opportunistic_battery_eligible(self, coordinator) -> bool:
         """Return whether runtime ownership allows this battery to participate."""

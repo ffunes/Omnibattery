@@ -1044,3 +1044,19 @@ def test_cycle_without_available_battery_keeps_future_negative_slots():
         else []
     )
 
+
+def test_weekly_full_charge_day_plans_negative_price_to_100_percent():
+    battery = _Battery("b1", 90, 10, max_soc=90)
+    ctrl = _controller([battery])
+    manager = PricingManager(SimpleNamespace(), ctrl)
+
+    # Normal day: max_soc is the ceiling.
+    assert manager._opportunistic_target_pending() is False
+    assert manager._negative_price_energy_needed_kwh() == pytest.approx(0.0)
+
+    ctrl._weekly_charge_mgr = SimpleNamespace(is_active=lambda: True)
+    ctrl._charge_ceiling_soc = lambda c: ChargeDischargeController._charge_ceiling_soc(
+        ctrl, c
+    )
+    assert manager._opportunistic_target_pending() is True
+    assert manager._negative_price_energy_needed_kwh() == pytest.approx(1.0)
