@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..const import PREDICTIVE_MODE_DYNAMIC_PRICING
 from ..pricing.curtailment import distribute_solar_forecast, estimate_consumption_by_slot
+from ..pricing.plan_inputs import energy_over
 from ..pricing.surplus_absorption import (
     AbsorptionPlan,
     STATUS_DISABLED,
@@ -364,19 +365,37 @@ class SurplusPriceHoldManager:
         if remaining_solar is None or remaining_load is None:
             return {}
 
-        # ``remaining_solar_kwh`` already ends at sunset, but
-        # ``remaining_consumption_kwh`` runs to midnight while the slots stop at
-        # the solar deadline. Spreading the evening and night load over daylight
-        # hours would erase the surplus that is actually there, so scale the
-        # load down to the daylight share first.
-        daylight_load = self._daylight_share(float(remaining_load), now, deadline)
-
         solar_by_slot = distribute_solar_forecast(
             slots, float(remaining_solar), fraction_fn, normalize_future=True
         )
-        load_by_slot = estimate_consumption_by_slot(
-            slots, daylight_load, None, normalize_future=True
+        # The household load follows the learned profile the planner uses; the
+        # flat spread below is only the fallback when no projection exists.
+        energy_projection = getattr(pricing, "energy_projection", None)
+        projection = (
+            energy_projection(now, max(slot.end for slot in slots))
+            if callable(energy_projection)
+            else None
         )
+        if projection is not None:
+            load_by_slot = {
+                slot: energy_over(
+                    projection.boundaries,
+                    projection.consumption_kwh,
+                    slot.start,
+                    slot.end,
+                )
+                for slot in slots
+            }
+        else:
+            # ``remaining_solar_kwh`` already ends at sunset, but
+            # ``remaining_consumption_kwh`` runs to midnight while the slots
+            # stop at the solar deadline. Spreading the evening and night load
+            # over daylight hours would erase the surplus that is actually
+            # there, so scale the load down to the daylight share first.
+            daylight_load = self._daylight_share(float(remaining_load), now, deadline)
+            load_by_slot = estimate_consumption_by_slot(
+                slots, daylight_load, None, normalize_future=True
+            )
         return {
             slot: max(
                 0.0,
