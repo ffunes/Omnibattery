@@ -113,9 +113,11 @@ from .chronological import (
 )
 from .plan_inputs import (  # noqa: F401  (_apply_excluded_demand_claim: re-exported)
     _apply_excluded_demand_claim,
+    fleet_plan_state,
     battery_idle_intervals,
     consumption_shape,
     solar_timeline,
+    time_slot_window_hold,
 )
 from .solar_timeline import (
     build_boundaries,
@@ -3611,7 +3613,6 @@ class PricingManager:
             # window. Not during a weekly full charge, whose gap to 100% the
             # load does not shrink.
             weekly_fn = getattr(self._controller, "_weekly_full_charge_pending", None)
-            window_load_on_grid = None
             windows = (
                 self._time_slot_price_slots_for_horizon(now, horizon_end)
                 if getattr(self._controller, "predictive_charging_mode", None)
@@ -3619,17 +3620,9 @@ class PricingManager:
                 and not (callable(weekly_fn) and weekly_fn())
                 else []
             )
-            if windows:
-                window_load_on_grid = 0.0
-                held = []
-                for item in intervals:
-                    if any(w.start <= item.start < w.end for w in windows):
-                        window_load_on_grid += max(
-                            0.0, item.consumption_kwh - item.solar_kwh
-                        )
-                        item = item.with_battery_idle()
-                    held.append(item)
-                intervals = held
+            intervals, window_load_on_grid = time_slot_window_hold(
+                intervals, windows
+            )
 
             eligible = [
                 c for c in self._controller.coordinators
@@ -3654,10 +3647,6 @@ class PricingManager:
                     for before, after in zip(uncapped, intervals)
                     if before.end <= scalar_end
                 ))
-            total_capacity = sum(
-                float(c.data.get("battery_total_energy", 0) or 0)
-                for c in eligible
-            )
             # Peak shaving's SOC band is a peak reserve, not normal-load
             # energy (#627). While it already holds the battery the intervals
             # above carry only the load over the limit, which that band covers.
@@ -3668,32 +3657,23 @@ class PricingManager:
                     return float(c.min_soc)
                 return float(planning_floor(c))
 
-            weighted_min_soc = (
-                sum(
-                    floor_of(c)
-                    * float(c.data.get("battery_total_energy", 0) or 0)
-                    for c in eligible
-                )
-                / total_capacity
-                if total_capacity > 0
-                else 0.0
-            )
-            usable = sum(
-                max(0.0, (float(c.data.get("battery_soc", 0) or 0) - floor_of(c)) / 100.0
-                    * float(c.data.get("battery_total_energy", 0) or 0))
-                for c in eligible
-            )
             # 100% while a weekly full charge is pending, so the plan may size
             # the cheap slots for the whole cycle instead of stopping at max_soc.
             ceiling = getattr(self._controller, "_charge_ceiling_soc", None)
-            room_kwh = [
-                max(0.0, (
-                    (float(ceiling(c)) if callable(ceiling) else float(c.max_soc))
-                    - float(c.data.get("battery_soc", 0) or 0)
-                ) / 100.0 * float(c.data.get("battery_total_energy", 0) or 0))
+            fleet = fleet_plan_state([
+                (
+                    float(c.data.get("battery_total_energy", 0) or 0),
+                    float(c.data.get("battery_soc", 0) or 0),
+                    floor_of(c),
+                    float(ceiling(c)) if callable(ceiling) else float(c.max_soc),
+                )
                 for c in eligible
-            ]
-            headroom = sum(room_kwh)
+            ])
+            total_capacity = fleet.total_capacity_kwh
+            weighted_min_soc = fleet.weighted_min_soc
+            usable = fleet.usable_kwh
+            room_kwh = fleet.room_kwh
+            headroom = fleet.headroom_kwh
             weekly_pending = getattr(
                 self._controller, "_weekly_full_charge_pending", None
             )

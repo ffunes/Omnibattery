@@ -9,7 +9,9 @@ import pytest
 from custom_components.omnibattery.pricing.plan_inputs import (
     battery_idle_intervals,
     consumption_shape,
+    fleet_plan_state,
     solar_timeline,
+    time_slot_window_hold,
 )
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.solar_forecast import SolarForecastPeriod
@@ -193,3 +195,62 @@ def test_fleet_blocks_and_cheap_price_slots_idle_the_battery():
     # Idle intervals still let the sun charge: only its surplus remains.
     assert [i.solar_kwh for i in result] == [0.0, 0.25, 0.0, 0.0]
     assert _idle(bounds, [1.0] * 4, [0.0] * 4, blocked_price_slots=[])[2].consumption_kwh == 1.0
+
+
+# ---------------------------------------------------------------------------
+# time_slot_window_hold
+# ---------------------------------------------------------------------------
+
+def test_window_hold_without_windows_changes_nothing():
+    bounds = _boundaries(MIDNIGHT, 2)
+    intervals = _idle(bounds, [1.0, 1.0], [0.0, 0.0])
+    result, load = time_slot_window_hold(intervals, [])
+    assert result == intervals
+    assert load is None
+
+
+def test_window_hold_idles_intervals_starting_inside_a_window():
+    bounds = _boundaries(MIDNIGHT, 4)
+    intervals = _idle(bounds, [1.0, 2.0, 3.0, 4.0], [0.25, 0.0, 5.0, 0.0])
+    window = SimpleNamespace(start=bounds[1][0], end=bounds[3][0])
+    result, load = time_slot_window_hold(intervals, [window])
+    # Intervals 1 and 2 start inside (end exclusive): idled, grid carries net load.
+    assert [i.consumption_kwh for i in result] == [1.0, 0.0, 0.0, 4.0]
+    assert load == pytest.approx(2.0)
+
+
+def test_window_hold_load_is_zero_when_the_sun_covers_it():
+    bounds = _boundaries(MIDNIGHT, 2)
+    intervals = _idle(bounds, [1.0, 1.0], [3.0, 3.0])
+    window = SimpleNamespace(start=bounds[0][0], end=bounds[1][1])
+    _result, load = time_slot_window_hold(intervals, [window])
+    assert load == 0.0
+
+
+# ---------------------------------------------------------------------------
+# fleet_plan_state
+# ---------------------------------------------------------------------------
+
+def test_fleet_state_sums_capacity_usable_and_room_in_order():
+    state = fleet_plan_state([
+        (10.0, 50.0, 10.0, 100.0),
+        (5.0, 20.0, 10.0, 80.0),
+    ])
+    assert state.total_capacity_kwh == 15.0
+    assert state.weighted_min_soc == pytest.approx(10.0)
+    assert state.usable_kwh == pytest.approx(4.0 + 0.5)
+    assert state.room_kwh == pytest.approx((5.0, 3.0))
+    assert state.headroom_kwh == pytest.approx(8.0)
+
+
+def test_fleet_state_clamps_below_floor_and_above_ceiling_to_zero():
+    state = fleet_plan_state([(10.0, 5.0, 10.0, 90.0), (10.0, 95.0, 10.0, 90.0)])
+    assert state.usable_kwh == pytest.approx(8.5)
+    assert state.room_kwh[0] == pytest.approx(8.5)
+    assert state.room_kwh[1] == 0.0
+
+
+def test_fleet_state_with_no_capacity_has_zero_weighted_floor():
+    state = fleet_plan_state([(0.0, 50.0, 10.0, 100.0)])
+    assert state.weighted_min_soc == 0.0
+    assert fleet_plan_state([]).headroom_kwh == 0.0
