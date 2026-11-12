@@ -1,0 +1,47 @@
+{
+  "source": {
+    "issue": null,
+    "kind": "synthetic",
+    "reporter": "harness",
+    "date": "2026-11-12",
+    "url": null
+  },
+  "note": "Healthy baseline, not a report. One 10 kWh battery at 30 % (min 10 %) holds 2 kWh, a flat 0.5 kW house empties it at 02:00, and the sun is up at 08:00. Prices: 0.30 all night except 02:00-05:00 at 0.10. With a 0.03 margin at efficiency 0.85 the 02:00-05:00 load is cheaper to import at 0.10 than to store (it is worth 0.10 x 0.85 - 0.03 = 0.055), so only the 05:00-08:00 load (1.5 kWh, worth 0.225) is charged, in the last cheap hour, which ends where the dear hours begin.",
+  "level": "engine",
+  "now": "2026-01-20T22:00:00",
+  "time_zone": "Europe/Amsterdam",
+  "sun": {"sunrise": "08:00", "solar_noon": "12:45"},
+  "prices": {
+    "slot_minutes": 60,
+    "blocks": [
+      {"start": "2026-01-20T00:00:00", "end": "2026-01-21T02:00:00", "price": 0.30},
+      {"start": "2026-01-21T02:00:00", "end": "2026-01-21T05:00:00", "price": 0.10},
+      {"start": "2026-01-21T05:00:00", "end": "2026-01-22T00:00:00", "price": 0.30}
+    ]
+  },
+  "consumption": {"profile_kw": [{"from": "00:00", "kw": 0.5}]},
+  "solar": {"remaining_kwh": 0.0, "periods": []},
+  "fleet": [
+    {"capacity_kwh": 10.0, "soc": 30, "min_soc": 10, "max_soc": 100, "max_charge_w": 2500, "max_discharge_w": 2500}
+  ],
+  "settings": {
+    "max_price_threshold": null,
+    "min_arbitrage_margin": 0.03,
+    "round_trip_efficiency": 0.85,
+    "discharge_reserve": false,
+    "peak_shaving": null,
+    "contracted_power_w": 6000,
+    "guaranteed_floor_soc": null,
+    "safety_margin_kwh": 0.0
+  },
+  "expected": {
+    "reason": "ok",
+    "total_kwh": {"min_kwh": 1.45, "max_kwh": 1.55},
+    "windows": [
+      {"start": "2026-01-21T04:00:00", "end": "2026-01-21T05:00:00", "min_kwh": 1.45, "max_kwh": 1.55}
+    ],
+    "no_slot_before": "2026-01-21T02:00:00",
+    "no_slot_after": "2026-01-21T05:00:00",
+    "no_charge_above_use_value": true
+  }
+}

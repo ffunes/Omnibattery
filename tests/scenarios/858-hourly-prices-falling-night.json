@@ -1,0 +1,70 @@
+{
+  "source": {
+    "issue": 858,
+    "kind": "discussion",
+    "reporter": "martinbos",
+    "date": "2026-11-11",
+    "url": "https://github.com/ffunes/Omnibattery/discussions/858"
+  },
+  "note": [
+    "Why does it charge the first 15 minutes of every hour and use that energy in the other 45, while the next hour is cheaper? The screenshot shows grid charging in the first quarter of 22:00, 23:00, 00:00, 01:00, 02:00 and 03:00 and from 04:00 to about 04:45, the SOC near its minimum until 04:00 and about 45 % after it.",
+    "REPORTED: 1.6.0, Marstek Venus E 3.0, hourly prices, each next hour cheaper through the night, evaluated around 21:45, price range of the chart 0.351-0.668.",
+    "ASSUMED: every price (read off the chart by eye, +/- 0.02; only their falling order and the range are reported); the consumption shape (also by eye); 5.12 kWh, 2500 W, SOC 13 % with min SOC 12 %, max SOC 100 %; efficiency 0.85 (the default); no max price, reserve off, no peak shaving; contracted power 17.25 kW; no solar left and no dated periods; sunrise 07:51, solar noon 12:22; the feed stops at 10:00 like the chart.",
+    "ASSUMED ON PURPOSE: the arbitrage margin is unset. The reporter's value is unknown; this scenario tests whether an unset margin explains the report.",
+    "TODAY (release/v1.6.1): it does. ok, 3.06 kWh in ten quarter-hour slots: 22:00 0.41 + 22:15 0.08, 23:00 0.30, 00:00 0.30, 01:00 0.37, 02:00 0.22, 03:00 0.22, 04:00-04:45 1.15, the pattern of the screenshot. Every one costs more than the import it displaces: 22:00 is bought at 0.438 and used at 0.438, worth 0.438 x 0.85 = 0.372; 04:00 is bought at 0.351 and used at 0.358, worth 0.304. Without a margin each depletion deadline is served by the cheapest slot before it, whatever the energy is worth when it is used.",
+    "With a margin of 0.01 or 0.04 the same night plans 0 kWh (cheaper_to_import 3.59 kWh): no hour before sunrise repays a charge."
+  ],
+  "level": "engine",
+  "xfail": "#858: with the arbitrage margin unset each depletion deadline is served by the cheapest earlier slot, so energy is bought and used at the same hourly price (0.438 against a use value of 0.438 x 0.85 = 0.372) at the start of every hour of a falling night",
+  "now": "2026-11-11T21:45:00",
+  "time_zone": "Europe/Amsterdam",
+  "sun": {"sunrise": "07:51", "solar_noon": "12:22"},
+  "prices": {
+    "slot_minutes": 15,
+    "blocks": [
+      {"start": "2026-11-11T21:00:00", "end": "2026-11-11T22:00:00", "price": 0.498},
+      {"start": "2026-11-11T22:00:00", "end": "2026-11-11T23:00:00", "price": 0.438},
+      {"start": "2026-11-11T23:00:00", "end": "2026-11-12T00:00:00", "price": 0.402},
+      {"start": "2026-11-12T00:00:00", "end": "2026-11-12T01:00:00", "price": 0.397},
+      {"start": "2026-11-12T01:00:00", "end": "2026-11-12T02:00:00", "price": 0.392},
+      {"start": "2026-11-12T02:00:00", "end": "2026-11-12T03:00:00", "price": 0.376},
+      {"start": "2026-11-12T03:00:00", "end": "2026-11-12T04:00:00", "price": 0.354},
+      {"start": "2026-11-12T04:00:00", "end": "2026-11-12T05:00:00", "price": 0.351},
+      {"start": "2026-11-12T05:00:00", "end": "2026-11-12T06:00:00", "price": 0.360},
+      {"start": "2026-11-12T06:00:00", "end": "2026-11-12T07:00:00", "price": 0.370},
+      {"start": "2026-11-12T07:00:00", "end": "2026-11-12T08:00:00", "price": 0.385},
+      {"start": "2026-11-12T08:00:00", "end": "2026-11-12T09:00:00", "price": 0.436},
+      {"start": "2026-11-12T09:00:00", "end": "2026-11-12T10:00:00", "price": 0.420}
+    ]
+  },
+  "consumption": {
+    "profile_kw": [
+      {"from": "00:00", "kw": 0.35},
+      {"from": "01:00", "kw": 0.45},
+      {"from": "02:00", "kw": 0.25},
+      {"from": "04:00", "kw": 0.30},
+      {"from": "05:00", "kw": 0.45},
+      {"from": "06:00", "kw": 0.30},
+      {"from": "10:00", "kw": 0.35},
+      {"from": "22:00", "kw": 0.60},
+      {"from": "23:00", "kw": 0.35}
+    ]
+  },
+  "solar": {"remaining_kwh": 0.0, "periods": []},
+  "fleet": [
+    {"capacity_kwh": 5.12, "soc": 13, "min_soc": 12, "max_soc": 100, "max_charge_w": 2500, "max_discharge_w": 2500}
+  ],
+  "settings": {
+    "max_price_threshold": null,
+    "min_arbitrage_margin": null,
+    "round_trip_efficiency": 0.85,
+    "discharge_reserve": false,
+    "peak_shaving": null,
+    "contracted_power_w": 17250,
+    "guaranteed_floor_soc": null,
+    "safety_margin_kwh": 0.0
+  },
+  "expected": {
+    "no_charge_above_use_value": true
+  }
+}

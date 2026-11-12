@@ -1,0 +1,81 @@
+{
+  "source": {
+    "issue": 834,
+    "kind": "issue",
+    "reporter": "Varashi",
+    "date": "2026-11-11",
+    "url": "https://github.com/ffunes/Omnibattery/issues/834#issuecomment-6795900283"
+  },
+  "note": [
+    "A re-evaluation at 03:05 (re-evaluate button) that dropped a correct 00:05 plan right before the two cheapest hours. The reporter replayed it on 1.6.0, on 1.6.0 + 21cdaaaa and on release/v1.6.1: cheaper_to_import, 0 kWh every time; their own patch gives ok, 7.9 kWh in 03:00-07:00.",
+    "REPORTED: 15.36 kWh fleet of 3 batteries, SOC 35 %, min SOC 12 %, peak shaving below 25 % with a 3.5 kW limit that is also the contracted power, efficiency 0.86, margin 0.04, max price 0.453, Discharge Reserve off, ~2.8 kWh of solar forecast that day. Prices: 03:00 0.357, 04:00 0.359, 05:00 0.366, 06:00 0.408, 07:00 0.452, then 0.51-0.60 from 08:00 to 20:00. Depletion projected at 05:15, ~2.4 kWh drained from then to 08:00.",
+    "ASSUMED: the date; three equal 5.12 kWh batteries at 2500 W, max SOC 100 %; hourly slots; the prices before 03:00 and after 20:00; the consumption shape, chosen so the usable 1.54 kWh runs out at 05:15 and 05:15-08:00 drains 2.4 kWh as reported; solar as an undated 2.8 kWh remaining (sinusoidal timeline); sunrise 07:50, solar noon 12:22.",
+    "ASSUMED, and it decides the outcome: the hourly shape inside the reported 0.51-0.60 band. Here the evening is the 0.60 peak and no hour before 17:00 reaches 0.572 = (0.452 + 0.04) / 0.86. That reproduces the reported result (so do a flat 0.55 day and a steady rise from 0.51 to 0.60). With 0.58 or more at 08:00 or 09:00 the 07:00 slot (0.452) is booked first, the hours it charges through stop counting as drain, and the planner already books 6.4-6.8 kWh in 03:00-07:00 today.",
+    "TODAY (release/v1.6.1, also v1.6.1b1): cheaper_to_import, 0 kWh, cheaper_to_import_kwh 17.31. The request the allocator receives drains 2.40 kWh from 05:15 to 08:00 and gives each night slot 2.18-2.38 kWh (the 3.5 kW import ceiling less the house load, x 0.85), not the 2.975 kWh the reporter quotes.",
+    "EXPECTED is a range, not the reporter's 7.9 kWh: that figure comes from their real consumption. On these inputs a plan that pays the drain once for the group of night slots needs about 6-7 kWh."
+  ],
+  "level": "engine",
+  "xfail": "#834 (Varashi): the drain of the hours left to the grid is checked per slot and no single night slot repays it, so a mid-night re-evaluation plans 0 kWh (cheaper_to_import) although the night slots pay off together",
+  "now": "2026-11-11T03:05:00",
+  "time_zone": "Europe/Amsterdam",
+  "sun": {"sunrise": "07:50", "solar_noon": "12:22"},
+  "prices": {
+    "slot_minutes": 60,
+    "blocks": [
+      {"start": "2026-11-11T00:00:00", "end": "2026-11-11T01:00:00", "price": 0.390},
+      {"start": "2026-11-11T01:00:00", "end": "2026-11-11T02:00:00", "price": 0.370},
+      {"start": "2026-11-11T02:00:00", "end": "2026-11-11T03:00:00", "price": 0.360},
+      {"start": "2026-11-11T03:00:00", "end": "2026-11-11T04:00:00", "price": 0.357},
+      {"start": "2026-11-11T04:00:00", "end": "2026-11-11T05:00:00", "price": 0.359},
+      {"start": "2026-11-11T05:00:00", "end": "2026-11-11T06:00:00", "price": 0.366},
+      {"start": "2026-11-11T06:00:00", "end": "2026-11-11T07:00:00", "price": 0.408},
+      {"start": "2026-11-11T07:00:00", "end": "2026-11-11T08:00:00", "price": 0.452},
+      {"start": "2026-11-11T08:00:00", "end": "2026-11-11T09:00:00", "price": 0.55},
+      {"start": "2026-11-11T09:00:00", "end": "2026-11-11T10:00:00", "price": 0.57},
+      {"start": "2026-11-11T10:00:00", "end": "2026-11-11T11:00:00", "price": 0.55},
+      {"start": "2026-11-11T11:00:00", "end": "2026-11-11T12:00:00", "price": 0.53},
+      {"start": "2026-11-11T12:00:00", "end": "2026-11-11T14:00:00", "price": 0.51},
+      {"start": "2026-11-11T14:00:00", "end": "2026-11-11T15:00:00", "price": 0.52},
+      {"start": "2026-11-11T15:00:00", "end": "2026-11-11T16:00:00", "price": 0.54},
+      {"start": "2026-11-11T16:00:00", "end": "2026-11-11T17:00:00", "price": 0.57},
+      {"start": "2026-11-11T17:00:00", "end": "2026-11-11T19:00:00", "price": 0.60},
+      {"start": "2026-11-11T19:00:00", "end": "2026-11-11T20:00:00", "price": 0.56},
+      {"start": "2026-11-11T20:00:00", "end": "2026-11-11T21:00:00", "price": 0.47},
+      {"start": "2026-11-11T21:00:00", "end": "2026-11-11T22:00:00", "price": 0.44},
+      {"start": "2026-11-11T22:00:00", "end": "2026-11-11T23:00:00", "price": 0.42},
+      {"start": "2026-11-11T23:00:00", "end": "2026-11-12T00:00:00", "price": 0.40}
+    ]
+  },
+  "consumption": {
+    "profile_kw": [
+      {"from": "00:00", "kw": 0.70},
+      {"from": "05:00", "kw": 0.80},
+      {"from": "06:00", "kw": 0.90},
+      {"from": "08:00", "kw": 0.65},
+      {"from": "17:00", "kw": 0.90},
+      {"from": "22:00", "kw": 0.70}
+    ]
+  },
+  "solar": {"remaining_kwh": 2.8, "periods": []},
+  "fleet": [
+    {"capacity_kwh": 5.12, "soc": 35, "min_soc": 12, "max_soc": 100, "max_charge_w": 2500, "max_discharge_w": 2500},
+    {"capacity_kwh": 5.12, "soc": 35, "min_soc": 12, "max_soc": 100, "max_charge_w": 2500, "max_discharge_w": 2500},
+    {"capacity_kwh": 5.12, "soc": 35, "min_soc": 12, "max_soc": 100, "max_charge_w": 2500, "max_discharge_w": 2500}
+  ],
+  "settings": {
+    "max_price_threshold": 0.453,
+    "min_arbitrage_margin": 0.04,
+    "round_trip_efficiency": 0.86,
+    "discharge_reserve": false,
+    "peak_shaving": {"limit_w": 3500, "soc_threshold": 25},
+    "contracted_power_w": 3500,
+    "guaranteed_floor_soc": null,
+    "safety_margin_kwh": 0.0
+  },
+  "expected": {
+    "windows": [
+      {"start": "2026-11-11T03:00:00", "end": "2026-11-11T07:00:00", "min_kwh": 5.0, "max_kwh": 10.0},
+      {"start": "2026-11-11T08:00:00", "end": "2026-11-11T20:00:00", "max_kwh": 0.0}
+    ]
+  }
+}
