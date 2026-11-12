@@ -252,11 +252,22 @@ def distribute_solar_forecast(
         total_share = sum(shares.values())
         if total_share > EPSILON:
             if normalize_future:
-                # ``forecast`` is already the energy from now on, so allocate
-                # all of it over the provided future slots.  This is the one
-                # intentional renormalisation; legacy ``today`` keeps the old
-                # full-day behaviour above.
-                return {slot: forecast * share / total_share for slot, share in shares.items()}
+                # ``forecast`` is the rest of TODAY: next-day slots get none,
+                # and a horizon that stops before sunset gets only its share
+                # (the remainder falls after it).
+                first = min(slots, key=lambda s: s.start)
+                day = first.start.date()
+                shares = {s: (sh if s.start.date() <= day else 0.0) for s, sh in shares.items()}
+                total_share = sum(shares.values())
+                try:
+                    h = first.start.hour + first.start.minute / 60.0 + first.start.second / 3600.0
+                    rest = max(0.0, min(1.0, 1.0 - float(fraction_fn(h))))
+                except (TypeError, ValueError, AttributeError):
+                    rest = total_share
+                denom = max(rest, total_share)
+                if denom <= EPSILON:
+                    return {slot: 0.0 for slot in slots}
+                return {slot: forecast * share / denom for slot, share in shares.items()}
             return {slot: forecast * share for slot, share in shares.items()}
         return {slot: 0.0 for slot in slots}
 
