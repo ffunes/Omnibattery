@@ -265,6 +265,9 @@ class PricingManager:
     # Per-cycle state messages: INFO on a change, DEBUG while it repeats.
     _state_log_prev: str | None = None
     _state_log_cur: str | None = None
+    # Real-Time Price: (when, average SOC, price, plan stamp) of the last
+    # "charging not needed" decision, reused while none of them has moved.
+    _rt_not_needed: tuple | None = None
 
     def __init__(self, hass: "HomeAssistant", controller: Any) -> None:
         self._hass = hass
@@ -7581,13 +7584,39 @@ class PricingManager:
                     reason,
                 )
             else:
-                # Evaluate whether charging is actually needed before starting
-                decision_data = await self._realtime_decision()
-                self._controller._last_decision_data = decision_data
-                self._controller._realtime_eval_date = self._decision_day(
-                    self._now()
+                # Evaluate whether charging is actually needed before starting.
+                # A "not needed" answer stands until something it was built on
+                # moves: redoing the whole balance every cycle of a cheap
+                # period only repeats it.
+                now = self._now()
+                automatic = [
+                    c for c in self._controller.coordinators
+                    if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+                ]
+                avg_soc = (
+                    sum(c.data.get("battery_soc", 0) or 0 for c in automatic)
+                    / max(1, len(automatic))
                 )
-                if decision_data["should_charge"]:
+                # Stamped by controller.invalidate_predictive_plan().
+                plan_stamp = getattr(self._controller, "_dp_config_dirty_at", None)
+                cached = self._rt_not_needed
+                if (
+                    cached is not None
+                    and abs((now - cached[0]).total_seconds()) < 300
+                    and abs(avg_soc - cached[1]) < 1
+                    and cached[2:] == (current_price, plan_stamp)
+                ):
+                    should_charge = False
+                else:
+                    decision_data = await self._realtime_decision()
+                    self._controller._last_decision_data = decision_data
+                    self._controller._realtime_eval_date = self._decision_day(now)
+                    should_charge = decision_data["should_charge"]
+                    self._rt_not_needed = (
+                        None if should_charge
+                        else (now, avg_soc, current_price, plan_stamp)
+                    )
+                if should_charge:
                     self._controller._realtime_price_charging = True
                     self._controller._grid_charging_initialized = False
                     self._controller.grid_charging_active = True

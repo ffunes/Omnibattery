@@ -8,7 +8,7 @@ nothing regulating the grid import.
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 
 from custom_components.omnibattery.pricing.engine import PricingManager
@@ -182,3 +182,92 @@ def test_new_day_stop_records_no_shortfall():
     _assert_stopped(env, shortfall_recorded=False)
     assert env.controller._last_decision_data == {"should_charge": False}
     assert env.controller._predictive_charge_target_soc is None
+
+
+# ---------------------------------------------------------------------------
+# Cheap price, charge not needed: the decision is not redone every cycle
+# ---------------------------------------------------------------------------
+
+def test_not_needed_decision_is_reused_between_cycles():
+    env = _engine(charging=False)
+
+    for _ in range(5):
+        _cycle(env)
+        env.clock["now"] += timedelta(seconds=2.5)
+
+    assert len(env.calls) == 1
+    assert env.controller._last_decision_data == {"should_charge": False}
+    assert env.controller.grid_charging_active is False
+
+
+def test_not_needed_decision_is_redone_when_something_moved():
+    env = _engine(charging=False)
+    _cycle(env)
+    _cycle(env)
+    assert len(env.calls) == 1
+
+    def _one_more(expected):
+        _cycle(env)
+        assert len(env.calls) == expected
+        _cycle(env)
+        assert len(env.calls) == expected
+
+    env.clock["now"] += timedelta(minutes=4, seconds=59)
+    _cycle(env)
+    assert len(env.calls) == 1
+    env.clock["now"] += timedelta(seconds=1)
+    _one_more(2)
+
+    env.coord.data["battery_soc"] = 39.5
+    _cycle(env)
+    assert len(env.calls) == 2
+    env.coord.data["battery_soc"] = 39.0
+    _one_more(3)
+
+    env.price["value"] = 0.11
+    _one_more(4)
+
+    # controller.invalidate_predictive_plan() stamps this.
+    env.controller._dp_config_dirty_at = 1234.5
+    _one_more(5)
+
+
+def test_reused_decision_leaves_the_last_decision_data_alone():
+    env = _engine(charging=False)
+    _cycle(env)
+    marker = {"should_charge": False, "marker": True}
+    env.controller._last_decision_data = marker
+    env.controller._realtime_eval_date = None
+
+    _cycle(env)
+
+    assert env.controller._last_decision_data is marker
+    assert env.controller._realtime_eval_date is None
+
+
+def test_manual_batteries_do_not_count_for_the_soc_trigger():
+    env = _engine(charging=False)
+    manual = _Coord()
+    manual.battery_manual_mode_enabled = True
+    env.controller.coordinators.append(manual)
+    _cycle(env)
+
+    manual.data["battery_soc"] = 90.0
+    _cycle(env)
+
+    assert len(env.calls) == 1
+
+
+def test_should_charge_decision_is_not_cached():
+    env = _engine(charging=False, should_charge=True)
+    _cycle(env)
+    assert env.controller.grid_charging_active is True
+    assert env.engine._rt_not_needed is None
+
+    # Price rises, then turns cheap again: a fresh decision, no stale reuse.
+    env.price["value"] = 0.25
+    _cycle(env)
+    env.price["value"] = 0.10
+    _cycle(env)
+
+    assert len(env.calls) == 2
