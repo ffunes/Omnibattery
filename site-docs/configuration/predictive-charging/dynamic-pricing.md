@@ -101,7 +101,7 @@ Optional controls in the **Control** tab solve different problems:
     The daily plan can be rebuilt by these events:
 
     - **Before a selected period:** one hour before a future selected period, Omnibattery checks the remaining balance. It silently removes the period if energy is now sufficient or confirms it by notification when the deficit remains. Back-to-back periods are not reconsidered while the previous one is charging.
-    - **Late-day assessment:** when solar start has been detected, this runs about 1.5 hours before estimated production ends; otherwise it uses 16:00. It adds eligible future periods only for a remaining deficit of at least 0.3 kWh. Those periods pass the same price ceiling and arbitrage margin as the daily plan.
+    - **Late-day assessment:** when solar start has been detected, this runs about 1.5 hours before estimated production ends; otherwise it uses 16:00. It rebuilds the remaining-horizon plan, exactly like the other rebuilds.
     - **SOC drop:** a chronological plan rebuilds after a five-percentage-point drop from the last evaluated fleet average. A fallback non-chronological plan retains the 30-point threshold. An SOC rise does not trigger it.
     - **Solar forecast revision:** a change of at least 1.5 kWh in either direction rebuilds the plan, with a 30-minute cooldown and a maximum of four such rebuilds per day. Measured solar since the saved reading is removed before comparison, and an unavailable sensor is not treated as a collapsed forecast.
     - **Excluded-device solar claim:** a material change in an excluded load, such as an electric vehicle session, rebuilds the plan because that device changes how much forecast solar is available to the battery.
