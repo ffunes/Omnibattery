@@ -5,6 +5,7 @@
 ### Changed
 
 - **Predictive charging no longer floods the log at INFO**: the lines written on every control cycle during a charge or a window are now DEBUG; INFO is logged on state changes only.
+- **Dynamic Pricing: the round-trip losses always count** (#858): with **Minimum Arbitrage Margin** at 0 or empty (the default) the plan checked no economics and bought energy for every hour at the cheapest earlier slot, even when importing it when used cost less than storing it with the losses, for example a charge at the start of each hour of a falling night. Now 0 means "losses only": a slot is charged only when the energy is worth more later than it costs now after the round-trip efficiency. A margin above 0 adds profit on top, as before. Weekly Full Charge, Guaranteed Minimum SOC and slots at or below 0 are not affected.
 - **Dynamic Pricing: slots at the same price are booked back to back** (#571, #858): among slots of equal price the plan now prefers one next to a slot already booked, so the charge runs in one block instead of scattered quarter-hours. The price paid does not change.
 - **Real-Time Price: no full energy balance on every control cycle**: while the price is cheap and no charge is needed, the last decision is reused until 5 minutes pass, the SOC moves 1 point, the price changes or a setting the plan reads is changed.
 
@@ -21,7 +22,7 @@
 
 ### Internal
 
-- The pricing engine reads the time from one injectable clock, and reported nights run as data-file regression scenarios (`tests/scenarios/`); one of them (#858) is marked as a known failure until its fix lands.
+- The pricing engine reads the time from one injectable clock, and reported nights run as data-file regression scenarios (`tests/scenarios/`).
 
 ## [1.6.1b2] - 2026-11-11
 
