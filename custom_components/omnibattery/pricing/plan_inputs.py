@@ -11,8 +11,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Sequence
 
+from ..const import FLOOR_HYSTERESIS_PCT
 from ..solar_forecast import solar_forecast_period_energy_between
-from .chronological import EnergyInterval, normalize_energy_shape
+from .chronological import (
+    EnergyDeadline,
+    EnergyInterval,
+    build_energy_deadlines,
+    normalize_energy_shape,
+)
 from .solar_timeline import SolarTimelineResult, build_solar_timeline
 
 
@@ -313,4 +319,162 @@ def fleet_plan_state(
     )
     return FleetPlanState(
         total_capacity, weighted_min_soc, usable, room_kwh, sum(room_kwh)
+    )
+
+
+def weekly_reserve(
+    intervals: Sequence[EnergyInterval],
+    *,
+    usable: float,
+    headroom: float,
+    now: datetime,
+    weekly_from_now: bool,
+    weekly_window_end: datetime | None,
+    solar_end: datetime | None,
+) -> dict[str, Any]:
+    """``weekly_reserve_*`` decision values of a pending weekly full charge.
+
+    ``weekly_from_now`` books the run from ``now`` up to ``weekly_window_end``;
+    otherwise it starts when the target day's sun is over (``solar_end``).
+    """
+    # An unreliable solar forecast is why this reservation exists;
+    # crediting it would reproduce #489.  Over-reserving is safe because
+    # the pre-slot re-evaluation cancels or resizes against the real SOC.
+    # After the target day's sun the gap is bought from now on, up
+    # to the sunrise ending the run.
+    drained_until = weekly_window_end if weekly_from_now else solar_end
+    projected_usable = min(
+        usable + headroom,
+        max(
+            0.0,
+            usable
+            - sum(
+                item.consumption_kwh
+                for item in intervals
+                if drained_until is not None and item.end <= drained_until
+            ),
+        ),
+    )
+    values: dict[str, Any] = {
+        "weekly_reserve_not_before": (
+            now if weekly_from_now else solar_end
+        ).isoformat()
+    }
+    if weekly_window_end is not None:
+        values["weekly_reserve_not_after"] = weekly_window_end.isoformat()
+    values["weekly_reserve_kwh"] = max(
+        0.0, usable + headroom - projected_usable
+    )
+    return values
+
+
+@dataclass(frozen=True)
+class GuaranteedFloor:
+    """Plan inputs and decision values once the guaranteed floor is required."""
+
+    deadlines: list[EnergyDeadline]
+    premium_kwh: float
+    required: float
+    energy_deficit_kwh: float
+    planned_grid_charge_kwh: float
+    guaranteed_floor_deadline: str
+
+
+def guaranteed_floor(
+    intervals: Sequence[EnergyInterval],
+    deadlines: list[EnergyDeadline],
+    *,
+    usable: float,
+    headroom: float,
+    required: float,
+    premium_kwh: float,
+    floor: float,
+    batteries: Sequence[tuple[float, float, float]],
+    solar_start: datetime,
+    energy_deficit_kwh: float,
+) -> GuaranteedFloor | None:
+    """Deadlines that keep every battery at the guaranteed ``floor`` until sunrise.
+
+    ``deadlines`` are the ordinary ones; each battery is ``(capacity_kwh, soc,
+    floor_soc)``, SOCs in percent. Returns ``None`` when the floor needs
+    nothing beyond the ordinary plan.
+    """
+    reserve = sum(
+        max(0.0, floor - floor_soc) / 100.0 * cap
+        for cap, _soc, floor_soc in batteries
+    )
+    pre_solar = [item for item in intervals if item.end <= solar_start]
+    # Already sitting under the floor is a requirement by itself.
+    # ``build_energy_deadlines`` only reports the projected drain
+    # and the clamp below hides that gap, so a battery that is held
+    # (peak shaving, no-discharge window) and never drains produced
+    # no floor deadline at all; its deficit then bound itself to
+    # tomorrow's depletion, past the projected solar fill, which no
+    # configured window can serve ("no energy quota").
+    gap = max(0.0, reserve - usable)
+    floor_deadlines = [
+        EnergyDeadline(
+            item.deadline,
+            item.required_cumulative_kwh + gap,
+            item.kind,
+            item.projected_soc_pct,
+        )
+        for item in build_energy_deadlines(
+            pre_solar,
+            max(0.0, usable - reserve),
+            kind="guaranteed_floor",
+        )
+    ]
+    floor_required = max(
+        (item.required_cumulative_kwh for item in floor_deadlines),
+        default=gap,
+    )
+    if gap > 0.0:
+        floor_deadlines.append(
+            EnergyDeadline(solar_start, floor_required, "guaranteed_floor")
+        )
+    hysteresis_kwh = (
+        sum(cap for cap, _soc, _floor_soc in batteries)
+        * FLOOR_HYSTERESIS_PCT
+        / 100.0
+    )
+    # The reactive trigger bands *each* battery; re-checking the
+    # band against the fleet total instead silently dropped a
+    # deficit the controller had already committed to.
+    under_band = any(
+        soc < floor - FLOOR_HYSTERESIS_PCT for _cap, soc, _floor_soc in batteries
+    )
+    if not (floor_required > hysteresis_kwh or (under_band and gap > 0.0)):
+        return None
+    # The floor requirement dominates ordinary depletion until
+    # sunrise. Preserve later, larger ordinary requirements.
+    combined: list[EnergyDeadline] = []
+    maximum = 0.0
+    for item in sorted(
+        deadlines + floor_deadlines,
+        key=lambda value: value.deadline,
+    ):
+        if item.required_cumulative_kwh > maximum + 1e-9:
+            combined.append(item)
+            maximum = item.required_cumulative_kwh
+    premium_kwh = max(
+        premium_kwh,
+        floor_required
+        - max(
+            (
+                item.required_cumulative_kwh
+                for item in deadlines
+                if item.deadline <= solar_start
+            ),
+            default=0.0,
+        ),
+    )
+    required = max(required, floor_required)
+    return GuaranteedFloor(
+        deadlines=combined,
+        premium_kwh=premium_kwh,
+        required=required,
+        energy_deficit_kwh=max(energy_deficit_kwh, floor_required),
+        planned_grid_charge_kwh=min(required, headroom),
+        guaranteed_floor_deadline=solar_start.isoformat(),
     )

@@ -114,6 +114,8 @@ from .chronological import (
 from .plan_inputs import (  # noqa: F401  (_apply_excluded_demand_claim: re-exported)
     _apply_excluded_demand_claim,
     fleet_plan_state,
+    guaranteed_floor,
+    weekly_reserve,
     battery_idle_intervals,
     consumption_shape,
     solar_timeline,
@@ -3693,35 +3695,16 @@ class PricingManager:
                     or (solar_end_dt is not None and solar_end_dt > now)
                 )
             ):
-                # An unreliable solar forecast is why this reservation exists;
-                # crediting it would reproduce #489.  Over-reserving is safe because
-                # the pre-slot re-evaluation cancels or resizes against the real SOC.
-                # After the target day's sun the gap is bought from now on, up
-                # to the sunrise ending the run.
-                drained_until = (
-                    weekly_window_end if weekly_from_now else solar_end_dt
-                )
-                projected_usable = min(
-                    usable + headroom,
-                    max(
-                        0.0,
-                        usable
-                        - sum(
-                            item.consumption_kwh
-                            for item in intervals
-                            if drained_until is not None and item.end <= drained_until
-                        ),
-                    ),
-                )
-                decision_data["weekly_reserve_not_before"] = (
-                    now if weekly_from_now else solar_end_dt
-                ).isoformat()
-                if weekly_window_end is not None:
-                    decision_data["weekly_reserve_not_after"] = (
-                        weekly_window_end.isoformat()
+                decision_data.update(
+                    weekly_reserve(
+                        intervals,
+                        usable=usable,
+                        headroom=headroom,
+                        now=now,
+                        weekly_from_now=weekly_from_now,
+                        weekly_window_end=weekly_window_end,
+                        solar_end=solar_end_dt,
                     )
-                decision_data["weekly_reserve_kwh"] = max(
-                    0.0, usable + headroom - projected_usable
                 )
             deadlines = build_energy_deadlines(
                 intervals, usable, usable_capacity_kwh=usable + headroom
@@ -3785,90 +3768,40 @@ class PricingManager:
                         or 0.0
                     ),
                 )
-                reserve = sum(
-                    max(0.0, floor - floor_of(c)) / 100.0
-                    * float(c.data.get("battery_total_energy", 0) or 0)
-                    for c in eligible
-                )
-                pre_solar = [item for item in intervals if item.end <= solar_start_dt]
-                # Already sitting under the floor is a requirement by itself.
-                # ``build_energy_deadlines`` only reports the projected drain
-                # and the clamp below hides that gap, so a battery that is held
-                # (peak shaving, no-discharge window) and never drains produced
-                # no floor deadline at all; its deficit then bound itself to
-                # tomorrow's depletion, past the projected solar fill, which no
-                # configured window can serve ("no energy quota").
-                gap = max(0.0, reserve - usable)
-                floor_deadlines = [
-                    EnergyDeadline(
-                        item.deadline,
-                        item.required_cumulative_kwh + gap,
-                        item.kind,
-                        item.projected_soc_pct,
-                    )
-                    for item in build_energy_deadlines(
-                        pre_solar,
-                        max(0.0, usable - reserve),
-                        kind="guaranteed_floor",
-                    )
-                ]
-                floor_required = max(
-                    (item.required_cumulative_kwh for item in floor_deadlines),
-                    default=gap,
-                )
-                if gap > 0.0:
-                    floor_deadlines.append(
-                        EnergyDeadline(
-                            solar_start_dt, floor_required, "guaranteed_floor"
+                result = guaranteed_floor(
+                    intervals,
+                    deadlines,
+                    usable=usable,
+                    headroom=headroom,
+                    required=required,
+                    premium_kwh=premium_kwh,
+                    floor=floor,
+                    batteries=[
+                        (
+                            float(c.data.get("battery_total_energy", 0) or 0),
+                            float(c.data.get("battery_soc", 0) or 0),
+                            floor_of(c),
                         )
-                    )
-                hysteresis_kwh = sum(
-                    float(c.data.get("battery_total_energy", 0) or 0)
-                    for c in eligible
-                ) * FLOOR_HYSTERESIS_PCT / 100.0
-                # The reactive trigger bands *each* battery; re-checking the
-                # band against the fleet total instead silently dropped a
-                # deficit the controller had already committed to.
-                under_band = any(
-                    float(c.data.get("battery_soc", 0) or 0)
-                    < floor - FLOOR_HYSTERESIS_PCT
-                    for c in eligible
+                        for c in eligible
+                    ],
+                    solar_start=solar_start_dt,
+                    energy_deficit_kwh=float(
+                        decision_data.get("energy_deficit_kwh", 0.0) or 0.0
+                    ),
                 )
-                if floor_required > hysteresis_kwh or (under_band and gap > 0.0):
-                    # The floor requirement dominates ordinary depletion until
-                    # sunrise. Preserve later, larger ordinary requirements.
-                    ordinary_deadlines = deadlines
-                    combined: list = []
-                    maximum = 0.0
-                    for item in sorted(
-                        deadlines + floor_deadlines,
-                        key=lambda value: value.deadline,
-                    ):
-                        if item.required_cumulative_kwh > maximum + 1e-9:
-                            combined.append(item)
-                            maximum = item.required_cumulative_kwh
-                    deadlines = combined
-                    premium_kwh = max(
-                        premium_kwh,
-                        floor_required
-                        - max(
-                            (
-                                item.required_cumulative_kwh
-                                for item in ordinary_deadlines
-                                if item.deadline <= solar_start_dt
-                            ),
-                            default=0.0,
-                        ),
-                    )
-                    required = max(required, floor_required)
+                if result is not None:
+                    deadlines = result.deadlines
+                    premium_kwh = result.premium_kwh
+                    required = result.required
                     decision_data["should_charge"] = True
                     decision_data["floor_active"] = True
-                    decision_data["energy_deficit_kwh"] = max(
-                        float(decision_data.get("energy_deficit_kwh", 0.0) or 0.0),
-                        floor_required,
+                    decision_data["energy_deficit_kwh"] = result.energy_deficit_kwh
+                    decision_data["planned_grid_charge_kwh"] = (
+                        result.planned_grid_charge_kwh
                     )
-                    decision_data["planned_grid_charge_kwh"] = min(required, headroom)
-                    decision_data["guaranteed_floor_deadline"] = solar_start_dt.isoformat()
+                    decision_data["guaranteed_floor_deadline"] = (
+                        result.guaranteed_floor_deadline
+                    )
             power_kw = min(
                 self._contracted_charge_ceiling(),
                 max(0.0, float(self._controller.max_charge_capacity)),
