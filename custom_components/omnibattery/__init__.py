@@ -1217,6 +1217,8 @@ class ChargeDischargeController:
         self._missing_sensors_reported = None  # entity ids named by the current Repairs issue
         self._dp_evening_reevaluated_date = None  # Prevent multiple evening re-evaluations per day
         self._dp_last_eval_soc = None  # avg SOC at last DP (re)eval; SOC-drop reeval reference (#411)
+        self._dp_eval_projection = None  # ((time, delta_kwh), ...) the published plan projects from the last eval
+        self._dp_eval_projection_capacity_kwh = 0.0  # fleet kWh converting that projection to SOC points
         self._dp_last_eval_excluded_claim_kwh = None  # excluded-device solar claim at last DP (re)eval (#341)
         self._dp_excluded_demand_reeval_at = None  # last claim-driven re-evaluation (cooldown)
         self._dp_excluded_demand_reeval_count = 0  # claim-driven re-evaluations today (daily cap)
