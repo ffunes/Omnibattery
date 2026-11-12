@@ -7509,6 +7509,17 @@ class PricingManager:
             self._net_scalar_grid_carried_load(decision_data, now=self._now())
         return decision_data
 
+    def _stop_realtime_charge(self, *, record_shortfall: bool = True) -> None:
+        """End a Real-Time Price charge and hand the batteries back to PD control."""
+        if record_shortfall:
+            self._record_predictive_shortfall("realtime_price")
+        self._reset_predictive_demand_runtime()
+        self._controller._realtime_price_charging = False
+        self._controller.grid_charging_active = False
+        self._controller._grid_charging_initialized = False
+        self._controller.previous_power = 0
+        self._controller.previous_error = 0
+
     async def handle_realtime_price_predictive_charging(self) -> None:
         """Handle predictive charging in real-time price mode (called every 2.5s).
 
@@ -7522,13 +7533,7 @@ class PricingManager:
         if current_price is None:
             _LOGGER.debug("Real-time price: price sensor %s unavailable", self._controller.price_sensor)
             if self._controller._realtime_price_charging:
-                self._record_predictive_shortfall("realtime_price")
-                self._reset_predictive_demand_runtime()
-                self._controller._realtime_price_charging = False
-                self._controller.grid_charging_active = False
-                self._controller._grid_charging_initialized = False
-                self._controller.previous_power = 0
-                self._controller.previous_error = 0
+                self._stop_realtime_charge()
             return
 
         # Determine threshold: average sensor if configured, else fixed threshold
@@ -7545,18 +7550,14 @@ class PricingManager:
 
         if threshold is None:
             _LOGGER.debug("Real-time price: no threshold configured, skipping")
+            if self._controller._realtime_price_charging:
+                self._stop_realtime_charge()
             return
 
         # Override active — stop any active charging and do not start new
         if self._controller.predictive_charging_overridden:
             if self._controller._realtime_price_charging or self._controller.grid_charging_active:
-                self._record_predictive_shortfall("realtime_price")
-                self._reset_predictive_demand_runtime()
-                self._controller._realtime_price_charging = False
-                self._controller.grid_charging_active = False
-                self._controller._grid_charging_initialized = False
-                self._controller.previous_power = 0
-                self._controller.previous_error = 0
+                self._stop_realtime_charge()
             return
 
         price_is_cheap = current_price <= threshold
@@ -7601,13 +7602,7 @@ class PricingManager:
                     )
 
         elif not price_is_cheap and self._controller._realtime_price_charging:
-            self._record_predictive_shortfall("realtime_price")
-            self._reset_predictive_demand_runtime()
-            self._controller._realtime_price_charging = False
-            self._controller.grid_charging_active = False
-            self._controller._grid_charging_initialized = False
-            self._controller.previous_power = 0
-            self._controller.previous_error = 0
+            self._stop_realtime_charge()
             _LOGGER.info(
                 "Real-time price: charging STOPPED (price=%.4f > threshold=%.4f)",
                 current_price, threshold,
@@ -7631,13 +7626,8 @@ class PricingManager:
                         "Real-time price: new day while charging — target re-evaluated",
                     )
                 else:
-                    self._reset_predictive_demand_runtime()
-                    self._controller._realtime_price_charging = False
-                    self._controller.grid_charging_active = False
-                    self._controller._grid_charging_initialized = False
+                    self._stop_realtime_charge(record_shortfall=False)
                     self._controller._predictive_charge_target_soc = None
-                    self._controller.previous_power = 0
-                    self._controller.previous_error = 0
                     _LOGGER.info(
                         "Real-time price: new day — charging no longer needed, STOPPED",
                     )
@@ -7645,13 +7635,7 @@ class PricingManager:
         if self._controller.grid_charging_active:
             if not self._controller._is_operation_allowed(is_charging=True):
                 # Time slot ended while charging was active — stop immediately
-                self._record_predictive_shortfall("realtime_price")
-                self._reset_predictive_demand_runtime()
-                self._controller._realtime_price_charging = False
-                self._controller.grid_charging_active = False
-                self._controller._grid_charging_initialized = False
-                self._controller.previous_power = 0
-                self._controller.previous_error = 0
+                self._stop_realtime_charge()
                 _LOGGER.debug(
                     "Real-time price: charging stopped — outside charge time slot",
                 )
