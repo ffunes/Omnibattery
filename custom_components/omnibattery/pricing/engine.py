@@ -265,6 +265,9 @@ class PricingManager:
     # Per-cycle state messages: INFO on a change, DEBUG while it repeats.
     _state_log_prev: str | None = None
     _state_log_cur: str | None = None
+    # Real-Time Price: (when, average SOC, price, plan stamp) of the last
+    # "charging not needed" decision, reused while none of them has moved.
+    _rt_not_needed: tuple | None = None
 
     def __init__(self, hass: "HomeAssistant", controller: Any) -> None:
         self._hass = hass
@@ -7509,6 +7512,17 @@ class PricingManager:
             self._net_scalar_grid_carried_load(decision_data, now=self._now())
         return decision_data
 
+    def _stop_realtime_charge(self, *, record_shortfall: bool = True) -> None:
+        """End a Real-Time Price charge and hand the batteries back to PD control."""
+        if record_shortfall:
+            self._record_predictive_shortfall("realtime_price")
+        self._reset_predictive_demand_runtime()
+        self._controller._realtime_price_charging = False
+        self._controller.grid_charging_active = False
+        self._controller._grid_charging_initialized = False
+        self._controller.previous_power = 0
+        self._controller.previous_error = 0
+
     async def handle_realtime_price_predictive_charging(self) -> None:
         """Handle predictive charging in real-time price mode (called every 2.5s).
 
@@ -7522,13 +7536,7 @@ class PricingManager:
         if current_price is None:
             _LOGGER.debug("Real-time price: price sensor %s unavailable", self._controller.price_sensor)
             if self._controller._realtime_price_charging:
-                self._record_predictive_shortfall("realtime_price")
-                self._reset_predictive_demand_runtime()
-                self._controller._realtime_price_charging = False
-                self._controller.grid_charging_active = False
-                self._controller._grid_charging_initialized = False
-                self._controller.previous_power = 0
-                self._controller.previous_error = 0
+                self._stop_realtime_charge()
             return
 
         # Determine threshold: average sensor if configured, else fixed threshold
@@ -7545,18 +7553,14 @@ class PricingManager:
 
         if threshold is None:
             _LOGGER.debug("Real-time price: no threshold configured, skipping")
+            if self._controller._realtime_price_charging:
+                self._stop_realtime_charge()
             return
 
         # Override active — stop any active charging and do not start new
         if self._controller.predictive_charging_overridden:
             if self._controller._realtime_price_charging or self._controller.grid_charging_active:
-                self._record_predictive_shortfall("realtime_price")
-                self._reset_predictive_demand_runtime()
-                self._controller._realtime_price_charging = False
-                self._controller.grid_charging_active = False
-                self._controller._grid_charging_initialized = False
-                self._controller.previous_power = 0
-                self._controller.previous_error = 0
+                self._stop_realtime_charge()
             return
 
         price_is_cheap = current_price <= threshold
@@ -7580,13 +7584,39 @@ class PricingManager:
                     reason,
                 )
             else:
-                # Evaluate whether charging is actually needed before starting
-                decision_data = await self._realtime_decision()
-                self._controller._last_decision_data = decision_data
-                self._controller._realtime_eval_date = self._decision_day(
-                    self._now()
+                # Evaluate whether charging is actually needed before starting.
+                # A "not needed" answer stands until something it was built on
+                # moves: redoing the whole balance every cycle of a cheap
+                # period only repeats it.
+                now = self._now()
+                automatic = [
+                    c for c in self._controller.coordinators
+                    if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+                ]
+                avg_soc = (
+                    sum(c.data.get("battery_soc", 0) or 0 for c in automatic)
+                    / max(1, len(automatic))
                 )
-                if decision_data["should_charge"]:
+                # Stamped by controller.invalidate_predictive_plan().
+                plan_stamp = getattr(self._controller, "_dp_config_dirty_at", None)
+                cached = self._rt_not_needed
+                if (
+                    cached is not None
+                    and abs((now - cached[0]).total_seconds()) < 300
+                    and abs(avg_soc - cached[1]) < 1
+                    and cached[2:] == (current_price, plan_stamp)
+                ):
+                    should_charge = False
+                else:
+                    decision_data = await self._realtime_decision()
+                    self._controller._last_decision_data = decision_data
+                    self._controller._realtime_eval_date = self._decision_day(now)
+                    should_charge = decision_data["should_charge"]
+                    self._rt_not_needed = (
+                        None if should_charge
+                        else (now, avg_soc, current_price, plan_stamp)
+                    )
+                if should_charge:
                     self._controller._realtime_price_charging = True
                     self._controller._grid_charging_initialized = False
                     self._controller.grid_charging_active = True
@@ -7601,13 +7631,7 @@ class PricingManager:
                     )
 
         elif not price_is_cheap and self._controller._realtime_price_charging:
-            self._record_predictive_shortfall("realtime_price")
-            self._reset_predictive_demand_runtime()
-            self._controller._realtime_price_charging = False
-            self._controller.grid_charging_active = False
-            self._controller._grid_charging_initialized = False
-            self._controller.previous_power = 0
-            self._controller.previous_error = 0
+            self._stop_realtime_charge()
             _LOGGER.info(
                 "Real-time price: charging STOPPED (price=%.4f > threshold=%.4f)",
                 current_price, threshold,
@@ -7631,13 +7655,8 @@ class PricingManager:
                         "Real-time price: new day while charging — target re-evaluated",
                     )
                 else:
-                    self._reset_predictive_demand_runtime()
-                    self._controller._realtime_price_charging = False
-                    self._controller.grid_charging_active = False
-                    self._controller._grid_charging_initialized = False
+                    self._stop_realtime_charge(record_shortfall=False)
                     self._controller._predictive_charge_target_soc = None
-                    self._controller.previous_power = 0
-                    self._controller.previous_error = 0
                     _LOGGER.info(
                         "Real-time price: new day — charging no longer needed, STOPPED",
                     )
@@ -7645,13 +7664,7 @@ class PricingManager:
         if self._controller.grid_charging_active:
             if not self._controller._is_operation_allowed(is_charging=True):
                 # Time slot ended while charging was active — stop immediately
-                self._record_predictive_shortfall("realtime_price")
-                self._reset_predictive_demand_runtime()
-                self._controller._realtime_price_charging = False
-                self._controller.grid_charging_active = False
-                self._controller._grid_charging_initialized = False
-                self._controller.previous_power = 0
-                self._controller.previous_error = 0
+                self._stop_realtime_charge()
                 _LOGGER.debug(
                     "Real-time price: charging stopped — outside charge time slot",
                 )
