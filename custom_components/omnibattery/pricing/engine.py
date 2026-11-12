@@ -1448,6 +1448,25 @@ class PricingManager:
             key=lambda slot: slot.start,
         )
 
+    def _whole_day_average_price(self, now: datetime) -> float | None:
+        """Time-weighted mean price of ``now``'s local day, 00:00 to 24:00.
+
+        None unless the feed still reaches back to the start of the day.
+        """
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+        day_slots = self.price_slots_between(day_start, day_end)
+        if not day_slots or day_slots[0].start > day_start:
+            return None
+        weighted = seconds = 0.0
+        for slot in day_slots:
+            duration = (
+                min(slot.end, day_end) - max(slot.start, day_start)
+            ).total_seconds()
+            weighted += slot.price * duration
+            seconds += duration
+        return weighted / seconds
+
     def _parse_price_data(self, *, horizon_end=None, quiet=False) -> list:
         """Read price sensor and return list[PriceSlot] for remaining slots up to horizon_end.
 
@@ -4450,8 +4469,20 @@ class PricingManager:
             else slots
         )
         if slots:
-            self._controller._dp_daily_avg_price = sum(s.price for s in slots) / len(slots)
-            _LOGGER.debug("Dynamic pricing: daily average price %.4f from %d slots", self._controller._dp_daily_avg_price, len(slots))
+            # The whole local day, elapsed hours included: the reference must
+            # not move with the hour of the evaluation (#569). A feed that no
+            # longer holds the start of today keeps the remaining slots.
+            day_average = self._whole_day_average_price(now)
+            self._controller._dp_daily_avg_price = (
+                day_average
+                if day_average is not None
+                else sum(s.price for s in slots) / len(slots)
+            )
+            _LOGGER.debug(
+                "Dynamic pricing: daily average price %.4f (%s)",
+                self._controller._dp_daily_avg_price,
+                "whole day" if day_average is not None else f"{len(slots)} remaining slots",
+            )
         if not slots:
             # Price data is not required to calculate the projected solar and
             # depletion diagnostics.  Preserve those diagnostics even when the
@@ -4669,6 +4700,16 @@ class PricingManager:
         except (TypeError, ValueError):
             weekly_reserve_not_after = None
         weekly_selected: list[PriceSlot] = []
+        weekly_only = False
+
+        def _extend_with_weekly(base: list[PriceSlot]) -> list[PriceSlot]:
+            if weekly_only:
+                # Without a deficit, this is the informational cheap-hour
+                # calendar.  Arming it would book the pre-dawn slots #489
+                # exists to avoid.
+                return list(weekly_selected)
+            return base + [slot for slot in weekly_selected if slot not in base]
+
         if weekly_reserve_kwh > 0.0 and weekly_reserve_not_before is not None:
             # After the target day's sun, through the night after it: the run
             # ends at that sunrise, so a slot past it charges nothing to 100%.
@@ -4693,16 +4734,9 @@ class PricingManager:
                 now=eval_now,
             )
             if weekly_selected:
-                if deficit_charging_needed:
-                    deficit_selected.extend(
-                        slot for slot in weekly_selected
-                        if slot not in deficit_selected
-                    )
-                else:
-                    # Without a deficit, this is the informational cheap-hour
-                    # calendar.  Arming it would book the pre-dawn slots #489
-                    # exists to avoid.
-                    deficit_selected = list(weekly_selected)
+                weekly_only = not deficit_charging_needed
+                deficit_selected = _extend_with_weekly(deficit_selected)
+                if weekly_only:
                     deficit_hours_needed = weekly_hours_needed
                     deficit_kwh = max(deficit_kwh, weekly_reserve_kwh)
                 deficit_charging_needed = True
@@ -4827,6 +4861,11 @@ class PricingManager:
                         deficit_selected = [
                             allocation.slot for allocation in chronological_plan.allocations
                         ]
+                if weekly_selected:
+                    # The re-selection above knows nothing about the weekly
+                    # reservation: put its slots back, under the same rule.
+                    weekly_selected = [slot for slot in weekly_selected if _safe(slot)]
+                    deficit_selected = _extend_with_weekly(deficit_selected)
             elif not deficit_charging_needed and opportunity_selected:
                 # The legacy no-deficit calendar is informational only.  Do not
                 # resurrect it while relocating a real opportunity, or the safe

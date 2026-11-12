@@ -332,6 +332,107 @@ def test_dynamic_pricing_builds_diagnostics_when_balance_needs_no_charge():
 
 
 # ----------------------------------------------------------------------
+# Daily average price (#569)
+# ----------------------------------------------------------------------
+
+def _daily_average_manager(now, raw_slots):
+    """A manager on a no-deficit day whose price feed holds ``raw_slots``."""
+    async def no_charge_decision():
+        return {
+            "should_charge": False,
+            "avg_soc": 80.0,
+            "energy_deficit_kwh": 0.0,
+            "avg_consumption_kwh": 0.0,
+        }
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    ctrl = _controller(
+        config_entry=SimpleNamespace(data={}, options={}),
+        predictive_charging_enabled=True,
+        predictive_charging_mode=PREDICTIVE_MODE_DYNAMIC_PRICING,
+        max_contracted_power=7000,
+        max_charge_capacity=1200,
+        _should_activate_grid_charging=no_charge_decision,
+        _dp_eval_retry_count=0,
+    )
+    manager = _mgr(ctrl)
+    manager._now = lambda: now
+    manager._raw_price_slots = lambda **_kwargs: (list(raw_slots), "no_slots")
+    manager._maybe_refresh_service_prices = no_op
+    manager._build_curtailment_plan = lambda *_args, **_kwargs: CurtailmentPlan(
+        status="no_risk", reason="none"
+    )
+    manager._send_dynamic_pricing_notification = no_op
+    manager._build_chronological_plan = lambda **_kwargs: None
+    return manager
+
+
+def _evaluated_daily_average(now, raw_slots):
+    manager = _daily_average_manager(now, raw_slots)
+    asyncio.run(
+        manager._evaluate_dynamic_pricing(
+            horizon=DynamicPricingEvaluationHorizon.DAILY,
+        )
+    )
+    return manager._controller._dp_daily_avg_price
+
+
+def _hourly(start, prices):
+    return [
+        PriceSlot(
+            start + timedelta(hours=index),
+            start + timedelta(hours=index + 1),
+            price,
+        )
+        for index, price in enumerate(prices)
+    ]
+
+
+def test_daily_average_price_is_the_same_at_any_hour_of_the_day():
+    day = datetime(2026, 9, 21)
+    # Today 0.00..0.23 (mean 0.115), then an expensive tomorrow.
+    feed = _hourly(day, [hour / 100 for hour in range(24)] + [1.0] * 24)
+
+    at_midnight = _evaluated_daily_average(day.replace(minute=5), feed)
+    at_evening = _evaluated_daily_average(day.replace(hour=18), feed)
+
+    assert at_midnight == pytest.approx(0.115)
+    assert at_evening == pytest.approx(0.115)
+
+
+def test_daily_average_price_weights_slots_by_their_duration():
+    day = datetime(2026, 9, 21)
+    feed = [
+        PriceSlot(day, day + timedelta(hours=12), 0.10),
+        *(
+            PriceSlot(
+                day + timedelta(hours=12, minutes=15 * index),
+                day + timedelta(hours=12, minutes=15 * (index + 1)),
+                0.30,
+            )
+            for index in range(48)
+        ),
+    ]
+
+    assert _evaluated_daily_average(day.replace(hour=13), feed) == pytest.approx(0.20)
+
+
+def test_daily_average_price_of_a_future_only_feed_keeps_the_remaining_slots():
+    """A feed that dropped the elapsed hours cannot give a whole-day figure."""
+    day = datetime(2026, 9, 21)
+    now = day.replace(hour=18)
+    feed = _hourly(now, [0.30] * 6 + [0.10] * 6)
+    manager = _daily_average_manager(now, feed)
+    remaining = manager._parse_price_data(horizon_end=manager.energy_horizon_end(now))
+    expected = sum(slot.price for slot in remaining) / len(remaining)
+
+    assert _evaluated_daily_average(now, feed) == pytest.approx(expected)
+    assert expected != pytest.approx(0.30)
+
+
+# ----------------------------------------------------------------------
 # _is_dp_soc_drop_reeval (SOC-drop upward re-eval, #411)
 # ----------------------------------------------------------------------
 
