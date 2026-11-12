@@ -15,10 +15,11 @@
 - **Weekly Full Charge: reserved slots no longer vanish when Smart Pre-Discharge finds a curtailment risk window**: re-selecting the deficit slots around the window dropped the weekly ones, and on a day with only the weekly charge it booked the pre-dawn slots instead. Weekly slots inside a risk window are still left out and are not moved elsewhere.
 - **Dynamic Pricing: the daily average price covers the whole day** (#569): it was the average of the hours left (plus tomorrow's up to the planning horizon), so the automatic discharge threshold changed with the time of the evaluation and after a restart. Providers that publish only future prices keep the previous figure.
 - **Predictive charging kept the old plan after three more changes**: moving the discharge price threshold, switching price-based discharge control, or switching a fleet-wide No-Discharge Time Slot on or off now re-plans; the plan projects the battery idle in those hours.
+- **Dynamic Pricing: the plan sees tomorrow morning without a dated solar forecast** (#834): with tomorrow's prices published but no dated solar periods (a template forecast sensor, for example), the plan stopped at sunrise and never saw the morning peak. It now runs to tomorrow's solar noon, counting no sun for tomorrow. A dated forecast of 0 kWh for tomorrow now counts as a forecast.
 
 ### Internal
 
-- The pricing engine reads the time from one injectable clock, and reported nights run as data-file regression scenarios (`tests/scenarios/`); four of them (#834 ×3, #858) are marked as known failures until their fixes land.
+- The pricing engine reads the time from one injectable clock, and reported nights run as data-file regression scenarios (`tests/scenarios/`); three of them (#834 ×2, #858) are marked as known failures until their fixes land.
 
 ## [1.6.1b2] - 2026-11-11
 
