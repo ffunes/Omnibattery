@@ -449,6 +449,13 @@ class ChargeDelayManager:
             else:
                 ctrl.remove_charge_block("charge_delay_setpoint", coordinator=coordinator)
 
+    def _excluded_claim_kwh(self, solar_kwh: float) -> float:
+        """kWh of the remaining solar an excluded device still claims today."""
+        pricing = getattr(self._controller, "_pricing_mgr", None)
+        read = getattr(pricing, "_read_excluded_demand_claim_kwh", None)
+        claim = read() if read else None
+        return min(claim, solar_kwh) if claim else 0.0
+
     def _profile_forecast_between(
         self,
         start_h: float,
@@ -590,6 +597,10 @@ class ChargeDelayManager:
         ctrl._forecast_unavailable_since = None
         status["unlock_reason"] = None
         forecast_today = raw_forecast
+        # The sun an excluded device (EV, ...) will take is not available to
+        # fill the battery; both balance gates use the remainder.
+        claim_kwh = self._excluded_claim_kwh(raw_forecast)
+        battery_solar_kwh = raw_forecast - claim_kwh
         forecast_origin = (
             "today" if forecast.original_source == "today_legacy"
             else forecast.original_source
@@ -638,7 +649,7 @@ class ChargeDelayManager:
         forecast_source = forecast_origin or forecast.source
         if (
             ctrl._charge_delay_forecast_cache is None
-            or abs(forecast_today - ctrl._charge_delay_forecast_cache) > 0.05
+            or abs(battery_solar_kwh - ctrl._charge_delay_forecast_cache) > 0.05
             or getattr(ctrl, "_charge_delay_forecast_source_cache", None)
             != forecast_source
             or getattr(ctrl, "_charge_delay_forecast_conversion_cache", None)
@@ -677,10 +688,10 @@ class ChargeDelayManager:
             # noise so a near-balanced day still holds for the cheap window.
             deadband_kwh = ctrl._charge_delay_balance_deadband_kwh
             ctrl._charge_delay_balance_needs_charge = (
-                (usable_energy_kwh + raw_forecast)
+                (usable_energy_kwh + battery_solar_kwh)
                 < (avg_consumption_kwh - deadband_kwh)
             )
-            ctrl._charge_delay_forecast_cache = forecast_today
+            ctrl._charge_delay_forecast_cache = battery_solar_kwh
             ctrl._charge_delay_forecast_source_cache = forecast_source
             ctrl._charge_delay_forecast_conversion_cache = forecast.conversion
             ctrl._charge_delay_profile_source_cache = profile_source
@@ -690,7 +701,7 @@ class ChargeDelayManager:
                 "(deadband %.2f) → %s",
                 "initialised" if prev_cache is None else "changed",
                 forecast_today,
-                usable_energy_kwh, raw_forecast, usable_energy_kwh + raw_forecast,
+                usable_energy_kwh, battery_solar_kwh, usable_energy_kwh + battery_solar_kwh,
                 avg_consumption_kwh, deadband_kwh,
                 "grid needed (unlock delay)" if ctrl._charge_delay_balance_needs_charge else "solar sufficient (keep delay)",
             )
@@ -755,7 +766,7 @@ class ChargeDelayManager:
         if forecast_is_remaining:
             # This is already future solar; transforming it would double-count
             # production that the provider has already observed.
-            remaining_solar_kwh = forecast_today
+            remaining_solar_kwh = forecast_today - claim_kwh
         elif ctrl._daily_solar_energy_kwh > 0:
             # Use actual measured solar production (real solar sensor + Venus MPPT)
             # to estimate the remaining production for today.
@@ -814,6 +825,8 @@ class ChargeDelayManager:
 
         # Estimate unlock time: earliest of time-backup and energy-balance triggers
         time_backup_unlock_h = t_end - charge_time_h - safety_margin_h
+        # ponytail: the unlock estimator keeps the unclaimed forecast (its cosine
+        # curve is a known, minor difference); the gates above use the claim.
         energy_balance_unlock_h = self._estimate_energy_balance_unlock_h(
             forecast_today, energy_needed_kwh, ctrl._solar_t_start, t_end, now_h,
             forecast_is_remaining=forecast_is_remaining,
