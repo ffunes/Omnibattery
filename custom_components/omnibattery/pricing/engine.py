@@ -294,6 +294,7 @@ class PricingManager:
     def __init__(self, hass: "HomeAssistant", controller: Any) -> None:
         self._hass = hass
         self._controller = controller
+        self._last_dp_notification_key: tuple | None = None
         self._future_price_slots_cache_key: tuple[Any, ...] | None = None
         self._future_price_slots_cache: tuple[PriceSlot, ...] = ()
         # Why the last sensor parse failed. Only the import caller promotes it
@@ -5197,9 +5198,24 @@ class PricingManager:
             max_charge_capacity=self._controller.max_charge_capacity,
             peak_limit=self._peak_shaving_limit(),
         )
+        targets = getattr(schedule, "slot_energy_targets_kwh", None) or {}
+        slots = getattr(schedule, "selected_slots", None) or []
+        plan = tuple(
+            (s.start, s.end, None if targets.get(s) is None else round(targets[s], 2))
+            for s in slots
+        ) + ((decision_data.get("chronological_plan_reason"),) if slots else ())
+        key = (title, plan)
+        if key == self._last_dp_notification_key:
+            _LOGGER.debug("Dynamic Pricing plan unchanged, notification not re-sent")
+            return
         await self._async_create_predictive_notification(
             title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
         )
+        # ponytail: in memory only, so a restart sends the plan once more; a dismissed
+        # notification stays dismissed while the plan does not change.
+        # A muted send shows nothing, so it must not count as announced.
+        if getattr(self._controller, "predictive_charging_notifications_enabled", True):
+            self._last_dp_notification_key = key
 
     async def _async_create_predictive_notification(
         self, title: str, message: str, notification_id: str
