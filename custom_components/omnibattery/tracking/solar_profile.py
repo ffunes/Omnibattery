@@ -1361,6 +1361,18 @@ class SolarProfileTracker:
             }
         )
 
+    def recent_daily_energy_kwh(self, reference_date: date) -> float | None:
+        """Reference energy for a day without a dated forecast."""
+        days = [
+            day
+            for day in self._days.values()
+            if day.complete
+            and day.generation == self._generation
+            and day.local_date < reference_date
+        ]
+        totals = self._recent_totals(days)
+        return _median(totals) if totals else None
+
     def get_learned_shape(self, target_date: date | None = None) -> SolarProfileSnapshot:
         """Return the current learned snapshot without exposing raw days."""
         return self.learn_shape(target_date)
