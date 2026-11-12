@@ -150,18 +150,82 @@ def test_horizon_unchanged_without_tomorrow_prices():
     assert manager.planning_horizon_reason == "no_tomorrow_prices"
 
 
-def test_horizon_unchanged_without_tomorrow_solar_periods():
+NOON = datetime(2026, 11, 6, 12, 0)
+
+
+def test_horizon_extends_without_sun_to_tomorrows_noon_without_dated_periods():
     manager = _manager(None)
     slots = _tonight(0.10) + _tomorrow({})
-    assert manager.planning_horizon_end(NOW, slots) == MIDNIGHT
-    assert manager.planning_horizon_reason == "no_tomorrow_solar_periods"
+    assert manager.planning_horizon_end(NOW, slots) == NOON
+    assert manager.planning_horizon_reason == "extended_no_tomorrow_solar"
 
 
-def test_horizon_unchanged_when_periods_do_not_reach_tomorrow():
+def test_horizon_extends_without_sun_when_periods_do_not_reach_tomorrow():
     today_only = (SolarForecastPeriod(datetime(2026, 11, 5, 9, tzinfo=UTC), datetime(2026, 11, 5, 10, tzinfo=UTC), 1.0),)
     manager = _manager(today_only)
     slots = _tonight(0.10) + _tomorrow({})
-    assert manager.planning_horizon_end(NOW, slots) == MIDNIGHT
+    assert manager.planning_horizon_end(NOW, slots) == NOON
+    assert manager.planning_horizon_reason == "extended_no_tomorrow_solar"
+
+
+def test_zero_energy_dated_periods_for_tomorrow_are_valid_data():
+    """A snowy day: the forecast covers tomorrow and says 0 kWh."""
+    manager = _manager(_solar(0.0))
+    slots = _tonight(0.10) + _tomorrow({})[:18]
+    assert manager.planning_horizon_end(NOW, slots) == datetime(2026, 11, 6, 18, 0)
+    assert manager.planning_horizon_reason == "extended"
+
+
+def test_noon_bound_follows_the_trackers_solar_noon():
+    manager = _manager(None)
+    manager._controller._consumption_tracker.calculate_solar_noon = lambda _d: 12.5
+    slots = _tonight(0.10) + _tomorrow({})
+    assert manager.planning_horizon_end(NOW, slots) == datetime(2026, 11, 6, 12, 30)
+
+
+def test_price_data_ending_before_noon_bounds_the_extension_without_sun():
+    manager = _manager(None)
+    slots = _tonight(0.10) + _tomorrow({})[:8]
+    assert manager.planning_horizon_end(NOW, slots) == datetime(2026, 11, 6, 8, 0)
+    assert manager.planning_horizon_reason == "extended_no_tomorrow_solar"
+
+
+def test_plan_without_dated_periods_gives_tomorrow_no_sun(monkeypatch):
+    """Today's remaining scalar stays today: no sun after midnight in the plan."""
+    from custom_components.omnibattery.pricing import engine
+    from custom_components.omnibattery.pricing.solar_timeline import build_boundaries
+
+    manager = _manager(None)
+    tracker = manager._controller._consumption_tracker
+    tracker.calculate_sunrise = lambda *_a: 7.0
+    tracker.calculate_solar_noon = lambda *_a: 12.0
+    captured = []
+    real = engine.build_solar_timeline
+
+    def _spy(*args, **kwargs):
+        captured.append(real(*args, **kwargs))
+        return captured[-1]
+
+    monkeypatch.setattr(engine, "build_solar_timeline", _spy)
+    now = datetime(2026, 11, 5, 14, 0)
+    slots = [_slot(0, hour, 0.10) for hour in range(14, 24)] + _tomorrow({})[:12]
+    decision = {
+        "avg_consumption_kwh": 0.0,
+        "planned_grid_charge_kwh": 0.0,
+        "should_charge": False,
+        "solar_forecast_input": SolarForecastInput(2.0, "remaining_sensor", periods=None),
+    }
+    manager._build_chronological_plan(
+        now=now, slots=slots, decision_data=decision, price_ceiling=None, planning_end=NOON
+    )
+
+    boundaries = build_boundaries(now, NOON)
+    solar = captured[-1].intervals_kwh
+    assert len(solar) == len(boundaries)
+    before = sum(k for (start, _e), k in zip(boundaries, solar) if start < MIDNIGHT)
+    after = sum(k for (start, _e), k in zip(boundaries, solar) if start >= MIDNIGHT)
+    assert before == pytest.approx(2.0)
+    assert after == 0.0
 
 
 def test_horizon_unchanged_without_a_learned_consumption_profile():
