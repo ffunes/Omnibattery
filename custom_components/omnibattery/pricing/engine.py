@@ -270,8 +270,8 @@ class PricingManager:
         self._hass = hass
         self._controller = controller
         self._last_dp_notification_key: tuple | None = None
-        self._future_price_slots_cache_key: tuple[Any, ...] | None = None
-        self._future_price_slots_cache: tuple[PriceSlot, ...] = ()
+        self._future_price_slots_cache_base: tuple[Any, ...] | None = None
+        self._future_price_slots_cache: dict[Any, tuple[PriceSlot, ...]] = {}
         # Why the last sensor parse failed. Only the import caller promotes it
         # to ``controller._price_data_status``; the export curve must never
         # raise the import-price repair issue.
@@ -1224,8 +1224,7 @@ class PricingManager:
                 state = states.get(price_sensor)
             except (AttributeError, TypeError):
                 state = None
-        cache_key = (
-            horizon_end,
+        base_key = (
             now.date(),
             now.hour,
             now.minute // 15,
@@ -1238,11 +1237,16 @@ class PricingManager:
             getattr(self._controller, "_nordpool_prices_fetched_at", None),
             tuple(sorted(getattr(self._controller, "_energyzero_prices_fetched_at", {}).items())),
         )
-        if cache_key == self._future_price_slots_cache_key:
-            return list(self._future_price_slots_cache)
+        # ponytail: the dict only holds the horizons used inside one 15-minute
+        # window; it is reset with the base key, so it cannot grow.
+        if base_key != self._future_price_slots_cache_base:
+            self._future_price_slots_cache_base = base_key
+            self._future_price_slots_cache = {}
+        cached = self._future_price_slots_cache.get(horizon_end)
+        if cached is not None:
+            return list(cached)
         slots = self._parse_price_data(horizon_end=horizon_end, quiet=True)
-        self._future_price_slots_cache_key = cache_key
-        self._future_price_slots_cache = tuple(slots)
+        self._future_price_slots_cache[horizon_end] = tuple(slots)
         return list(slots)
 
     def get_future_export_price_slots(

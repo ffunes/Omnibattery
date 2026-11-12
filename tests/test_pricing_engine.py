@@ -187,6 +187,36 @@ def test_future_price_slots_reuses_parse_until_source_or_quarter_changes():
     assert calls == [(None, True), (None, True), (None, True)]
 
 
+def test_future_price_slots_caches_each_horizon_within_the_same_price_state():
+    state = SimpleNamespace(last_updated=datetime(2026, 8, 30, 0, 0))
+    hass = SimpleNamespace(states=SimpleNamespace(get=lambda _entity_id: state))
+    manager = PricingManager(hass, _controller(price_sensor="sensor.nordpool"))
+    current = datetime(2026, 8, 30, 0, 5)
+    manager._now = lambda: current
+    slot = PriceSlot(current, current + timedelta(minutes=15), 0.1)
+    horizon = datetime(2026, 8, 31, 0, 0)
+    calls = []
+
+    def parse_slots(*, horizon_end=None, quiet=False):
+        calls.append(horizon_end)
+        return [slot]
+
+    manager._parse_price_data = parse_slots
+
+    for _ in range(2):
+        assert manager.get_future_price_slots() == [slot]
+        assert manager.get_future_price_slots(horizon_end=horizon) == [slot]
+    assert calls == [None, horizon]
+
+    state.last_updated += timedelta(seconds=1)
+    manager.get_future_price_slots()
+    manager.get_future_price_slots(horizon_end=horizon)
+    assert len(calls) == 4
+    current += timedelta(minutes=15)
+    manager.get_future_price_slots()
+    assert len(calls) == 5
+
+
 # ----------------------------------------------------------------------
 # is_in_dynamic_pricing_slot
 # ----------------------------------------------------------------------
