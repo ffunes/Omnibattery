@@ -82,5 +82,5 @@ def test_consumers_use_it():
     assert "effective_round_trip_efficiency" in inspect.getsource(high_price_discharge)
     src = inspect.getsource(engine)
     assert "controller.round_trip_efficiency" not in src
-    # The fourth is the weekly refill hold.
-    assert src.count("effective_round_trip_efficiency(self._controller)") == 4
+    # The third is the weekly refill hold.
+    assert src.count("effective_round_trip_efficiency(self._controller)") == 3

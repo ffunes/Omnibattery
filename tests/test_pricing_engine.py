@@ -1322,230 +1322,14 @@ def test_excluded_demand_reeval_false_late_at_night():
 
 
 # ----------------------------------------------------------------------
-# _evaluate_evening_recharge (excluded-device claim + published figures, #341)
+# Re-evaluation triggers (evening, SOC drop) call the remaining-horizon evaluator
 # ----------------------------------------------------------------------
 
-def _evening_ctrl(claim, remaining_solar, **overrides):
-    async def _avg():
-        return 8.0
-
-    tracker = SimpleNamespace(
-        get_dynamic_base_consumption=_avg,
-        get_consumption_window_hours_per_day=lambda: 24.0,
-        consumption_window_hours_in_range=lambda _a, _b: 6.0,
-    )
-    base = dict(
-        coordinators=[
-            SimpleNamespace(
-                data={"battery_soc": 20.0, "battery_total_energy": 10.0},
-                max_soc=100,
-                min_soc=10,
-            )
-        ],
-        _consumption_tracker=tracker,
-        _last_decision_data={
-            "solar_remaining_raw_kwh": 30.0,
-            "solar_safety_margin_kwh": 2.0,
-            "solar_remaining_effective_kwh": 28.0,
-            "excluded_demand_claim_kwh": 0.0,
-            "solar_available_to_battery_kwh": 28.0,
-        },
-        _dp_last_eval_soc=None,
-        _dp_last_eval_excluded_claim_kwh=None,
-        _external_loads=SimpleNamespace(claimable_solar_demand_kwh=lambda: claim),
-        _daily_home_energy_date=None,
-        _daily_home_energy_kwh=0.0,
-        _household_accumulator_date=None,
-        _household_energy_accumulator=0.0,
-    )
-    base.update(overrides)
-    return _controller(**base)
-
-
-def _evening_mgr(ctrl, remaining_solar):
-    manager = _mgr(ctrl)
-
-    async def _noop_prices(force=False):
-        return None
-
-    manager._maybe_refresh_service_prices = _noop_prices
-    manager._remaining_solar_today_kwh = lambda _now: remaining_solar
-
-    async def _remaining(*, now=None, horizon_end=None):
-        decision = dict(ctrl._last_decision_data)
-        decision.update(
-            {
-                "remaining_consumption_kwh": 4.0,
-                "consumption_rate_kwh_h": 0.6,
-                "avg_consumption_kwh": 4.0,
-                "solar_forecast_kwh": remaining_solar,
-            }
-        )
-        return decision
-
-    manager._evaluate_remaining_grid_charging = _remaining
-    return manager
-
-
-def test_evening_recharge_deducts_the_claim_from_remaining_solar():
-    # 6 kWh of solar left, 4 kWh of it claimed by the EV, 4 kWh of house load
-    # and 1 kWh usable in the battery: a real deficit the morning plan reserved
-    # for. Ignoring the claim would report solar covering the evening.
-    ctrl = _evening_ctrl(claim=4.0, remaining_solar=6.0)
-    asyncio.run(_evening_mgr(ctrl, 6.0)._evaluate_evening_recharge())
-
-    decision = ctrl._last_decision_data
-    assert decision["excluded_demand_claim_kwh"] == pytest.approx(4.0)
-    assert decision["solar_available_to_battery_kwh"] == pytest.approx(2.0)
-
-
-def test_evening_recharge_publishes_the_figures_it_used():
-    # The published solar numbers must describe this horizon, not still report
-    # the morning evaluation's 30 / 28 kWh.
-    ctrl = _evening_ctrl(claim=4.0, remaining_solar=6.0)
-    asyncio.run(_evening_mgr(ctrl, 6.0)._evaluate_evening_recharge())
-
-    decision = ctrl._last_decision_data
-    assert decision["solar_remaining_raw_kwh"] == pytest.approx(6.0)
-    assert decision["solar_remaining_effective_kwh"] == pytest.approx(6.0)
-    assert decision["solar_safety_margin_kwh"] == pytest.approx(0.0)
-    assert (
-        decision["solar_remaining_effective_kwh"]
-        - decision["excluded_demand_claim_kwh"]
-        == pytest.approx(decision["solar_available_to_battery_kwh"])
-    )
-
-
-def test_evening_recharge_claim_is_capped_at_remaining_solar():
-    ctrl = _evening_ctrl(claim=50.0, remaining_solar=6.0)
-    asyncio.run(_evening_mgr(ctrl, 6.0)._evaluate_evening_recharge())
-
-    decision = ctrl._last_decision_data
-    assert decision["excluded_demand_claim_kwh"] == pytest.approx(6.0)
-    assert decision["solar_available_to_battery_kwh"] == pytest.approx(0.0)
-
-
-def test_evening_recharge_rearms_the_claim_reference():
-    ctrl = _evening_ctrl(claim=4.0, remaining_solar=6.0)
-    asyncio.run(_evening_mgr(ctrl, 6.0)._evaluate_evening_recharge())
-
-    assert ctrl._dp_last_eval_excluded_claim_kwh == pytest.approx(4.0)
-
-
-def test_evening_recharge_picks_informational_slots_on_price_and_arms_only_those(monkeypatch):
-    # #472: the 00:05 plan found no deficit and listed the cheap midday slots
-    # for information. The re-evaluation used to exclude them, book the dearer
-    # morning slot instead, then arm every informational slot on top.
-    import datetime as datetime_module
-
-    now = datetime(2026, 9, 16, 8, 30)
-
-    class FixedDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now
-
-    monkeypatch.setattr(datetime_module, "datetime", FixedDateTime)
-    monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
-    monkeypatch.setattr(pricing_engine.calculations, "datetime", FixedDateTime)
-
-    def _slot(hour, price):
-        start = now.replace(hour=hour, minute=0)
-        return PriceSlot(start, start + timedelta(hours=1), price)
-
-    morning, noon, afternoon = _slot(9, 0.40), _slot(12, 0.27), _slot(13, 0.30)
-    evening = _slot(18, 0.45)
-    # Round-trip losses always count: each cheap slot needs its own dear hour
-    # after it to repay them.
-    late_evening = _slot(19, 0.45)
-    schedule = SimpleNamespace(
-        selected_slots=[noon, afternoon, evening],
-        slot_purposes={noon: "deficit", afternoon: "deficit", evening: "deficit"},
-        charging_needed=False,
-        deficit_charging_needed=False,
-    )
-    # 3 kWh deficit (4 kWh load, 1 kWh usable, no solar): two slots' worth.
-    ctrl = _evening_ctrl(
-        claim=0.0,
-        remaining_solar=0.0,
-        _dynamic_pricing_schedule=schedule,
-        max_contracted_power=3000,
-        max_charge_capacity=3000,
-    )
-    manager = _evening_mgr(ctrl, 0.0)
-    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [morning, noon, afternoon, evening, late_evening]
-    manager._send_evening_recharge_notification = _async_noop
-
-    asyncio.run(manager._evaluate_evening_recharge())
-
-    assert schedule.selected_slots == [noon, afternoon]
-    assert schedule.slot_purposes == {noon: "deficit", afternoon: "deficit"}
-    assert schedule.deficit_charging_needed is True
-
-
-def test_evening_recharge_respects_the_arbitrage_ceiling(monkeypatch):
-    # #721: with no static ceiling, the evening top-up booked the evening peak.
-    # It must apply the same arbitrage ceiling as the main evaluation.
-    import datetime as datetime_module
-
-    now = datetime(2026, 11, 3, 16, 0)
-
-    class FixedDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now
-
-    monkeypatch.setattr(datetime_module, "datetime", FixedDateTime)
-    monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
-    monkeypatch.setattr(pricing_engine.calculations, "datetime", FixedDateTime)
-
-    def _slot(hour, price):
-        start = now.replace(hour=hour, minute=0)
-        return PriceSlot(start, start + timedelta(hours=1), price)
-
-    peak = [_slot(17, 0.50), _slot(18, 0.50), _slot(19, 0.50)]
-    night = _slot(22, 0.30)
-    # #649: a slot is only valued against peaks that start after it ends.
-    morning = [
-        PriceSlot(s.start + timedelta(days=1), s.end + timedelta(days=1), 0.50)
-        for s in (_slot(6, 0), _slot(7, 0))
-    ]
-    # 3 kWh deficit (4 kWh load, 1 kWh usable, no solar) at 1.5 kW: two hours.
-    ctrl = _evening_ctrl(
-        claim=0.0,
-        remaining_solar=0.0,
-        max_contracted_power=1500,
-        max_charge_capacity=1500,
-        min_arbitrage_margin=0.05,
-        round_trip_efficiency=0.85,
-    )
-    manager = _evening_mgr(ctrl, 0.0)
-    manager.energy_horizon_end = lambda _now: now.replace(
-        hour=0, minute=0
-    ) + timedelta(days=1, hours=7)
-    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [*peak, night, *morning]
-    ceilings = []
-    manager._build_chronological_plan = lambda **kwargs: ceilings.append(
-        kwargs["slot_ceilings"]
-    )
-    manager._send_evening_recharge_notification = _async_noop
-
-    asyncio.run(manager._evaluate_evening_recharge())
-
-    # Expected discharge 0.50 x 0.85 - 0.05 margin = 0.375.
-    assert ceilings[0][night.start] == pytest.approx(0.375)
-    assert ctrl._dynamic_pricing_schedule.selected_slots == [night]
-
-
-def test_dynamic_pricing_soc_drop_rebuilds_the_remaining_horizon():
-    # #472: a SOC drop is a full re-plan, not the deadline-blind evening top-up.
+def _reevaluation_trigger_calls(*, evening, soc_drop):
     calls = []
 
     async def _evaluate(**kwargs):
         calls.append(kwargs)
-
-    async def _evening():
-        calls.append("evening")
 
     ctrl = _controller(
         _dynamic_pricing_evaluated_date=datetime.now().date(),
@@ -1558,13 +1342,26 @@ def test_dynamic_pricing_soc_drop_rebuilds_the_remaining_horizon():
     manager._check_dp_pre_slot_reevaluation = _async_noop
     manager._refresh_surplus_hold_plan = _async_noop
     manager._refresh_discharge_reserve_plan = _async_noop
-    manager._is_evening_reevaluation_time = lambda: False
-    manager._is_dp_soc_drop_reeval = lambda: True
+    manager._is_evening_reevaluation_time = lambda: evening
+    manager._is_dp_soc_drop_reeval = lambda: soc_drop
     manager._evaluate_dynamic_pricing = _evaluate
-    manager._evaluate_evening_recharge = _evening
 
     asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    return ctrl, calls
+
+
+def test_dynamic_pricing_soc_drop_rebuilds_the_remaining_horizon():
+    # #472: a SOC drop is a full re-plan of the remaining horizon.
+    _ctrl, calls = _reevaluation_trigger_calls(evening=False, soc_drop=True)
     assert calls == [{"horizon": DynamicPricingEvaluationHorizon.REMAINING}]
+
+
+def test_evening_reevaluation_rebuilds_the_remaining_horizon_once():
+    # One evaluator: the evening trigger is the same remaining-horizon rebuild.
+    # It runs once even when the SOC-drop trigger is also due.
+    ctrl, calls = _reevaluation_trigger_calls(evening=True, soc_drop=True)
+    assert calls == [{"horizon": DynamicPricingEvaluationHorizon.REMAINING}]
+    assert ctrl._dp_evening_reevaluated_date == datetime.now().date()
 
 
 # ----------------------------------------------------------------------
@@ -1657,52 +1454,6 @@ def test_remaining_consumption_invalid_accumulator_date_uses_hourly_fallback():
     )
     assert rate == pytest.approx(5.8 / 24.0)
     assert remaining == pytest.approx(4.35)
-
-
-def test_evening_recharge_uses_dynamic_base_consumption():
-    """The evening path must resolve the tracker's async average locally."""
-    calls = []
-
-    async def get_average_consumption():
-        calls.append(True)
-        return 20.0
-
-    async def no_op(*_args, **_kwargs):
-        return None
-
-    async def should_activate(**overrides):
-        return {
-            "should_charge": True,
-            "avg_consumption_kwh": overrides["consumption_override_kwh"],
-        }
-
-    ctrl = _controller(
-        coordinators=[
-            SimpleNamespace(
-                data={
-                    "battery_soc": 0.0,
-                    "battery_total_energy": 10.0,
-                },
-                min_soc=0.0,
-                max_soc=100.0,
-            )
-        ],
-        _consumption_tracker=SimpleNamespace(
-            get_dynamic_base_consumption=get_average_consumption,
-        ),
-        _daily_home_energy_date=datetime.now().date(),
-        _daily_home_energy_kwh=1.0,
-        _last_decision_data={},
-        _should_activate_grid_charging=should_activate,
-    )
-    manager = _mgr(ctrl)
-    manager._maybe_refresh_service_prices = no_op
-    manager._remaining_solar_today_kwh = lambda _now: 0.0
-    manager._parse_price_data = lambda horizon_end=None, **_kwargs: []
-
-    asyncio.run(manager._evaluate_evening_recharge())
-
-    assert calls == [True]
 
 
 def test_pre_slot_reevaluation_uses_remaining_consumption_and_solar(monkeypatch):
@@ -3722,64 +3473,6 @@ def test_control_horizon_persists_but_dashboard_projection_does_not():
     assert saved is not None
     assert projection.plan is not None
     assert ctrl._last_chronological_diagnostics == saved
-
-
-def test_evening_topup_uses_chronological_overnight_allocation(monkeypatch):
-    import datetime as datetime_module
-
-    now = datetime(2026, 9, 19, 18, 0)
-
-    class FixedDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now
-
-    monkeypatch.setattr(datetime_module, "datetime", FixedDateTime)
-    monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
-    evening = PriceSlot(now + timedelta(hours=2), now + timedelta(hours=3), 0.20)
-    one_am = PriceSlot(now + timedelta(hours=7), now + timedelta(hours=8), 0.10)
-    four_am = PriceSlot(now + timedelta(hours=10), now + timedelta(hours=11), 0.01)
-    ctrl = _evening_ctrl(
-        claim=0.0,
-        remaining_solar=0.0,
-        max_contracted_power=3000,
-        max_charge_capacity=3000,
-    )
-    manager = _evening_mgr(ctrl, 0.0)
-    manager.energy_horizon_end = lambda _now: now.replace(
-        hour=0, minute=0
-    ) + timedelta(days=1, hours=6)
-    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [evening, one_am, four_am]
-    manager._build_chronological_plan = lambda **_kwargs: pricing_engine.ChronologicalPlan(
-        allocations=[SimpleNamespace(slot=one_am)]
-    )
-    manager._send_evening_recharge_notification = _async_noop
-
-    asyncio.run(manager._evaluate_evening_recharge())
-
-    assert ctrl._dynamic_pricing_schedule.selected_slots == [one_am]
-
-
-def test_evening_topup_publishes_the_morning_horizon_deficit():
-    """#409: both publishers of ``_last_decision_data`` share one horizon."""
-    ctrl = _evening_ctrl(claim=0.0, remaining_solar=0.0)
-    manager = _evening_mgr(ctrl, 0.0)
-    delegated = manager._evaluate_remaining_grid_charging
-    calls: list[object] = []
-
-    async def record(*, now=None, horizon_end=None):
-        calls.append(horizon_end)
-        return await delegated(now=now, horizon_end=horizon_end)
-
-    manager._evaluate_remaining_grid_charging = record
-    manager._send_evening_recharge_notification = _async_noop
-
-    asyncio.run(manager._evaluate_evening_recharge())
-
-    # No private horizon of its own: the evening top-up delegates, so it cannot
-    # publish a deficit measured over a shorter span than the morning plan.
-    assert calls == [None]
-    assert ctrl._last_decision_data["remaining_consumption_kwh"] == 4.0
 
 
 def test_midnight_reset_retains_post_midnight_slots(monkeypatch):

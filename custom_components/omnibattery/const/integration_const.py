@@ -641,7 +641,6 @@ T_START_FALLBACK_HOUR = 11  # If no T_start by 11:00, unlock immediately
 
 EVENING_REEVAL_HOURS_BEFORE_TEND = 1.5  # Trigger evening re-evaluation 1.5h before estimated T_end
 EVENING_REEVAL_FALLBACK_HOUR = 16.0     # Fallback trigger hour when T_start was never detected
-EVENING_DEFICIT_THRESHOLD_KWH = 0.3    # Minimum deficit to bother scheduling evening charging
 
 # Excluded-device solar claim re-evaluation: an EV session starting or ending
 # moves how much of the remaining forecast the battery may count on.
