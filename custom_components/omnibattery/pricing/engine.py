@@ -110,6 +110,7 @@ from .chronological import (
     cap_battery_drain,
     evaluate_chronological_request,
     normalize_energy_shape,
+    simulate_allocations,
 )
 from .solar_timeline import (
     build_boundaries,
@@ -4070,6 +4071,9 @@ class PricingManager:
                 )
             )
             plan = evaluation.plan
+            if not diagnostic_only:
+                # What the published projection starts from and is capped at.
+                plan.projection_inputs = (usable, usable + headroom)
             if control_extension and not diagnostic_only:
                 # The scalar balance nets tomorrow's solar against tonight's
                 # gap; publish the need the plan actually found so should_charge,
@@ -4305,7 +4309,9 @@ class PricingManager:
         kept = [item for item in plan.allocations if item.slot in allowed]
         if len(kept) == len(plan.allocations):
             return plan
-        return replace(plan, allocations=kept)
+        trimmed = replace(plan, allocations=kept)
+        trimmed.projection_inputs = getattr(plan, "projection_inputs", None)
+        return trimmed
 
     def _apply_time_slot_chronological_plan(
         self,
@@ -4538,6 +4544,7 @@ class PricingManager:
         # Cleared up front: the early returns below can still send a notification,
         # and a ceiling from a previous evaluation must not be reported as today's.
         self._controller._dp_arbitrage_ceiling = None
+        self._controller._dp_eval_projection = None
         # A failed or interrupted reevaluation must never leave yesterday's
         # negative setpoint/block active.  The new plan is rebuilt below.
         if self._smart_predischarge_enabled():
@@ -5164,6 +5171,7 @@ class PricingManager:
             ),
         )
         self._controller._dynamic_pricing_schedule = schedule
+        self._store_eval_projection(chronological_plan)
         self._controller._dp_pre_evaluated_slots = {}
         self._controller._dp_pre_evaluated_purposes = {}
         self._controller._dp_completed_slots = set()
@@ -5520,17 +5528,47 @@ class PricingManager:
 
         return now_h >= trigger_h
 
-    def _is_dp_soc_drop_reeval(self) -> bool:
-        """Return True when live SOC has fallen ≥ threshold below the last DP eval.
+    def _fleet_capacity_kwh(self) -> float:
+        """Total energy of the non-manual batteries with data (SOC-drop scope)."""
+        return sum(
+            float(c.data.get("battery_total_energy", 0) or 0)
+            for c in self._controller.coordinators
+            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+        )
 
-        Mirrors the time-slot handler's SOC-drop re-evaluation (#411): the 00:05
-        energy-balance read happens before the overnight discharge, so a battery
-        that drains far below the evaluated level must be able to re-plan upward
-        in time for the cheap midday slots — not just at the late-day evening
-        pass. Directional (only drops trigger); debounced by resetting
-        ``_dp_last_eval_soc`` on each re-eval, so it re-arms only after another
-        drop. ``None`` reference (before the 00:05 eval) never triggers.
+    def _store_eval_projection(self, plan: ChronologicalPlan | None) -> None:
+        """Keep the usable-energy trajectory the published plan projects.
+
+        Stored as ``(time, delta_kwh)`` relative to the start, so the SOC-drop
+        trigger can tell a discharge the plan expects from a real deviation.
         """
+        controller = self._controller
+        inputs = getattr(plan, "projection_inputs", None)
+        controller._dp_eval_projection = None
+        if inputs is None:
+            return
+        usable, capacity = inputs
+        trajectory = simulate_allocations(
+            plan.intervals, usable, plan.allocations, usable_capacity_kwh=capacity
+        ).trajectory
+        controller._dp_eval_projection = tuple(
+            (end, energy - usable) for end, energy in trajectory
+        )
+        controller._dp_eval_projection_capacity_kwh = self._fleet_capacity_kwh()
+
+    def _is_dp_soc_drop_reeval(self) -> bool:
+        """Return True when live SOC has fallen below what the plan projected.
+
+        The chronological plan already projects the evening/night discharge, so
+        only a deviation below that line re-plans (a battery that reaches the
+        floor earlier than projected, or a projected charge that did not happen,
+        is one). Without a projection it falls back to the #411 rule: a drop of
+        ``SOC_REEVALUATION_THRESHOLD`` (5 points with a chronological plan)
+        below ``_dp_last_eval_soc``. ``None`` reference never triggers.
+        """
+        # ponytail: no maximum time without re-evaluation; the pre-slot,
+        # evening, solar-revision and price-publication triggers bound how long
+        # a plan lives.
         ref = self._controller._dp_last_eval_soc
         if ref is None:
             return False
@@ -5541,6 +5579,22 @@ class PricingManager:
         if not coords:
             return False
         current = sum(c.data.get("battery_soc", 0) for c in coords) / len(coords)
+        projection = getattr(self._controller, "_dp_eval_projection", None)
+        capacity = getattr(self._controller, "_dp_eval_projection_capacity_kwh", 0.0)
+        if projection and capacity > 0:
+            now = self._now()
+            if now.tzinfo != projection[0][0].tzinfo:
+                now = now.replace(tzinfo=projection[0][0].tzinfo)
+            delta = projection[-1][1]
+            for index, (when, value) in enumerate(projection):
+                if now <= when:
+                    if index == 0:
+                        delta = 0.0
+                    else:
+                        t0, v0 = projection[index - 1]
+                        delta = v0 + (value - v0) * (now - t0) / (when - t0)
+                    break
+            return (ref + delta / capacity * 100.0) - current >= 5.0
         schedule = getattr(self._controller, "_dynamic_pricing_schedule", None)
         threshold = (
             5.0
@@ -6908,6 +6962,7 @@ class PricingManager:
                 self._controller._dp_arbitrage_ceiling = None
                 self._controller._dp_evening_reevaluated_date = None
                 self._controller._dp_last_eval_soc = None
+                self._controller._dp_eval_projection = None
                 self._controller._dp_last_eval_excluded_claim_kwh = None
                 self._controller._dp_excluded_demand_reeval_at = None
                 self._controller._dp_excluded_demand_reeval_count = 0
