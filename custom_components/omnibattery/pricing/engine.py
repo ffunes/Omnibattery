@@ -372,22 +372,24 @@ class PricingManager:
     def _next_time_slot_start(self, now: datetime) -> datetime | None:
         """Start of the next window after the active one, or None.
 
-        The next occurrence of a different configured window, strictly after
-        the end of the window active at ``now`` (or after ``now`` when none
-        is): the same window's next day does not count. Looks at most 7 days
-        ahead and respects ``days`` and ``enabled`` (#611).
+        The next occurrence of a different configured window, at or after
+        the end of the reference window (the active one, else the next to
+        open): the same window's next day does not count. Looks at most 7
+        days ahead and respects ``days`` and ``enabled`` (#611).
         """
         runs = self._time_slot_windows(now)
-        active = next(
+        # The window active now, else the upcoming one as if evaluating at
+        # its start: a preview before a window sizes through to the one after.
+        reference = next(
             (run for run in runs if run[1] <= now < run[2]), None
-        )
-        after = active[2] if active is not None else now
+        ) or min((run for run in runs if run[1] > now), key=lambda r: r[1], default=None)
+        if reference is None:
+            return None
         limit = now + timedelta(days=7)
         starts = [
             start
             for index, start, _end in runs
-            if (active is None or index != active[0])
-            and after < start <= limit
+            if index != reference[0] and reference[2] <= start <= limit
         ]
         return min(starts) if starts else None
 
@@ -6227,6 +6229,35 @@ class PricingManager:
                 timezone=solar_forecast_local_timezone(self._hass, controller, now),
             )
 
+        if horizon_end < end_of_day:
+            # Only the solar before the horizon can cover its demand: the
+            # rest of today's forecast belongs to the next window's balance.
+            in_horizon_kwh = None
+            if solar_forecast_input is not None and solar_forecast_input.periods:
+                in_horizon_kwh = solar_forecast_period_energy_between(
+                    solar_forecast_input.periods,
+                    now,
+                    horizon_end,
+                    timezone=solar_forecast_local_timezone(
+                        self._hass, controller, now
+                    ),
+                )
+            elif remaining_solar_kwh > 0:
+                _forecast_kwh, fraction, _consumption = (
+                    self._curtailment_forecast_model(now)
+                )
+                if fraction is not None:
+                    end_h = (horizon_end - now.replace(
+                        hour=0, minute=0, second=0, microsecond=0
+                    )).total_seconds() / 3600.0
+                    done_now = fraction(now_h)
+                    rest = 1.0 - done_now
+                    if rest > 1e-6:
+                        share = max(0.0, fraction(end_h) - done_now)
+                        in_horizon_kwh = remaining_solar_kwh * min(1.0, share / rest)
+            if in_horizon_kwh is not None:
+                remaining_solar_kwh = balance_solar_kwh = in_horizon_kwh
+
         decision = await controller._should_activate_grid_charging(
             consumption_override_kwh=remaining_consumption_kwh,
             solar_forecast_override_kwh=balance_solar_kwh,
@@ -6294,11 +6325,11 @@ class PricingManager:
             ) is not None
         ):
             current = now or self._now()
-            if (
-                getattr(self._controller, "predictive_charging_mode", None)
-                == PREDICTIVE_MODE_TIME_SLOT
-            ):
+            mode = getattr(self._controller, "predictive_charging_mode", None)
+            if mode == PREDICTIVE_MODE_TIME_SLOT:
                 horizon_end, _ = self._time_slot_horizon_end(current)
+            elif mode == PREDICTIVE_MODE_REALTIME_PRICE:
+                horizon_end = self.energy_horizon_end(current)
             else:
                 horizon_end = current.replace(
                     hour=0, minute=0, second=0, microsecond=0
@@ -7498,9 +7529,8 @@ class PricingManager:
             )
 
         elif self._controller._realtime_price_charging:
-            # A cheap run that started before midnight was sized only until
-            # 00:00; redo the decision for the new day so the night after
-            # midnight is covered too.
+            # The horizon now runs to sunrise; this only re-checks the
+            # decision on a new day.
             now = self._now()
             if self._is_new_day_since(
                 getattr(self._controller, "_realtime_eval_date", None), now
