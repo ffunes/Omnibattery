@@ -100,7 +100,6 @@ from .const import (
     T_START_FALLBACK_HOUR,
     EVENING_REEVAL_HOURS_BEFORE_TEND,
     EVENING_REEVAL_FALLBACK_HOUR,
-    EVENING_DEFICIT_THRESHOLD_KWH,
     CONF_PD_KP,
     CONF_PD_KD,
     CONF_PD_DEADBAND,
@@ -6165,7 +6164,9 @@ class ChargeDischargeController:
         # The pricing engine uses this to tell whether a charge has already
         # spent the decision a later slot would otherwise be sized from.
         self._predictive_target_decision = decision_data
-        if not decision_data:
+        # A slot quota (planned_kwh) is the slot's own calendar share: it does
+        # not depend on whichever decision was published last.
+        if not decision_data and planned_kwh is None:
             return None
 
         coordinators_with_data = [
@@ -6195,7 +6196,7 @@ class ChargeDischargeController:
         # overnight), so charging filled the battery for the whole slot instead
         # of stopping at the deficit. The deficit already nets out solar and the
         # additive safety margin. #409
-        energy_deficit_kwh = max(0.0, decision_data.get("energy_deficit_kwh", 0.0))
+        energy_deficit_kwh = max(0.0, (decision_data or {}).get("energy_deficit_kwh", 0.0))
         planned_grid_charge_kwh = planned_kwh
         if planned_grid_charge_kwh is None:
             planned_grid_charge_kwh = decision_data.get("planned_grid_charge_kwh")
@@ -6211,7 +6212,7 @@ class ChargeDischargeController:
         # deficit over every battery by gap-to-ceiling, so a battery under the
         # floor stopped short of it and the slot re-triggered within the hour.
         floor_soc = 0.0
-        if decision_data.get("floor_active") and getattr(
+        if (decision_data or {}).get("floor_active") and getattr(
             self, "_predictive_min_soc_floor_enabled", False
         ):
             floor_soc = float(getattr(self, "_predictive_min_soc_floor", 0.0) or 0.0)

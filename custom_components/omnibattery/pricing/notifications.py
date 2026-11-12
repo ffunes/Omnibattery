@@ -693,24 +693,3 @@ def format_dp_pre_slot_reevaluation_notification(
         f"→ Charging will activate at {slot.start.strftime('%H:%M')}"
     )
     return (title, message)
-
-
-def format_evening_recharge_notification(
-    deficit_kwh: float,
-    slots: list,
-    *,
-    unit: str,
-    avg_soc: float,
-) -> tuple[str, str]:
-    """Format the evening re-evaluation notification."""
-    slots_str = ", ".join(
-        f"{s.start.strftime('%H:%M')}-{s.end.strftime('%H:%M')} ({s.price:.4f} {unit})"
-        for s in slots
-    )
-    title = "Predictive Charging: Evening re-evaluation"
-    message = (
-        f"☀️ Solar ending — batteries not full ({avg_soc:.0f}% avg)\n"
-        f"⚡ Deficit: {deficit_kwh:.2f} kWh\n\n"
-        f"Cheap slots scheduled:\n{slots_str}"
-    )
-    return (title, message)

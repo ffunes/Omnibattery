@@ -106,7 +106,6 @@ def _muted_manager(monkeypatch):
         "format_dynamic_pricing_notification",
         "format_slot_start_notification",
         "format_dp_pre_slot_reevaluation_notification",
-        "format_evening_recharge_notification",
         "format_predictive_notification_message",
     ):
         monkeypatch.setattr(
@@ -137,18 +136,17 @@ def test_every_evaluation_sender_is_muted(monkeypatch):
         await manager._send_dynamic_pricing_notification(decision_data={}, schedule=None)
         await manager._send_dynamic_pricing_slot_start_notification(object())
         await manager._send_dp_pre_slot_reevaluation_notification(object(), {})
-        await manager._send_evening_recharge_notification(1.0, [])
         await manager._send_predictive_charging_notification({})
 
     asyncio.run(_send_all())
     assert calls == []
 
-    # Unmuted, the same five senders post exactly five notifications with
+    # Unmuted, the same four senders post exactly four notifications with
     # their existing IDs (blueprints and user automations depend on them).
     controller.predictive_charging_notifications_enabled = True
     asyncio.run(_send_all())
     ids = [c[2]["notification_id"] for c in calls if c[1] == "create"]
-    assert ids == [EVAL_ID, EVAL_ID, EVAL_ID, EVENING_ID, EVAL_ID]
+    assert ids == [EVAL_ID, EVAL_ID, EVAL_ID, EVAL_ID]
 
 
 # ---------------------------------------------------------------------------

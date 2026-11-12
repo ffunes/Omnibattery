@@ -535,16 +535,6 @@ def test_dp_pre_slot_reevaluation_recognizes_remaining_fallback():
     assert "7-day avg" not in message
 
 
-def test_evening_recharge():
-    slots = _slots([0.08, 0.09])
-    title, message = notifications.format_evening_recharge_notification(
-        2.5, slots, unit="€/kWh", avg_soc=55.0
-    )
-    assert title == "Predictive Charging: Evening re-evaluation"
-    assert "55% avg" in message
-    assert "Deficit: 2.50 kWh" in message
-
-
 def test_dynamic_no_slots_awaiting_prices_does_not_advise_the_margin():
     """A5: a deficit after the last published price is not 'cheaper to import'.
 

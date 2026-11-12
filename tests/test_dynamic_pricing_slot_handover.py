@@ -545,13 +545,13 @@ def test_evening_plan_made_in_the_boundary_cycle_is_not_replaced(clock):
     manager = _manager(ctrl, _balance(battery, 4.5))
     _run(manager)
 
-    async def evening_recharge():
+    async def evening_recharge(**_kwargs):
         ctrl._last_decision_data = _decision(3.0)
 
     battery.soc = 35.0
     clock.value = b.start
     manager._is_evening_reevaluation_time = lambda: True
-    manager._evaluate_evening_recharge = evening_recharge
+    manager._evaluate_dynamic_pricing = evening_recharge
     _run(manager)
 
     assert ctrl._active_dynamic_price_slot == b

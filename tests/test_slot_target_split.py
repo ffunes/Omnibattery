@@ -274,3 +274,19 @@ def test_clearing_the_predictive_runtime_forgets_the_count():
     ChargeDischargeController._clear_predictive_runtime(ctrl, "test")
 
     assert ctrl._slot_charge_baseline is None
+
+
+def test_a_slot_quota_does_not_depend_on_the_published_decision():
+    """The quota is the slot's own share: an empty decision must not drop the target (#409)."""
+    venus, solarflow = _fleet()
+    ctrl = _ctrl([venus, solarflow], 1.02)
+    ctrl._last_decision_data = {}
+
+    targets = ChargeDischargeController._compute_deficit_target_soc(
+        ctrl, planned_kwh=1.02, window_hours=0.25
+    )
+
+    assert targets is not None
+    assert _share_kwh(venus, targets) + _share_kwh(solarflow, targets) == pytest.approx(1.02)
+    # Without a quota the global decision is still required.
+    assert ChargeDischargeController._compute_deficit_target_soc(ctrl) is None
