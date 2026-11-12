@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import pytest
 
 from custom_components.omnibattery import ChargeDischargeController
-from custom_components.omnibattery.pricing import PriceSlot
+from custom_components.omnibattery.pricing import CurtailmentPlan, PriceSlot
 from custom_components.omnibattery.pricing import engine as pricing_engine
 from custom_components.omnibattery.pricing.engine import (
     DynamicPricingEvaluationHorizon,
@@ -210,6 +210,7 @@ def _evaluate_with_weekly_reserve(
     reserve=None,
     min_arbitrage_margin=0.0,
     max_price_threshold=1.0,
+    risk_slots=(),
     **decision_overrides,
 ):
     """Run a daily evaluation whose plan publishes a 5 kWh weekly reserve."""
@@ -255,8 +256,12 @@ def _evaluate_with_weekly_reserve(
     manager._refresh_solar_forecast_reference = lambda _now: None
     manager._parse_price_data = lambda **_kwargs: list(slots)
     manager._negative_price_feature_enabled = lambda: False
-    manager._build_curtailment_plan = lambda *_args, **_kwargs: SimpleNamespace(
-        risk_slots=[]
+    manager._build_curtailment_plan = lambda *_args, **_kwargs: (
+        CurtailmentPlan(
+            status="planned", reason="solar_risk", risk_slots=list(risk_slots)
+        )
+        if risk_slots
+        else SimpleNamespace(risk_slots=[])
     )
     manager._send_dynamic_pricing_notification = no_op
     manager._get_price_unit = lambda: "EUR/kWh"
@@ -450,6 +455,109 @@ def test_weekly_slots_after_the_plan_count_in_the_estimated_cost(monkeypatch):
     battery_cost = sum(slot.price * kwh for slot, kwh in battery_kwh.items())
     assert schedule.estimated_cost == pytest.approx(battery_cost / CHARGE_EFFICIENCY)
     assert schedule.average_price == pytest.approx(battery_cost / 7.0)
+
+
+# ----------------------------------------------------------------------
+# A curtailment risk window re-selects the deficit slots
+# ----------------------------------------------------------------------
+
+
+def _risk_day(now):
+    """A cheap pre-dawn slot, a midday risk slot and two evening weekly slots."""
+    pre_dawn = PriceSlot(now.replace(hour=1), now.replace(hour=2), 0.01)
+    midday = PriceSlot(now.replace(hour=12), now.replace(hour=13), 0.05)
+    weekly = [
+        PriceSlot(now.replace(hour=h), now.replace(hour=h + 1), 0.20)
+        for h in (19, 20)
+    ]
+    return pre_dawn, midday, weekly
+
+
+def test_weekly_slots_survive_a_risk_window_reselection_with_a_plan(monkeypatch):
+    from custom_components.omnibattery.pricing.chronological import (
+        ChronologicalPlan,
+        SlotAllocation,
+    )
+
+    now = datetime(2026, 9, 21, 0, 5)
+    pre_dawn, midday, weekly = _risk_day(now)
+
+    def plan(decision):
+        decision.update(should_charge=True, energy_deficit_kwh=2.0)
+        return ChronologicalPlan(
+            allocations=[SlotAllocation(pre_dawn, 2.0, None, "flexible")],
+            total_required_kwh=2.0,
+            flexible_required_kwh=2.0,
+        )
+
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch,
+        now,
+        [pre_dawn, midday, *weekly],
+        plan,
+        risk_slots=[midday],
+        should_charge=True,
+    )
+
+    schedule = ctrl._dynamic_pricing_schedule
+    assert schedule.selected_slots == [pre_dawn, *weekly]
+    assert set(schedule.slot_cost_energy_kwh) == {pre_dawn, *weekly}
+
+
+def test_weekly_slots_survive_a_risk_window_reselection_without_a_plan(monkeypatch):
+    now = datetime(2026, 9, 21, 0, 5)
+    pre_dawn, midday, weekly = _risk_day(now)
+    monkeypatch.setattr(
+        PricingManager, "_net_scalar_grid_carried_load", lambda *_a, **_k: 2.0
+    )
+    monkeypatch.setattr(PricingManager, "_fleet_discharge_limit_w", lambda *_a: None)
+    monkeypatch.setattr(PricingManager, "_planning_coordinators", lambda _self: [])
+
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch,
+        now,
+        [pre_dawn, midday, *weekly],
+        lambda _decision: None,
+        risk_slots=[midday],
+        should_charge=True,
+        energy_deficit_kwh=2.0,
+        planned_grid_charge_kwh=2.0,
+    )
+
+    assert ctrl._dynamic_pricing_schedule.selected_slots == [pre_dawn, *weekly]
+
+
+def test_weekly_only_day_keeps_its_post_solar_slots_with_a_risk_window(monkeypatch):
+    """Without a deficit the re-selection must not arm the pre-dawn slot (#489)."""
+    now = datetime(2026, 9, 21, 0, 5)
+    pre_dawn, midday, weekly = _risk_day(now)
+
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch,
+        now,
+        [pre_dawn, midday, *weekly],
+        lambda _decision: None,
+        risk_slots=[midday],
+    )
+
+    assert ctrl._dynamic_pricing_schedule.selected_slots == weekly
+
+
+def test_a_weekly_slot_inside_the_risk_window_is_dropped(monkeypatch):
+    """Same rule as an ordinary deficit slot: only the safe ones are kept."""
+    now = datetime(2026, 9, 21, 0, 5)
+    pre_dawn, _midday, weekly = _risk_day(now)
+
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch,
+        now,
+        [pre_dawn, *weekly],
+        lambda _decision: None,
+        risk_slots=[weekly[0]],
+    )
+
+    schedule = ctrl._dynamic_pricing_schedule
+    assert schedule.selected_slots == [weekly[1]]
 
 
 def _flat_evening(now, price):

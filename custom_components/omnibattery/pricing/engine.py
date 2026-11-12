@@ -4666,6 +4666,16 @@ class PricingManager:
         except (TypeError, ValueError):
             weekly_reserve_not_after = None
         weekly_selected: list[PriceSlot] = []
+        weekly_only = False
+
+        def _extend_with_weekly(base: list[PriceSlot]) -> list[PriceSlot]:
+            if weekly_only:
+                # Without a deficit, this is the informational cheap-hour
+                # calendar.  Arming it would book the pre-dawn slots #489
+                # exists to avoid.
+                return list(weekly_selected)
+            return base + [slot for slot in weekly_selected if slot not in base]
+
         if weekly_reserve_kwh > 0.0 and weekly_reserve_not_before is not None:
             # After the target day's sun, through the night after it: the run
             # ends at that sunrise, so a slot past it charges nothing to 100%.
@@ -4690,16 +4700,9 @@ class PricingManager:
                 now=eval_now,
             )
             if weekly_selected:
-                if deficit_charging_needed:
-                    deficit_selected.extend(
-                        slot for slot in weekly_selected
-                        if slot not in deficit_selected
-                    )
-                else:
-                    # Without a deficit, this is the informational cheap-hour
-                    # calendar.  Arming it would book the pre-dawn slots #489
-                    # exists to avoid.
-                    deficit_selected = list(weekly_selected)
+                weekly_only = not deficit_charging_needed
+                deficit_selected = _extend_with_weekly(deficit_selected)
+                if weekly_only:
                     deficit_hours_needed = weekly_hours_needed
                     deficit_kwh = max(deficit_kwh, weekly_reserve_kwh)
                 deficit_charging_needed = True
@@ -4824,6 +4827,11 @@ class PricingManager:
                         deficit_selected = [
                             allocation.slot for allocation in chronological_plan.allocations
                         ]
+                if weekly_selected:
+                    # The re-selection above knows nothing about the weekly
+                    # reservation: put its slots back, under the same rule.
+                    weekly_selected = [slot for slot in weekly_selected if _safe(slot)]
+                    deficit_selected = _extend_with_weekly(deficit_selected)
             elif not deficit_charging_needed and opportunity_selected:
                 # The legacy no-deficit calendar is informational only.  Do not
                 # resurrect it while relocating a real opportunity, or the safe
