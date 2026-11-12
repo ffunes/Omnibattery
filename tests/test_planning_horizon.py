@@ -193,7 +193,7 @@ def test_price_data_ending_before_noon_bounds_the_extension_without_sun():
 
 def test_plan_without_dated_periods_gives_tomorrow_no_sun(monkeypatch):
     """Today's remaining scalar stays today: no sun after midnight in the plan."""
-    from custom_components.omnibattery.pricing import engine
+    from custom_components.omnibattery.pricing import plan_inputs
     from custom_components.omnibattery.pricing.solar_timeline import build_boundaries
 
     manager = _manager(None)
@@ -201,13 +201,13 @@ def test_plan_without_dated_periods_gives_tomorrow_no_sun(monkeypatch):
     tracker.calculate_sunrise = lambda *_a: 7.0
     tracker.calculate_solar_noon = lambda *_a: 12.0
     captured = []
-    real = engine.build_solar_timeline
+    real = plan_inputs.build_solar_timeline
 
     def _spy(*args, **kwargs):
         captured.append(real(*args, **kwargs))
         return captured[-1]
 
-    monkeypatch.setattr(engine, "build_solar_timeline", _spy)
+    monkeypatch.setattr(plan_inputs, "build_solar_timeline", _spy)
     now = datetime(2026, 11, 5, 14, 0)
     slots = [_slot(0, hour, 0.10) for hour in range(14, 24)] + _tomorrow({})[:12]
     decision = {
@@ -509,17 +509,17 @@ def test_provider_periods_for_today_are_kept_when_tomorrow_is_learned():
 
 def _plan_solar_split(manager, now, slots, end, remaining):
     """Solar the plan places before / after midnight, via a spy on the timeline."""
-    from custom_components.omnibattery.pricing import engine
+    from custom_components.omnibattery.pricing import plan_inputs
     from custom_components.omnibattery.pricing.solar_timeline import build_boundaries
 
     captured = []
-    real = engine.build_solar_timeline
+    real = plan_inputs.build_solar_timeline
 
     def _spy(*args, **kwargs):
         captured.append(real(*args, **kwargs))
         return captured[-1]
 
-    engine.build_solar_timeline = _spy
+    plan_inputs.build_solar_timeline = _spy
     try:
         base = SolarForecastInput(remaining, "remaining_sensor", periods=None)
         decision = {
@@ -532,7 +532,7 @@ def _plan_solar_split(manager, now, slots, end, remaining):
             now=now, slots=slots, decision_data=decision, price_ceiling=None, planning_end=end
         )
     finally:
-        engine.build_solar_timeline = real
+        plan_inputs.build_solar_timeline = real
     boundaries = build_boundaries(now, end)
     solar = captured[-1].intervals_kwh
     assert len(solar) == len(boundaries)

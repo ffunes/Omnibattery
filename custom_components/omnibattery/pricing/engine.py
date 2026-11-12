@@ -111,7 +111,12 @@ from .chronological import (
     evaluate_chronological_request,
     simulate_allocations,
 )
-from .plan_inputs import consumption_shape
+from .plan_inputs import (  # noqa: F401  (_apply_excluded_demand_claim: re-exported)
+    _apply_excluded_demand_claim,
+    battery_idle_intervals,
+    consumption_shape,
+    solar_timeline,
+)
 from .solar_timeline import (
     build_boundaries,
     build_solar_timeline,
@@ -217,41 +222,6 @@ def _periods_cover(
         period.end > _local(start) and period.start < _local(end)
         for period in periods
     )
-
-
-def _apply_excluded_demand_claim(
-    boundaries: list[tuple[datetime, datetime]],
-    intervals_kwh: list[float],
-    claim_kwh: float,
-    today_end: datetime,
-) -> tuple[list[float], float]:
-    """Reserve an excluded device's remaining demand from today's solar.
-
-    The reservation is spread over the intervals that start before
-    ``today_end``, proportional to their energy, and capped at what those
-    intervals hold. Intervals beyond it belong to tomorrow's forecast in a
-    cross-midnight projection: a sensor reporting demand remaining *today*
-    must never reduce them.
-
-    Returns the adjusted intervals and the claim actually applied.
-    """
-    claim = max(0.0, claim_kwh)
-    if claim <= 0.0:
-        return intervals_kwh, 0.0
-    today_indices = [
-        index
-        for index, (start, _end) in enumerate(boundaries)
-        if start < today_end and intervals_kwh[index] > 0.0
-    ]
-    available = sum(intervals_kwh[index] for index in today_indices)
-    if available <= 0.0:
-        return intervals_kwh, 0.0
-    claim = min(claim, available)
-    factor = (available - claim) / available
-    adjusted = list(intervals_kwh)
-    for index in today_indices:
-        adjusted[index] *= factor
-    return adjusted, claim
 
 
 @dataclass(frozen=True)
@@ -3548,58 +3518,30 @@ class PricingManager:
                         )
                 except Exception as exc:  # noqa: BLE001
                     _LOGGER.debug("Solar timeline: learned profile unavailable: %s", exc)
-            provider_periods = solar_input.periods
-            temporal_shape = solar_input.temporal_shape
-            if is_extended_horizon and provider_periods:
-                # A cross-midnight provider curve may contain a normal overnight
-                # gap. Map its dated periods directly onto the exact boundaries;
-                # the single-day daylight coverage validator cannot represent
-                # two separate solar windows safely.
-                timezone = solar_forecast_local_timezone(
-                    self._hass,
-                    self._controller,
-                    now,
-                )
-                temporal_shape = tuple(
-                    solar_forecast_period_energy_between(
-                        provider_periods,
-                        start,
-                        end,
-                        timezone=timezone,
-                    )
-                    for start, end in boundaries
-                )
-                provider_periods = None
-
-            timeline = build_solar_timeline(
+            solar_result = solar_timeline(
                 boundaries,
-                solar_input.remaining_kwh,
-                safety_margin_kwh=safety,
-                provider_periods=provider_periods,
-                temporal_shape=temporal_shape,
-                learned_shape=(learned_snapshot.shape if learned_snapshot else None),
-                learned_mature=bool(learned_snapshot and learned_snapshot.mature),
+                solar_input,
+                learned_snapshot,
                 solar_start=solar_start_dt,
                 solar_end=solar_end_dt,
                 mode=solar_profile_mode,
+                safety_margin_kwh=safety,
+                # Only an extended horizon with provider periods needs the
+                # timezone, so only then is it read.
+                extended_timezone=(
+                    solar_forecast_local_timezone(self._hass, self._controller, now)
+                    if is_extended_horizon and solar_input.periods
+                    else None
+                ),
+                excluded_claim_kwh=float(
+                    decision_data.get("excluded_demand_claim_kwh", 0.0) or 0.0
+                ),
+                today_end=daily_horizon_end,
             )
-            # Excluded devices reserve part of the remaining forecast (see
-            # _should_activate_grid_charging). The timeline must project the
-            # same solar the scalar balance used, otherwise it would place
-            # deadlines against sunshine another load is going to take. The
-            # reservation is taken out of today's intervals only, proportional
-            # to their energy: the sensor reports demand remaining *today*, and
-            # a cross-midnight projection also carries tomorrow's forecast,
-            # which the claim must never touch. Within today every interval
-            # gives up the same share of its own energy, because we do not know
-            # when the device will draw, which is uniformly conservative.
-            solar, excluded_claim_kwh = _apply_excluded_demand_claim(
-                boundaries,
-                list(timeline.intervals_kwh),
-                float(decision_data.get("excluded_demand_claim_kwh", 0.0) or 0.0),
-                daily_horizon_end,
-            )
-            solar_source = timeline.source
+            timeline = solar_result.timeline
+            solar = solar_result.intervals_kwh
+            excluded_claim_kwh = solar_result.excluded_claim_kwh
+            solar_source = solar_result.source
             # Peak shaving that is conserving now holds the battery to the
             # excess above its limit; the grid carries the rest of the load.
             # Projecting a full overnight drain instead booked a phantom
@@ -3620,21 +3562,6 @@ class PricingManager:
                 0.0,
                 float(getattr(self._controller, "capacity_protection_limit", 0.0) or 0.0),
             ) / 1000.0
-            intervals = [
-                EnergyInterval(
-                    start,
-                    end,
-                    max(
-                        0.0,
-                        consumption[index]
-                        - limit_kw * (end - start).total_seconds() / 3600.0,
-                    )
-                    if held_until is not None and start < held_until
-                    else consumption[index],
-                    solar[index],
-                )
-                for index, (start, end) in enumerate(boundaries)
-            ]
             # A no-discharge window blocks the battery outright, peaks
             # included, so the grid carries all of that interval's load.
             # ponytail: fleet-wide ("all") windows only; a per-battery window
@@ -3648,49 +3575,35 @@ class PricingManager:
                 item for item in configured
                 if item.get("battery_scope", "all") == "all"
             ]
-            if fleet_blocks:
-                intervals = [
-                    item.with_battery_idle()
-                    if any(
-                        self._future_slot_matches_operation_block(item, block)
-                        for block in fleet_blocks
-                    )
-                    else item
-                    for item in intervals
-                ]
             # Price-based discharge control idles the battery whenever the
             # slot price is at or below its threshold (#594), so those
             # intervals drain nothing either. Prices come from the full
             # cached feed, not ``slots``: callers pass only charge candidates
             # (the dashboard its selected slots, the diagnostics refresh none).
             price_block = self._dp_price_discharge_threshold()
+            blocked_price_slots = None
             if price_block is not None:
                 local_end = (
                     horizon_end.replace(tzinfo=None)
                     if horizon_end.tzinfo is None
                     else horizon_end.astimezone(now.tzinfo).replace(tzinfo=None)
                 )
-
-                def wall(value: datetime) -> datetime:
-                    # Price slots are naive local wall time.
-                    if value.tzinfo is None:
-                        return value
-                    return value.astimezone(now.tzinfo).replace(tzinfo=None)
-
-                blocked = [
+                blocked_price_slots = [
                     slot
                     for slot in self.get_future_price_slots(horizon_end=local_end)
                     if slot.price <= price_block
                 ]
-                intervals = [
-                    item.with_battery_idle()
-                    if any(
-                        wall(slot.start) <= wall(item.start) < wall(slot.end)
-                        for slot in blocked
-                    )
-                    else item
-                    for item in intervals
-                ]
+            intervals = battery_idle_intervals(
+                boundaries,
+                consumption,
+                solar,
+                held_until=held_until,
+                limit_kw=limit_kw,
+                fleet_blocks=fleet_blocks,
+                block_matches=self._future_slot_matches_operation_block,
+                blocked_price_slots=blocked_price_slots,
+                tz=now.tzinfo,
+            )
 
             # Time Slot: inside a configured window the battery holds at the
             # energy needed after it (apply_time_slot_floor_hold), so the grid
