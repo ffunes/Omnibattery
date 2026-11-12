@@ -703,17 +703,44 @@ class DischargeReserveManager:
             # future slots alone; a whole-day figure keeps its cumulative share,
             # or the evening would be credited with the morning's production and
             # the reserve would silently never engage.
+            remaining = self._forecast_is_remaining(pricing)
+            spread = slots
+            if remaining:
+                # A remaining-today figure belongs to today's slots only; spread
+                # over tomorrow's daylight too it left today a fraction. Tomorrow's
+                # sun comes from the provider's periods below.
+                timezone = solar_forecast_local_timezone(
+                    self._hass, self._controller, now
+                )
+                local_now = (
+                    now.replace(tzinfo=timezone)
+                    if now.tzinfo is None
+                    else now.astimezone(timezone)
+                )
+                midnight = local_now.replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                ) + timedelta(days=1)
+                spread = [
+                    slot
+                    for slot in slots
+                    if (
+                        slot.start.replace(tzinfo=timezone)
+                        if slot.start.tzinfo is None
+                        else slot.start.astimezone(timezone)
+                    )
+                    < midnight
+                ]
+            solar = {slot: 0.0 for slot in slots}
+            solar.update(
+                distribute_solar_forecast(
+                    spread,
+                    float(forecast_kwh),
+                    fraction_fn,
+                    normalize_future=remaining,
+                )
+            )
             solar = self._follow_measured_production(
-                self._follow_provider_curve(
-                    distribute_solar_forecast(
-                        slots,
-                        float(forecast_kwh),
-                        fraction_fn,
-                        normalize_future=self._forecast_is_remaining(pricing),
-                    ),
-                    now,
-                ),
-                now,
+                self._follow_provider_curve(solar, now), now
             )
         return consumption, solar, fraction_fn
 
