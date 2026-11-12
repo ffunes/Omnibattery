@@ -67,7 +67,59 @@ def test_remaining_solar_distribution_is_renormalized_over_future_slots():
         slots, 1.81, solar_fraction, normalize_future=True
     )
 
-    assert sum(distributed.values()) == pytest.approx(1.81)
+    # Horizon stops at 11:00 (before sunset): only its share of the rest of today.
+    assert sum(distributed.values()) == pytest.approx(1.81 * (2 / 6) / 0.5)
+
+
+def _sun_7_to_17(hour: float) -> float:
+    return max(0.0, min(1.0, (hour - 7.0) / 10.0))
+
+
+def _hourly(start: datetime, count: int) -> list[PriceSlot]:
+    return [
+        PriceSlot(start + timedelta(hours=i), start + timedelta(hours=i + 1), 0.2)
+        for i in range(count)
+    ]
+
+
+def test_remaining_solar_not_piled_into_horizon_that_stops_before_sunset():
+    slots = _hourly(DAY + timedelta(hours=3), 5)  # 03:00-08:00
+
+    distributed = distribute_solar_forecast(
+        slots, 2.8, _sun_7_to_17, normalize_future=True
+    )
+
+    assert distributed[slots[-1]] == pytest.approx(0.28)
+    assert sum(distributed.values()) < 2.8
+
+
+def test_remaining_solar_ignores_next_day_slots_and_zero_rest():
+    night = _hourly(DAY + timedelta(hours=22), 10)  # 22:00 -> 08:00 tomorrow
+    assert all(
+        v == 0.0
+        for v in distribute_solar_forecast(
+            night, 1.0, _sun_7_to_17, normalize_future=True
+        ).values()
+    )
+
+    slots = _hourly(DAY + timedelta(hours=14), 18)  # 14:00 -> 08:00 tomorrow
+    distributed = distribute_solar_forecast(
+        slots, 1.0, _sun_7_to_17, normalize_future=True
+    )
+    assert distributed[slots[-1]] == 0.0
+    today = sum(v for s, v in distributed.items() if s.start.date() == DAY.date())
+    assert today == pytest.approx(1.0)
+
+
+def test_remaining_solar_unchanged_when_horizon_covers_rest_of_day():
+    slots = _hourly(DAY + timedelta(hours=14), 3)  # 14:00-17:00
+
+    distributed = distribute_solar_forecast(
+        slots, 1.5, _sun_7_to_17, normalize_future=True
+    )
+
+    assert sum(distributed.values()) == pytest.approx(1.5)
+    assert all(v == pytest.approx(0.5) for v in distributed.values())
 
 
 def test_remaining_consumption_distribution_covers_future_horizon():
