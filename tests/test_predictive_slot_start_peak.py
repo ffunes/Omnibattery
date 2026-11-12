@@ -312,3 +312,21 @@ def test_a_stale_sample_resets_the_peak_count():
     assert controller._predictive_hard_limit_samples == 0
     assert _confirm(controller, 4650) is False
     assert _confirm(controller, 4650) is True
+
+
+def test_settle_window_with_a_battery_past_its_target_does_not_raise():
+    # A battery past its predictive target may still absorb export (#470).
+    # That path scales by the PD step, which the settle window skips.
+    controller, state_holder, writes = _new_slot(grid=3100)
+    main = controller.coordinators[0]
+    extra = type(main)(name="past-target")
+    controller.coordinators.append(extra)
+    controller._get_available_batteries = (
+        lambda is_charging, ignore_predictive_target=False, **_kwargs: (
+            [main, extra] if ignore_predictive_target else [main]
+        )
+    )
+
+    _publish(controller, state_holder, 3500)
+
+    assert controller._predictive_surplus_power == 0.0

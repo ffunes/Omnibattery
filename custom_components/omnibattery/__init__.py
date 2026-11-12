@@ -7196,7 +7196,7 @@ class ChargeDischargeController:
         surplus_power = 0.0
         if surplus_batteries:
             surplus_power = getattr(self, "_predictive_surplus_power", 0.0)
-            if has_new_control_sample:
+            if has_new_control_sample_for_pd:
                 surplus_power += min(-self.kp * sensor_filtered * p_scale, max_change)
             surplus_power = max(0.0, min(
                 surplus_power,
