@@ -1020,6 +1020,9 @@ def slot_arbitrage_ceilings(
     best_later = float("-inf")
     for slot in reversed(ordered):
         ceilings[slot.start] = best_later if slot.start in bought else float("-inf")
+        if slot.price <= 0:
+            # Stored energy that cost nothing (or paid) never loses to an import.
+            ceilings[slot.start] = max(ceilings[slot.start], 0.0)
         best_later = max(best_later, value(slot))
     return ceilings
 
@@ -1058,8 +1061,8 @@ def effective_charge_ceilings(
     )
     if not future_slots:
         _LOGGER.warning(
-            "Dynamic pricing: arbitrage margin enabled but no price data to "
-            "estimate discharge value, skipping the margin check"
+            "Dynamic pricing: no price data to estimate the discharge value, "
+            "skipping the per-slot arbitrage ceilings"
         )
         return None, None
     finite = [c for c in arb.values() if c != float("-inf")]

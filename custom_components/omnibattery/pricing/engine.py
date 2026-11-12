@@ -6539,6 +6539,10 @@ class PricingManager:
             effective_round_trip_efficiency(self._controller)[0],
             now=now,
         )
+        if weekly_gap_kwh > 0.0:
+            # A full charge is maintenance, not arbitrage: as in the main
+            # evaluation, only the static ceiling applies to it.
+            slot_ceilings = None
         chronological_plan = self._build_chronological_plan(
             now=now,
             slots=slots,

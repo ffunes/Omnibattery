@@ -386,8 +386,6 @@ def test_evening_weekly_fallback_sizes_the_deficit_to_full_soc(monkeypatch):
         PriceSlot(now + timedelta(hours=i), now + timedelta(hours=i + 1), 0.10 + i / 100)
         for i in (1, 2)
     ]
-    # Round-trip losses always count: the charge needs a dear hour after it.
-    slots.append(PriceSlot(now + timedelta(hours=3), now + timedelta(hours=4), 0.60))
 
     async def no_op(*_args, **_kwargs):
         return None
