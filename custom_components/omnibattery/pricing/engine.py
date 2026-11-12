@@ -3537,7 +3537,6 @@ class PricingManager:
                     decision_data.get("excluded_demand_claim_kwh", 0.0) or 0.0
                 ),
                 today_end=daily_horizon_end,
-                builder=build_solar_timeline,
             )
             timeline = solar_result.timeline
             solar = solar_result.intervals_kwh

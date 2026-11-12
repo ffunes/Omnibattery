@@ -124,15 +124,13 @@ def solar_timeline(
     extended_timezone: Any,
     excluded_claim_kwh: float,
     today_end: datetime,
-    builder: Callable[..., SolarTimelineResult] | None = None,
 ) -> SolarTimeline:
     """Per-interval solar of the horizon, net of an excluded device's claim.
 
     ``solar_input`` exposes ``remaining_kwh``, ``periods`` and
     ``temporal_shape``; ``learned_snapshot`` (or ``None``) exposes ``shape`` and
     ``mature``.  ``extended_timezone`` is the local timezone when the horizon
-    is extended past the control one, else ``None``.  ``builder`` replaces
-    ``build_solar_timeline`` (the engine passes its own binding).
+    is extended past the control one, else ``None``.
     """
     provider_periods = solar_input.periods
     temporal_shape = solar_input.temporal_shape
@@ -152,7 +150,7 @@ def solar_timeline(
         )
         provider_periods = None
 
-    timeline = (builder or build_solar_timeline)(
+    timeline = build_solar_timeline(
         boundaries,
         solar_input.remaining_kwh,
         safety_margin_kwh=safety_margin_kwh,

@@ -146,21 +146,6 @@ def test_solar_timeline_maps_extended_periods_onto_the_boundaries():
     assert sum(extended.intervals_kwh[4:]) == pytest.approx(3.0)
 
 
-def test_solar_timeline_uses_the_given_builder():
-    seen = {}
-
-    def builder(boundaries, remaining, **kwargs):
-        seen.update(kwargs, remaining=remaining)
-        return SimpleNamespace(intervals_kwh=(1.0,) * len(boundaries), source="fake")
-
-    bounds = _boundaries(MIDNIGHT, 2)
-    result = _solar(bounds, _solar_input(9.0), mode="shadow", builder=builder)
-    assert result.source == "fake"
-    assert result.intervals_kwh == [1.0, 1.0]
-    assert seen["remaining"] == 9.0 and seen["mode"] == "shadow"
-    assert seen["provider_periods"] is None
-
-
 # ---------------------------------------------------------------------------
 # battery_idle_intervals
 # ---------------------------------------------------------------------------
