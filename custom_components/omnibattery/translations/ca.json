@@ -396,7 +396,7 @@
         "data_description": {
           "start_time": "Hora d'inici de la franja de càrrega (ex: 01:00, tarifa vall)",
           "end_time": "Hora de fi de la franja de càrrega (ex: 06:00)",
-          "days": "Dies en els quals es permet carregar des de la xarxa",
+          "days": "Dies en els quals es permet carregar des de la xarxa. En una franja que creua la mitjanit, cada dia marcat cobreix la seva matinada (fins a l'hora de fi) i la seva nit (des de l'hora d'inici).",
           "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament."
         }
       },
@@ -1175,7 +1175,7 @@
         "data_description": {
           "start_time": "Hora d'inici de la franja de càrrega (ex: 01:00, tarifa vall)",
           "end_time": "Hora de fi de la franja de càrrega (ex: 06:00)",
-          "days": "Dies en els quals es permet carregar des de la xarxa",
+          "days": "Dies en els quals es permet carregar des de la xarxa. En una franja que creua la mitjanit, cada dia marcat cobreix la seva matinada (fins a l'hora de fi) i la seva nit (des de l'hora d'inici).",
           "solar_forecast_sensor": "Sensor que proporciona la predicció de producció solar en kWh (ex: Solcast). Si tens panells solars, configura'l — el sistema només carregarà des de la xarxa quan la previsió solar sigui insuficient. Si no tens panells, deixa'l buit — el sistema carregarà quan la bateria no tingui energia suficient per al dia. No cal si ja has configurat aquest sensor al pas inicial: s'utilitzarà automàticament."
         }
       },

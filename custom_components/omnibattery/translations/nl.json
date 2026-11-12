@@ -386,7 +386,7 @@
         "data_description": {
           "start_time": "Starttijd van het laadvenster (bijv. 01:00, daltarief)",
           "end_time": "Eindtijd van het laadvenster (bijv. 06:00)",
-          "days": "Dagen waarop netladen is toegestaan",
+          "days": "Dagen waarop netladen is toegestaan. Bij een venster dat over middernacht heen loopt, dekt elke geselecteerde dag zijn vroege ochtend (tot de eindtijd) en zijn nacht (vanaf de starttijd).",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt."
         }
       },
@@ -1165,7 +1165,7 @@
         "data_description": {
           "start_time": "Starttijd van het laadvenster (bijv. 01:00, daltarief)",
           "end_time": "Eindtijd van het laadvenster (bijv. 06:00)",
-          "days": "Dagen waarop netladen is toegestaan",
+          "days": "Dagen waarop netladen is toegestaan. Bij een venster dat over middernacht heen loopt, dekt elke geselecteerde dag zijn vroege ochtend (tot de eindtijd) en zijn nacht (vanaf de starttijd).",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt."
         }
       },
