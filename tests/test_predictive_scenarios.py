@@ -181,6 +181,8 @@ def load_scenario(path: Path) -> Scenario:
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     _keys(path.name, raw, _TOP_KEYS, _OPTIONAL_TOP_KEYS)
     _keys("source", raw["source"], {"issue", "kind", "reporter", "date", "url"})
+    if raw["source"]["kind"] not in ("issue", "discussion", "derived", "synthetic"):
+        raise ScenarioError(f"unknown source kind {raw['source']['kind']!r}")
     _keys("settings", raw["settings"], _SETTINGS_KEYS)
     _keys("expected", raw["expected"], _EXPECTED_KEYS, _EXPECTED_KEYS)
     _keys("sun", raw["sun"], {"sunrise", "solar_noon"})

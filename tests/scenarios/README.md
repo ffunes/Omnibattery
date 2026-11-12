@@ -23,7 +23,7 @@ All times are local wall clock without offset (`2026-11-10T19:52:00`).
 
 | Key | Meaning |
 |---|---|
-| `source` | `issue` (number or `null`), `kind` (`issue`, `discussion`, `synthetic`), `reporter`, `date`, `url`. |
+| `source` | `issue` (number or `null`), `kind`, `reporter`, `date`, `url`. `kind` is `issue` or `discussion` for a night as reported, `derived` for a variant of a reported night that nobody reported (say what was changed in `note`), `synthetic` for a made-up case. |
 | `note` | Free text, a string or a list of paragraphs. Say what was reported, list **every assumed number**, and say what the planner does today. |
 | `level` | `allocator` or `engine`. |
 | `xfail` | Optional. The reason a known, unfixed bug makes this file fail. Applied as `xfail(strict=True)`: the test fails loudly once the bug is fixed, and you then delete the key. |
