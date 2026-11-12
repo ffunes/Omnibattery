@@ -3221,7 +3221,8 @@ class ChargeDischargeController:
 
         Time slot re-enters its own initial-evaluation path by clearing the SOC
         reference; dynamic pricing consumes the flag on its next cycle. Real-time
-        price re-decides every cycle on its own and needs neither.
+        price needs neither: it reads the ``_dp_config_dirty_at`` stamp to drop
+        its cached "not needed" decision.
         """
         self.last_evaluation_soc = None
         self._dp_config_dirty = True
