@@ -18,6 +18,7 @@ Run without the Home Assistant runtime: stub hass/entry/controller objects.
 from __future__ import annotations
 
 import asyncio
+from collections import namedtuple
 import re
 from pathlib import Path
 from types import SimpleNamespace
@@ -147,6 +148,90 @@ def test_every_evaluation_sender_is_muted(monkeypatch):
     asyncio.run(_send_all())
     ids = [c[2]["notification_id"] for c in calls if c[1] == "create"]
     assert ids == [EVAL_ID, EVAL_ID, EVAL_ID, EVAL_ID]
+
+
+# Re-send only when the plan changes (#690)
+
+
+def _dedupe_manager(monkeypatch, title=lambda: "needed"):
+    manager, controller, calls = _muted_manager(monkeypatch)
+    monkeypatch.setattr(
+        engine_module.notifications,
+        "format_dynamic_pricing_notification",
+        lambda *a, **k: (title(), "message"),
+    )
+    controller.predictive_charging_notifications_enabled = True
+    return manager, calls
+
+
+_Slot = namedtuple("_Slot", "start end")
+
+
+def _plan(*slots):
+    """Schedule stub: slots is ((start, end), kwh) pairs."""
+    sl = [_Slot(s, e) for (s, e), _ in slots]
+    return SimpleNamespace(
+        selected_slots=sl,
+        slot_energy_targets_kwh={s: kwh for s, (_, kwh) in zip(sl, slots)},
+    )
+
+
+def _creates(calls):
+    return [c for c in calls if c[1] == "create"]
+
+
+def test_same_plan_new_live_values_notifies_once(monkeypatch):
+    manager, calls = _dedupe_manager(monkeypatch)
+
+    async def _run():
+        for soc in (40, 55):
+            await manager._send_dynamic_pricing_notification(
+                {"avg_soc": soc, "usable_energy_kwh": soc / 10}, _plan(((1, 2), 3.0))
+            )
+
+    asyncio.run(_run())
+    assert len(_creates(calls)) == 1
+
+
+@pytest.mark.parametrize(
+    "second",
+    [
+        lambda: _plan(((1, 2), 3.01)),
+        lambda: _plan(((1, 2), 3.0), ((5, 6), 1.0)),
+    ],
+)
+def test_changed_plan_notifies_again(monkeypatch, second):
+    manager, calls = _dedupe_manager(monkeypatch)
+
+    async def _run():
+        await manager._send_dynamic_pricing_notification({}, _plan(((1, 2), 3.0)))
+        await manager._send_dynamic_pricing_notification({}, second())
+
+    asyncio.run(_run())
+    assert len(_creates(calls)) == 2
+
+
+def test_changed_title_notifies_again(monkeypatch):
+    titles = iter(["needed", "not needed"])
+    manager, calls = _dedupe_manager(monkeypatch, title=lambda: next(titles))
+
+    async def _run():
+        await manager._send_dynamic_pricing_notification({}, None)
+        await manager._send_dynamic_pricing_notification({}, None)
+
+    asyncio.run(_run())
+    assert len(_creates(calls)) == 2
+
+
+def test_no_schedule_twice_notifies_once(monkeypatch):
+    manager, calls = _dedupe_manager(monkeypatch)
+
+    async def _run():
+        await manager._send_dynamic_pricing_notification({}, None)
+        await manager._send_dynamic_pricing_notification({}, None)
+
+    asyncio.run(_run())
+    assert len(_creates(calls)) == 1
 
 
 # ---------------------------------------------------------------------------
