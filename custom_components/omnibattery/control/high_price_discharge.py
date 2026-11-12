@@ -29,6 +29,7 @@ guard, an expired slot: all of them fall through to
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 import math
 from datetime import datetime, timedelta
@@ -42,6 +43,7 @@ from ..const import PREDICTIVE_MODE_DYNAMIC_PRICING
 from ..pricing import PriceSlot
 from ..pricing.curtailment import distribute_solar_forecast
 from ..pricing.discharge_reserve import consumption_by_slot
+from ..pricing.plan_inputs import energy_over
 from ..pricing.high_price_discharge import (
     STATUS_FAIL_SAFE,
     STATUS_PLANNED,
@@ -445,6 +447,23 @@ class HighPriceDischargeManager:
                     solar_kwh=0.0,
                 )
             )
+        # The planner's own solar (excluded-device claim and safety margin
+        # included) replaces the curtailment model's over the priced slots.
+        energy_projection = getattr(pricing, "energy_projection", None)
+        projection = (
+            energy_projection(now, horizon_end) if callable(energy_projection) else None
+        )
+        if projection is not None:
+            for index, slot in enumerate(slots):
+                horizon[index] = dataclasses.replace(
+                    horizon[index],
+                    solar_kwh=energy_over(
+                        projection.boundaries,
+                        projection.solar_kwh,
+                        slot.start,
+                        slot.end,
+                    ),
+                )
         return horizon
 
     def _build_fill_slots(

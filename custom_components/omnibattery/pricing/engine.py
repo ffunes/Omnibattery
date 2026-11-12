@@ -117,6 +117,7 @@ from .plan_inputs import (  # noqa: F401  (_apply_excluded_demand_claim: re-expo
     guaranteed_floor,
     weekly_reserve,
     battery_idle_intervals,
+    EnergyProjection,
     consumption_shape,
     solar_timeline,
     time_slot_window_hold,
@@ -3416,6 +3417,163 @@ class PricingManager:
             control_extension=planning_end is not None,
         )
 
+    def _learned_solar_snapshot(
+        self,
+        now: datetime,
+        horizon_end: datetime,
+        tracker: Any,
+        solar_profile_mode: str,
+        solar_start_dt: datetime | None,
+        solar_end_dt: datetime | None,
+    ) -> Any:
+        """Learned solar profile snapshot for the horizon, or None."""
+        solar_profile = getattr(tracker, "solar_profile", None) if tracker is not None else None
+        learned_snapshot = None
+        if solar_profile is not None and solar_profile_mode != "off":
+            try:
+                future_start = future_end = None
+                if solar_start_dt is not None and solar_end_dt is not None:
+                    daylight_seconds = solar_end_dt.timestamp() - solar_start_dt.timestamp()
+                    if daylight_seconds > 0:
+                        future_start = max(
+                            0.0,
+                            min(
+                                1.0,
+                                (now.timestamp() - solar_start_dt.timestamp())
+                                / daylight_seconds,
+                            ),
+                        )
+                        future_end = max(
+                            future_start,
+                            min(
+                                1.0,
+                                (horizon_end.timestamp() - solar_start_dt.timestamp())
+                                / daylight_seconds,
+                            ),
+                        )
+                try:
+                    learned_snapshot = solar_profile.get_snapshot(
+                        target_date=now.date(),
+                        future_progress_start=future_start,
+                        future_progress_end=future_end,
+                    )
+                except TypeError:
+                    # Keep lightweight tracker doubles and older profile
+                    # implementations compatible during the rollout.
+                    learned_snapshot = solar_profile.get_snapshot(
+                        target_date=now.date()
+                    )
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.debug("Solar timeline: learned profile unavailable: %s", exc)
+        return learned_snapshot
+
+    def energy_projection(
+        self, now: datetime, horizon_end: datetime
+    ) -> EnergyProjection | None:
+        """Consumption and solar of the planner's boundaries, or None.
+
+        The planner's own reads and pure inputs, without its battery-idle masks
+        or discharge cap: other features share this one view of the sun and the
+        house and apply their own limits. Callers fall back to their own model
+        when this returns None.
+        """
+        try:
+            tracker = getattr(self._controller, "_consumption_tracker", None)
+            if getattr(tracker, "consumption_profile", None) is None:
+                return None
+            if horizon_end.tzinfo is None:
+                horizon_end = horizon_end.replace(tzinfo=now.tzinfo)
+            elif now.tzinfo is None:
+                horizon_end = horizon_end.replace(tzinfo=None)
+            else:
+                horizon_end = horizon_end.astimezone(now.tzinfo)
+            if horizon_end <= now:
+                return None
+            claim = self._read_excluded_demand_claim_kwh() or 0.0
+            safety = max(
+                0.0,
+                float(
+                    getattr(self._controller, "_predictive_safety_margin_kwh", 0.0)
+                    or 0.0
+                ),
+            )
+            quarter = now.replace(
+                minute=now.minute // 15 * 15, second=0, microsecond=0
+            )
+            # The claim and the margin are cheap reads that change on their own:
+            # keyed in so a new value never waits for the next quarter-hour.
+            key = (quarter, horizon_end, claim, safety)
+            cached = getattr(self, "_energy_projection_cache", None)
+            if cached is not None and cached[0] == key:
+                return cached[1]
+            solar_profile_mode = normalize_solar_profile_mode(
+                getattr(self._controller, "solar_profile_mode", None)
+            )
+            forecast = tracker.forecast_consumption_between(
+                now, horizon_end, fallback="legacy_daily"
+            )
+            if forecast is None:
+                return None
+            daily_horizon_end = now.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) + timedelta(days=1)
+            boundaries = build_boundaries(now, horizon_end)
+            consumption = consumption_shape(
+                forecast,
+                boundaries,
+                horizon_end=horizon_end,
+                daily_horizon_end=daily_horizon_end,
+                scalar_total_kwh=forecast.energy_kwh,
+            )
+            is_extended = horizon_end > self.energy_horizon_end(now)
+            # The input the planner's decision carries: the live read, with
+            # learned periods for tomorrow when the horizon is extended.
+            live_input = self._read_remaining_solar_input(
+                now=now, update_controller=False
+            )
+            if is_extended:
+                live_input = self._with_learned_periods(live_input, now)
+            solar_input = self._solar_timeline_input(
+                now,
+                (
+                    {"solar_forecast_input": live_input}
+                    if live_input is not None and live_input.source != "fallback"
+                    else {}
+                ),
+                horizon_end=horizon_end,
+            )
+            solar_start_dt, solar_end_dt = self._solar_timeline_window(now, tracker)
+            learned_snapshot = self._learned_solar_snapshot(
+                now, horizon_end, tracker, solar_profile_mode, solar_start_dt, solar_end_dt
+            )
+            solar_result = solar_timeline(
+                boundaries,
+                solar_input,
+                learned_snapshot,
+                solar_start=solar_start_dt,
+                solar_end=solar_end_dt,
+                mode=solar_profile_mode,
+                safety_margin_kwh=safety,
+                extended_timezone=(
+                    solar_forecast_local_timezone(self._hass, self._controller, now)
+                    if is_extended and solar_input.periods
+                    else None
+                ),
+                excluded_claim_kwh=claim,
+                today_end=daily_horizon_end,
+            )
+            projection = EnergyProjection(
+                boundaries=tuple(boundaries),
+                consumption_kwh=tuple(consumption),
+                solar_kwh=tuple(solar_result.intervals_kwh),
+                solar_source=solar_result.source,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug("Energy projection unavailable: %s", exc)
+            return None
+        self._energy_projection_cache = (key, projection)
+        return projection
+
     def _build_chronological_plan_for_horizon(
         self,
         *,
@@ -3488,44 +3646,9 @@ class PricingManager:
                 ),
             )
             solar_start_dt, solar_end_dt = self._solar_timeline_window(now, tracker)
-            solar_profile = getattr(tracker, "solar_profile", None) if tracker is not None else None
-            learned_snapshot = None
-            if solar_profile is not None and solar_profile_mode != "off":
-                try:
-                    future_start = future_end = None
-                    if solar_start_dt is not None and solar_end_dt is not None:
-                        daylight_seconds = solar_end_dt.timestamp() - solar_start_dt.timestamp()
-                        if daylight_seconds > 0:
-                            future_start = max(
-                                0.0,
-                                min(
-                                    1.0,
-                                    (now.timestamp() - solar_start_dt.timestamp())
-                                    / daylight_seconds,
-                                ),
-                            )
-                            future_end = max(
-                                future_start,
-                                min(
-                                    1.0,
-                                    (horizon_end.timestamp() - solar_start_dt.timestamp())
-                                    / daylight_seconds,
-                                ),
-                            )
-                    try:
-                        learned_snapshot = solar_profile.get_snapshot(
-                            target_date=now.date(),
-                            future_progress_start=future_start,
-                            future_progress_end=future_end,
-                        )
-                    except TypeError:
-                        # Keep lightweight tracker doubles and older profile
-                        # implementations compatible during the rollout.
-                        learned_snapshot = solar_profile.get_snapshot(
-                            target_date=now.date()
-                        )
-                except Exception as exc:  # noqa: BLE001
-                    _LOGGER.debug("Solar timeline: learned profile unavailable: %s", exc)
+            learned_snapshot = self._learned_solar_snapshot(
+                now, horizon_end, tracker, solar_profile_mode, solar_start_dt, solar_end_dt
+            )
             solar_result = solar_timeline(
                 boundaries,
                 solar_input,

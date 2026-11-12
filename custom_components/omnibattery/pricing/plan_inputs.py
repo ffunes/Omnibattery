@@ -187,6 +187,35 @@ def solar_timeline(
     return SolarTimeline(timeline, solar, claim, timeline.source)
 
 
+def energy_over(
+    boundaries: Sequence[tuple[datetime, datetime]],
+    values: Sequence[float],
+    start: datetime,
+    end: datetime,
+) -> float:
+    """Energy (kWh) of ``values`` between ``start`` and ``end``, weighted by overlap."""
+    total = 0.0
+    for (b_start, b_end), value in zip(boundaries, values):
+        overlap = (min(b_end, end) - max(b_start, start)).total_seconds()
+        if overlap > 0.0:
+            total += value * overlap / (b_end - b_start).total_seconds()
+    return total
+
+
+@dataclass(frozen=True)
+class EnergyProjection:
+    """Home consumption and solar over the planner's 15-minute boundaries.
+
+    Built from the planner's own pure inputs, without the battery-idle masks or
+    the discharge cap, so every consumer shares one solar and consumption view.
+    """
+
+    boundaries: tuple[tuple[datetime, datetime], ...]
+    consumption_kwh: tuple[float, ...]
+    solar_kwh: tuple[float, ...]
+    solar_source: str
+
+
 def battery_idle_intervals(
     boundaries: Sequence[tuple[datetime, datetime]],
     consumption: Sequence[float],
