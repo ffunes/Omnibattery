@@ -1547,8 +1547,9 @@ class PricingManager:
         )
 
     def _opportunistic_target_for(self, coordinator) -> float:
-        """Return this battery's configured maximum SOC opportunity ceiling."""
-        return float(coordinator.max_soc)
+        """Return the SOC ceiling the controller charges to (100% on a weekly day)."""
+        ceiling = getattr(self._controller, "_charge_ceiling_soc", None)
+        return float(ceiling(coordinator)) if callable(ceiling) else float(coordinator.max_soc)
 
     def _opportunistic_battery_eligible(self, coordinator) -> bool:
         """Return whether runtime ownership allows this battery to participate."""
@@ -1588,17 +1589,23 @@ class PricingManager:
         return needed
 
     def _opportunistic_target_pending(self) -> bool:
-        """Return whether at least one battery remains below its own target."""
+        """Return whether at least one battery remains below its own target.
+
+        With no eligible battery this cycle the answer is unknown, not
+        "target reached": report True so the plan survives a transient gap.
+        """
+        any_eligible = False
         for coordinator in getattr(self._controller, "coordinators", []):
             data = getattr(coordinator, "data", None)
             if not self._opportunistic_battery_eligible(coordinator):
                 continue
+            any_eligible = True
             try:
                 if float(data.get("battery_soc", 0.0) or 0.0) < self._opportunistic_target_for(coordinator):
                     return True
             except (TypeError, ValueError):
                 continue
-        return False
+        return not any_eligible
 
     def _current_price_is_opportunistic(self) -> bool:
         """Validate the live normalized import price against the inclusive gate."""
