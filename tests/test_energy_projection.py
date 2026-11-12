@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
-import sys
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -125,10 +124,6 @@ def test_projection_matches_the_planners_request(monkeypatch):
     scenario = _sunny_scenario()
     ctrl, mgr = _build(scenario, monkeypatch)
     requests = []
-    # This test only reads the request; keep it out of the refactor golden.
-    golden = sys.modules.get("tests.golden_requests")
-    if golden is not None:
-        monkeypatch.setitem(golden._state, "nodeid", None)
     evaluate = mgr.evaluate_chronological_projection
 
     def _recording(request):

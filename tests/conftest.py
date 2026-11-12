@@ -15,7 +15,6 @@ To opt a future test into loading the integration, request the
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 import time
 
@@ -40,11 +39,6 @@ def pytest_configure(config: pytest.Config) -> None:
     Scoped to Windows only: on Linux/CI the guard works and is kept, so accidental
     network use is still caught there.
     """
-    if os.environ.get("OMNI_GOLDEN") in ("record", "check"):
-        from tests import golden_requests
-
-        config.pluginmanager.register(golden_requests, "omni_golden")
-
     if sys.platform != "win32":
         return
 
