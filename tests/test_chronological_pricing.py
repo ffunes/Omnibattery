@@ -1515,7 +1515,7 @@ def test_a_night_slot_crossing_hours_left_to_the_grid_is_labelled_with_its_deadl
     assert all(label <= BASE + timedelta(hours=9) for label in labels)
 
 
-def _group_night_plan(*, first_hour=0, peak_price=0.68, early_kwh=0.1):
+def _group_night_plan(*, first_hour=0, peak_price=0.68, early_kwh=0.1, first_price=0.41):
     # #834: hourly night slots at 0.41 from ``first_hour`` to 06:00 (left to
     # the grid: 0.41 x 0.80 - 0.05 is under it), each holding 1.5 kW x 0.85 =
     # 1.275 kWh, less than the 2.0 kWh 06:00-07:00 drains.  A 07:00-09:00
@@ -1524,7 +1524,10 @@ def _group_night_plan(*, first_hour=0, peak_price=0.68, early_kwh=0.1):
         [early_kwh] * 24 + [0.5] * 4 + [0.5] * 8
     )
     intervals = [_interval(i, kwh) for i, kwh in enumerate(consumption)]
-    slots = [_slot(60 * h, 60 * h + 60, 0.41) for h in range(first_hour, 6)] + [
+    slots = [
+        _slot(60 * h, 60 * h + 60, first_price if h == first_hour else 0.41)
+        for h in range(first_hour, 6)
+    ] + [
         _slot(360, 420, 0.50),
         _slot(420, 540, peak_price),
     ]
@@ -1564,6 +1567,19 @@ def test_hours_inside_a_group_slot_are_not_drain():
         peak_kwh + drain_after_group_kwh, abs=1e-6
     )
     assert all(a.slot.start.hour < 6 for a in plan.allocations)
+
+
+def test_a_group_charge_reaches_the_end_of_the_group():
+    """#834: the drain is counted only after the group's last slot, so what
+    is booked must reach it. Filled cheapest first, the 00:00 slot (0.30) and
+    the next ones would cover the need and leave 05:00-06:00 empty, where the
+    house drains the stored energy uncounted."""
+    plan = _group_night_plan(first_price=0.30)
+
+    by_hour = {a.slot.start.hour: a.planned_battery_kwh for a in plan.allocations}
+    assert by_hour.get(5, 0.0) > 0.0
+    booked = sorted(hour for hour, kwh in by_hour.items() if kwh > 1e-9)
+    assert booked == list(range(booked[0], 6))
 
 
 def test_a_group_is_not_booked_when_the_peak_barely_repays_the_drain():

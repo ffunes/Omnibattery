@@ -1173,9 +1173,23 @@ def allocate_price_slots(
                     usable_g = sum(usables.values())
                     entries = crossing_entries(members[-1], start, deadline.deadline)
                     drain_g = sum(e[1] for e in entries)
+                    need = min(missing, max(0.0, usable_g - drain_g)) + drain_g
+                    # Filled from the group's end backwards, so what is booked
+                    # always reaches the last member: an unbooked tail would
+                    # drain the stored energy in hours counted as covered.
+                    # ponytail: prefers the group's later slots over cheaper
+                    # earlier ones; cheapest-first needs the drain recomputed.
+                    fill: list[tuple[PriceSlot, float]] = []
+                    left = need
+                    for item in reversed(members):
+                        amount = min(left, usables[item])
+                        if amount > _EPSILON:
+                            fill.append((item, amount))
+                            left -= amount
+                    filled = sum(amount for _item, amount in fill)
                     price_g = (
-                        sum(usables[item] * item.price for item in members) / usable_g
-                        if usable_g > _EPSILON
+                        sum(amount * item.price for item, amount in fill) / filled
+                        if filled > _EPSILON
                         else slot.price
                     )
                     loss_g = sum(e[1] * (price_g - e[2]) for e in entries)
@@ -1186,11 +1200,8 @@ def allocate_price_slots(
                             price_g, index, missing, usable_g - drain_g
                         ) > loss_g
                     ):
-                        need = min(missing, usable_g - drain_g) + drain_g
                         booked_total = 0.0
-                        for item in sorted(
-                            members, key=lambda item: (item.price, item.start)
-                        ):
+                        for item in reversed(members):
                             free_now = free_of(item)
                             usable_now = min(
                                 room(item, free_now) if clip else free_now,
