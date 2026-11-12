@@ -321,9 +321,11 @@ class PricingManager:
         Normally ``energy_horizon_end``. Once tomorrow's prices are published it
         extends to the end of the price data, bounded to the sunrise after
         tomorrow (#710), so tonight's slots are valued against tomorrow's solar
-        and evening peak. It only extends when it can plan the extra day
-        properly: dated provider periods covering tomorrow (with the solar
-        profile mode not off) and a learned consumption profile. Without either, behaviour is unchanged.
+        and evening peak. It only extends with the solar profile mode not off
+        and a learned consumption profile. Without dated periods for tomorrow
+        it extends without tomorrow's sun, only to tomorrow's solar noon (the
+        morning peak), so it never buys tonight for tomorrow afternoon/evening
+        on a sun it cannot see.
         """
         control_end = self.energy_horizon_end(now)
         # Why the horizon did (not) extend, published as a diagnostic (#817).
@@ -347,19 +349,42 @@ class PricingManager:
         solar_input = self._read_remaining_solar_input(now=now, update_controller=False)
         periods = solar_input.periods if solar_input is not None else None
         tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        if not periods or solar_forecast_period_energy_between(
-            periods,
-            tomorrow,
-            end,
-            timezone=solar_forecast_local_timezone(self._hass, self._controller, now),
-        ) <= 1e-9:
-            self.planning_horizon_reason = "no_tomorrow_solar_periods"
-            return control_end
+        timezone = solar_forecast_local_timezone(self._hass, self._controller, now)
+
+        def _local(value: datetime) -> datetime:
+            return (
+                value.replace(tzinfo=timezone)
+                if value.tzinfo is None
+                else value.astimezone(timezone)
+            )
+
+        # Coverage, not energy: a dated forecast of 0 kWh (snowy day) is data.
+        covered = bool(periods) and any(
+            period.end > _local(tomorrow) and period.start < _local(end)
+            for period in periods
+        )
+        if not covered:
+            tracker = getattr(self._controller, "_consumption_tracker", None)
+            try:
+                noon_h = tracker.calculate_solar_noon(tomorrow.date())
+            except (AttributeError, TypeError, ValueError):
+                noon_h = None
+            if noon_h is None:
+                noon_h = 12.0
+            # ponytail: no learned-profile sun for tomorrow yet; the noon cut is
+            # what keeps the purchase bounded; a learned-profile source for
+            # tomorrow is the planned follow-up.
+            end = min(end, tomorrow + timedelta(hours=float(noon_h)))
+            if end <= control_end:
+                self.planning_horizon_reason = "no_tomorrow_solar_periods"
+                return control_end
         forecast = self._profile_remaining_consumption(now, end)
         if forecast is None or forecast.source != "profile":
             self.planning_horizon_reason = "no_consumption_profile"
             return control_end
-        self.planning_horizon_reason = "extended"
+        self.planning_horizon_reason = (
+            "extended" if covered else "extended_no_tomorrow_solar"
+        )
         return end
 
     def _extended_planning_end(self, now: datetime) -> datetime | None:
