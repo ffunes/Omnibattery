@@ -50,6 +50,10 @@
       "title": "De netvermogenssensor werkt te langzaam bij",
       "description": "De geconfigureerde netsensor {sensor} werkt ongeveer elke {observed_interval} seconden bij. Intervallen van {warning_interval} seconden of meer zijn trager dan aanbevolen en kunnen de regelkwaliteit verminderen. Omnibattery volgt de laatste meting totdat deze ouder is dan {stale_limit} seconden. Gebruik een snellere sensor als u een nauwkeurigere realtime regeling nodig hebt."
     },
+    "planner_fallback": {
+      "title": "De laadplanner is teruggevallen op de keuze van de goedkoopste uren",
+      "description": "De chronologische laadplanner is mislukt ({error}). Voorspellend laden blijft werken, maar boekt nu de goedkoopste uren zonder te weten wanneer de energie nodig is, en kan dus op vreemde tijden laden. Meld dit op GitHub met de diagnostiek van de integratie. Dit bericht verdwijnt vanzelf zodra de planner weer werkt."
+    },
     "price_data_unusable": {
       "title": "Prijsdata onbruikbaar",
       "description": "Omnibattery kon langer dan {minutes} minuten geen bruikbare prijsslots uit {sensor} lezen (status: {status}). Prijsgestuurd laden is daardoor inactief: de dynamic-pricing planning en de prijsgestuurde vrijgave van de laadvertraging vallen terug op hun gedrag zonder prijzen. Controleer of de sensor beschikbaar is en of het prijsattribuut een lijst met items is; een template-sensor moet ISO-8601-tijdstempels teruggeven, omdat een gerenderd Python-datetime niet terug naar een lijst kan worden omgezet."

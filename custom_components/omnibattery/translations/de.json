@@ -50,6 +50,10 @@
       "title": "Der Netzleistungssensor aktualisiert zu langsam",
       "description": "Der konfigurierte Netzsensor {sensor} aktualisiert ungefähr alle {observed_interval} Sekunden. Intervalle von {warning_interval} Sekunden oder mehr sind langsamer als empfohlen und können die Regelqualität verringern. Omnibattery folgt dem letzten Messwert, bis er älter als {stale_limit} Sekunden ist. Verwenden Sie einen schnelleren Sensor, wenn Sie eine präzisere Echtzeitregelung benötigen."
     },
+    "planner_fallback": {
+      "title": "Der Ladeplaner ist auf die Auswahl der günstigsten Stunden zurückgefallen",
+      "description": "Der chronologische Ladeplaner ist fehlgeschlagen ({error}). Das vorausschauende Laden funktioniert weiter, bucht jetzt aber die günstigsten Stunden, ohne zu wissen, wann die Energie gebraucht wird, und lädt daher möglicherweise zu ungewöhnlichen Zeiten. Bitte melde das auf GitHub zusammen mit den Diagnosedaten der Integration. Diese Meldung verschwindet von selbst, sobald der Planer wieder funktioniert."
+    },
     "price_data_unusable": {
       "title": "Preisdaten unbrauchbar",
       "description": "Omnibattery konnte über {minutes} Minuten lang keine nutzbaren Preisslots aus {sensor} lesen (Status: {status}). Preisgesteuertes Laden ist dadurch inaktiv: die Planung nach dynamischen Preisen und die preisgesteuerte Freigabe der Ladeverzögerung fallen auf ihr Verhalten ohne Preise zurück. Prüfen Sie, ob der Sensor verfügbar ist und sein Preisattribut eine Liste von Einträgen enthält; ein Template-Sensor muss ISO-8601-Zeitstempel liefern, da ein gerendertes Python-datetime nicht zurück in eine Liste umgewandelt werden kann."

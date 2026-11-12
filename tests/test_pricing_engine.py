@@ -3643,3 +3643,110 @@ def test_excluded_demand_reeval_cap_rolls_over_at_midnight():
 
     assert manager._excluded_demand_reeval_count_today(_CLAIM_NOW) == 0
     assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is True
+
+
+# ----------------------------------------------------------------------
+# Planner fallback visibility (B9)
+# ----------------------------------------------------------------------
+
+def _planner_fallback_rig(monkeypatch):
+    """Manager whose chronological builder fails while ``state['fail']`` is set."""
+    madrid = ZoneInfo("Europe/Madrid")
+    now = datetime(2026, 8, 24, 10, 0, tzinfo=madrid)
+    shape = [0.0] * INTERVAL_COUNT
+    forecast = ConsumptionForecast(1.0, shape, "profile", True)
+    state = {"fail": True}
+
+    def forecast_between(*_args, **_kwargs):
+        if state["fail"]:
+            raise ValueError("boom " + "x" * 300)
+        return forecast
+
+    ctrl = _controller(
+        _consumption_tracker=SimpleNamespace(
+            consumption_profile=SimpleNamespace(),
+            forecast_consumption_between=forecast_between,
+        ),
+        solar_profile_mode="off",
+        _predictive_safety_margin_kwh=0.0,
+        coordinators=[],
+        _is_battery_manual_owned=lambda _coordinator: False,
+        max_contracted_power=0.0,
+        max_charge_capacity=0.0,
+        hass=SimpleNamespace(),
+        config_entry=SimpleNamespace(entry_id="abc123"),
+    )
+    created: list = []
+    deleted: list = []
+    fake_ir = SimpleNamespace(
+        IssueSeverity=SimpleNamespace(ERROR="error"),
+        async_create_issue=lambda hass, domain, issue_id, **kw: created.append(
+            (issue_id, kw)
+        ),
+        async_delete_issue=lambda hass, domain, issue_id: deleted.append(issue_id),
+    )
+    monkeypatch.setattr(pricing_engine, "ir", fake_ir)
+    manager = _mgr(ctrl)
+
+    def build():
+        decision_data = {
+            "avg_consumption_kwh": 1.0,
+            "solar_forecast_input": SolarForecastInput(0.0, "none"),
+        }
+        plan = manager._build_chronological_plan_for_horizon(
+            now=now,
+            slots=[],
+            decision_data=decision_data,
+            price_ceiling=None,
+            diagnostic_only=True,
+            horizon_end=now + timedelta(hours=6),
+            persist_diagnostics=False,
+        )
+        return plan, decision_data
+
+    return state, build, created, deleted
+
+
+def test_planner_fallback_raises_repair_issue_and_logs_error_once(
+    monkeypatch, caplog
+):
+    _state, build, created, _deleted = _planner_fallback_rig(monkeypatch)
+
+    with caplog.at_level("DEBUG", logger=pricing_engine._LOGGER.name):
+        plan, decision_data = build()
+        errors_first = [r for r in caplog.records if r.levelname == "ERROR"]
+        caplog.clear()
+        build()
+        errors_second = [r for r in caplog.records if r.levelname == "ERROR"]
+
+    # The fallback outcome itself is unchanged.
+    assert plan is None
+    assert decision_data["chronological_planning_active"] is False
+    assert decision_data["chronological_plan_reason"].startswith("fallback: boom")
+
+    assert len(errors_first) == 1
+    assert errors_second == []
+    assert len(created) == 1
+    issue_id, kwargs = created[0]
+    assert issue_id == "planner_fallback_abc123"
+    assert kwargs["translation_key"] == "planner_fallback"
+    assert kwargs["is_fixable"] is False
+    assert kwargs["is_persistent"] is False
+    error = kwargs["translation_placeholders"]["error"]
+    assert error.startswith("ValueError: boom")
+    assert len(error) == 200
+
+
+def test_planner_recovery_deletes_the_issue_once(monkeypatch):
+    state, build, created, deleted = _planner_fallback_rig(monkeypatch)
+
+    build()
+    assert len(created) == 1 and deleted == []
+
+    state["fail"] = False
+    plan, _ = build()
+    assert plan is not None
+    assert deleted == ["planner_fallback_abc123"]
+
+    build()
+    assert deleted == ["planner_fallback_abc123"]
