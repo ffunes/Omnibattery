@@ -3162,12 +3162,14 @@ class ChargeDischargeController:
         (they cap the charge rate the slots are sized with), the system power
         limits, Vacation Mode (the consumption forecast), Charge Delay, and the
         Smart Pre-Discharge and Negative-Price Charging switches, whose slots
-        would otherwise stay in the calendar after switching off. Per-battery
-        power limits are left out: some drivers write them straight to the
-        device, without an entry update.
+        would otherwise stay in the calendar after switching off. Price-based
+        discharge control and its discharge price threshold count too: the
+        plan projects the battery idle in every interval priced at or below
+        the threshold. Per-battery power limits are left out: some drivers
+        write them straight to the device, without an entry update.
 
-        Settings read live every cycle (discharge floor, minimum savings,
-        High-Price Sale) need no re-plan and stay out.
+        Settings read live every cycle (minimum savings, High-Price Sale)
+        need no re-plan and stay out.
         ``test_replan_inputs.py`` sorts every config-backed controller setting
         into one of these groups.
         """
@@ -3197,6 +3199,8 @@ class ChargeDischargeController:
             bool(getattr(self, "charge_delay_enabled", False)),
             bool(getattr(self, "smart_predischarge_enabled", False)),
             bool(getattr(self, "negative_price_charging_enabled", False)),
+            _rounded(getattr(self, "discharge_price_threshold", None)),
+            bool(getattr(self, "dp_price_discharge_control", False)),
             tuple(
                 (
                     getattr(c, "device_key", None),
