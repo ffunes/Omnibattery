@@ -319,6 +319,92 @@ class PricingManager:
             return midnight
         return midnight + timedelta(hours=max(0.0, min(12.0, float(sunrise))))
 
+    def _time_slot_windows(
+        self, now: datetime
+    ) -> list[tuple[int, datetime, datetime]]:
+        """Configured windows as ``(index, start, end)`` runs around ``now``.
+
+        Uses the ``days`` semantics of ``_time_slot_price_slots_for_horizon``:
+        a window runs on each listed date by the date of its parts. Parts of
+        the same window that touch at midnight are joined, so an overnight
+        window is one run.
+        """
+        tz = now.tzinfo
+        day_names = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+        runs: list[tuple[int, datetime, datetime]] = []
+        today = now.date()
+        for index, configured in enumerate(
+            getattr(self._controller, "charging_time_slots", [])
+        ):
+            if not isinstance(configured, dict):
+                continue
+            if configured.get("enabled", True) is False:
+                continue
+            days = configured.get("days", []) or []
+            try:
+                start_time = dt_time.fromisoformat(str(configured["start_time"]))
+                end_time = dt_time.fromisoformat(str(configured["end_time"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            parts: list[tuple[datetime, datetime]] = []
+            for offset in range(-1, 9):
+                day = today + timedelta(days=offset)
+                if day_names[day.weekday()] not in days:
+                    continue
+                day_start = datetime.combine(day, dt_time.min, tzinfo=tz)
+                start = datetime.combine(day, start_time, tzinfo=tz)
+                end = datetime.combine(day, end_time, tzinfo=tz)
+                if start_time <= end_time:
+                    parts.append((start, end))
+                else:
+                    parts.append((day_start, end))
+                    parts.append((start, day_start + timedelta(days=1)))
+            parts.sort()
+            for start, end in parts:
+                if end <= start:
+                    continue
+                if runs and runs[-1][0] == index and runs[-1][2] >= start:
+                    runs[-1] = (index, runs[-1][1], max(runs[-1][2], end))
+                else:
+                    runs.append((index, start, end))
+        return runs
+
+    def _next_time_slot_start(self, now: datetime) -> datetime | None:
+        """Start of the next window after the active one, or None.
+
+        The next occurrence of a different configured window, strictly after
+        the end of the window active at ``now`` (or after ``now`` when none
+        is): the same window's next day does not count. Looks at most 7 days
+        ahead and respects ``days`` and ``enabled`` (#611).
+        """
+        runs = self._time_slot_windows(now)
+        active = next(
+            (run for run in runs if run[1] <= now < run[2]), None
+        )
+        after = active[2] if active is not None else now
+        limit = now + timedelta(days=7)
+        starts = [
+            start
+            for index, start, _end in runs
+            if (active is None or index != active[0])
+            and after < start <= limit
+        ]
+        return min(starts) if starts else None
+
+    def _time_slot_horizon_end(self, now: datetime) -> tuple[datetime, bool]:
+        """Horizon the Time Slot balance and plan size the charge against.
+
+        ``(horizon_end, from_next_window)``: the next window's start, never
+        past the next sunrise; local midnight when there is no next window.
+        """
+        next_start = self._next_time_slot_start(now)
+        if next_start is None:
+            midnight = now.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) + timedelta(days=1)
+            return midnight, False
+        return min(next_start, self.energy_horizon_end(now)), True
+
     def planning_horizon_end(self, now: datetime, slots: Sequence[PriceSlot]) -> datetime:
         """Horizon the charge planner looks at, given the known price ``slots``.
 
@@ -3427,13 +3513,15 @@ class PricingManager:
         diagnostic_only: bool = False,
         slot_ceilings: Mapping[datetime, float] | None = None,
         planning_end: datetime | None = None,
+        horizon_end: datetime | None = None,
     ) -> ChronologicalPlan | None:
         """Build the controller-owned plan through the energy horizon.
 
         ``planning_end`` is the extended horizon of ``planning_horizon_end``
         (#710); the plan is then sized from its deadlines, not the scalar.
+        ``horizon_end`` only moves the end (Time Slot's next window, #611).
         """
-        horizon_end = planning_end or self.energy_horizon_end(now)
+        horizon_end = horizon_end or planning_end or self.energy_horizon_end(now)
         return self._build_chronological_plan_for_horizon(
             now=now,
             slots=slots,
@@ -4332,7 +4420,12 @@ class PricingManager:
         controller = self._controller
         controller._active_time_slot_quota_kwh = None
         controller._time_slot_floor_kwh = None
-        candidates = self._time_slot_price_slots(now)
+        # The balance and the plan size the same horizon (#611).
+        horizon_end, from_next_window = self._time_slot_horizon_end(now)
+        if from_next_window:
+            candidates = self._time_slot_price_slots_for_horizon(now, horizon_end)
+        else:
+            candidates = self._time_slot_price_slots(now)
         if not candidates:
             return decision_data
         plan = self._build_chronological_plan(
@@ -4340,6 +4433,7 @@ class PricingManager:
             slots=candidates,
             decision_data=decision_data,
             price_ceiling=None,
+            horizon_end=horizon_end if from_next_window else None,
         )
         if plan is None:
             return decision_data
@@ -6200,12 +6294,18 @@ class PricingManager:
             ) is not None
         ):
             current = now or self._now()
-            midnight = current.replace(
-                hour=0, minute=0, second=0, microsecond=0
-            ) + timedelta(days=1)
+            if (
+                getattr(self._controller, "predictive_charging_mode", None)
+                == PREDICTIVE_MODE_TIME_SLOT
+            ):
+                horizon_end, _ = self._time_slot_horizon_end(current)
+            else:
+                horizon_end = current.replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                ) + timedelta(days=1)
             return await self._evaluate_remaining_grid_charging(
                 now=current,
-                horizon_end=midnight,
+                horizon_end=horizon_end,
             )
         return await self._controller._should_activate_grid_charging()
 
