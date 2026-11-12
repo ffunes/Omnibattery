@@ -396,7 +396,7 @@
         "data_description": {
           "start_time": "Hora de inicio de la franja de carga (ej: 01:00, tarifa valle)",
           "end_time": "Hora de fin de la franja de carga (ej: 06:00)",
-          "days": "Días en los que se permite cargar desde red",
+          "days": "Días en los que se permite cargar desde red. En una franja que cruza la medianoche, cada día marcado cubre su madrugada (hasta la hora de fin) y su noche (desde la hora de inicio).",
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
@@ -1175,7 +1175,7 @@
         "data_description": {
           "start_time": "Hora de inicio de la franja de carga (ej: 01:00, tarifa valle)",
           "end_time": "Hora de fin de la franja de carga (ej: 06:00)",
-          "days": "Días en los que se permite cargar desde red",
+          "days": "Días en los que se permite cargar desde red. En una franja que cruza la medianoche, cada día marcado cubre su madrugada (hasta la hora de fin) y su noche (desde la hora de inicio).",
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },

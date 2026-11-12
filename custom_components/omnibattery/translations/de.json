@@ -386,7 +386,7 @@
         "data_description": {
           "start_time": "Startzeit des Ladefensters (z.B. 01:00, Niedrigtarif)",
           "end_time": "Endzeit des Ladefensters (z.B. 06:00)",
-          "days": "Tage, an denen Netzladung erlaubt ist",
+          "days": "Tage, an denen Netzladung erlaubt ist. Bei einem Fenster, das über Mitternacht reicht, deckt jeder gewählte Tag seinen frühen Morgen (bis zur Endzeit) und seine Nacht (ab der Startzeit) ab.",
           "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
         }
       },
@@ -1165,7 +1165,7 @@
         "data_description": {
           "start_time": "Startzeit des Ladefensters (z.B. 01:00, Niedrigtarif)",
           "end_time": "Endzeit des Ladefensters (z.B. 06:00)",
-          "days": "Tage, an denen Netzladung erlaubt ist",
+          "days": "Tage, an denen Netzladung erlaubt ist. Bei einem Fenster, das über Mitternacht reicht, deckt jeder gewählte Tag seinen frühen Morgen (bis zur Endzeit) und seine Nacht (ab der Startzeit) ab.",
           "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
         }
       },

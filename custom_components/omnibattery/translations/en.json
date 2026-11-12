@@ -392,7 +392,7 @@
         "data_description": {
           "start_time": "Start time of charging window (e.g., 01:00, off-peak tariff)",
           "end_time": "End time of charging window (e.g., 06:00)",
-          "days": "Days when grid charging is allowed",
+          "days": "Days when grid charging is allowed. For a window that crosses midnight, each selected day runs its early-morning part (until the end time) and its night part (from the start time).",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },
@@ -1167,7 +1167,7 @@
         "data_description": {
           "start_time": "Start time of charging window (e.g., 01:00, off-peak tariff)",
           "end_time": "End time of charging window (e.g., 06:00)",
-          "days": "Days when grid charging is allowed",
+          "days": "Days when grid charging is allowed. For a window that crosses midnight, each selected day runs its early-morning part (until the end time) and its night part (from the start time).",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },

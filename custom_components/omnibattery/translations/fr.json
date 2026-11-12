@@ -386,7 +386,7 @@
         "data_description": {
           "start_time": "Heure de début de la fenêtre de charge (ex : 01:00, tarif heures creuses)",
           "end_time": "Heure de fin de la fenêtre de charge (ex : 06:00)",
-          "days": "Jours où la charge depuis le réseau est autorisée",
+          "days": "Jours où la charge depuis le réseau est autorisée. Pour une plage qui franchit minuit, chaque jour sélectionné couvre sa matinée (jusqu'à l'heure de fin) et sa soirée (à partir de l'heure de début).",
           "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement."
         }
       },
@@ -1165,7 +1165,7 @@
         "data_description": {
           "start_time": "Heure de début de la fenêtre de charge (ex : 01:00, tarif heures creuses)",
           "end_time": "Heure de fin de la fenêtre de charge (ex : 06:00)",
-          "days": "Jours où la charge depuis le réseau est autorisée",
+          "days": "Jours où la charge depuis le réseau est autorisée. Pour une plage qui franchit minuit, chaque jour sélectionné couvre sa matinée (jusqu'à l'heure de fin) et sa soirée (à partir de l'heure de début).",
           "solar_forecast_sensor": "Capteur fournissant la prévision de production solaire en kWh (ex : Solcast). Avec panneaux solaires : configurez ce capteur — le système ne chargera depuis le réseau que si la prévision est insuffisante. Sans panneaux solaires : laissez vide — le système chargera quand l'énergie de la batterie est insuffisante pour la journée. Non requis si ce capteur a déjà été configuré à l'étape initiale — il sera utilisé automatiquement."
         }
       },
