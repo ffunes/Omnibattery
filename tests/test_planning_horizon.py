@@ -497,6 +497,16 @@ def test_dated_periods_for_tomorrow_win_over_the_learned_profile():
     assert manager._with_learned_periods(provided, NOW) is provided
 
 
+def test_provider_periods_for_today_are_kept_when_tomorrow_is_learned():
+    today_only = (
+        SolarForecastPeriod(datetime(2026, 11, 5, 9, tzinfo=UTC), datetime(2026, 11, 5, 10, tzinfo=UTC), 1.0),
+    )
+    manager = _learned(_manager(today_only))
+    learned = manager._with_learned_periods(manager._read_remaining_solar_input(), NOW)
+    assert learned.periods[: len(today_only)] == today_only
+    assert sum(p.energy_kwh for p in learned.periods[len(today_only):]) == pytest.approx(BUDGET)
+
+
 def _plan_solar_split(manager, now, slots, end, remaining):
     """Solar the plan places before / after midnight, via a spy on the timeline."""
     from custom_components.omnibattery.pricing import engine

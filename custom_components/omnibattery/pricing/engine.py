@@ -2968,7 +2968,7 @@ class PricingManager:
             sunrise = tracker.calculate_sunrise(tomorrow)
             noon = tracker.calculate_solar_noon(tomorrow)
             remaining = solar_input.remaining_kwh if solar_input else 0.0
-            if remaining > 0:
+            if remaining > 0 and not (solar_input and solar_input.periods):
                 today_snapshot = profile.get_snapshot(target_date=today)
                 solar_start, solar_end = self._solar_timeline_window(local_now, tracker)
         except (AttributeError, TypeError, ValueError):
@@ -2988,8 +2988,9 @@ class PricingManager:
         total = sum(weights) if weights else 0.0
         if not weights or total <= 0.0:
             return None
-        periods: list[SolarForecastPeriod] = []
-        if remaining > 0:
+        # A provider's own curve for today is kept; only tomorrow is learned.
+        periods: list[SolarForecastPeriod] = list(solar_input.periods or ()) if solar_input else []
+        if remaining > 0 and not periods:
             today_boundaries = build_boundaries(local_now, tomorrow_midnight)
             timeline = build_solar_timeline(
                 today_boundaries,
