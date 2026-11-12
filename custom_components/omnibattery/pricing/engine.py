@@ -7709,6 +7709,15 @@ class PricingManager:
                 )
                 return
             await self._controller._handle_predictive_grid_charging()
+            if (
+                not self._controller.grid_charging_active
+                and self._controller._realtime_price_charging
+            ):
+                # Every battery reached its target: the charge is done, not
+                # failed. Let the next cycle evaluate again in this cheap
+                # period (the "not needed" cache keeps that cheap).
+                self._controller._realtime_price_charging = False
+                self._controller._predictive_charge_target_soc = None
 
     # =========================================================================
     # TIME SLOT: predictive charging handler

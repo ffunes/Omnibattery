@@ -181,6 +181,42 @@ def test_price_based_discharge_control_moves_the_fingerprint():
     assert _fingerprint(ctrl) != before
 
 
+def _slot(**overrides):
+    slot = {
+        "start_time": "22:00:00",
+        "end_time": "06:00:00",
+        "days": ["mon", "tue"],
+        "enabled": True,
+        "battery_scope": "all",
+    }
+    slot.update(overrides)
+    return slot
+
+
+def _ctrl_with_slots(slots):
+    return _ctrl(
+        config_entry=SimpleNamespace(data={"no_discharge_time_slots": slots})
+    )
+
+
+def test_a_fleet_wide_no_discharge_slot_moves_the_fingerprint():
+    # The planner projects the battery idle inside these windows, and the
+    # slot's own switch only updates the entry.
+    ctrl = _ctrl_with_slots([_slot()])
+    before = _fingerprint(ctrl)
+    ctrl.config_entry.data["no_discharge_time_slots"] = [_slot(enabled=False)]
+    assert _fingerprint(ctrl) != before
+
+
+def test_a_single_battery_no_discharge_slot_leaves_the_fingerprint():
+    ctrl = _ctrl_with_slots([_slot(battery_scope="battery_1")])
+    before = _fingerprint(ctrl)
+    ctrl.config_entry.data["no_discharge_time_slots"] = [
+        _slot(battery_scope="battery_1", enabled=False, start_time="23:00:00")
+    ]
+    assert _fingerprint(ctrl) == before
+
+
 @pytest.mark.parametrize("name", sorted(LIVE | OWN_PATH | RELOAD))
 def test_any_other_setting_leaves_the_fingerprint(name):
     ctrl = _ctrl(**{name: 0})

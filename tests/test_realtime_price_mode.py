@@ -271,3 +271,57 @@ def test_should_charge_decision_is_not_cached():
     _cycle(env)
 
     assert len(env.calls) == 2
+
+
+# ---------------------------------------------------------------------------
+# A completed charge does not end the cheap period's evaluation
+# ---------------------------------------------------------------------------
+
+def _complete_on_next_call(env):
+    async def _complete():
+        env.handled.append(env.clock["now"])
+        env.controller.grid_charging_active = False
+        env.controller._grid_charging_initialized = False
+
+    env.controller._handle_predictive_grid_charging = _complete
+
+
+def test_completed_charge_clears_the_realtime_flag_without_a_shortfall():
+    env = _engine(charging=True)
+    _complete_on_next_call(env)
+
+    _cycle(env)
+
+    assert env.controller.grid_charging_active is False
+    assert env.controller._realtime_price_charging is False
+    assert env.controller._predictive_charge_target_soc is None
+    assert env.controller._last_decision_data is None
+
+
+def test_charge_restarts_in_the_same_cheap_period_after_completing():
+    env = _engine(charging=True, should_charge=True)
+    _complete_on_next_call(env)
+    _cycle(env)
+    assert env.controller._realtime_price_charging is False
+
+    async def _keep_charging():
+        env.handled.append(env.clock["now"])
+
+    env.controller._handle_predictive_grid_charging = _keep_charging
+    env.clock["now"] += timedelta(seconds=2.5)
+    _cycle(env)
+
+    assert env.controller._realtime_price_charging is True
+    assert env.controller.grid_charging_active is True
+    assert len(env.calls) == 1
+
+
+def test_batteries_out_of_comms_do_not_count_as_a_completed_charge():
+    # _handle_predictive_grid_charging returns with the flag untouched.
+    env = _engine(charging=True)
+
+    _cycle(env)
+
+    assert env.controller.grid_charging_active is True
+    assert env.controller._realtime_price_charging is True
+    assert env.handled == [NOW]
